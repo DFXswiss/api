@@ -1,13 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { ArkadeService } from 'src/integration/blockchain/arkade/arkade.service';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { PayoutBroadcastException } from '../exceptions/payout-broadcast.exception';
 
 @Injectable()
 export class PayoutArkadeService {
   constructor(private readonly arkadeService: ArkadeService) {}
 
   async sendTransaction(address: string, amount: number): Promise<string> {
-    return this.arkadeService.sendTransaction(address, amount).then((r) => r.txid);
+    try {
+      const result = await this.arkadeService.sendTransaction(address, amount);
+      return result.txid;
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async isHealthy(): Promise<boolean> {

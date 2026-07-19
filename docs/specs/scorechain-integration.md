@@ -367,6 +367,19 @@ and consistent — no untyped failures, no silent passes:
    it must never be returned to customers or partner webhooks; only Support/Compliance read it
    (e.g. the `RoleGuard(SUPPORT)`-gated support-issue data endpoint). Do not add a Scorechain-named
    `AmlReason` and do not surface `comment` in any customer-facing DTO.
+
+   **HighRisk vs. Unavailable (DFXswiss/api#4205):** a real Scorechain hit and a
+   provider/infrastructure failure (5xx, timeout, quota reached, misconfiguration,
+   unexpected throw) are different events and must not collapse into the same classification —
+   a Prod incident showed a Buy-Crypto tx routed to manual review with comment
+   `ScorechainHighRisk` although Scorechain had returned HTTP 500 and no
+   `scorechain_screening` row or compliance PDF ever existed for it. The
+   call-site now returns a `ScorechainOutcome` (`PASS` / `HIGH_RISK` / `UNAVAILABLE`,
+   `scorechain-outcome.enum.ts`) instead of a boolean; `HIGH_RISK` still maps to
+   `AmlError.SCORECHAIN_HIGH_RISK`, and the new `AmlError.SCORECHAIN_UNAVAILABLE` (mapped
+   identically: `{ type: CRUCIAL, amlCheck: PENDING, amlReason: MANUAL_CHECK }`) covers the failure
+   case. Customer-facing fail-closed behaviour is unchanged (both still route to manual review);
+   only the internal classification — visible in `comment` and stats — is now accurate.
 2. **TMS depth:** the **synchronous `scoringAnalysis` gate is the only implemented flow**. The
    async TMS workflow (`register*` → scenarios/alerts) is a license-gated feature
    (`NotIncludedInLicense`) that DFX does **not** license. Its placeholder client methods, the
@@ -381,10 +394,14 @@ and consistent — no untyped failures, no silent passes:
    `SCORECHAIN_MONTHLY_CHECK_LIMIT` (or a provider/transport error) throws
    `ServiceUnavailableException` inside the screening service. The AML call-site
    (`screenScorechain` in `buy-crypto-preparation` / `buy-fiat-preparation`) catches it and
-   returns high risk, so the tx is routed to manual review (`AmlError.SCORECHAIN_HIGH_RISK` →
-   `CheckStatus.PENDING`) instead of throwing out of the AML computation. Letting the throw escape
-   the compute path would silently stall settlement of every otherwise-passing tx on every cron
-   run, so the error is deliberately caught at the seam.
+   returns `ScorechainOutcome.UNAVAILABLE`, so the tx is routed to manual review
+   (`AmlError.SCORECHAIN_UNAVAILABLE` → `CheckStatus.PENDING`) instead of throwing out of the AML
+   computation — deliberately **not** `SCORECHAIN_HIGH_RISK`, since no risk verdict could be
+   established: for a transport/quota error neither a `scorechain_screening` row nor a compliance
+   PDF exists, but for a missing risk-threshold configuration both may already have been
+   persisted before the throw. Letting the throw escape the compute path would
+   silently stall settlement of every otherwise-passing tx on every cron run, so the error is
+   deliberately caught at the seam.
 5. **ikna coexistence:** run both fully in parallel (no routing rule); Scorechain is additive.
 6. **Live pipeline injection (call-sites):** the async screening is wired into the synchronous
    AML pipeline (`screenScorechain` is threaded through `amlCheckAndFillUp` for every buy/sell that

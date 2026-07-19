@@ -6,6 +6,7 @@
  */
 
 import { HttpService } from 'src/shared/services/http.service';
+import { TxBroadcastError } from '../../../shared/errors/tx-broadcast.error';
 import { BitcoinClient } from '../bitcoin-client';
 
 // Mock Config and GetConfig
@@ -204,13 +205,14 @@ describe('BitcoinClient', () => {
       expect(result.outTxId).toBe('newtxid123');
     });
 
-    it('should handle empty result gracefully', async () => {
+    it('should keep an empty result fail-closed', async () => {
       mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
       mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
 
-      const result = await client.send('bc1qrecipient', 'inputtxid', 0.5, 0, 10);
-
-      expect(result.outTxId).toBe('');
+      await expect(client.send('bc1qrecipient', 'inputtxid', 0.5, 0, 10)).rejects.toMatchObject({
+        name: 'TxBroadcastError',
+        message: 'Bitcoin broadcast returned an empty txid',
+      });
     });
   });
 
@@ -284,6 +286,144 @@ describe('BitcoinClient', () => {
       const result = await client.sendMany(payload, 10);
 
       expect(result).toBe('newtxid123');
+    });
+
+    // Bitcoin Core's `send` RPC builds, signs and broadcasts atomically in one node call - a
+    // failure here (including an HTTP-level timeout) is ambiguous, so it must surface as
+    // TxBroadcastError rather than a plain Error, mirroring the Cardano/Solana broadcast boundary.
+    it('should wrap a failure of the underlying `send` RPC call into a TxBroadcastError', async () => {
+      // BitcoinRpcClient.call() itself wraps any transport-level rejection into a plain Error
+      // prefixed with "Bitcoin RPC <method> failed: ..." before it reaches sendMany - that
+      // intermediate Error is what our TxBroadcastError boundary observes and preserves as cause.
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
+      mockRpcPost.mockImplementationOnce(() => Promise.reject(new Error('Invalid amount')));
+
+      let error: unknown;
+      try {
+        await client.sendMany(payload, 10);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Bitcoin RPC send failed: Invalid amount');
+      expect((error as TxBroadcastError).cause).toBeInstanceOf(Error);
+      expect(((error as TxBroadcastError).cause as Error).message).toBe('Bitcoin RPC send failed: Invalid amount');
+    });
+
+    it('should wrap a non-Error rejection of the `send` RPC call into a TxBroadcastError via String(e)', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
+      mockRpcPost.mockImplementationOnce(() => Promise.reject('node unreachable'));
+
+      let error: unknown;
+      try {
+        await client.sendMany(payload, 10);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Bitcoin RPC send failed: node unreachable');
+    });
+
+    it('should wrap an empty/missing txid on a resolved `send` response into a TxBroadcastError (fail-closed)', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.resolve({ result: { complete: true }, error: null, id: 'test' }),
+      );
+
+      let error: unknown;
+      try {
+        await client.sendMany(payload, 10);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Bitcoin broadcast returned an empty txid');
+    });
+
+    it('should keep an allowlisted RPC code delivered over HTTP 500 plain', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.reject({
+          response: { status: 500, data: { error: { code: -6, message: 'Insufficient funds' } } },
+          message: 'Request failed with status code 500',
+        }),
+      );
+
+      await expect(client.sendMany(payload, 10)).rejects.not.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it('should keep a non-allowlisted RPC code delivered over HTTP 500 fail-closed', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.reject({
+          response: { status: 500, data: { error: { code: -4, message: 'Wallet error' } } },
+          message: 'Request failed with status code 500',
+        }),
+      );
+
+      await expect(client.sendMany(payload, 10)).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it('should keep a bare HTTP 500 without a parsed RPC error fail-closed', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.reject({
+          response: { status: 500, data: 'Internal Server Error' },
+          code: 'ERR_BAD_RESPONSE',
+          message: 'Request failed with status code 500',
+        }),
+      );
+
+      await expect(client.sendMany(payload, 10)).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it('should keep an ECONNREFUSED connection failure plain', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+      const connectionError = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() => Promise.reject(connectionError));
+
+      await expect(client.sendMany(payload, 10)).rejects.not.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it('should keep a node warm-up (RPC_IN_WARMUP / -28) plain so restarts self-heal', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.reject({
+          response: { status: 500, data: { error: { code: -28, message: 'Verifying blocks...' } } },
+          message: 'Request failed with status code 500',
+        }),
+      );
+
+      await expect(client.sendMany(payload, 10)).rejects.not.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it('should keep an ECONNABORTED timeout fail-closed', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+      const timeoutError = Object.assign(new Error('timeout exceeded'), { code: 'ECONNABORTED' });
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() => Promise.reject(timeoutError));
+
+      await expect(client.sendMany(payload, 10)).rejects.toBeInstanceOf(TxBroadcastError);
     });
   });
 

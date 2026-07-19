@@ -79,7 +79,7 @@ export class PaymentBalanceService implements OnModuleInit {
     await Promise.all(
       groupedAssets.map(async ([chain, assets]) => {
         const client = this.blockchainRegistryService.getClient(chain);
-        if (!client) {
+        if (!client || !client.isConfigured) {
           if (!this.unavailableWarningsLogged.has(chain)) {
             this.logger.warn(`Blockchain client not configured for ${chain} - skipping payment balance`);
             this.unavailableWarningsLogged.add(chain);

@@ -5,6 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncField } from 'src/shared/utils/async-field';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
+import { TxBroadcastError } from '../shared/errors/tx-broadcast.error';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 
 export interface ArkadeTransaction {
@@ -52,16 +53,45 @@ export class ArkadeClient extends BlockchainClient {
   // --- TRANSACTION METHODS --- //
 
   async sendTransaction(to: string, amount: number): Promise<{ txid: string; fee: number }> {
-    return this.call(async (wallet) => {
-      const amountSats = Math.round(amount * 1e8);
+    // Pre-broadcast: resolving the wallet handle never calls sendBitcoin, so a failure here is
+    // provably pre-broadcast. Reset the cache so the next retry gets a fresh connection attempt
+    // instead of repeating a possibly permanently-rejected cached promise.
+    let wallet: Wallet;
+    try {
+      wallet = await this.wallet;
+    } catch (e) {
+      this.wallet.reset();
+      this.cachedAddress.reset();
+      throw e;
+    }
 
+    const amountSats = Math.round(amount * 1e8);
+
+    // Broadcast boundary: wallet.sendBitcoin signs AND broadcasts atomically inside the SDK - there
+    // is no separate pre-broadcast step to isolate, so any failure from here on is ambiguous (the
+    // tx may already be on-chain). Deliberately NOT routed through this.call()'s reconnect-and-retry:
+    // that wrapper re-invokes the whole operation on a connection-classified error, which for a
+    // broadcast would risk sending twice. Reset the cache on such an error so only the *next* call
+    // reconnects, without resending this one.
+    try {
       const txid = await wallet.sendBitcoin({
         address: to,
         amount: amountSats,
       });
 
+      // An empty txid from the SDK is an ambiguous silent failure - fail-closed rather than
+      // returning it and letting the empty id roll the order back for re-broadcast.
+      if (!txid) throw new TxBroadcastError('Arkade broadcast returned an empty txid');
+
       return { txid, fee: 0 };
-    });
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
+      if (e?.message?.includes('disconnected') || e?.message?.includes('connection')) {
+        this.wallet.reset();
+        this.cachedAddress.reset();
+      }
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   async getTransaction(txId: string): Promise<ArkadeTransaction> {

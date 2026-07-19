@@ -39,6 +39,8 @@ export class LightningStrategy extends PayoutStrategy {
     if (await this.isHealthy()) {
       for (const order of orders) {
         try {
+          if (!(await this.designateBeforeBroadcast(order, this.payoutOrderRepo))) continue;
+
           const address = order.destinationAddress;
           const amount = order.amount;
 
@@ -46,6 +48,8 @@ export class LightningStrategy extends PayoutStrategy {
           await this.finishDoPayout(order, txId);
         } catch (e) {
           this.logger.error(`Error while executing Lightning payout order ${order.id}:`, e);
+
+          await this.handleBroadcastError(order, e, this.payoutOrderRepo);
         }
       }
     }

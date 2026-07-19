@@ -60,6 +60,13 @@ export interface BalancesTotal {
   plusBalanceChf: number;
   minusBalanceChf: number;
   totalBalanceChf: number;
+  /**
+   * Per-interval price effect (FX P&L) of the open positions vs. the previous snapshot: the sum over
+   * assets of each one's previous net position times the change in its CHF price. Customer flow is
+   * balance-neutral, so `ΔtotalBalanceChf ≈ transactional yield + fxPnlChf + errors`. Absent (not 0) on
+   * the first entry, which has no previous snapshot to diff against.
+   */
+  fxPnlChf?: number;
 }
 
 export interface BalancesByFinancialType {
@@ -84,7 +91,9 @@ export interface AssetLog {
     priceChf: number;
     plusBalance: AssetLogPlusBalance;
     minusBalance: AssetLogMinusBalance;
-    error: string;
+    // the writer's error line is currently disabled (log-job.service.ts getAssetLog) — serialized entries carry no
+    // error field, so the type must not promise one
+    error?: string;
   };
 }
 
@@ -119,8 +128,8 @@ type AssetLogPlusBalance = {
 type AssetLogLiquidity = {
   total: number;
   liquidityBalance?: AssetLogPlusCustom;
-  paymentDepositBalance?: number;
-  manualLiqPosition?: number;
+  paymentDepositBalance?: { total: number };
+  manualLiqPosition?: { total: number };
 };
 
 type AssetLogMinusBalance = {
@@ -183,6 +192,8 @@ type ChangeMinusBalance = {
   bank?: number;
   kraken?: ChangeExchangeBalance;
   binance?: ChangeExchangeBalance;
+  scrypt?: ChangeExchangeBalance;
+  mexc?: ChangeExchangeBalance;
   blockchain?: ChangeBlockchainBalance;
   ref?: ChangeRefBalance;
 };

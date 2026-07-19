@@ -21,18 +21,19 @@ import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.se
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
-import { Bank } from '../bank/bank/bank.entity';
-import { BankService } from '../bank/bank/bank.service';
+import { BankTxOutgoingMatchService } from '../bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
-import { VirtualIbanService } from '../bank/virtual-iban/virtual-iban.service';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
+import { FiatOutputFrickService } from './fiat-output-frick.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
 import { FiatOutputRepository } from './fiat-output.repository';
+import { FiatOutputService } from './fiat-output.service';
 
 @Injectable()
 export class FiatOutputJobService {
@@ -43,8 +44,8 @@ export class FiatOutputJobService {
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
+    private readonly bankTxOutgoingMatchService: BankTxOutgoingMatchService,
     private readonly ep2ReportService: Ep2ReportService,
-    private readonly bankService: BankService,
     private readonly countryService: CountryService,
     private readonly assetService: AssetService,
     private readonly logService: LogService,
@@ -52,7 +53,8 @@ export class FiatOutputJobService {
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly yapealService: YapealService,
     private readonly olkypayService: OlkypayService,
-    private readonly virtualIbanService: VirtualIbanService,
+    private readonly frickPayoutService: FiatOutputFrickService,
+    private readonly fiatOutputService: FiatOutputService,
     private readonly scryptService: ScryptService,
   ) {}
 
@@ -64,6 +66,7 @@ export class FiatOutputJobService {
     await this.checkTransmission();
     await this.transmitYapealPayments();
     await this.transmitOlkypayPayments();
+    await this.frickPayoutService.transmitPayments();
     await this.searchOutgoingBankTx();
   }
 
@@ -123,38 +126,25 @@ export class FiatOutputJobService {
   // --- HELPER METHODS --- //
 
   private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
-    // Try remittanceInfo first
-    if (entity.remittanceInfo) {
-      const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
-      if (bankTx) return bankTx;
-    }
-
-    // Fallback to endToEndId (used for Yapeal LiqManagement payments)
-    if (entity.endToEndId) {
-      const bankTx = await this.bankTxService.getBankTxByEndToEndId(entity.endToEndId);
-      if (bankTx) return bankTx;
-    }
-
-    return undefined;
+    return this.bankTxOutgoingMatchService.getUniqueOutgoingBankTx({
+      // Frick's bank-echoed reference lives in frickReference - the untouched, customer-facing
+      // remittanceInfo is never what the bank actually echoes back for a Frick payout. Every other
+      // bank never sets frickReference, so this falls straight through to remittanceInfo for them.
+      remittanceInfo: entity.frickReference ?? entity.remittanceInfo,
+      endToEndId: entity.endToEndId,
+      accountIban: entity.sourceIban,
+      amount: entity.amount,
+      currency: entity.currency,
+      earliestDate: entity.isReadyDate,
+    });
   }
 
-  private async getPayoutAccount(entity: FiatOutput, country: Country): Promise<{ accountIban: string; bank: Bank }> {
-    // use virtual IBAN if existing
-    if (entity.userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(entity.type)) {
-      const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
-        entity.userData,
-        entity.currency ?? entity.bankAccountCurrency,
-      );
-
-      if (virtualIban?.bank?.send && virtualIban.bank.isCountryEnabled(country))
-        return { accountIban: virtualIban.iban, bank: virtualIban.bank };
-    }
-
-    // fallback to standard bank account selection
-    const bank = await this.bankService.getSenderBank(entity.currency ?? entity.bankAccountCurrency);
-    return bank?.isCountryEnabled(country)
-      ? { accountIban: bank.iban, bank }
-      : { accountIban: undefined, bank: undefined };
+  private async getPayoutAccount(
+    entity: FiatOutput,
+    country: Country,
+  ): Promise<{ accountIban: string | undefined; bank: Bank | undefined }> {
+    const currency = entity.currency ?? entity.bankAccountCurrency;
+    return this.fiatOutputService.selectPayoutBank(currency, entity.type, entity.userData, entity.isInstant, country);
   }
 
   private async assignBankAccount(): Promise<void> {
@@ -232,6 +222,10 @@ export class FiatOutputJobService {
         switch (tx.bank?.name) {
           case IbanBankName.YAPEAL:
             return !tx.isTransmittedDate;
+          case IbanBankName.FRICK:
+            // A PREPARED Frick order can wait for manual approval for days. Keep its amount reserved until
+            // reconciliation or a terminal failure state, otherwise later payouts can overdraw the account.
+            return !this.frickPayoutService.isFrickTerminalState(tx.frickOrderStatus);
           case IbanBankName.OLKY:
             return !tx.bankTx || tx.bankTx.created > Util.minutesBefore(5);
           default:
@@ -242,6 +236,7 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
+          if (entity.bank?.name === IbanBankName.FRICK && !this.frickPayoutService.canCreatePayments()) continue;
           if (
             (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
             entity.type === FiatOutputType.BUY_FIAT
@@ -266,8 +261,9 @@ export class FiatOutputJobService {
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
-          // Skip EUR transactions that are not routed through Olkypay
-          if (entity.currency === 'EUR' && entity.bank?.name !== IbanBankName.OLKY) continue;
+          // EUR is only automated through the dedicated REST payout rails.
+          if (entity.currency === 'EUR' && ![IbanBankName.OLKY, IbanBankName.FRICK].includes(entity.bank?.name))
+            continue;
 
           if (availableBalance > entity.bankAmount) {
             updatedFiatOutputAmount += entity.bankAmount;
@@ -313,13 +309,16 @@ export class FiatOutputJobService {
     )
       return;
 
-    const entities = await this.fiatOutputRepo.findBy({
-      amount: Not(IsNull()),
-      isReadyDate: Not(IsNull()),
-      batchId: IsNull(),
-      isComplete: false,
-      bank: { name: Not(In([IbanBankName.YAPEAL, IbanBankName.OLKY])) },
-    });
+    const automatedBanks = [IbanBankName.YAPEAL, IbanBankName.OLKY, IbanBankName.FRICK];
+    const entities = (
+      await this.fiatOutputRepo.findBy({
+        amount: Not(IsNull()),
+        isReadyDate: Not(IsNull()),
+        batchId: IsNull(),
+        isComplete: false,
+        bank: { name: Not(In(automatedBanks)) },
+      })
+    ).filter((entity) => !automatedBanks.includes(entity.bank?.name));
 
     let currentBatch: FiatOutput[] = [];
     let currentBatchId = (await this.getLastBatchId()) + 1;
@@ -507,6 +506,7 @@ export class FiatOutputJobService {
     const entities = await this.fiatOutputRepo.find({
       where: {
         amount: Not(IsNull()),
+        isReadyDate: Not(IsNull()),
         isComplete: false,
         bankTx: { id: IsNull() },
       },
@@ -515,8 +515,9 @@ export class FiatOutputJobService {
 
     for (const entity of entities) {
       try {
+        if (!entity.isReadyDate) continue;
         const bankTx = await this.getMatchingBankTx(entity);
-        if (!bankTx || (entity.isReadyDate && entity.isReadyDate > bankTx.created)) continue;
+        if (!bankTx) continue;
 
         const updateData: Partial<FiatOutput> = {
           bankTx,
@@ -524,9 +525,15 @@ export class FiatOutputJobService {
           isComplete: true,
         };
 
-        if ((entity.yapealMsgId || entity.olkyOrderId) && !entity.isConfirmedDate) {
+        if (
+          (entity.yapealMsgId || entity.olkyOrderId || entity.frickOrderId || entity.frickCustomId) &&
+          !entity.isConfirmedDate
+        ) {
           updateData.isConfirmedDate = bankTx.created;
         }
+
+        if ((entity.frickOrderId || entity.frickCustomId) && !entity.isApprovedDate)
+          updateData.isApprovedDate = bankTx.created;
 
         await this.fiatOutputRepo.update(entity.id, updateData);
 

@@ -12,6 +12,7 @@ import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wall
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
+import { TypeOrmLogger } from 'src/shared/services/typeorm-logger';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -22,8 +23,10 @@ import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { RealUnitLegalAgreement } from 'src/subdomains/supporting/realunit/enums/realunit-legal-agreement.enum';
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
+import { buildFrickConfig } from './frick.config';
 
 export type NetworkName = 'mainnet' | 'testnet' | 'regtest';
 
@@ -111,6 +114,16 @@ export class Configuration {
       batchAmountLimit: 9500,
     },
     usePipelinePriceForAllAssets: process.env.USE_PIPELINE_PRICE_FOR_ALL_ASSETS === 'true',
+  };
+
+  ledger = {
+    reconciliationToleranceChf: +(process.env.LEDGER_RECONCILIATION_TOLERANCE_CHF ?? 1),
+    transitAlarmThresholdDays: +(process.env.LEDGER_TRANSIT_ALARM_THRESHOLD_DAYS ?? 3),
+    backfillBatchSize: +(process.env.LEDGER_BACKFILL_BATCH_SIZE ?? 100),
+    roundingToleranceCents: +(process.env.LEDGER_ROUNDING_TOLERANCE_CENTS ?? 2),
+    markPreloadDailySampleThresholdDays: +(process.env.LEDGER_MARK_PRELOAD_DAILY_SAMPLE_THRESHOLD_DAYS ?? 2), // §5.2 bounded preload
+    markPreloadMaxRows: +(process.env.LEDGER_MARK_PRELOAD_MAX_ROWS ?? 5000), // §5.2 hard row-cap backstop
+    unroutedDepositAlarmDays: +(process.env.LEDGER_UNROUTED_DEPOSIT_ALARM_DAYS ?? 3), // §7.5 age-alarm
   };
 
   defaultVolumeDecimal = 2;
@@ -229,7 +242,13 @@ export class Configuration {
     migrations: ['migration/*.js'],
     connectTimeoutMS: 30000,
     poolSize: +(process.env.SQL_POOL_MAX ?? 10),
-    logging: process.env.SQL_LOGGING as LoggerOptions,
+    // TypeORM uses a provided logger instance directly and would ignore the `logging` option, which is
+    // why TypeOrmLogger receives the SQL_LOGGING options itself: query/schema logging stays env-driven
+    // while pg NOTICEs (migration counters) always surface to stdout/Loki.
+    logger: new TypeOrmLogger(process.env.SQL_LOGGING as LoggerOptions),
+    // Forward pg NOTICE/NOTIFY to the logger; boot-blocking migrations emit reconciliation counters via
+    // RAISE NOTICE that would otherwise be discarded (see TypeOrmLogger).
+    logNotifications: true,
     ssl:
       process.env.SQL_SSL === 'false'
         ? false
@@ -774,6 +793,14 @@ export class Configuration {
     ],
   };
 
+  payout = {
+    // Cap on auto-retries for a payout order that fails provably before the on-chain send call
+    // (e.g. EVM gas estimation/nonce fetch or a bitcoin-family rollback-safe send failure). Beyond
+    // this, a permanently failing pre-broadcast step escalates to PAYOUT_UNCERTAIN instead of
+    // retrying forever.
+    maxPreBroadcastRetries: +(process.env.PAYOUT_MAX_PRE_BROADCAST_RETRIES ?? 3),
+  };
+
   blockchain = {
     default: {
       user: process.env.NODE_USER,
@@ -1103,6 +1130,18 @@ export class Configuration {
         2024: 1.13,
         2025: 1.37,
       } as Record<number, number>,
+      // Current version (format YYYYMMDD) of each RealUnit legal agreement the user must accept. Acceptances are
+      // stored per version (real_unit_legal_acceptance), so bumping an entry here to the day the document changed
+      // reports every user who only accepted an older version as needing re-acceptance — no migration required.
+      // `satisfies` keeps the literal versions while enforcing that every agreement has an entry at compile time.
+      legalVersions: {
+        [RealUnitLegalAgreement.RESIDENCE_CONFIRMATION]: '20260712',
+        [RealUnitLegalAgreement.TAX_DOMICILE_SELF_CERTIFICATION]: '20260712',
+        [RealUnitLegalAgreement.REALUNIT_PRIVACY_POLICY]: '20260712',
+        [RealUnitLegalAgreement.REALUNIT_REGISTRATION_AGREEMENT]: '20260712',
+        [RealUnitLegalAgreement.AKTIONARIAT_TERMS_OF_SERVICE]: '20260712',
+        [RealUnitLegalAgreement.DFX_TERMS_AND_CONDITIONS]: '20260712',
+      } satisfies Record<RealUnitLegalAgreement, string>,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
@@ -1175,6 +1214,7 @@ export class Configuration {
         clientSecret: process.env.OLKY_CLIENT_SECRET,
       },
     },
+    frick: buildFrickConfig(process.env),
     raiffeisen: {
       credentials: {
         url: process.env.RAIFFEISEN_EBICS_URL,

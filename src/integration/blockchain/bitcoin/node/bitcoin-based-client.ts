@@ -3,8 +3,15 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
+import { TxBroadcastError, toBroadcastBoundaryError } from '../../shared/errors/tx-broadcast.error';
 import { CoinOnly } from '../../shared/util/blockchain-client';
 import { NodeClient, NodeClientConfig } from './node-client';
+
+const BITCOIN_PRE_BROADCAST_RPC_CODES = [
+  -6, // RPC_WALLET_INSUFFICIENT_FUNDS (Bitcoin Core src/rpc/protocol.h)
+  -13, // RPC_WALLET_UNLOCK_NEEDED (Bitcoin Core src/rpc/protocol.h)
+  -28, // RPC_IN_WARMUP (Bitcoin Core src/rpc/protocol.h) — NodeNotReadyError carries this code; request never executes
+];
 
 export interface TransactionHistory {
   address: string;
@@ -48,9 +55,19 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
       replaceable: true,
     };
 
-    const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
+    // Broadcast boundary: Bitcoin Core's `send` RPC builds, signs and broadcasts atomically.
+    // Connection-establishment failures and the protocol.h pre-funding codes stay plain; parsed
+    // RPC errors are deterministic even over HTTP 500, while ambiguous transport failures fail closed.
+    try {
+      const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
+      if (!result?.txid) {
+        throw new TxBroadcastError('Bitcoin broadcast returned an empty txid', { cause: result });
+      }
 
-    return { outTxId: result?.txid ?? '', feeAmount };
+      return { outTxId: result.txid, feeAmount };
+    } catch (e) {
+      throw toBroadcastBoundaryError(e, BITCOIN_PRE_BROADCAST_RPC_CODES);
+    }
   }
 
   async sendMany(
@@ -69,9 +86,20 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
       ...(subtractFeeFromOutputs && { subtract_fee_from_outputs: subtractFeeFromOutputs }),
     };
 
-    const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
-
-    return result?.txid ?? '';
+    // Broadcast boundary: Bitcoin Core's `send` RPC builds, signs and broadcasts atomically.
+    // Connection-establishment failures and the protocol.h pre-funding codes stay plain; parsed
+    // RPC errors are deterministic even over HTTP 500, while ambiguous transport failures fail closed.
+    // An empty/missing txid on a resolved response is equally ambiguous and must stay fail-closed
+    // (not return '' which would later roll the payout order back for re-broadcast).
+    try {
+      const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
+      if (!result?.txid) {
+        throw new TxBroadcastError('Bitcoin broadcast returned an empty txid', { cause: result });
+      }
+      return result.txid;
+    } catch (e) {
+      throw toBroadcastBoundaryError(e, BITCOIN_PRE_BROADCAST_RPC_CODES);
+    }
   }
 
   async sendManyFromAddress(

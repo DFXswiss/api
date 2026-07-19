@@ -114,7 +114,8 @@ export class UserData extends IEntity {
   @Column({ type: 'timestamp', nullable: true })
   birthday?: Date;
 
-  @Column({ length: 256, nullable: true })
+  // RealUnit stores a JSON list of tax residences here (not a single TIN); 1024 covers the DTO-bounded max.
+  @Column({ length: 1024, nullable: true })
   tin?: string;
 
   // --- ORGANIZATION DATA --- //
@@ -611,7 +612,9 @@ export class UserData extends IEntity {
   }
 
   get isRealUnitCustomer(): boolean {
-    return this.serviceProviderList.includes(ServiceProvider.REALUNIT);
+    // a merged account survives only as a tombstone (its users/kycSteps move to the master and the merge
+    // union copies the marker there) — exclude it so the master is the single dashboard representative
+    return this.status !== UserDataStatus.MERGED && this.serviceProviderList.includes(ServiceProvider.REALUNIT);
   }
 
   get hasActiveUser(): boolean {

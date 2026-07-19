@@ -3,21 +3,33 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Config, ConfigService } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
+import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
+import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
+import { createCustomBank } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull } from 'typeorm';
+import { IsNull, UpdateResult } from 'typeorm';
 import { createCustomBuyFiat } from '../../__mocks__/buy-fiat.entity.mock';
 import { BuyFiatRepository } from '../../buy-fiat.repository';
 import { BuyFiatNotificationService } from '../buy-fiat-notification.service';
@@ -105,8 +117,108 @@ describe('BuyFiatPreparationService', () => {
     jest.spyOn(entity, 'amlCheckAndFillUp').mockReturnValue([entity.id, { amlCheck: CheckStatus.PASS }] as any);
   }
 
+  describe('refreshFee', () => {
+    const fee: InternalFeeDto = {
+      fees: [],
+      min: 0,
+      rate: 0.01,
+      fixed: 0,
+      bank: 0,
+      bankFixed: 0,
+      bankPercent: 0,
+      partner: 0,
+      network: 0,
+      total: 0.01,
+      payoutRefBonus: false,
+    };
+
+    function arrangeRefreshFee(
+      currency: string,
+      iban: string,
+      bank: Bank | undefined,
+    ): { entity: ReturnType<typeof createCustomBuyFiat>; country: Country } {
+      const entity = createCustomBuyFiat({
+        id: 1,
+        outputAsset: createCustomFiat({ name: currency }),
+        percentFee: 0.01,
+        sell: createCustomSell({ iban }),
+      });
+      const country = createCustomCountry({ symbol: iban.substring(0, 2) });
+
+      jest.spyOn(buyFiatRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(buyFiatRepo, 'update').mockResolvedValue(Object.assign(new UpdateResult(), { affected: 1 }));
+      jest
+        .spyOn(pricingService, 'getPrice')
+        .mockResolvedValue(Price.create(entity.cryptoInput.asset.name, currency, 1));
+      jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(country);
+      jest.spyOn(fiatOutputService, 'selectPayoutBank').mockResolvedValue({ accountIban: bank?.iban, bank });
+      jest.spyOn(transactionHelper, 'getTxFeeInfos').mockResolvedValue(fee);
+
+      return { entity, country };
+    }
+
+    it.each<[string, string, string, IbanBankName]>([
+      ['CHF through Yapeal', 'CHF', 'CH1234567890', IbanBankName.YAPEAL],
+      ['EUR through Olkypay', 'EUR', 'DE1234567890', IbanBankName.OLKY],
+      ['Frick-eligible EUR through Bank Frick', 'EUR', 'LI1234567890', IbanBankName.FRICK],
+    ])('predicts %s and passes the selected bank to fee matching', async (_, currency, iban, bankName) => {
+      const bank = createCustomBank({ name: bankName, currency });
+      const { entity, country } = arrangeRefreshFee(currency, iban, bank);
+
+      await service.refreshFee();
+
+      expect(countryService.getCountryWithSymbol).toHaveBeenCalledWith(iban.substring(0, 2));
+      expect(fiatOutputService.selectPayoutBank).toHaveBeenCalledWith(
+        entity.outputAsset.name,
+        FiatOutputType.BUY_FIAT,
+        entity.userData,
+        false,
+        country,
+      );
+      expect(transactionHelper.getTxFeeInfos).toHaveBeenCalledWith(
+        entity.inputAmount,
+        entity.inputAmount,
+        entity.cryptoInput.asset,
+        entity.cryptoInput.asset,
+        entity.outputAsset,
+        CryptoPaymentMethod.CRYPTO,
+        FiatPaymentMethod.BANK,
+        undefined,
+        bankName,
+        entity.user,
+      );
+
+      if ([IbanBankName.OLKY, IbanBankName.FRICK].includes(bankName)) {
+        const bankOut = jest.mocked(transactionHelper.getTxFeeInfos).mock.calls[0][8];
+        expect(bankOut).not.toBe(IbanBankName.YAPEAL);
+      }
+    });
+
+    it('fails closed with an undefined bankOut when no payout bank can be resolved', async () => {
+      const { entity } = arrangeRefreshFee('EUR', 'DE1234567890', undefined);
+
+      await service.refreshFee();
+
+      expect(transactionHelper.getTxFeeInfos).toHaveBeenCalledWith(
+        entity.inputAmount,
+        entity.inputAmount,
+        entity.cryptoInput.asset,
+        entity.cryptoInput.asset,
+        entity.outputAsset,
+        CryptoPaymentMethod.CRYPTO,
+        FiatPaymentMethod.BANK,
+        undefined,
+        undefined,
+        entity.user,
+      );
+      const bankOut = jest.mocked(transactionHelper.getTxFeeInfos).mock.calls[0][8];
+      expect(bankOut).toBeUndefined();
+      expect(bankOut).not.toBe(IbanBankName.YAPEAL);
+    });
+  });
+
   describe('screenScorechain (Scorechain AML gate)', () => {
-    const call = (entity: any): Promise<boolean> => (service as any).screenScorechain(entity);
+    const call = (entity: any): Promise<ScorechainOutcome> => (service as any).screenScorechain(entity);
 
     let apiKeyBackup: string | undefined;
 
@@ -136,7 +248,7 @@ describe('BuyFiatPreparationService', () => {
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
-      await expect(call(entity)).resolves.toBe(true);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
       expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalledWith(Blockchain.BITCOIN, 'txhash');
     });
 
@@ -145,7 +257,7 @@ describe('BuyFiatPreparationService', () => {
         cryptoInput: { asset: { blockchain: Blockchain.MONERO }, inTxId: 'txhash' } as any,
       });
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
@@ -154,7 +266,7 @@ describe('BuyFiatPreparationService', () => {
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: undefined } as any,
       });
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
@@ -164,7 +276,7 @@ describe('BuyFiatPreparationService', () => {
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
@@ -174,11 +286,11 @@ describe('BuyFiatPreparationService', () => {
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
-    it('fails closed to manual review (true) when the provider throws (outage / quota reached)', async () => {
+    it('fails closed to manual review (UNAVAILABLE) when the provider throws (outage / quota reached)', async () => {
       const entity = createCustomBuyFiat({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
@@ -186,7 +298,19 @@ describe('BuyFiatPreparationService', () => {
         .spyOn(scorechainScreeningService, 'screenDepositTransaction')
         .mockRejectedValue(new Error('scorechain unavailable'));
 
-      await expect(call(entity)).resolves.toBe(true);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.UNAVAILABLE);
+    });
+
+    it('fails closed to UNAVAILABLE when isHighRisk throws (misconfigured risk threshold)', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockImplementation(() => {
+        throw new Error('SCORECHAIN_RISK_THRESHOLD is not configured');
+      });
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.UNAVAILABLE);
     });
 
     it('stores a compliance report for a freshly-screened deposit tied to a customer', async () => {

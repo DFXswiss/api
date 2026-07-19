@@ -9,7 +9,9 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
+import { Config } from 'src/config/config';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -26,6 +28,11 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionNotificationService } from 'src/subdomains/supporting/payment/services/transaction-notification.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import {
   DeepPartial,
   FindOptionsRelations,
@@ -58,6 +65,7 @@ import {
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
+import { BankTxFrickService } from './bank-tx-frick.service';
 import { SepaParser } from './sepa-parser.service';
 
 export const TransactionBankTxTypeMapper: {
@@ -99,6 +107,7 @@ export class BankTxService implements OnModuleInit {
     private readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly olkyService: OlkypayService,
+    private readonly frickTxService: BankTxFrickService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
@@ -112,6 +121,8 @@ export class BankTxService implements OnModuleInit {
     private readonly virtualIbanService: VirtualIbanService,
     @Inject(forwardRef(() => TransactionNotificationService))
     private readonly transactionNotificationService: TransactionNotificationService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
   ) {}
 
   onModuleInit() {
@@ -123,7 +134,16 @@ export class BankTxService implements OnModuleInit {
   // --- TRANSACTION HANDLING --- //
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
-    await this.checkTransactions();
+    try {
+      await this.checkTransactions();
+    } catch (error) {
+      this.logger.error('Failed to check Olkypay transactions:', error);
+    }
+    try {
+      await this.frickTxService.checkTransactions(this.create.bind(this));
+    } catch (error) {
+      this.logger.error('Failed to check Bank Frick transactions:', error);
+    }
     await this.assignTransactions();
     await this.fillBankTx();
   }
@@ -257,9 +277,17 @@ export class BankTxService implements OnModuleInit {
 
     for (const entity of entities) {
       try {
+        // The matcher (BankTxOutgoingMatchService) treats a DEBIT row's `amount` as already
+        // charge-inclusive/gross (net-of-charge matching subtracts chargeAmount from it) - accounting
+        // must use the same convention instead of adding the charge back on top, or a charged Frick
+        // payout is double-counted. A CREDIT row's `amount` is charge-exclusive as received (the charge
+        // was already deducted before it arrived), so it still needs chargeAmount added back to recover
+        // the original, pre-charge amount - unchanged from before this PR.
+        const accountingCharge = entity.creditDebitIndicator === BankTxIndicator.CREDIT ? entity.chargeAmount : 0;
+
         if (![BankTxType.BUY_CRYPTO, BankTxType.BUY_FIAT].includes(entity.type)) {
           await this.bankTxRepo.update(entity.id, {
-            accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+            accountingAmountBeforeFee: Util.roundReadable(entity.amount + accountingCharge, AmountType.FIAT),
           });
           continue;
         }
@@ -269,21 +297,21 @@ export class BankTxService implements OnModuleInit {
 
         if (entity.type === BankTxType.BUY_CRYPTO) {
           update.accountingFeePercent = entity.buyCrypto.percentFee;
-          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + entity.chargeAmount);
-          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount - update.accountingFeeAmount;
+          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + accountingCharge);
+          update.accountingAmountAfterFee = entity.amount + accountingCharge - update.accountingFeeAmount;
           update.accountingAmountBeforeFeeChf = entity.buyCrypto.amountInChf;
           update.accountingAmountAfterFeeChf = entity.buyCrypto.amountInChf * (1 - update.accountingFeePercent);
         } else {
           update.accountingFeePercent = entity.buyFiats[0].percentFee;
           update.accountingFeeAmount =
-            update.accountingFeePercent * ((entity.amount + entity.chargeAmount) / (1 - update.accountingFeePercent));
-          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount;
+            update.accountingFeePercent * ((entity.amount + accountingCharge) / (1 - update.accountingFeePercent));
+          update.accountingAmountAfterFee = entity.amount + accountingCharge;
           update.accountingAmountBeforeFeeChf = entity.buyFiats[0].amountInChf / (1 - update.accountingFeePercent);
           update.accountingAmountAfterFeeChf = entity.buyFiats[0].amountInChf;
         }
 
         await this.bankTxRepo.update(entity.id, {
-          accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          accountingAmountBeforeFee: Util.roundReadable(entity.amount + accountingCharge, AmountType.FIAT),
           accountingFeePercent: Util.roundReadable(update.accountingFeePercent, AmountType.FIAT),
           accountingFeeAmount: Util.roundReadable(update.accountingFeeAmount, AmountType.FIAT),
           accountingAmountAfterFee: Util.roundReadable(update.accountingAmountAfterFee, AmountType.FIAT),
@@ -385,26 +413,6 @@ export class BankTxService implements OnModuleInit {
     return query.getOne();
   }
 
-  async getBankTxByRemittanceInfo(remittanceInfo: string): Promise<BankTx> {
-    return this.bankTxRepo
-      .createQueryBuilder('bankTx')
-      .select('bankTx', 'bankTx')
-      .leftJoinAndSelect('bankTx.transaction', 'transaction')
-      .where(`REPLACE(bankTx.remittanceInfo, ' ', '') = :remittanceInfo`, {
-        remittanceInfo: remittanceInfo.replace(/ /g, ''),
-      })
-      .orderBy('bankTx.id', 'DESC')
-      .getOne();
-  }
-
-  async getBankTxByEndToEndId(endToEndId: string): Promise<BankTx> {
-    return this.bankTxRepo.findOne({
-      where: { endToEndId, creditDebitIndicator: BankTxIndicator.DEBIT },
-      relations: { transaction: true },
-      order: { id: 'DESC' },
-    });
-  }
-
   async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
     return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
@@ -431,6 +439,11 @@ export class BankTxService implements OnModuleInit {
     ]);
   }
 
+  // Bank fees come from three sources: (1) legacy per-tx charges (chargeAmountChf); (2) dedicated BankAccountFee
+  // rows; (3) statement-inline charges (e.g. Bank Frick camt) that carry chargeAmount without a CHF conversion.
+  // Charge fields ceased with the bank migration in Dec 2025; fees arrive as dedicated BankAccountFee rows since,
+  // carrying the amount in the account currency (no amountChf column), so they are aggregated per currency and
+  // converted to CHF.
   async getBankTxFee(from: Date): Promise<number> {
     const { fee } = await this.bankTxRepo
       .createQueryBuilder('bankTx')
@@ -438,7 +451,74 @@ export class BankTxService implements OnModuleInit {
       .where('bankTx.created >= :from', { from })
       .getRawOne<{ fee: number }>();
 
-    return fee ?? 0;
+    let totalFeeChf = fee ?? 0;
+
+    // Aggregate the dedicated BankAccountFee rows in the database (summed per currency and direction)
+    // rather than hydrating every row: this runs every minute from the financial-log cron and the table
+    // grows continuously. Column references use the alias.property form so TypeORM quotes the camelCase
+    // identifiers correctly for Postgres.
+    const feeAggregates = await this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx.currency', 'currency')
+      .addSelect('bankTx.creditDebitIndicator', 'creditDebitIndicator')
+      .addSelect('SUM(bankTx.amount)', 'amount')
+      .where('bankTx.type = :type', { type: BankTxType.BANK_ACCOUNT_FEE })
+      .andWhere('bankTx.created >= :from', { from })
+      .groupBy('bankTx.currency')
+      .addGroupBy('bankTx.creditDebitIndicator')
+      .getRawMany<{ currency: string; creditDebitIndicator: string; amount: string }>();
+
+    const amountByCurrency = new Map<string, number>();
+    for (const row of feeAggregates) {
+      const groupAmount = Number(row.amount);
+
+      let signedAmount: number;
+      if (row.creditDebitIndicator === BankTxIndicator.DEBIT) {
+        signedAmount = groupAmount;
+      } else if (row.creditDebitIndicator === BankTxIndicator.CREDIT) {
+        signedAmount = -groupAmount;
+      } else {
+        this.logger.error(
+          `BankAccountFee aggregate (currency ${row.currency}) has unexpected creditDebitIndicator ${row.creditDebitIndicator}, skipping`,
+        );
+        continue;
+      }
+
+      amountByCurrency.set(row.currency, (amountByCurrency.get(row.currency) ?? 0) + signedAmount);
+    }
+
+    for (const [currency, amount] of amountByCurrency) {
+      if (!amount) continue;
+
+      const fiat = await this.fiatService.getFiatByName(currency);
+      const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
+      totalFeeChf += price.convert(amount, Config.defaultVolumeDecimal);
+    }
+
+    // source 3 = statement-inline charges (e.g. Bank Frick camt) that carry chargeAmount without a CHF conversion.
+    // They set chargeAmount + chargeCurrency but never chargeAmountChf, and their type is null (or later a non-fee
+    // type), so they fall through sources 1 and 2. The `type IS NULL OR type != :feeType` form is required because
+    // Postgres evaluates `NULL != 'x'` to UNKNOWN, which would silently drop exactly the type=null inline charges
+    // this must capture. Column references use the alias.property form so TypeORM quotes the camelCase identifiers
+    // correctly for Postgres.
+    const inlineChargeAggregates = await this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx.chargeCurrency', 'currency')
+      .addSelect('SUM(bankTx.chargeAmount)', 'amount')
+      .where('bankTx.chargeAmount != 0')
+      .andWhere('bankTx.chargeAmountChf IS NULL')
+      .andWhere('(bankTx.type IS NULL OR bankTx.type != :feeType)', { feeType: BankTxType.BANK_ACCOUNT_FEE })
+      .andWhere('bankTx.created >= :from', { from })
+      .groupBy('bankTx.chargeCurrency')
+      .getRawMany<{ currency: string; amount: string }>();
+
+    for (const row of inlineChargeAggregates) {
+      const fiat = await this.fiatService.getFiatByName(row.currency);
+      const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
+      totalFeeChf += price.convert(Number(row.amount), Config.defaultVolumeDecimal);
+    }
+
+    return Util.round(totalFeeChf, Config.defaultVolumeDecimal);
   }
 
   async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {

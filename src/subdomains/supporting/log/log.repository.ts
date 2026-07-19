@@ -61,6 +61,17 @@ export class LogRepository extends BaseRepository<Log> {
     });
   }
 
+  // The last `count` VALID FinancialDataLog snapshots, newest first. Used by the ledger equity-parity check to build
+  // a median baseline that is robust against the transient ±snapshot-skew spikes the FinancialDataLog carries
+  // (valid=false spikes are already excluded here); see BalancesTotal (log.dto.ts, case 4).
+  async getLatestValidFinancialLogs(count: number): Promise<Log[]> {
+    return this.find({
+      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO, valid: true },
+      order: { id: 'DESC' },
+      take: count,
+    });
+  }
+
   async getLatestFinancialChangesLog(): Promise<Log | undefined> {
     return this.findOne({
       where: { system: 'LogService', subsystem: 'FinancialChangesLog', severity: LogSeverity.INFO },

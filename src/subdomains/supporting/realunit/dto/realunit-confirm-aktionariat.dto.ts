@@ -1,11 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsLowercase, IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
 
 export enum RealUnitAktionariatConfirmationStatus {
   // Aktionariat accepted the confirmation (HTTP 2xx).
   CONFIRMED = 'confirmed',
+  // Aktionariat accepted the confirmation (HTTP 2xx) but no local RealUnit registration matched the
+  // confirmed email — nothing could be unlocked on this side. The client should treat this as a hard
+  // failure, not a retry candidate.
+  CONFIRMED_NO_REGISTRATION = 'confirmed_no_registration',
   // The link is invalid or expired — Aktionariat rejected the code (HTTP 4xx).
   INVALID = 'invalid',
   // Aktionariat could not be reached or errored (HTTP 5xx / network / timeout). The client should
@@ -17,8 +21,10 @@ export class RealUnitConfirmAktionariatQueryDto {
   @ApiProperty({ description: 'Email address the Aktionariat confirmation link was sent to' })
   @IsNotEmpty()
   @IsEmail()
-  @IsLowercase()
-  @Transform(Util.trim)
+  // The web forwards the email from the confirmation link verbatim, which may carry the original casing.
+  // Normalise (trim + lowercase) instead of rejecting a non-lowercase value with a 400 the user reads as a
+  // misleading "unavailable" retry loop; the lookup is case-insensitive on the API side regardless.
+  @Transform(Util.toLowerCaseTrim)
   email: string;
 
   @ApiProperty({ description: 'Aktionariat confirmation code (acts as the authentication token for the call)' })

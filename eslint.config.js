@@ -59,6 +59,13 @@ module.exports = tseslint.config(
     },
   },
   {
-    ignores: ['eslint.config.js', 'migration/**/*.js', 'scripts/*.js', 'dist/**', 'node_modules/**'],
+    ignores: [
+      'eslint.config.js',
+      'jest.frick.config.js',
+      'migration/**/*.js',
+      'scripts/*.js',
+      'dist/**',
+      'node_modules/**',
+    ],
   },
 );

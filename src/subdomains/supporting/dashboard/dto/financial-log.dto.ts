@@ -3,6 +3,9 @@ export class FinancialLogEntryDto {
   totalBalanceChf: number;
   plusBalanceChf: number;
   minusBalanceChf: number;
+  // per-interval price effect (FX P&L) of the open positions vs. the previous snapshot; 0 for entries
+  // logged before this field existed (see BalancesTotal.fxPnlChf).
+  fxPnlChf: number;
   btcPriceChf: number;
   balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }>;
 }
@@ -27,6 +30,8 @@ export class FinancialChangesEntryDto {
     kraken: { total: number; withdraw: number; trading: number };
     ref: { total: number; amount: number; fee: number };
     binance: { total: number; withdraw: number; trading: number };
+    scrypt: { total: number; withdraw: number; trading: number };
+    mexc: { total: number; withdraw: number; trading: number };
     blockchain: { total: number; txIn: number; txOut: number; trading: number };
   };
 }

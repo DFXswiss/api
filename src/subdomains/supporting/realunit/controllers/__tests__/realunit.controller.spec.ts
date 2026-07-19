@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -6,6 +6,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { RealUnitBalancePdfDto } from '../../dto/realunit-pdf.dto';
+import { RealUnitEmailRegistrationStatus, RealUnitRegistrationStatus } from '../../dto/realunit-registration.dto';
 import { RealUnitController } from '../realunit.controller';
 
 // Focused, hermetic coverage of RealUnitController.getBalancePdf (no DB/network). The injected services
@@ -92,6 +93,7 @@ describe('RealUnitController — registration & gate handler delegation', () => 
     getPaymentInfo: jest.Mock;
     getSellPaymentInfo: jest.Mock;
     getRegistrationInfo: jest.Mock;
+    getRegistrationDate: jest.Mock;
     hasRegistrationForWallet: jest.Mock;
     forwardRegistrationToAktionariat: jest.Mock;
   };
@@ -104,6 +106,7 @@ describe('RealUnitController — registration & gate handler delegation', () => 
       getPaymentInfo: jest.fn().mockResolvedValue('buy-info'),
       getSellPaymentInfo: jest.fn().mockResolvedValue('sell-info'),
       getRegistrationInfo: jest.fn().mockResolvedValue('reg-info'),
+      getRegistrationDate: jest.fn().mockReturnValue({ date: '2026-07-13' }),
       hasRegistrationForWallet: jest.fn().mockResolvedValue(true),
       forwardRegistrationToAktionariat: jest.fn().mockResolvedValue(undefined),
     };
@@ -164,9 +167,96 @@ describe('RealUnitController — registration & gate handler delegation', () => 
     expect(realunitService.hasRegistrationForWallet).toHaveBeenCalledWith(user.userData, JWT.address);
   });
 
+  it('getRegistrationDate delegates to the service without touching the DB', () => {
+    const res = controller.getRegistrationDate();
+
+    expect(res).toEqual({ date: '2026-07-13' });
+    expect(realunitService.getRegistrationDate).toHaveBeenCalledWith();
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
   it('admin forwardRegistration coerces the :id path string to a number', async () => {
     await controller.forwardRegistration('42');
 
     expect(realunitService.forwardRegistrationToAktionariat).toHaveBeenCalledWith(42);
+  });
+});
+
+// Coverage for the POST register endpoints: the email step wraps the status, and the complete/wallet steps
+// map the service status to 201 CREATED (completed / already-registered) vs 202 ACCEPTED (everything else)
+// on the injected Response. Pure stubs, no DB/network.
+describe('RealUnitController — register POST endpoints (status mapping)', () => {
+  const JWT = { user: 7, account: 70, address: '0xWalletAddress' } as JwtPayload;
+
+  let registerEmail: jest.Mock;
+  let completeRegistration: jest.Mock;
+  let completeRegistrationForWalletAddress: jest.Mock;
+  let controller: RealUnitController;
+
+  const mockRes = (): { status: jest.Mock; json: jest.Mock } => {
+    const res = { status: jest.fn(), json: jest.fn() };
+    res.status.mockReturnValue(res);
+    return res;
+  };
+
+  beforeEach(() => {
+    registerEmail = jest.fn();
+    completeRegistration = jest.fn();
+    completeRegistrationForWalletAddress = jest.fn();
+    controller = new RealUnitController(
+      { registerEmail, completeRegistration, completeRegistrationForWalletAddress } as never, // realunitService
+      {} as never, // balancePdfService
+      {} as never, // userService
+      {} as never, // swissQrService
+      {} as never, // pricingService
+    );
+  });
+
+  it('registerEmail delegates to the service and wraps the status', async () => {
+    const dto = { email: 'user@example.com' } as never;
+    registerEmail.mockResolvedValue(RealUnitEmailRegistrationStatus.EMAIL_REGISTERED);
+
+    const result = await controller.registerEmail(JWT, dto);
+
+    expect(result).toEqual({ status: RealUnitEmailRegistrationStatus.EMAIL_REGISTERED });
+    expect(registerEmail).toHaveBeenCalledWith(JWT.account, dto);
+  });
+
+  describe('completeRegistration status mapping', () => {
+    const dto = { walletAddress: '0xabc' } as never;
+
+    it.each([
+      [RealUnitRegistrationStatus.COMPLETED, HttpStatus.CREATED],
+      [RealUnitRegistrationStatus.ALREADY_REGISTERED, HttpStatus.CREATED],
+      [RealUnitRegistrationStatus.FORWARDING_FAILED, HttpStatus.ACCEPTED],
+    ])('maps service status %s to HTTP %i', async (status, code) => {
+      completeRegistration.mockResolvedValue(status);
+      const res = mockRes();
+
+      await controller.completeRegistration(JWT, dto, res as never);
+
+      expect(completeRegistration).toHaveBeenCalledWith(JWT.account, dto);
+      expect(res.status).toHaveBeenCalledWith(code);
+      expect(res.json).toHaveBeenCalledWith({ status });
+    });
+  });
+
+  describe('completeRegistrationForWalletAddress status mapping', () => {
+    const dto = { walletAddress: '0xabc', signature: '0xsig', registrationDate: '2026-01-01' } as never;
+
+    it.each([
+      [RealUnitRegistrationStatus.COMPLETED, HttpStatus.CREATED],
+      [RealUnitRegistrationStatus.ALREADY_REGISTERED, HttpStatus.CREATED],
+      [RealUnitRegistrationStatus.FORWARDING_FAILED, HttpStatus.ACCEPTED],
+    ])('maps service status %s to HTTP %i', async (status, code) => {
+      completeRegistrationForWalletAddress.mockResolvedValue(status);
+      const res = mockRes();
+
+      await controller.completeRegistrationForWalletAddress(JWT, dto, res as never);
+
+      expect(completeRegistrationForWalletAddress).toHaveBeenCalledWith(JWT.account, dto);
+      expect(res.status).toHaveBeenCalledWith(code);
+      expect(res.json).toHaveBeenCalledWith({ status });
+    });
   });
 });

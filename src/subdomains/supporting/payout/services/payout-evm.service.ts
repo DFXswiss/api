@@ -1,6 +1,8 @@
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { PayoutBroadcastException } from '../exceptions/payout-broadcast.exception';
 import { PayoutTxStatus } from '../interfaces';
 
 export abstract class PayoutEvmService {
@@ -11,11 +13,21 @@ export abstract class PayoutEvmService {
   }
 
   async sendNativeCoin(address: string, amount: number, nonce?: number): Promise<string> {
-    return this.client.sendNativeCoinFromDex(address, amount, nonce);
+    try {
+      return await this.client.sendNativeCoinFromDex(address, amount, nonce);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async sendToken(address: string, tokenName: Asset, amount: number, nonce?: number): Promise<string> {
-    return this.client.sendTokenFromDex(address, tokenName, amount, nonce);
+    try {
+      return await this.client.sendTokenFromDex(address, tokenName, amount, nonce);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async getPayoutCompletionData(txHash: string): Promise<PayoutTxStatus> {

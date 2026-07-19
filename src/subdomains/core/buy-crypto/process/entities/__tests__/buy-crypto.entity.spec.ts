@@ -1,9 +1,15 @@
 import { Test } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { createCustomBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
@@ -598,10 +604,44 @@ describe('BuyCrypto', () => {
     });
   });
 
+  describe('#pendingInputAmount', () => {
+    const frickIban = 'LI75088110105923K000E';
+
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-EUR`,
+        frickIban,
+      );
+    });
+
+    it('returns inputReferenceAmount for a matching Frick custody asset when output is not yet set', () => {
+      const entity = createCustomBuyCrypto({
+        outputAmount: undefined,
+        inputReferenceAmount: 150,
+        bankTx: createCustomBankTx({ accountIban: frickIban }),
+      });
+      const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+      expect(entity.pendingInputAmount(asset)).toBe(150);
+    });
+
+    it('returns 0 for a Frick asset when the bankTx IBAN does not match', () => {
+      const entity = createCustomBuyCrypto({
+        outputAmount: undefined,
+        inputReferenceAmount: 150,
+        bankTx: createCustomBankTx({ accountIban: 'OTHER-IBAN' }),
+      });
+      const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+      expect(entity.pendingInputAmount(asset)).toBe(0);
+    });
+  });
+
   describe('#amlCheckAndFillUp Scorechain gate', () => {
     afterEach(() => jest.restoreAllMocks());
 
-    const run = (entity: BuyCrypto, screen?: () => Promise<boolean>) =>
+    const run = (entity: BuyCrypto, screen?: () => Promise<ScorechainOutcome>) =>
       entity.amlCheckAndFillUp(
         null as any, // inputAsset
         0, // minVolume
@@ -625,7 +665,7 @@ describe('BuyCrypto', () => {
 
     it('does not screen when the tx would not otherwise pass', async () => {
       jest.spyOn(AmlHelperService, 'getAmlResult').mockReturnValue({ amlCheck: CheckStatus.FAIL } as any);
-      const screen = jest.fn().mockResolvedValue(true);
+      const screen = jest.fn().mockResolvedValue(ScorechainOutcome.HIGH_RISK);
 
       await run(createDefaultBuyCrypto(), screen);
 
@@ -638,21 +678,21 @@ describe('BuyCrypto', () => {
         .spyOn(AmlHelperService, 'getAmlResult')
         .mockReturnValueOnce({ amlCheck: CheckStatus.PASS } as any)
         .mockReturnValueOnce({ amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK } as any);
-      const screen = jest.fn().mockResolvedValue(true);
+      const screen = jest.fn().mockResolvedValue(ScorechainOutcome.HIGH_RISK);
       const entity = createDefaultBuyCrypto();
 
       await run(entity, screen);
 
       expect(screen).toHaveBeenCalledTimes(1);
       expect(spy).toHaveBeenCalledTimes(2);
-      expect(spy.mock.calls[0].at(-1)).toBe(false); // phase 1: scorechainHighRisk=false
-      expect(spy.mock.calls[1].at(-1)).toBe(true); // phase 2: scorechainHighRisk=true
+      expect(spy.mock.calls[0].at(-1)).toBe(ScorechainOutcome.PASS); // phase 1
+      expect(spy.mock.calls[1].at(-1)).toBe(ScorechainOutcome.HIGH_RISK); // phase 2
       expect(entity.amlCheck).toBe(CheckStatus.PENDING);
     });
 
     it('keeps PASS when the tx would pass and screening is clean (no phase 2)', async () => {
       jest.spyOn(AmlHelperService, 'getAmlResult').mockReturnValue({ amlCheck: CheckStatus.PASS } as any);
-      const screen = jest.fn().mockResolvedValue(false);
+      const screen = jest.fn().mockResolvedValue(ScorechainOutcome.PASS);
       const entity = createDefaultBuyCrypto();
 
       await run(entity, screen);
@@ -668,6 +708,22 @@ describe('BuyCrypto', () => {
       await run(createDefaultBuyCrypto());
 
       expect(AmlHelperService.getAmlResult).toHaveBeenCalledTimes(1);
+    });
+
+    it('screens when the tx would otherwise pass and flips to PENDING when the provider is unavailable', async () => {
+      const spy = jest
+        .spyOn(AmlHelperService, 'getAmlResult')
+        .mockReturnValueOnce({ amlCheck: CheckStatus.PASS } as any)
+        .mockReturnValueOnce({ amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK } as any);
+      const screen = jest.fn().mockResolvedValue(ScorechainOutcome.UNAVAILABLE);
+      const entity = createDefaultBuyCrypto();
+
+      await run(entity, screen);
+
+      expect(screen).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls[1].at(-1)).toBe(ScorechainOutcome.UNAVAILABLE);
+      expect(entity.amlCheck).toBe(CheckStatus.PENDING);
     });
   });
 

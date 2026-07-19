@@ -79,9 +79,13 @@ export abstract class DexEvmService implements PurchaseDexService {
 
   async swap(swapAsset: Asset, swapAmount: number, targetAsset: Asset, maxSlippage: number): Promise<string> {
     try {
+      // EvmClient owns the exact TxBroadcastError boundary around doSwap's wallet.sendTransaction;
+      // route and preflight failures from client.swap remain plain errors and are safe to retry.
       return await this.#client.swap(swapAsset, swapAmount, targetAsset, maxSlippage);
     } catch (e) {
-      if (e.error?.reason?.includes('Too little received')) {
+      // Ethers exposes direct estimateGas reverts at e.reason, but historical send-time estimation at e.error.reason.
+      const revertReasons = [e.reason, e.error?.reason, e.error?.error?.reason];
+      if (revertReasons.some((reason) => typeof reason === 'string' && reason.includes('Too little received'))) {
         throw new PriceSlippageException(
           `Price is higher than indicated. Composite swap ${swapAmount} ${swapAsset.dexName} to ${targetAsset.dexName}.`,
         );

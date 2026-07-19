@@ -30,6 +30,7 @@ import { AmlError, AmlErrorResult, AmlErrorType, DelayResultError } from '../enu
 import { AmlReason, KycAmlReasons, RecheckAmlReasons } from '../enums/aml-reason.enum';
 import { AmlRule, SpecialIpCountries } from '../enums/aml-rule.enum';
 import { CheckStatus } from '../enums/check-status.enum';
+import { ScorechainOutcome, ScorechainOutcomeError } from '../enums/scorechain-outcome.enum';
 
 export class AmlHelperService {
   static getAmlErrors(
@@ -50,7 +51,7 @@ export class AmlHelperService {
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
     recommender?: UserData,
-    scorechainHighRisk = false,
+    scorechainOutcome: ScorechainOutcome = ScorechainOutcome.PASS,
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -62,8 +63,11 @@ export class AmlHelperService {
       return errors;
 
     // Scorechain on-chain screening (withdrawal target address / deposit tx); the async call runs in
-    // the AML orchestrator and is reduced to this boolean. Outcome layer only (CRUCIAL → manual review).
-    if (scorechainHighRisk) errors.push(AmlError.SCORECHAIN_HIGH_RISK);
+    // the AML orchestrator. HIGH_RISK is a real screening hit; UNAVAILABLE means screening was
+    // impossible (provider outage/timeout/quota/misconfiguration) — both are CRUCIAL → manual review,
+    // but they must stay distinguishable (see ScorechainOutcomeError / AmlErrorResult).
+    const scorechainError = ScorechainOutcomeError[scorechainOutcome];
+    if (scorechainError) errors.push(scorechainError);
 
     if (isAsset(inputAsset) && inputAsset.name === 'REALU') errors.push(AmlError.ASSET_INPUT_NOT_ALLOWED);
 
@@ -615,7 +619,7 @@ export class AmlHelperService {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
-    scorechainHighRisk = false,
+    scorechainOutcome: ScorechainOutcome = ScorechainOutcome.PASS,
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -642,7 +646,7 @@ export class AmlHelperService {
       virtualIban,
       multiAccountBankNames,
       recommender,
-      scorechainHighRisk,
+      scorechainOutcome,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');

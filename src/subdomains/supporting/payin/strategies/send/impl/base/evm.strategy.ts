@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import {
@@ -195,11 +196,45 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   private async dispatch(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<void> {
-    const outTxId = await this.dispatchSend(payInGroup, type, estimatedNativeFee);
+    // Persist the in-flight marker before broadcasting: a crash after the send but before the
+    // transaction ID is saved must not leave the group re-selectable by the minute cron.
+    const previousStatuses = new Map(payInGroup.payIns.map((payIn) => [payIn.id, payIn.status]));
+    for (const payIn of payInGroup.payIns) {
+      payIn.designateSending();
+      await this.payInRepo.save(payIn);
+    }
 
-    const updatedPayIns = await this.updatePayInsWithSendData(payInGroup, outTxId, type);
+    let outTxId: string | undefined;
+    try {
+      outTxId = await this.dispatchSend(payInGroup, type, estimatedNativeFee);
 
-    await this.saveUpdatedPayIns(updatedPayIns);
+      const updatedPayIns = await this.updatePayInsWithSendData(payInGroup, outTxId, type);
+
+      await this.saveUpdatedPayIns(updatedPayIns);
+    } catch (e) {
+      if (e instanceof TxBroadcastError || outTxId !== undefined) {
+        // The broadcast boundary was reached and the transaction may be in flight. Fail closed by
+        // keeping SENDING; the cron escalation moves the group to SEND_UNCERTAIN for investigation.
+        if (outTxId !== undefined) {
+          this.logger.error(
+            `Failed to persist EVM send transaction ${outTxId} for pay-ins ${payInGroup.payIns
+              .map((payIn) => payIn.id)
+              .join(', ')}:`,
+            e,
+          );
+        }
+        throw e;
+      }
+
+      // A plain error before a transaction ID was obtained is provably pre-broadcast. Restore each
+      // member's captured status so the next cron run can retry it.
+      for (const payIn of payInGroup.payIns) {
+        payIn.status = previousStatuses.get(payIn.id);
+        await this.payInRepo.save(payIn);
+      }
+
+      throw e;
+    }
   }
 
   private async updatePayInsWithSendData(

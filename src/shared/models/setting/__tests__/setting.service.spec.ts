@@ -24,6 +24,23 @@ describe('SettingService', () => {
     service = module.get(SettingService);
   });
 
+  describe('setDateMax', () => {
+    it('delegates a valid candidate to the atomic repository operation', async () => {
+      const candidate = new Date('2026-07-11T12:00:00.000Z');
+
+      await service.setDateMax('lastBankFrickDate:1', candidate);
+
+      expect(settingRepo.setDateMax).toHaveBeenCalledWith('lastBankFrickDate:1', candidate);
+    });
+
+    it.each([new Date('invalid'), undefined])('rejects an invalid candidate %s', async (candidate) => {
+      await expect(service.setDateMax('lastBankFrickDate:1', candidate as Date)).rejects.toThrow(
+        "Setting 'lastBankFrickDate:1' requires a valid date",
+      );
+      expect(settingRepo.setDateMax).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getDeniedJwtAccounts', () => {
     it('returns the deduped union of the manual and auto denylists as numbers', async () => {
       mockSettings({ jwtAccountDenylist: [1], jwtAccountDenylistAuto: [2, 2, 3] });

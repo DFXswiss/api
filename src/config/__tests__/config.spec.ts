@@ -1,6 +1,19 @@
+import { TypeOrmLogger } from 'src/shared/services/typeorm-logger';
+import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
 import { GetConfig } from '../config';
 
 describe('Config', () => {
+  it('should wire the database logger so pg NOTICEs reach stdout/Loki', () => {
+    // Pins the prod wiring: without logNotifications the driver never forwards RAISE NOTICE, and without
+    // the TypeOrmLogger instance the default console logger swallows level 'info' when SQL_LOGGING is
+    // unset — either regression would silently discard migration reconciliation counters while every
+    // logger unit/integration test stays green.
+    const database = GetConfig().database as PostgresConnectionOptions;
+
+    expect(database.logNotifications).toBe(true);
+    expect(database.logger).toBeInstanceOf(TypeOrmLogger);
+  });
+
   it('should match all addresses', async () => {
     process.env.ENVIRONMENT = 'prd';
 

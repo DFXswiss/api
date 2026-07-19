@@ -61,6 +61,7 @@ export class XtService extends ExchangeService {
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
+    Frick: undefined,
   };
 
   constructor() {

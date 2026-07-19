@@ -1,7 +1,10 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/exchange-tx.entity.mock';
+import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -27,9 +30,10 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { BankTxIndicator, BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
-import { olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
+import { frickCHF, frickEUR, olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
@@ -116,6 +120,101 @@ describe('LogJobService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('getChangeLog (Scrypt & MEXC exchange fees)', () => {
+    function setupEmpty() {
+      jest.spyOn(buyFiatService, 'getBuyFiat').mockResolvedValue([] as any);
+      jest.spyOn(buyCryptoService, 'getBuyCrypto').mockResolvedValue([] as any);
+      jest.spyOn(tradingOrderService, 'getTradingOrderYield').mockResolvedValue({ fee: 0, profit: 0 } as any);
+      jest.spyOn(payoutService, 'getPayoutOrders').mockResolvedValue([] as any);
+      jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(0 as any);
+      jest.spyOn(payInService, 'getPayInFee').mockResolvedValue(0 as any);
+      jest.spyOn(refRewardService, 'getRefRewardVolume').mockResolvedValue(0 as any);
+    }
+
+    it('sums Scrypt and MEXC trade+withdrawal fees (sign-aware, incl. rebates) into minus and total', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([
+        // Scrypt: trade 240 minus a 20 rebate = 220 net trading, plus a 10 withdrawal -> total 230
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, feeAmountChf: 240 }),
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, feeAmountChf: -20 }),
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.WITHDRAWAL, feeAmountChf: 10 }),
+        // MEXC: trade 18 + withdrawal 5 -> total 23
+        createCustomExchangeTx({ exchange: ExchangeName.MEXC, type: ExchangeTxType.TRADE, feeAmountChf: 18 }),
+        createCustomExchangeTx({ exchange: ExchangeName.MEXC, type: ExchangeTxType.WITHDRAWAL, feeAmountChf: 5 }),
+      ] as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.scrypt).toEqual({ total: 230, withdraw: 10, trading: 220 });
+      expect(result.minus.mexc).toEqual({ total: 23, withdraw: 5, trading: 18 });
+      expect(result.minus.total).toBe(253);
+      expect(result.total).toBe(-253);
+    });
+
+    it('omits the Scrypt and MEXC blocks when there are no such exchange fees', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.scrypt).toBeUndefined();
+      expect(result.minus.mexc).toBeUndefined();
+    });
+
+    it('flows the bank tx fee into minus.bank and the totals', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+      jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(4196 as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.bank).toBe(4196);
+      expect(result.minus.total).toBe(4196);
+      expect(result.total).toBe(-4196);
+    });
+  });
+
+  describe('FinancialChangesLog isolation (reporting failure must not arm the equity safety mode)', () => {
+    // a healthy, finite book comfortably above the minimum -> the equity path leaves safety mode off
+    function setup() {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest
+        .spyOn(service as any, 'getBalancesByFinancialType')
+        .mockReturnValue({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } });
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 5000 } }) } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    it('writes the FinancialDataLog, keeps safety mode off, logs the error and omits the changes entry when getChangeLog throws', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      const createSpy = setup();
+      // a transient reporting-price failure while building the changes log
+      jest.spyOn(service as any, 'getChangeLog').mockRejectedValue(new Error('No valid price'));
+
+      await service.saveTradingLog();
+
+      // the equity path ran and still persisted the FinancialDataLog entry for this minute
+      const dataLog = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      expect(dataLog).toBeDefined();
+
+      // the reporting-price failure did NOT arm the equity safety mode: the healthy book set it to false
+      // (and the outer catch, which would set it true, never ran)
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(false);
+      expect(processService.setSafetyModeActive).not.toHaveBeenCalledWith(true);
+
+      // the failure is logged and this minute's changes entry is omitted (absence, not a wrong value)
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('financial changes log'), expect.any(Error));
+      const changesLog = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialChangesLog');
+      expect(changesLog).toBeUndefined();
+    });
   });
 
   describe('saveTradingLog (referral-credit liability)', () => {
@@ -222,6 +321,142 @@ describe('LogJobService', () => {
       expect(result.EUR.plusBalance).toBe(-5000);
       expect(result.EUR.plusBalanceChf).toBe(-5000);
       expect(result.EUR.plusBalance).not.toBeUndefined();
+    });
+  });
+
+  describe('getFxPnlChf (per-interval price effect of open positions)', () => {
+    // a short BTC leg and a long USD leg, priced up and down respectively, plus a non-financialType asset
+    // whose price also moves and must therefore be excluded from the FX total.
+    const assets = [
+      createCustomAsset({ id: 1, financialType: 'BTC' }),
+      createCustomAsset({ id: 2, financialType: 'USD' }),
+      createCustomAsset({ id: 3 }), // no financialType -> excluded
+    ];
+
+    it('sums previous net position times the CHF price change, only over financialType assets', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 0 }, minusBalance: { total: 1.7 }, priceChf: 50000 }, // net short 1.7 BTC
+          2: { plusBalance: { total: 250000 }, minusBalance: { total: 0 }, priceChf: 0.9 }, // net long 250k USD
+          3: { plusBalance: { total: 1000 }, minusBalance: { total: 0 }, priceChf: 10 }, // excluded (no financialType)
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 51000 }, // +1000 -> short leg marks down -1700
+        2: { priceChf: 0.88 }, // -0.02 -> long leg marks down -5000
+        3: { priceChf: 1000 }, // large move, but must not count
+      } as any;
+
+      // -1.7 * (51000 - 50000) + 250000 * (0.88 - 0.90) = -1700 + -5000 = -6700; asset 3 filtered out
+      expect(service['getFxPnlChf'](prev, assetLog, assets)).toBeCloseTo(-6700, 4);
+    });
+
+    it('returns undefined when there is no predecessor snapshot to diff against (first entry)', () => {
+      expect(service['getFxPnlChf'](undefined, {} as any, assets)).toBeUndefined();
+      // a predecessor log without an assets map is equally unusable as a reference point
+      expect(service['getFxPnlChf']({ balancesTotal: {} } as any, {} as any, assets)).toBeUndefined();
+    });
+
+    it('ignores positions absent from either snapshot (new and closed positions carry no price effect)', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: 50000 }, // present both sides
+          2: { plusBalance: { total: 100 }, minusBalance: { total: 0 }, priceChf: 10 }, // closed: gone from current
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 50100 }, // +100 -> 2 * 100 = 200
+        4: { priceChf: 999 }, // new position: not in prev -> ignored
+      } as any;
+      const withNewAndClosed = [
+        createCustomAsset({ id: 1, financialType: 'BTC' }),
+        createCustomAsset({ id: 2, financialType: 'BTC' }), // closed since the previous snapshot
+        createCustomAsset({ id: 4, financialType: 'BTC' }), // newly entered
+      ];
+
+      // only asset 1 is in both snapshots: 2 * (50100 - 50000) = 200
+      expect(service['getFxPnlChf'](prev, assetLog, withNewAndClosed)).toBeCloseTo(200, 4);
+    });
+
+    it('skips an asset without a usable price on either side', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: undefined }, // no previous price
+          2: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: 100 },
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 100 },
+        2: { priceChf: undefined }, // no current price
+      } as any;
+      const twoAssets = [
+        createCustomAsset({ id: 1, financialType: 'BTC' }),
+        createCustomAsset({ id: 2, financialType: 'BTC' }),
+      ];
+
+      expect(service['getFxPnlChf'](prev, assetLog, twoAssets)).toBe(0);
+    });
+  });
+
+  describe('saveTradingLog (FX P&L component)', () => {
+    function setupFxPnl(params: { assets: Asset[]; assetLog: Record<number, unknown>; lastMessage: object }) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue(params.assetLog);
+      // mock the bucket aggregation so the FX assertion is isolated from balance summation; a healthy
+      // finite total keeps safety mode and the valid flag out of the way.
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue({
+        BTC: { plusBalance: 0, plusBalanceChf: 200000, minusBalance: 0, minusBalanceChf: 0 },
+      });
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue(params.assets as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ created: new Date(), message: JSON.stringify(params.lastMessage) } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    function financialLog(createSpy: jest.SpyInstance) {
+      const call = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      return JSON.parse(call[0].message);
+    }
+
+    it('writes the price effect of the open positions since the previous snapshot into balancesTotal', async () => {
+      const createSpy = setupFxPnl({
+        assets: [
+          createCustomAsset({ id: 1, financialType: 'BTC' }),
+          createCustomAsset({ id: 2, financialType: 'USD' }),
+        ],
+        assetLog: {
+          1: { priceChf: 51000, plusBalance: { total: 0 }, minusBalance: { total: 1.7 } },
+          2: { priceChf: 0.88, plusBalance: { total: 250000 }, minusBalance: { total: 0 } },
+        },
+        lastMessage: {
+          balancesTotal: { totalBalanceChf: 200000 },
+          assets: {
+            1: { plusBalance: { total: 0 }, minusBalance: { total: 1.7 }, priceChf: 50000 },
+            2: { plusBalance: { total: 250000 }, minusBalance: { total: 0 }, priceChf: 0.9 },
+          },
+        },
+      });
+
+      await service.saveTradingLog();
+
+      // -1.7*(51000-50000) + 250000*(0.88-0.90) = -1700 + -5000 = -6700 (rounded to 2 dp, negative preserved)
+      expect(financialLog(createSpy).balancesTotal.fxPnlChf).toBe(-6700);
+    });
+
+    it('omits fxPnlChf when the previous snapshot has no assets to diff against (first entry)', async () => {
+      const createSpy = setupFxPnl({
+        assets: [createCustomAsset({ id: 1, financialType: 'BTC' })],
+        assetLog: { 1: { priceChf: 51000, plusBalance: { total: 1 }, minusBalance: { total: 0 } } },
+        lastMessage: { balancesTotal: { totalBalanceChf: 200000 } }, // no assets map -> no reference point
+      });
+
+      await service.saveTradingLog();
+
+      expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('fxPnlChf');
     });
   });
 
@@ -975,6 +1210,194 @@ describe('LogJobService', () => {
       await service['getAssetLog']([asset]);
 
       expect(errorSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Frick EUR bank <-> Scrypt reconciliation (eurBankIbans completeness)', () => {
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-EUR`,
+        frickEUR.iban,
+      );
+    });
+
+    afterEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    });
+
+    it('captures a Frick EUR -> Scrypt bank_tx in the Scrypt/EUR pending aggregate (was silently dropped before eurBankIbans included Frick)', async () => {
+      // sellable=true keeps both assets active so they are not skipped by the asset-log reduce guard
+      const frickEurAsset = createCustomAsset({
+        id: 7001,
+        blockchain: Blockchain.FRICK,
+        dexName: 'EUR',
+        sellable: true,
+      });
+      const scryptEurAsset = createCustomAsset({
+        id: 7002,
+        blockchain: ExchangeName.SCRYPT as unknown as Blockchain,
+        dexName: 'EUR',
+        sellable: true,
+      });
+      const assets = [frickEurAsset, scryptEurAsset];
+
+      jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
+      jest.spyOn(settingService, 'getObj').mockImplementation(async (_key, defaultValue) => defaultValue as never);
+      jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
+
+      const bankFor = (name: IbanBankName, currency: string): Bank =>
+        name === IbanBankName.FRICK && currency === 'EUR'
+          ? frickEUR
+          : Object.assign(new Bank(), { name, currency, iban: `IBAN_${name}_${currency}`, bic: 'BICTEST' });
+      jest.spyOn(bankService, 'getBankInternal').mockImplementation(async (name, currency) => bankFor(name, currency));
+
+      jest.spyOn(liquidityManagementPipelineService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(payInService, 'getPendingPayIns').mockResolvedValue([]);
+      jest.spyOn(buyFiatService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(buyCryptoService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
+      jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+
+      // an unmatched (still-pending) debit from Frick's EUR IBAN into Scrypt
+      const frickToScryptTx = createCustomBankTx({
+        id: 90001,
+        created: Util.hoursBefore(1),
+        accountIban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'EUR',
+        instructedAmount: 10000,
+        amount: 10000,
+        remittanceInfo: undefined,
+      });
+      jest
+        .spyOn(bankTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, type) => (type === BankTxType.SCRYPT ? [frickToScryptTx] : []));
+      jest.spyOn(exchangeTxService, 'getRecentExchangeTx').mockResolvedValue([]);
+
+      const assetLog = await service['getAssetLog'](assets);
+
+      // the Frick/EUR row itself stays zeroed (by design — aggregated under Scrypt/EUR instead),
+      // so it has no pending plus-balance at all
+      expect(assetLog[frickEurAsset.id].plusBalance.pending).toBeUndefined();
+
+      // the Scrypt/EUR row now captures the Frick-sourced pending amount — before the fix this was 0
+      // because eurBankIbans excluded Frick's IBAN, so the tx never entered recentEurBankToScryptTx
+      expect(assetLog[scryptEurAsset.id].plusBalance.pending.toScrypt).toBe(10000);
+    });
+  });
+
+  describe('Frick CHF bank <-> Scrypt reconciliation (chfBankIbans completeness)', () => {
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.YAPEAL}-CHF`,
+        yapealCHF.iban,
+      );
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-CHF`,
+        frickCHF.iban,
+      );
+    });
+
+    afterEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    });
+
+    function setupChfScryptAssetLog(scryptBankTx: ReturnType<typeof createCustomBankTx>[]) {
+      jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
+      jest.spyOn(settingService, 'getObj').mockImplementation(async (_key, defaultValue) => defaultValue as never);
+      jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
+
+      const bankFor = (name: IbanBankName, currency: string): Bank => {
+        if (name === IbanBankName.YAPEAL && currency === 'CHF') return yapealCHF;
+        if (name === IbanBankName.FRICK && currency === 'CHF') return frickCHF;
+        return Object.assign(new Bank(), { name, currency, iban: `IBAN_${name}_${currency}`, bic: 'BICTEST' });
+      };
+      jest.spyOn(bankService, 'getBankInternal').mockImplementation(async (name, currency) => bankFor(name, currency));
+
+      jest.spyOn(liquidityManagementPipelineService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(payInService, 'getPendingPayIns').mockResolvedValue([]);
+      jest.spyOn(buyFiatService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(buyCryptoService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
+      jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest
+        .spyOn(bankTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, type) => (type === BankTxType.SCRYPT ? scryptBankTx : []));
+      jest.spyOn(exchangeTxService, 'getRecentExchangeTx').mockResolvedValue([]);
+    }
+
+    // sellable=true keeps assets active so they are not skipped by the asset-log reduce guard
+    const yapealChfCustodyAsset = (): Asset =>
+      createCustomAsset({
+        id: 8001,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'CHF',
+        sellable: true,
+      });
+    const frickChfCustodyAsset = (): Asset =>
+      createCustomAsset({
+        id: 8002,
+        blockchain: Blockchain.FRICK,
+        dexName: 'CHF',
+        sellable: true,
+      });
+
+    it('keeps Yapeal/CHF Bank->Scrypt pending bit-identical when there is no Frick CHF activity', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      // unmatched debit from Yapeal CHF only — same rows as before chfBankIbans generalization
+      const yapealToScryptTx = createCustomBankTx({
+        id: 91001,
+        created: Util.hoursBefore(1),
+        accountIban: yapealCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 5000,
+        amount: 5000,
+        remittanceInfo: undefined,
+      });
+      setupChfScryptAssetLog([yapealToScryptTx]);
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      // Yapeal/CHF still owns the pending Bank->Scrypt amount (accountIban fallback matches Yapeal only)
+      expect(assetLog[yapealAsset.id].plusBalance.pending.toScrypt).toBe(5000);
+      // Frick/CHF has no matching BankTx — must stay at zero / undefined pending
+      expect(assetLog[frickAsset.id].plusBalance.pending?.toScrypt ?? 0).toBe(0);
+    });
+
+    it('attributes Frick CHF -> Scrypt bank_tx to Frick/CHF and not to Yapeal/CHF (no double-count)', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      // unmatched debit from Frick's CHF IBAN into Scrypt
+      const frickToScryptTx = createCustomBankTx({
+        id: 91002,
+        created: Util.hoursBefore(1),
+        accountIban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 7500,
+        amount: 7500,
+        remittanceInfo: undefined,
+      });
+      setupChfScryptAssetLog([frickToScryptTx]);
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      // Frick/CHF custody asset receives the pending Bank->Scrypt amount via accountIban fallback
+      expect(assetLog[frickAsset.id].plusBalance.pending.toScrypt).toBe(7500);
+      // Yapeal/CHF must not pick up the Frick debit (no double-count; baseline stays empty)
+      expect(assetLog[yapealAsset.id].plusBalance.pending?.toScrypt ?? 0).toBe(0);
     });
   });
 });

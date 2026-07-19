@@ -10,6 +10,7 @@ import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { hashMessage } from 'ethers/lib/utils';
 import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
 import { BlockscoutService } from 'src/integration/blockchain/shared/blockscout/blockscout.service';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import ERC1271_ABI from 'src/integration/blockchain/shared/evm/abi/erc1271.abi.json';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
@@ -703,11 +704,10 @@ export abstract class EvmClient extends BlockchainClient {
     return route;
   }
 
-  private async doSwap(parameters: MethodParameters) {
+  private async doSwap(parameters: MethodParameters): Promise<string> {
     const gasPrice = await this.getRecommendedGasPrice();
     const nonce = await this.getNonce(this.walletAddress);
-
-    const tx = await this.wallet.sendTransaction({
+    const gasLimit = await this.provider.estimateGas({
       data: parameters.calldata,
       to: this.swapContractAddress,
       value: parameters.value,
@@ -715,6 +715,25 @@ export abstract class EvmClient extends BlockchainClient {
       gasPrice,
       nonce,
     });
+
+    // This try begins at the exact broadcast boundary. Gas price, nonce and explicit gas estimation
+    // above are pre-broadcast; only send failures are ambiguous and must fail closed.
+    let tx: ethers.providers.TransactionResponse;
+    try {
+      tx = await this.wallet.sendTransaction({
+        data: parameters.calldata,
+        to: this.swapContractAddress,
+        value: parameters.value,
+        from: this.walletAddress,
+        gasPrice,
+        nonce,
+        gasLimit,
+      });
+
+      if (!tx?.hash) throw new Error('Broadcast returned an empty tx hash');
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
 
     this.setNonce(this.walletAddress, nonce + 1);
 
@@ -826,14 +845,21 @@ export abstract class EvmClient extends BlockchainClient {
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
 
-    const tx = await wallet.sendTransaction({
-      from: fromAddress,
-      to: toAddress,
-      value: EvmUtil.toWeiAmount(amount),
-      nonce: txNonce,
-      gasPrice,
-      gasLimit,
-    });
+    let tx: ethers.providers.TransactionResponse;
+    try {
+      tx = await wallet.sendTransaction({
+        from: fromAddress,
+        to: toAddress,
+        value: EvmUtil.toWeiAmount(amount),
+        nonce: txNonce,
+        gasPrice,
+        gasLimit,
+      });
+
+      if (!tx?.hash) throw new Error('Broadcast returned an empty tx hash');
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
 
     if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 
@@ -863,7 +889,14 @@ export abstract class EvmClient extends BlockchainClient {
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
 
-    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
+    let tx: ethers.ContractTransaction;
+    try {
+      tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
+
+      if (!tx?.hash) throw new Error('Broadcast returned an empty tx hash');
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
 
     if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 

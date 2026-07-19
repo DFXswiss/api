@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
@@ -32,6 +33,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     private readonly bankService: BankService,
     private readonly repos: RepositoryFactory,
     private readonly yapealService: YapealService,
+    private readonly frickService: BankFrickService,
   ) {
     super(monitoringService, 'bank', 'balance');
   }
@@ -42,6 +44,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
 
     if (Config.bank.olkypay.credentials.clientId) data = data.concat(await this.getOlkypay());
     if (this.yapealService.isAvailable()) data = data.concat(await this.getYapeal());
+    if (this.frickService.isAvailable()) data = data.concat(await this.getFrick());
     this.emit(data);
 
     return data;
@@ -81,6 +84,32 @@ export class BankObserver extends MetricObserver<BankData[]> {
     }
 
     return yapealBankData;
+  }
+
+  private async getFrick(): Promise<BankData[]> {
+    const frickBalances = await this.frickService.getBalances();
+
+    const frickBankData = [];
+    for (const balance of frickBalances) {
+      const dbBalance = await this.getDbBalance(balance.iban, balance.currency);
+
+      // Bank Frick's `available` field is optional in its own account-listing contract. Falling
+      // back to the booked `balance` would overstate spendable liquidity (it ignores pending
+      // debits) - exactly the overdraft risk this case exists to close - so a missing available
+      // balance fails loud instead of silently substituting a different, unsafe number.
+      if (!Number.isFinite(balance.availableBalance))
+        throw new Error(`Missing available balance for Bank Frick account ${balance.iban}`);
+
+      frickBankData.push({
+        name: 'Bank Frick',
+        currency: balance.currency,
+        balance: balance.availableBalance,
+        dbBalance: Util.round(dbBalance, 2),
+        difference: balance.availableBalance - Util.round(dbBalance, 2),
+      });
+    }
+
+    return frickBankData;
   }
 
   private async getDbBalance(iban: string, currency: string): Promise<number> {

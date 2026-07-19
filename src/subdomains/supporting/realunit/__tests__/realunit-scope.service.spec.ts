@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { ServiceProvider } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { ServiceProvider, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { RealUnitScopeService } from 'src/subdomains/supporting/realunit/realunit-scope.service';
 
@@ -31,6 +31,16 @@ describe('RealUnitScopeService', () => {
     it('returns false (fail-closed) for an unknown account', async () => {
       userDataService.getUserData.mockResolvedValue(null);
       await expect(service.isCustomer(999)).resolves.toBe(false);
+    });
+
+    it('returns false for a merged tombstone that kept its marker (master represents it)', async () => {
+      const mergedSlave = Object.assign(new UserData(), {
+        id: 3,
+        serviceProviders: ServiceProvider.REALUNIT,
+        status: UserDataStatus.MERGED,
+      });
+      userDataService.getUserData.mockResolvedValue(mergedSlave);
+      await expect(service.isCustomer(3)).resolves.toBe(false);
     });
   });
 

@@ -129,9 +129,6 @@ export class LogJobService {
       const refCreditLiability = await this.getRefCreditLiability();
       if (refCreditLiability) balancesByFinancialType[REF_CREDIT_FINANCIAL_TYPE] = refCreditLiability;
 
-      // changes
-      const changeLog = await this.getChangeLog();
-
       // total balances — customer flow is balance-neutral, so totalBalanceChf moves only on
       // operating profit, FX, or an error/realised loss (see BalancesTotal). Hence the guardrails below.
       const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
@@ -160,7 +157,13 @@ export class LogJobService {
       await this.processService.setSafetyModeActive(safetyModeActive);
 
       const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
-      const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
+      const lastFinanceLog = JSON.parse(lastLog.message) as FinanceLog;
+      const lastTotalBalance = lastFinanceLog.balancesTotal.totalBalanceChf;
+
+      // price effect (FX P&L) of the open positions since the previous snapshot; undefined on the first
+      // entry (no reference point). Pure arithmetic over already-parsed data (see getFxPnlChf), so it is
+      // deliberately left outside any try/catch — it cannot throw and a wrapping catch would only mask a bug.
+      const fxPnlChf = this.getFxPnlChf(lastFinanceLog, assetLog, assets);
 
       await this.logService.create({
         system: 'LogService',
@@ -177,6 +180,10 @@ export class LogJobService {
             plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true, true),
             minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true, true),
             totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true, true),
+            // per-interval price effect vs. the previous snapshot, rounded like its neighbours (FIAT,
+            // returnNegativeValue so a negative drift stays numeric). Left undefined when there is no
+            // predecessor to diff against; JSON.stringify then drops the key (absence, not a false 0).
+            fxPnlChf: fxPnlChf === undefined ? undefined : this.getJsonValue(fxPnlChf, AmountType.FIAT, true, true),
           },
         }),
         // jump vs. the last VALID entry (lastLog above), not the direct predecessor; must be
@@ -190,14 +197,24 @@ export class LogJobService {
         category: null,
       });
 
-      await this.logService.create({
-        system: 'LogService',
-        subsystem: 'FinancialChangesLog',
-        severity: LogSeverity.INFO,
-        message: JSON.stringify({ changes: changeLog }),
-        valid: null,
-        category: null,
-      });
+      // The changeLog feeds only the informative FinancialChangesLog and is independent of the equity
+      // path above, so it runs in its own try/catch: a reporting-price failure must not arm the equity
+      // safety mode; the equity path above has already run and set it correctly. On failure we log the
+      // error and omit this minute's changes entry (absence instead of a wrong value).
+      try {
+        const changeLog = await this.getChangeLog();
+
+        await this.logService.create({
+          system: 'LogService',
+          subsystem: 'FinancialChangesLog',
+          severity: LogSeverity.INFO,
+          message: JSON.stringify({ changes: changeLog }),
+          valid: null,
+          category: null,
+        });
+      } catch (e) {
+        this.logger.error("Failed to build the financial changes log; skipping this minute's changes entry", e);
+      }
     } catch (e) {
       await this.processService.setSafetyModeActive(true);
       throw e;
@@ -238,6 +255,40 @@ export class LogJobService {
 
       return acc;
     }, {});
+  }
+
+  // Per-interval price effect (FX P&L) of the open book: for each asset that carried a net position in the
+  // previous snapshot, its previous net (plusBalance.total − minusBalance.total) times the change in its CHF
+  // price since then. Equity drifts on open positions while orders are in flight (case 2 in BalancesTotal);
+  // this isolates that FX component so ΔtotalBalanceChf can be split into transactional yield vs. FX vs. errors.
+  //
+  // Only assets with a financialType are counted (same filter as getBalancesByFinancialType). A position
+  // absent from EITHER snapshot contributes no price effect: new positions enter the book via flows (which
+  // are balance-neutral), not via FX, and a closed position has no mark left to move. Assets lacking a usable
+  // price on either side are likewise skipped, as no price effect is derivable.
+  //
+  // Returns undefined when there is no predecessor snapshot, so the caller omits the field instead of writing
+  // a false 0 for the very first entry. This is pure arithmetic over already-parsed data (the predecessor
+  // FinanceLog and the freshly built assetLog), so it cannot throw and deliberately carries no try/catch — a
+  // wrapping catch would only mask a logic error while adding nothing to the resilience of the log write.
+  private getFxPnlChf(prevFinanceLog: FinanceLog | undefined, assetLog: AssetLog, assets: Asset[]): number | undefined {
+    const prevAssets = prevFinanceLog?.assets;
+    if (!prevAssets) return undefined;
+
+    return assets
+      .filter((a) => a.financialType)
+      .reduce((sum, asset) => {
+        const prev = prevAssets[asset.id];
+        const now = assetLog[asset.id];
+        if (!prev || !now) return sum;
+
+        const pPrev = prev.priceChf;
+        const pNow = now.priceChf;
+        if (pPrev == null || pNow == null) return sum;
+
+        const netPrev = (prev.plusBalance?.total ?? 0) - (prev.minusBalance?.total ?? 0);
+        return sum + netPrev * (pNow - pPrev);
+      }, 0);
   }
 
   // open referral-credit liability (EUR-denominated), booked as a synthetic financialType bucket so it
@@ -329,9 +380,12 @@ export class LogJobService {
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const yapealEurBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'EUR');
     const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
-    const eurBankIbans = [yapealEurBank.iban, olkyBank.iban];
+    const frickChfBank = await this.bankService.getBankInternal(IbanBankName.FRICK, 'CHF');
+    const frickEurBank = await this.bankService.getBankInternal(IbanBankName.FRICK, 'EUR');
+    const eurBankIbans = [yapealEurBank.iban, olkyBank.iban, frickEurBank.iban];
+    const chfBankIbans = [yapealChfBank.iban, frickChfBank.iban];
     const eurBankAssets = assets.filter(
-      (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(a.blockchain) && a.dexName === 'EUR',
+      (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(a.blockchain) && a.dexName === 'EUR',
     );
 
     // pending balances
@@ -448,9 +502,9 @@ export class LogJobService {
         k.address === yapealEurBank.bic.padEnd(11, 'XXX'),
     );
 
-    // CHF: Yapeal -> Scrypt
+    // CHF: Bank (Yapeal/Frick) -> Scrypt
     const chfSenderScryptBankTx = recentScryptBankTx.filter(
-      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) => chfBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
@@ -486,12 +540,13 @@ export class LogJobService {
       (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
     );
 
-    // CHF: Scrypt -> Yapeal
+    // CHF: Scrypt -> Bank (Yapeal/Frick) — receiver list is matching-only; pending attribution stays Yapeal-targeted
+    // (ExchangeTx has no bank destination field, so a per-currency target would double-count across CHF bank assets)
     const chfSenderScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status !== 'failed' && k.currency === 'CHF',
     );
     const chfReceiverScryptBankTx = recentScryptBankTx.filter(
-      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      (b) => chfBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
     // EUR: Scrypt -> Bank
@@ -511,7 +566,7 @@ export class LogJobService {
     const recentEurScryptToBankTx = this.getUnmatchedSenders(eurSenderScryptExchangeTx, eurReceiverScryptBankTx);
 
     // assetLog
-    return assets.reduce((prev, curr) => {
+    return assets.reduce<AssetLog>((prev, curr) => {
       if ((curr.balance?.amount == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
 
       const liqAddress = liqAddresses?.get(curr.blockchain);
@@ -556,7 +611,7 @@ export class LogJobService {
 
       // EUR Scrypt pending: aggregated under Scrypt/EUR instead of per-bank
       const isEurBankAsset =
-        [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(curr.blockchain) && curr.dexName === 'EUR';
+        [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(curr.blockchain) && curr.dexName === 'EUR';
       const isScryptEurAsset = (curr.blockchain as string) === ExchangeName.SCRYPT && curr.dexName === 'EUR';
 
       // Olky to Yapeal //
@@ -1073,6 +1128,18 @@ export class LogJobService {
     const binanceTxTradingFee = this.getFeeAmount(
       exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.TRADE),
     );
+    const scryptTxWithdrawFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.SCRYPT && e.type === ExchangeTxType.WITHDRAWAL),
+    );
+    const scryptTxTradingFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.SCRYPT && e.type === ExchangeTxType.TRADE),
+    );
+    const mexcTxWithdrawFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.MEXC && e.type === ExchangeTxType.WITHDRAWAL),
+    );
+    const mexcTxTradingFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.MEXC && e.type === ExchangeTxType.TRADE),
+    );
     const cryptoInputFee = await this.payInService.getPayInFee(firstDayOfMonth);
     const refRewards = await this.refRewardService.getRefRewardVolume(firstDayOfMonth);
     const payoutOrderRefFee = this.getFeeAmount(
@@ -1082,6 +1149,8 @@ export class LogJobService {
 
     const totalKrakenFee = krakenTxWithdrawFee + krakenTxTradingFee;
     const totalBinanceFee = binanceTxWithdrawFee + binanceTxTradingFee;
+    const totalScryptFee = scryptTxWithdrawFee + scryptTxTradingFee;
+    const totalMexcFee = mexcTxWithdrawFee + mexcTxTradingFee;
 
     const totalRefReward = refRewards + payoutOrderRefFee;
     const totalTxFee = cryptoInputFee + payoutOrderFee;
@@ -1089,7 +1158,14 @@ export class LogJobService {
 
     // total amounts
     const totalPlus = buyCryptoFee + buyFiatFee + paymentLinkFee + tradingOrderProfit;
-    const totalMinus = bankTxFee + totalKrakenFee + totalBinanceFee + totalRefReward + totalBlockchainFee;
+    const totalMinus =
+      bankTxFee +
+      totalKrakenFee +
+      totalBinanceFee +
+      totalScryptFee +
+      totalMexcFee +
+      totalRefReward +
+      totalBlockchainFee;
 
     return {
       total: totalPlus - totalMinus,
@@ -1115,6 +1191,20 @@ export class LogJobService {
               total: totalBinanceFee,
               withdraw: binanceTxWithdrawFee || undefined,
               trading: binanceTxTradingFee || undefined,
+            }
+          : undefined,
+        scrypt: totalScryptFee
+          ? {
+              total: totalScryptFee,
+              withdraw: scryptTxWithdrawFee || undefined,
+              trading: scryptTxTradingFee || undefined,
+            }
+          : undefined,
+        mexc: totalMexcFee
+          ? {
+              total: totalMexcFee,
+              withdraw: mexcTxWithdrawFee || undefined,
+              trading: mexcTxTradingFee || undefined,
             }
           : undefined,
         blockchain: totalBlockchainFee

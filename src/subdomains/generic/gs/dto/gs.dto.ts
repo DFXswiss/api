@@ -66,6 +66,25 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'slaveId',
     ],
   },
+  aktionariat_registration: {
+    // RealUnit Aktionariat share-register registrations (one row per wallet). Exposes the
+    // registration lifecycle and the email-confirmation latch for support forensics. No PII:
+    // `email` is excluded (mail), `signature` / `signedPayload` / `kycData` are excluded
+    // (secrets / free-form JSON carrying personal data).
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'active',
+      'confirmedDate',
+      'forwardedToAktionariatDate',
+      'registrationDate',
+      'requiresEmailConfirmation',
+      'status',
+      'userId',
+      'walletAddress',
+    ],
+  },
   asset: {
     // No `ikna` — it's the sole entry in `GsRestrictedColumns`, which `/gs/db` masks to
     // `[RESTRICTED]` for everyone except SUPER_ADMIN. The structured `/gs/debug` endpoint
@@ -977,6 +996,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'preparationFeeAmount',
       'preparationFeeAmountChf',
       'preparationFeeAssetId',
+      'releasedPayoutTxIds',
       'retryCount',
       'status',
       'transferTxId',

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { ZanoService } from 'src/integration/blockchain/zano/services/zano.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { PayoutBroadcastException } from '../exceptions/payout-broadcast.exception';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
@@ -22,11 +24,21 @@ export class PayoutZanoService extends PayoutBitcoinBasedService {
   }
 
   async sendCoins(payout: PayoutGroup): Promise<string> {
-    return this.zanoService.sendCoins(payout).then((r) => r.txId);
+    try {
+      return await this.zanoService.sendCoins(payout).then((r) => r.txId);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async sendTokens(payout: PayoutGroup, token: Asset): Promise<string> {
-    return this.zanoService.sendTokens(payout, token).then((r) => r.txId);
+    try {
+      return await this.zanoService.sendTokens(payout, token).then((r) => r.txId);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {

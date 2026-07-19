@@ -72,6 +72,8 @@ export enum Process {
   FIAT_OUTPUT_YAPEAL_STATUS_CHECK = 'FiatOutputYapealStatusCheck',
   FIAT_OUTPUT_OLKYPAY_TRANSMISSION = 'FiatOutputOlkypayTransmission',
   FIAT_OUTPUT_OLKYPAY_STATUS_CHECK = 'FiatOutputOlkypayStatusCheck',
+  FIAT_OUTPUT_FRICK_TRANSMISSION = 'FiatOutputFrickTransmission',
+  FIAT_OUTPUT_FRICK_STATUS_CHECK = 'FiatOutputFrickStatusCheck',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST = 'TxRequest',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
@@ -96,6 +98,19 @@ export enum Process {
   GS_DEBUG = 'GsDebug',
   GS_DB = 'GsDb',
   TRANSACTION_AML_CHECK_LOG = 'TransactionAmlCheckLog',
+  // ledger booking consumers + jobs (§11.1; one own flag per @DfxCron method = kill-switch, Hard Constraint #5)
+  LEDGER_BOOKING_BANK_TX = 'LedgerBookingBankTx',
+  LEDGER_BOOKING_EXCHANGE_TX = 'LedgerBookingExchangeTx',
+  LEDGER_BOOKING_CRYPTO_INPUT = 'LedgerBookingCryptoInput',
+  LEDGER_BOOKING_PAYOUT = 'LedgerBookingPayout',
+  LEDGER_BOOKING_BUY_CRYPTO = 'LedgerBookingBuyCrypto',
+  LEDGER_BOOKING_BUY_FIAT = 'LedgerBookingBuyFiat',
+  LEDGER_BOOKING_LIQUIDITY_MANAGEMENT = 'LedgerBookingLiquidityManagement',
+  LEDGER_BOOKING_TRADING_ORDER = 'LedgerBookingTradingOrder',
+  LEDGER_BOOKING_LIQUIDITY_ORDER = 'LedgerBookingLiquidityOrder',
+  LEDGER_RECONCILIATION = 'LedgerReconciliation',
+  LEDGER_MARK_TO_MARKET = 'LedgerMarkToMarket',
+  LEDGER_CUTOVER = 'LedgerCutover',
 }
 
 const safetyProcesses: Process[] = [

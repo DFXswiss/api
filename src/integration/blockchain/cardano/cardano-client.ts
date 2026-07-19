@@ -19,6 +19,7 @@ import {
 } from '@emurgo/cardano-serialization-lib-nodejs';
 import blake from 'blakejs';
 import { Config } from 'src/config/config';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
@@ -156,7 +157,18 @@ export class CardanoClient extends BlockchainClient {
     const signedTransactionHex = await this.createSignedTransactionBlockFrost(wallet, toAddress, amount);
 
     const blockFrostApi = this.getBlockFrostAPI();
-    return blockFrostApi.txSubmit(signedTransactionHex);
+
+    // Broadcast boundary: once txSubmit is reached the tx may already be accepted by the network.
+    // An empty/missing hash on a resolved response is ambiguous and must stay fail-closed (not a
+    // plain Error that would roll the payout order back for re-broadcast).
+    try {
+      const txHash = await blockFrostApi.txSubmit(signedTransactionHex);
+      if (!txHash) throw new TxBroadcastError('Cardano broadcast returned an empty tx hash');
+      return txHash;
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   private async createSignedTransactionBlockFrost(

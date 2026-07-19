@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Agent } from 'https';
 import { Config } from 'src/config/config';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { HttpError, HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { LnBitsWalletDto, LnBitsWalletPaymentDto, LnBitsWalletPaymentParamsDto } from './dto/lnbits.dto';
@@ -147,28 +148,42 @@ export class LightningClient implements CoinOnly {
   }
 
   async sendPaymentByInvoice(invoice: string): Promise<LndSendPaymentResponseDto> {
-    return this.http.post<LndSendPaymentResponseDto>(
-      `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
-      { payment_request: invoice },
-      this.httpLndConfig(),
-    );
+    // Broadcast boundary: once this POST is sent, a transport/timeout failure is ambiguous - LND may
+    // have already dispatched the payment before the response reached us. A response.payment_error
+    // (checked by the caller, LightningService#sendTransfer) is the in-band, provably-not-routed
+    // case and is deliberately NOT covered here - it surfaces as a plain resolved value, not a
+    // rejection, so it never reaches this catch.
+    try {
+      return await this.http.post<LndSendPaymentResponseDto>(
+        `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
+        { payment_request: invoice },
+        this.httpLndConfig(),
+      );
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   async sendPaymentByPublicKey(publicKey: string, amount: number): Promise<LndSendPaymentResponseDto> {
     const preImage = randomBytes(32);
     const paymentHash = Util.createHash(preImage, 'sha256', 'base64');
 
-    return this.http.post<LndSendPaymentResponseDto>(
-      `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
-      {
-        dest: Buffer.from(publicKey, 'hex').toString('base64'),
-        amt: Math.round(LightningHelper.btcToSat(amount)),
-        final_cltv_delta: 0,
-        payment_hash: paymentHash,
-        dest_custom_records: { 5482373484: preImage.toString('base64') },
-      },
-      this.httpLndConfig(),
-    );
+    // Broadcast boundary: see sendPaymentByInvoice.
+    try {
+      return await this.http.post<LndSendPaymentResponseDto>(
+        `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
+        {
+          dest: Buffer.from(publicKey, 'hex').toString('base64'),
+          amt: Math.round(LightningHelper.btcToSat(amount)),
+          final_cltv_delta: 0,
+          payment_hash: paymentHash,
+          dest_custom_records: { 5482373484: preImage.toString('base64') },
+        },
+        this.httpLndConfig(),
+      );
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   // --- LnBits --- //
@@ -376,8 +391,12 @@ export class LightningClient implements CoinOnly {
   private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
       httpsAgent: this.tlsAgent,
-      headers: { 'X-Forwarded-Proto': 'https', Host: new URL(Config.url()).hostname },
-      params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
+      headers: {
+        'X-Forwarded-Proto': 'https',
+        Host: new URL(Config.url()).hostname,
+        'X-Api-Key': Config.blockchain.lightning.lnbits.apiKey,
+      },
+      params: { ...params },
     };
   }
 

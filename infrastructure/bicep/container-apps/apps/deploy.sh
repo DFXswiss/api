@@ -8,25 +8,11 @@ API_NAME="api"
 # --- OPTIONS --- #
 environmentOptions=("loc" "dev" "prd")
 
-# "fcp": Frankencoin Ponder
-# "dep": dEuro Ponder
-# "dea": dEuro API
-# "ded": dEuro dApp
-# "dem": dEuro Monitoring
-# "jsp": JuiceSwap Ponder
-# "jsw": JuiceSwap API
-# "n8n": N8N workflow automation
-# "jdtp": JuiceDollar Testnet Ponder
-# "jdta": JuiceDollar Testnet API
-# "jdtd": JuiceDollar Testnet dApp
-# "jdtm": JuiceDollar Testnet Monitoring
-# "jdmp": JuiceDollar Mainnet Ponder
-# "jdma": JuiceDollar Mainnet API
-# "jdmd": JuiceDollar Mainnet dApp
-# "jdmm": JuiceDollar Mainnet Monitoring
-# "rup": realUnit Ponder
-# "nbt": Nanobot
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "jdtp" "jdta" "jdtd" "jdtm" "jdmp" "jdma" "jdmd" "jdmm" "rup" "nbt")
+# "btcd": Bitcoin Core node (loc)
+# "liqd": Liquid (elementsd) node (loc)
+# "zanod": Zano node (loc)
+# "zanolw": Zano light wallet (loc)
+appNameOptions=("btcd" "liqd" "zanod" "zanolw")
 
 # --- FUNCTIONS --- #
 selectOption() {

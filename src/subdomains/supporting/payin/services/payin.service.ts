@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -13,12 +13,16 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { In, IsNull, MoreThan, Not } from 'typeorm';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
+import { RetryPayInSendDto } from '../dto/retry-payin-send.dto';
 import {
   CryptoInput,
+  CryptoInputInFlightSendStatus,
   PayInAction,
   PayInConfirmationType,
   PayInPurpose,
@@ -45,6 +49,7 @@ export class PayInService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly payInBitcoinService: PayInBitcoinService,
     private readonly payInFiroService: PayInFiroService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // --- PUBLIC API --- //
@@ -183,8 +188,16 @@ export class PayInService {
   }
 
   async getPendingPayIns(): Promise<CryptoInput[]> {
+    // SendUncertain can remain unresolved for days and, like Sending, must stay in pending balances.
     return this.payInRepository.findBy({
-      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.FORWARDED, PayInStatus.RETURNED, PayInStatus.TO_RETURN]),
+      status: In([
+        PayInStatus.ACKNOWLEDGED,
+        PayInStatus.FORWARDED,
+        PayInStatus.RETURNED,
+        PayInStatus.TO_RETURN,
+        PayInStatus.SENDING,
+        PayInStatus.SEND_UNCERTAIN,
+      ]),
       isConfirmed: true,
       txType: Not(PayInType.PAYMENT),
     });
@@ -219,6 +232,8 @@ export class PayInService {
 
   async returnPayIn(payIn: CryptoInput, returnAddress: string, chargebackAmount: number): Promise<void> {
     if (payIn.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
+    if (CryptoInputInFlightSendStatus.includes(payIn.status))
+      throw new BadRequestException('CryptoInput send in flight or uncertain');
     if ([PayInStatus.RETURN_CONFIRMED, PayInStatus.RETURNED].includes(payIn.status) || payIn.returnTxId)
       throw new BadRequestException('CryptoInput already returned');
 
@@ -241,16 +256,48 @@ export class PayInService {
     await this.payInRepository.save(_payIn);
   }
 
+  async retryUncertainSend(accountId: number, dto: RetryPayInSendDto): Promise<void> {
+    const payIn = await this.payInRepository.findOneBy({ id: dto.id });
+    if (!payIn) throw new NotFoundException('CryptoInput not found');
+
+    if (payIn.status !== PayInStatus.SEND_UNCERTAIN)
+      throw new BadRequestException(
+        `CryptoInput ${dto.id} cannot be retried in status ${payIn.status}, expected ${PayInStatus.SEND_UNCERTAIN}`,
+      );
+
+    // A pay-in that already carries an out/return tx id did broadcast — reconcile against the chain, never re-send.
+    if (payIn.outTxId || payIn.returnTxId)
+      throw new BadRequestException(
+        `CryptoInput ${dto.id} has ${
+          payIn.outTxId ? `outTxId ${payIn.outTxId}` : `returnTxId ${payIn.returnTxId}`
+        } and must be reconciled, not retried`,
+      );
+
+    if (dto.noBroadcastVerified !== true)
+      throw new BadRequestException('On-chain absence must be verified and confirmed (noBroadcastVerified)');
+
+    // Atomic conditional transition — a concurrent state change (e.g. late confirmation) must not be resurrected.
+    const [, update] = payIn.resetSend();
+    const result = await this.payInRepository.update({ id: payIn.id, status: PayInStatus.SEND_UNCERTAIN }, update);
+    if (!result.affected) throw new ConflictException(`CryptoInput ${dto.id} changed state concurrently, not retried`);
+
+    this.logger.info(
+      `Manual pay-in send retry authorized for input ${dto.id} by account ${accountId}: status ${PayInStatus.SEND_UNCERTAIN} -> ${update.status}, reference: ${dto.verificationReference}`,
+    );
+  }
+
   // --- JOBS --- //
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async forwardPayInEntries(): Promise<void> {
     await this.forwardPayIns();
+    await this.processStrandedSendingPayIns();
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async returnPayInEntries(): Promise<void> {
     await this.returnPayIns();
+    await this.processStrandedSendingPayIns();
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
@@ -445,6 +492,52 @@ export class PayInService {
         continue;
       }
     }
+  }
+
+  private async processStrandedSendingPayIns(): Promise<void> {
+    // An in-flight dispatch holds Sending for seconds. Ten minutes only matches crash leftovers or
+    // ambiguous-broadcast strandings, never the other pay-in cron's live work.
+    const payIns = await this.payInRepository.find({
+      where: { status: PayInStatus.SENDING, updated: LessThan(Util.minutesBefore(10)) },
+      select: { id: true },
+      loadEagerRelations: false,
+    });
+
+    if (payIns.length === 0) return;
+
+    const ids: number[] = [];
+    for (const payIn of payIns) {
+      try {
+        const { affected } = await this.payInRepository.update(
+          { id: payIn.id, status: PayInStatus.SENDING },
+          { status: PayInStatus.SEND_UNCERTAIN },
+        );
+
+        if (affected === 1) {
+          ids.push(payIn.id);
+        } else {
+          this.logger.warn(`Skipped escalation of pay-in ${payIn.id}: Sending status changed concurrently`);
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to escalate stranded Sending pay-in ${payIn.id}:`, e);
+      }
+    }
+
+    if (ids.length === 0) return;
+
+    const errorMessage = `Pay-ins left in Sending require manual investigation: ${ids.join(', ')}`;
+    this.logger.error(errorMessage);
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.MONITORING,
+      input: {
+        subject: 'Pay-in send uncertain',
+        errors: [errorMessage],
+        isLiqMail: true,
+      },
+      correlationId: ids.map((id) => `|${id}|`).join(''),
+      options: { suppressRecurring: true },
+    });
   }
 
   private async checkInputConfirmations(): Promise<void> {

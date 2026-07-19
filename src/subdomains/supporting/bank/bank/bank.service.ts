@@ -33,7 +33,10 @@ export class BankService implements OnModuleInit {
   }
 
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(`${name}-${currency}`, { name, currency });
+    // A (name, currency) pair can match more than one row (e.g. a retired legacy Bank Frick account
+    // alongside its replacement). Ordering by id descending deterministically prefers the newest row
+    // instead of an arbitrary one, so a stale/legacy row can never silently win.
+    return this.bankRepo.findOneCached(`${name}-${currency}`, { where: { name, currency }, order: { id: 'DESC' } });
   }
 
   async getBankById(id: number): Promise<Bank> {
@@ -48,15 +51,21 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findCachedBy(`receive`, { receive: true });
   }
 
-  async getSenderBank(currency: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(`send-${currency}`, { currency, send: true });
+  async getSenderBanks(currency: string): Promise<Bank[]> {
+    return this.bankRepo.findCachedBy(`send-${currency}`, { currency, send: true });
   }
 
   // --- BANK SELECTOR --- //
   async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank> {
     const fallBackCurrency = 'EUR';
 
-    const banks = await this.getReceiveBanks();
+    // Bank Frick's rows are receive=true so money arriving on its accounts is fully processed, but it
+    // must never be offered to a customer as a deposit target - customers are always shown the incumbent
+    // banks (Olkypay/Yapeal). It is deliberately filtered out of this customer-facing selector here;
+    // inbound crediting runs via BankTxFrickService, not this path, and the outbound payout selector
+    // applies its own separate Frick handling, so the exclusion affects only the deposit IBAN shown to
+    // customers.
+    const banks = (await this.getReceiveBanks()).filter((b) => b.name !== IbanBankName.FRICK);
 
     // select the matching bank account
     let account: Bank;
@@ -98,7 +107,9 @@ export class BankService implements OnModuleInit {
 
   // --- HELPER METHODS --- //
   private async loadIbanCache(): Promise<void> {
-    const banks = await this.bankRepo.find();
+    // Ordering by id descending makes the "first row per key wins" rule below deterministically prefer
+    // the newest row for a given (name, currency), instead of relying on implicit DB row order.
+    const banks = await this.bankRepo.find({ order: { id: 'DESC' } });
 
     for (const bank of banks) {
       const key = `${bank.name}-${bank.currency}`;
@@ -116,6 +127,8 @@ export class BankService implements OnModuleInit {
         return IbanBankName.OLKY;
       case Blockchain.YAPEAL:
         return IbanBankName.YAPEAL;
+      case Blockchain.FRICK:
+        return IbanBankName.FRICK;
       default:
         return undefined;
     }

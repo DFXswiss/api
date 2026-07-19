@@ -1,0 +1,258 @@
+import { createMock } from '@golevelup/ts-jest';
+import { ConfigService } from 'src/config/config';
+import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
+import { createCustomPrice } from 'src/integration/exchange/dto/__mocks__/price.dto.mock';
+import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionNotificationService } from 'src/subdomains/supporting/payment/services/transaction-notification.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { BankTxRepeatService } from '../../bank-tx-repeat/bank-tx-repeat.service';
+import { BankTxReturnService } from '../../bank-tx-return/bank-tx-return.service';
+import { BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
+import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
+import { BankTxRepository } from '../repositories/bank-tx.repository';
+import { BankTxFrickService } from '../services/bank-tx-frick.service';
+import { BankTxService } from '../services/bank-tx.service';
+import { SepaParser } from '../services/sepa-parser.service';
+
+// one raw aggregate row as returned by the GROUP BY currency, creditDebitIndicator query
+interface FeeAggregate {
+  currency: string;
+  creditDebitIndicator: BankTxIndicator;
+  amount: string; // Postgres returns SUM() as a string
+}
+
+// one raw aggregate row as returned by the source-3 GROUP BY chargeCurrency query (statement-inline charges)
+interface InlineChargeAggregate {
+  currency: string;
+  amount: string; // Postgres returns SUM() as a string
+}
+
+describe('BankTxService', () => {
+  let service: BankTxService;
+
+  let bankTxRepo: BankTxRepository;
+  let pricingService: PricingService;
+  let fiatService: FiatService;
+
+  // getBankTxFee builds three query builders in order: (1) legacy chargeAmountChf sum (getRawOne),
+  // (2) BankAccountFee per-currency/direction aggregation (getRawMany), (3) statement-inline charge
+  // aggregation (getRawMany). Each source gets its own chainable mock so their terminal results are independent.
+  let legacyQb: any;
+  let feeAggQb: any;
+  let inlineQb: any;
+
+  const from = new Date('2026-07-01');
+
+  // Distinct per-currency CHF prices. Price.convert divides the amount by the price
+  // (getPrice(fiat, CHF).convert(x) = x / price), so a wrong currency->price mapping or an
+  // inverted (multiply) direction produces a different total and turns these tests red.
+  const chfPriceByCurrency: Record<string, number> = { EUR: 0.8, USD: 2 };
+
+  beforeAll(() => {
+    new ConfigService(); // sets module-level Config (defaultVolumeDecimal read by the CHF conversion)
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    bankTxRepo = createMock<BankTxRepository>();
+    pricingService = createMock<PricingService>();
+    fiatService = createMock<FiatService>();
+
+    // one chainable query builder mock per source; createQueryBuilder hands them out in call order
+    legacyQb = chainableQb();
+    feeAggQb = chainableQb();
+    inlineQb = chainableQb();
+    (bankTxRepo.createQueryBuilder as jest.Mock)
+      .mockReturnValueOnce(legacyQb)
+      .mockReturnValueOnce(feeAggQb)
+      .mockReturnValueOnce(inlineQb);
+
+    // sensible empty defaults so a test only sets the source it exercises
+    legacyQb.getRawOne.mockResolvedValue({ fee: null });
+    feeAggQb.getRawMany.mockResolvedValue([]);
+    inlineQb.getRawMany.mockResolvedValue([]);
+
+    (fiatService.getFiatByName as jest.Mock).mockImplementation((name: string) => createCustomFiat({ name }));
+
+    service = new BankTxService(
+      bankTxRepo,
+      createMock<BankTxBatchRepository>(),
+      createMock<BuyCryptoService>(),
+      createMock<NotificationService>(),
+      createMock<SettingService>(),
+      createMock<OlkypayService>(),
+      createMock<BankTxFrickService>(),
+      createMock<BankTxReturnService>(),
+      createMock<BankTxRepeatService>(),
+      createMock<BuyService>(),
+      createMock<BankService>(),
+      createMock<YapealService>(),
+      createMock<TransactionService>(),
+      createMock<SpecialExternalAccountService>(),
+      createMock<SepaParser>(),
+      createMock<BankDataService>(),
+      createMock<VirtualIbanService>(),
+      createMock<TransactionNotificationService>(),
+      pricingService,
+      fiatService,
+    );
+  });
+
+  function chainableQb(): any {
+    const qb: any = {
+      select: jest.fn(() => qb),
+      addSelect: jest.fn(() => qb),
+      where: jest.fn(() => qb),
+      andWhere: jest.fn(() => qb),
+      groupBy: jest.fn(() => qb),
+      addGroupBy: jest.fn(() => qb),
+      getRawOne: jest.fn(),
+      getRawMany: jest.fn(),
+    };
+    return qb;
+  }
+
+  function mockLegacyFee(fee: number | null): void {
+    legacyQb.getRawOne.mockResolvedValue({ fee });
+  }
+
+  function mockFeeAggregates(rows: FeeAggregate[]): void {
+    feeAggQb.getRawMany.mockResolvedValue(rows);
+  }
+
+  function mockInlineCharges(rows: InlineChargeAggregate[]): void {
+    inlineQb.getRawMany.mockResolvedValue(rows);
+  }
+
+  // per-currency prices from chfPriceByCurrency (distinct so mapping/direction errors are caught)
+  function mockChfPrices(): void {
+    (pricingService.getPrice as jest.Mock).mockImplementation(async (fiat: { name: string }) =>
+      createCustomPrice({ source: fiat.name, target: 'CHF', price: chfPriceByCurrency[fiat.name] }),
+    );
+  }
+
+  it('converts each DBIT currency aggregate with its own price and sums the result', async () => {
+    mockLegacyFee(null);
+    mockFeeAggregates([
+      { currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' },
+      { currency: 'USD', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '200' },
+    ]);
+    mockChfPrices();
+
+    // EUR 100 / 0.8 = 125 CHF; USD 200 / 2 = 100 CHF; total 225 CHF
+    // (a multiply direction -> 80 + 400 = 480; a swapped currency->price -> 125 + 250 = 375)
+    await expect(service.getBankTxFee(from)).resolves.toBe(225);
+
+    expect(fiatService.getFiatByName).toHaveBeenCalledWith('EUR');
+    expect(fiatService.getFiatByName).toHaveBeenCalledWith('USD');
+    expect(pricingService.getPrice).toHaveBeenCalledTimes(2);
+  });
+
+  it('nets a CRDT refund against a DBIT fee in the same currency before converting', async () => {
+    mockLegacyFee(null);
+    mockFeeAggregates([
+      { currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' },
+      { currency: 'EUR', creditDebitIndicator: BankTxIndicator.CREDIT, amount: '30' },
+    ]);
+    mockChfPrices();
+
+    // net EUR 70 / 0.8 = 87.5 CHF (converted once, after netting)
+    await expect(service.getBankTxFee(from)).resolves.toBe(87.5);
+
+    expect(pricingService.getPrice).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds the legacy chargeAmountChf sum on top of the converted BankAccountFee aggregates', async () => {
+    mockLegacyFee(5);
+    mockFeeAggregates([{ currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' }]);
+    mockChfPrices();
+
+    // legacy 5 + EUR 100 / 0.8 (125) = 130
+    await expect(service.getBankTxFee(from)).resolves.toBe(130);
+  });
+
+  it('rounds the assembled total to the default volume decimals', async () => {
+    mockLegacyFee(0.1);
+    mockFeeAggregates([{ currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '0.2' }]);
+    // price 1 so the converted amount is exactly 0.2 and only the final sum needs rounding
+    (pricingService.getPrice as jest.Mock).mockResolvedValue(
+      createCustomPrice({ source: 'EUR', target: 'CHF', price: 1 }),
+    );
+
+    // legacy 0.1 + EUR 0.2 = 0.30000000000000004 in float -> must be rounded to 0.3
+    await expect(service.getBankTxFee(from)).resolves.toBe(0.3);
+  });
+
+  it('fails loud when the price is unavailable', async () => {
+    mockLegacyFee(null);
+    mockFeeAggregates([{ currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' }]);
+    (pricingService.getPrice as jest.Mock).mockRejectedValue(new Error('No valid price'));
+
+    await expect(service.getBankTxFee(from)).rejects.toThrow();
+  });
+
+  it('returns only the legacy sum when there are no BankAccountFee aggregates', async () => {
+    mockLegacyFee(5);
+    mockFeeAggregates([]);
+
+    await expect(service.getBankTxFee(from)).resolves.toBe(5);
+
+    expect(pricingService.getPrice).not.toHaveBeenCalled();
+  });
+
+  it('includes a statement-inline charge (source 3) and converts it to CHF via its currency price', async () => {
+    mockLegacyFee(null);
+    mockFeeAggregates([]);
+    mockInlineCharges([{ currency: 'EUR', amount: '80' }]);
+    mockChfPrices();
+
+    // EUR 80 / 0.8 = 100 CHF; a charge is a positive cost added as-is (no credit/debit sign logic for source 3)
+    await expect(service.getBankTxFee(from)).resolves.toBe(100);
+
+    expect(fiatService.getFiatByName).toHaveBeenCalledWith('EUR');
+    expect(pricingService.getPrice).toHaveBeenCalledTimes(1);
+  });
+
+  it('scopes source 3 so charged-CHF and BankAccountFee rows cannot be double-counted', async () => {
+    // The anti-double-count guarantee lives in the source-3 WHERE clause (the mocked builder runs no SQL), so we
+    // assert the query is constructed with exactly those filters.
+    mockLegacyFee(10);
+    mockFeeAggregates([{ currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' }]);
+    mockInlineCharges([]);
+    mockChfPrices();
+
+    await service.getBankTxFee(from);
+
+    // (a) rows that already carry chargeAmountChf stay in source 1 only — source 3 excludes non-null chargeAmountChf
+    expect(inlineQb.andWhere).toHaveBeenCalledWith('bankTx.chargeAmountChf IS NULL');
+    // (b) BankAccountFee rows stay in source 2 only — the IS NULL OR guard both excludes them and keeps the
+    //     type=null inline charges (a bare `!= :feeType` would drop them under Postgres NULL semantics)
+    expect(inlineQb.andWhere).toHaveBeenCalledWith('(bankTx.type IS NULL OR bankTx.type != :feeType)', {
+      feeType: BankTxType.BANK_ACCOUNT_FEE,
+    });
+    // only non-zero charges from the same window are aggregated
+    expect(inlineQb.where).toHaveBeenCalledWith('bankTx.chargeAmount != 0');
+    expect(inlineQb.andWhere).toHaveBeenCalledWith('bankTx.created >= :from', { from });
+  });
+
+  it('fails loud when the price for a statement-inline charge currency is unavailable', async () => {
+    mockLegacyFee(null);
+    mockFeeAggregates([]);
+    mockInlineCharges([{ currency: 'EUR', amount: '80' }]);
+    (pricingService.getPrice as jest.Mock).mockRejectedValue(new Error('No valid price'));
+
+    await expect(service.getBankTxFee(from)).rejects.toThrow();
+  });
+});

@@ -10,6 +10,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -28,7 +29,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { Config, Environment } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
@@ -71,6 +72,7 @@ import {
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationResponseDto,
   RealUnitRegisterWalletDto,
+  RealUnitRegistrationDateDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationInfoDto,
   RealUnitRegistrationResponseDto,
@@ -708,6 +710,26 @@ export class RealUnitController {
 
   // --- Registration Endpoints ---
 
+  @Get('register/date')
+  @ApiBearerAuth()
+  // ACCOUNT (not USER) to match the endpoints this date feeds — register/complete
+  // and register/wallet are ACCOUNT-guarded, so any token that can register must
+  // also be able to fetch the date to sign. ACCOUNT admits USER via the role
+  // hierarchy, so this only widens access, never narrows it.
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get the registration date to sign',
+    description:
+      "Returns the server's current registration date (UTC). The client must sign this exact value into the " +
+      'EIP-712 registration envelope submitted to POST /register/complete and POST /register/wallet, rather than ' +
+      "deriving the date from its own clock — a device in a timezone ahead of UTC would otherwise sign tomorrow's " +
+      'date and be rejected. Fetch this immediately before signing.',
+  })
+  @ApiOkResponse({ type: RealUnitRegistrationDateDto })
+  getRegistrationDate(): RealUnitRegistrationDateDto {
+    return this.realunitService.getRegistrationDate();
+  }
+
   @Get('register/status')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
@@ -813,12 +835,21 @@ export class RealUnitController {
       'Public endpoint called from realunit.app/confirm-aktionariat when the user opens the email link. ' +
       'Server-side confirms the connection at Aktionariat using the provided code (which acts as the auth ' +
       'token) and documents the outcome per RealUnit-registered wallet. Returns the mapped state: ' +
-      '`confirmed` (Aktionariat accepted), `invalid` (link invalid/expired), or `unavailable` (Aktionariat ' +
-      'unreachable — retry later).',
+      '`confirmed` (Aktionariat accepted), `confirmed_no_registration` (Aktionariat accepted the email, but ' +
+      'no RealUnit registration matched it — a permanent outcome, not a retry candidate), `invalid` (link ' +
+      'invalid/expired), or `unavailable` (Aktionariat unreachable — retry later).',
   })
   @ApiOkResponse({ type: RealUnitConfirmAktionariatDto })
-  async confirmAktionariat(@Query() query: RealUnitConfirmAktionariatQueryDto): Promise<RealUnitConfirmAktionariatDto> {
-    return this.realunitService.confirmAktionariat(query);
+  async confirmAktionariat(
+    @Query() query: RealUnitConfirmAktionariatQueryDto,
+    @Req() req: Request,
+  ): Promise<RealUnitConfirmAktionariatDto> {
+    // Capture the COMPLETE raw incoming request (every query param + the full URL) alongside the typed
+    // email/code/user. The global ValidationPipe (whitelist: true) strips any extra param from the DTO, so the
+    // raw query is the only place a mail-link param the DTO does not model (e.g. a wallet address / connection
+    // id) survives — it is forwarded to the service purely to be audited in the DB `log` PII store. Headers are
+    // intentionally not captured (they may carry auth/cookies). This adds no matching/validation behaviour.
+    return this.realunitService.confirmAktionariat(query, { url: req.originalUrl, query: req.query });
   }
 
   // --- Admin Endpoints ---
