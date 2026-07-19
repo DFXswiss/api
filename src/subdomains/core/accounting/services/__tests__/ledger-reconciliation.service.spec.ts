@@ -28,7 +28,14 @@ interface LegQueryStub {
   native?: string; // journal native balance per account (fed through the nativeBalanceByAccount map, §7.0 m8)
   equityChf?: string; // journalEquity getRawOne
   // checkTransitAge open-account candidates (F3); §2.3 base-unit fields optional (absent ⇒ float pre-filter verdict)
-  transit?: { id: number; name: string; native: string; baseUnits?: string | null; legCount?: string; valuedCount?: string }[];
+  transit?: {
+    id: number;
+    name: string;
+    native: string;
+    baseUnits?: string | null;
+    legCount?: string;
+    valuedCount?: string;
+  }[];
   transitLegs?: { amount: string; bookingDate: Date }[]; // openResidualSince per-account ordered legs (F3)
   suspense?: { name: string; chf: string }[];
 }
@@ -444,7 +451,14 @@ describe('LedgerReconciliationService', () => {
     // accumulated 8dp noise, yet whose EXACT integer base-unit sum is 0, is closed → no false overdue alarm.
     it('treats a transit residual with an exact base-unit sum of 0 as closed (no float-noise overdue alarm)', async () => {
       legStub.transit = [
-        { id: 7, name: 'TRANSIT/withdrawal/BTC', native: '0.00000002', baseUnits: '0', legCount: '2', valuedCount: '2' },
+        {
+          id: 7,
+          name: 'TRANSIT/withdrawal/BTC',
+          native: '0.00000002',
+          baseUnits: '0',
+          legCount: '2',
+          valuedCount: '2',
+        },
       ];
       legStub.transitLegs = [{ amount: '0.00000002', bookingDate: Util.daysBefore(10) }]; // never reached (skipped)
 
