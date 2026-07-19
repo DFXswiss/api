@@ -66,8 +66,11 @@ export class HistoryAccessService {
   }
 
   private isStaffFullAccess(role: UserRole): boolean {
-    // SUPPORT hierarchy includes COMPLIANCE / ADMIN / SUPER_ADMIN via hasRoleAccess.
-    return hasRoleAccess(UserRole.SUPPORT, role) || hasRoleAccess(UserRole.REALUNIT, role);
+    // DFX staff only: the SUPPORT hierarchy (COMPLIANCE / ADMIN / SUPER_ADMIN via hasRoleAccess). REALUNIT is an
+    // isolated external tenant, NOT DFX staff — granting it ownership-independent full access here would leak every
+    // customer's private banking/compliance data across the tenant boundary that its own routes scope via
+    // RealUnitScopeService. RealUnit access to a customer's transaction must stay customer-scoped, never blanket.
+    return hasRoleAccess(UserRole.SUPPORT, role);
   }
 
   private accountIdOf(tx: Transaction | TransactionRequest): number | undefined {

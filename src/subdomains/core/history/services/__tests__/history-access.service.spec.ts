@@ -206,10 +206,10 @@ describe('HistoryAccessService', () => {
       expect(service.canViewFullTransaction(staff, tx)).toBe(true);
     });
 
-    it('allows REALUNIT role full access', () => {
-      const staff: JwtPayload = { role: UserRole.REALUNIT, ip: '1.1.1.1', account: 99 };
-      const tx = { userData: { id: 1 } } as Transaction;
-      expect(service.canViewFullTransaction(staff, tx)).toBe(true);
+    it('denies REALUNIT ownership-independent full access (isolated external tenant, not DFX staff)', () => {
+      const tenantStaff: JwtPayload = { role: UserRole.REALUNIT, ip: '1.1.1.1', account: 99 };
+      const tx = { userData: { id: 1 } } as Transaction; // not owned by the RealUnit tenant account
+      expect(service.canViewFullTransaction(tenantStaff, tx)).toBe(false);
     });
 
     it('returns false for missing tx', () => {
