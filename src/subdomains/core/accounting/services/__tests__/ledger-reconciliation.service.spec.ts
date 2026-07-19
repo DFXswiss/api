@@ -27,7 +27,8 @@ import { CustodyClass, FeedStatus, LedgerReconciliationService } from '../ledger
 interface LegQueryStub {
   native?: string; // journal native balance per account (fed through the nativeBalanceByAccount map, §7.0 m8)
   equityChf?: string; // journalEquity getRawOne
-  transit?: { id: number; name: string; native: string }[]; // checkTransitAge open-account candidates (F3)
+  // checkTransitAge open-account candidates (F3); §2.3 base-unit fields optional (absent ⇒ float pre-filter verdict)
+  transit?: { id: number; name: string; native: string; baseUnits?: string | null; legCount?: string; valuedCount?: string }[];
   transitLegs?: { amount: string; bookingDate: Date }[]; // openResidualSince per-account ordered legs (F3)
   suspense?: { name: string; chf: string }[];
 }
@@ -399,24 +400,31 @@ describe('LedgerReconciliationService', () => {
   // m8: the journal native balance for reconcileFreshAsset comes from ONE GROUP-BY pass (nativeBalanceByAccount),
   // not a per-account SUM query inside the batched loop. The map keys on account.id (Σ leg.amount per account).
   describe('journal native balance GROUP-BY map (§7.0 / m8)', () => {
-    it('nativeBalanceByAccount builds the journal map from ONE GROUP-BY getRawMany (per-account)', async () => {
+    it('nativeBalanceByAccount sums exact base units for decimals-bearing accounts, float otherwise', async () => {
       nativeBalanceSpy.mockRestore(); // exercise the REAL helper (not the default spy)
 
       const qb: any = {};
+      qb.innerJoin = () => qb;
+      qb.leftJoin = () => qb;
       qb.select = () => qb;
       qb.addSelect = () => qb;
       qb.groupBy = () => qb;
       qb.getRawMany = () =>
         Promise.resolve([
-          { accountId: 1005, native: '150.123456789' },
-          { accountId: 1006, native: '-2.5' },
+          // decimals-bearing + every leg valued → EXACT base-unit path (the float 150.5 is accumulated drift, ignored)
+          { accountId: 1005, native: '150.5', baseUnits: '15012345678', legCount: '3', valuedCount: '3', decimals: 8 },
+          // no asset decimals (fiat / TRANSIT) → raw float Σ amount
+          { accountId: 1006, native: '-2.5', baseUnits: null, legCount: '1', valuedCount: '0', decimals: null },
+          // decimals present but NOT all legs valued → float fallback (a null-swallowed partial SUM would understate)
+          { accountId: 1007, native: '10.25', baseUnits: '1000000000', legCount: '3', valuedCount: '2', decimals: 8 },
         ]);
       jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(qb);
 
       const map = await (service as any).nativeBalanceByAccount();
 
-      expect(map.get(1005)).toBe(Util.round(150.123456789, 8)); // Σ rounded to 8 dp
-      expect(map.get(1006)).toBe(-2.5);
+      expect(map.get(1005)).toBe(Util.round(150.12345678, 8)); // 15012345678 base units ÷ 1e8, not the float 150.5
+      expect(map.get(1006)).toBe(-2.5); // no decimals → float fallback
+      expect(map.get(1007)).toBe(10.25); // partial-valued → float fallback (decimals never invented)
       expect(map.get(9999)).toBeUndefined(); // an account absent from the aggregate → caller falls back to ?? 0
     });
   });
@@ -430,6 +438,19 @@ describe('LedgerReconciliationService', () => {
       await service.run();
 
       expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(true);
+    });
+
+    // §2.3 exact: a decimals-bearing transit residual whose float SUM passes the ABS>1e-8 HAVING pre-filter on
+    // accumulated 8dp noise, yet whose EXACT integer base-unit sum is 0, is closed → no false overdue alarm.
+    it('treats a transit residual with an exact base-unit sum of 0 as closed (no float-noise overdue alarm)', async () => {
+      legStub.transit = [
+        { id: 7, name: 'TRANSIT/withdrawal/BTC', native: '0.00000002', baseUnits: '0', legCount: '2', valuedCount: '2' },
+      ];
+      legStub.transitLegs = [{ amount: '0.00000002', bookingDate: Util.daysBefore(10) }]; // never reached (skipped)
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // exact sum 0 → closed
     });
 
     // F3: a churning transit route that repeatedly opens and closes must be aged from the LAST zero-crossing of its

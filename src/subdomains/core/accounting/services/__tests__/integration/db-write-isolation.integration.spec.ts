@@ -263,7 +263,7 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
       }),
     ]);
     const emptyQb: any = {};
-    for (const m of ['innerJoin', 'select', 'addSelect', 'where', 'andWhere', 'groupBy', 'addGroupBy', 'having']) {
+    for (const m of ['innerJoin', 'leftJoin', 'select', 'addSelect', 'where', 'andWhere', 'groupBy', 'addGroupBy', 'having']) {
       emptyQb[m] = () => emptyQb;
     }
     emptyQb.getRawMany = () => Promise.resolve([]);
@@ -315,7 +315,7 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
     jest.spyOn(accountRepo, 'find').mockResolvedValue([]);
     const legRepo = createMock<LedgerLegRepository>();
     const emptyQb: any = {};
-    for (const m of ['innerJoin', 'select', 'addSelect', 'where', 'andWhere', 'groupBy', 'addGroupBy', 'having']) {
+    for (const m of ['innerJoin', 'leftJoin', 'select', 'addSelect', 'where', 'andWhere', 'groupBy', 'addGroupBy', 'having']) {
       emptyQb[m] = () => emptyQb;
     }
     emptyQb.getRawMany = () => Promise.resolve([]);
