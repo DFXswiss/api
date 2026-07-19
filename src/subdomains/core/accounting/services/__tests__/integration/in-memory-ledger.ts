@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
@@ -35,7 +36,11 @@ export class InMemoryLedger {
   constructor() {
     const accountRepository = this.buildAccountRepository();
     this.accountService = new LedgerAccountService(accountRepository);
-    this.bookingService = new LedgerBookingService(this.buildDataSource(), this.accountService);
+    // #4280 phase 1: the booking service resolves asset decimals for amountBaseUnits; these integration tests assert
+    // CHF balances, not base units, so a no-decimals AssetService keeps amountBaseUnits null without affecting them
+    const assetService = createMock<AssetService>();
+    assetService.getAssetsById = (() => Promise.resolve([])) as any;
+    this.bookingService = new LedgerBookingService(this.buildDataSource(), this.accountService, assetService);
   }
 
   /** seeds an ASSET account with a real assetId so consumers resolve it via findByAssetId (CoA bootstrap stand-in) */

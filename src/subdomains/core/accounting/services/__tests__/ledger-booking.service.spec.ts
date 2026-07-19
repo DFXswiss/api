@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { DataSource, EntityManager } from 'typeorm';
 import { AccountType } from '../../entities/ledger-account.entity';
@@ -16,6 +17,7 @@ describe('LedgerBookingService', () => {
 
   let dataSource: DataSource;
   let ledgerAccountService: LedgerAccountService;
+  let assetService: AssetService;
 
   let savedLegs: LedgerLeg[];
 
@@ -67,6 +69,8 @@ describe('LedgerBookingService', () => {
 
     dataSource = createMock<DataSource>();
     ledgerAccountService = createMock<LedgerAccountService>();
+    assetService = createMock<AssetService>();
+    jest.spyOn(assetService, 'getAssetsById').mockResolvedValue([]); // default: no asset decimals → amountBaseUnits null
 
     // mock transaction: invoke callback with a manager that echoes create/save
     jest.spyOn(dataSource, 'transaction').mockImplementation((arg: any) => {
@@ -96,6 +100,7 @@ describe('LedgerBookingService', () => {
         LedgerBookingService,
         { provide: DataSource, useValue: dataSource },
         { provide: LedgerAccountService, useValue: ledgerAccountService },
+        { provide: AssetService, useValue: assetService },
       ],
     }).compile();
 
@@ -104,6 +109,36 @@ describe('LedgerBookingService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  // #4280 native-first (phase 1): every asset-backed leg additionally carries the EXACT integer base-unit quantity
+  // (amount × 10^asset.decimals); a fiat/assetId-less leg stays null (CHF-exact via amountChfCents).
+  it('sets amountBaseUnits to exact integer base units for an asset leg (null for a fiat leg)', async () => {
+    const btcAsset = createCustomLedgerAccount({
+      id: 15,
+      name: 'Kraken/BTC',
+      type: AccountType.ASSET,
+      currency: 'BTC',
+      assetId: 70,
+    });
+    jest.spyOn(assetService, 'getAssetsById').mockResolvedValue([{ id: 70, decimals: 8 } as any]);
+
+    await service.bookTx({
+      sourceType: 'crypto_input',
+      sourceId: 'bu1',
+      seq: 0,
+      bookingDate: new Date('2026-06-01'),
+      legs: [
+        { account: btcAsset, amount: 1, priceChf: 50000, amountChf: 50000 },
+        { account: liability, amount: -50000, amountChf: -50000 },
+      ],
+    });
+
+    const btcLeg = savedLegs.find((l) => l.account.name === 'Kraken/BTC');
+    const fiatLeg = savedLegs.find((l) => l.account.name === 'LIABILITY/buyFiat-received');
+    expect(btcLeg?.amountBaseUnits).toBe(100000000n); // 1 BTC = 1e8 satoshi, exact integer
+    expect(fiatLeg?.amountBaseUnits).toBeNull(); // fiat/assetId-less → null
+    expect(assetService.getAssetsById).toHaveBeenCalledWith([70]); // only asset-backed accounts looked up
   });
 
   // nextSeq `(max ?? -1) + 1` (line 235): an empty (sourceType,sourceId) namespace → MAX(seq) is null → nextSeq 0.

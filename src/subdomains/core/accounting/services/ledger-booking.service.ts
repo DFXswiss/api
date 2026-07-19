@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { DataSource, EntityManager } from 'typeorm';
 import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
+import { toBaseUnits } from '../entities/ledger-base-units.transformer';
 import { LedgerLeg } from '../entities/ledger-leg.entity';
 import { LedgerTx } from '../entities/ledger-tx.entity';
 import { LedgerAccountService } from './ledger-account.service';
@@ -45,6 +47,7 @@ export class LedgerBookingService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly ledgerAccountService: LedgerAccountService,
+    private readonly assetService: AssetService,
   ) {}
 
   /**
@@ -61,6 +64,7 @@ export class LedgerBookingService {
   // (§4.12: reversal + re-book must live in ONE transaction). Behaviour is identical to the public bookTx.
   private async bookTxWithManager(manager: EntityManager, input: LedgerTxInput): Promise<LedgerTx> {
     const legs = input.legs.map((leg) => this.prepareLeg(leg));
+    await this.populateBaseUnits(legs);
 
     await this.appendRoundingLeg(legs);
     this.checkNativeBalance(legs, input);
@@ -354,6 +358,25 @@ export class LedgerBookingService {
       amountChfCents,
       needsMark: leg.needsMark ?? false,
     });
+  }
+
+  // §2.3 native-first exactness (phase 1): set the EXACT integer base-unit quantity from each account's asset decimals.
+  // Resolved by assetId via the cached AssetService (one lookup per tx); an account without an asset (fiat / TRANSIT /
+  // EQUITY / EXPENSE) or an asset without decimals leaves amountBaseUnits null — those are CHF-denominated and already
+  // exact via amountChfCents (native-crypto TRANSIT legs are a later phase). Additive: never affects the CHF close.
+  private async populateBaseUnits(legs: LedgerLeg[]): Promise<void> {
+    const assetIds = [...new Set(legs.map((leg) => leg.account.assetId).filter((id): id is number => id != null))];
+    const decimalsById = new Map<number, number>();
+    if (assetIds.length) {
+      for (const asset of await this.assetService.getAssetsById(assetIds)) {
+        if (asset.decimals != null) decimalsById.set(asset.id, asset.decimals);
+      }
+    }
+
+    for (const leg of legs) {
+      const decimals = leg.account.assetId != null ? decimalsById.get(leg.account.assetId) : undefined;
+      leg.amountBaseUnits = decimals != null ? toBaseUnits(leg.amount, decimals) : null;
+    }
   }
 
   // Σ amountChfCents must close to 0; a sub-cent rest is closed by a ROUNDING leg; > tolerance → throw
