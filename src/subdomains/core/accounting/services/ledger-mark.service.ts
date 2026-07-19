@@ -14,6 +14,12 @@ interface MarkPoint {
 // short memoization TTL so a wedge-heavy batch (many rows missing a historical mark) does not re-query the feed per row.
 const LATEST_MARK_LOOKBACK_DAYS = 5;
 const LATEST_MARK_TTL_MS = 5 * 60 * 1000;
+// same self-healing TTL for the widened last-mark memo (getMarkAtWidened): its (from,to) key is byte-stable across every
+// 5-min cutover cron retry (the snapshot date is pinned), so without expiry a once-empty window — a still-feedless asset
+// at preload time — would be memoized forever and wedge the cutover past the documented "retry when the feed is back"
+// recovery. Expiry lets a later retry re-read and pick up a backfilled historical mark; within one run (seconds) the
+// memo still dedupes several feedless rows sharing the window.
+const WIDENED_MARK_TTL_MS = LATEST_MARK_TTL_MS;
 
 /**
  * Per-run mark cache (§5.2). Holds `Map<assetId, MarkPoint[]>` (each list sorted ascending by `created`)
@@ -56,8 +62,10 @@ export class LedgerMarkService {
   private latestMarks?: { map: Map<number, number>; loadedAt: number };
 
   // §5.2 — per-window LedgerMarkCache memo for the widened last-mark fallback (getMarkAtWidened), keyed `${from}:${to}`;
-  // dedupes the preload when several feedless cutover rows share a window (one pinned snapshot → 1-2 keys, negligible)
-  private readonly widenedCaches = new Map<string, Promise<LedgerMarkCache>>();
+  // dedupes the preload when several feedless cutover rows share a window (one pinned snapshot → 1-2 keys, negligible).
+  // Carries a load timestamp so a still-empty result expires after WIDENED_MARK_TTL_MS (self-heals across cron retries)
+  // rather than sticking forever on this process-lifetime singleton.
+  private readonly widenedCaches = new Map<string, { cache: Promise<LedgerMarkCache>; loadedAt: number }>();
 
   /**
    * §5.2 Major B5 bridge — the youngest available mark for an asset (latest FinancialDataLog priceChf ≤ now), from a
@@ -106,17 +114,25 @@ export class LedgerMarkService {
   async getMarkAtWidened(assetId: number, asOf: Date, lookbackDays: number): Promise<number | undefined> {
     const from = Util.daysBefore(lookbackDays, asOf);
     const key = `${from.getTime()}:${asOf.getTime()}`;
-    let cache = this.widenedCaches.get(key);
-    if (!cache) {
-      // do NOT memoize a transient failure: a rejected preload is evicted so the next cron retry re-reads (the widened
-      // read is a larger, possibly-paginated query than the 2d preload — a blip must not permanently wedge the cutover)
-      cache = this.preload(from, asOf).catch((e) => {
-        this.widenedCaches.delete(key);
-        throw e;
-      });
-      this.widenedCaches.set(key, cache);
+    const now = Date.now();
+
+    let entry = this.widenedCaches.get(key);
+    // Expire a stale memo (including a successful-but-still-empty one) after the TTL so a later cron retry re-reads and
+    // can pick up a backfilled historical mark — the pinned-snapshot key never changes, so a stuck empty result would
+    // otherwise wedge the cutover forever (asymmetry vs the TTL'd latestMarks bridge).
+    if (!entry || now - entry.loadedAt >= WIDENED_MARK_TTL_MS) {
+      // do NOT memoize a transient failure either: a rejected preload is evicted immediately so the next cron retry
+      // re-reads (the widened read is a larger, possibly-paginated query than the 2d preload — a blip must not wedge).
+      entry = {
+        cache: this.preload(from, asOf).catch((e) => {
+          this.widenedCaches.delete(key);
+          throw e;
+        }),
+        loadedAt: now,
+      };
+      this.widenedCaches.set(key, entry);
     }
-    return (await cache).getMarkAt(assetId, asOf);
+    return (await entry.cache).getMarkAt(assetId, asOf);
   }
 
   /**

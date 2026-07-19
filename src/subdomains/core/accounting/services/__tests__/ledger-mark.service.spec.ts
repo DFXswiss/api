@@ -129,6 +129,27 @@ describe('LedgerMarkService', () => {
       expect(await service.getMarkAtWidened(5, asOf, 90)).toBe(4); // rejected promise evicted → re-read, not re-thrown
       expect(spy).toHaveBeenCalledTimes(2);
     });
+
+    it('expires a still-empty window after the TTL so a later cron retry re-reads and self-heals (no permanent wedge)', async () => {
+      const nowSpy = jest.spyOn(Date, 'now');
+      const t0 = new Date('2026-07-16T00:00:00Z').getTime();
+      nowSpy.mockReturnValue(t0);
+
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockResolvedValueOnce([]) // first widened read: asset still feedless → undefined, must NOT stick forever
+        .mockResolvedValueOnce([financialLog(new Date('2026-05-10'), { '5': { priceChf: 4 } })]); // feed restored later
+
+      expect(await service.getMarkAtWidened(5, asOf, 90)).toBeUndefined();
+      expect(await service.getMarkAtWidened(5, asOf, 90)).toBeUndefined(); // within TTL → memoized empty, no re-read
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      nowSpy.mockReturnValue(t0 + 5 * 60 * 1000 + 1); // a later cron retry, past the 5-min memo TTL
+      expect(await service.getMarkAtWidened(5, asOf, 90)).toBe(4); // re-reads and picks up the restored mark
+      expect(spy).toHaveBeenCalledTimes(2);
+
+      nowSpy.mockRestore();
+    });
   });
 
   it('returns the priceChf of the latest mark ≤ bookingDate (stage 2)', async () => {
