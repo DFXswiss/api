@@ -1,4 +1,4 @@
-import { baseUnitsTransformer, fromDecimalString, toBaseUnits } from '../base-units.transformer';
+import { baseUnitsTransformer, fromBaseUnits, fromDecimalString, toBaseUnits } from '../base-units.transformer';
 
 describe('base units transformer', () => {
   describe('fromDecimalString (exact, never via float)', () => {
@@ -30,6 +30,39 @@ describe('base units transformer', () => {
       expect(() => fromDecimalString('0x1a', 18)).toThrow(/not a decimal number/);
       expect(() => fromDecimalString('1e18', 18)).toThrow(/not a decimal number/);
       expect(() => fromDecimalString('', 18)).toThrow(/not a decimal number/);
+    });
+  });
+
+  describe('fromBaseUnits (exact inverse, never via float)', () => {
+    it('renders full-precision decimals a float / 8-dp path would lose', () => {
+      expect(fromBaseUnits(1n, 18)).toBe('0.000000000000000001'); // 1 wei
+      expect(fromBaseUnits(123456789012345678n, 18)).toBe('0.123456789012345678');
+      expect(fromBaseUnits(123456789012n, 12)).toBe('0.123456789012'); // piconero / zano atomic (12 dp)
+    });
+
+    it('trims trailing zeros so coarser asset scales stay representable', () => {
+      expect(fromBaseUnits(1500000000000n, 12)).toBe('1.5'); // 1.5 XMR — round-trips even at 8 dp
+      expect(fromBaseUnits(5000000000000n, 12)).toBe('5');
+      expect(fromBaseUnits(1000000000000000000n, 18)).toBe('1');
+      expect(fromBaseUnits(0n, 18)).toBe('0');
+    });
+
+    it('is sign-aware and never emits negative zero', () => {
+      expect(fromBaseUnits(-150000000n, 8)).toBe('-1.5');
+      expect(fromBaseUnits(-1n, 12)).toBe('-0.000000000001');
+      expect(fromBaseUnits(123456n, 0)).toBe('123456');
+    });
+
+    it('round-trips exactly with fromDecimalString', () => {
+      const wei = 123456789012345678n;
+      expect(fromDecimalString(fromBaseUnits(wei, 18), 18)).toBe(wei);
+      const piconero = 987654321098n;
+      expect(fromDecimalString(fromBaseUnits(piconero, 12), 12)).toBe(piconero);
+    });
+
+    it('rejects invalid decimals', () => {
+      expect(() => fromBaseUnits(1n, -1)).toThrow(/Invalid base-unit decimals/);
+      expect(() => fromBaseUnits(1n, 1.5)).toThrow(/Invalid base-unit decimals/);
     });
   });
 
