@@ -12,6 +12,11 @@ export interface PayInEntry {
   txSequence?: number;
   blockHeight: number | null;
   amount: number;
+  // EXACT integer base units (wei/satoshi) of `amount`, captured from the on-chain raw value BEFORE `amount` is
+  // float-collapsed (issue #4287 stage 1). A decimal integer STRING so it survives serialization and never loses
+  // precision. Optional: a chain with no raw integer available leaves it undefined → the ledger derives from the
+  // float `amount` as before (fail-open).
+  amountBaseUnits?: string;
   asset: Asset | null;
 }
 

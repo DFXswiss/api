@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
@@ -39,6 +40,12 @@ export class PayoutOrder extends IEntity {
 
   @Column({ type: 'float' })
   amount: number;
+
+  // §2.3 native-first exactness (issue #4287 stage 1): the EXACT integer base units (wei/satoshi) of the payout
+  // `amount`. Nullable + additive — a payout with no captured exact integer stays null and the ledger falls back to
+  // the ≤8-dp float derivation (fail-open). numeric ↔ JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  amountBaseUnits?: bigint | null;
 
   @Column({ length: 256 })
   destinationAddress: string;

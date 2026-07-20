@@ -90,6 +90,10 @@ export class BitcoinStrategy extends PollingStrategy {
         txSequence: u.vout,
         blockHeight: null,
         amount: u.amount,
+        // exact satoshi from the BTC decimal via string scaling (issue #4287 stage 1): a BTC amount ≤8 dp is exact in a
+        // double, so toFixed(8) recovers the exact decimal string, then fromDecimalString scales it by 10^decimals with
+        // no further float step. Undefined asset decimals → fall back to the float amount (fail-open).
+        amountBaseUnits: this.toBaseUnitsString(u.amount.toFixed(8), asset.decimals),
         asset,
       }));
   }

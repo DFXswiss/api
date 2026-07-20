@@ -76,10 +76,15 @@ export class EvmUtil {
   }
 
   static fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
-    const amount =
-      decimals != null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
+    return parseFloat(this.fromWeiAmountString(amountWeiLike, decimals));
+  }
 
-    return parseFloat(amount);
+  // the EXACT decimal string of a wei-like on-chain integer (before the lossy parseFloat in fromWeiAmount) — lets an
+  // ingestion path capture the amount wei-exact (issue #4287 stage 1) instead of the float-collapsed number.
+  static fromWeiAmountString(amountWeiLike: BigNumberish, decimals?: number): string {
+    return decimals != null
+      ? ethers.utils.formatUnits(amountWeiLike, decimals)
+      : ethers.utils.formatEther(amountWeiLike);
   }
 
   static toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
