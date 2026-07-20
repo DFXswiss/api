@@ -2,6 +2,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -119,6 +120,14 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   inputAmount?: number;
 
+  // §2.3 native-first exactness (issue #4287 stage 4): the EXACT integer base units of `inputAmount` for a
+  // crypto→crypto buy, propagated verbatim from the linked crypto_input's captured on-chain value
+  // (crypto_input.amountBaseUnits, stage 1) at the asset's own scale. Nullable + additive — a fiat buy (no on-chain
+  // input) and any legacy/uncaptured row stay NULL and the existing float `inputAmount` is untouched (fail-open).
+  // numeric ↔ JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  inputAmountBaseUnits?: bigint | null;
+
   @Column({ length: 256, nullable: true })
   inputAsset?: string;
 
@@ -209,6 +218,14 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   networkStartAmount?: number; // networkStartAsset
 
+  // §2.3 native-first exactness (issue #4287 stage 4): the EXACT integer base units of the network-start fee paid
+  // out on-chain, propagated verbatim from the linked network-start payout_order's broadcast value
+  // (payout_order.amountBaseUnits, stage 1) at the native asset's own scale. Nullable + additive — no network-start
+  // payout, an uncapturing chain, or a legacy row stays NULL and the existing float `networkStartAmount` is
+  // untouched (fail-open). numeric ↔ JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  networkStartAmountBaseUnits?: bigint | null;
+
   @Column({ length: 256, nullable: true })
   networkStartTxId?: string;
 
@@ -274,6 +291,14 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   outputAmount?: number;
+
+  // §2.3 native-first exactness (issue #4287 stage 4): the EXACT integer base units actually delivered on-chain for
+  // this buy, propagated verbatim from the linked payout_order's broadcast value (payout_order.amountBaseUnits,
+  // stage 1) at the output asset's own scale, captured at payout completion. Nullable + additive — a chain that does
+  // not capture broadcast base units (or an incomplete/legacy row) stays NULL and the existing float `outputAmount`
+  // is untouched (fail-open). numeric ↔ JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  outputAmountBaseUnits?: bigint | null;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   outputAsset?: Asset;
