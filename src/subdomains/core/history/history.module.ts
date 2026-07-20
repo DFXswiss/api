@@ -13,6 +13,7 @@ import { StakingModule } from '../staking/staking.module';
 import { TransactionUtilModule } from '../transaction/transaction-util.module';
 import { HistoryController } from './controllers/history.controller';
 import { TransactionController } from './controllers/transaction.controller';
+import { HistoryAccessService } from './services/history-access.service';
 import { HistoryService } from './services/history.service';
 
 @Module({
@@ -31,7 +32,7 @@ import { HistoryService } from './services/history.service';
     BankModule,
   ],
   controllers: [HistoryController, TransactionController],
-  providers: [HistoryService, TransactionController],
+  providers: [HistoryService, HistoryAccessService, TransactionController],
   exports: [],
 })
 export class HistoryModule {}

@@ -1,9 +1,8 @@
-import { Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
+import { Injectable, NotFoundException, StreamableFile, UnauthorizedException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Readable } from 'stream';
 import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
@@ -38,7 +37,6 @@ export enum ExportType {
 @Injectable()
 export class HistoryService {
   constructor(
-    private readonly userService: UserService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
     private readonly stakingService: StakingService,
@@ -89,18 +87,39 @@ export class HistoryService {
     return (await this.getCompleteHistoryDto(user, query, exportType)) as HistoryDto<T>[];
   }
 
+  async getCsvHistoryForSubject<T extends ExportType>(
+    subject: User | UserData,
+    query: HistoryQuery,
+    exportFormat: T,
+  ): Promise<StreamableFile> {
+    return (await this.getHistoryForSubject(subject, query, exportFormat)) as StreamableFile;
+  }
+
+  /**
+   * @deprecated Prefer {@link getCsvHistoryForSubject} after authenticating via HistoryAccessService.
+   * Always rejects — unauthenticated address-based history is not allowed.
+   */
   async getCsvHistory<T extends ExportType>(query: HistoryQueryUser, exportFormat: T): Promise<StreamableFile> {
     return (await this.getHistory(query, exportFormat)) as StreamableFile;
   }
 
-  async getHistory<T extends ExportType>(
-    query: HistoryQueryUser,
+  async getHistoryForSubject<T extends ExportType>(
+    subject: User | UserData,
+    query: HistoryQuery,
     exportType: T,
   ): Promise<HistoryDto<T>[] | StreamableFile> {
-    const user = await this.userService.getUserByAddress(query.userAddress);
-    if (!user) throw new NotFoundException('User not found');
+    if (!subject) throw new NotFoundException('User not found');
+    return this.getCompleteHistoryDto(subject, query, exportType);
+  }
 
-    return this.getCompleteHistoryDto(user, query, exportType);
+  /**
+   * @deprecated Prefer {@link getHistoryForSubject}. Never resolves by address unauthenticated.
+   */
+  async getHistory<T extends ExportType>(
+    _query: HistoryQueryUser,
+    _exportType: T,
+  ): Promise<HistoryDto<T>[] | StreamableFile> {
+    throw new UnauthorizedException('Authentication required');
   }
 
   private async getCompleteHistoryDto<T extends ExportType>(
@@ -116,26 +135,31 @@ export class HistoryService {
     return query.format === ExportFormat.CSV ? this.getCsv(txArray, exportType) : txArray;
   }
 
+  private isAccountSubject(subject: User | UserData): subject is UserData {
+    // instanceof, not the `address` getter — UserData.address dereferences the organization
+    // relation for ORGANIZATION / SOLE_PROPRIETORSHIP accounts and throws when it isn't loaded.
+    return subject instanceof UserData;
+  }
+
   private async getHistoryTransactions(
     user: User | UserData,
     query: HistoryQuery,
   ): Promise<{ buyCryptos: BuyCrypto[]; buyFiats: BuyFiat[]; refRewards: RefReward[] }> {
-    const transactions =
-      user instanceof UserData
-        ? await this.transactionService.getTransactionsForAccount(
-            user.id,
-            query.from,
-            query.to,
-            query.limit,
-            query.offset,
-          )
-        : await this.transactionService.getTransactionsForUsers(
-            [user.id],
-            query.from,
-            query.to,
-            query.limit,
-            query.offset,
-          );
+    const transactions = this.isAccountSubject(user)
+      ? await this.transactionService.getTransactionsForAccount(
+          user.id,
+          query.from,
+          query.to,
+          query.limit,
+          query.offset,
+        )
+      : await this.transactionService.getTransactionsForUsers(
+          [user.id],
+          query.from,
+          query.to,
+          query.limit,
+          query.offset,
+        );
 
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
@@ -251,7 +275,7 @@ export class HistoryService {
     query: HistoryQuery,
     exportType: T,
   ): Promise<HistoryDto<T>[]> {
-    const userIds = user instanceof UserData ? user.users.map((u) => u.id) : [user.id];
+    const userIds = this.isAccountSubject(user) ? user.users.map((u) => u.id) : [user.id];
 
     const stakingInvests = await this.stakingService.getUserInvests(userIds, query.from, query.to);
     const stakingRewards = await this.stakingService.getUserStakingRewards(userIds, query.from, query.to);

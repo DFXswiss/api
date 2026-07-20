@@ -10,6 +10,7 @@ import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/t
 import {
   KycRequiredReason,
   LimitExceededReason,
+  PublicTransactionReasonMap,
   TransactionDetailDto,
   TransactionDto,
   TransactionReason,
@@ -318,6 +319,96 @@ export class TransactionDtoMapper {
 
   static mapReferralRewards(refRewards: RefReward[]): TransactionDto[] {
     return refRewards.map(TransactionDtoMapper.mapReferralReward);
+  }
+
+  /**
+   * Public status payload for unauthenticated `GET /transaction/single` (capability UID/CKO link).
+   * Keeps fields needed for the status UI (state, amounts, explorer links) and strips
+   * private banking/compliance/fee-detail data that is not on-chain public information.
+   */
+  static toPublicDto(dto: TransactionDto | UnassignedTransactionDto): TransactionDto | UnassignedTransactionDto {
+    // A crypto tx hash is public info (anyone can look it up on an explorer), but the fiat leg reuses
+    // the very same DTO fields for a private bank reference — outputTxId carries
+    // bankTx.remittanceInfo, see mapBuyFiatTransaction. So gate both legs on their payment method.
+    // The output gate is the one that actually strips a remittance reference today; the input gate is
+    // defense in depth, as inputTxId is only ever filled from a cryptoInput.
+    const isCryptoInput = dto.inputPaymentMethod === CryptoPaymentMethod.CRYPTO;
+
+    const base: UnassignedTransactionDto = {
+      id: dto.id,
+      uid: dto.uid,
+      orderUid: dto.orderUid,
+      type: dto.type,
+      // KYC_REQUIRED is produced only by KycRequiredReason, and every one of those reasons is
+      // private (see PublicTransactionReasonMap) — so the state alone would disclose the reason we
+      // just hid. Report the neutral sibling the same AML branch returns for a pending check with
+      // neither a limit nor a KYC reason: the AML check really is pending, and the case becomes
+      // indistinguishable from the common manual-check one. Owners and staff still get the true
+      // state on the full DTO.
+      state: dto.state === TransactionState.KYC_REQUIRED ? TransactionState.CHECK_PENDING : dto.state,
+      inputAmount: dto.inputAmount,
+      inputAsset: dto.inputAsset,
+      inputAssetId: dto.inputAssetId,
+      inputChainId: dto.inputChainId,
+      inputBlockchain: dto.inputBlockchain,
+      inputEvmChainId: dto.inputEvmChainId,
+      inputPaymentMethod: dto.inputPaymentMethod,
+      inputTxId: isCryptoInput ? dto.inputTxId : undefined,
+      inputTxUrl: isCryptoInput ? dto.inputTxUrl : undefined,
+      // Never hand out an account or wallet identifier directly. For a crypto input the deposit
+      // address stays derivable from the retained input tx — accepted, that tx is on-chain public
+      // anyway. The chargeback target is not: a chargeback may go to an address other than the input
+      // sender, and its tx hash would resolve to exactly that address on a block explorer, so the
+      // chargeback identifiers are stripped as well.
+      depositAddress: undefined,
+      chargebackTarget: undefined,
+      chargebackAmount: dto.chargebackAmount ?? undefined,
+      chargebackAsset: dto.chargebackAsset,
+      chargebackAssetId: dto.chargebackAssetId,
+      chargebackTxId: undefined,
+      chargebackTxUrl: undefined,
+      chargebackDate: dto.chargebackDate,
+      date: dto.date,
+    };
+
+    if (!('reason' in dto) && !('outputAmount' in dto) && !('fees' in dto)) {
+      return Object.assign(new UnassignedTransactionDto(), base);
+    }
+
+    const full = dto as TransactionDto;
+
+    const isCryptoOutput = full.outputPaymentMethod === CryptoPaymentMethod.CRYPTO;
+
+    // Fail-closed: only disclose the AML/compliance reason when PublicTransactionReasonMap classifies
+    // it as operational/actionable. A suspicion, a rejection decision, or account-state information
+    // about the account holder stays private. Guard against a nullish reason so we never index the
+    // map with null/undefined.
+    const isPublicReason = full.reason != null && PublicTransactionReasonMap[full.reason];
+
+    const publicFull: TransactionDto = {
+      ...base,
+      reason: isPublicReason ? full.reason : undefined,
+      exchangeRate: full.exchangeRate,
+      rate: full.rate,
+      outputAmount: full.outputAmount,
+      outputAsset: full.outputAsset,
+      outputAssetId: full.outputAssetId,
+      outputChainId: full.outputChainId,
+      outputBlockchain: full.outputBlockchain,
+      outputEvmChainId: full.outputEvmChainId,
+      outputPaymentMethod: full.outputPaymentMethod,
+      outputTxId: isCryptoOutput ? full.outputTxId : undefined,
+      outputTxUrl: isCryptoOutput ? full.outputTxUrl : undefined,
+      outputDate: full.outputDate,
+      priceSteps: undefined,
+      feeAmount: undefined,
+      feeAsset: undefined,
+      fees: undefined,
+      externalTransactionId: undefined,
+      networkStartTx: undefined,
+    };
+
+    return Object.assign(new TransactionDto(), publicFull);
   }
 
   // UnassignedTx
