@@ -88,13 +88,18 @@ export class RefRewardOutService {
       }
 
       try {
-        const { isComplete, payoutTxId } = await this.payoutService.checkOrderCompletion(
+        const { isComplete, payoutTxId, payoutAmountBaseUnits } = await this.payoutService.checkOrderCompletion(
           PayoutOrderContext.REF_PAYOUT,
           tx.id.toString(),
         );
 
         if (isComplete) {
-          await this.refRewardRepo.update(...tx.complete(payoutTxId));
+          // §2.3 native-first exactness (#4287 stage 4): hand the payout order's EXACT broadcast base units
+          // (stage 1, string) to complete() as a bigint so the delivered reward amount is stored exactly
+          // alongside the float outputAmount; fail-open null when the chain/row did not capture it.
+          await this.refRewardRepo.update(
+            ...tx.complete(payoutTxId, payoutAmountBaseUnits != null ? BigInt(payoutAmountBaseUnits) : null),
+          );
 
           if (tx.transaction) await this.transactionService.completeTransaction(tx.transaction.id, tx.outputDate);
 
