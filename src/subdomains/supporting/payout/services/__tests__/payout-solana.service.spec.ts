@@ -117,22 +117,27 @@ describe('PayoutSolanaService', () => {
   });
 
   describe('getPayoutCompletionData(...)', () => {
-    it('returns [true, actualFee] and reads the actual fee once the tx is complete', async () => {
+    it('returns [true, actualFee, feeBaseUnits] and reads the actual fee once the tx is complete', async () => {
       const isTxCompleteSpy = jest.spyOn(client, 'isTxComplete').mockResolvedValue(true);
       const getTxActualFeeSpy = jest.spyOn(client, 'getTxActualFee').mockResolvedValue(0.000005);
+      // §2.3 exactness (issue #4287): the exact fee lamports are captured verbatim alongside the float
+      const getTxActualFeeBaseUnitsSpy = jest.spyOn(client, 'getTxActualFeeBaseUnits').mockResolvedValue(5000n);
 
-      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([true, 0.000005]);
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([true, 0.000005, 5000n]);
       expect(isTxCompleteSpy).toHaveBeenCalledWith('TX_HASH_01');
       expect(getTxActualFeeSpy).toHaveBeenCalledWith('TX_HASH_01');
+      expect(getTxActualFeeBaseUnitsSpy).toHaveBeenCalledWith('TX_HASH_01');
     });
 
-    it('returns [false, 0] and never reads the fee while the tx is not complete', async () => {
+    it('returns [false, 0, null] and never reads the fee while the tx is not complete', async () => {
       const isTxCompleteSpy = jest.spyOn(client, 'isTxComplete').mockResolvedValue(false);
       const getTxActualFeeSpy = jest.spyOn(client, 'getTxActualFee');
+      const getTxActualFeeBaseUnitsSpy = jest.spyOn(client, 'getTxActualFeeBaseUnits');
 
-      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([false, 0]);
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([false, 0, null]);
       expect(isTxCompleteSpy).toHaveBeenCalledWith('TX_HASH_01');
       expect(getTxActualFeeSpy).not.toHaveBeenCalled();
+      expect(getTxActualFeeBaseUnitsSpy).not.toHaveBeenCalled();
     });
   });
 
