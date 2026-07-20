@@ -15,14 +15,16 @@ import { RealUnitSellBroadcastDto } from './realunit-sell.dto';
 // is involved. `amount` is REALU shares, `targetAmount` is ZCHF.
 export class RealUnitSwapDto {
   @ApiPropertyOptional({ description: 'Amount of REALU shares to swap' })
+  @IsNotEmpty()
   @ValidateIf((b: RealUnitSwapDto) => Boolean(b.amount || !b.targetAmount))
   @Validate(XOR, ['targetAmount'])
   @IsNumber()
   @IsPositive()
   @Type(() => Number)
-  amount: number;
+  amount?: number;
 
   @ApiPropertyOptional({ description: 'Target amount in ZCHF (alternative to amount)' })
+  @IsNotEmpty()
   @ValidateIf((b: RealUnitSwapDto) => Boolean(b.targetAmount || !b.amount))
   @Validate(XOR, ['amount'])
   @IsNumber()
@@ -82,7 +84,7 @@ export class RealUnitSwapPaymentInfoDto {
   @ApiProperty({ description: 'Whether the swap quote is valid' })
   isValid: boolean;
 
-  @ApiPropertyOptional({ enum: QuoteError, description: 'Error code in case isValid is false (e.g. LIMIT_EXCEEDED)' })
+  @ApiPropertyOptional({ enum: QuoteError, description: 'Error code in case isValid is false' })
   error?: QuoteError;
 }
 

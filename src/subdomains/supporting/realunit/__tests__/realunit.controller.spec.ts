@@ -1,5 +1,11 @@
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { PaymentLinkPaymentStatus } from 'src/subdomains/core/payment-link/enums';
+import {
+  RealUnitOcpPayDto,
+  RealUnitOcpPaySubmitDto,
+  RealUnitSwapDto,
+} from 'src/subdomains/supporting/realunit/dto/realunit-pay.dto';
+import { RealUnitSellBroadcastDto } from 'src/subdomains/supporting/realunit/dto/realunit-sell.dto';
 import { RealUnitController } from '../controllers/realunit.controller';
 
 // Thin controllers in this codebase delegate straight to the service; these specs assert the W2W transfer
@@ -66,17 +72,23 @@ describe('RealUnitController (OCP pay flow)', () => {
   };
   const userService = { getUser: jest.fn() };
 
-  const jwt: JwtPayload = { user: 42, address: '0xUser' } as any;
+  const jwt = { user: 42, address: '0xUser' } as JwtPayload;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new RealUnitController(realunitService as any, {} as any, userService as any, {} as any, {} as any);
+    controller = new RealUnitController(
+      realunitService as never, // realunitService
+      {} as never, // balancePdfService (unused)
+      userService as never, // userService
+      {} as never, // swissQrService (unused)
+      {} as never, // pricingService (unused)
+    );
   });
 
   describe('getSwapPaymentInfo', () => {
     it('loads the user with kyc/country relations and delegates to the service', async () => {
       const user = { id: 42 };
-      const dto = { amount: 10 } as any;
+      const dto = { amount: 10 } as RealUnitSwapDto;
       userService.getUser.mockResolvedValue(user);
       realunitService.getSwapPaymentInfo.mockResolvedValue({ id: 99 });
 
@@ -101,7 +113,7 @@ describe('RealUnitController (OCP pay flow)', () => {
 
   describe('broadcastSwapTransaction', () => {
     it('delegates to the service with the parsed id and broadcast dto', async () => {
-      const dto = { unsignedTx: '0x', r: '0x', s: '0x', v: 27 } as any;
+      const dto = { unsignedTx: '0x', r: '0x', s: '0x', v: 27 } as RealUnitSellBroadcastDto;
       realunitService.broadcastSwapTransaction.mockResolvedValue({ txHash: '0xhash' });
 
       const result = await controller.broadcastSwapTransaction(jwt, 7, dto);
@@ -113,7 +125,7 @@ describe('RealUnitController (OCP pay flow)', () => {
 
   describe('getOcpPayUnsignedTransaction', () => {
     it('delegates to the service with the jwt address, payment-link id and quote id', async () => {
-      const dto = { paymentLinkId: 'pl_abc', quoteId: 'quote_xyz' } as any;
+      const dto = { paymentLinkId: 'pl_abc', quoteId: 'quote_xyz' } as RealUnitOcpPayDto;
       realunitService.createOcpPayUnsignedTransaction.mockResolvedValue({ unsignedTx: '0x' });
 
       const result = await controller.getOcpPayUnsignedTransaction(jwt, dto);
@@ -125,7 +137,14 @@ describe('RealUnitController (OCP pay flow)', () => {
 
   describe('submitOcpPay', () => {
     it('delegates to the service with the submit dto', async () => {
-      const dto = { paymentLinkId: 'pl_abc', quoteId: 'quote_xyz', unsignedTx: '0x', r: '0x', s: '0x', v: 27 } as any;
+      const dto = {
+        paymentLinkId: 'pl_abc',
+        quoteId: 'quote_xyz',
+        unsignedTx: '0x',
+        r: '0x',
+        s: '0x',
+        v: 27,
+      } as RealUnitOcpPaySubmitDto;
       realunitService.submitOcpPay.mockResolvedValue({ txId: '0xTxId' });
 
       const result = await controller.submitOcpPay(dto);

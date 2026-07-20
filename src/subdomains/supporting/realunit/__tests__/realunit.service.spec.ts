@@ -1008,6 +1008,20 @@ describe('RealUnitService', () => {
       const [, value] = iface.decodeFunctionData('transferAndCall', parsed.data);
       expect(value.toString()).toBe(ethers.utils.parseUnits('10', 18).toString());
     });
+
+    it('should throw NotFoundException if the REALU asset is not found', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(undefined as any).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if the ZCHF asset is not found', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(undefined as any);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(NotFoundException);
+    });
   });
 
   describe('getSwapPaymentInfo', () => {
@@ -1338,6 +1352,44 @@ describe('RealUnitService', () => {
       await expect(service.broadcastSwapTransaction(42, 1, { unsignedTx, r, s, v })).rejects.toThrow(
         BadRequestException,
       );
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the REALU asset is not found', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(undefined as any).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(NotFoundException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the ZCHF asset is not found', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(undefined as any);
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(NotFoundException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException (not a raw 500) when unsignedTx is a legacy type-0 tx without EIP-1559 fee fields', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      // Legacy type-0 uses gasPrice only — parseTransaction yields undefined maxFeePerGas/maxPriorityFeePerGas
+      const legacyUnsignedTx = ethers.utils.serializeTransaction({
+        type: 0,
+        chainId: 11155111,
+        nonce: 7,
+        gasPrice: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(350_000),
+        to: realuContract,
+        value: ethers.BigNumber.from(0),
+        data: swapData,
+      });
+
+      await expect(
+        service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: legacyUnsignedTx }),
+      ).rejects.toThrow(BadRequestException);
       expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
     });
   });
@@ -1703,6 +1755,22 @@ describe('RealUnitService', () => {
       await expect(
         service.submitOcpPay({ paymentLinkId: 'pl_abc', quoteId: 'quote_xyz', unsignedTx, r, s, v }),
       ).rejects.toThrow(BadRequestException);
+      expect(lnUrlForwardService.txHexForward).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the ZCHF asset is not found', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(undefined as any);
+
+      await expect(
+        service.submitOcpPay({
+          paymentLinkId: 'pl_abc',
+          quoteId: 'quote_xyz',
+          unsignedTx: '0x',
+          r: '0x',
+          s: '0x',
+          v: 27,
+        }),
+      ).rejects.toThrow(NotFoundException);
       expect(lnUrlForwardService.txHexForward).not.toHaveBeenCalled();
     });
   });
@@ -2247,6 +2315,20 @@ describe('RealUnitService', () => {
 
       expect(result).toEqual({ status: PaymentLinkPaymentStatus.COMPLETED });
       expect(paymentLinkPaymentService.getMostRecentPayment).toHaveBeenCalledWith('pl_abc');
+    });
+  });
+
+  describe('assertPaymentLinkSupportsMethod (private guard)', () => {
+    it('throws ServiceUnavailableException (not BadRequestException) for an unsupported token blockchain', () => {
+      jest.spyOn(service as any, 'tokenBlockchain', 'get').mockReturnValue(Blockchain.BITCOIN);
+
+      expect(() =>
+        (service as unknown as { assertPaymentLinkSupportsMethod: () => void }).assertPaymentLinkSupportsMethod(),
+      ).toThrow(ServiceUnavailableException);
+
+      expect(() =>
+        (service as unknown as { assertPaymentLinkSupportsMethod: () => void }).assertPaymentLinkSupportsMethod(),
+      ).not.toThrow(BadRequestException);
     });
   });
 

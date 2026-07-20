@@ -731,7 +731,7 @@ export class RealUnitController {
     return this.realunitService.confirmTransfer(jwt.user, id, dto);
   }
 
-  // --- OCP Pay-Flow Endpoints ---
+  // --- OCP Pay-Flow Endpoints --- //
   // Phase 2 pay flow: swap REALU -> ZCHF keeping the ZCHF in the user wallet, then pay that ZCHF to an
   // Open CryptoPay recipient via the public lnurlp payment-link flow. The backend orchestrates the steps
   // (workflow endpoints) since the app cannot build EVM calldata or settle the OCP quote locally.
@@ -833,12 +833,12 @@ export class RealUnitController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
     summary: 'Get the status of an Open CryptoPay payment',
-    description: 'Returns the OCP payment status by reusing the lnurlp wait path. Step 3 of the OCP pay flow.',
+    description:
+      'Returns the current status (Pending/Completed/Cancelled/Expired) of the most recent payment for the given payment-link/payment id via a status-independent lookup — not only while a payment is pending. Step 3 of the OCP pay flow.',
   })
   @ApiParam({ name: 'id', description: 'Payment-link or payment-link-payment unique id of the OCP payment' })
   @ApiOkResponse({ type: RealUnitOcpPayStatusDto })
-  @ApiNotFoundResponse({ description: 'No pending payment found for the given id' })
-  @ApiBadRequestResponse({ description: 'Invalid payment-link/quote reference' })
+  @ApiNotFoundResponse({ description: 'No payment found for the given payment-link/payment id' })
   async getOcpPayStatus(@Param('id') id: string): Promise<RealUnitOcpPayStatusDto> {
     return this.realunitService.getOcpPayStatus(id);
   }

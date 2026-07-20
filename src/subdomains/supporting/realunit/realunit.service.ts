@@ -1949,7 +1949,7 @@ export class RealUnitService {
     return response;
   }
 
-  // --- Swap Quote Methods (IBAN-free REALU -> ZCHF) ---
+  // --- Swap Quote Methods (IBAN-free REALU -> ZCHF) --- //
 
   // Step 0 of the OCP pay flow: produces a SWAP-type TransactionRequest for REALU -> ZCHF WITHOUT a fiat
   // IBAN, Sell route or payout — the ZCHF proceeds stay in the user wallet so they can be paid at an OCP/SPAR
@@ -1983,7 +1983,9 @@ export class RealUnitService {
     if (!zchfAsset) throw new NotFoundException('ZCHF asset not found');
 
     // 4. Create the SWAP quote + SWAP-type TransactionRequest via the crypto Swap-route machinery (IBAN-free).
-    // includeTx=false: the on-chain execution uses the user-signed brokerbot tx, not a DFX-custody deposit tx.
+    // includeTx=false: the on-chain execution uses the user-signed brokerbot tx, not a DFX-custody deposit tx
+    // (see design note above).
+    const includeTx = false;
     const swapPaymentInfo = await this.withPriceSourceGuard(() =>
       this.swapService.createSwapPaymentInfo(
         user.id,
@@ -1994,7 +1996,7 @@ export class RealUnitService {
           targetAmount: dto.targetAmount,
           exactPrice: false,
         },
-        false,
+        includeTx,
       ),
     );
 
@@ -2132,6 +2134,8 @@ export class RealUnitService {
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
     const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
+    if (!zchfAsset) throw new NotFoundException('ZCHF asset not found');
     if (request.sourceId !== realuAsset.id || request.targetId !== zchfAsset.id) {
       throw new BadRequestException('Swap request source/target asset does not match REALU/ZCHF');
     }
@@ -2251,14 +2255,17 @@ export class RealUnitService {
 
     try {
       const parsed = ethers.utils.parseTransaction(unsignedTx);
+      if (!parsed.maxPriorityFeePerGas || !parsed.maxFeePerGas) {
+        throw new Error('Unsigned transaction is missing EIP-1559 fee fields');
+      }
 
       return ethers.utils.serializeTransaction(
         {
           type: 2,
           chainId: parsed.chainId,
           nonce: parsed.nonce,
-          maxPriorityFeePerGas: parsed.maxPriorityFeePerGas ?? ethers.BigNumber.from(0),
-          maxFeePerGas: parsed.maxFeePerGas ?? ethers.BigNumber.from(0),
+          maxPriorityFeePerGas: parsed.maxPriorityFeePerGas,
+          maxFeePerGas: parsed.maxFeePerGas,
           gasLimit: parsed.gasLimit,
           to: parsed.to,
           value: parsed.value,
@@ -2310,6 +2317,8 @@ export class RealUnitService {
 
     const client = this.getEvmClient();
     const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
+    if (!zchfAsset) throw new NotFoundException('ZCHF asset not found');
     if (request.sourceId !== realuAsset.id || request.targetId !== zchfAsset.id) {
       throw new BadRequestException('Swap request source/target asset does not match REALU/ZCHF');
     }
@@ -2437,6 +2446,8 @@ export class RealUnitService {
   // recipient / amount / min-fee server-side.
   async submitOcpPay(dto: RealUnitOcpPaySubmitDto): Promise<RealUnitOcpPayResultDto> {
     const zchfAsset = await this.getZchfAsset();
+    if (!zchfAsset) throw new NotFoundException('ZCHF asset not found');
+    if (!zchfAsset.chainId) throw new BadRequestException('ZCHF asset has no contract address');
 
     // Guard against payment methods the payment-link engine cannot settle — see createOcpPayUnsignedTransaction.
     this.assertPaymentLinkSupportsMethod();
@@ -2471,6 +2482,7 @@ export class RealUnitService {
   // a POS payment payable by whoever holds the quote, and the downstream lnurlp path re-validates
   // recipient / amount / min-fee server-side.
   async getOcpPayStatus(paymentLinkId: string): Promise<RealUnitOcpPayStatusDto> {
+    // see #4276 — status-independent lookup; COMPLETED/EXPIRED/etc. are returned instead of 404
     const payment = await this.paymentLinkPaymentService.getMostRecentPayment(paymentLinkId);
     if (!payment) throw new NotFoundException('Payment not found');
 
@@ -2481,9 +2493,11 @@ export class RealUnitService {
   // method (SEPOLIA on DEV/LOC, ETHEREUM on PRD) is a supported EVM method, so this passes for the RealUnit
   // flow. It still fails fast with a clear, typed error for any genuinely-unsupported method instead of
   // letting a deep, opaque `Invalid method` bubble up from PaymentRequestMapper / executeHexPayment.
+  // tokenBlockchain is server config only (never client input) — a mismatch is a deployment/config problem
+  // (503), not a bad client request (400).
   private assertPaymentLinkSupportsMethod(): void {
     if (!PaymentLinkEvmHexBlockchains.includes(this.tokenBlockchain)) {
-      throw new BadRequestException(
+      throw new ServiceUnavailableException(
         `OCP pay is not available for ${this.tokenBlockchain}: the payment-link engine supports EVM methods only`,
       );
     }

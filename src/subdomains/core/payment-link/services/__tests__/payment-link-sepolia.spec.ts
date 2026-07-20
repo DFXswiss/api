@@ -1,8 +1,9 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ethers } from 'ethers';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import * as ConfigModule from 'src/config/config';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -11,22 +12,21 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
+import { PaymentRequestMapper } from 'src/subdomains/core/payment-link/dto/payment-request.mapper';
+import { PaymentActivation } from 'src/subdomains/core/payment-link/entities/payment-activation.entity';
+import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
+import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
+import { PaymentQuoteStatus } from 'src/subdomains/core/payment-link/enums';
+import { PaymentQuoteRepository } from 'src/subdomains/core/payment-link/repositories/payment-quote.repository';
+import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
+import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
+import { PaymentBalanceService } from 'src/subdomains/core/payment-link/services/payment-balance.service';
+import { PaymentLinkFeeService } from 'src/subdomains/core/payment-link/services/payment-link-fee.service';
+import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
 import { PayoutFiroService } from 'src/subdomains/supporting/payout/services/payout-firo.service';
-import { PaymentActivation } from '../../entities/payment-activation.entity';
-import { PaymentLinkPayment } from '../../entities/payment-link-payment.entity';
-import { PaymentQuote } from '../../entities/payment-quote.entity';
-import { PaymentQuoteStatus } from '../../enums';
-import { PaymentRequestMapper } from '../../dto/payment-request.mapper';
-import { TransferInfo } from '../../dto/payment-link.dto';
-import { PaymentQuoteRepository } from '../../repositories/payment-quote.repository';
-import { C2BPaymentLinkService } from '../c2b-payment-link.service';
-import { PaymentActivationService } from '../payment-activation.service';
-import { PaymentBalanceService } from '../payment-balance.service';
-import { PaymentLinkFeeService } from '../payment-link-fee.service';
-import { PaymentQuoteService } from '../payment-quote.service';
-import * as ConfigModule from 'src/config/config';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 
 // Sepolia is an allowed payment-link chain on non-PRD (PaymentLinkBlockchains includes it; TestBlockchains is
 // empty off PRD). These specs lock in that the engine routes Sepolia through the EVM handlers — the new
@@ -35,7 +35,7 @@ describe('Payment-link engine - Sepolia routing', () => {
   describe('PaymentBalanceService.getDepositAddress', () => {
     let service: PaymentBalanceService;
 
-    const EVM_DEPOSIT_ADDRESS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+    const evmDepositAddress = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
 
     beforeEach(async () => {
       const module: TestingModule = await Test.createTestingModule({
@@ -47,12 +47,12 @@ describe('Payment-link engine - Sepolia routing', () => {
 
       service = module.get<PaymentBalanceService>(PaymentBalanceService);
       // set the EVM deposit address directly (onModuleInit would derive it from a configured seed)
-      service['evmDepositAddress'] = EVM_DEPOSIT_ADDRESS;
+      service['evmDepositAddress'] = evmDepositAddress;
     });
 
     it('returns the EVM deposit address for Sepolia (same as the mainnet EVM chains)', () => {
-      expect(service.getDepositAddress(Blockchain.SEPOLIA)).toBe(EVM_DEPOSIT_ADDRESS);
-      expect(service.getDepositAddress(Blockchain.ETHEREUM)).toBe(EVM_DEPOSIT_ADDRESS);
+      expect(service.getDepositAddress(Blockchain.SEPOLIA)).toBe(evmDepositAddress);
+      expect(service.getDepositAddress(Blockchain.ETHEREUM)).toBe(evmDepositAddress);
     });
   });
 
@@ -60,7 +60,7 @@ describe('Payment-link engine - Sepolia routing', () => {
     let service: PaymentLinkFeeService;
     let blockchainRegistryService: BlockchainRegistryService;
 
-    const SEPOLIA_GAS_PRICE = ethers.BigNumber.from(1_500_000_000);
+    const sepoliaGasPrice = ethers.BigNumber.from(1_500_000_000);
 
     beforeEach(async () => {
       const module: TestingModule = await Test.createTestingModule({
@@ -77,7 +77,7 @@ describe('Payment-link engine - Sepolia routing', () => {
       blockchainRegistryService = module.get<BlockchainRegistryService>(BlockchainRegistryService);
 
       const evmClient = createMock<EvmClient>();
-      jest.spyOn(evmClient, 'getRecommendedGasPrice').mockResolvedValue(SEPOLIA_GAS_PRICE);
+      jest.spyOn(evmClient, 'getRecommendedGasPrice').mockResolvedValue(sepoliaGasPrice);
       jest.spyOn(blockchainRegistryService, 'getEvmClient').mockReturnValue(evmClient);
     });
 
@@ -88,7 +88,7 @@ describe('Payment-link engine - Sepolia routing', () => {
       ).calculateFee(Blockchain.SEPOLIA);
 
       expect(blockchainRegistryService.getEvmClient).toHaveBeenCalledWith(Blockchain.SEPOLIA);
-      expect(fee).toBe(+SEPOLIA_GAS_PRICE);
+      expect(fee).toBe(+sepoliaGasPrice);
       expect(fee).not.toBeUndefined();
     });
 
@@ -99,7 +99,7 @@ describe('Payment-link engine - Sepolia routing', () => {
 
       await service.updateFees();
 
-      await expect(service.getMinFee(Blockchain.SEPOLIA)).resolves.toBe(+SEPOLIA_GAS_PRICE);
+      await expect(service.getMinFee(Blockchain.SEPOLIA)).resolves.toBe(+sepoliaGasPrice);
     });
   });
 
@@ -108,8 +108,8 @@ describe('Payment-link engine - Sepolia routing', () => {
     let paymentBalanceService: PaymentBalanceService;
     let cryptoService: CryptoService;
 
-    const EVM_DEPOSIT_ADDRESS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
-    const PAYMENT_REQUEST = 'ethereum:0xToken@11155111/transfer?address=0xRecipient&uint256=1';
+    const evmDepositAddress = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+    const paymentRequest = 'ethereum:0xToken@11155111/transfer?address=0xRecipient&uint256=1';
 
     beforeEach(async () => {
       const module: TestingModule = await Test.createTestingModule({
@@ -130,8 +130,8 @@ describe('Payment-link engine - Sepolia routing', () => {
       paymentBalanceService = module.get<PaymentBalanceService>(PaymentBalanceService);
       cryptoService = module.get<CryptoService>(CryptoService);
 
-      jest.spyOn(paymentBalanceService, 'getDepositAddress').mockReturnValue(EVM_DEPOSIT_ADDRESS);
-      jest.spyOn(cryptoService, 'getPaymentRequest').mockResolvedValue(PAYMENT_REQUEST);
+      jest.spyOn(paymentBalanceService, 'getDepositAddress').mockReturnValue(evmDepositAddress);
+      jest.spyOn(cryptoService, 'getPaymentRequest').mockResolvedValue(paymentRequest);
       jest
         .spyOn(service as unknown as { getAssetByInfo: () => Promise<Asset> }, 'getAssetByInfo')
         .mockResolvedValue({} as Asset);
@@ -156,7 +156,7 @@ describe('Payment-link engine - Sepolia routing', () => {
       ).createBlockchainRequest({} as PaymentLinkPayment, transferInfo, 60, new PaymentQuote());
 
       expect(paymentBalanceService.getDepositAddress).toHaveBeenCalledWith(Blockchain.SEPOLIA);
-      expect(result.paymentRequest).toBe(PAYMENT_REQUEST);
+      expect(result.paymentRequest).toBe(paymentRequest);
     });
   });
 
