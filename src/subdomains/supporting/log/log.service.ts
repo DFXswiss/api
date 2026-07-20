@@ -69,9 +69,12 @@ export class LogService {
       throw new BadRequestException('min must be smaller than max');
 
     // One transaction: the change set is locked while it is audited and updated, so the recorded
-    // pre-state cannot go stale and a failing batch rolls back the audit record with it.
+    // pre-state cannot go stale and a failing batch rolls back the audit record with it. The
+    // repository is re-created on the transaction manager to enrol its queries (repo-wide pattern).
     const affected = await this.logRepo.manager.transaction(async (manager): Promise<number> => {
-      const changeSet = await this.logRepo.getFinancialLogValidityChangeSet(manager, dto);
+      const txLogRepo = new LogRepository(manager);
+
+      const changeSet = await txLogRepo.getFinancialLogValidityChangeSet(dto);
       if (!changeSet.length) return 0;
       if (changeSet.length > MAX_VALIDITY_SWEEP_ROWS)
         throw new BadRequestException(
@@ -85,7 +88,7 @@ export class LogService {
         else previous.false.push(change.id);
       }
 
-      const auditLog = manager.create(Log, {
+      const auditLog = txLogRepo.create({
         system: 'LogService',
         subsystem: FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM,
         severity: LogSeverity.INFO,
@@ -101,10 +104,10 @@ export class LogService {
           previous,
         }),
       });
-      await manager.save(auditLog);
+      await txLogRepo.save(auditLog);
 
       const ids = changeSet.map(({ id }) => id);
-      const updated = await this.logRepo.setFinancialLogValidity(manager, dto, ids);
+      const updated = await txLogRepo.setFinancialLogValidity(dto, ids);
       if (updated !== ids.length)
         this.logger.error(
           `Financial log validity audit/update divergence: audited ${ids.length} rows, actually affected ${updated} rows`,

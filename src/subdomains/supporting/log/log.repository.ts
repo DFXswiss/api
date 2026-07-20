@@ -61,7 +61,7 @@ export class LogRepository extends BaseRepository<Log> {
     return this.findOne({
       where: {
         system: 'LogService',
-        subsystem: 'FinancialDataLog',
+        subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM,
         severity: LogSeverity.INFO,
         created: direction === 'before' ? LessThanOrEqual(targetDate) : MoreThanOrEqual(targetDate),
       },
@@ -72,7 +72,7 @@ export class LogRepository extends BaseRepository<Log> {
   // Unfiltered: exposes the exact newest snapshot for numeric balance displays.
   async getLatestFinancialLog(): Promise<Log | undefined> {
     return this.findOne({
-      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO },
+      where: { system: 'LogService', subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM, severity: LogSeverity.INFO },
       order: { id: 'DESC' },
     });
   }
@@ -82,7 +82,7 @@ export class LogRepository extends BaseRepository<Log> {
   // (valid=false spikes are already excluded here); see BalancesTotal (log.dto.ts, case 4).
   async getLatestValidFinancialLogs(count: number): Promise<Log[]> {
     return this.find({
-      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO, valid: true },
+      where: { system: 'LogService', subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM, severity: LogSeverity.INFO, valid: true },
       order: { id: 'DESC' },
       take: count,
     });
@@ -135,7 +135,7 @@ export class LogRepository extends BaseRepository<Log> {
       const subQuery = this.createQueryBuilder('subLog')
         .select('MAX(subLog.id)', 'max_id')
         .where('subLog.system = :system', { system: 'LogService' })
-        .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
+        .andWhere('subLog.subsystem = :subsystem', { subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM })
         .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
         .andWhere('subLog.valid = :valid', { valid: true })
         .groupBy('CAST(subLog.created AS DATE)');
@@ -154,7 +154,7 @@ export class LogRepository extends BaseRepository<Log> {
 
     const where: FindOptionsWhere<Log> = {
       system: 'LogService',
-      subsystem: 'FinancialDataLog',
+      subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM,
       severity: LogSeverity.INFO,
       valid: true,
     };
@@ -169,12 +169,11 @@ export class LogRepository extends BaseRepository<Log> {
   // Resolves the rows the update would change, locking them until the surrounding transaction
   // commits so their audited pre-state cannot go stale. Capped one above the sweep limit — that is
   // enough for the caller to detect an over-broad sweep without materialising the whole history.
+  // Construct this repository on the transaction manager (new LogRepository(manager)) to enrol it.
   async getFinancialLogValidityChangeSet(
-    manager: EntityManager,
     dto: SetFinancialLogValidityDto,
   ): Promise<{ id: number; valid: boolean | null }[]> {
-    const query = manager
-      .createQueryBuilder(Log, 'log')
+    const query = this.createQueryBuilder('log')
       .select(['log.id', 'log.valid'])
       .orderBy('log.id', 'ASC')
       .limit(MAX_VALIDITY_SWEEP_ROWS + 1)
@@ -193,15 +192,11 @@ export class LogRepository extends BaseRepository<Log> {
   // totalBalanceChf bounds (min exclusive lower, max exclusive upper). Only rows whose current
   // valid differs are touched, so affected reflects actually-changed rows and re-runs are no-ops.
   // Restricted to the audited ids, so the updated set cannot exceed the set recorded in the audit.
-  async setFinancialLogValidity(
-    manager: EntityManager,
-    dto: SetFinancialLogValidityDto,
-    ids: number[],
-  ): Promise<number> {
+  async setFinancialLogValidity(dto: SetFinancialLogValidityDto, ids: number[]): Promise<number> {
     const affected = await Util.doInBatches(
       ids,
       async (batch: number[]): Promise<number> => {
-        const query = manager.createQueryBuilder().update(Log).set({ valid: dto.valid });
+        const query = this.createQueryBuilder().update(Log).set({ valid: dto.valid });
         this.addFinancialLogValidityConditions(query, dto);
         query.andWhere('id IN (:...ids)', { ids: batch });
 

@@ -48,15 +48,15 @@ describe('LogRepository', () => {
       const repo = new LogRepository({} as EntityManager);
       const builders = [updateQueryBuilderStub(100), updateQueryBuilderStub(100), updateQueryBuilderStub(50)];
       let call = 0;
-      const manager = {
-        createQueryBuilder: jest.fn().mockImplementation(() => builders[call++]),
-      } as unknown as EntityManager;
+      const queryBuilderSpy = jest
+        .spyOn(repo, 'createQueryBuilder')
+        .mockImplementation(() => builders[call++] as never);
 
       const ids = Array.from({ length: 250 }, (_, index) => index + 1);
-      const affected = await repo.setFinancialLogValidity(manager, dto, ids);
+      const affected = await repo.setFinancialLogValidity(dto, ids);
 
       expect(affected).toBe(250);
-      expect(manager.createQueryBuilder).toHaveBeenCalledTimes(3);
+      expect(queryBuilderSpy).toHaveBeenCalledTimes(3);
       expect(builders.map((b) => b.execute.mock.calls.length)).toEqual([1, 1, 1]);
 
       // Every batch binds its own id slice, so the update can never exceed the audited set.
@@ -70,11 +70,9 @@ describe('LogRepository', () => {
 
     it('throws when a batch reports no affected count instead of silently summing NaN', async () => {
       const repo = new LogRepository({} as EntityManager);
-      const manager = {
-        createQueryBuilder: jest.fn().mockReturnValue(updateQueryBuilderStub(undefined)),
-      } as unknown as EntityManager;
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(updateQueryBuilderStub(undefined) as never);
 
-      await expect(repo.setFinancialLogValidity(manager, dto, [11, 12])).rejects.toThrow(
+      await expect(repo.setFinancialLogValidity(dto, [11, 12])).rejects.toThrow(
         'Financial log validity update returned no affected count',
       );
     });

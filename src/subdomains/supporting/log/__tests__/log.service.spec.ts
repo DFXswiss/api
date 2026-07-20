@@ -15,21 +15,26 @@ import {
 import { LogRepository } from '../log.repository';
 import { LogService } from '../log.service';
 
+jest.mock('../log.repository');
+
 describe('LogService', () => {
   let service: LogService;
   let logRepo: LogRepository;
   let settingService: SettingService;
-  let manager: EntityManager;
 
   beforeEach(async () => {
     logRepo = createMock<LogRepository>();
     settingService = createMock<SettingService>();
-    manager = createMock<EntityManager>();
 
-    // The sweep runs inside logRepo.manager.transaction — hand the callback our mocked manager.
+    // The sweep re-creates the repository on the transaction manager (new LogRepository(manager));
+    // point that back at the injected mock so a single mock covers both the injected and the
+    // transactional repository, and run the transaction callback inline.
+    (LogRepository as jest.MockedClass<typeof LogRepository>).mockImplementation(() => logRepo);
     Object.defineProperty(logRepo, 'manager', {
       value: createMock<EntityManager>({
-        transaction: jest.fn().mockImplementation((cb: (m: EntityManager) => Promise<unknown>) => cb(manager)),
+        transaction: jest
+          .fn()
+          .mockImplementation((cb: (m: EntityManager) => Promise<unknown>) => cb(createMock<EntityManager>())),
       }),
       configurable: true,
     });
@@ -82,20 +87,20 @@ describe('LogService', () => {
 
     it('should write the audit log before delegating to the repository and return the affected count', async () => {
       const auditLog = new Log();
-      const saveSpy = jest.spyOn(manager, 'save').mockResolvedValue(auditLog as never);
+      const saveSpy = jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog as never);
       const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(2);
       jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([
         { id: 11, valid: true },
         { id: 12, valid: null },
       ]);
-      jest.spyOn(manager, 'create').mockReturnValue(auditLog as never);
+      jest.spyOn(logRepo, 'create').mockReturnValue(auditLog as never);
 
       const dto = { valid: false, from: new Date('2026-06-18'), min: 60000, reference: 'ticket SUP-123' };
       const result = await service.setFinancialLogValidity(42, dto);
 
-      expect(logRepo.getFinancialLogValidityChangeSet).toHaveBeenCalledWith(manager, dto);
+      expect(logRepo.getFinancialLogValidityChangeSet).toHaveBeenCalledWith(dto);
       expect(saveSpy).toHaveBeenCalledWith(auditLog);
-      expect(updateSpy).toHaveBeenCalledWith(manager, dto, [11, 12]);
+      expect(updateSpy).toHaveBeenCalledWith(dto, [11, 12]);
       expect(saveSpy.mock.invocationCallOrder[0]).toBeLessThan(updateSpy.mock.invocationCallOrder[0]);
       expect(result).toEqual({ affected: 2 });
     });
@@ -108,13 +113,13 @@ describe('LogService', () => {
         { id: 12, valid: null },
         { id: 15, valid: true },
       ]);
-      jest.spyOn(manager, 'create').mockReturnValue(auditLog as never);
-      jest.spyOn(manager, 'save').mockResolvedValue(auditLog as never);
+      jest.spyOn(logRepo, 'create').mockReturnValue(auditLog as never);
+      jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog as never);
       const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(3);
 
       await service.setFinancialLogValidity(42, dto);
 
-      expect(updateSpy).toHaveBeenCalledWith(manager, dto, [11, 12, 15]);
+      expect(updateSpy).toHaveBeenCalledWith(dto, [11, 12, 15]);
     });
 
     it('should reject a changeset above the sweep limit before writing or updating', async () => {
@@ -123,7 +128,7 @@ describe('LogService', () => {
         .mockResolvedValue(
           Array.from({ length: MAX_VALIDITY_SWEEP_ROWS + 1 }, (_, index) => ({ id: index + 1, valid: true })),
         );
-      const saveSpy = jest.spyOn(manager, 'save');
+      const saveSpy = jest.spyOn(logRepo, 'save');
       const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity');
 
       await expect(
@@ -142,8 +147,8 @@ describe('LogService', () => {
       const auditError = new Error('audit write failed');
       const auditLog = new Log();
       jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([{ id: 11, valid: true }]);
-      jest.spyOn(manager, 'create').mockReturnValue(auditLog as never);
-      jest.spyOn(manager, 'save').mockRejectedValue(auditError as never);
+      jest.spyOn(logRepo, 'create').mockReturnValue(auditLog as never);
+      jest.spyOn(logRepo, 'save').mockRejectedValue(auditError as never);
       const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity');
 
       await expect(
@@ -159,8 +164,8 @@ describe('LogService', () => {
 
     it('should skip the audit write and update for an empty changeset', async () => {
       jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([]);
-      const createSpy = jest.spyOn(manager, 'create');
-      const saveSpy = jest.spyOn(manager, 'save');
+      const createSpy = jest.spyOn(logRepo, 'create');
+      const saveSpy = jest.spyOn(logRepo, 'save');
       const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity');
 
       const result = await service.setFinancialLogValidity(42, {
@@ -179,8 +184,8 @@ describe('LogService', () => {
       const auditLog = new Log();
       const from = new Date('2026-06-18');
       const to = new Date('2026-06-19');
-      const createSpy = jest.spyOn(manager, 'create').mockReturnValue(auditLog as never);
-      jest.spyOn(manager, 'save').mockResolvedValue(auditLog as never);
+      const createSpy = jest.spyOn(logRepo, 'create').mockReturnValue(auditLog as never);
+      jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog as never);
       jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(5);
       jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([
         { id: 11, valid: true },
@@ -199,7 +204,7 @@ describe('LogService', () => {
         reference: 'ticket SUP-123',
       });
 
-      expect(createSpy).toHaveBeenCalledWith(Log, {
+      expect(createSpy).toHaveBeenCalledWith({
         system: 'LogService',
         subsystem: FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM,
         severity: LogSeverity.INFO,
@@ -223,8 +228,8 @@ describe('LogService', () => {
         { id: 11, valid: true },
         { id: 12, valid: null },
       ]);
-      jest.spyOn(manager, 'create').mockReturnValue(auditLog as never);
-      jest.spyOn(manager, 'save').mockResolvedValue(auditLog as never);
+      jest.spyOn(logRepo, 'create').mockReturnValue(auditLog as never);
+      jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog as never);
       jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(1);
       const loggerSpy = jest.spyOn((service as any).logger, 'error');
 
@@ -243,8 +248,8 @@ describe('LogService', () => {
       const auditLog = new Log();
       const from = new Date('2026-06-18');
       jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([{ id: 11, valid: true }]);
-      jest.spyOn(manager, 'create').mockReturnValue(auditLog as never);
-      jest.spyOn(manager, 'save').mockResolvedValue(auditLog as never);
+      jest.spyOn(logRepo, 'create').mockReturnValue(auditLog as never);
+      jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog as never);
       jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(1);
       const loggerSpy = jest.spyOn((service as any).logger, 'info');
 
@@ -311,7 +316,7 @@ describe('LogService', () => {
         severity: LogSeverity.INFO,
         message: '{"balancesTotal":{"totalBalanceChf":1000}}',
       });
-      jest.spyOn(logRepo, 'findOneBy').mockResolvedValue(dataLog);
+      jest.spyOn(logRepo, 'findOneBy').mockResolvedValue(dataLog as never);
       const saveSpy = jest.spyOn(logRepo, 'save');
 
       await expect(service.update(12, { message: undefined, category: undefined, valid: false })).rejects.toThrow(
@@ -329,8 +334,8 @@ describe('LogService', () => {
         severity: LogSeverity.INFO,
         message: '{"balancesTotal":{"totalBalanceChf":1000}}',
       });
-      jest.spyOn(logRepo, 'findOneBy').mockResolvedValue(dataLog);
-      const saveSpy = jest.spyOn(logRepo, 'save').mockResolvedValue(dataLog);
+      jest.spyOn(logRepo, 'findOneBy').mockResolvedValue(dataLog as never);
+      const saveSpy = jest.spyOn(logRepo, 'save').mockResolvedValue(dataLog as never);
 
       await service.update(13, { message: undefined, category: 'reviewed', valid: undefined });
 
