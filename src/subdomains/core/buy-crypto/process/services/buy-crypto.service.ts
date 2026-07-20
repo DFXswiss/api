@@ -250,6 +250,9 @@ export class BuyCryptoService implements OnModuleInit {
       cryptoInput,
       cryptoRoute: swap,
       inputAmount: cryptoInput.amount,
+      // §2.3 native-first exactness (#4287 stage 4): copy the crypto_input's captured on-chain base units (stage 1)
+      // so the buy's exact deposit amount survives the float collapse in `inputAmount`; fail-open null for fiat/legacy.
+      inputAmountBaseUnits: cryptoInput.amountBaseUnits ?? null,
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
