@@ -330,6 +330,17 @@ export class SolanaClient extends BlockchainClient {
     return this.getTransaction(txHash).then((t) => t.fee ?? 0);
   }
 
+  // §2.3 native-first exactness (issue #4287): the EXACT on-chain tx fee as integer LAMPORTS — the raw meta.fee, BEFORE
+  // the fromLamportAmount float collapse in getTransaction — i.e. SOL base units at the 9-dp lamports scale, so the
+  // ledger books the payout network-fee leg exact. Fails LOUD on a missing tx/meta (the caller wraps it fail-open).
+  async getTxActualFeeBaseUnits(txHash: string): Promise<bigint> {
+    const parsedTransaction = await this.connection.getParsedTransaction(txHash, {
+      commitment: 'finalized',
+      maxSupportedTransactionVersion: 0,
+    });
+    return BigInt(parsedTransaction.meta.fee);
+  }
+
   async getAllTokens(address: string): Promise<SolanaTokenDto[]> {
     return this.connection
       .getParsedTokenAccountsByOwner(

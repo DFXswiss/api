@@ -31,11 +31,22 @@ export class PayoutSolanaService {
     }
   }
 
-  async getPayoutCompletionData(txHash: string): Promise<[boolean, number]> {
+  async getPayoutCompletionData(txHash: string): Promise<[boolean, number, bigint | null]> {
     const isComplete = await this.client.isTxComplete(txHash);
     const payoutFee = isComplete ? await this.client.getTxActualFee(txHash) : 0;
+    // §2.3 exactness (issue #4287): the EXACT fee lamports alongside the float; fail-open null on any capture error so a
+    // fee-capture hiccup never blocks payout completion (the ledger then derives the fee leg from the float).
+    const feeBaseUnits = isComplete ? await this.feeBaseUnits(txHash) : null;
 
-    return [isComplete, payoutFee];
+    return [isComplete, payoutFee, feeBaseUnits];
+  }
+
+  private async feeBaseUnits(txHash: string): Promise<bigint | null> {
+    try {
+      return await this.client.getTxActualFeeBaseUnits(txHash);
+    } catch {
+      return null;
+    }
   }
   async getCurrentGasForCoinTransaction(): Promise<number> {
     return this.client.getCurrentGasCostForCoinTransaction();
