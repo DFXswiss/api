@@ -1614,6 +1614,37 @@ describe('RealUnitService', () => {
       expect(postConfig.timeout).toBe(30000);
     });
 
+    it('does not gate the completed registration on a confirmation mail when Aktionariat matched an existing shareholder', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      // Aktionariat updates an existing share-register shareholder in place and sends NO confirmation mail.
+      httpService.post.mockResolvedValue({ message: 'Existing user found, updated your address.' } as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created.status).toBe(ReviewStatus.COMPLETED);
+      // no confirmation mail will ever arrive for an existing shareholder → must not be gated (else buy dead-ends)
+      expect(created.requiresEmailConfirmation).toBe(false);
+    });
+
+    it('keeps the completed registration gated when Aktionariat sent a confirmation mail to a newly registered email', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({ message: 'Confirmation email sent to erika.example@example.com' } as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created.status).toBe(ReviewStatus.COMPLETED);
+      // a confirmation mail was sent → the row stays gated until the customer confirms
+      expect(created.requiresEmailConfirmation).toBe(true);
+    });
+
     it('persists the registration in DEV/LOC without calling Aktionariat and logs the response as skipped', async () => {
       mockEnvironment = 'loc';
       const wallet = softwareWallet.address;

@@ -192,6 +192,8 @@ export class RealUnitService {
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
+  // Lower-cased substring of Aktionariat's registerUser response that marks a matched existing shareholder.
+  private static readonly existingShareholderMarker = 'existing user found';
   // Getter, not a field: Config is undefined until ConfigService is constructed, so reading it
   // in a field initializer can crash bootstrap depending on provider-instantiation order.
   private get tokenBlockchain(): Blockchain {
@@ -1492,6 +1494,11 @@ export class RealUnitService {
       }
     }
 
+    // An existing share-register shareholder gets no confirmation email from Aktionariat, so the completed
+    // registration must not be gated on one (see isExistingShareholderResponse). Skip-forward (DEV/LOC) and
+    // failed forwards have no such response and stay gated by the normal rules.
+    const existingShareholder = this.isExistingShareholderResponse(registerResponse);
+
     // 2) Persist the outcome in a short advisory-locked transaction (no external I/O inside it).
     let outcome: 'completed' | 'forward-failed' | 'idempotent';
     try {
@@ -1524,7 +1531,15 @@ export class RealUnitService {
           return 'forward-failed';
         }
 
-        await this.persistAktionariatRegistration(manager, user, dto, payload, ReviewStatus.COMPLETED, new Date());
+        await this.persistAktionariatRegistration(
+          manager,
+          user,
+          dto,
+          payload,
+          ReviewStatus.COMPLETED,
+          new Date(),
+          existingShareholder,
+        );
         return 'completed';
       });
     } catch (error) {
@@ -1600,6 +1615,16 @@ export class RealUnitService {
     }
   }
 
+  // Aktionariat's registerUser answers "Existing user found, updated your address." when the signed email
+  // already belongs to a share-register shareholder: it updates that shareholder's wallet in place and sends
+  // NO confirmation email (a newly registered email instead gets "Confirmation email sent to ..."). Such a
+  // registration must not be gated on a confirmation email that never arrives — Aktionariat has
+  // authoritatively identified an existing shareholder, which is itself the confirmation.
+  private isExistingShareholderResponse(response: Record<string, unknown> | undefined): boolean {
+    const message = typeof response?.message === 'string' ? response.message : undefined;
+    return message?.toLowerCase().includes(RealUnitService.existingShareholderMarker) ?? false;
+  }
+
   // Persist the queryable, per-wallet Aktionariat registration record for the resolved wallet-user within
   // the caller's transaction (the caller holds the per-wallet-user advisory lock). Deactivate any prior
   // active registration for this wallet-user, then insert the new one — so the partial unique index
@@ -1614,6 +1639,7 @@ export class RealUnitService {
     payload: AktionariatRegistrationDto,
     status: ReviewStatus,
     forwardedToAktionariatDate: Date | null,
+    existingShareholder = false,
   ): Promise<void> {
     await manager.update(AktionariatRegistration, { user: { id: user.id }, active: true }, { active: false });
 
@@ -1626,11 +1652,11 @@ export class RealUnitService {
       status,
       forwardedToAktionariatDate: forwardedToAktionariatDate ?? undefined,
       active: true,
-      // Only a COMPLETED registration is gated on the Aktionariat confirmation email (sent on a successful
-      // forward). A MANUAL_REVIEW row's forward failed, so no confirmation mail was ever sent — gating it
-      // would dead-end the flow on a mail that never arrives. (The completion migration clears this for rows
-      // that predate the gate.)
-      requiresEmailConfirmation: status === ReviewStatus.COMPLETED,
+      // A COMPLETED registration is gated on the Aktionariat confirmation email (sent on a successful forward)
+      // UNLESS Aktionariat matched an existing shareholder — it then sends no confirmation email, so gating
+      // would dead-end the flow on a mail that never arrives. A MANUAL_REVIEW row's forward failed, so no mail
+      // was sent either. (The completion migration clears this for rows that predate the gate.)
+      requiresEmailConfirmation: status === ReviewStatus.COMPLETED && !existingShareholder,
     });
     registration.signedPayloadData = payload;
     registration.kycDataObj = dto.kycData;
