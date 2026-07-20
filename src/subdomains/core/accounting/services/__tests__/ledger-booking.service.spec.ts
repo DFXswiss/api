@@ -135,6 +135,62 @@ describe('LedgerBookingService', () => {
     expect(assetService.getAssetsById).toHaveBeenCalledWith([70]); // only asset-backed accounts looked up
   });
 
+  // issue #4287 stage 1: an on-chain deposit leg carrying an EXPLICIT base-unit override (the exact wei captured at
+  // ingestion) is booked VERBATIM — bypassing the ≤8-dp float derivation that would otherwise lose 18-dp precision.
+  it('books an explicit amountBaseUnits override verbatim, bypassing the 8-dp float cap', async () => {
+    const ethAsset = createCustomLedgerAccount({
+      id: 16,
+      name: 'Ethereum/ETH',
+      type: AccountType.ASSET,
+      currency: 'ETH',
+      assetId: 72,
+    });
+    jest.spyOn(assetService, 'getAssetsById').mockResolvedValue([{ id: 72, decimals: 18 } as any]);
+
+    const exactWei = 123456789012345678n; // 0.123456789012345678 ETH — a value the ≤8-dp float path collapses
+    await service.bookTx({
+      sourceType: 'crypto_input',
+      sourceId: 'wei1',
+      seq: 0,
+      bookingDate: new Date('2026-06-01'),
+      legs: [
+        { account: ethAsset, amount: 0.12345679, priceChf: 2000, amountChf: 246.91, amountBaseUnits: exactWei },
+        { account: liability, amount: -246.91, amountChf: -246.91 },
+      ],
+    });
+
+    const ethLeg = savedLegs.find((l) => l.account.name === 'Ethereum/ETH');
+    expect(ethLeg?.amountBaseUnits).toBe(exactWei); // verbatim
+    expect(ethLeg?.amountBaseUnits).not.toBe(123456790000000000n); // the ≤8-dp float path would produce this (lossy)
+  });
+
+  // issue #4287 stage 1 (fail-open): a leg WITHOUT an override derives its base units from the float amount exactly as
+  // before, so legacy rows keep working unchanged.
+  it('falls back to the float-derived base units when no override is supplied (fail-open)', async () => {
+    const btcAsset = createCustomLedgerAccount({
+      id: 17,
+      name: 'Bitcoin/BTC',
+      type: AccountType.ASSET,
+      currency: 'BTC',
+      assetId: 70,
+    });
+    jest.spyOn(assetService, 'getAssetsById').mockResolvedValue([{ id: 70, decimals: 8 } as any]);
+
+    await service.bookTx({
+      sourceType: 'crypto_input',
+      sourceId: 'noov1',
+      seq: 0,
+      bookingDate: new Date('2026-06-01'),
+      legs: [
+        { account: btcAsset, amount: 0.5, priceChf: 50000, amountChf: 25000 },
+        { account: liability, amount: -25000, amountChf: -25000 },
+      ],
+    });
+
+    const btcLeg = savedLegs.find((l) => l.account.name === 'Bitcoin/BTC');
+    expect(btcLeg?.amountBaseUnits).toBe(50000000n); // toBaseUnits(0.5, 8), derived — no override
+  });
+
   // nextSeq `(max ?? -1) + 1` (line 235): an empty (sourceType,sourceId) namespace → MAX(seq) is null → nextSeq 0.
   // nextCorrectionSeq then lifts it into the reserved correction range. Proves seq allocation starts at 0, not NaN.
   it('allocates seq 0 for an empty source namespace (MAX(seq) null → ?? -1)', async () => {

@@ -16,6 +16,11 @@ export interface LedgerLegInput {
   priceChf?: number;
   amountChf?: number;
   needsMark?: boolean;
+  // §2.3 native-first exactness (issue #4287 stage 1): an EXACT integer base-unit quantity (wei/satoshi) captured at
+  // ingestion. When set it is booked into ledger_leg.amountBaseUnits VERBATIM — bypassing the ≤8-dp float derivation in
+  // populateBaseUnits — so an on-chain deposit/withdrawal leg stays wei-exact. Signed to match `amount` (Cr = −).
+  // undefined → derive from the float `amount` as before (fail-open).
+  amountBaseUnits?: bigint;
 }
 
 export interface LedgerTxInput {
@@ -64,7 +69,7 @@ export class LedgerBookingService {
   // (§4.12: reversal + re-book must live in ONE transaction). Behaviour is identical to the public bookTx.
   private async bookTxWithManager(manager: EntityManager, input: LedgerTxInput): Promise<LedgerTx> {
     const legs = input.legs.map((leg) => this.prepareLeg(leg));
-    const decimalsById = await this.populateBaseUnits(legs);
+    const decimalsById = await this.populateBaseUnits(legs, input.legs);
 
     await this.appendRoundingLeg(legs);
     this.assertNativeBalance(legs, input, decimalsById);
@@ -116,6 +121,9 @@ export class LedgerBookingService {
         priceChf: leg.priceChf,
         amountChf: leg.amountChf != null ? -leg.amountChf : undefined,
         needsMark: leg.needsMark,
+        // §2.3 exactness (issue #4287 stage 1): negate the stored exact base units so a reversal exactly undoes the
+        // original leg (a same-asset pair still nets to 0n); a null (fiat) base-unit leg derives from the float as before.
+        amountBaseUnits: leg.amountBaseUnits != null ? -leg.amountBaseUnits : undefined,
       })),
     });
   }
@@ -366,7 +374,7 @@ export class LedgerBookingService {
   // carry no decimals (→ null, already CHF-exact via amountChfCents), as do TRANSIT/EQUITY/EXPENSE (no assetId); a
   // later phase covering those must therefore key per-asset, not assume "non-null ⟺ crypto". Additive: never affects
   // the CHF close.
-  private async populateBaseUnits(legs: LedgerLeg[]): Promise<Map<number, number>> {
+  private async populateBaseUnits(legs: LedgerLeg[], inputs: LedgerLegInput[]): Promise<Map<number, number>> {
     const assetIds = [...new Set(legs.map((leg) => leg.account.assetId).filter((id): id is number => id != null))];
     const decimalsById = new Map<number, number>();
     if (assetIds.length) {
@@ -375,7 +383,18 @@ export class LedgerBookingService {
       }
     }
 
-    for (const leg of legs) {
+    for (let i = 0; i < legs.length; i++) {
+      const leg = legs[i];
+      // §2.3 exactness (issue #4287 stage 1): an explicit base-unit override — an on-chain deposit/withdrawal leg
+      // carrying the EXACT wei/satoshi captured at ingestion — is booked VERBATIM, preserving the full 18-dp precision
+      // the ≤8-dp float derivation below would lose. `legs` and `inputs` are index-aligned here (the ROUNDING leg is
+      // appended only afterwards), so inputs[i] is this leg's source; a missing entry falls back to the float derivation.
+      const override = inputs[i]?.amountBaseUnits;
+      if (override != null) {
+        leg.amountBaseUnits = override;
+        continue;
+      }
+
       const decimals = leg.account.assetId != null ? decimalsById.get(leg.account.assetId) : undefined;
       leg.amountBaseUnits = decimals != null ? toBaseUnits(leg.amount, decimals) : null;
     }

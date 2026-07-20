@@ -153,6 +153,9 @@ export class CryptoInputConsumer {
       priceChf: mark ?? null,
       amountChf: assetChf,
       needsMark: assetChf == null,
+      // §2.3 exactness (issue #4287 stage 1): book the EXACT on-chain base units captured at ingestion verbatim when
+      // present; legacy rows without it (null) fall back to the ledger's float derivation (fail-open).
+      amountBaseUnits: ci.amountBaseUnits ?? undefined,
     };
 
     if (ci.isPayment) {
