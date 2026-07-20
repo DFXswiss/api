@@ -1,6 +1,7 @@
 import { getKeysFromAddress } from '@zano-project/zano-utils-js';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { fromBaseUnits } from 'src/shared/models/base-units.transformer';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -351,18 +352,28 @@ export class ZanoClient extends BlockchainClient {
   ): Promise<ZanoTransferReceiveDto[] | undefined> {
     if (transferEmployedEntry)
       return Promise.all(
-        transferEmployedEntry.map(async (r) => ({
-          amount: await this.mapTransferEmployedEntryAmount(r),
-          assetId: r.asset_id,
-        })),
+        transferEmployedEntry.map(async (r) => {
+          const decimals = await this.getEntryDecimals(r);
+          return {
+            amount: ZanoHelper.fromAuAmount(r.amount, decimals),
+            // §2.3 native-first exactness (#4287 stage 3): the EXACT whole-unit decimal of this receive from the raw
+            // atomic-unit integer BEFORE the fromAuAmount float collapse. Only a safe-integer atomic is captured (an
+            // atomic count above 2^53 is already corrupted by JSON.parse in the RPC response) -> otherwise undefined and
+            // the ledger derives from the float (fail-open).
+            amountExact:
+              Number.isSafeInteger(r.amount) && r.amount >= 0 ? fromBaseUnits(BigInt(r.amount), decimals) : undefined,
+            assetId: r.asset_id,
+          };
+        }),
       );
   }
 
-  private async mapTransferEmployedEntryAmount(dto: ZanoGetTransferEmployedEntryDto): Promise<number> {
-    if (dto.asset_id === Config.blockchain.zano.coinId) return ZanoHelper.fromAuAmount(dto.amount);
+  // the native atomic-unit decimals of a receive entry: the coin's fixed ZANO_DECIMALS, else the token's decimal_point.
+  private async getEntryDecimals(dto: ZanoGetTransferEmployedEntryDto): Promise<number> {
+    if (dto.asset_id === Config.blockchain.zano.coinId) return ZanoHelper.ZANO_DECIMALS;
 
     const token = await this.getTokenByAssetId(dto.asset_id);
-    return ZanoHelper.fromAuAmount(dto.amount, token.decimals);
+    return token.decimals;
   }
 
   // --- UNIMPLEMENTED METHODS --- //

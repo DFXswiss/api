@@ -73,6 +73,11 @@ export interface ZanoTransferDto {
 export interface ZanoTransferReceiveDto {
   amount: number;
   assetId: string;
+
+  // §2.3 native-first exactness (#4287 stage 3): the EXACT whole-unit decimal STRING of `amount`, captured from the raw
+  // atomic-unit integer (at the asset's native decimal_point) BEFORE the lossy fromAuAmount float collapse. undefined
+  // when unavailable (atomic beyond the JSON safe-integer range) -> the ledger derives from the float (fail-open).
+  amountExact?: string;
 }
 
 export interface ZanoSendTransferResultDto {
