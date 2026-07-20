@@ -996,6 +996,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'preparationFeeAmount',
       'preparationFeeAmountChf',
       'preparationFeeAssetId',
+      'releasedPayoutTxIds',
       'retryCount',
       'status',
       'transferTxId',

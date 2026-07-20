@@ -84,13 +84,17 @@ export class BitcoinRpcClient {
       if (rpcError) {
         if (rpcError.code === RPC_IN_WARMUP) throw new NodeNotReadyError(method, rpcError.message);
 
-        const error = new Error(`Bitcoin RPC ${method} failed: ${rpcError.message}`) as Error & { code: number };
+        const error = new Error(`Bitcoin RPC ${method} failed: ${rpcError.message}`, { cause: e }) as Error & {
+          code: number;
+        };
         error.code = rpcError.code;
         throw error;
       }
 
       // Re-throw with more context, preserving error code if present
-      const error = new Error(`Bitcoin RPC ${method} failed: ${axiosError.message ?? e}`) as Error & { code: number };
+      const error = new Error(`Bitcoin RPC ${method} failed: ${axiosError.message ?? e}`, { cause: e }) as Error & {
+        code: number;
+      };
       if (axiosError.code !== undefined) {
         error.code = axiosError.code;
       } else if ((e as Error & { code?: number }).code !== undefined) {

@@ -380,9 +380,12 @@ export class LogJobService {
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const yapealEurBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'EUR');
     const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
-    const eurBankIbans = [yapealEurBank.iban, olkyBank.iban];
+    const frickChfBank = await this.bankService.getBankInternal(IbanBankName.FRICK, 'CHF');
+    const frickEurBank = await this.bankService.getBankInternal(IbanBankName.FRICK, 'EUR');
+    const eurBankIbans = [yapealEurBank.iban, olkyBank.iban, frickEurBank.iban];
+    const chfBankIbans = [yapealChfBank.iban, frickChfBank.iban];
     const eurBankAssets = assets.filter(
-      (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(a.blockchain) && a.dexName === 'EUR',
+      (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(a.blockchain) && a.dexName === 'EUR',
     );
 
     // pending balances
@@ -499,9 +502,9 @@ export class LogJobService {
         k.address === yapealEurBank.bic.padEnd(11, 'XXX'),
     );
 
-    // CHF: Yapeal -> Scrypt
+    // CHF: Bank (Yapeal/Frick) -> Scrypt
     const chfSenderScryptBankTx = recentScryptBankTx.filter(
-      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) => chfBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
@@ -537,12 +540,13 @@ export class LogJobService {
       (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
     );
 
-    // CHF: Scrypt -> Yapeal
+    // CHF: Scrypt -> Bank (Yapeal/Frick) — receiver list is matching-only; pending attribution stays Yapeal-targeted
+    // (ExchangeTx has no bank destination field, so a per-currency target would double-count across CHF bank assets)
     const chfSenderScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status !== 'failed' && k.currency === 'CHF',
     );
     const chfReceiverScryptBankTx = recentScryptBankTx.filter(
-      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      (b) => chfBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
     // EUR: Scrypt -> Bank
@@ -607,7 +611,7 @@ export class LogJobService {
 
       // EUR Scrypt pending: aggregated under Scrypt/EUR instead of per-bank
       const isEurBankAsset =
-        [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(curr.blockchain) && curr.dexName === 'EUR';
+        [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(curr.blockchain) && curr.dexName === 'EUR';
       const isScryptEurAsset = (curr.blockchain as string) === ExchangeName.SCRYPT && curr.dexName === 'EUR';
 
       // Olky to Yapeal //

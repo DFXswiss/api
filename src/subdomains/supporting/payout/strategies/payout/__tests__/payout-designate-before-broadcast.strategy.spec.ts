@@ -25,12 +25,13 @@ import { SparkStrategy } from '../impl/spark.strategy';
 import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 
 // Fixture returned by every per-strategy setup function below: a strategy instance whose
-// broadcast sink (dispatchPayout/sendTransaction/sendPayment) and persistence sink
-// (payoutOrderRepo.save) are individually spy-able, so the shared variant suite can drive and
-// assert designate-before-broadcast behavior identically across all eight strategies.
+// broadcast sink (dispatchPayout/sendTransaction/sendPayment) and repository operations are
+// individually spy-able, so the shared variant suite can drive and assert the atomic
+// designate-before-broadcast behavior identically across all eight strategies.
 interface DesignateBeforeBroadcastFixture {
   doPayout: (orders: PayoutOrder[]) => Promise<void>;
   dispatchSpy: jest.SpyInstance;
+  repoUpdateSpy: jest.SpyInstance;
   repoSaveSpy: jest.SpyInstance;
 }
 
@@ -42,13 +43,6 @@ interface DesignateBeforeBroadcastOptions {
   // + evm/cardano/solana/icp/tron/arkade/spark-client.ts and lightning-client.ts), so their fixtures
   // must throw that type here to stay representative.
   broadcastError?: Error;
-  // PayoutStrategy#handleBroadcastError (see payout.strategy.ts, exercised via EvmStrategy /
-  // CardanoStrategy / SolanaStrategy #doPayout) treats any non-PayoutBroadcastException
-  // before/at the pre-broadcast designate-save as provably pre-broadcast and rolls back for
-  // retry - including a failed designate save itself, since dispatchPayout was never reached
-  // either way. Every other (not-yet-migrated) strategy keeps the old "never touch it again"
-  // behavior for that case.
-  designateSaveFailureRollsBack?: boolean;
 }
 
 // Shared table of the four designate-before-broadcast variants, run identically against every
@@ -59,36 +53,32 @@ function runDesignateBeforeBroadcastSuite(
   setup: () => DesignateBeforeBroadcastFixture,
   options: DesignateBeforeBroadcastOptions = {},
 ): void {
-  const { broadcastError = new Error('broadcast failed'), designateSaveFailureRollsBack = false } = options;
+  const { broadcastError = new Error('broadcast failed') } = options;
 
   describe(`${strategyName} #doPayout(...)`, () => {
     beforeAll(() => {
       new ConfigService(); // sets module-level Config (Config.payout.maxPreBroadcastRetries used by handleBroadcastError)
     });
 
-    it('designates and persists BEFORE broadcasting, then reaches PAYOUT_PENDING with the new txId', async () => {
-      const { doPayout, dispatchSpy, repoSaveSpy } = setup();
+    it('claims the order with a conditional update before broadcasting, then reaches PAYOUT_PENDING', async () => {
+      const { doPayout, dispatchSpy, repoUpdateSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
-
-      // capture the persisted status at the moment of the first (pre-broadcast) save
-      let statusAtFirstSave: PayoutOrderStatus | undefined;
-      repoSaveSpy.mockImplementationOnce(async (o: PayoutOrder) => {
-        statusAtFirstSave = o.status;
-        return o;
-      });
       dispatchSpy.mockResolvedValue('TX_NEW');
 
       await doPayout([order]);
 
-      expect(statusAtFirstSave).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+      expect(repoUpdateSpy).toHaveBeenCalledWith(
+        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+      );
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('TX_NEW');
       expect(dispatchSpy).toHaveBeenCalledTimes(1);
-      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // designate + pending
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // pending only; designation uses UPDATE
     });
 
     it('leaves the order PAYOUT_DESIGNATED (no txId, no rollback) when the broadcast throws', async () => {
-      const { doPayout, dispatchSpy, repoSaveSpy } = setup();
+      const { doPayout, dispatchSpy, repoUpdateSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
       const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
       dispatchSpy.mockRejectedValue(broadcastError);
@@ -99,11 +89,12 @@ function runDesignateBeforeBroadcastSuite(
       expect(order.payoutTxId).toBeNull();
       expect(dispatchSpy).toHaveBeenCalledTimes(1); // no second broadcast
       expect(rollbackSpy).not.toHaveBeenCalled(); // fail-closed: never auto-rollback after broadcast
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the pre-broadcast designate save
+      expect(repoUpdateSpy).toHaveBeenCalledTimes(1);
+      expect(repoSaveSpy).not.toHaveBeenCalled();
     });
 
-    it('does NOT re-designate when payoutTxId is already set (speedup/expired-retry path)', async () => {
-      const { doPayout, dispatchSpy, repoSaveSpy } = setup();
+    it('does NOT re-designate when payoutTxId is already set (manual speedup path)', async () => {
+      const { doPayout, dispatchSpy, repoUpdateSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'OLD_TX' });
       const designateSpy = jest.spyOn(order, 'designatePayout');
       dispatchSpy.mockResolvedValue('NEW_TX');
@@ -111,36 +102,60 @@ function runDesignateBeforeBroadcastSuite(
       await doPayout([order]);
 
       expect(designateSpy).not.toHaveBeenCalled();
+      expect(repoUpdateSpy).not.toHaveBeenCalled();
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('NEW_TX');
       expect(dispatchSpy).toHaveBeenCalledTimes(1);
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the pending save, no extra designate save
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('never broadcasts when the pre-broadcast designate save throws', async () => {
-      const { doPayout, dispatchSpy, repoSaveSpy } = setup();
-      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
-      repoSaveSpy.mockRejectedValueOnce(new Error('DB unavailable'));
+    it('skips broadcast and persistence on a second payout run that loses the designation race', async () => {
+      const { doPayout, dispatchSpy, repoUpdateSpy, repoSaveSpy } = setup();
+      const firstRunOrder = createCustomPayoutOrder({
+        id: 88,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+      const secondRunStaleOrder = createCustomPayoutOrder({
+        id: firstRunOrder.id,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+      dispatchSpy.mockResolvedValue('TX_FIRST_RUN');
 
-      // doPayout must swallow the error (fail-closed logging), never let it escape
+      await doPayout([firstRunOrder]);
+
+      dispatchSpy.mockClear();
+      repoUpdateSpy.mockClear();
+      repoSaveSpy.mockClear();
+      repoUpdateSpy.mockResolvedValueOnce({ affected: 0 } as any);
+
+      await expect(doPayout([secondRunStaleOrder])).resolves.toBeUndefined();
+
+      expect(repoUpdateSpy).toHaveBeenCalledWith(
+        { id: secondRunStaleOrder.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+      );
+      expect(dispatchSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(secondRunStaleOrder.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(secondRunStaleOrder.payoutTxId).toBeNull();
+    });
+
+    it('skips broadcast and persistence when the designation update fails, without escaping', async () => {
+      const { doPayout, dispatchSpy, repoUpdateSpy, repoSaveSpy } = setup();
+      const order = createCustomPayoutOrder({
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+      repoUpdateSpy.mockRejectedValueOnce(new Error('database unavailable'));
+
       await expect(doPayout([order])).resolves.toBeUndefined();
 
-      expect(dispatchSpy).not.toHaveBeenCalled(); // broadcast is never reached
-
-      if (designateSaveFailureRollsBack) {
-        // EVM: the failed designate save is itself proof dispatchPayout was never reached, so the
-        // differentiated catch rolls back for retry (failed save + rollback save = 2 total).
-        expect(repoSaveSpy).toHaveBeenCalledTimes(2);
-        expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
-        expect(order.payoutTxId).toBeNull();
-      } else {
-        expect(repoSaveSpy).toHaveBeenCalledTimes(1);
-        // order.designatePayout() already ran synchronously before the rejected save, so the
-        // in-memory object is PAYOUT_DESIGNATED even though nothing was ever persisted - it never
-        // advances to PAYOUT_PENDING/txId, which is what matters for not being double-broadcast.
-        expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
-        expect(order.payoutTxId).toBeNull();
-      }
+      expect(dispatchSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(order.payoutTxId).toBeNull();
     });
   });
 }
@@ -149,15 +164,20 @@ function repoSaveEcho(payoutOrderRepo: PayoutOrderRepository): jest.SpyInstance 
   return jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
 }
 
+function repoUpdateAffected(payoutOrderRepo: PayoutOrderRepository): jest.SpyInstance {
+  return jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+}
+
 function setupEvm(): DesignateBeforeBroadcastFixture {
   const payoutEvmService = mock<PayoutEvmService>();
   const payoutOrderRepo = mock<PayoutOrderRepository>();
   const dispatchFn = jest.fn();
+  const repoUpdateSpy = repoUpdateAffected(payoutOrderRepo);
   const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
 
   const strategy = new EvmStrategyWrapper(payoutEvmService, payoutOrderRepo, dispatchFn);
 
-  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy: dispatchFn, repoSaveSpy };
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy: dispatchFn, repoUpdateSpy, repoSaveSpy };
 }
 
 function setupSolana(): DesignateBeforeBroadcastFixture {
@@ -165,11 +185,12 @@ function setupSolana(): DesignateBeforeBroadcastFixture {
   const assetService = mock<AssetService>();
   const payoutOrderRepo = mock<PayoutOrderRepository>();
   const dispatchSpy = jest.spyOn(solanaService, 'sendNativeCoin');
+  const repoUpdateSpy = repoUpdateAffected(payoutOrderRepo);
   const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
 
   const strategy = new SolanaCoinStrategy(solanaService, assetService, payoutOrderRepo);
 
-  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoUpdateSpy, repoSaveSpy };
 }
 
 function setupTron(): DesignateBeforeBroadcastFixture {
@@ -177,11 +198,12 @@ function setupTron(): DesignateBeforeBroadcastFixture {
   const assetService = mock<AssetService>();
   const payoutOrderRepo = mock<PayoutOrderRepository>();
   const dispatchSpy = jest.spyOn(tronService, 'sendNativeCoin');
+  const repoUpdateSpy = repoUpdateAffected(payoutOrderRepo);
   const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
 
   const strategy = new TronCoinStrategy(tronService, assetService, payoutOrderRepo);
 
-  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoUpdateSpy, repoSaveSpy };
 }
 
 function setupCardano(): DesignateBeforeBroadcastFixture {
@@ -189,11 +211,12 @@ function setupCardano(): DesignateBeforeBroadcastFixture {
   const assetService = mock<AssetService>();
   const payoutOrderRepo = mock<PayoutOrderRepository>();
   const dispatchSpy = jest.spyOn(cardanoService, 'sendNativeCoin');
+  const repoUpdateSpy = repoUpdateAffected(payoutOrderRepo);
   const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
 
   const strategy = new CardanoCoinStrategy(cardanoService, assetService, payoutOrderRepo);
 
-  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoUpdateSpy, repoSaveSpy };
 }
 
 function setupIcp(): DesignateBeforeBroadcastFixture {
@@ -201,11 +224,12 @@ function setupIcp(): DesignateBeforeBroadcastFixture {
   const assetService = mock<AssetService>();
   const payoutOrderRepo = mock<PayoutOrderRepository>();
   const dispatchSpy = jest.spyOn(internetComputerService, 'sendNativeCoin');
+  const repoUpdateSpy = repoUpdateAffected(payoutOrderRepo);
   const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
 
   const strategy = new InternetComputerCoinStrategy(internetComputerService, assetService, payoutOrderRepo);
 
-  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoUpdateSpy, repoSaveSpy };
 }
 
 function setupArkade(): DesignateBeforeBroadcastFixture {
@@ -213,11 +237,12 @@ function setupArkade(): DesignateBeforeBroadcastFixture {
   const payoutOrderRepo = mock<PayoutOrderRepository>();
   const assetService = mock<AssetService>();
   const dispatchSpy = jest.spyOn(arkadeService, 'sendTransaction');
+  const repoUpdateSpy = repoUpdateAffected(payoutOrderRepo);
   const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
 
   const strategy = new ArkadeStrategy(arkadeService, payoutOrderRepo, assetService);
 
-  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoUpdateSpy, repoSaveSpy };
 }
 
 function setupSpark(): DesignateBeforeBroadcastFixture {
@@ -225,11 +250,12 @@ function setupSpark(): DesignateBeforeBroadcastFixture {
   const payoutOrderRepo = mock<PayoutOrderRepository>();
   const assetService = mock<AssetService>();
   const dispatchSpy = jest.spyOn(sparkService, 'sendTransaction');
+  const repoUpdateSpy = repoUpdateAffected(payoutOrderRepo);
   const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
 
   const strategy = new SparkStrategy(sparkService, payoutOrderRepo, assetService);
 
-  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoUpdateSpy, repoSaveSpy };
 }
 
 function setupLightning(): DesignateBeforeBroadcastFixture {
@@ -238,45 +264,38 @@ function setupLightning(): DesignateBeforeBroadcastFixture {
   const payoutOrderRepo = mock<PayoutOrderRepository>();
   jest.spyOn(payoutLightningService, 'isHealthy').mockResolvedValue(true);
   const dispatchSpy = jest.spyOn(payoutLightningService, 'sendPayment');
+  const repoUpdateSpy = repoUpdateAffected(payoutOrderRepo);
   const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
 
   const strategy = new LightningStrategy(assetService, payoutLightningService, payoutOrderRepo);
 
-  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoUpdateSpy, repoSaveSpy };
 }
 
 describe('Payout designate-before-broadcast', () => {
   runDesignateBeforeBroadcastSuite('EvmStrategy', setupEvm, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
-    designateSaveFailureRollsBack: true,
   });
   runDesignateBeforeBroadcastSuite('SolanaStrategy (SolanaCoinStrategy)', setupSolana, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
-    designateSaveFailureRollsBack: true,
   });
   runDesignateBeforeBroadcastSuite('TronStrategy (TronCoinStrategy)', setupTron, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
-    designateSaveFailureRollsBack: true,
   });
   runDesignateBeforeBroadcastSuite('CardanoStrategy (CardanoCoinStrategy)', setupCardano, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
-    designateSaveFailureRollsBack: true,
   });
   runDesignateBeforeBroadcastSuite('IcpStrategy (InternetComputerCoinStrategy)', setupIcp, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
-    designateSaveFailureRollsBack: true,
   });
   runDesignateBeforeBroadcastSuite('ArkadeStrategy', setupArkade, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
-    designateSaveFailureRollsBack: true,
   });
   runDesignateBeforeBroadcastSuite('SparkStrategy', setupSpark, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
-    designateSaveFailureRollsBack: true,
   });
   runDesignateBeforeBroadcastSuite('LightningStrategy', setupLightning, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
-    designateSaveFailureRollsBack: true,
   });
 
   describe('LightningStrategy #doPayout(...) — health gate', () => {
@@ -322,7 +341,8 @@ describe('Payout designate-before-broadcast', () => {
       expect(order.payoutTxId).toBeNull();
       expect(dispatchSpy).toHaveBeenCalledTimes(1);
       expect(rollbackSpy).not.toHaveBeenCalled();
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+      // designation is a conditional UPDATE, and the broadcast exception path persists nothing
+      expect(repoSaveSpy).not.toHaveBeenCalled();
     });
 
     it('CardanoStrategy: empty-tx-hash PayoutBroadcastException leaves PAYOUT_DESIGNATED (no rollback, no rebroadcast)', async () => {
@@ -337,7 +357,8 @@ describe('Payout designate-before-broadcast', () => {
       expect(order.payoutTxId).toBeNull();
       expect(dispatchSpy).toHaveBeenCalledTimes(1);
       expect(rollbackSpy).not.toHaveBeenCalled();
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+      // designation is a conditional UPDATE, and the broadcast exception path persists nothing
+      expect(repoSaveSpy).not.toHaveBeenCalled();
     });
   });
 });

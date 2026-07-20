@@ -62,6 +62,7 @@ const CHF = 'CHF';
 const BUY_FIAT_OPENING_QUALIFIERS = ['buy_fiat', 'buy_fiat-owed', 'buy_fiat-paymentLink'];
 const BUY_CRYPTO_OPENING_QUALIFIERS = ['buy_crypto', 'buy_crypto-owed'];
 const OPEN_ROW_LOOKBACK_DAYS = 90; // only targeted liabilities from rows created > cutover − 90d (§6.1)
+const MANUAL_DEBT_LOOKBACK_DAYS = 365; // a standing manual-debt position is NOT bounded by the 90d open-row invariant
 // §6.1: unattributed bank_tx credits the LogJob carries as a liability and the forward consumer routes to
 // LIABILITY/unattributed (bank-tx.consumer.ts GSHEET/PENDING CRDT). NULL-type credits fall in here too (default-unmapped).
 const UNATTRIBUTED_TYPES = [BankTxType.GSHEET, BankTxType.PENDING, BankTxType.UNKNOWN];
@@ -559,12 +560,24 @@ export class LedgerCutoverService {
       )
         continue;
 
-      const mark = row.outputAsset?.id != null ? marks.getMarkAt(row.outputAsset.id, date) : undefined;
+      // primary: the 2-day full-tick preload cache. Fallback for a delisted/feedless output asset: the last finite mark
+      // ≤ snapshot over the 90d window the ≤90d-old row's own age guarantees a price in (getMarkAtWidened) — valuing the
+      // owed opening at a real fixed CHF on the CHF bucket, byte-identical to a priced owed row, so the run proceeds and
+      // the UNCHANGED forward discharge (payout_order / bank_tx) closes it to 0. A truly-never-priced asset still yields
+      // undefined → bookReceivedOwedOpening throws (m6 fail-loud): the cutover defers rather than dropping the value.
+      const outputAssetId = row.outputAsset?.id;
+      const mark =
+        outputAssetId != null
+          ? (marks.getMarkAt(outputAssetId, date) ??
+            (await this.markService.getMarkAtWidened(outputAssetId, date, OPEN_ROW_LOOKBACK_DAYS + 2)))
+          : undefined;
+      if (mark == null && outputAssetId != null)
+        this.logger.error(
+          `Cutover buyCrypto-owed #${row.id}: output asset ${row.outputAsset?.uniqueName ?? outputAssetId} has no ` +
+            `finite mark within ${OPEN_ROW_LOOKBACK_DAYS + 2}d of the snapshot — deferring the run`,
+        );
       const amountChf = mark != null ? Util.round(row.outputAmount * mark, 2) : undefined;
 
-      // feedless outputAsset → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF owed
-      // opening booked with native 0 can never be revalued, so a missing mark must abort the cutover run (already-booked
-      // openings stay committed, the ready flag stays unset, the cron retries), not silently drop the value.
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_crypto-owed:${row.id}`,
@@ -786,14 +799,22 @@ export class LedgerCutoverService {
       if (!position?.value) continue;
 
       const rawPrice = finance.assets[position.assetId]?.priceChf;
-      const priceChf = Number.isFinite(rawPrice) ? rawPrice : undefined;
+      const snapshotPriceChf = Number.isFinite(rawPrice) ? rawPrice : undefined;
+      // fallback for a delisted/feedless debt asset: the last finite mark ≤ snapshot over a 365d window (a standing debt
+      // is NOT bounded by the 90d open-row invariant). Booked as fixed CHF on the CHF bucket exactly like a priced
+      // manual-debt (assetId=NULL, needsMark=false) — manual-debt has no forward settlement and is not mtm-revaluable.
+      // A truly-never-priced asset still yields undefined → bookReceivedOwedOpening throws (m6 fail-loud): the cutover
+      // defers rather than dropping the CHF value or booking native units on a CHF account.
+      const priceChf =
+        snapshotPriceChf ??
+        (await this.markService.getMarkAtWidened(position.assetId, snapshotDate, MANUAL_DEBT_LOOKBACK_DAYS));
+      if (priceChf == null)
+        this.logger.error(
+          `Cutover manual-debt asset #${position.assetId} has no finite mark within ${MANUAL_DEBT_LOOKBACK_DAYS}d of ` +
+            `the snapshot — deferring the run`,
+        );
       const amountChf = priceChf != null ? Util.round(priceChf * position.value, 2) : undefined;
 
-      // feedless asset (no priceChf in the snapshot) → amountChf undefined → bookReceivedOwedOpening throws (m6
-      // fail-loud): the manual-debt LIABILITY is CHF-denominated with NO assetId, so the mark-to-market job can NEVER
-      // revalue it — a missing price must abort the cutover run (already-booked openings are skipped idempotently on
-      // the retry once the price feed is available), not silently drop the CHF value or book native units on a CHF
-      // account.
       await this.bookReceivedOwedOpening(
         snapshotDate,
         `${snapshot.id}:manual-debt:${position.assetId}`,

@@ -153,6 +153,8 @@ describe('LedgerCutoverService', () => {
     jest.spyOn(bankRepo, 'find').mockResolvedValue([]);
     jest.spyOn(settingService, 'getObj').mockResolvedValue([] as any);
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map()));
+    // default: the widened last-mark fallback finds nothing (feedless) → callers stay fail-loud; #4270 tests override
+    jest.spyOn(markService, 'getMarkAtWidened').mockResolvedValue(undefined);
 
     // watermark MAX(id) query builder stub (chainable where/andWhere for the per-consumer settled filters). getRawMany
     // backs the §6.3 openHoleIds/idsUpToBoundary path; with MAX(id)=0 the boundary is empty so no holes are queried.
@@ -964,6 +966,76 @@ describe('LedgerCutoverService', () => {
       const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
       expect(flagSet).toBeUndefined(); // ledger-ready flag NOT set → all consumers stay no-op, retry next cron run
       expect(booked.some((b) => b.sourceId === '1557344:buy_crypto-owed:50')).toBe(false); // no zero-opening booked
+    });
+
+    // #4270 — a delisted/feedless buyCrypto-owed asset (no mark in the 2d preload) is recovered via the widened
+    // last-mark fallback and booked as FIXED CHF on the SAME CHF bucket as a priced owed row, so the cutover proceeds
+    // and the UNCHANGED forward discharge closes it — no per-asset account, no mark-to-market dependency (avoids the
+    // #4251 discharge trap).
+    it('recovers a feedless buyCrypto-owed opening via the widened last-mark fallback (CHF bucket, no per-asset account)', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      const widened = jest.spyOn(markService, 'getMarkAtWidened').mockResolvedValue(3); // 2d cache empty → recovered last mark
+      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+        if (!where?.outputAmount)
+          return Promise.resolve([
+            buyCrypto({ id: 52, outputAmount: 2, outputAsset: { id: 999, uniqueName: 'DeFiChain/DFI' } as any }),
+          ]);
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(widened).toHaveBeenCalledWith(999, expect.any(Date), 92); // OPEN_ROW_LOOKBACK_DAYS + 2
+      const owed = booked.find((b) => b.sourceId === '1557344:buy_crypto-owed:52');
+      expect(owed).toBeDefined(); // recovered → opens (no throw, cutover proceeds)
+      const liab = owed?.legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-owed');
+      expect(liab?.amountChf).toBe(-6); // outputAmount 2 × last-mark 3, Cr −6
+      expect(liab?.needsMark).toBe(false);
+      // the #4251 trap: NO per-asset LIABILITY/buyCrypto-owed/{asset} account is ever created
+      expect(owed?.legs.every((l) => !l.account.name.startsWith('LIABILITY/buyCrypto-owed/'))).toBe(true);
+    });
+
+    // #4270 — a live asset with a mark in the 2d full-tick cache is valued from it; the widened fallback is never
+    // reached, so live-asset valuations stay byte-identical.
+    it('values a live-asset buyCrypto-owed from the 2d cache without invoking the widened fallback', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[42, [{ created: new Date('2026-06-01'), priceChf: 30000 }]]])),
+        );
+      const widened = jest.spyOn(markService, 'getMarkAtWidened');
+      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+        if (!where?.outputAmount)
+          return Promise.resolve([buyCrypto({ id: 64, outputAmount: 0.5, outputAsset: { id: 42 } as any })]);
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto-owed:64')).toBe(true);
+      expect(widened).not.toHaveBeenCalled(); // 2d cache hit → fallback not reached
+    });
+
+    // #4270 — a feedless manual-debt asset (no snapshot price) is recovered via the widened fallback over a 365d window
+    // (a standing debt is NOT bounded by the 90d open-row invariant) and booked as fixed CHF on LIABILITY/manual-debt.
+    it('recovers a feedless manual-debt opening via the widened last-mark fallback (365d window)', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]); // debt asset 888 absent → no snapshot price
+      jest
+        .spyOn(settingService, 'getObj')
+        .mockImplementation((key: string) =>
+          Promise.resolve(key === 'balanceLogDebtPositions' ? ([{ assetId: 888, value: 10 }] as any) : ([] as any)),
+        );
+      const widened = jest.spyOn(markService, 'getMarkAtWidened').mockResolvedValue(0.5);
+
+      await service.run();
+
+      expect(widened).toHaveBeenCalledWith(888, expect.any(Date), 365);
+      const debt = booked.find((b) => b.sourceId === '1557344:manual-debt:888');
+      expect(debt).toBeDefined();
+      const liab = debt?.legs.find((l) => l.account.name === 'LIABILITY/manual-debt');
+      expect(liab?.amountChf).toBe(-5); // value 10 × last-mark 0.5, Cr −5
+      expect(liab?.needsMark).toBe(false);
     });
 
     // §6.1 (Major design-accounting): an open BANK_TX_RETURN (chargebackBankTx IS NULL) is opened per-row, CHF-valued

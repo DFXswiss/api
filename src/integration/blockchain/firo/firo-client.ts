@@ -3,8 +3,14 @@ import { HttpService } from 'src/shared/services/http.service';
 import { BitcoinBasedClient, TestMempoolResult } from '../bitcoin/node/bitcoin-based-client';
 import { UTXO } from '../bitcoin/node/dto/bitcoin-transaction.dto';
 import { Block, NodeClientConfig } from '../bitcoin/node/node-client';
-import { TxBroadcastError } from '../shared/errors/tx-broadcast.error';
+import { TxBroadcastError, toBroadcastBoundaryError } from '../shared/errors/tx-broadcast.error';
 import { FiroRawTransaction } from './rpc';
+
+const FIRO_PRE_BROADCAST_RPC_CODES = [
+  -6, // RPC_WALLET_INSUFFICIENT_FUNDS (Firo's Bitcoin-derived RPC protocol constants)
+  -13, // RPC_WALLET_UNLOCK_NEEDED (Firo's Bitcoin-derived RPC protocol constants)
+  -28, // RPC_IN_WARMUP (Bitcoin Core src/rpc/protocol.h) — NodeNotReadyError carries this code; request never executes
+];
 
 /**
  * Firo RPC client - overrides Bitcoin Core methods that are incompatible with Firo.
@@ -190,12 +196,17 @@ export class FiroClient extends BitcoinBasedClient {
       throw new Error('Failed to sign Firo transaction');
     }
 
-    // Broadcast boundary: sendrawtransaction is the actual network relay - everything above
-    // (createrawtransaction/signrawtransaction) is local/pre-broadcast and stays a plain Error.
+    // Broadcast boundary: sendrawtransaction is the actual network relay. Connection-establishment
+    // failures and the narrow wallet pre-funding allowlist stay plain; ambiguous failures fail closed.
     try {
-      return await this.callNode(() => this.rpc.call<string>('sendrawtransaction', [signedResult.hex]), true);
+      const txId = await this.callNode(() => this.rpc.call<string>('sendrawtransaction', [signedResult.hex]), true);
+      if (!txId) {
+        throw new TxBroadcastError('Firo sendrawtransaction returned no transaction ID', { cause: txId });
+      }
+
+      return txId;
     } catch (e) {
-      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+      throw toBroadcastBoundaryError(e, FIRO_PRE_BROADCAST_RPC_CODES);
     }
   }
 
@@ -247,8 +258,8 @@ export class FiroClient extends BitcoinBasedClient {
       };
     }
 
-    // Broadcast boundary: mintspark builds, signs and broadcasts atomically in one node-side
-    // call (like Bitcoin Core's `send`) - a failure here is at-or-after the broadcast.
+    // Broadcast boundary: mintspark builds, signs and broadcasts atomically in one node-side call.
+    // Only connection-establishment and allowlisted pre-funding failures are safe to retry.
     let mintTxIds: string[];
     try {
       mintTxIds = await this.callNode(
@@ -256,14 +267,12 @@ export class FiroClient extends BitcoinBasedClient {
         true,
       );
     } catch (e) {
-      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+      throw toBroadcastBoundaryError(e, FIRO_PRE_BROADCAST_RPC_CODES);
     }
 
-    // The RPC call itself succeeded (no network ambiguity) but returned no txid - the node is
-    // explicitly telling us nothing was minted, so this is a provable pre-broadcast-equivalent
-    // failure and stays a plain Error (self-heal / rollback is safe, nothing was sent).
+    // A missing txid is an ambiguous/malformed response and therefore remains fail-closed.
     if (!mintTxIds?.length) {
-      throw new Error('mintspark returned no transaction IDs');
+      throw new TxBroadcastError('Firo mintspark returned no transaction IDs', { cause: mintTxIds });
     }
 
     if (mintTxIds.length > 1) {

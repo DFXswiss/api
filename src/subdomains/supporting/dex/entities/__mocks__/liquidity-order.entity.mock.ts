@@ -9,6 +9,7 @@ export function createDefaultLiquidityOrder(): LiquidityOrder {
 
 export function createCustomLiquidityOrder(customValues: Partial<LiquidityOrder>): LiquidityOrder {
   const {
+    id,
     type,
     context,
     correlationId,
@@ -29,6 +30,7 @@ export function createCustomLiquidityOrder(customValues: Partial<LiquidityOrder>
   const keys = Object.keys(customValues);
   const entity = new LiquidityOrder();
 
+  entity.id = keys.includes('id') ? id : 1;
   entity.type = keys.includes('type') ? type : LiquidityOrderType.PURCHASE;
   entity.context = keys.includes('context') ? context : LiquidityOrderContext.BUY_CRYPTO;
   entity.correlationId = keys.includes('correlationId') ? correlationId : 'CID_01';

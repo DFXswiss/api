@@ -79,6 +79,15 @@ export class PayoutOrder extends IEntity {
   @Column({ type: 'timestamp', nullable: true })
   lastAttemptDate?: Date;
 
+  // Append-only history of tx hashes released for a protected retry (expired/OOG). The release
+  // nulls payoutTxId so the order can re-enter the designation flow - without this record the
+  // replaced hash would not be reconstructable from the DB, and it is the primary evidence when
+  // investigating whether a vanished tx confirmed after all. Known limit: a stale full-entity
+  // save from an overlapping cron run (pre-existing write channel) can overwrite this column
+  // like any other field; the conditional release itself is pinned and cannot lose entries.
+  @Column({ length: 2048, nullable: true })
+  releasedPayoutTxIds?: string;
+
   pendingPreparation(transferTxId: string): this {
     this.transferTxId = transferTxId;
     this.status = PayoutOrderStatus.PREPARATION_PENDING;
@@ -112,12 +121,6 @@ export class PayoutOrder extends IEntity {
 
   rollbackPayoutDesignation(): this {
     this.preparationConfirmed();
-
-    return this;
-  }
-
-  pendingInvestigation(): this {
-    this.status = PayoutOrderStatus.PAYOUT_UNCERTAIN;
 
     return this;
   }

@@ -1,5 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -160,6 +162,27 @@ describe('Bank Frick country routing', () => {
   it('uses the existing automated-bank country allowlist', () => {
     expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: true }))).toBe(true);
     expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: false }))).toBe(false);
+  });
+});
+
+describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
+  beforeEach(() => {
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+  });
+
+  it('maps Blockchain.FRICK to IbanBankName.FRICK', () => {
+    expect(BankService['blockchainToBankName'](Blockchain.FRICK)).toBe(IbanBankName.FRICK);
+  });
+
+  it('matches a Frick custody asset against the cached Frick IBAN', () => {
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+      `${IbanBankName.FRICK}-EUR`,
+      'LI75088110105923K000E',
+    );
+    const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+    expect(BankService.isBankMatching(asset, 'LI75088110105923K000E')).toBe(true);
+    expect(BankService.isBankMatching(asset, 'OTHER-IBAN')).toBe(false);
   });
 });
 

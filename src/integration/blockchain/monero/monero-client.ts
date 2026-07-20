@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
-import { TxBroadcastError } from '../shared/errors/tx-broadcast.error';
+import { TxBroadcastError, toBroadcastBoundaryError } from '../shared/errors/tx-broadcast.error';
 import { BlockchainClient, CoinOnly } from '../shared/util/blockchain-client';
 import {
   AddressResultDto,
@@ -24,6 +24,11 @@ import {
   VerifyResultDto,
 } from './dto/monero.dto';
 import { MoneroHelper } from './monero-helper';
+
+const MONERO_PRE_BROADCAST_RPC_CODES = [
+  -17, // WALLET_RPC_ERROR_CODE_NOT_ENOUGH_MONEY (Monero src/wallet/wallet_rpc_server_error_codes.h)
+  -37, // WALLET_RPC_ERROR_CODE_NOT_ENOUGH_UNLOCKED_MONEY (Monero src/wallet/wallet_rpc_server_error_codes.h)
+];
 
 export class MoneroClient extends BlockchainClient implements CoinOnly {
   constructor(private readonly http: HttpService) {
@@ -240,11 +245,9 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
     return this.sendTransfers([{ addressTo: destinationAddress, amount }]);
   }
 
-  // Broadcast boundary: the wallet RPC's 'transfer' method builds, signs and relays the tx
-  // atomically in one call - there is no separate pre-broadcast step. A failure of the HTTP call
-  // itself, an RPC-level error field, or a missing result are all ambiguous (the wallet may have
-  // already relayed before the response was lost/rejected), mirroring the Solana sendTransaction
-  // boundary (result.error / empty hash -> TxBroadcastError).
+  // Broadcast boundary: the wallet RPC's 'transfer' method builds, signs and relays atomically.
+  // Connection-establishment failures and the official wallet pre-funding codes stay plain;
+  // parsed RPC errors are deterministic, while ambiguous transport failures fail closed.
   async sendTransfers(payout: PayoutGroup): Promise<MoneroTransferDto> {
     try {
       const result = await this.http.post<GetSendTransferResultDto>(
@@ -264,14 +267,13 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
       // result.error would otherwise be a plain error and self-heal a possibly-relayed transfer.
       return this.mapSendTransfer(result);
     } catch (e) {
-      if (e instanceof TxBroadcastError) throw e;
-      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+      throw toBroadcastBoundaryError(e, MONERO_PRE_BROADCAST_RPC_CODES);
     }
   }
 
   private mapSendTransfer(sendTransferResult: GetSendTransferResultDto): MoneroTransferDto {
     if (sendTransferResult.error)
-      throw new TxBroadcastError(sendTransferResult.error.message, { cause: sendTransferResult.error });
+      throw toBroadcastBoundaryError(sendTransferResult.error, MONERO_PRE_BROADCAST_RPC_CODES);
     if (!sendTransferResult.result) throw new TxBroadcastError('No result after send transfer');
     // Empty tx_hash after a resolved transfer is ambiguous (wallet may already have relayed).
     if (!sendTransferResult.result.tx_hash) {

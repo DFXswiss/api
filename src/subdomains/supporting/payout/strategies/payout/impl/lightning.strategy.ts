@@ -39,7 +39,7 @@ export class LightningStrategy extends PayoutStrategy {
     if (await this.isHealthy()) {
       for (const order of orders) {
         try {
-          await this.designateBeforeBroadcast(order, this.payoutOrderRepo);
+          if (!(await this.designateBeforeBroadcast(order, this.payoutOrderRepo))) continue;
 
           const address = order.destinationAddress;
           const amount = order.amount;

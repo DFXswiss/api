@@ -8,7 +8,6 @@ import {
   Post,
   Query,
   Res,
-  Response,
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +20,7 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -35,6 +35,7 @@ import { ExportFormat, HistoryQuery, HistoryQueryExportType, HistoryQueryUser } 
 import { TypedHistoryDto } from '../dto/history.dto';
 import { ChainReportApiHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingApiHistoryDto } from '../dto/output/coin-tracking-history.dto';
+import { HistoryAccessService } from '../services/history-access.service';
 import { ExportType, HistoryService } from '../services/history.service';
 import { TransactionController } from './transaction.controller';
 
@@ -46,6 +47,7 @@ export class HistoryController {
 
   constructor(
     private readonly historyService: HistoryService,
+    private readonly historyAccessService: HistoryAccessService,
     private readonly transactionController: TransactionController,
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
@@ -58,11 +60,16 @@ export class HistoryController {
   @ApiOkResponse({ type: TypedHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   async getHistory(
+    @GetJwt() jwt: JwtPayload,
     @Query() query: HistoryQueryUser,
-    @Response({ passthrough: true }) res,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<TransactionDto[] | StreamableFile> {
     if (!query.format) query.format = ExportFormat.JSON;
-    return this.transactionController.getHistoryData(query, ExportType.COMPACT, res);
+    const subject = await this.historyAccessService.resolveListSubject({
+      jwt,
+      userAddress: query.userAddress ?? jwt.address,
+    });
+    return this.transactionController.getHistoryDataForSubject(subject, query, ExportType.COMPACT, res);
   }
 
   @Get(':exportType')
@@ -101,8 +108,13 @@ export class HistoryController {
   @ApiExcludeEndpoint()
   @ApiCreatedResponse()
   async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<string> {
-    const csvFile = await this.historyService.getCsvHistory(
-      { ...query, userAddress: jwt.address, format: ExportFormat.CSV },
+    const subject = await this.historyAccessService.resolveListSubject({
+      jwt,
+      userAddress: jwt.address,
+    });
+    const csvFile = await this.historyService.getCsvHistoryForSubject(
+      subject,
+      { ...query, format: ExportFormat.CSV },
       query.type,
     );
     const fileKey = Util.randomString(16);
@@ -115,7 +127,7 @@ export class HistoryController {
   @ApiBearerAuth()
   @ApiOkResponse({ type: StreamableFile })
   @ApiExcludeEndpoint()
-  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res): Promise<StreamableFile> {
+  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
     const csvFile = this.files[key];
     if (!csvFile) throw new NotFoundException('File not found');
     delete this.files[key];

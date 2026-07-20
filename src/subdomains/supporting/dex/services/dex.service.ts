@@ -5,7 +5,10 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
-import { IsNull, Not } from 'typeorm';
+import { Util } from 'src/shared/utils/util';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull, LessThan, Not } from 'typeorm';
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -41,6 +44,7 @@ export class DexService {
 
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // *** MAIN PUBLIC API *** //
@@ -154,7 +158,11 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<LiquidityTransactionResult> {
-    const order = await this.liquidityOrderRepo.findOneBy({ context, correlationId });
+    // Cancelled purchase attempts remain persisted for the audit trail, so the newest row is authoritative.
+    const order = await this.liquidityOrderRepo.findOne({
+      where: { context, correlationId },
+      order: { id: 'DESC' },
+    });
 
     if (!order) {
       throw new Error(`Order not found. Context: ${context}. Correlation ID: ${correlationId}.`);
@@ -171,7 +179,10 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<{ isReady: boolean; purchaseTxId: string; targetAmount: number; targetAsset: string }> {
-    const order = await this.liquidityOrderRepo.findOneBy({ context, correlationId });
+    const order = await this.liquidityOrderRepo.findOne({
+      where: { context, correlationId },
+      order: { id: 'DESC' },
+    });
 
     const purchaseTxId = order?.txId;
     const isReady = order?.isReady ?? false;
@@ -185,7 +196,10 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<{ isComplete: boolean; purchaseTxId: string }> {
-    const order = await this.liquidityOrderRepo.findOneBy({ context, correlationId });
+    const order = await this.liquidityOrderRepo.findOne({
+      where: { context, correlationId },
+      order: { id: 'DESC' },
+    });
 
     const purchaseTxId = order && order.txId;
     const isComplete = order && order.isComplete;
@@ -310,6 +324,8 @@ export class DexService {
   //*** JOBS ***//
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
   async finalizePurchaseOrders(): Promise<void> {
+    await this.alertStrandedPurchaseOrders();
+
     const standingOrders = await this.liquidityOrderRepo.findBy({
       isReady: false,
       txId: Not(IsNull()),
@@ -319,6 +335,57 @@ export class DexService {
   }
 
   // *** HELPER METHODS *** //
+
+  private async alertStrandedPurchaseOrders(): Promise<void> {
+    // Only not-yet-ready in-flight purchases are stranded; ready orders are progressing toward batch completion.
+    const orders = await this.liquidityOrderRepo.find({
+      where: {
+        type: LiquidityOrderType.PURCHASE,
+        isComplete: false,
+        isReady: false,
+        created: LessThan(Util.minutesBefore(15)),
+      },
+      select: { id: true, txId: true },
+      loadEagerRelations: false,
+    });
+
+    if (orders.length === 0) return;
+
+    const idsWithoutTxId = orders
+      .filter((order) => !order.txId)
+      .map((order) => order.id)
+      .sort((a, b) => a - b);
+    const idsWithTxId = orders
+      .filter((order) => order.txId)
+      .map((order) => order.id)
+      .sort((a, b) => a - b);
+    const errors: string[] = [];
+
+    if (idsWithoutTxId.length > 0) {
+      errors.push(
+        `Purchase liquidity orders have no transaction ID after 15 minutes — verify on-chain absence before cancelling: ${idsWithoutTxId.join(', ')}`,
+      );
+    }
+    if (idsWithTxId.length > 0) {
+      errors.push(
+        `Purchase liquidity orders were dispatched but never completed — reconcile/complete manually; retries are blocked by the in-flight guard: ${idsWithTxId.join(', ')}`,
+      );
+    }
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.DEX,
+      input: {
+        subject: 'Stranded In-Flight Liquidity Purchases',
+        errors,
+        isLiqMail: true,
+      },
+      correlationId: 'StrandedInflightLiquidityPurchases',
+      // Debounce only: the operator gets a recurring hourly signal while the incident remains open,
+      // without receiving one mail on every 30-second cron run.
+      options: { debounce: 3600000 },
+    });
+  }
 
   private handleCheckLiquidityResult(liquidity: CheckLiquidityResult): void {
     const { metadata, target } = liquidity;

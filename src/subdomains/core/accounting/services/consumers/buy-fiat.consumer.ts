@@ -12,6 +12,7 @@ import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { LedgerGateBlockedException } from './ledger-gate-blocked.exception';
 import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import {
   getLedgerWatermark,
@@ -91,7 +92,9 @@ export class BuyFiatConsumer {
             );
             return;
           }
-          throw new Error(`buy_fiat ${bf.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`);
+          throw new LedgerGateBlockedException(
+            `buy_fiat ${bf.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`,
+          );
         }
 
         // then §4.12 + M3 + M4: on a content change, reverse+rebook the value-coupled regular-sell chain (reclassification

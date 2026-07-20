@@ -24,25 +24,45 @@ describe('PayoutStrategy (base)', () => {
       strategy = new TestStrategyWrapper();
     });
 
-    it('designates and persists the order when payoutTxId is not yet set', async () => {
+    it('conditionally designates the order when payoutTxId is not yet set', async () => {
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
       const designateSpy = jest.spyOn(order, 'designatePayout');
+      jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
 
-      await strategy.callDesignateBeforeBroadcast(order, payoutOrderRepo);
+      const result = await strategy.callDesignateBeforeBroadcast(order, payoutOrderRepo);
 
+      expect(result).toBe(true);
       expect(designateSpy).toHaveBeenCalledTimes(1);
-      expect(payoutOrderRepo.save).toHaveBeenCalledTimes(1);
-      expect(payoutOrderRepo.save).toHaveBeenCalledWith(order);
+      expect(payoutOrderRepo.update).toHaveBeenCalledWith(
+        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+      );
+      expect(payoutOrderRepo.save).not.toHaveBeenCalled();
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
     });
 
-    it('does not designate nor persist the order when payoutTxId is already set', async () => {
+    it('returns false without changing the entity when the conditional update loses the race', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
+      const designateSpy = jest.spyOn(order, 'designatePayout');
+      jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 0 } as any);
+
+      const result = await strategy.callDesignateBeforeBroadcast(order, payoutOrderRepo);
+
+      expect(result).toBe(false);
+      expect(designateSpy).not.toHaveBeenCalled();
+      expect(payoutOrderRepo.save).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
+    it('keeps payoutTxId re-entry eligible without designation or persistence', async () => {
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'OLD_TX' });
       const designateSpy = jest.spyOn(order, 'designatePayout');
 
-      await strategy.callDesignateBeforeBroadcast(order, payoutOrderRepo);
+      const result = await strategy.callDesignateBeforeBroadcast(order, payoutOrderRepo);
 
+      expect(result).toBe(true);
       expect(designateSpy).not.toHaveBeenCalled();
+      expect(payoutOrderRepo.update).not.toHaveBeenCalled();
       expect(payoutOrderRepo.save).not.toHaveBeenCalled();
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
     });
@@ -239,7 +259,7 @@ class TestStrategyWrapper extends PayoutStrategy {
     throw new Error('Method not implemented.');
   }
 
-  async callDesignateBeforeBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<void> {
+  async callDesignateBeforeBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<boolean> {
     return this.designateBeforeBroadcast(order, repo);
   }
 

@@ -14,6 +14,12 @@ interface MarkPoint {
 // short memoization TTL so a wedge-heavy batch (many rows missing a historical mark) does not re-query the feed per row.
 const LATEST_MARK_LOOKBACK_DAYS = 5;
 const LATEST_MARK_TTL_MS = 5 * 60 * 1000;
+// same self-healing TTL for the widened last-mark memo (getMarkAtWidened): its (from,to) key is byte-stable across every
+// 5-min cutover cron retry (the snapshot date is pinned), so without expiry a once-empty window — a still-feedless asset
+// at preload time — would be memoized forever and wedge the cutover past the documented "retry when the feed is back"
+// recovery. Expiry lets a later retry re-read and pick up a backfilled historical mark; within one run (seconds) the
+// memo still dedupes several feedless rows sharing the window.
+const WIDENED_MARK_TTL_MS = LATEST_MARK_TTL_MS;
 
 /**
  * Per-run mark cache (§5.2). Holds `Map<assetId, MarkPoint[]>` (each list sorted ascending by `created`)
@@ -55,6 +61,12 @@ export class LedgerMarkService {
   // memoized youngest-mark-per-asset map (≤ now) for the B5 bridge; refreshed at most once per LATEST_MARK_TTL_MS
   private latestMarks?: { map: Map<number, number>; loadedAt: number };
 
+  // §5.2 — per-window LedgerMarkCache memo for the widened last-mark fallback (getMarkAtWidened), keyed `${from}:${to}`;
+  // dedupes the preload when several feedless cutover rows share a window (one pinned snapshot → 1-2 keys, negligible).
+  // Carries a load timestamp so a still-empty result expires after WIDENED_MARK_TTL_MS (self-heals across cron retries)
+  // rather than sticking forever on this process-lifetime singleton.
+  private readonly widenedCaches = new Map<string, { cache: Promise<LedgerMarkCache>; loadedAt: number }>();
+
   /**
    * §5.2 Major B5 bridge — the youngest available mark for an asset (latest FinancialDataLog priceChf ≤ now), from a
    * bounded recent-log read. Used ONLY as the documented fallback when the per-batch cache has no mark AT a historical
@@ -88,6 +100,41 @@ export class LedgerMarkService {
 
     this.latestMarks = { map, loadedAt: now };
     return map;
+  }
+
+  /**
+   * §5.2 — the last finite mark ≤ `asOf` for one asset, over a window WIDENED past the ~2-day preload cache and the
+   * 5-day getLatestMark bridge. A cutover owed / manual-debt opening whose asset is delisted carries no mark in those
+   * short windows and would fail loud and wedge the run — yet the (≤90d-old) owed row's asset was necessarily priced
+   * when it was created, so its last finite priceChf sits within `lookbackDays`. Reuses the canonical preload →
+   * getMarkAt (binary-search "latest finite priceChf ≤ asOf") path; the per-window cache is memoized so several
+   * feedless rows sharing a window trigger a single read. Returns undefined ONLY for a truly-unpriced asset → the
+   * caller stays fail-closed (never a silent native-0).
+   */
+  async getMarkAtWidened(assetId: number, asOf: Date, lookbackDays: number): Promise<number | undefined> {
+    const from = Util.daysBefore(lookbackDays, asOf);
+    const key = `${from.getTime()}:${asOf.getTime()}`;
+    const now = Date.now();
+
+    let entry = this.widenedCaches.get(key);
+    // Expire a stale memo (including a successful-but-still-empty one) after the TTL so a later cron retry re-reads and
+    // can pick up a backfilled historical mark — the pinned-snapshot key never changes, so a stuck empty result would
+    // otherwise wedge the cutover forever (asymmetry vs the TTL'd latestMarks bridge).
+    if (!entry || now - entry.loadedAt >= WIDENED_MARK_TTL_MS) {
+      // do NOT memoize a transient failure either: a rejected preload is evicted immediately so the next cron retry
+      // re-reads (the widened read is a larger, possibly-paginated query than the 2d preload — a blip must not wedge).
+      // Guard the eviction by loadedAt so a late-rejecting stale load never deletes a fresher entry a retry installed.
+      const loadedAt = now;
+      entry = {
+        cache: this.preload(from, asOf).catch((e) => {
+          if (this.widenedCaches.get(key)?.loadedAt === loadedAt) this.widenedCaches.delete(key);
+          throw e;
+        }),
+        loadedAt,
+      };
+      this.widenedCaches.set(key, entry);
+    }
+    return (await entry.cache).getMarkAt(assetId, asOf);
   }
 
   /**

@@ -264,7 +264,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'EUR-IBAN',
         amount: 10000,
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
       }),
     ]);
     await consumer.process();
@@ -282,6 +282,29 @@ describe('BankTxConsumer', () => {
     expect(cents(legs)).toBe(0);
   });
 
+  it('books BUY_CRYPTO_RETURN from buyCryptoChargeback when the incoming buyCrypto relation is undefined', async () => {
+    const buyCryptoChargeback = { id: 76, amountInChf: 1000, totalFeeAmountChf: 0 } as any;
+    mockBatch([
+      bankTx({
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 1000,
+        buyCrypto: undefined,
+        buyCryptoChargeback,
+      }),
+    ]);
+
+    await expect(consumer.process()).resolves.toBeUndefined();
+
+    expect(booked).toHaveLength(1);
+    const legs = booked[0].legs;
+    expect(legs).toHaveLength(2);
+    expect(legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-owed').amountChf).toBe(1000);
+    expect(legs.find((l) => l.account === chfBankAccount).amountChf).toBe(-1000);
+    expect(cents(legs)).toBe(0);
+  });
+
   it('books BUY_CRYPTO_RETURN on a CHF bank as a 2-leg tx (drift 0, no plug)', async () => {
     // CHF account: amount == amountInChf, completion CHF = 1000 − 0 = 1000, bank-Cr = −1000 → plug 0 → 2-leg
     const buyCrypto = { id: 78, amountInChf: 1000, totalFeeAmountChf: 0 } as any;
@@ -291,7 +314,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'CHF-IBAN',
         amount: 1000,
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
       }),
     ]);
     await consumer.process();
@@ -918,7 +941,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'EUR-IBAN',
         amount: 50000, // EUR-mark 0.95 → bank-Cr −47500
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
       }),
     ]);
     await consumer.process();
@@ -1086,9 +1109,9 @@ describe('BankTxConsumer', () => {
     expect(booked[0].valueDate).toBe(created);
   });
 
-  // §4.2a buyCryptoOwedChf guard: a BUY_CRYPTO_RETURN whose buyCrypto.amountInChf is null AND no cutover opening →
+  // §4.2a buyCryptoOwedChf guard: a BUY_CRYPTO_RETURN whose buyCryptoChargeback.amountInChf is null AND no cutover →
   // throws (source line 279) → failure-isolation, nothing booked, watermark not advanced.
-  it('throws (failure-isolation) on BUY_CRYPTO_RETURN without buyCrypto.amountInChf and no cutover (line 279)', async () => {
+  it('throws (failure-isolation) on BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf and no cutover (line 279)', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     const buyCrypto = { id: 91, amountInChf: null } as any; // no completion anchor; default mocks → no cutover opening
     mockBatch([
@@ -1098,7 +1121,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'CHF-IBAN',
         amount: 1000,
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
       }),
     ]);
     await consumer.process();
@@ -1107,7 +1130,7 @@ describe('BankTxConsumer', () => {
     expect(setSpy).not.toHaveBeenCalled(); // throw → watermark stays put
   });
 
-  // §4.2a buyCryptoOwedChf `totalFeeAmountChf ?? 0` null side (source line 280): a return whose buyCrypto has
+  // §4.2a buyCryptoOwedChf `totalFeeAmountChf ?? 0` null side (source line 280): a return whose charged-back buy_crypto has
   // amountInChf set but totalFeeAmountChf null → owed = amountInChf − 0 (CHF account → no fee subtracted, no plug).
   it('BUY_CRYPTO_RETURN owed-Dr uses amountInChf − 0 when totalFeeAmountChf is null (line 280 null side)', async () => {
     const buyCrypto = { id: 93, amountInChf: 1000, totalFeeAmountChf: null } as any;
@@ -1118,7 +1141,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'CHF-IBAN',
         amount: 1000,
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
       }),
     ]);
     await consumer.process();
@@ -1151,7 +1174,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'CHF-IBAN',
         amount: 1000,
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
       }),
     ]);
     await consumer.process();
@@ -1678,7 +1701,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'EUR-IBAN',
         amount: 10000,
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
         chargeAmount: 10,
         chargeCurrency: 'EUR',
         chargeAmountChf: null, // inline
@@ -1713,7 +1736,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'EUR-IBAN',
         amount: 10000,
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
         chargeAmount: 10,
         chargeCurrency: 'EUR',
         chargeAmountChf: null, // inline
@@ -1748,7 +1771,7 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.DEBIT,
         accountIban: 'EUR-IBAN',
         amount: 10000,
-        buyCrypto,
+        buyCryptoChargeback: buyCrypto,
         chargeAmount: 10,
         chargeCurrency: 'EUR',
         chargeAmountChf: null,

@@ -126,6 +126,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.CHECKOUT]: undefined,
   [Blockchain.SUMIXX]: undefined,
   [Blockchain.YAPEAL]: undefined,
+  [Blockchain.FRICK]: undefined,
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -168,6 +169,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.CHECKOUT]: undefined,
   [Blockchain.SUMIXX]: undefined,
   [Blockchain.YAPEAL]: undefined,
+  [Blockchain.FRICK]: undefined,
 };
 
 function assetPaths(asset: Asset): string | undefined {

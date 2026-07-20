@@ -45,7 +45,7 @@ export class SparkStrategy extends PayoutStrategy {
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        await this.designateBeforeBroadcast(order, this.payoutOrderRepo);
+        if (!(await this.designateBeforeBroadcast(order, this.payoutOrderRepo))) continue;
 
         const txId = await this.dispatchPayout(order);
         order.pendingPayout(txId);

@@ -63,7 +63,7 @@ export class LedgerBookingService {
     const legs = input.legs.map((leg) => this.prepareLeg(leg));
 
     await this.appendRoundingLeg(legs);
-    this.checkNativeBalance(legs);
+    this.checkNativeBalance(legs, input);
 
     const amountChfSum = legs.reduce((sum, leg) => sum + leg.amountChfCents, 0);
 
@@ -384,24 +384,38 @@ export class LedgerBookingService {
 
   /**
    * Native balance is corrected per-asset against the feed (§7), NOT enforced per-tx. The only sanity-check
-   * is the class of pure same-asset transfers (all legs ASSET/TRANSIT of the SAME currency): then Σ amount
-   * per currency must be 0. A leg on any non-ASSET/TRANSIT account makes the native one-sidedness correct
-   * (value-boundary booking) → no native check (§2.3 Major R9-2).
+   * is the class of pure same-asset transfers (all legs ASSET/TRANSIT of ONE currency): then Σ amount must be
+   * 0. Two things put a tx outside that scope → no native check (§2.3 Major R9-2): a leg on any non-ASSET/TRANSIT
+   * account (value-boundary booking → native one-sidedness is correct), OR a second currency — a cross-asset
+   * trade, whose per-currency native delta is the traded amount and thus never 0 (that is the point of the trade).
+   *
+   * The residual is judged in CHF at the group mark, not natively (§7 unit-fix): a bare native tolerance flags
+   * sub-rappen fiat rounding (a fiat bank leg carries the unrounded output at >2 dp) yet is ~52'000× too loose
+   * for BTC. An unvalued tx (no mark) falls back to the raw native tolerance so a real imbalance is never
+   * silently passed.
    */
-  private checkNativeBalance(legs: LedgerLeg[]): void {
+  private checkNativeBalance(legs: LedgerLeg[], input: LedgerTxInput): void {
     const onlyAssetTransit = legs.every(
       (leg) => leg.account.type === AccountType.ASSET || leg.account.type === AccountType.TRANSIT,
     );
     if (!onlyAssetTransit) return;
 
     const byCurrency = Util.groupByAccessor<LedgerLeg, string>(legs, (leg) => leg.account.currency);
-    for (const [currency, currencyLegs] of byCurrency.entries()) {
-      const nativeSum = currencyLegs.reduce((acc, leg) => acc + leg.amount, 0);
-      if (Math.abs(nativeSum) > NATIVE_BALANCE_TOLERANCE) {
-        this.logger.error(
-          `Ledger same-asset transfer native imbalance for currency ${currency}: ${nativeSum} (programming error)`,
-        );
-      }
-    }
+    if (byCurrency.size !== 1) return; // cross-asset trade: per-currency native delta is the trade, not an imbalance
+
+    const [currency, currencyLegs] = [...byCurrency.entries()][0];
+    const nativeSum = currencyLegs.reduce((acc, leg) => acc + leg.amount, 0);
+    if (Math.abs(nativeSum) <= NATIVE_BALANCE_TOLERANCE) return; // conserves natively
+
+    const mark = Math.max(...currencyLegs.map((leg) => Math.abs(leg.priceChf ?? 0)));
+    const imbalanceChf = Util.round(Math.abs(nativeSum) * mark, 2);
+    if (mark > 0 && imbalanceChf <= Config.ledger.roundingToleranceCents / 100) return; // sub-cent rounding noise
+
+    const valuation = mark > 0 ? `${imbalanceChf} CHF @ mark ${mark}` : `unvalued (mark 0)`;
+    const accounts = currencyLegs.map((leg) => `${leg.account.name} ${leg.amount}`).join(', ');
+    this.logger.error(
+      `Ledger same-asset transfer native imbalance for currency ${currency}: ${nativeSum} ` +
+        `(${valuation}; source ${input.sourceType} ${input.sourceId} seq ${input.seq}; legs: ${accounts}) (programming error)`,
+    );
   }
 }

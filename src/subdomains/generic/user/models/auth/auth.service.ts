@@ -130,10 +130,7 @@ export class AuthService {
 
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
-      : this.doSignUp(dto, userIp, false, userDataId, userId).catch((e) => {
-          if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
-          throw e;
-        });
+      : this.doSignUp(dto, userIp, false, userDataId, userId);
   }
 
   async signUp(dto: SignUpDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
@@ -169,20 +166,33 @@ export class AuthService {
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
-    const user = await this.userService.createUser(
-      {
-        ...dto,
-        ip: userIp,
-        origin: ref?.origin,
-        wallet: wallet ?? userData?.wallet,
-        custodyProvider,
-        userData,
-        primaryUser,
-      },
-      dto.specialCode ?? dto.discountCode,
-      dto.moderator,
-      dto.language,
-    );
+    let user: User;
+    try {
+      user = await this.userService.createUser(
+        {
+          ...dto,
+          ip: userIp,
+          origin: ref?.origin,
+          wallet: wallet ?? userData?.wallet,
+          custodyProvider,
+          userData,
+          primaryUser,
+        },
+        dto.specialCode ?? dto.discountCode,
+        dto.moderator,
+        dto.language,
+      );
+    } catch (e) {
+      // A concurrent sign-up of the same address committed first (SQLSTATE 23505 on the user.address UNIQUE): reload and
+      // sign THAT (now-committed) account in instead of surfacing the raw duplicate-key error as a 500. Reloading by
+      // address also scopes the guard to the real address race — a 23505 on any OTHER user unique (e.g. ref) finds no
+      // winner and rethrows the original error. Mirrors the ledger findOrCreate reload-or-rethrow, and makes every
+      // wallet-signature caller (authenticate, signUp, alby, lnurl) idempotent under the race.
+      if ((e as { code?: string }).code === '23505' && (await this.userService.getUserByAddress(dto.address))) {
+        return this.signIn(dto, userIp, isCustodial);
+      }
+      throw e;
+    }
 
     // service-provider marker (e.g. RealUnit) keyed on the login wallet: must be set at first server
     // contact so tenant dashboards see the account before any registration step, and set on the account
