@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -909,8 +910,8 @@ describe('BankTxConsumer', () => {
     );
   });
 
-  // a linked buy_crypto WITH an amlCheck result but no CHF (FAIL via chargebackFillUp / resetAmlCheck) is never
-  // re-priced by doAmlCheck → NOT transient → fail loud at error, watermark held
+  // a linked buy_crypto WITH an amlCheck result but no CHF (e.g. FAIL set by chargebackFillUp on a not-yet-priced
+  // row) is never re-priced by doAmlCheck → NOT transient → fail loud at error, watermark held
   it('fails loud (error) on BUY_CRYPTO whose linked buy_crypto has an amlCheck result but no amountInChf', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     const errSpy = jest.spyOn(consumer['logger'], 'error');
@@ -921,7 +922,7 @@ describe('BankTxConsumer', () => {
         type: BankTxType.BUY_CRYPTO,
         accountIban: 'CHF-IBAN',
         amount: 1000,
-        buyCrypto: { amountInChf: null, amlCheck: 'Fail' } as any, // AML ran, permanently unpriced
+        buyCrypto: { amountInChf: null, amlCheck: CheckStatus.FAIL } as any, // AML ran, permanently unpriced
       }),
     ]);
     await consumer.process();
