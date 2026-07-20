@@ -501,7 +501,7 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
 
   // only DFX_APPROVAL is missing, no OnHold/InReview approval step exists yet
   const approvalUser = (): UserData => {
-    const user = createMock<UserData>({ kycSteps: [] });
+    const user = createMock<UserData>({ id: 42, kycSteps: [] });
     user.hasCompletedStep.mockImplementation((step) => step !== KycStepName.DFX_APPROVAL);
     user.getStepsWith.mockReturnValue([]);
     return user;
@@ -531,7 +531,7 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
     expect(kycStepRepo.findOneBy).toHaveBeenCalledWith({
       name: KycStepName.DFX_APPROVAL,
       status: ReviewStatus.ON_HOLD,
-      userData: { id: expect.anything() },
+      userData: { id: 42 },
     });
     expect(kycStepRepo.update).toHaveBeenCalledWith(812746, { status: ReviewStatus.MANUAL_REVIEW });
   });
