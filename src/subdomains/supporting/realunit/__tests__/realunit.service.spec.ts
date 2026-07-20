@@ -1371,11 +1371,20 @@ describe('RealUnitService', () => {
       expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException (not a raw 500) when unsignedTx is a legacy type-0 tx without EIP-1559 fee fields', async () => {
+    it('throws the specific "Invalid unsigned transaction" fee-field-guard failure (not merely a generic BadRequestException) when unsignedTx is a legacy type-0 tx without EIP-1559 fee fields', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
       assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
 
-      // Legacy type-0 uses gasPrice only — parseTransaction yields undefined maxFeePerGas/maxPriorityFeePerGas
+      // Legacy type-0 uses gasPrice only — parseTransaction yields undefined maxFeePerGas/maxPriorityFeePerGas,
+      // which trips the fee-field guard inside reconstructSignedTransaction BEFORE the downstream
+      // payload/sender-match check ever runs. That guard's own Error message is caught by
+      // reconstructSignedTransaction's catch-all and remapped to 'Invalid unsigned transaction' — so THAT is
+      // the specific, discriminating signal to assert on here.
+      // Proof this is sharp, not incidental: reusing broadcastDto's r/s/v (a valid signature for the ORIGINAL
+      // type-2 payload) against this legacy payload means that if the fee-field guard did NOT fire first,
+      // execution would fall through to the payload/sender-match check and throw a DIFFERENT message
+      // ('...does not match the expected request payload') instead — so the two failure modes are
+      // distinguishable and this assertion cannot pass for the wrong reason.
       const legacyUnsignedTx = ethers.utils.serializeTransaction({
         type: 0,
         chainId: 11155111,
@@ -1389,7 +1398,7 @@ describe('RealUnitService', () => {
 
       await expect(
         service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: legacyUnsignedTx }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow('Invalid unsigned transaction');
       expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
     });
   });

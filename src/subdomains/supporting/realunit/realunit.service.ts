@@ -2361,6 +2361,7 @@ export class RealUnitService {
     quoteId: string,
   ): Promise<RealUnitOcpPayUnsignedTransactionDto> {
     const zchfAsset = await this.getZchfAsset();
+    if (!zchfAsset) throw new NotFoundException('ZCHF asset not found');
     if (!zchfAsset.chainId) throw new BadRequestException('ZCHF asset has no contract address');
 
     // Guard against payment methods the payment-link engine cannot settle before touching it. The resolved
