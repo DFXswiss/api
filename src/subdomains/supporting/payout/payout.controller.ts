@@ -51,7 +51,7 @@ export class PayoutController {
   @Post('retry')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN, UserRole.DEBUG), UserActiveGuard())
   async retryUncertainPayout(@GetJwt() jwt: JwtPayload, @Body() dto: RetryPayoutDto): Promise<void> {
     return this.payoutService.retryUncertainPayout(jwt.account, dto);
   }

@@ -35,17 +35,21 @@ describe('LogService', () => {
 
   describe('setFinancialLogValidity', () => {
     it('should throw if no filter is provided', async () => {
-      await expect(service.setFinancialLogValidity({ valid: false })).rejects.toThrow(BadRequestException);
+      await expect(service.setFinancialLogValidity(42, { valid: false })).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if from is after to', async () => {
       await expect(
-        service.setFinancialLogValidity({ valid: false, from: new Date('2026-06-19'), to: new Date('2026-06-18') }),
+        service.setFinancialLogValidity(42, {
+          valid: false,
+          from: new Date('2026-06-19'),
+          to: new Date('2026-06-18'),
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if min is not smaller than max', async () => {
-      await expect(service.setFinancialLogValidity({ valid: false, min: 60000, max: 60000 })).rejects.toThrow(
+      await expect(service.setFinancialLogValidity(42, { valid: false, min: 60000, max: 60000 })).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -54,10 +58,20 @@ describe('LogService', () => {
       jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(7);
 
       const dto = { valid: false, from: new Date('2026-06-18'), min: 60000 };
-      const result = await service.setFinancialLogValidity(dto);
+      const result = await service.setFinancialLogValidity(42, dto);
 
       expect(logRepo.setFinancialLogValidity).toHaveBeenCalledWith(dto);
       expect(result).toEqual({ affected: 7 });
+    });
+
+    it('should write an audit log after a successful update', async () => {
+      jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(7);
+      const loggerSpy = jest.spyOn((service as any).logger, 'info');
+
+      await service.setFinancialLogValidity(42, { valid: false, from: new Date('2026-06-18') });
+
+      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('account 42'));
+      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('affected 7'));
     });
   });
 });
