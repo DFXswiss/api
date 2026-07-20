@@ -7,7 +7,11 @@ export enum LogSeverity {
   ERROR = 'Error',
 }
 
+export const FINANCIAL_DATA_LOG_SUBSYSTEM = 'FinancialDataLog';
 export const FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM = 'FinancialLogValidityAudit';
+
+// Limits audit-record size and requires callers to use a narrower time or amount range.
+export const MAX_VALIDITY_SWEEP_ROWS = 10_000;
 
 @Entity()
 export class Log extends IEntity {

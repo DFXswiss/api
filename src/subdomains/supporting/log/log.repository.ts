@@ -11,7 +11,13 @@ import {
 } from 'typeorm';
 import { LogCleanupSetting } from './dto/create-log.dto';
 import { SetFinancialLogValidityDto } from './dto/set-financial-log-validity.dto';
-import { FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM, Log, LogSeverity } from './log.entity';
+import {
+  FINANCIAL_DATA_LOG_SUBSYSTEM,
+  FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM,
+  Log,
+  LogSeverity,
+  MAX_VALIDITY_SWEEP_ROWS,
+} from './log.entity';
 
 @Injectable()
 export class LogRepository extends BaseRepository<Log> {
@@ -160,10 +166,19 @@ export class LogRepository extends BaseRepository<Log> {
     return this.find({ where, order: { created: 'ASC' } });
   }
 
+  // Resolves the rows the update would change, locking them until the surrounding transaction
+  // commits so their audited pre-state cannot go stale. Capped one above the sweep limit — that is
+  // enough for the caller to detect an over-broad sweep without materialising the whole history.
   async getFinancialLogValidityChangeSet(
+    manager: EntityManager,
     dto: SetFinancialLogValidityDto,
   ): Promise<{ id: number; valid: boolean | null }[]> {
-    const query = this.createQueryBuilder('log').select(['log.id', 'log.valid']);
+    const query = manager
+      .createQueryBuilder(Log, 'log')
+      .select(['log.id', 'log.valid'])
+      .orderBy('log.id', 'ASC')
+      .limit(MAX_VALIDITY_SWEEP_ROWS + 1)
+      .setLock('pessimistic_write');
     this.addFinancialLogValidityConditions(query, dto);
 
     const logs = await query.getRawMany<{ log_id: number; log_valid: boolean | null }>();
@@ -177,20 +192,28 @@ export class LogRepository extends BaseRepository<Log> {
   // ([from inclusive, to exclusive) — same half-open window as the daily migrations) and/or
   // totalBalanceChf bounds (min exclusive lower, max exclusive upper). Only rows whose current
   // valid differs are touched, so affected reflects actually-changed rows and re-runs are no-ops.
-  async setFinancialLogValidity(dto: SetFinancialLogValidityDto, ids: number[]): Promise<number> {
+  // Restricted to the audited ids, so the updated set cannot exceed the set recorded in the audit.
+  async setFinancialLogValidity(
+    manager: EntityManager,
+    dto: SetFinancialLogValidityDto,
+    ids: number[],
+  ): Promise<number> {
     const affected = await Util.doInBatches(
       ids,
       async (batch: number[]): Promise<number> => {
-        const query = this.createQueryBuilder().update(Log).set({ valid: dto.valid });
+        const query = manager.createQueryBuilder().update(Log).set({ valid: dto.valid });
         this.addFinancialLogValidityConditions(query, dto);
         query.andWhere('id IN (:...ids)', { ids: batch });
 
         const { affected: batchAffected } = await query.execute();
-        return batchAffected as number;
+        if (batchAffected == null) throw new Error('Financial log validity update returned no affected count');
+
+        return batchAffected;
       },
       100,
     );
-    return affected.reduce((total, batchAffected) => total + batchAffected, 0);
+
+    return Util.sum(affected);
   }
 
   private addFinancialLogValidityConditions(
@@ -201,7 +224,7 @@ export class LogRepository extends BaseRepository<Log> {
 
     query
       .where('system = :system', { system: 'LogService' })
-      .andWhere('subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
+      .andWhere('subsystem = :subsystem', { subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM })
       .andWhere('severity = :severity', { severity: LogSeverity.INFO })
       .andWhere('valid IS DISTINCT FROM :targetValid', { targetValid: dto.valid });
 
