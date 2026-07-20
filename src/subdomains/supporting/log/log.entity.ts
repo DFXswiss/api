@@ -7,6 +7,8 @@ export enum LogSeverity {
   ERROR = 'Error',
 }
 
+export const FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM = 'FinancialLogValidityAudit';
+
 @Entity()
 export class Log extends IEntity {
   @Column({ length: 256 })

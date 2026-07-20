@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { LogCleanupSetting } from './dto/create-log.dto';
 import { SetFinancialLogValidityDto } from './dto/set-financial-log-validity.dto';
-import { Log, LogSeverity } from './log.entity';
+import { FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM, Log, LogSeverity } from './log.entity';
 
 @Injectable()
 export class LogRepository extends BaseRepository<Log> {
@@ -20,6 +20,9 @@ export class LogRepository extends BaseRepository<Log> {
   }
 
   async cleanup(logCleanupSetting: LogCleanupSetting): Promise<void> {
+    // Auditable mutations: audit records must remain recoverable and are never eligible for generic cleanup.
+    if (logCleanupSetting.subsystem === FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM) return;
+
     const system = logCleanupSetting.system;
     const subsystem = logCleanupSetting.subsystem;
     const saveDays = logCleanupSetting.saveDays;
@@ -163,20 +166,31 @@ export class LogRepository extends BaseRepository<Log> {
     const query = this.createQueryBuilder('log').select(['log.id', 'log.valid']);
     this.addFinancialLogValidityConditions(query, dto);
 
-    const logs = await query.getMany();
-    return logs.map(({ id, valid }) => ({ id, valid: valid ?? null }));
+    const logs = await query.getRawMany<{ log_id: number; log_valid: boolean | null }>();
+    return logs.map(({ log_id, log_valid }) => {
+      if (log_valid === undefined) throw new Error(`Missing validity value for financial log ${log_id}`);
+      return { id: log_id, valid: log_valid };
+    });
   }
 
   // Bulk-sets the valid flag on FinancialDataLog entries matched by an optional created range
   // ([from inclusive, to exclusive) — same half-open window as the daily migrations) and/or
   // totalBalanceChf bounds (min exclusive lower, max exclusive upper). Only rows whose current
   // valid differs are touched, so affected reflects actually-changed rows and re-runs are no-ops.
-  async setFinancialLogValidity(dto: SetFinancialLogValidityDto): Promise<number> {
-    const query = this.createQueryBuilder().update(Log).set({ valid: dto.valid });
-    this.addFinancialLogValidityConditions(query, dto);
+  async setFinancialLogValidity(dto: SetFinancialLogValidityDto, ids: number[]): Promise<number> {
+    const affected = await Util.doInBatches(
+      ids,
+      async (batch: number[]): Promise<number> => {
+        const query = this.createQueryBuilder().update(Log).set({ valid: dto.valid });
+        this.addFinancialLogValidityConditions(query, dto);
+        query.andWhere('id IN (:...ids)', { ids: batch });
 
-    const { affected } = await query.execute();
-    return affected as number;
+        const { affected: batchAffected } = await query.execute();
+        return batchAffected as number;
+      },
+      100,
+    );
+    return affected.reduce((total, batchAffected) => total + batchAffected, 0);
   }
 
   private addFinancialLogValidityConditions(

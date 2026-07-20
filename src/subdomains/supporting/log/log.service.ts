@@ -6,8 +6,11 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { CreateLogDto, LogCleanupSetting, UpdateLogDto } from './dto/create-log.dto';
 import { SetFinancialLogValidityDto } from './dto/set-financial-log-validity.dto';
-import { Log, LogSeverity } from './log.entity';
+import { FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM, Log, LogSeverity } from './log.entity';
 import { LogRepository } from './log.repository';
+
+// Limits audit-record size and requires callers to use a narrower time or amount range.
+export const MAX_VALIDITY_SWEEP_ROWS = 10_000;
 
 @Injectable()
 export class LogService {
@@ -39,6 +42,9 @@ export class LogService {
   async update(id: number, dto: UpdateLogDto): Promise<Log> {
     const log = await this.logRepo.findOneBy({ id });
     if (!log) throw new NotFoundException('Log not found');
+    // Auditable mutations: audit records are immutable through generic log update paths.
+    if (log.subsystem === FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM)
+      throw new BadRequestException('Financial log validity audit records cannot be updated');
 
     return this.logRepo.save({ ...log, ...dto });
   }
@@ -52,6 +58,10 @@ export class LogService {
 
     const changeSet = await this.logRepo.getFinancialLogValidityChangeSet(dto);
     if (!changeSet.length) return { affected: 0 };
+    if (changeSet.length > MAX_VALIDITY_SWEEP_ROWS)
+      throw new BadRequestException(
+        `Financial log validity sweep matches ${changeSet.length} rows, exceeding the limit of ${MAX_VALIDITY_SWEEP_ROWS}; narrow the time or amount range`,
+      );
 
     const previous = { true: [] as number[], false: [] as number[], null: [] as number[] };
     for (const change of changeSet) {
@@ -62,7 +72,7 @@ export class LogService {
 
     const auditLog = this.logRepo.create({
       system: 'LogService',
-      subsystem: 'FinancialLogValidityAudit',
+      subsystem: FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM,
       severity: LogSeverity.INFO,
       message: JSON.stringify({
         accountId,
@@ -72,13 +82,18 @@ export class LogService {
         min: dto.min ?? null,
         max: dto.max ?? null,
         reference: dto.reference,
-        affected: changeSet.length,
+        auditedRows: changeSet.length,
         previous,
       }),
     });
     await this.logRepo.save(auditLog);
 
-    const affected = await this.logRepo.setFinancialLogValidity(dto);
+    const ids = changeSet.map(({ id }) => id);
+    const affected = await this.logRepo.setFinancialLogValidity(dto, ids);
+    if (affected !== ids.length)
+      this.logger.error(
+        `Financial log validity audit/update divergence: audited ${ids.length} rows, actually affected ${affected} rows`,
+      );
     this.logger.info(
       `Financial log validity set to ${dto.valid} by account ${accountId}: filters ${JSON.stringify({
         from: dto.from ?? null,

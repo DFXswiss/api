@@ -4,9 +4,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { Log, LogSeverity } from '../log.entity';
+import { FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM, Log, LogSeverity } from '../log.entity';
 import { LogRepository } from '../log.repository';
-import { LogService } from '../log.service';
+import { LogService, MAX_VALIDITY_SWEEP_ROWS } from '../log.service';
 
 describe('LogService', () => {
   let service: LogService;
@@ -66,8 +66,11 @@ describe('LogService', () => {
     it('should write the audit log before delegating to the repository and return the affected count', async () => {
       const auditLog = new Log();
       const saveSpy = jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog);
-      const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(7);
-      jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([{ id: 11, valid: true }]);
+      const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(2);
+      jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([
+        { id: 11, valid: true },
+        { id: 12, valid: null },
+      ]);
       jest.spyOn(logRepo, 'create').mockReturnValue(auditLog);
 
       const dto = { valid: false, from: new Date('2026-06-18'), min: 60000, reference: 'ticket SUP-123' };
@@ -75,9 +78,49 @@ describe('LogService', () => {
 
       expect(logRepo.getFinancialLogValidityChangeSet).toHaveBeenCalledWith(dto);
       expect(saveSpy).toHaveBeenCalledWith(auditLog);
-      expect(logRepo.setFinancialLogValidity).toHaveBeenCalledWith(dto);
+      expect(logRepo.setFinancialLogValidity).toHaveBeenCalledWith(dto, [11, 12]);
       expect(saveSpy.mock.invocationCallOrder[0]).toBeLessThan(updateSpy.mock.invocationCallOrder[0]);
-      expect(result).toEqual({ affected: 7 });
+      expect(result).toEqual({ affected: 2 });
+    });
+
+    it('should pass exactly the audited IDs to the repository update', async () => {
+      const auditLog = new Log();
+      const dto = { valid: false, from: new Date('2026-06-18'), reference: 'ticket SUP-123' };
+      jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([
+        { id: 11, valid: true },
+        { id: 12, valid: null },
+        { id: 15, valid: true },
+      ]);
+      jest.spyOn(logRepo, 'create').mockReturnValue(auditLog);
+      jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog);
+      const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(3);
+
+      await service.setFinancialLogValidity(42, dto);
+
+      expect(updateSpy).toHaveBeenCalledWith(dto, [11, 12, 15]);
+    });
+
+    it('should reject a changeset above the sweep limit before writing or updating', async () => {
+      jest
+        .spyOn(logRepo, 'getFinancialLogValidityChangeSet')
+        .mockResolvedValue(
+          Array.from({ length: MAX_VALIDITY_SWEEP_ROWS + 1 }, (_, index) => ({ id: index + 1, valid: true })),
+        );
+      const saveSpy = jest.spyOn(logRepo, 'save');
+      const updateSpy = jest.spyOn(logRepo, 'setFinancialLogValidity');
+
+      await expect(
+        service.setFinancialLogValidity(42, {
+          valid: false,
+          from: new Date('2026-06-18'),
+          reference: 'ticket SUP-123',
+        }),
+      ).rejects.toThrow(
+        `Financial log validity sweep matches ${MAX_VALIDITY_SWEEP_ROWS + 1} rows, exceeding the limit of ${MAX_VALIDITY_SWEEP_ROWS}; narrow the time or amount range`,
+      );
+
+      expect(saveSpy).not.toHaveBeenCalled();
+      expect(updateSpy).not.toHaveBeenCalled();
     });
 
     it('should fail closed if the audit write fails', async () => {
@@ -143,7 +186,7 @@ describe('LogService', () => {
 
       expect(createSpy).toHaveBeenCalledWith({
         system: 'LogService',
-        subsystem: 'FinancialLogValidityAudit',
+        subsystem: FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM,
         severity: LogSeverity.INFO,
         message: JSON.stringify({
           accountId: 42,
@@ -153,10 +196,32 @@ describe('LogService', () => {
           min: 50000,
           max: 60000,
           reference: 'ticket SUP-123',
-          affected: 5,
+          auditedRows: 5,
           previous: { true: [11, 14], false: [12], null: [13, 15] },
         }),
       });
+    });
+
+    it('should log an error when the affected count differs from the audited row count', async () => {
+      const auditLog = new Log();
+      jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([
+        { id: 11, valid: true },
+        { id: 12, valid: null },
+      ]);
+      jest.spyOn(logRepo, 'create').mockReturnValue(auditLog);
+      jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog);
+      jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(1);
+      const loggerSpy = jest.spyOn((service as any).logger, 'error');
+
+      await service.setFinancialLogValidity(42, {
+        valid: false,
+        from: new Date('2026-06-18'),
+        reference: 'ticket SUP-123',
+      });
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        'Financial log validity audit/update divergence: audited 2 rows, actually affected 1 rows',
+      );
     });
 
     it('should write an operations log with the reference, affected count and null filters', async () => {
@@ -165,7 +230,7 @@ describe('LogService', () => {
       jest.spyOn(logRepo, 'getFinancialLogValidityChangeSet').mockResolvedValue([{ id: 11, valid: true }]);
       jest.spyOn(logRepo, 'create').mockReturnValue(auditLog);
       jest.spyOn(logRepo, 'save').mockResolvedValue(auditLog);
-      jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(7);
+      jest.spyOn(logRepo, 'setFinancialLogValidity').mockResolvedValue(1);
       const loggerSpy = jest.spyOn((service as any).logger, 'info');
 
       await service.setFinancialLogValidity(42, {
@@ -180,8 +245,28 @@ describe('LogService', () => {
           to: null,
           min: null,
           max: null,
-        })}, reference: ticket SUP-123, affected 7`,
+        })}, reference: ticket SUP-123, affected 1`,
       );
+    });
+  });
+
+  describe('update', () => {
+    it('should reject updates to financial log validity audit records', async () => {
+      const auditLog = Object.assign(new Log(), {
+        id: 11,
+        system: 'LogService',
+        subsystem: FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM,
+        severity: LogSeverity.INFO,
+        message: '{}',
+      });
+      jest.spyOn(logRepo, 'findOneBy').mockResolvedValue(auditLog);
+      const saveSpy = jest.spyOn(logRepo, 'save');
+
+      await expect(service.update(11, { message: 'changed', category: 'audit', valid: true })).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(saveSpy).not.toHaveBeenCalled();
     });
   });
 });
