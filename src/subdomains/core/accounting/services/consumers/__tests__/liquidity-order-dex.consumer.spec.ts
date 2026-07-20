@@ -166,6 +166,24 @@ describe('LiquidityOrderDexConsumer', () => {
     expect(cents(tx.legs)).toBe(0);
   });
 
+  // issue #4287 stage 3: the exact on-chain gas-fee wei is booked VERBATIM on the third-asset (gas) native fee leg,
+  // negated for the credit; the folded swap/target fee branches keep deriving from the float.
+  it('books the captured exact gas-fee wei verbatim on the third-asset network-fee leg (#4287 stage 3)', async () => {
+    mockBatch([
+      liquidityOrder({
+        id: 15,
+        feeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' },
+        feeAmount: 0.01,
+        feeAmountBaseUnits: 10000000000000000n, // 0.01 ETH in wei, captured from the receipt
+      }),
+    ]);
+    await consumer.process();
+
+    const eth = leg(booked[0], 'Ethereum/ETH');
+    expect(eth.amount).toBe(-0.01); // Cr native gas leg
+    expect(eth.amountBaseUnits).toBe(-10000000000000000n); // captured wei booked verbatim, negated for the Cr leg
+  });
+
   // §4.8a Major R7-1 case 1: feeAsset == swapAsset → folds into the existing Cr ASSET/swap leg (no own leg)
   it('folds a swap-asset fee into the existing Cr ASSET/swap leg (Major R7-1 case 1)', async () => {
     mockBatch([liquidityOrder({ id: 12, feeAsset: { id: USDC_ASSET_ID, uniqueName: 'Ethereum/USDC' }, feeAmount: 5 })]);

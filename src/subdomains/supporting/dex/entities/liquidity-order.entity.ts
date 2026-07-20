@@ -100,6 +100,12 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   feeAmount?: number;
 
+  // §2.3 native-first exactness (issue #4287 stage 3): the EXACT integer wei of the DfxDex swap's on-chain gas fee
+  // (`feeAmount`), captured from the tx receipt; booked verbatim on the network-fee leg. Nullable + additive — null
+  // falls back to the <=8-dp float derivation (fail-open). numeric <-> JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  feeAmountBaseUnits?: bigint | null;
+
   reserved(targetAmount: number): this {
     this.setTargetAmount(targetAmount);
     this.isReady = true;

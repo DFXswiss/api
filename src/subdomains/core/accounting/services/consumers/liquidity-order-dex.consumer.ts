@@ -239,6 +239,11 @@ export class LiquidityOrderDexConsumer {
       priceChf: mark ?? null,
       amountChf: feeChf != null ? -feeChf : undefined,
       needsMark: feeNeedsMark,
+      // §2.3 exactness (#4287 stage 3): book the EXACT gas-fee wei verbatim on this un-folded third-asset fee leg
+      // (negated for the credit) — the leg's native quantity IS feeAmount, so the captured wei matches exactly. The
+      // folded swap/target branches (addToLeg) drop the override and derive. Cross-asset tx with CHF fee legs -> out
+      // of assertNativeBalance same-currency throw scope. null -> derive from the float (fail-open).
+      amountBaseUnits: order.feeAmountBaseUnits != null ? -order.feeAmountBaseUnits : undefined,
     });
   }
 

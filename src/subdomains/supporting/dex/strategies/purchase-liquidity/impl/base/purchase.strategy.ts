@@ -11,7 +11,12 @@ export interface PurchaseDexService {
   getSwapResult(
     txId: string,
     asset: Asset,
-  ): Promise<{ targetAmount: number; feeAmount: number; targetAmountBaseUnits?: bigint | null }>;
+  ): Promise<{
+    targetAmount: number;
+    feeAmount: number;
+    targetAmountBaseUnits?: bigint | null;
+    feeAmountBaseUnits?: bigint | null;
+  }>;
 }
 
 export abstract class PurchaseStrategy extends PurchaseLiquidityStrategy {
@@ -63,7 +68,7 @@ export abstract class PurchaseStrategy extends PurchaseLiquidityStrategy {
   }
 
   async addPurchaseData(order: LiquidityOrder): Promise<void> {
-    const { targetAmount, feeAmount, targetAmountBaseUnits } = await this.dexService.getSwapResult(
+    const { targetAmount, feeAmount, targetAmountBaseUnits, feeAmountBaseUnits } = await this.dexService.getSwapResult(
       order.txId,
       order.targetAsset,
     );
@@ -75,6 +80,9 @@ export abstract class PurchaseStrategy extends PurchaseLiquidityStrategy {
     // it (fail-open, derive from the float).
     order.targetAmountBaseUnits = order.targetAmount === targetAmount ? (targetAmountBaseUnits ?? null) : null;
     order.recordFee(await this.feeAsset(), feeAmount);
+    // §2.3 exactness (#4287 stage 3): recordFee stores feeAmount verbatim, so keep its EXACT gas-fee wei alongside;
+    // the ledger books the network-fee leg verbatim. null -> derive from the float (fail-open).
+    order.feeAmountBaseUnits = feeAmountBaseUnits ?? null;
     await this.liquidityOrderRepo.save(order);
   }
 
