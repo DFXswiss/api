@@ -977,7 +977,8 @@ describe('BankTxConsumer', () => {
   });
 
   // an unclassified bank_tx (type null) hits the defensive default too: ERROR + skip-and-advance — the row is never
-  // booked later by the forward loop (reconcileBooking no-ops on never-booked rows), so the gap must stay visible
+  // booked later (the watermark passed it and the content-change scan's reconcileBooking no-ops on never-booked rows),
+  // so the gap must stay visible
   it('logs an unclassified bank_tx (type null) at error and advances the watermark (default branch)', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     const errSpy = jest.spyOn(consumer['logger'], 'error');
