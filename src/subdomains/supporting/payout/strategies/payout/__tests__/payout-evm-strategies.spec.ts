@@ -297,14 +297,15 @@ describe('Payout EVM strategies (table-driven)', () => {
 });
 
 describe('Payout EVM exact on-chain send capture (#4287 stage 1)', () => {
-  function setup() {
+  function setup(Strategy: EvmStrategyCtor = EthereumTokenStrategy) {
     const service = createEvmServiceMock();
     const assetService = mock<AssetService>();
     const payoutOrderRepo = mock<PayoutOrderRepository>();
     jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
     jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as any);
     service.sendToken.mockResolvedValue('TX_HASH');
-    return { strategy: new EthereumTokenStrategy(service as any, assetService, payoutOrderRepo) };
+    service.sendNativeCoin.mockResolvedValue('TX_HASH');
+    return { strategy: new Strategy(service as any, assetService, payoutOrderRepo) };
   }
 
   it('captures the wei that actually left custody (full 18-dp) into amountBaseUnits, differing from the 8-dp derived value', async () => {
@@ -334,5 +335,33 @@ describe('Payout EVM exact on-chain send capture (#4287 stage 1)', () => {
     await strategy.doPayout([order]);
 
     expect(order.amountBaseUnits).toBeNull(); // no decimals → derive downstream (fail-open)
+  });
+
+  it('captures a native-coin payout at 18 dp — equals what parseEther broadcasts, full precision', async () => {
+    const { strategy } = setup(EthereumCoinStrategy);
+    const order = createCustomPayoutOrder({
+      status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+      payoutTxId: null,
+      amount: 0.1234567891, // > 8 dp: kept in full, matching the on-chain parseEther value
+      asset: createCustomAsset({ decimals: 18 }),
+    });
+
+    await strategy.doPayout([order]);
+
+    expect(order.amountBaseUnits).toBe(123456789100000000n); // = parseEther(0.1234567891)
+  });
+
+  it('does NOT capture a native-coin payout whose asset decimals ≠ 18 (broadcast is parseEther/18) — fail-open null', async () => {
+    const { strategy } = setup(EthereumCoinStrategy);
+    const order = createCustomPayoutOrder({
+      status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+      payoutTxId: null,
+      amount: 1,
+      asset: createCustomAsset({ decimals: 8 }), // misconfigured coin — broadcast still parseEther/18
+    });
+
+    await strategy.doPayout([order]);
+
+    expect(order.amountBaseUnits).toBeNull(); // a divergent value must not be stored → derive instead
   });
 });
