@@ -1,4 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { UpdateResult } from 'src/shared/models/entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -45,6 +46,15 @@ export class RefReward extends Reward {
   @Index()
   @ManyToOne(() => LiquidityManagementPipeline, { nullable: true })
   liquidityPipeline?: LiquidityManagementPipeline;
+
+  // §2.3 native-first exactness (issue #4287 stage 4): the EXACT integer base units of `outputAmount` — the
+  // referral reward actually delivered on-chain — propagated verbatim from the linked REF_PAYOUT payout_order's
+  // broadcast value (payout_order.amountBaseUnits, stage 1) at the output asset's own scale, captured at payout
+  // completion. Nullable + additive — a chain that does not capture broadcast base units (or an incomplete/legacy
+  // row) stays NULL and the existing float `outputAmount` (inherited from Reward) is untouched (fail-open).
+  // numeric ↔ JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  outputAmountBaseUnits?: bigint | null;
 
   //*** FACTORY METHODS ***//
 
