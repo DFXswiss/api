@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -72,6 +73,15 @@ export class BuyFiat extends IEntity {
   // Pricing
   @Column({ type: 'float', nullable: true })
   inputAmount?: number;
+
+  // §2.3 native-first exactness (issue #4287 stage 4): the EXACT integer base units of `inputAmount` — the crypto
+  // the user SOLD — propagated verbatim from the linked crypto_input's captured on-chain deposit value
+  // (crypto_input.amountBaseUnits, stage 1) at the asset's own scale. This is the sell flow's only crypto leg with an
+  // exact upstream integer (the fiat OUTPUT is a bank transfer, not on-chain). Nullable + additive — a legacy or
+  // uncaptured deposit stays NULL and the existing float `inputAmount` is untouched (fail-open). numeric ↔ JS bigint
+  // via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  inputAmountBaseUnits?: bigint | null;
 
   @Column({ length: 256, nullable: true })
   inputAsset?: string;
