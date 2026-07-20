@@ -91,6 +91,10 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
   private mapSolanaTransaction(dto: TatumWebhookDto, supportedAssets: Asset[]): PayInEntry | undefined {
     const isNativeTransaction = Util.equalsIgnoreCase('native', dto.type);
 
+    const asset = isNativeTransaction
+      ? this.getTransactionCoin(supportedAssets)
+      : this.getTransactionAsset(supportedAssets, dto.asset);
+
     return {
       senderAddresses: dto.counterAddresses.join(','),
       receiverAddress: BlockchainAddress.create(dto.address, this.blockchain),
@@ -98,9 +102,12 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
       txType: this.getTxType(dto.address),
       blockHeight: dto.blockNumber,
       amount: Number(dto.amount),
-      asset: isNativeTransaction
-        ? this.getTransactionCoin(supportedAssets)
-        : this.getTransactionAsset(supportedAssets, dto.asset),
+      // §2.3 native-first exactness (issue #4287 stage 3): the Tatum webhook delivers the amount as an EXACT whole-unit
+      // decimal STRING (Number(dto.amount) above is the lossy collapse), so scale that string straight to the asset base
+      // units (lamports / SPL token units) with no float step. Solana is 9-dp — beyond the ledger's 8-dp float
+      // derivation — so this recovers the 9th decimal. Unknown/incompatible decimals -> undefined (derive, fail-open).
+      amountBaseUnits: this.toBaseUnitsString(dto.amount, asset?.decimals),
+      asset,
     };
   }
 

@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
@@ -41,6 +42,10 @@ export abstract class SolanaStrategy extends PayoutStrategy {
 
         const txId = await this.dispatchPayout(order);
         order.pendingPayout(txId);
+        // §2.3 native-first exactness (issue #4287 stage 3): capture the EXACT integer base units that left custody at
+        // the broadcast lamports/token resolution (coin@9-guard / token@decimals); the ledger books it verbatim on the
+        // withdrawal wallet leg. null (unknown/incompatible decimals) -> derive from the float (fail-open).
+        order.amountBaseUnits = SolanaUtil.toBroadcastBaseUnits(order.amount, order.asset);
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
