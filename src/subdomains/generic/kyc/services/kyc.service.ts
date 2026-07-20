@@ -428,7 +428,7 @@ export class KycService {
         await this.kycStepRepo.update(...approvalStep.manualReview());
       } else if (!approvalStep && !userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isInReview)) {
         const newStep = await this.initiateStep(userData, KycStepName.DFX_APPROVAL).catch((e) => {
-          if (e.message.includes('Cannot insert duplicate key'))
+          if (e.message?.includes('duplicate key'))
             return this.kycStepRepo.findOneBy({
               name: KycStepName.DFX_APPROVAL,
               status: ReviewStatus.ON_HOLD,

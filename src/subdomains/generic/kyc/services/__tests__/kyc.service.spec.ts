@@ -485,3 +485,62 @@ describe('KycService initiateStep NATIONALITY_DATA auto-complete', () => {
     expect(step.result).toBeUndefined();
   });
 });
+
+// checkDfxApproval is called concurrently (account merge, KYC review cron, mail-confirm merge), so
+// the DfxApproval insert can lose a race against the unique index on (userDataId, name, type,
+// sequenceNumber). The loser must recover the winner's OnHold step and promote it to manual review
+// instead of crashing the caller - which requires matching Postgres's actual error text.
+describe('KycService checkDfxApproval duplicate-key recovery', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+
+  // the exact message Postgres raises on the kyc_step unique index
+  const pgDuplicateKeyError = new Error(
+    'duplicate key value violates unique constraint "IDX_3a1150791476264753a67212a1"',
+  );
+
+  // only DFX_APPROVAL is missing, no OnHold/InReview approval step exists yet
+  const approvalUser = (): UserData => {
+    const user = createMock<UserData>({ kycSteps: [] });
+    user.hasCompletedStep.mockImplementation((step) => step !== KycStepName.DFX_APPROVAL);
+    user.getStepsWith.mockReturnValue([]);
+    return user;
+  };
+
+  // requiredKycSteps reads the global Config
+  beforeAll(() => {
+    new ConfigService(new Configuration());
+  });
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+
+    // checkDfxApproval's approval branch only touches the repo; avoid wiring all constructor deps
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+  });
+
+  it("recovers the concurrent winner's OnHold step and promotes it to manual review", async () => {
+    const winnerStep = createMock<KycStep>();
+    winnerStep.manualReview.mockReturnValue([812746, { status: ReviewStatus.MANUAL_REVIEW }]);
+    jest.spyOn(service as any, 'initiateStep').mockRejectedValue(pgDuplicateKeyError);
+    kycStepRepo.findOneBy.mockResolvedValue(winnerStep);
+
+    await service.checkDfxApproval(approvalUser());
+
+    expect(kycStepRepo.findOneBy).toHaveBeenCalledWith({
+      name: KycStepName.DFX_APPROVAL,
+      status: ReviewStatus.ON_HOLD,
+      userData: { id: expect.anything() },
+    });
+    expect(kycStepRepo.update).toHaveBeenCalledWith(812746, { status: ReviewStatus.MANUAL_REVIEW });
+  });
+
+  it('rethrows a non-duplicate error without recovery', async () => {
+    jest.spyOn(service as any, 'initiateStep').mockRejectedValue(new Error('connection refused'));
+
+    await expect(service.checkDfxApproval(approvalUser())).rejects.toThrow('connection refused');
+    expect(kycStepRepo.findOneBy).not.toHaveBeenCalled();
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+});
