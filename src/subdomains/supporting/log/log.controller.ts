@@ -27,7 +27,7 @@ export class LogController {
   @Put('financial/validity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN, UserRole.DEBUG), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
   async setFinancialLogValidity(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: SetFinancialLogValidityDto,

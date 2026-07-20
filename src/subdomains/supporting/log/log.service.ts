@@ -50,6 +50,34 @@ export class LogService {
     if (dto.min != null && dto.max != null && dto.min >= dto.max)
       throw new BadRequestException('min must be smaller than max');
 
+    const changeSet = await this.logRepo.getFinancialLogValidityChangeSet(dto);
+    if (!changeSet.length) return { affected: 0 };
+
+    const previous = { true: [] as number[], false: [] as number[], null: [] as number[] };
+    for (const change of changeSet) {
+      if (change.valid == null) previous.null.push(change.id);
+      else if (change.valid) previous.true.push(change.id);
+      else previous.false.push(change.id);
+    }
+
+    const auditLog = this.logRepo.create({
+      system: 'LogService',
+      subsystem: 'FinancialLogValidityAudit',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify({
+        accountId,
+        valid: dto.valid,
+        from: dto.from ?? null,
+        to: dto.to ?? null,
+        min: dto.min ?? null,
+        max: dto.max ?? null,
+        reference: dto.reference,
+        affected: changeSet.length,
+        previous,
+      }),
+    });
+    await this.logRepo.save(auditLog);
+
     const affected = await this.logRepo.setFinancialLogValidity(dto);
     this.logger.info(
       `Financial log validity set to ${dto.valid} by account ${accountId}: filters ${JSON.stringify({
@@ -57,7 +85,7 @@ export class LogService {
         to: dto.to ?? null,
         min: dto.min ?? null,
         max: dto.max ?? null,
-      })}, affected ${affected}`,
+      })}, reference: ${dto.reference}, affected ${affected}`,
     );
     return { affected };
   }

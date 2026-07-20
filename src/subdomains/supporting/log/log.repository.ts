@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
-import { EntityManager, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import {
+  EntityManager,
+  FindOptionsWhere,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  SelectQueryBuilder,
+  UpdateQueryBuilder,
+} from 'typeorm';
 import { LogCleanupSetting } from './dto/create-log.dto';
 import { SetFinancialLogValidityDto } from './dto/set-financial-log-validity.dto';
 import { Log, LogSeverity } from './log.entity';
@@ -150,16 +157,35 @@ export class LogRepository extends BaseRepository<Log> {
     return this.find({ where, order: { created: 'ASC' } });
   }
 
+  async getFinancialLogValidityChangeSet(
+    dto: SetFinancialLogValidityDto,
+  ): Promise<{ id: number; valid: boolean | null }[]> {
+    const query = this.createQueryBuilder('log').select(['log.id', 'log.valid']);
+    this.addFinancialLogValidityConditions(query, dto);
+
+    const logs = await query.getMany();
+    return logs.map(({ id, valid }) => ({ id, valid: valid ?? null }));
+  }
+
   // Bulk-sets the valid flag on FinancialDataLog entries matched by an optional created range
   // ([from inclusive, to exclusive) — same half-open window as the daily migrations) and/or
   // totalBalanceChf bounds (min exclusive lower, max exclusive upper). Only rows whose current
   // valid differs are touched, so affected reflects actually-changed rows and re-runs are no-ops.
   async setFinancialLogValidity(dto: SetFinancialLogValidityDto): Promise<number> {
+    const query = this.createQueryBuilder().update(Log).set({ valid: dto.valid });
+    this.addFinancialLogValidityConditions(query, dto);
+
+    const { affected } = await query.execute();
+    return affected as number;
+  }
+
+  private addFinancialLogValidityConditions(
+    query: SelectQueryBuilder<Log> | UpdateQueryBuilder<Log>,
+    dto: SetFinancialLogValidityDto,
+  ): void {
     const balanceChf = `(CAST(message AS jsonb) -> 'balancesTotal' ->> 'totalBalanceChf')::numeric`;
 
-    const query = this.createQueryBuilder()
-      .update(Log)
-      .set({ valid: dto.valid })
+    query
       .where('system = :system', { system: 'LogService' })
       .andWhere('subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
       .andWhere('severity = :severity', { severity: LogSeverity.INFO })
@@ -169,8 +195,5 @@ export class LogRepository extends BaseRepository<Log> {
     if (dto.to) query.andWhere('created < :to', { to: dto.to });
     if (dto.min != null) query.andWhere(`${balanceChf} > :min`, { min: dto.min });
     if (dto.max != null) query.andWhere(`${balanceChf} < :max`, { max: dto.max });
-
-    const { affected } = await query.execute();
-    return affected as number;
   }
 }
