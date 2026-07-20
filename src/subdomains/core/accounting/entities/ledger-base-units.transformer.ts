@@ -1,36 +1,5 @@
-import { ValueTransformer } from 'typeorm';
-
-// §2.3 native-first exactness (phase 1). The native quantity is additionally stored EXACTLY as integer base units of
-// the asset (amount × 10^decimals, e.g. satoshi/wei) in a PostgreSQL `numeric` column — the same exact-integer model
-// the CHF side already uses (amountChfCents/bigint). numeric is returned by the pg driver as a string; map it to a JS
-// `bigint` (arbitrary precision — a JS number could not hold 18-decimal wei) and fail LOUD on a non-integer instead of
-// silently truncating. Entity-free module (like ledger-cents.transformer) to avoid an import cycle between ledger_leg
-// and ledger_tx.
-export const baseUnitsTransformer: ValueTransformer = {
-  to: (value: bigint | null | undefined): string | null => (value == null ? null : value.toString()),
-  from: (value: string | null): bigint | null => {
-    if (value == null) return null;
-    if (!/^-?\d+$/.test(value))
-      throw new Error(`Ledger base-units value "${value}" is not an integer; refusing to silently truncate`);
-    return BigInt(value);
-  },
-};
-
-// Exact conversion of a native amount (whole units, already ≤8 dp per prepareLeg's §2.3 convention) to integer base
-// units of a `decimals`-decimal asset. String-based so it never overflows JS number's 2^53 (18-decimal wei of a
-// large balance is ~10^21) and never amplifies float binary error beyond the 8-dp source precision.
-export function toBaseUnits(amount: number, decimals: number): bigint {
-  // |amount| ≥ 1e21 makes toFixed emit exponential notation that BigInt() cannot parse; such a magnitude is also
-  // beyond a float's exact-integer range (2^53) and far beyond any real asset supply — fail loud with a clear ledger
-  // error instead of an opaque BigInt SyntaxError inside the booking transaction.
-  if (!Number.isFinite(amount) || Math.abs(amount) >= 1e21)
-    throw new Error(`Ledger native amount ${amount} is out of the base-unit conversion domain (|amount| < 1e21)`);
-
-  const p = Math.min(decimals, 8); // amount carries at most 8 native decimals (§2.3)
-  const fixed = amount.toFixed(p); // exact decimal string of the ≤8-dp value, e.g. "-0.00010000"
-  const negative = fixed.startsWith('-');
-  const [intPart, fracPart = ''] = fixed.replace('-', '').split('.');
-  const digits = intPart + fracPart.padEnd(p, '0'); // integer count of 10^p units
-  const scaled = BigInt(digits) * 10n ** BigInt(Math.max(decimals - p, 0)); // pad to full 10^decimals base units
-  return negative ? -scaled : scaled;
-}
+// §2.3 native-first exactness. The base-units transformer + conversions moved to `src/shared/models/base-units.transformer`
+// so on-chain source entities (crypto_input, payout_order) can persist the same EXACT integer base-unit column without
+// importing the accounting subdomain (avoiding an import cycle). Re-exported here so the accounting entities/services
+// keep their existing import path unchanged.
+export { baseUnitsTransformer, fromDecimalString, toBaseUnits } from 'src/shared/models/base-units.transformer';
