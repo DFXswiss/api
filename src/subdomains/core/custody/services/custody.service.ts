@@ -252,26 +252,28 @@ export class CustodyService {
   private async getHistoricalBalances(date: Date): Promise<{ userDataId: number; assetId: number; balance: number }[]> {
     const deposits = await this.custodyOrderRepo
       .createQueryBuilder('o')
-      .select('u.userDataId', 'userDataId')
+      .select('ud.id', 'userDataId')
       .addSelect('o.inputAssetId', 'assetId')
       .addSelect('SUM(o.inputAmount)', 'amount')
       .innerJoin('o.user', 'u')
+      .innerJoin('u.userData', 'ud')
       .where('o.status = :status', { status: CustodyOrderStatus.COMPLETED })
       .andWhere('o.updated <= :date', { date })
-      .groupBy('u.userDataId')
+      .groupBy('ud.id')
       .addGroupBy('o.inputAssetId')
       .getRawMany<{ userDataId: number; assetId: number; amount: number }>();
 
     const withdrawals = await this.custodyOrderRepo
       .createQueryBuilder('o')
-      .select('u.userDataId', 'userDataId')
+      .select('ud.id', 'userDataId')
       .addSelect('o.outputAssetId', 'assetId')
       .addSelect('SUM(o.outputAmount)', 'amount')
       .innerJoin('o.user', 'u')
+      .innerJoin('u.userData', 'ud')
       .where('o.status != :status', { status: CustodyOrderStatus.CREATED })
       .andWhere('o.outputAssetId IS NOT NULL')
       .andWhere('o.updated <= :date', { date })
-      .groupBy('u.userDataId')
+      .groupBy('ud.id')
       .addGroupBy('o.outputAssetId')
       .getRawMany<{ userDataId: number; assetId: number; amount: number }>();
 
