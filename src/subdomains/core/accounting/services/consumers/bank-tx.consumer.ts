@@ -309,7 +309,7 @@ export class BankTxConsumer {
     const amountInChf = tx.buyCryptoChargeback?.amountInChf;
     if (amountInChf == null) {
       // unlinked = transient link race (the chargebackFillUp cron links the return bank_tx); a LINKED chargeback with
-      // no CHF is permanently unpriced (FAIL rows are never re-priced) → fail loud
+      // no CHF is not re-priced by the cron (the linking cron completes the row, freezing amlCheck) → fail loud
       if (tx.buyCryptoChargeback == null)
         throw new LedgerGateBlockedException(
           `bank_tx ${tx.id} BUY_CRYPTO_RETURN not yet linked to its buy_crypto chargeback — retry next run`,

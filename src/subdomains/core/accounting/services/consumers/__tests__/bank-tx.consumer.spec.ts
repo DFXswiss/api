@@ -1197,8 +1197,9 @@ describe('BankTxConsumer', () => {
     expect(booked[0].valueDate).toBe(created);
   });
 
-  // §4.2a buyCryptoOwedChf guard: a LINKED chargeback with amountInChf null AND no cutover is permanently unpriced
-  // (FAIL rows are never re-priced) → fail loud at error, failure-isolation, nothing booked, watermark not advanced.
+  // §4.2a buyCryptoOwedChf guard: a LINKED chargeback with amountInChf null AND no cutover is not re-priced by the
+  // cron (the linking cron completes the row, freezing amlCheck) → fail loud at error, failure-isolation, nothing
+  // booked, watermark not advanced.
   it('fails loud (error) on a LINKED BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf and no cutover', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     const errSpy = jest.spyOn(consumer['logger'], 'error');
