@@ -15,6 +15,7 @@ import { createCustomLedgerAccount } from '../../../entities/__mocks__/ledger-ac
 import { LedgerAccountService } from '../../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../../ledger-mark.service';
+import { LedgerGateBlockedException } from '../ledger-gate-blocked.exception';
 import { BankTxConsumer } from '../bank-tx.consumer';
 
 const eurAsset = { id: 269 } as any;
@@ -882,24 +883,58 @@ describe('BankTxConsumer', () => {
     expect(cents(booked[0].legs)).toBe(0);
   });
 
-  // §4.2 buyCryptoLegs guard: BUY_CRYPTO without buyCrypto.amountInChf throws → failure-isolation
-  it('throws (failure-isolation) on BUY_CRYPTO without buyCrypto.amountInChf', async () => {
+  // §4.2 buyCryptoLegs guard: BUY_CRYPTO without buyCrypto.amountInChf → gate-blocked (not yet priced) → verbose,
+  // failure-isolation retries the row next run (pricing lands on buy_crypto and does not bump bank_tx.updated, so the
+  // head-of-line retry in the forward loop is the only path that books the row)
+  it('gate-blocks (verbose, failure-isolation) on BUY_CRYPTO without buyCrypto.amountInChf', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    const verboseSpy = jest.spyOn(consumer['logger'], 'verbose');
     mockBatch([
-      bankTx({ id: 7, type: BankTxType.BUY_CRYPTO, accountIban: 'CHF-IBAN', amount: 1000, buyCrypto: undefined }),
+      bankTx({
+        id: 7,
+        type: BankTxType.BUY_CRYPTO,
+        accountIban: 'CHF-IBAN',
+        amount: 1000,
+        buyCrypto: { amountInChf: null } as any, // linked but not yet priced
+      }),
     ]);
     await consumer.process();
     expect(booked).toHaveLength(0);
-    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark not advanced
+    expect(setSpy).not.toHaveBeenCalled(); // gate-block → watermark not advanced (head-of-line retry)
+    expect(errSpy).not.toHaveBeenCalled(); // designed transient → NOT an error
+    expect(verboseSpy).toHaveBeenCalledWith(
+      'Booking gate-blocked on bank_tx 7:',
+      expect.any(LedgerGateBlockedException),
+    );
   });
 
-  // §4.2 defensive default: an unmapped bank_tx type (bad DB data) → buildLegs default → undefined → skipped
-  it('skips an unmapped bank_tx type (defensive default branch)', async () => {
+  // §4.2 defensive default: an unmapped NON-null bank_tx type (bad DB data) → buildLegs default → ERROR (genuine
+  // enum gap, fail-loud) → undefined → skipped
+  it('skips an unmapped bank_tx type at error (defensive default branch)', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
     mockBatch([bankTx({ id: 8, type: 'WeirdType' as BankTxType, accountIban: 'CHF-IBAN', amount: 100 })]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+    expect(errSpy).toHaveBeenCalledWith('Unhandled bank_tx type WeirdType on bank_tx 8'); // non-null type stays ERROR
     expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(8); // skip (not error) → watermark advances
+  });
+
+  // a bank_tx not yet classified (type null) is a designed transient: skip at verbose, watermark advances — the
+  // classification sets `type` (a bank_tx column), bumps `updated`, and the content-change scan books the row
+  it('skips a not-yet-classified bank_tx (type null) at verbose and advances the watermark', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    const verboseSpy = jest.spyOn(consumer['logger'], 'verbose');
+    mockBatch([bankTx({ id: 10, type: null, accountIban: 'CHF-IBAN', amount: 100 })]);
+    await consumer.process();
+    expect(booked).toHaveLength(0);
+    expect(errSpy).not.toHaveBeenCalled(); // designed transient → NOT an error
+    expect(verboseSpy).toHaveBeenCalledWith(
+      'bank_tx 10 not yet classified (type null) — skipped, booked on content-change re-scan',
+    );
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(10); // skip → watermark advances past the row
   });
 
   // §4.2 bankContext no-bank-match fallback: no accountIban → untracked, currency from the tx → SUSPENSE/untracked
@@ -1110,9 +1145,11 @@ describe('BankTxConsumer', () => {
   });
 
   // §4.2a buyCryptoOwedChf guard: a BUY_CRYPTO_RETURN whose buyCryptoChargeback.amountInChf is null AND no cutover →
-  // throws (source line 279) → failure-isolation, nothing booked, watermark not advanced.
-  it('throws (failure-isolation) on BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf and no cutover (line 279)', async () => {
+  // gate-blocked (not yet priced) → verbose, failure-isolation, nothing booked, watermark not advanced.
+  it('gate-blocks (verbose, failure-isolation) on BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf and no cutover', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    const verboseSpy = jest.spyOn(consumer['logger'], 'verbose');
     const buyCrypto = { id: 91, amountInChf: null } as any; // no completion anchor; default mocks → no cutover opening
     mockBatch([
       bankTx({
@@ -1127,7 +1164,12 @@ describe('BankTxConsumer', () => {
     await consumer.process();
 
     expect(booked).toHaveLength(0);
-    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark stays put
+    expect(setSpy).not.toHaveBeenCalled(); // gate-block → watermark stays put (head-of-line retry)
+    expect(errSpy).not.toHaveBeenCalled(); // designed transient → NOT an error
+    expect(verboseSpy).toHaveBeenCalledWith(
+      'Booking gate-blocked on bank_tx 92:',
+      expect.any(LedgerGateBlockedException),
+    );
   });
 
   // §4.2a buyCryptoOwedChf `totalFeeAmountChf ?? 0` null side (source line 280): a return whose charged-back buy_crypto has

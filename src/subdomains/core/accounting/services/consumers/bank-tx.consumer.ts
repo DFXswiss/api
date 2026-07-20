@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -16,6 +16,7 @@ import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { LedgerGateBlockedException } from './ledger-gate-blocked.exception';
 import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
@@ -122,7 +123,13 @@ export class BankTxConsumer {
         await this.book(tx, marks);
         lastProcessedId = tx.id;
       } catch (e) {
-        this.logger.error(`Failed to book bank_tx ${tx.id}:`, e);
+        // a gate-block (unpriced linked row) is the designed self-healing retry signal — verbose, not error (§4.12 pattern)
+        const gateBlocked = e instanceof LedgerGateBlockedException;
+        this.logger.log(
+          gateBlocked ? LogLevel.VERBOSE : LogLevel.ERROR,
+          `${gateBlocked ? 'Booking gate-blocked on' : 'Failed to book'} bank_tx ${tx.id}:`,
+          e,
+        );
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -231,7 +238,14 @@ export class BankTxConsumer {
         return this.suspenseLegs(tx, ctx, bookingDate, marks, isCredit);
 
       default:
-        this.logger.error(`Unhandled bank_tx type ${tx.type} on bank_tx ${tx.id}`);
+        if (tx.type == null) {
+          // not yet classified — designed transient; classification bumps `updated` → content-change scan books it
+          this.logger.verbose(
+            `bank_tx ${tx.id} not yet classified (type null) — skipped, booked on content-change re-scan`,
+          );
+        } else {
+          this.logger.error(`Unhandled bank_tx type ${tx.type} on bank_tx ${tx.id}`);
+        }
         return undefined;
     }
   }
@@ -246,7 +260,10 @@ export class BankTxConsumer {
     marks: LedgerMarkCache,
   ): Promise<LedgerLegInput[]> {
     const amountInChf = tx.buyCrypto?.amountInChf; // received-Cr base anchor (Major R4-4)
-    if (amountInChf == null) throw new Error(`bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf`);
+    if (amountInChf == null)
+      throw new LedgerGateBlockedException(
+        `bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf (not yet priced) — retry next run`,
+      );
 
     const bank = this.bankAssetLeg(ctx, +tx.amount, bookingDate, marks, await this.bankAccount(ctx)); // mark-consistent
     const received = this.namedLeg(await this.liability('buyCrypto-received'), -amountInChf);
@@ -291,7 +308,9 @@ export class BankTxConsumer {
 
     const amountInChf = tx.buyCryptoChargeback?.amountInChf;
     if (amountInChf == null)
-      throw new Error(`bank_tx ${tx.id} BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf`);
+      throw new LedgerGateBlockedException(
+        `bank_tx ${tx.id} BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf (not yet priced) — retry next run`,
+      );
     return Util.round(amountInChf - (tx.buyCryptoChargeback?.totalFeeAmountChf ?? 0), 2); // completion CHF (additive null-strategy)
   }
 
