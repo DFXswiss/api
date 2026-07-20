@@ -88,6 +88,10 @@ export class MoneroStrategy extends PollingStrategy {
       txType: this.getTxType(p),
       blockHeight: p.height,
       amount: p.amount,
+      // §2.3 native-first exactness (#4287 stage 3): Monero is 12-dp (piconero), beyond the ledger's 8-dp float
+      // derivation. Scale the exact whole-unit XMR decimal string captured at the client (from the raw atomic integer)
+      // to the asset base units; undefined (unsafe atomic / unknown decimals) -> derive from the float (fail-open).
+      amountBaseUnits: p.amountExact != null ? this.toBaseUnitsString(p.amountExact, asset.decimals) : undefined,
       asset,
     }));
   }
