@@ -192,7 +192,11 @@ export class RealUnitService {
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
-  // Lower-cased substring of Aktionariat's registerUser response that marks a matched existing shareholder.
+  // Lower-cased prefix of Aktionariat's registerUser response that marks a matched existing shareholder
+  // (full message: "Existing user found, updated your address."). Matched as a start-anchored prefix, not a
+  // free substring: the alternative "Confirmation email sent to <email>" reply echoes the raw registrant
+  // email, so a substring test would let an address embedding these words (e.g. a quoted local part) spoof
+  // the marker and wrongly un-gate a registration whose confirmation email WAS sent and never confirmed.
   private static readonly existingShareholderMarker = 'existing user found';
   // Getter, not a field: Config is undefined until ConfigService is constructed, so reading it
   // in a field initializer can crash bootstrap depending on provider-instantiation order.
@@ -1622,7 +1626,7 @@ export class RealUnitService {
   // authoritatively identified an existing shareholder, which is itself the confirmation.
   private isExistingShareholderResponse(response: Record<string, unknown> | undefined): boolean {
     const message = typeof response?.message === 'string' ? response.message : undefined;
-    return message?.toLowerCase().includes(RealUnitService.existingShareholderMarker) ?? false;
+    return message?.toLowerCase().startsWith(RealUnitService.existingShareholderMarker) ?? false;
   }
 
   // Persist the queryable, per-wallet Aktionariat registration record for the resolved wallet-user within

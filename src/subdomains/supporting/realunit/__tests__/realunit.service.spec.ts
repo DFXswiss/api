@@ -1645,6 +1645,25 @@ describe('RealUnitService', () => {
       expect(created.requiresEmailConfirmation).toBe(true);
     });
 
+    it('keeps the registration gated when a confirmation mail echoes an address that merely embeds the marker words', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      // Aktionariat echoes the raw registrant email into the message; a quoted local part can embed the
+      // marker words. The marker is matched start-anchored, so this stays a "Confirmation email sent" reply
+      // and the row must stay gated — an embedded substring must not spoof an existing-shareholder match.
+      httpService.post.mockResolvedValue({
+        message: 'Confirmation email sent to "existing user found"@example.com',
+      } as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created.status).toBe(ReviewStatus.COMPLETED);
+      expect(created.requiresEmailConfirmation).toBe(true);
+    });
+
     it('persists the registration in DEV/LOC without calling Aktionariat and logs the response as skipped', async () => {
       mockEnvironment = 'loc';
       const wallet = softwareWallet.address;
