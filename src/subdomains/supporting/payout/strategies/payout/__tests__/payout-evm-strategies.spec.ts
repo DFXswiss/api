@@ -3,7 +3,9 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { toBaseUnits } from 'src/shared/models/base-units.transformer';
 import { createCustomPayoutOrder } from '../../../entities/__mocks__/payout-order.entity.mock';
+import { PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
@@ -291,5 +293,46 @@ describe('Payout EVM strategies (table-driven)', () => {
       expect(result).toBe(feeAsset);
       expect(getter).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe('Payout EVM exact on-chain send capture (#4287 stage 1)', () => {
+  function setup() {
+    const service = createEvmServiceMock();
+    const assetService = mock<AssetService>();
+    const payoutOrderRepo = mock<PayoutOrderRepository>();
+    jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+    jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as any);
+    service.sendToken.mockResolvedValue('TX_HASH');
+    return { strategy: new EthereumTokenStrategy(service as any, assetService, payoutOrderRepo) };
+  }
+
+  it('captures the wei that actually left custody (full 18-dp) into amountBaseUnits, differing from the 8-dp derived value', async () => {
+    const { strategy } = setup();
+    const order = createCustomPayoutOrder({
+      status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+      payoutTxId: null,
+      amount: 0.1234567891, // > 8 dp: the derived path rounds to 8 dp, the on-chain wei keeps all 18
+      asset: createCustomAsset({ decimals: 18 }),
+    });
+
+    await strategy.doPayout([order]);
+
+    expect(order.amountBaseUnits).toBe(123456789100000000n); // exact wei = toWeiAmount(0.1234567891, 18)
+    expect(order.amountBaseUnits).not.toBe(toBaseUnits(0.1234567891, 18)); // the 8-dp derived value differs
+  });
+
+  it('leaves amountBaseUnits null (fail-open) when the payout asset decimals are unknown', async () => {
+    const { strategy } = setup();
+    const order = createCustomPayoutOrder({
+      status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+      payoutTxId: null,
+      amount: 1,
+      asset: createCustomAsset({ decimals: null as any }),
+    });
+
+    await strategy.doPayout([order]);
+
+    expect(order.amountBaseUnits).toBeNull(); // no decimals → derive downstream (fail-open)
   });
 });

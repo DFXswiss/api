@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -48,6 +49,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
         const txId = await this.dispatchPayout(order);
         order.resetPayoutRetry();
         order.pendingPayout(txId);
+        order.amountBaseUnits = this.sentBaseUnits(order);
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
@@ -55,6 +57,21 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
         await this.handleBroadcastError(order, e, this.payoutOrderRepo);
       }
+    }
+  }
+
+  // §2.3 native-first exactness (issue #4287 stage 1): the EXACT integer base units that actually left custody on-chain
+  // = the payout amount scaled to the asset's FULL base-unit resolution via toWeiAmount — the SAME conversion
+  // evm-client uses to build the broadcast value, so it equals what moved down to the wei. For a >8-dp asset (every EVM
+  // 18-dp coin/token) this DIFFERS from the ≤8-dp float derivation (toBaseUnits caps at 8 dp); the ledger books it
+  // verbatim on the withdrawal wallet leg. Scaling is string/BigNumber-based (no extra float step beyond order.amount
+  // itself). Additive/fail-open: unknown/incompatible decimals → null → the ledger derives from the float as before.
+  private sentBaseUnits(order: PayoutOrder): bigint | null {
+    if (order.asset?.decimals == null) return null;
+    try {
+      return BigInt(EvmUtil.toWeiAmount(order.amount, order.asset.decimals).toString());
+    } catch {
+      return null;
     }
   }
 

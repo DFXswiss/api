@@ -145,6 +145,57 @@ describe('PayoutOrderConsumer', () => {
     expect(consumer).toBeDefined();
   });
 
+  // issue #4287 stage 1: the exact on-chain send base units captured at broadcast are booked VERBATIM on the withdrawal
+  // wallet (Cr) leg — negated to match the credit — when no payout-asset fee is folded into that leg.
+  it('books the captured exact base units verbatim on the wallet leg (no payout-asset fee folded in)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    mockBatch([
+      payoutOrder({
+        id: 20,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '778',
+        amount: 1,
+        amountBaseUnits: 100000000n, // exact base units captured at broadcast
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        // fee in a DISTINCT asset (ETH) → nothing folded into the BTC wallet leg
+        payoutFeeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' },
+        payoutFeeAmount: 0.0005,
+        payoutFeeAmountChf: 1,
+      }),
+    ]);
+    await consumer.process();
+
+    const wallet = leg(booked[0], 'Bitcoin/BTC');
+    expect(wallet.amount).toBe(-1); // native credit, no fee folded
+    expect(wallet.amountBaseUnits).toBe(-100000000n); // captured value booked verbatim, negated for the Cr leg
+  });
+
+  // issue #4287 stage 1 (fail-open): once a payout-asset fee is folded into the wallet leg its native quantity is
+  // amount + fee, which no longer matches the captured order.amountBaseUnits → the override is suppressed and the
+  // ledger derives from the float as before.
+  it('suppresses the exact override on the wallet leg when a payout-asset fee is folded in', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    mockBatch([
+      payoutOrder({
+        id: 21,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '779',
+        amount: 1,
+        amountBaseUnits: 100000000n,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        // fee in the SAME asset (BTC) → folded into the wallet leg, so its native quantity is amount + fee
+        payoutFeeAsset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        payoutFeeAmount: 0.0005,
+        payoutFeeAmountChf: 1,
+      }),
+    ]);
+    await consumer.process();
+
+    const wallet = leg(booked[0], 'Bitcoin/BTC');
+    expect(wallet.amount).toBeCloseTo(-1.0005, 8); // order.amount + folded payout-asset fee
+    expect(wallet.amountBaseUnits).toBeUndefined(); // override suppressed → booking service derives from the float
+  });
+
   // §4.5 BuyCrypto: Dr LIABILITY/buyCrypto-owed (completion CHF) / Cr ASSET/wallet (settlement mark) + fee +
   // fx-revaluation plug for the completion↔settlement drift (Blocker R2-2)
   it('books a BuyCrypto payout: owed = completion CHF, wallet = settlement mark, drift → fx plug', async () => {
