@@ -567,12 +567,15 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  complete(payoutFee: number): UpdateResult<BuyCrypto> {
+  complete(payoutFee: number, outputAmountBaseUnits?: bigint | null): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       outputDate: new Date(),
       isComplete: true,
       status: BuyCryptoStatus.COMPLETE,
       fee: this.fee.addActualPayoutFee(payoutFee, this),
+      // §2.3 native-first exactness (#4287 stage 4): the EXACT integer base units actually delivered on-chain, copied
+      // from the linked payout_order's broadcast value (stage 1); fail-open null when the chain/row did not capture it.
+      outputAmountBaseUnits: outputAmountBaseUnits ?? null,
     };
 
     Object.assign(this, update);
