@@ -238,14 +238,7 @@ export class BankTxConsumer {
         return this.suspenseLegs(tx, ctx, bookingDate, marks, isCredit);
 
       default:
-        if (tx.type == null) {
-          // not yet classified — designed transient; classification bumps `updated` → content-change scan books it
-          this.logger.verbose(
-            `bank_tx ${tx.id} not yet classified (type null) — skipped, booked on content-change re-scan`,
-          );
-        } else {
-          this.logger.error(`Unhandled bank_tx type ${tx.type} on bank_tx ${tx.id}`);
-        }
+        this.logger.error(`Unhandled bank_tx type ${tx.type} on bank_tx ${tx.id}`);
         return undefined;
     }
   }
@@ -260,10 +253,15 @@ export class BankTxConsumer {
     marks: LedgerMarkCache,
   ): Promise<LedgerLegInput[]> {
     const amountInChf = tx.buyCrypto?.amountInChf; // received-Cr base anchor (Major R4-4)
-    if (amountInChf == null)
-      throw new LedgerGateBlockedException(
-        `bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf (not yet priced) — retry next run`,
-      );
+    if (amountInChf == null) {
+      // transient ONLY while the AML check has not run yet (doAmlCheck prices amlCheck==null rows); a linked row with an
+      // amlCheck result and no CHF (FAIL via chargebackFillUp/resetAmlCheck) is never re-priced → fail loud
+      if (tx.buyCrypto != null && tx.buyCrypto.amlCheck == null)
+        throw new LedgerGateBlockedException(
+          `bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf (AML pricing pending) — retry next run`,
+        );
+      throw new Error(`bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf`);
+    }
 
     const bank = this.bankAssetLeg(ctx, +tx.amount, bookingDate, marks, await this.bankAccount(ctx)); // mark-consistent
     const received = this.namedLeg(await this.liability('buyCrypto-received'), -amountInChf);
@@ -307,10 +305,15 @@ export class BankTxConsumer {
     if (openingChf != null) return openingChf; // cutover-straddling: debit the exact opening CHF anchor
 
     const amountInChf = tx.buyCryptoChargeback?.amountInChf;
-    if (amountInChf == null)
-      throw new LedgerGateBlockedException(
-        `bank_tx ${tx.id} BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf (not yet priced) — retry next run`,
-      );
+    if (amountInChf == null) {
+      // unlinked = transient link race (the chargebackFillUp cron links the return bank_tx); a LINKED chargeback with
+      // no CHF is permanently unpriced (FAIL rows are never re-priced) → fail loud
+      if (tx.buyCryptoChargeback == null)
+        throw new LedgerGateBlockedException(
+          `bank_tx ${tx.id} BUY_CRYPTO_RETURN not yet linked to its buy_crypto chargeback — retry next run`,
+        );
+      throw new Error(`bank_tx ${tx.id} BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf`);
+    }
     return Util.round(amountInChf - (tx.buyCryptoChargeback?.totalFeeAmountChf ?? 0), 2); // completion CHF (additive null-strategy)
   }
 
