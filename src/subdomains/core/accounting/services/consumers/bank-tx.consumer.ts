@@ -123,7 +123,8 @@ export class BankTxConsumer {
         await this.book(tx, marks);
         lastProcessedId = tx.id;
       } catch (e) {
-        // a gate-block (AML pricing pending or chargeback link pending) is the designed self-healing retry signal — verbose, not error (§4.12 pattern)
+        // a gate-block (AML pricing pending or chargeback link pending) is the designed self-healing retry signal —
+        // verbose, not error (§4.12 pattern)
         const gateBlocked = e instanceof LedgerGateBlockedException;
         this.logger.log(
           gateBlocked ? LogLevel.VERBOSE : LogLevel.ERROR,
@@ -254,8 +255,9 @@ export class BankTxConsumer {
   ): Promise<LedgerLegInput[]> {
     const amountInChf = tx.buyCrypto?.amountInChf; // received-Cr base anchor (Major R4-4)
     if (amountInChf == null) {
-      // transient ONLY while the AML check has not run yet (doAmlCheck prices amlCheck==null rows); a linked row with an
-      // amlCheck result and no CHF (e.g. FAIL set by chargebackFillUp on a not-yet-priced row) is never re-priced → fail loud
+      // transient ONLY while the AML check has not run yet (doAmlCheck prices amlCheck==null rows); a linked row with
+      // an amlCheck result and no CHF (e.g. FAIL set by chargebackFillUp on a not-yet-priced row) is not re-priced by
+      // the cron — only a manual FAIL→PENDING re-trigger re-prices it → fail loud
       if (tx.buyCrypto != null && tx.buyCrypto.amlCheck == null)
         throw new LedgerGateBlockedException(
           `bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf (AML pricing pending) — retry next run`,

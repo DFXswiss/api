@@ -911,7 +911,8 @@ describe('BankTxConsumer', () => {
   });
 
   // a linked buy_crypto WITH an amlCheck result but no CHF (e.g. FAIL set by chargebackFillUp on a not-yet-priced
-  // row) is never re-priced by doAmlCheck → NOT transient → fail loud at error, watermark held
+  // row) is not re-priced by the cron (only a manual FAIL→PENDING re-trigger) → NOT transient → fail loud at error,
+  // watermark held
   it('fails loud (error) on BUY_CRYPTO whose linked buy_crypto has an amlCheck result but no amountInChf', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     const errSpy = jest.spyOn(consumer['logger'], 'error');
@@ -922,7 +923,7 @@ describe('BankTxConsumer', () => {
         type: BankTxType.BUY_CRYPTO,
         accountIban: 'CHF-IBAN',
         amount: 1000,
-        buyCrypto: { amountInChf: null, amlCheck: CheckStatus.FAIL } as any, // AML ran, permanently unpriced
+        buyCrypto: { amountInChf: null, amlCheck: CheckStatus.FAIL } as any, // AML ran, not cron-re-priced
       }),
     ]);
     await consumer.process();
