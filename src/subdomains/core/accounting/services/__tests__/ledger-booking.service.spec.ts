@@ -373,6 +373,48 @@ describe('LedgerBookingService', () => {
     expect(savedLegs.length).toBeGreaterThan(0); // two currencies → invariant skipped → booked
   });
 
+  // #4280 native-first (phase 1) / FIX B: a SAME-ticker CROSS-CHAIN transfer (USDT on ETH = 6dp, USDT on BSC = 18dp,
+  // two assetIds, one currency 'USDT') that CONSERVES natively (+100 / −100) must NOT throw. Its base units live at
+  // incommensurable scales (1e8 vs 1e20) → summing them (1e8 − 1e20 ≠ 0) would fail-closed and wedge a legitimate
+  // booking; the mixed-decimals guard (ASSET legs span two distinct decimals) skips the exact throw and the retained
+  // soft native-float check nets +100 − 100 = 0 → books.
+  it('does NOT throw on a same-ticker cross-chain transfer with differing decimals (conserves natively)', async () => {
+    const usdtEth = createCustomLedgerAccount({
+      id: 15,
+      name: 'Kraken/USDT-ETH',
+      type: AccountType.ASSET,
+      currency: 'USDT',
+      assetId: 71,
+    });
+    const usdtBsc = createCustomLedgerAccount({
+      id: 16,
+      name: 'Scrypt/USDT-BSC',
+      type: AccountType.ASSET,
+      currency: 'USDT',
+      assetId: 72,
+    });
+    jest
+      .spyOn(assetService, 'getAssetsById')
+      .mockResolvedValue([{ id: 71, decimals: 6 } as any, { id: 72, decimals: 18 } as any]);
+
+    await service.bookTx({
+      sourceType: 'exchange_tx',
+      sourceId: 't5',
+      seq: 0,
+      bookingDate: new Date('2026-07-17'),
+      legs: [
+        { account: usdtEth, amount: 100, priceChf: 0.9, amountChf: 90 }, // +100 USDT-ETH → 1e8 base units (6dp)
+        { account: usdtBsc, amount: -100, priceChf: 0.9, amountChf: -90 }, // −100 USDT-BSC → −1e20 base units (18dp)
+      ],
+    });
+
+    expect(savedLegs.length).toBeGreaterThan(0); // mixed decimals → soft native check nets to 0 → booked, no throw
+    const ethLeg = savedLegs.find((l) => l.account.name === 'Kraken/USDT-ETH');
+    const bscLeg = savedLegs.find((l) => l.account.name === 'Scrypt/USDT-BSC');
+    expect(ethLeg?.amountBaseUnits).toBe(100000000n); // 100 × 10^6
+    expect(bscLeg?.amountBaseUnits).toBe(-100000000000000000000n); // −100 × 10^18 (incommensurable with the 6dp leg)
+  });
+
   it('reverses a tx with inverted legs and the next free seq', async () => {
     jest.spyOn(dataSource, 'getRepository').mockReturnValue({
       createQueryBuilder: () => ({
