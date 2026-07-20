@@ -77,6 +77,12 @@ export class PayoutOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   payoutFeeAmountChf?: number;
 
+  // §2.3 native-first exactness (issue #4287 stage 3): the EXACT integer wei of the on-chain gas fee (payoutFeeAmount),
+  // captured from the tx receipt; booked verbatim on the network-fee leg. Nullable + additive — a payout with no
+  // captured exact fee stays null and the ledger derives from the float (fail-open). numeric <-> bigint via transformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  payoutFeeAmountBaseUnits?: bigint | null;
+
   @Column({ type: 'int', default: 0 })
   retryCount: number;
 

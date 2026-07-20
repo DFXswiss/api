@@ -196,6 +196,57 @@ describe('PayoutOrderConsumer', () => {
     expect(wallet.amountBaseUnits).toBeUndefined(); // override suppressed → booking service derives from the float
   });
 
+  // issue #4287 stage 3: the exact on-chain gas-fee wei captured at completion is booked VERBATIM on the DISTINCT
+  // network-fee leg (negated to match the credit) when no preparation fee in the SAME asset is aggregated into it.
+  it('books the captured exact gas-fee wei verbatim on the distinct network-fee leg (#4287 stage 3)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    mockBatch([
+      payoutOrder({
+        id: 30,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '800',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' }, // payout asset = BTC
+        payoutFeeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' }, // gas in a DISTINCT asset (ETH)
+        payoutFeeAmount: 0.00042,
+        payoutFeeAmountChf: 0.84, // 0.00042 x mark 2000
+        payoutFeeAmountBaseUnits: 420000000000000n, // exact wei captured from the receipt
+      }),
+    ]);
+    await consumer.process();
+
+    const eth = leg(booked[0], 'Ethereum/ETH');
+    expect(eth.amount).toBeCloseTo(-0.00042, 8); // Cr native fee leg
+    expect(eth.amountBaseUnits).toBe(-420000000000000n); // captured wei booked verbatim, negated for the Cr leg
+  });
+
+  // issue #4287 stage 3 (fail-open): a preparation fee in the SAME asset is aggregated into the fee leg, so its native
+  // quantity (prep + payout) no longer matches the captured payout-fee wei → the override is suppressed (derive).
+  it('suppresses the exact override when a same-asset preparation fee is aggregated in (#4287 stage 3)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    mockBatch([
+      payoutOrder({
+        id: 31,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '801',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' }, // SAME asset as the payout fee
+        preparationFeeAmount: 0.0001,
+        preparationFeeAmountChf: 0.2,
+        payoutFeeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' },
+        payoutFeeAmount: 0.00042,
+        payoutFeeAmountChf: 0.84,
+        payoutFeeAmountBaseUnits: 420000000000000n,
+      }),
+    ]);
+    await consumer.process();
+
+    const eth = leg(booked[0], 'Ethereum/ETH');
+    expect(eth.amount).toBeCloseTo(-0.00052, 8); // prep + payout aggregated → diverges from the captured wei
+    expect(eth.amountBaseUnits).toBeUndefined(); // override suppressed → booking service derives from the float
+  });
+
   // §4.5 BuyCrypto: Dr LIABILITY/buyCrypto-owed (completion CHF) / Cr ASSET/wallet (settlement mark) + fee +
   // fx-revaluation plug for the completion↔settlement drift (Blocker R2-2)
   it('books a BuyCrypto payout: owed = completion CHF, wallet = settlement mark, drift → fx plug', async () => {

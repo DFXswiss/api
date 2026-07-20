@@ -359,6 +359,16 @@ export class PayoutOrderConsumer {
         priceChf: mark ?? null,
         amountChf: chf != null ? -chf : undefined,
         needsMark: chf == null,
+        // §2.3 exactness (#4287 stage 3): book the EXACT gas-fee wei verbatim on this native fee leg, but ONLY when the
+        // leg is the un-aggregated payout-asset fee alone — payoutFeeAmountBaseUnits represents order.payoutFeeAmount,
+        // so once a preparation fee in the SAME asset is summed in (amount !== payoutFeeAmount) the captured wei no
+        // longer matches and we derive from the float (fail-open). The leg is a credit, so negate the stored magnitude.
+        amountBaseUnits:
+          order.payoutFeeAmountBaseUnits != null &&
+          order.payoutFeeAsset?.id === asset.id &&
+          amount === (order.payoutFeeAmount ?? 0)
+            ? -order.payoutFeeAmountBaseUnits
+            : undefined,
       });
     }
   }

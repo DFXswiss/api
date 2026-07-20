@@ -93,6 +93,9 @@ export abstract class EvmStrategy extends PayoutStrategy {
           const feeAsset = await this.feeAsset();
           const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
           order.recordPayoutFee(feeAsset, status.fee, price.convert(status.fee, Config.defaultVolumeDecimal));
+          // §2.3 exactness (#4287 stage 3): also persist the EXACT gas-fee wei so the ledger books the network-fee leg
+          // verbatim; null (capture error) -> the ledger derives from the float (fail-open).
+          order.payoutFeeAmountBaseUnits = status.feeBaseUnits;
 
           await this.payoutOrderRepo.save(order);
         } else if (status.state === 'failed' && !status.isOutOfGas) {
