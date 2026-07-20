@@ -1042,4 +1042,81 @@ describe('LedgerBookingService', () => {
       ).rejects.toThrow(/ROUNDING/);
     });
   });
+
+  // #4287 stage 2: a bridge books a SAME-currency ASSET+TRANSIT pair — assertNativeBalance's throw scope. With BOTH legs
+  // carrying the EXACT captured wei (+X / −X) the pair nets to 0n, so the native invariant passes AND the leg stays
+  // wei-exact (bypassing the lossy ≤8-dp float derivation). This is what the liquidity-mgmt bridge consumer books.
+  it('books a same-currency ASSET+TRANSIT bridge wei-exact when BOTH legs carry the override (nets to 0n)', async () => {
+    const bridgeAsset = createCustomLedgerAccount({
+      id: 40,
+      name: 'dEURO/DEUR',
+      type: AccountType.ASSET,
+      currency: 'DEUR',
+      assetId: 80,
+    });
+    const bridgeTransit = createCustomLedgerAccount({
+      id: 41,
+      name: 'TRANSIT/bridge/DEUR',
+      type: AccountType.TRANSIT,
+      currency: 'DEUR',
+    });
+    jest.spyOn(assetService, 'getAssetsById').mockResolvedValue([{ id: 80, decimals: 18 } as any]);
+    const wei = 123456789012345678n; // 0.123456789012345678 — beyond the 8-dp float cap
+
+    await service.bookTx({
+      sourceType: 'liquidity_management_order',
+      sourceId: 'br1',
+      seq: 0,
+      bookingDate: new Date('2026-06-01'),
+      legs: [
+        { account: bridgeAsset, amount: 0.12345679, priceChf: 1, amountChf: 0.12, amountBaseUnits: wei },
+        { account: bridgeTransit, amount: -0.12345679, priceChf: 1, amountChf: -0.12, amountBaseUnits: -wei },
+      ],
+    });
+
+    const walletLeg = savedLegs.find((l) => l.account.name === 'dEURO/DEUR');
+    const transitLeg = savedLegs.find((l) => l.account.name === 'TRANSIT/bridge/DEUR');
+    expect(walletLeg?.amountBaseUnits).toBe(wei);
+    expect(transitLeg?.amountBaseUnits).toBe(-wei); // net 0n → passes assertNativeBalance
+    expect(walletLeg?.amountBaseUnits).not.toBe(123456790000000000n); // not the lossy 8-dp float derivation
+  });
+
+  // #4287 stage 2 (why BOTH legs must be overridden): overriding ONLY the wallet leg with a >8-dp exact value leaves the
+  // TRANSIT counter float-derived (populateTransferCounterBaseUnits), so the same-currency pair no longer nets to 0n and
+  // the native invariant fail-closed-THROWS. This is exactly the trap the bridge consumer avoids by overriding both.
+  it('throws when only the wallet leg of a same-currency bridge carries a >8-dp override (counter derives from the float)', async () => {
+    const bridgeAsset = createCustomLedgerAccount({
+      id: 42,
+      name: 'dEURO/DEUR',
+      type: AccountType.ASSET,
+      currency: 'DEUR',
+      assetId: 80,
+    });
+    const bridgeTransit = createCustomLedgerAccount({
+      id: 43,
+      name: 'TRANSIT/bridge/DEUR',
+      type: AccountType.TRANSIT,
+      currency: 'DEUR',
+    });
+    jest.spyOn(assetService, 'getAssetsById').mockResolvedValue([{ id: 80, decimals: 18 } as any]);
+
+    await expect(
+      service.bookTx({
+        sourceType: 'liquidity_management_order',
+        sourceId: 'br2',
+        seq: 0,
+        bookingDate: new Date('2026-06-01'),
+        legs: [
+          {
+            account: bridgeAsset,
+            amount: 0.12345679,
+            priceChf: 1,
+            amountChf: 0.12,
+            amountBaseUnits: 123456789012345678n,
+          },
+          { account: bridgeTransit, amount: -0.12345679, priceChf: 1, amountChf: -0.12 }, // no override → float-derived
+        ],
+      }),
+    ).rejects.toThrow(/base-unit imbalance/);
+  });
 });

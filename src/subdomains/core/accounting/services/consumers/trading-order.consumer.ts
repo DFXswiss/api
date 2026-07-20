@@ -130,8 +130,25 @@ export class TradingOrderConsumer {
     const bookingDate = order.updated;
 
     // both ASSET legs always via stage-2 mark (no *Chf field, §5.1); missing mark → needsMark, plug stays open
-    const outLeg = this.assetLeg(await this.assetAccount(assetOut), assetOut, +amountOut, bookingDate, marks);
-    const inLeg = this.assetLeg(await this.assetAccount(assetIn), assetIn, -amountIn, bookingDate, marks);
+    // §2.3 exactness (#4287 stage 2): pass the captured swap wei so each cross-asset leg books wei-exact. This tx
+    // is cross-asset (assetIn ≠ assetOut) and also carries CHF fee/plug legs, so it is out of assertNativeBalance's
+    // same-currency ASSET/TRANSIT throw scope — the overrides never trip it.
+    const outLeg = this.assetLeg(
+      await this.assetAccount(assetOut),
+      assetOut,
+      +amountOut,
+      bookingDate,
+      marks,
+      order.amountOutBaseUnits,
+    );
+    const inLeg = this.assetLeg(
+      await this.assetAccount(assetIn),
+      assetIn,
+      -amountIn,
+      bookingDate,
+      marks,
+      order.amountInBaseUnits,
+    );
 
     const legs: LedgerLegInput[] = [outLeg, inLeg];
 
@@ -180,6 +197,7 @@ export class TradingOrderConsumer {
     amount: number,
     bookingDate: Date,
     marks: LedgerMarkCache,
+    exactBaseUnits?: bigint | null,
   ): LedgerLegInput {
     const mark = marks.getMarkAt(asset.id, bookingDate);
     const chf = mark != null ? Util.round(mark * Math.abs(amount), 2) : undefined;
@@ -189,6 +207,9 @@ export class TradingOrderConsumer {
       priceChf: mark ?? null,
       amountChf: chf != null ? (amount >= 0 ? chf : -chf) : undefined,
       needsMark: chf == null,
+      // §2.3 exactness (#4287 stage 2): book the EXACT captured swap wei verbatim, signed to match the leg amount
+      // (the entity stores a positive magnitude); null → derive from the ≤8-dp float (fail-open).
+      amountBaseUnits: exactBaseUnits != null ? (amount >= 0 ? exactBaseUnits : -exactBaseUnits) : undefined,
     };
   }
 

@@ -180,14 +180,28 @@ export class LiquidityMgmtConsumer {
     const chf = mark != null ? Util.round(mark * amount, 2) : undefined;
     const needsMark = chf == null;
 
+    // §2.3 exactness (#4287 stage 2): book the EXACT bridged wei verbatim on BOTH legs — wallet +X, TRANSIT −X —
+    // so the same-currency ASSET+TRANSIT pair nets to 0n and passes assertNativeBalance. Overriding ONLY the
+    // wallet leg would leave the TRANSIT counter float-derived (populateTransferCounterBaseUnits), and a >8-dp
+    // mismatch would fail-closed-throw. null (≤8-dp / non-EVM / legacy) → both legs derive from the float.
+    const exact = order.outputAmountBaseUnits;
+
     const legs: LedgerLegInput[] = [
-      { account: wallet, amount, priceChf: mark ?? null, amountChf: chf, needsMark },
+      {
+        account: wallet,
+        amount,
+        priceChf: mark ?? null,
+        amountChf: chf,
+        needsMark,
+        amountBaseUnits: exact != null ? exact : undefined,
+      },
       {
         account: transit,
         amount: -amount,
         priceChf: mark ?? null,
         amountChf: chf != null ? -chf : undefined,
         needsMark,
+        amountBaseUnits: exact != null ? -exact : undefined,
       },
     ];
 
