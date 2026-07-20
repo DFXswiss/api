@@ -241,7 +241,19 @@ export class CryptoInputConsumer {
       valueDate: bookingDate,
       legs: [
         { account: networkFee, amount: feeChf, priceChf: 1, amountChf: feeChf },
-        { account: wallet, amount: -feeNative, priceChf: mark, amountChf: -feeChf },
+        {
+          account: wallet,
+          amount: -feeNative,
+          priceChf: mark,
+          amountChf: -feeChf,
+          // §2.3 exactness (issue #4287): book the EXACT on-chain forward gas wei verbatim — the ACTUAL
+          // gasUsed*effectiveGasPrice captured at OUTPUT confirmation for a COIN forward, where the gas coin IS this
+          // leg's deposit asset. It supersedes the estimate-derived float `amount`/CHF (both untouched, additive) for
+          // the native fee leg. The leg is a credit, so the stored positive magnitude is negated. null (token /
+          // non-EVM / capture error) -> derive from the float. This tx carries the CHF EXPENSE leg above, so it is
+          // cross-currency -> assertNativeBalance early-returns (never in its throw scope).
+          amountBaseUnits: ci.forwardFeeAmountBaseUnits != null ? -ci.forwardFeeAmountBaseUnits : undefined,
+        },
       ],
     });
   }

@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ethers } from 'ethers';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -151,6 +152,42 @@ describe('EvmStrategy', () => {
 
       expect(payIn.isConfirmed).toBe(true);
       expect(payInRepo.update).toHaveBeenCalledWith(1, { isConfirmed: true, status: undefined });
+    });
+
+    // §2.3 exactness (issue #4287): on OUTPUT confirmation of a COIN forward the mined forward tx's exact gas wei is
+    // captured and persisted atomically with the FORWARD_CONFIRMED transition.
+    it('captures the exact forward gas fee wei on OUTPUT confirmation of a COIN forward', async () => {
+      const coin = createCustomAsset({ type: AssetType.COIN, decimals: 18 });
+      const payIn = createCustomCryptoInput({ id: 7, status: PayInStatus.FORWARDED, outTxId: 'FWD_TX', asset: coin });
+      jest.spyOn(payInEvmService, 'checkTransactionCompletion').mockResolvedValue(true);
+      jest.spyOn(payInEvmService, 'getTxActualFeeBaseUnits').mockResolvedValue(630000000000000n);
+
+      await strategy.checkConfirmations([payIn], PayInConfirmationType.OUTPUT);
+
+      expect(payInEvmService.getTxActualFeeBaseUnits).toHaveBeenCalledWith('FWD_TX');
+      expect(payInRepo.update).toHaveBeenCalledWith(7, {
+        status: PayInStatus.FORWARD_CONFIRMED,
+        forwardFeeAmountBaseUnits: 630000000000000n,
+      });
+    });
+
+    // fail-open: a TOKEN forward pays gas in the native coin (a DIFFERENT asset than the seq1 leg's token), so no exact
+    // integer is captured and the FORWARD_CONFIRMED update carries no forwardFeeAmountBaseUnits.
+    it('does not capture a forward fee wei on OUTPUT confirmation of a TOKEN forward', async () => {
+      const token = createCustomAsset({ type: AssetType.TOKEN, decimals: 6 });
+      const payIn = createCustomCryptoInput({
+        id: 8,
+        status: PayInStatus.FORWARDED,
+        outTxId: 'FWD_TX_TOKEN',
+        asset: token,
+      });
+      jest.spyOn(payInEvmService, 'checkTransactionCompletion').mockResolvedValue(true);
+      const feeSpy = jest.spyOn(payInEvmService, 'getTxActualFeeBaseUnits');
+
+      await strategy.checkConfirmations([payIn], PayInConfirmationType.OUTPUT);
+
+      expect(feeSpy).not.toHaveBeenCalled();
+      expect(payInRepo.update).toHaveBeenCalledWith(8, { status: PayInStatus.FORWARD_CONFIRMED });
     });
   });
 

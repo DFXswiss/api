@@ -119,6 +119,14 @@ export class CryptoInput extends IEntity {
   @Column({ type: 'float', nullable: true })
   forwardFeeAmountChf?: number;
 
+  // §2.3 native-first exactness (issue #4287): the EXACT integer base units (wei) of the on-chain deposit-FORWARD gas
+  // fee — the actual gasUsed*effectiveGasPrice of the forward tx, captured at OUTPUT confirmation. Nullable + additive:
+  // set ONLY for an EVM COIN forward (the native gas coin IS the forwarded/booked asset, 18-dp wei); token forwards,
+  // non-EVM chains, legacy rows and any capture error stay null and the ledger derives the seq1 fee leg from the
+  // estimate float (fail-open). numeric <-> JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  forwardFeeAmountBaseUnits?: bigint | null;
+
   @Index()
   @ManyToOne(() => Asset, { nullable: true, eager: true })
   asset?: Asset;
