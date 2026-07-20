@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { LiquidityTransactionResult } from '../interfaces';
@@ -54,6 +55,13 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   targetAmount?: number;
 
+  // §2.3 native-first exactness (issue #4287 stage 2): the EXACT integer base units (wei) of the DfxDex swap
+  // OUTPUT (`targetAmount`, the raw on-chain transfer integer). Nullable + additive — legacy rows, non-EVM
+  // chains and the reference==target degenerate case stay null and the ledger derives from the <=8-dp float
+  // (fail-open). numeric <-> JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  targetAmountBaseUnits?: bigint | null;
+
   @Column({ type: 'float', nullable: true })
   estimatedTargetAmount?: number;
 
@@ -69,6 +77,12 @@ export class LiquidityOrder extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   swapAmount?: number;
+
+  // §2.3 native-first exactness (issue #4287 stage 2): the EXACT integer base units (wei) of the DfxDex swap
+  // INPUT (`swapAmount`, DFX float scaled at broadcast). Nullable + additive — null falls back to the <=8-dp
+  // float derivation (fail-open). numeric <-> JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  swapAmountBaseUnits?: bigint | null;
 
   @Column({ length: 256, nullable: true })
   strategy?: string;

@@ -1,5 +1,6 @@
 import { Active } from 'src/shared/models/active';
 import { IEntity } from 'src/shared/models/entity';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementOrderStatus } from '../enums';
@@ -27,6 +28,14 @@ export class LiquidityManagementOrder extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   outputAmount?: number;
+
+  // §2.3 native-first exactness (issue #4287 stage 2): the EXACT integer base units (wei) of the bridged
+  // `outputAmount` that arrives on the target chain, in the decimals of the booked target asset. Nullable +
+  // additive — only >8-dp EVM bridges capture it; <=8-dp bridges (whose float derivation is already exact),
+  // non-EVM bridges and legacy rows stay null and the ledger derives from the float (fail-open). numeric <->
+  // JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  outputAmountBaseUnits?: bigint | null;
 
   @Column({ length: 256, nullable: true })
   outputAsset?: string;
