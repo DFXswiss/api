@@ -270,8 +270,10 @@ export class LedgerReconciliationService {
     const open = await this.ledgerLegRepository
       .createQueryBuilder('leg')
       .innerJoin('leg.account', 'account')
+      .leftJoin('account.asset', 'asset')
       .select('account.id', 'id')
       .addSelect('account.name', 'name')
+      .addSelect('MAX(asset.id)', 'assetId') // a single-asset account ⇒ one decimals; null for a shared/bridge transit
       .addSelect('SUM(leg.amount)', 'native')
       .addSelect('SUM(leg.amountBaseUnits)', 'baseUnits')
       .addSelect('COUNT(*)', 'legCount')
@@ -283,6 +285,7 @@ export class LedgerReconciliationService {
       .getRawMany<{
         id: number;
         name: string;
+        assetId: number | null;
         native: string;
         baseUnits: string | null;
         legCount: string;
@@ -293,11 +296,12 @@ export class LedgerReconciliationService {
     const thresholdDays = Config.ledger.transitAlarmThresholdDays;
     const aged: { name: string; native: string; since: Date }[] = [];
     for (const account of open) {
-      // §2.3 exact: the float SUM(amount) HAVING pre-filter can admit a residual on accumulated 8dp noise; when every
-      // leg carries base units, treat an EXACT integer sum of 0 as closed (no false overdue alarm). A mixed/unvalued
-      // (fiat CHF) transit keeps the float pre-filter verdict — base units are trusted only homogeneously.
+      // §2.3 exact: the float SUM(amount) HAVING pre-filter can admit a residual on accumulated 8dp noise; for a
+      // SINGLE-asset account (one decimals) whose legs all carry base units, treat an EXACT integer sum of 0 as closed
+      // (no false overdue alarm). A shared/bridge (assetId-null) or mixed/unvalued transit keeps the native-float
+      // pre-filter verdict — base units are commensurable, hence trusted, only within one decimals scale.
       if (this.isExactlyClosed(account)) continue;
-      const since = await this.openResidualSince(+account.id);
+      const since = await this.openResidualSince(+account.id, account.assetId != null);
       if (since && Util.daysDiff(since, now) > thresholdDays) {
         aged.push({ name: account.name, native: account.native, since });
       }
@@ -312,11 +316,23 @@ export class LedgerReconciliationService {
     );
   }
 
-  // §2.3 exact: a transit residual is closed iff its EXACT integer base-unit sum is 0. Trusted only when the account's
-  // legs are homogeneous (all carry base units); a null sum or a not-fully-valued account returns false → the float
-  // HAVING verdict stands (keep it as an open candidate). No decimals are invented.
-  private isExactlyClosed(row: { baseUnits: string | null; legCount: string; valuedCount: string }): boolean {
-    return row.baseUnits != null && +row.legCount === +row.valuedCount && BigInt(row.baseUnits) === 0n;
+  // §2.3 exact: a transit residual is closed iff its EXACT integer base-unit sum is 0. Trusted only for a SINGLE-asset
+  // account (assetId != null ⇒ one concrete asset ⇒ one decimals scale) whose legs are homogeneous (all carry base
+  // units). WHY the assetId gate: base units are per-assetId-scaled, but a shared TRANSIT/SUSPENSE/bridge account
+  // (assetId null) keyed by currency TICKER can accrue legs of the SAME ticker at DIFFERENT decimals across chains
+  // (USDT = 6dp on ETH/Tron, 18dp on BSC); Σ base units across mixed decimals is incommensurable, so a null-assetId
+  // account, a null sum, or a not-fully-valued account returns false → the native-float HAVING verdict stands (keep it
+  // as an open candidate). No decimals are invented. (Today every TRANSIT account carries assetId null, so this path is
+  // reserved for a possible future per-asset transit; the native-float fallback is what actually runs for transit.)
+  private isExactlyClosed(row: {
+    assetId: number | null;
+    baseUnits: string | null;
+    legCount: string;
+    valuedCount: string;
+  }): boolean {
+    return (
+      row.assetId != null && row.baseUnits != null && +row.legCount === +row.valuedCount && BigInt(row.baseUnits) === 0n
+    );
   }
 
   // §7.4 — the bookingDate since which the account's cumulative native balance has been continuously ≠ 0 (the opening
@@ -326,7 +342,7 @@ export class LedgerReconciliationService {
   // lives on ledger_tx (NOT ledger_leg) → the query joins leg.tx and reads tx.bookingDate (alias.property is auto-quoted
   // by TypeORM; a bare leg.bookingDate is a non-existent column that would crash the run on real PG). Ties on
   // bookingDate are broken by leg.id so the crossing point is deterministic.
-  private async openResidualSince(accountId: number): Promise<Date | undefined> {
+  private async openResidualSince(accountId: number, singleAsset: boolean): Promise<Date | undefined> {
     const legs = await this.ledgerLegRepository
       .createQueryBuilder('leg')
       .innerJoin('leg.tx', 'tx')
@@ -339,10 +355,15 @@ export class LedgerReconciliationService {
       .addOrderBy('leg.id', 'ASC')
       .getRawMany<{ amount: string; baseUnits: string | null; bookingDate: string | Date }>();
 
-    // §2.3 exact zero-crossing: when EVERY leg carries base units (a homogeneous decimals-bearing residual) the last
-    // crossing is found on the exact integer running sum — 8dp float drift can never mis-place openSince. A mixed or
-    // unvalued residual (fiat CHF transit) keeps the float cumulation below; decimals are never invented.
-    if (legs.length && legs.every((leg) => leg.baseUnits != null)) {
+    // §2.3 exact zero-crossing: taken ONLY for a SINGLE-asset account (singleAsset ⇒ account.assetId != null ⇒ one
+    // decimals scale) whose legs ALL carry base units — then the last crossing is found on the exact integer running
+    // sum and 8dp float drift can never mis-place openSince. WHY the singleAsset gate: a shared TRANSIT/bridge account
+    // (assetId null) can hold same-ticker legs at DIFFERENT decimals across chains (USDT 6dp on ETH/Tron, 18dp on BSC);
+    // cumulating those incommensurable integers would net a natively-conserving bridge to a bogus non-zero and pin
+    // openSince to an ancient leg → false/missed LEDGER_TRANSIT_OVERDUE alarms. Such an account, a mixed/unvalued
+    // residual (fiat CHF transit), keeps the native-float cumulation below (mirrors nativeBalanceFromRow's fallback for
+    // no-decimals accounts); decimals are never invented.
+    if (singleAsset && legs.length && legs.every((leg) => leg.baseUnits != null)) {
       let integerCumulative = 0n;
       let openSince: Date | undefined;
       for (const leg of legs) {

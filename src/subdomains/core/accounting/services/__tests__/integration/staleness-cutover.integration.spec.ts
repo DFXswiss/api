@@ -77,7 +77,17 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
     // empty leg query-builder stub (transit/suspense/equity all empty for the staleness focus)
     function legQb(): any {
       const qb: any = {};
-      for (const m of ['innerJoin', 'select', 'addSelect', 'where', 'andWhere', 'groupBy', 'addGroupBy', 'having']) {
+      for (const m of [
+        'innerJoin',
+        'leftJoin',
+        'select',
+        'addSelect',
+        'where',
+        'andWhere',
+        'groupBy',
+        'addGroupBy',
+        'having',
+      ]) {
         qb[m] = () => qb;
       }
       qb.getRawMany = () => Promise.resolve([]);

@@ -31,12 +31,14 @@ interface LegQueryStub {
   transit?: {
     id: number;
     name: string;
+    assetId?: number | null; // MAX(asset.id): a single-asset account (⇒ one decimals) ⇒ non-null; a shared/bridge transit ⇒ null
     native: string;
     baseUnits?: string | null;
     legCount?: string;
     valuedCount?: string;
   }[];
-  transitLegs?: { amount: string; bookingDate: Date }[]; // openResidualSince per-account ordered legs (F3)
+  // openResidualSince per-account ordered legs (F3); baseUnits present but IGNORED for an assetId-less account (float path)
+  transitLegs?: { amount: string; baseUnits?: string | null; bookingDate: Date }[];
   suspense?: { name: string; chf: string }[];
 }
 
@@ -93,6 +95,7 @@ describe('LedgerReconciliationService', () => {
     const qb: any = { _selects: [] as string[], _wheres: [] as string[] };
     const chain = () => qb;
     qb.innerJoin = chain;
+    qb.leftJoin = chain; // checkTransitAge now leftJoins account.asset to read MAX(asset.id) (single-asset gate)
     qb.select = (expr: string) => {
       qb._selects.push(expr);
       return qb;
@@ -447,24 +450,56 @@ describe('LedgerReconciliationService', () => {
       expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(true);
     });
 
-    // §2.3 exact: a decimals-bearing transit residual whose float SUM passes the ABS>1e-8 HAVING pre-filter on
-    // accumulated 8dp noise, yet whose EXACT integer base-unit sum is 0, is closed → no false overdue alarm.
-    it('treats a transit residual with an exact base-unit sum of 0 as closed (no float-noise overdue alarm)', async () => {
+    // §2.3 mixed-decimals shared transit (FIX A regression): a bridge-style TRANSIT account carries NO assetId and can
+    // hold same-ticker legs at DIFFERENT decimals across chains (USDT 6dp on ETH/Tron, 18dp on BSC). The exact integer
+    // base-unit cumulation is INCOMMENSURABLE across scales, so the exact path must NOT be taken for an assetId-less
+    // account — the native-float cumulation nets the balanced legs and finds the LATER re-open. Here the bridge opened
+    // +100 (6dp) 20d ago, sent −100 (18dp) 19d ago (nets to 0 natively) and re-opened +50 (6dp) 1d ago → residual age
+    // 1d < 3d → no alarm. Were the exact path wrongly taken, 1e8 − 1e20 + 5e7 never returns to 0n → openSince pinned to
+    // the ancient 20d leg → a FALSE overdue alarm; asserting no alarm proves the exact path is skipped (assetId null).
+    it('uses native-float (not exact base units) for an assetId-less mixed-decimals bridge transit (no false alarm)', async () => {
       legStub.transit = [
         {
           id: 7,
-          name: 'TRANSIT/withdrawal/BTC',
-          native: '0.00000002',
-          baseUnits: '0',
-          legCount: '2',
-          valuedCount: '2',
+          name: 'TRANSIT/bridge/USDT',
+          assetId: null,
+          native: '50',
+          baseUnits: null,
+          legCount: '3',
+          valuedCount: '3',
         },
       ];
-      legStub.transitLegs = [{ amount: '0.00000002', bookingDate: Util.daysBefore(10) }]; // never reached (skipped)
+      legStub.transitLegs = [
+        { amount: '100', baseUnits: '100000000', bookingDate: Util.daysBefore(20) }, // +100 USDT-ETH (6dp) → 1e8
+        { amount: '-100', baseUnits: '-100000000000000000000', bookingDate: Util.daysBefore(19) }, // −100 USDT-BSC (18dp) → −1e20; nets to 0 natively
+        { amount: '50', baseUnits: '50000000', bookingDate: Util.daysBefore(1) }, // +50 USDT-ETH (6dp), re-opened 1d ago
+      ];
 
       await service.run();
 
-      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // exact sum 0 → closed
+      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // float openSince = 1d < 3d
+    });
+
+    // §2.3 mixed-decimals shared transit (FIX A): a GENUINELY stuck bridge residual is still flagged. The bridge
+    // received +100 USDT-ETH (6dp) 10d ago and never sent it onward (native balance 100, never returns to 0) → residual
+    // age 10d > 3d → overdue alarm. Proves the native-float fallback still surfaces a real stuck residual.
+    it('flags a genuinely stuck assetId-less bridge transit residual older than the threshold', async () => {
+      legStub.transit = [
+        {
+          id: 9,
+          name: 'TRANSIT/bridge/USDT',
+          assetId: null,
+          native: '100',
+          baseUnits: null,
+          legCount: '1',
+          valuedCount: '1',
+        },
+      ];
+      legStub.transitLegs = [{ amount: '100', baseUnits: '100000000', bookingDate: Util.daysBefore(10) }]; // stuck 10d
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(true); // real residual → alarm
     });
 
     // F3: a churning transit route that repeatedly opens and closes must be aged from the LAST zero-crossing of its
@@ -494,6 +529,7 @@ describe('LedgerReconciliationService', () => {
         calls.innerJoins.push([a, b]);
         return qb;
       };
+      qb.leftJoin = () => qb; // account.asset leftJoin for the single-asset (MAX(asset.id)) gate
       qb.select = (e: string) => (calls.selects.push(e), qb._selects.push(e), qb);
       qb.addSelect = (e: string) => (calls.selects.push(e), qb._selects.push(e), qb);
       qb.where = () => qb;
