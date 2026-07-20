@@ -20,26 +20,26 @@
  * @implements {MigrationInterface}
  */
 module.exports = class AddLedgerLegAmountBaseUnits1784600000000 {
-    name = 'AddLedgerLegAmountBaseUnits1784600000000'
+  name = 'AddLedgerLegAmountBaseUnits1784600000000';
 
-    /**
-     * @param {QueryRunner} queryRunner
-     */
-    async up(queryRunner) {
-        await queryRunner.query(`ALTER TABLE "ledger_leg" ADD "amountBaseUnits" numeric`);
-        await queryRunner.query(`
-            UPDATE "ledger_leg" l
-            SET "amountBaseUnits" = round(round((l."amount")::numeric, 8) * power(10::numeric, a."decimals"))
-            FROM "ledger_account" acc
-            JOIN "asset" a ON a."id" = acc."assetId"
-            WHERE l."accountId" = acc."id" AND acc."assetId" IS NOT NULL AND a."decimals" IS NOT NULL
-        `);
-    }
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async up(queryRunner) {
+    await queryRunner.query(`ALTER TABLE "ledger_leg" ADD "amountBaseUnits" numeric`);
+    await queryRunner.query(`
+      UPDATE "ledger_leg" l
+      SET "amountBaseUnits" = round(round((l."amount")::numeric, 8) * power(10::numeric, a."decimals"))
+      FROM "ledger_account" acc
+      JOIN "asset" a ON a."id" = acc."assetId"
+      WHERE l."accountId" = acc."id" AND acc."assetId" IS NOT NULL AND a."decimals" IS NOT NULL
+    `);
+  }
 
-    /**
-     * @param {QueryRunner} queryRunner
-     */
-    async down(queryRunner) {
-        await queryRunner.query(`ALTER TABLE "ledger_leg" DROP COLUMN "amountBaseUnits"`);
-    }
-}
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async down(queryRunner) {
+    await queryRunner.query(`ALTER TABLE "ledger_leg" DROP COLUMN "amountBaseUnits"`);
+  }
+};

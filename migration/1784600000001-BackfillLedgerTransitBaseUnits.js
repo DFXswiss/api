@@ -26,45 +26,45 @@
  * @implements {MigrationInterface}
  */
 module.exports = class BackfillLedgerTransitBaseUnits1784600000001 {
-    name = 'BackfillLedgerTransitBaseUnits1784600000001'
+  name = 'BackfillLedgerTransitBaseUnits1784600000001';
 
-    /**
-     * @param {QueryRunner} queryRunner
-     */
-    async up(queryRunner) {
-        await queryRunner.query(`
-            UPDATE "ledger_leg" l
-            SET "amountBaseUnits" = round(round(l."amount"::numeric, 8) * power(10::numeric, t."decimals"))
-            FROM (
-                SELECT
-                    leg."txId" AS "txId",
-                    MAX(a."decimals") FILTER (WHERE acc."type" = 'Asset') AS "decimals"
-                FROM "ledger_leg" leg
-                JOIN "ledger_account" acc ON acc."id" = leg."accountId"
-                LEFT JOIN "asset" a ON a."id" = acc."assetId"
-                GROUP BY leg."txId"
-                HAVING
-                    bool_and(acc."type" IN ('Asset', 'Transit'))
-                    AND COUNT(DISTINCT acc."currency") = 1
-                    AND COUNT(DISTINCT a."decimals") FILTER (
-                        WHERE acc."type" = 'Asset' AND acc."assetId" IS NOT NULL AND a."decimals" IS NOT NULL
-                    ) = 1
-            ) t,
-            "ledger_account" lacc
-            WHERE l."txId" = t."txId"
-              AND lacc."id" = l."accountId"
-              AND lacc."type" = 'Transit'
-              AND lacc."assetId" IS NULL
-              AND l."amountBaseUnits" IS NULL
-        `);
-    }
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async up(queryRunner) {
+    await queryRunner.query(`
+      UPDATE "ledger_leg" l
+      SET "amountBaseUnits" = round(round(l."amount"::numeric, 8) * power(10::numeric, t."decimals"))
+      FROM (
+        SELECT
+          leg."txId" AS "txId",
+          MAX(a."decimals") FILTER (WHERE acc."type" = 'Asset') AS "decimals"
+        FROM "ledger_leg" leg
+        JOIN "ledger_account" acc ON acc."id" = leg."accountId"
+        LEFT JOIN "asset" a ON a."id" = acc."assetId"
+        GROUP BY leg."txId"
+        HAVING
+          bool_and(acc."type" IN ('Asset', 'Transit'))
+          AND COUNT(DISTINCT acc."currency") = 1
+          AND COUNT(DISTINCT a."decimals") FILTER (
+            WHERE acc."type" = 'Asset' AND acc."assetId" IS NOT NULL AND a."decimals" IS NOT NULL
+          ) = 1
+      ) t,
+      "ledger_account" lacc
+      WHERE l."txId" = t."txId"
+        AND lacc."id" = l."accountId"
+        AND lacc."type" = 'Transit'
+        AND lacc."assetId" IS NULL
+        AND l."amountBaseUnits" IS NULL
+    `);
+  }
 
-    /**
-     * @param {QueryRunner} queryRunner
-     */
-    async down(queryRunner) {
-        // No-op: the backfilled TRANSIT base units are indistinguishable from ones the booking service writes for new
-        // transfers, so nulling them here would also strip legitimately booked values. The column itself is dropped by
-        // the companion migration 1784600000000 on a full revert.
-    }
-}
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async down(queryRunner) {
+    // No-op: the backfilled TRANSIT base units are indistinguishable from ones the booking service writes for new
+    // transfers, so nulling them here would also strip legitimately booked values. The column itself is dropped by
+    // the companion migration 1784600000000 on a full revert.
+  }
+};
