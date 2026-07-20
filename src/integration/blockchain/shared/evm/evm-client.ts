@@ -435,10 +435,16 @@ export abstract class EvmClient extends BlockchainClient {
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
-    const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
-    const actualFee = gasUsed.mul(effectiveGasPrice);
+    return EvmUtil.fromWeiAmount((await this.getTxActualFeeBaseUnits(txHash)).toString());
+  }
 
-    return EvmUtil.fromWeiAmount(actualFee);
+  // §2.3 native-first exactness (issue #4287 stage 3): the EXACT on-chain gas fee as integer wei — gasUsed ×
+  // effectiveGasPrice straight from the receipt — BEFORE the lossy parseFloat in getTxActualFee (which now derives its
+  // float from this same value, so the two stay tautologically consistent). Capturing it lets the ledger book the
+  // network-fee leg wei-exact (differs from the <=8-dp float derivation for the 18-dp native coin the gas is paid in).
+  async getTxActualFeeBaseUnits(txHash: string): Promise<bigint> {
+    const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
+    return BigInt(gasUsed.mul(effectiveGasPrice).toString());
   }
 
   async getGasPriceLimitFromHex(txHex: string): Promise<number> {
