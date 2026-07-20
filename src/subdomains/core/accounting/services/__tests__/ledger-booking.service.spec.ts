@@ -415,6 +415,50 @@ describe('LedgerBookingService', () => {
     expect(bscLeg?.amountBaseUnits).toBe(-100000000000000000000n); // −100 × 10^18 (incommensurable with the 6dp leg)
   });
 
+  // #4280 native-first (phase 1) / residual fail-closed corner: a SAME-ticker transfer that pairs a decimals-bearing
+  // ASSET leg (8dp) with a null-decimals ASSET leg of the SAME ticker (its asset defines no decimals → amountBaseUnits
+  // null) and CONSERVES natively (+100 / −100) must NOT throw. The null-decimals sibling is excluded from `valued`, so
+  // summing only the 8dp leg (+1e10 ≠ 0) would FALSE-throw (fail-closed) — the `!valued.length` escape doesn't fire
+  // because one leg IS valued. A null-decimals ASSET leg makes the scope ambiguous → treated as mixed → the retained
+  // soft native-float check nets +100 − 100 = 0 → books. (Reverting the `!hasNullDecimalsAsset` guard makes this throw.)
+  it('does NOT throw on a same-ticker transfer pairing an 8dp asset leg with a null-decimals asset leg (conserves natively)', async () => {
+    const usdtValued = createCustomLedgerAccount({
+      id: 15,
+      name: 'Kraken/USDT-8dp',
+      type: AccountType.ASSET,
+      currency: 'USDT',
+      assetId: 73,
+    });
+    const usdtNullDecimals = createCustomLedgerAccount({
+      id: 16,
+      name: 'Custody/USDT-nodecimals',
+      type: AccountType.ASSET,
+      currency: 'USDT',
+      assetId: 74,
+    });
+    // asset 74 defines no decimals → filtered out of decimalsById → decimalsById.get(74) is undefined → base units null
+    jest
+      .spyOn(assetService, 'getAssetsById')
+      .mockResolvedValue([{ id: 73, decimals: 8 } as any, { id: 74, decimals: null } as any]);
+
+    await service.bookTx({
+      sourceType: 'exchange_tx',
+      sourceId: 't6',
+      seq: 0,
+      bookingDate: new Date('2026-07-17'),
+      legs: [
+        { account: usdtValued, amount: 100, priceChf: 0.9, amountChf: 90 }, // +100 → 1e10 base units (8dp)
+        { account: usdtNullDecimals, amount: -100, priceChf: 0.9, amountChf: -90 }, // −100 → null base units (no decimals)
+      ],
+    });
+
+    expect(savedLegs.length).toBeGreaterThan(0); // null-decimals sibling → ambiguous scope → soft native check → booked, no throw
+    const valuedLeg = savedLegs.find((l) => l.account.name === 'Kraken/USDT-8dp');
+    const nullLeg = savedLegs.find((l) => l.account.name === 'Custody/USDT-nodecimals');
+    expect(valuedLeg?.amountBaseUnits).toBe(10000000000n); // 100 × 10^8
+    expect(nullLeg?.amountBaseUnits).toBeNull(); // asset defines no decimals → null (excluded from the base-unit sum)
+  });
+
   it('reverses a tx with inverted legs and the next free seq', async () => {
     jest.spyOn(dataSource, 'getRepository').mockReturnValue({
       createQueryBuilder: () => ({

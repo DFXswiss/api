@@ -465,9 +465,11 @@ export class LedgerBookingService {
    * matched pairs that conserve exactly — a two-sided same-asset base-unit mismatch does not occur — so throwing here
    * cannot reject a legitimate historical booking.
    *
-   * The base-unit throw path is taken ONLY when the same-currency scope's ASSET legs share EXACTLY ONE decimals; a
-   * same-ticker cross-chain scope spanning multiple decimals (USDT 6dp on ETH/Tron, 18dp on BSC) cannot be summed in
-   * base units and falls back to the pre-PR soft native-float tolerance (log-only) — see the WHY below.
+   * The base-unit throw path is taken ONLY when the same-currency scope is unambiguously single-decimals — its ASSET
+   * legs share EXACTLY ONE decimals AND none has null decimals; a same-ticker cross-chain scope spanning multiple
+   * decimals (USDT 6dp on ETH/Tron, 18dp on BSC), OR one containing a null-decimals ASSET leg (whose unvalued sibling
+   * would else FALSE-throw), is treated as mixed and falls back to the pre-PR soft native-float tolerance (log-only) —
+   * see the WHY below.
    */
   private assertNativeBalance(legs: LedgerLeg[], input: LedgerTxInput, decimalsById: Map<number, number>): void {
     const onlyAssetTransit = legs.every(
@@ -490,18 +492,21 @@ export class LedgerBookingService {
     // chains — USDT is 6dp on ETH/Tron but 18dp on BSC. Summing 6dp and 18dp integers is meaningless: a cross-chain
     // same-ticker ASSET↔ASSET transfer that CONSERVES natively (e.g. +100 USDT-ETH, −100 USDT-BSC) has a non-zero
     // base-unit sum (1e8 − 1e20), so the fail-closed throw below would wrongly wedge a legitimate booking. Take the
-    // exact base-unit throw path ONLY when the scope's ASSET legs share EXACTLY ONE decimals (mirrors
-    // populateTransferCounterBaseUnits' guard — the asset leg AND its TRANSIT counter then share that one decimals and
-    // MUST net to 0n). Otherwise fall back to the pre-PR soft native-float tolerance (log-only) so the old safety net
-    // is retained while never throwing on a cross-chain same-ticker tx that conserves at the currency/native level.
-    const assetDecimals = new Set(
-      currencyLegs
-        .filter((leg) => leg.account.type === AccountType.ASSET && leg.account.assetId != null)
-        .map((leg) => decimalsById.get(leg.account.assetId as number))
-        .filter((decimals): decimals is number => decimals != null),
-    );
+    // exact base-unit throw path ONLY when the scope is unambiguously single-decimals: its ASSET legs share EXACTLY
+    // ONE decimals AND no ASSET leg has null decimals (mirrors populateTransferCounterBaseUnits' guard — the asset leg
+    // AND its TRANSIT counter then share that one decimals and MUST net to 0n). A null-decimals ASSET leg makes the
+    // scope ambiguous, so it is treated as MIXED (not absent): its amountBaseUnits is null → excluded from `valued`,
+    // so summing only its decimals-bearing same-ticker sibling would FALSE-throw on an otherwise natively-conserving
+    // transfer (the `!valued.length` escape does not fire because one leg IS valued). Otherwise (multiple distinct
+    // decimals OR any null-decimals ASSET leg) fall back to the pre-PR soft native-float tolerance (log-only) so the
+    // old safety net is retained while never throwing on a same-ticker tx that conserves at the currency/native level.
+    const scopedAssetDecimals = currencyLegs
+      .filter((leg) => leg.account.type === AccountType.ASSET && leg.account.assetId != null)
+      .map((leg) => decimalsById.get(leg.account.assetId as number));
+    const hasNullDecimalsAsset = scopedAssetDecimals.some((decimals) => decimals == null);
+    const assetDecimals = new Set(scopedAssetDecimals.filter((decimals): decimals is number => decimals != null));
 
-    if (assetDecimals.size === 1) {
+    if (assetDecimals.size === 1 && !hasNullDecimalsAsset) {
       const baseUnitSum = valued.reduce((sum, leg) => sum + (leg.amountBaseUnits as bigint), 0n);
       if (baseUnitSum === 0n) return; // conserves exactly in base units
 
