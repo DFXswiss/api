@@ -14,7 +14,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -28,6 +28,7 @@ import { MoreThan } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
+import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
 import { FeeInfo } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
@@ -97,7 +98,11 @@ export class FeeService {
         blockchainFee.updated = new Date();
         await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
-        this.logger.error(`Failed to update blockchain fee of asset id ${blockchainFee.asset.id}:`, e);
+        // No valid price this cycle: the stored fee stays in effect and the next cron run
+        // refreshes it - only unexpected failures stay at error.
+        const logLevel = e instanceof PriceInvalidException ? LogLevel.WARN : LogLevel.ERROR;
+
+        this.logger.log(logLevel, `Failed to update blockchain fee of asset id ${blockchainFee.asset.id}:`, e);
       }
     }
   }

@@ -1,11 +1,20 @@
 import { DfxLogger } from '../services/dfx-logger';
 import { Util } from './util';
 
+// Node system-error codes plus the one free-text phrase (socket hang up) that has no
+// code. Deliberately no bare "timeout" — that also matches unrelated DB/query timeouts.
+const CONNECTION_FAILURE_PATTERN =
+  /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|EPIPE|socket hang up/i;
+
 export function isConnectionFailure(e: Error): boolean {
-  // Node system-error codes plus the one free-text phrase (socket hang up) that has no
-  // code. Deliberately no bare "timeout" — that also matches unrelated DB/query timeouts.
-  return /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|EPIPE|socket hang up/i.test(
-    e.message ?? '',
+  // Multi-address connects fail as AggregateError with an empty message; the system-error
+  // code then sits only on the code field / member errors (logged as "AggregateError [ETIMEDOUT]").
+  if (e instanceof AggregateError && e.errors.some((inner) => inner instanceof Error && isConnectionFailure(inner)))
+    return true;
+
+  return (
+    CONNECTION_FAILURE_PATTERN.test(e.message ?? '') ||
+    CONNECTION_FAILURE_PATTERN.test((e as NodeJS.ErrnoException).code ?? '')
   );
 }
 

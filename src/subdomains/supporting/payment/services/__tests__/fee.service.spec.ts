@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { mock } from 'jest-mock-extended';
+import { mock, MockProxy } from 'jest-mock-extended';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -16,8 +18,11 @@ import { FeeService } from '../fee.service';
 
 describe('FeeService', () => {
   let service: FeeService;
+  let blockchainFeeRepo: MockProxy<BlockchainFeeRepository>;
 
   beforeAll(async () => {
+    blockchainFeeRepo = mock<BlockchainFeeRepository>();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: FeeRepository, useValue: mock<FeeRepository>() },
@@ -26,7 +31,7 @@ describe('FeeService', () => {
         { provide: UserDataService, useValue: mock<UserDataService>() },
         { provide: SettingService, useValue: mock<SettingService>() },
         { provide: WalletService, useValue: mock<WalletService>() },
-        { provide: BlockchainFeeRepository, useValue: mock<BlockchainFeeRepository>() },
+        { provide: BlockchainFeeRepository, useValue: blockchainFeeRepo },
         { provide: PayoutService, useValue: mock<PayoutService>() },
         { provide: PricingService, useValue: mock<PricingService>() },
         { provide: BankService, useValue: mock<BankService>() },
@@ -35,6 +40,37 @@ describe('FeeService', () => {
     }).compile();
 
     service = module.get<FeeService>(FeeService);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  describe('updateBlockchainFees', () => {
+    it('logs a missing price at warn and keeps the stored fee', async () => {
+      blockchainFeeRepo.find.mockResolvedValue([{ asset: { id: 398 }, amount: 1 } as any]);
+      jest
+        .spyOn(service as any, 'calculateBlockchainFeeInChf')
+        .mockRejectedValue(new PriceInvalidException('No valid price found for ETH -> CHF'));
+      const loggerLog = jest.spyOn(DfxLogger.prototype, 'log').mockImplementation();
+
+      await service.updateBlockchainFees();
+
+      expect(loggerLog).toHaveBeenCalledWith(
+        LogLevel.WARN,
+        expect.stringContaining('398'),
+        expect.any(PriceInvalidException),
+      );
+      expect(blockchainFeeRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps unexpected failures at error', async () => {
+      blockchainFeeRepo.find.mockResolvedValue([{ asset: { id: 398 }, amount: 1 } as any]);
+      jest.spyOn(service as any, 'calculateBlockchainFeeInChf').mockRejectedValue(new Error('estimation failed'));
+      const loggerLog = jest.spyOn(DfxLogger.prototype, 'log').mockImplementation();
+
+      await service.updateBlockchainFees();
+
+      expect(loggerLog).toHaveBeenCalledWith(LogLevel.ERROR, expect.stringContaining('398'), expect.any(Error));
+    });
   });
 
   describe('describeFeeRequest', () => {

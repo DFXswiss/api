@@ -1,5 +1,6 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { In, IsNull, Not } from 'typeorm';
 import { UpdateTradingRuleDto } from '../dto/update-trading-rule.dto';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -92,7 +93,12 @@ export class TradingRuleService {
         await this.orderRepo.save(order);
       }
     } catch (e) {
-      this.logger.error(`Error processing trading rule ${rule.id}:`, e);
+      // Price-source unavailability is already logged at the provider and heals on a later
+      // cycle - only unexpected failures stay at error.
+      const logLevel =
+        e instanceof ServiceUnavailableException || e instanceof PriceInvalidException ? LogLevel.WARN : LogLevel.ERROR;
+
+      this.logger.log(logLevel, `Error processing trading rule ${rule.id}:`, e);
     }
   }
 }
