@@ -13,6 +13,7 @@ WORKDIR /home/node
 
 ADD --chown=node:node package.json .
 ADD --chown=node:node package-lock.json .
+ADD --chown=node:node .npmrc .
 RUN npm ci
 
 ADD --chown=node:node . .
