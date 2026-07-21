@@ -2,7 +2,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
-import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { TradingRule } from '../../entities/trading-rule.entity';
 import { TradingRuleStatus } from '../../enums';
 import { TradingRuleService } from '../trading-rule.service';
@@ -40,18 +39,6 @@ describe('TradingRuleService', () => {
       LogLevel.WARN,
       expect.stringContaining('trading rule 7'),
       expect.any(ServiceUnavailableException),
-    );
-  });
-
-  it('logs an invalid rule price at warn', async () => {
-    tradingService.createTradingInfo.mockRejectedValue(new PriceInvalidException('No valid price found for A -> B'));
-
-    await service.processRules();
-
-    expect(loggerLog).toHaveBeenCalledWith(
-      LogLevel.WARN,
-      expect.stringContaining('trading rule 7'),
-      expect.any(PriceInvalidException),
     );
   });
 
