@@ -5,6 +5,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Headers,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -23,6 +24,7 @@ import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -74,7 +76,7 @@ import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
-import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
+import { ExportFormat, HistoryQuery, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
@@ -83,6 +85,7 @@ import { BaseRefund } from '../dto/refund-internal.dto';
 import { TransactionFilter } from '../dto/transaction-filter.dto';
 import { TransactionRefundDto } from '../dto/transaction-refund.dto';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
+import { HistoryAccessService, HistorySubject } from '../services/history-access.service';
 import { ExportType, HistoryService } from '../services/history.service';
 
 @ApiTags('Transaction')
@@ -93,6 +96,7 @@ export class TransactionController {
 
   constructor(
     private readonly historyService: HistoryService,
+    private readonly historyAccessService: HistoryAccessService,
     private readonly transactionService: TransactionService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
@@ -119,23 +123,43 @@ export class TransactionController {
     }
   }
 
-  // --- OPEN ENDPOINTS --- //
+  // --- HISTORY LIST / EXPORT (auth required: JWT or CT API key) --- //
   @Get()
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: TransactionDto, isArray: true })
+  @ApiOperation({
+    description:
+      'Transaction history for the authenticated subject (Bearer JWT or DFX-ACCESS-KEY/SIGN/TIMESTAMP). ' +
+      'Optional userAddress must belong to the subject.',
+  })
   async getTransactions(
+    @GetJwt() jwt: JwtPayload | undefined,
+    @Headers('DFX-ACCESS-KEY') apiKey: string,
+    @Headers('DFX-ACCESS-SIGN') apiSign: string,
+    @Headers('DFX-ACCESS-TIMESTAMP') apiTimestamp: string,
     @Query() query: HistoryQueryUser,
     @Res({ passthrough: true }) res: Response,
   ): Promise<TransactionDto[] | StreamableFile> {
     if (!query.format) query.format = ExportFormat.JSON;
-    return this.getHistoryData(query, ExportType.COMPACT, res);
+    const subject = await this.resolveListSubject(jwt, query.userAddress, apiKey, apiSign, apiTimestamp);
+    return this.getHistoryDataForSubject(subject, query, ExportType.COMPACT, res);
   }
 
+  /**
+   * Public status lookup by capability identifier (UID / CKO id / order UID).
+   * Unauthenticated callers receive a reduced public DTO (no IBAN/fees/external ids).
+   * Owner or staff JWT receives the full compact DTO.
+   */
   @Get('single')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOkResponse({ type: TransactionDto })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
   @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
   @ApiQuery({ name: 'cko-id', description: 'CKO ID', required: false })
   async getSingleTransaction(
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('uid') uid?: string,
     @Query('order-uid') orderUid?: string,
     @Query('cko-id') ckoId?: string,
@@ -145,21 +169,39 @@ export class TransactionController {
     const dto = await this.getTransactionDto(tx);
     if (!dto) throw new NotFoundException('Transaction not found');
 
-    return dto;
+    if (this.historyAccessService.canViewFullTransaction(jwt, tx)) return dto;
+
+    return TransactionDtoMapper.toPublicDto(dto);
   }
 
   @Put('csv')
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse()
-  @ApiOperation({ description: 'Initiate CSV history export' })
-  async createCsv(@Query() query: HistoryQueryUser): Promise<string> {
-    const csvFile = await this.historyService.getCsvHistory({ ...query, format: ExportFormat.CSV }, ExportType.COMPACT);
+  @ApiOperation({ description: 'Initiate CSV history export (requires JWT or CT API key)' })
+  async createCsv(
+    @GetJwt() jwt: JwtPayload | undefined,
+    @Headers('DFX-ACCESS-KEY') apiKey: string,
+    @Headers('DFX-ACCESS-SIGN') apiSign: string,
+    @Headers('DFX-ACCESS-TIMESTAMP') apiTimestamp: string,
+    @Query() query: HistoryQueryUser,
+  ): Promise<string> {
+    const subject = await this.resolveListSubject(jwt, query.userAddress, apiKey, apiSign, apiTimestamp);
+    const csvFile = await this.historyService.getCsvHistoryForSubject(
+      subject,
+      { ...query, format: ExportFormat.CSV },
+      ExportType.COMPACT,
+    );
 
     return this.cacheCsv(csvFile);
   }
 
   @Get('csv')
   @ApiOkResponse({ type: StreamableFile })
-  @ApiOperation({ description: 'Get initiated CSV history export' })
+  @ApiOperation({
+    description:
+      'Download a previously initiated CSV export by one-time key. Key is only issued after authenticated createCsv.',
+  })
   async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
     const csvFile = this.files[key];
     if (!csvFile) throw new NotFoundException('File not found');
@@ -171,25 +213,39 @@ export class TransactionController {
   }
 
   @Get('CoinTracking')
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: CoinTrackingCsvHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   async getCsvCT(
+    @GetJwt() jwt: JwtPayload | undefined,
+    @Headers('DFX-ACCESS-KEY') apiKey: string,
+    @Headers('DFX-ACCESS-SIGN') apiSign: string,
+    @Headers('DFX-ACCESS-TIMESTAMP') apiTimestamp: string,
     @Query() query: HistoryQueryUser,
     @Res({ passthrough: true }) res: Response,
   ): Promise<CoinTrackingCsvHistoryDto[] | StreamableFile> {
     if (!query.format) query.format = ExportFormat.CSV;
-    return this.getHistoryData(query, ExportType.COIN_TRACKING, res);
+    const subject = await this.resolveListSubject(jwt, query.userAddress, apiKey, apiSign, apiTimestamp);
+    return this.getHistoryDataForSubject(subject, query, ExportType.COIN_TRACKING, res);
   }
 
   @Get('ChainReport')
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: ChainReportCsvHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   async getCsvChainReport(
+    @GetJwt() jwt: JwtPayload | undefined,
+    @Headers('DFX-ACCESS-KEY') apiKey: string,
+    @Headers('DFX-ACCESS-SIGN') apiSign: string,
+    @Headers('DFX-ACCESS-TIMESTAMP') apiTimestamp: string,
     @Query() query: HistoryQueryUser,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ChainReportCsvHistoryDto[] | StreamableFile> {
     if (!query.format) query.format = ExportFormat.CSV;
-    return this.getHistoryData(query, ExportType.CHAIN_REPORT, res);
+    const subject = await this.resolveListSubject(jwt, query.userAddress, apiKey, apiSign, apiTimestamp);
+    return this.getHistoryDataForSubject(subject, query, ExportType.CHAIN_REPORT, res);
   }
 
   // --- AUTHORIZED ENDPOINTS --- //
@@ -650,14 +706,31 @@ export class TransactionController {
     return Util.secondsDiff(refundData.expiryDate) <= 0;
   }
 
-  public async getHistoryData<T extends ExportType>(
-    query: HistoryQueryUser,
+  public async getHistoryDataForSubject<T extends ExportType>(
+    subject: HistorySubject,
+    query: HistoryQuery,
     exportType: T,
-    res: any,
+    res: Response,
   ): Promise<HistoryDto<T>[] | StreamableFile> {
-    const tx = await this.historyService.getHistory(query, exportType);
+    const tx = await this.historyService.getHistoryForSubject(subject, query, exportType);
     if (query.format === ExportFormat.CSV) this.setCsvResult(res, exportType);
     return tx;
+  }
+
+  private async resolveListSubject(
+    jwt: JwtPayload | undefined,
+    userAddress: string | undefined,
+    apiKey: string | undefined,
+    apiSign: string | undefined,
+    apiTimestamp: string | undefined,
+  ): Promise<HistorySubject> {
+    return this.historyAccessService.resolveListSubject({
+      jwt,
+      userAddress,
+      apiKey,
+      apiSign,
+      apiTimestamp,
+    });
   }
 
   private cacheCsv(csvFile: StreamableFile): string {

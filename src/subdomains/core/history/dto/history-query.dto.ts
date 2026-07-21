@@ -1,6 +1,6 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsDate, IsEnum, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExportType } from '../services/history.service';
 import { HistoryFilter } from './history-filter.dto';
@@ -50,10 +50,18 @@ export class HistoryQuery extends HistoryFilter {
 }
 
 export class HistoryQueryUser extends HistoryQuery {
-  @ApiProperty()
-  @IsNotEmpty()
+  /**
+   * Optional wallet filter. When omitted, JWT/API-key subject scope is used
+   * (account-level history for account tokens, wallet for user tokens).
+   * When set, the address must belong to the authenticated subject.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Optional wallet address filter; must belong to the authenticated subject. When omitted, subject scope is used.',
+  })
+  @IsOptional()
   @IsString()
-  userAddress: string;
+  userAddress?: string;
 }
 
 export class HistoryQueryExportType extends HistoryQuery {

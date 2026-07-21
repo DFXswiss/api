@@ -16,6 +16,9 @@ export interface FeeConfig {
   defaultFeeMultiplier: number;
 }
 
+// Node's own minimum relay fee floor (sat/vB); broadcasts below this are rejected outright.
+const MIN_FEE_RATE_SAT_VB = 1;
+
 export abstract class BitcoinBasedFeeService {
   private readonly logger = new DfxLogger(BitcoinBasedFeeService);
 
@@ -92,6 +95,9 @@ export abstract class BitcoinBasedFeeService {
 
     // Bitcoin Core's send RPC parses fee_rate with decimals=3; un-rounded floating-point
     // products (e.g. 1.935 * 2 = 3.8699999999999997) are rejected with "Invalid amount".
-    return Util.round(baseRate * multiplier, 3);
+    // estimateSmartFee can also return an estimate below the node's own minimum relay fee
+    // during periods of very low mempool activity, so clamp the value that is actually
+    // broadcast to that floor; the raw estimate from getRecommendedFeeRate() stays unclamped.
+    return Math.max(Util.round(baseRate * multiplier, 3), MIN_FEE_RATE_SAT_VB);
   }
 }

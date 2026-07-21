@@ -126,6 +126,52 @@ describe('BitcoinFeeService', () => {
     });
   });
 
+  // --- getSendFeeRate() minimum fee rate floor Tests --- //
+
+  describe('getSendFeeRate() minimum fee rate floor', () => {
+    const feeConfig = { allowUnconfirmedUtxos: false, cpfpFeeMultiplier: 2.0, defaultFeeMultiplier: 1.5 };
+
+    beforeEach(() => {
+      Object.defineProperty(service, 'feeConfig', { get: () => feeConfig });
+    });
+
+    it('should leave a fee rate comfortably above the minimum relay fee unaffected', async () => {
+      mockClient.estimateSmartFee.mockResolvedValueOnce(10); // 10 * defaultFeeMultiplier (1.5) = 15
+
+      const result = await service.getSendFeeRate();
+
+      expect(result).toBe(15);
+    });
+
+    it('should clamp a below-floor estimate to the minimum relay fee', async () => {
+      // Reproduces a production incident: estimateSmartFee returned 0.664 sat/vB during a
+      // period of very low mempool activity. Even after the default safety multiplier
+      // (0.664 * 1.5 = 0.996), the result still undercut the node's 1 sat/vB minimum relay
+      // fee, so the broadcast was rejected. The clamp must raise this to exactly 1.
+      mockClient.estimateSmartFee.mockResolvedValueOnce(0.664);
+
+      const result = await service.getSendFeeRate();
+
+      expect(result).toBe(1);
+    });
+
+    it('should act as a floor and not override values already above the minimum', async () => {
+      mockClient.estimateSmartFee.mockResolvedValueOnce(0.7); // 0.7 * 1.5 = 1.05
+
+      const result = await service.getSendFeeRate();
+
+      expect(result).toBe(1.05);
+    });
+
+    it('should not clamp the underlying recommended fee rate, only the send fee rate', async () => {
+      mockClient.estimateSmartFee.mockResolvedValueOnce(0.664);
+
+      const recommended = await service.getRecommendedFeeRate();
+
+      expect(recommended).toBe(0.664);
+    });
+  });
+
   // --- getTxFeeRate() Tests --- //
 
   describe('getTxFeeRate()', () => {
