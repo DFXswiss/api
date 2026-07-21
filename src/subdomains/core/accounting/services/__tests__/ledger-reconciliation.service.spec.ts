@@ -518,6 +518,112 @@ describe('LedgerReconciliationService', () => {
       expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // 1d < 3d threshold
     });
 
+    // §2.3 EXACT base-unit zero-crossing — the integer counterpart of the float churning test above. For a SINGLE-asset
+    // transit (assetId != null ⇒ one decimals scale) whose legs ALL carry base units, openResidualSince cumulates the
+    // EXACT integer base units, so a sub-8dp (wei-level) residual can neither fabricate nor swallow a zero-crossing. The
+    // assetId-less fixtures above only ever drive the float fallback; these drive the exact loop (lines 366-375) and
+    // contrast it against the float verdict to stay non-vacuous.
+
+    // (a)+(b): a 3-wei residual sits BELOW the float 8dp resolution — the balance never truly returned to 0, so the
+    // exact loop keeps openSince at the ANCIENT opening leg, whereas the float fallback rounds the wei away, sees a
+    // spurious close+re-open and reports the YOUNG leg. Asserting exact ≠ float (and exact = ancient) proves the EXACT
+    // integer path produced the answer; it would fail if the exact loop fell back to the float cumulation.
+    it('openResidualSince (exact path) keeps the ancient openSince when a sub-8dp wei residual never truly closes', async () => {
+      const opened = Util.daysBefore(20);
+      const reopened = Util.daysBefore(2);
+      legStub.transitLegs = [
+        { amount: '1.0', baseUnits: '1000000000000000000', bookingDate: opened }, // +1.0 token (18dp) → opens
+        { amount: '-1.0', baseUnits: '-999999999999999997', bookingDate: Util.daysBefore(15) }, // −(1.0 − 3 wei): float nets to 0, exact leaves 3 wei
+        { amount: '0.5', baseUnits: '500000000000000000', bookingDate: reopened }, // +0.5 token
+      ];
+
+      const exact = await (service as any).openResidualSince(1, true); // singleAsset ⇒ EXACT integer cumulation
+      const float = await (service as any).openResidualSince(1, false); // fallback ⇒ float cumulation (8dp)
+
+      expect(exact).toEqual(opened); // 3-wei residual ⇒ never closed ⇒ ancient opening leg
+      expect(float).toEqual(reopened); // wei rounded away ⇒ spurious close+re-open ⇒ young leg
+      expect(exact).not.toEqual(float); // the two paths genuinely diverge (non-vacuous)
+    });
+
+    // (b): a GENUINE exact crossing to 0n resets openSince and the next leg re-opens a fresh residual — the exact loop
+    // must return the RE-OPEN leg's date, not the ancient opener. A one-wei-short variant must NOT reset (stays ancient),
+    // proving the `=== 0n` crossing test is load-bearing (an off-by-one-wei bug would keep the ancient date).
+    it('openResidualSince (exact path) resets at an EXACT 0n crossing and re-opens at the later leg', async () => {
+      const opened = Util.daysBefore(20);
+      const reopened = Util.daysBefore(2);
+      legStub.transitLegs = [
+        { amount: '1.0', baseUnits: '1000000000000000000', bookingDate: opened }, // opens
+        { amount: '-1.0', baseUnits: '-1000000000000000000', bookingDate: Util.daysBefore(15) }, // EXACT 0n → closes
+        { amount: '0.5', baseUnits: '500000000000000000', bookingDate: reopened }, // re-opens fresh
+      ];
+      expect(await (service as any).openResidualSince(1, true)).toEqual(reopened); // reset at 0n ⇒ young re-open leg
+
+      legStub.transitLegs[1].baseUnits = '-999999999999999999'; // 1 wei short of 0n ⇒ no reset
+      expect(await (service as any).openResidualSince(1, true)).toEqual(opened); // stays the ancient opening leg
+    });
+
+    // full-flow (checkTransitAge → run): a single-asset transit whose EXACT residual is a sub-8dp wei amount is NOT
+    // skipped by isExactlyClosed (base-unit sum ≠ 0n) and its exact (ancient) openSince drives a real overdue alarm —
+    // where the assetId-less float fallback would have rounded the wei away and stayed silent. Proves the exact loop is
+    // wired end-to-end through run() and that isExactlyClosed did not short-circuit it.
+    it('emits an overdue alarm from the EXACT base-unit openSince for a single-asset transit (float would stay silent)', async () => {
+      const opened = Util.daysBefore(20);
+      legStub.transit = [
+        {
+          id: 12,
+          name: 'TRANSIT/native/xETH',
+          assetId: 77, // single-asset ⇒ exact path eligible
+          native: '0.5', // float SUM(amount) ≠ 0 → an open candidate (passes the HAVING pre-filter)
+          baseUnits: '500000000000000003', // exact residual ≠ 0n ⇒ isExactlyClosed = false (not skipped)
+          legCount: '3',
+          valuedCount: '3',
+        },
+      ];
+      legStub.transitLegs = [
+        { amount: '1.0', baseUnits: '1000000000000000000', bookingDate: opened }, // opens 20d ago
+        { amount: '-1.0', baseUnits: '-999999999999999997', bookingDate: Util.daysBefore(15) }, // 3 wei short of close
+        { amount: '0.5', baseUnits: '500000000000000000', bookingDate: Util.daysBefore(2) },
+      ];
+
+      await service.run();
+
+      const overdue = mails.find((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE);
+      expect(overdue).toBeDefined(); // exact openSince = 20d > 3d threshold ⇒ alarm (float openSince 2d ⇒ would be silent)
+      expect((overdue.input as { errors: string[] }).errors[0]).toContain(opened.toISOString()); // aged from the ancient exact crossing
+    });
+
+    // isExactlyClosed: the EXACT-zero verdict is trusted ONLY for a single-asset, fully-valued account. Directly pins
+    // the true branch (assetId != null ∧ all legs valued ∧ Σ base units = 0n) plus each guard that must fall to false.
+    it('isExactlyClosed is true only for a single-asset, fully-valued, exactly-0n residual', () => {
+      const closed = { assetId: 42, baseUnits: '0', legCount: '3', valuedCount: '3' };
+      expect((service as any).isExactlyClosed(closed)).toBe(true); // the exact-zero point
+      expect((service as any).isExactlyClosed({ ...closed, baseUnits: '5' })).toBe(false); // residual ≠ 0n
+      expect((service as any).isExactlyClosed({ ...closed, assetId: null })).toBe(false); // shared/bridge (assetId null)
+      expect((service as any).isExactlyClosed({ ...closed, valuedCount: '2' })).toBe(false); // not all legs valued
+      expect((service as any).isExactlyClosed({ ...closed, baseUnits: null })).toBe(false); // no base units at all
+    });
+
+    // full-flow: a single-asset transit that passed the float HAVING pre-filter on 8dp noise but whose EXACT base-unit
+    // sum is 0n is treated as closed by isExactlyClosed → skipped → no overdue alarm (openResidualSince never consulted).
+    it('skips a single-asset transit whose EXACT base-unit sum is 0n despite float noise (no overdue alarm)', async () => {
+      legStub.transit = [
+        {
+          id: 13,
+          name: 'TRANSIT/native/xBTC',
+          assetId: 88,
+          native: '0.00000002', // 2e-8 > 1e-8 float noise ⇒ passed the HAVING pre-filter (a candidate)
+          baseUnits: '0', // but the EXACT base-unit sum is 0n ⇒ truly closed
+          legCount: '2',
+          valuedCount: '2',
+        },
+      ];
+      legStub.transitLegs = [{ amount: '1', baseUnits: '1', bookingDate: Util.daysBefore(20) }]; // would alarm if consulted
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // isExactlyClosed ⇒ skip
+    });
+
     // Finding 1 / F3 (regression): the residual age comes from ledger_tx.bookingDate — bookingDate lives on ledger_tx,
     // NOT ledger_leg. openResidualSince MUST join leg.tx and select tx.bookingDate; a leg.bookingDate references a
     // non-existent column and crashes EVERY reconciliation run on real PG. Also assert MIN(tx.bookingDate) is gone (F3:
