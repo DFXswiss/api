@@ -99,9 +99,10 @@ export class FeeService {
         await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
         // A price outage heals on a later cycle while the stored fee stays in effect - downgrade
-        // only while the last successful refresh is recent; a permanently unpriceable asset
-        // (e.g. missing price rule) must stay loud.
-        const isFreshPriceOutage = e instanceof PriceInvalidException && blockchainFee.updated > Util.minutesBefore(30);
+        // only while the fee is still served (FeeValidityMinutes); a permanently unpriceable
+        // asset (e.g. missing price rule) must stay loud.
+        const isFreshPriceOutage =
+          e instanceof PriceInvalidException && blockchainFee.updated > Util.minutesBefore(FeeValidityMinutes);
         const logLevel = isFreshPriceOutage ? LogLevel.WARN : LogLevel.ERROR;
 
         this.logger.log(logLevel, `Failed to update blockchain fee of asset id ${blockchainFee.asset.id}:`, e);
