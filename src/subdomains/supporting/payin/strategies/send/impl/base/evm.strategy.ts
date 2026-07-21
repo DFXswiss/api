@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import {
@@ -108,7 +109,16 @@ export abstract class EvmStrategy extends SendStrategy {
           minConfirmations,
         );
         if (isConfirmed) {
-          await this.payInRepo.update(...payIn.confirm(direction, this.forwardRequired));
+          const [id, update] = payIn.confirm(direction, this.forwardRequired);
+          // §2.3 exactness (issue #4287): the forward tx is now mined, so its EXACT gas fee wei is readable. Persist it
+          // ALONGSIDE the FORWARD_CONFIRMED transition (one atomic update) so the accounting consumer — which books the
+          // seq1 fee leg only once the row is FORWARD_CONFIRMED — reads it on the same row. Fail-open null (token /
+          // non-EVM / capture error) -> the ledger derives the fee leg from the estimate float.
+          if (direction === PayInConfirmationType.OUTPUT) {
+            const feeBaseUnits = await this.forwardFeeBaseUnits(payIn);
+            if (feeBaseUnits != null) update.forwardFeeAmountBaseUnits = feeBaseUnits;
+          }
+          await this.payInRepo.update(id, update);
         } else if (direction === PayInConfirmationType.OUTPUT && Util.minutesDiff(payIn.updated) > 30) {
           await this.resetForward(payIn, 'timed out');
         }
@@ -132,6 +142,21 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   //*** HELPER METHODS ***//
+
+  // §2.3 native-first exactness (issue #4287): fail-open capture of the EXACT on-chain forward gas fee wei of a COIN
+  // forward. For a COIN the native gas coin IS the forwarded (and seq1-booked) asset at 18-dp wei, so the exact
+  // gasUsed*effectiveGasPrice is verbatim-bookable on that leg. A TOKEN forward pays gas in the native coin — a
+  // DIFFERENT asset than the seq1 leg's deposit token — so no exact integer exists at that leg's scale -> null (derive
+  // from the estimate float). A coin misconfigured with decimals != 18 or any RPC error also -> null (never a wrong
+  // exact figure); the 18-dp guard mirrors the payout EvmStrategy.sentBaseUnits coin@18 guard.
+  private async forwardFeeBaseUnits(payIn: CryptoInput): Promise<bigint | null> {
+    if (payIn.asset?.type !== AssetType.COIN || payIn.asset?.decimals !== 18 || !payIn.outTxId) return null;
+    try {
+      return await this.payInEvmService.getTxActualFeeBaseUnits(payIn.outTxId);
+    } catch {
+      return null;
+    }
+  }
 
   private logInput(payIns: CryptoInput[], type: SendType): void {
     const newPayIns = payIns.filter((p) => p.status !== PayInStatus.PREPARING);

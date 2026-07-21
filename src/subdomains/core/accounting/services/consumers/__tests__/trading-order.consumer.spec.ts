@@ -342,4 +342,29 @@ describe('TradingOrderConsumer', () => {
 
     expect(booked).toHaveLength(0); // covered → no fresh seq0
   });
+
+  // §2.3 exactness (#4287 stage 2): the captured swap wei flow verbatim onto the two cross-asset legs, signed to match
+  // each leg's amount (Dr out = +, Cr in = −). The tx is cross-asset (USDT ≠ TOKEN) AND carries CHF fee/plug legs → it is
+  // out of assertNativeBalance's same-currency ASSET/TRANSIT throw scope, so the overrides can never trip it.
+  it('books the captured swap wei verbatim on both legs, signed to the leg (#4287 stage 2)', async () => {
+    const outWei = 836123456789012345678n; // > 8-dp precision the float leg amount (836) cannot carry
+    const inWei = 967987654321098765432n;
+    mockBatch([tradingOrder({ id: 50, amountOutBaseUnits: outWei, amountInBaseUnits: inWei })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/TOKEN').amountBaseUnits).toBe(outWei); // Dr out leg → positive, verbatim
+    expect(leg(tx, 'Ethereum/USDT').amountBaseUnits).toBe(-inWei); // Cr in leg → negated to match −amountIn
+  });
+
+  // §2.3 fail-open (#4287 stage 2): a swap without captured base units leaves both leg overrides undefined → the ledger
+  // derives from the ≤8-dp float exactly as before.
+  it('leaves both leg overrides undefined when no base units were captured (fail-open, #4287 stage 2)', async () => {
+    mockBatch([tradingOrder({ id: 51 })]); // amountIn/OutBaseUnits unset
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/TOKEN').amountBaseUnits).toBeUndefined();
+    expect(leg(tx, 'Ethereum/USDT').amountBaseUnits).toBeUndefined();
+  });
 });

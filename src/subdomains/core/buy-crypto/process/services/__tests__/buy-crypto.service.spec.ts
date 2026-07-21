@@ -415,4 +415,41 @@ describe('BuyCryptoService', () => {
       );
     });
   });
+
+  describe('createFromCryptoInput exact base-unit propagation (#4287 stage 4)', () => {
+    it('propagates the linked crypto_input on-chain base units into inputAmountBaseUnits (exact beyond 8 dp)', async () => {
+      jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
+      jest.spyOn(service as any, 'createEntity').mockImplementation(async (e: BuyCrypto) => e);
+
+      const cryptoInput = createCustomCryptoInput({
+        amount: 1.23456789,
+        // 18-dp wei — NOT representable in the 8-dp float `amount`; the exact integer must survive verbatim
+        amountBaseUnits: 1234567890123456789n,
+        asset: createCustomAsset({ name: 'ETH', decimals: 18 }),
+        transaction: { id: 1 } as any,
+      });
+
+      const result = await service.createFromCryptoInput(cryptoInput, {} as any);
+
+      expect(result.inputAmountBaseUnits).toBe(1234567890123456789n);
+      // existing float column is untouched (backward compatible)
+      expect(result.inputAmount).toBe(1.23456789);
+    });
+
+    it('fails open to a null inputAmountBaseUnits when the crypto_input has no captured base units', async () => {
+      jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
+      jest.spyOn(service as any, 'createEntity').mockImplementation(async (e: BuyCrypto) => e);
+
+      const cryptoInput = createCustomCryptoInput({
+        amount: 0.1,
+        amountBaseUnits: null,
+        transaction: { id: 2 } as any,
+      });
+
+      const result = await service.createFromCryptoInput(cryptoInput, {} as any);
+
+      expect(result.inputAmountBaseUnits).toBeNull();
+      expect(result.inputAmount).toBe(0.1);
+    });
+  });
 });

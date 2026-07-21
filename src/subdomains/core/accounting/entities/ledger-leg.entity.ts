@@ -1,5 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, RelationId } from 'typeorm';
+import { baseUnitsTransformer } from './ledger-base-units.transformer';
 import { chfCentsTransformer } from './ledger-cents.transformer';
 import { LedgerAccount } from './ledger-account.entity';
 import { LedgerTx } from './ledger-tx.entity';
@@ -25,6 +26,13 @@ export class LedgerLeg extends IEntity {
   // native, signed (Dr = +, Cr = −); 8-decimal display rounding is a service convention, not DB precision
   @Column({ type: 'float' })
   amount: number;
+
+  // §2.3 native-first exactness (phase 1): the EXACT native quantity as integer base units (amount × 10^asset.decimals,
+  // e.g. satoshi/wei) — arbitrary-precision `numeric`, mirroring the exact bigint amountChfCents on the CHF side. Null
+  // when the account carries no asset decimals (fiat / TRANSIT / EQUITY / EXPENSE — covered by amountChfCents, or a
+  // later phase). Set by the booking service from the asset's decimals; backfilled for existing legs.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  amountBaseUnits?: bigint | null;
 
   @Column({ type: 'float', nullable: true })
   priceChf?: number; // CHF rate at booking (null if native/flag only)

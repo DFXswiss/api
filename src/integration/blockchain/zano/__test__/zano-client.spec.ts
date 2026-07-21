@@ -11,6 +11,8 @@ import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payo
 import { TxBroadcastError } from '../../shared/errors/tx-broadcast.error';
 import { ZanoClient } from '../zano-client';
 
+const ZANO_COIN_ID = 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a';
+
 jest.mock('src/config/config', () => {
   const mockConfig = {
     blockchain: {
@@ -50,6 +52,46 @@ describe('ZanoClient - broadcast boundary', () => {
   });
 
   const payout: PayoutGroup = [{ addressTo: 'ZANO_DEST_ADDR', amount: 1.5 }];
+
+  // #4287 stage 3: the exact atomic-unit -> whole-unit decimal capture used by the deposit exact path.
+  describe('getTransactionHistory(...) exact base-unit capture (#4287 stage 3)', () => {
+    function txClient(receive: { amount: number; asset_id: string; index: number }[]): ZanoClient {
+      const get = jest.fn().mockResolvedValue({ height: 11 }); // getNodeBlockHeight -> 10, so count > 0
+      const post = jest.fn().mockResolvedValue({
+        result: {
+          transfers: [
+            {
+              height: 5,
+              tx_hash: 'TX',
+              tx_type: 0,
+              fee: 10000000000,
+              timestamp: 1,
+              payment_id: '',
+              employed_entries: { receive },
+            },
+          ],
+        },
+      });
+      return new ZanoClient({ post, get } as unknown as jest.Mocked<HttpService>);
+    }
+
+    it('captures the exact whole-unit coin decimal from the raw atomic integer (12-dp precision)', async () => {
+      const client = txClient([{ amount: 123456789012, asset_id: ZANO_COIN_ID, index: 0 }]);
+
+      const [transfer] = await client.getTransactionHistory(0);
+
+      expect(transfer.receive[0].amountExact).toBe('0.123456789012'); // exact, lost by the 8-dp float derivation
+      expect(transfer.receive[0].amount).toBeCloseTo(0.123456789012, 12);
+    });
+
+    it('leaves amountExact undefined for an atomic value beyond the safe-integer range (fail-open)', async () => {
+      const client = txClient([{ amount: Number.MAX_SAFE_INTEGER + 2, asset_id: ZANO_COIN_ID, index: 0 }]);
+
+      const [transfer] = await client.getTransactionHistory(0);
+
+      expect(transfer.receive[0].amountExact).toBeUndefined();
+    });
+  });
 
   describe('sendCoins(...)', () => {
     it('returns the tx id on a successful transfer', async () => {

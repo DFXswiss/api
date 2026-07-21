@@ -153,14 +153,26 @@ export class LiquidityOrderDexConsumer {
     const bookingDate = order.updated;
 
     // both ASSET legs always via stage-2 mark (no *Chf field, §5.1); missing mark → needsMark, plug stays open
+    // §2.3 exactness (#4287 stage 2): pass the captured DfxDex swap wei so each cross-asset leg books wei-exact.
+    // A same-asset fee folded into a leg (appendFeeLegs → addToLeg) drops that leg's override (native then
+    // diverges from the captured swap amount). The tx is cross-asset and carries CHF fee/spread legs, so it is
+    // out of assertNativeBalance's same-currency ASSET/TRANSIT throw scope.
     const targetLeg = this.assetLeg(
       await this.assetAccount(targetAsset),
       targetAsset,
       +targetAmount,
       bookingDate,
       marks,
+      order.targetAmountBaseUnits,
     );
-    const swapLeg = this.assetLeg(await this.assetAccount(swapAsset), swapAsset, -swapAmount, bookingDate, marks);
+    const swapLeg = this.assetLeg(
+      await this.assetAccount(swapAsset),
+      swapAsset,
+      -swapAmount,
+      bookingDate,
+      marks,
+      order.swapAmountBaseUnits,
+    );
 
     const legs: LedgerLegInput[] = [targetLeg, swapLeg];
     await this.appendFeeLegs(order, bookingDate, marks, targetLeg, swapLeg, legs);
@@ -227,6 +239,11 @@ export class LiquidityOrderDexConsumer {
       priceChf: mark ?? null,
       amountChf: feeChf != null ? -feeChf : undefined,
       needsMark: feeNeedsMark,
+      // §2.3 exactness (#4287 stage 3): book the EXACT gas-fee wei verbatim on this un-folded third-asset fee leg
+      // (negated for the credit) — the leg's native quantity IS feeAmount, so the captured wei matches exactly. The
+      // folded swap/target branches (addToLeg) drop the override and derive. Cross-asset tx with CHF fee legs -> out
+      // of assertNativeBalance same-currency throw scope. null -> derive from the float (fail-open).
+      amountBaseUnits: order.feeAmountBaseUnits != null ? -order.feeAmountBaseUnits : undefined,
     });
   }
 
@@ -253,6 +270,7 @@ export class LiquidityOrderDexConsumer {
     amount: number,
     bookingDate: Date,
     marks: LedgerMarkCache,
+    exactBaseUnits?: bigint | null,
   ): LedgerLegInput {
     const mark = marks.getMarkAt(asset.id, bookingDate);
     const chf = mark != null ? Util.round(mark * Math.abs(amount), 2) : undefined;
@@ -262,6 +280,9 @@ export class LiquidityOrderDexConsumer {
       priceChf: mark ?? null,
       amountChf: chf != null ? (amount >= 0 ? chf : -chf) : undefined,
       needsMark: chf == null,
+      // §2.3 exactness (#4287 stage 2): book the EXACT captured swap wei verbatim, signed to match the leg amount
+      // (the entity stores a positive magnitude); null → derive from the ≤8-dp float (fail-open).
+      amountBaseUnits: exactBaseUnits != null ? (amount >= 0 ? exactBaseUnits : -exactBaseUnits) : undefined,
     };
   }
 
@@ -274,6 +295,10 @@ export class LiquidityOrderDexConsumer {
     leg.amount = Util.round(leg.amount + nativeDelta, 8);
     if (chfDelta != null && leg.amountChf != null) leg.amountChf = Util.round(leg.amountChf + chfDelta, 2);
     if (needsMark || chfDelta == null) leg.needsMark = true;
+    // §2.3 exactness (#4287 stage 2): a folded same-asset fee makes this leg's native quantity (amount + fee)
+    // diverge from the captured swap wei (which represents the un-folded swap amount) → drop the exact override
+    // and derive from the float (mirrors stage-1 payout's fee-fold rule).
+    leg.amountBaseUnits = undefined;
   }
 
   // --- HELPERS --- //

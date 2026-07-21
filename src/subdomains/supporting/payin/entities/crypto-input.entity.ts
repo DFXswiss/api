@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
@@ -102,6 +103,13 @@ export class CryptoInput extends IEntity {
   @Column({ type: 'float' })
   amount: number;
 
+  // §2.3 native-first exactness (issue #4287 stage 1): the EXACT integer base units (wei/satoshi) of `amount`,
+  // captured from the on-chain raw value at ingestion BEFORE the float collapse in `amount`. Nullable + additive —
+  // legacy rows and chains without a raw integer stay null and the ledger falls back to the ≤8-dp float derivation
+  // (fail-open). numeric ↔ JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  amountBaseUnits?: bigint | null;
+
   @Column({ nullable: true, type: 'float' })
   chargebackAmount?: number;
 
@@ -110,6 +118,14 @@ export class CryptoInput extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   forwardFeeAmountChf?: number;
+
+  // §2.3 native-first exactness (issue #4287): the EXACT integer base units (wei) of the on-chain deposit-FORWARD gas
+  // fee — the actual gasUsed*effectiveGasPrice of the forward tx, captured at OUTPUT confirmation. Nullable + additive:
+  // set ONLY for an EVM COIN forward (the native gas coin IS the forwarded/booked asset, 18-dp wei); token forwards,
+  // non-EVM chains, legacy rows and any capture error stay null and the ledger derives the seq1 fee leg from the
+  // estimate float (fail-open). numeric <-> JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  forwardFeeAmountBaseUnits?: bigint | null;
 
   @Index()
   @ManyToOne(() => Asset, { nullable: true, eager: true })
@@ -157,6 +173,7 @@ export class CryptoInput extends IEntity {
     blockHeight: number,
     amount: number,
     asset: Asset,
+    amountBaseUnits?: bigint | null,
   ): CryptoInput {
     const payIn = new CryptoInput();
 
@@ -167,6 +184,7 @@ export class CryptoInput extends IEntity {
     payIn.txSequence = txSequence;
     payIn.blockHeight = blockHeight;
     payIn.amount = amount;
+    payIn.amountBaseUnits = amountBaseUnits ?? null;
     payIn.asset = asset;
 
     payIn.status = PayInStatus.CREATED;

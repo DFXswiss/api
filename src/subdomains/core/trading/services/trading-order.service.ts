@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -186,6 +187,12 @@ export class TradingOrderService {
       const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
 
       const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
+      // §2.3 native-first exactness (#4287 stage 2): capture the EXACT swap wei ALONGSIDE the floats (additive,
+      // fail-open) so the ledger books the arbitrage swap legs wei-exact. INPUT = order.amountIn scaled at the
+      // broadcast resolution (toBroadcastBaseUnits, coin=18/token=decimals guard); OUTPUT = the raw on-chain
+      // output-transfer wei from the same log getSwapResult reads. Any capture error leaves the field null → derive.
+      order.amountInBaseUnits = EvmUtil.toBroadcastBaseUnits(order.amountIn, order.assetIn);
+      order.amountOutBaseUnits = await this.swapOutputBaseUnits(client, order);
       const txFee = await client.getTxActualFee(order.txId);
       const swapFee = order.amountIn * EvmUtil.poolFeeFactor(order.tradingRule.poolFee);
 
@@ -220,6 +227,16 @@ export class TradingOrderService {
       this.logger.verbose(message);
     } catch (e) {
       this.logger.warn(`Failed to complete trading order ${order.id} (rule ${order.tradingRule.id}):`, e);
+    }
+  }
+
+  // §2.3 native-first exactness (#4287 stage 2): the EXACT raw on-chain output wei of the swap, from the same
+  // output-transfer log getSwapResult reads. Fail-open null on any RPC/log error so completion never breaks.
+  private async swapOutputBaseUnits(client: EvmClient, order: TradingOrder): Promise<bigint | null> {
+    try {
+      return await client.getSwapResultBaseUnits(order.txId, order.assetOut);
+    } catch {
+      return null;
     }
   }
 

@@ -76,16 +76,52 @@ export class EvmUtil {
   }
 
   static fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
-    const amount =
-      decimals != null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
+    return parseFloat(this.fromWeiAmountString(amountWeiLike, decimals));
+  }
 
-    return parseFloat(amount);
+  // the EXACT decimal string of a wei-like on-chain integer (before the lossy parseFloat in fromWeiAmount) — lets an
+  // ingestion path capture the amount wei-exact (issue #4287 stage 1) instead of the float-collapsed number.
+  static fromWeiAmountString(amountWeiLike: BigNumberish, decimals?: number): string {
+    return decimals != null
+      ? ethers.utils.formatUnits(amountWeiLike, decimals)
+      : ethers.utils.formatEther(amountWeiLike);
   }
 
   static toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
     const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
     return decimals !== undefined ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
+  }
+
+  // §2.3 native-first exactness (issue #4287 stage 2): the EXACT integer base units of a DFX-computed EVM amount at
+  // the resolution it is BROADCAST — the SAME scaling evm-client uses to build the tx value (toWeiAmount), so the
+  // stored integer equals what actually moves on-chain down to the wei. A native COIN is ALWAYS broadcast via parseEther
+  // = 18 dp regardless of the asset's configured decimals (sendNativeCoin/sendNativeCoinFromDex), so a coin is captured
+  // ONLY at 18 dp and fails open for a coin misconfigured with decimals !== 18 (never storing a value diverging from the
+  // sent amount); a TOKEN is broadcast via parseUnits(amount, token.decimals). For a >8-dp asset this DIFFERS from the
+  // <=8-dp float derivation (toBaseUnits caps at 8 dp); the ledger books it verbatim on the swap/bridge leg. Additive /
+  // fail-open: unknown/incompatible decimals or any conversion error -> null -> the ledger derives from the float.
+  static toBroadcastBaseUnits(amount: number, asset: Asset | null | undefined): bigint | null {
+    const decimals = asset?.decimals;
+    if (asset == null || decimals == null) return null;
+    if (asset.type === AssetType.COIN && decimals !== 18) return null;
+    try {
+      return BigInt(this.toWeiAmount(amount, decimals).toString());
+    } catch {
+      return null;
+    }
+  }
+
+  // §2.3 native-first exactness (issue #4287 stage 2): the EXACT integer base units of a RAW on-chain wei-like
+  // value already read from a confirmed tx/log (a deposit/bridge arrival). Normalises any BigNumberish (hex or
+  // decimal string, BigNumber) to a decimal integer string and then a JS bigint — the exact on-chain integer
+  // with no float step. Fail-open null on any malformed value so a capture never breaks the calling flow.
+  static toBaseUnitsFromRaw(amountWeiLike: BigNumberish): bigint | null {
+    try {
+      return BigInt(EthersNumber.from(amountWeiLike).toString());
+    } catch {
+      return null;
+    }
   }
 
   static poolFeeFactor(amount: FeeAmount): number {

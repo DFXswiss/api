@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
@@ -41,6 +42,10 @@ export abstract class SolanaStrategy extends PayoutStrategy {
 
         const txId = await this.dispatchPayout(order);
         order.pendingPayout(txId);
+        // §2.3 native-first exactness (issue #4287 stage 3): capture the EXACT integer base units that left custody at
+        // the broadcast lamports/token resolution (coin@9-guard / token@decimals); the ledger books it verbatim on the
+        // withdrawal wallet leg. null (unknown/incompatible decimals) -> derive from the float (fail-open).
+        order.amountBaseUnits = SolanaUtil.toBroadcastBaseUnits(order.amount, order.asset);
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
@@ -54,7 +59,7 @@ export abstract class SolanaStrategy extends PayoutStrategy {
   async checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const [isComplete, payoutFee] = await this.getPayoutCompletionData(order.payoutTxId);
+        const [isComplete, payoutFee, feeBaseUnits] = await this.getPayoutCompletionData(order.payoutTxId);
 
         if (isComplete) {
           order.complete();
@@ -62,6 +67,10 @@ export abstract class SolanaStrategy extends PayoutStrategy {
           const feeAsset = await this.feeAsset();
           const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
           order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
+          // §2.3 exactness (issue #4287): persist the EXACT fee lamports so the ledger books the network-fee leg
+          // verbatim, but ONLY when the fee asset (SOL) is at the lamports scale (9 dp) the captured integer is in —
+          // else the verbatim booking would be mis-scaled -> null (derive from the float). Mirrors the coin@9 guard.
+          order.payoutFeeAmountBaseUnits = feeAsset.decimals === SolanaUtil.coinDecimals ? feeBaseUnits : null;
 
           await this.payoutOrderRepo.save(order);
         }
@@ -71,7 +80,7 @@ export abstract class SolanaStrategy extends PayoutStrategy {
     }
   }
 
-  async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
+  async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number, bigint | null]> {
     return this.solanaService.getPayoutCompletionData(payoutTxId);
   }
 }

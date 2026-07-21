@@ -19,7 +19,15 @@ import { LedgerMarkToMarketService } from '../ledger-mark-to-market.service';
 interface LegQueryStub {
   candidateIds?: number[]; // selectCandidates getRawMany — single page (returned regardless of the lastId watermark)
   candidatePages?: Record<number, number[]>; // selectCandidates getRawMany — paged by lastId watermark (overrides candidateIds)
-  balance?: { native: string; chf: string }; // accountBalance getRawOne
+  // accountBalance getRawOne; the §2.3 base-unit fields are optional — absent ⇒ the raw float SUM(amount) fallback
+  balance?: {
+    native: string;
+    chf: string;
+    baseUnits?: string | null;
+    legCount?: string;
+    valuedCount?: string;
+    decimals?: number | null;
+  };
   alreadyBookedCount?: number; // alreadyBooked getCount
 }
 
@@ -57,6 +65,7 @@ describe('LedgerMarkToMarketService', () => {
     let lastId = 0; // the id-watermark this builder was filtered on (selectCandidates page)
     const chain = () => qb;
     qb.innerJoin = chain;
+    qb.leftJoin = chain;
     qb.select = chain;
     qb.addSelect = chain;
     qb.where = chain;
@@ -155,6 +164,26 @@ describe('LedgerMarkToMarketService', () => {
 
     const fxLeg = tx.legs.find((l) => l.account.name === 'INCOME/fx-revaluation');
     expect(fxLeg.amountChf).toBe(-10); // Σ CHF = 0
+  });
+
+  // §2.3 native-first exactness: a decimals-bearing account is valued on its EXACT integer base-unit balance
+  // (Σ amountBaseUnits ÷ 10^decimals), not the drifting float Σ amount. Here the float sum carries 0.5 of accumulated
+  // noise while the exact base units are a clean 100 → newChf 100, diff +10 (the float path would mis-mark at +9.5).
+  it('marks a decimals-bearing account on its EXACT base-unit balance, not the drifting float sum', async () => {
+    legStub = {
+      candidateIds: [205],
+      balance: { native: '99.5', chf: '90', baseUnits: '10000000000', legCount: '2', valuedCount: '2', decimals: 8 },
+      alreadyBookedCount: 0,
+    };
+    jest.spyOn(ledgerAccountRepository, 'findBy').mockResolvedValue([markedAccount(5)]);
+    jest
+      .spyOn(markService, 'preload')
+      .mockResolvedValue(new LedgerMarkCache(new Map([[5, [{ created: new Date('2026-06-01'), priceChf: 1.0 }]]])));
+
+    await service.run();
+
+    const assetLeg = booked[0].legs.find((l) => l.account.type === AccountType.ASSET);
+    expect(assetLeg.amountChf).toBe(10); // exact native 100 × mark 1 − oldChf 90 (the float 99.5 would give 9.5)
   });
 
   it('books a negative revaluation against EXPENSE/fx-revaluation when the mark falls', async () => {

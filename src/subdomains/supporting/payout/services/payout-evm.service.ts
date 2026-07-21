@@ -36,12 +36,25 @@ export abstract class PayoutEvmService {
 
     if (receipt.status === 1) {
       const fee = await this.client.getTxActualFee(txHash);
-      return { state: 'complete', fee };
+      // §2.3 exactness (#4287 stage 3): the EXACT gas-fee wei alongside the float (booked verbatim on the network-fee
+      // leg); any capture error -> null -> the ledger derives from the float (fail-open).
+      const feeBaseUnits = await this.feeBaseUnits(txHash);
+      return { state: 'complete', fee, feeBaseUnits };
     }
 
     const tx = await this.client.getTx(txHash);
     const isOutOfGas = tx ? receipt.gasUsed.eq(tx.gasLimit) : false;
     return { state: 'failed', isOutOfGas };
+  }
+
+  // fail-open capture of the exact on-chain gas-fee wei (issue #4287 stage 3): a capture error must never wedge payout
+  // completion, so it degrades to null and the ledger then derives the fee base units from the float.
+  private async feeBaseUnits(txHash: string): Promise<bigint | null> {
+    try {
+      return await this.client.getTxActualFeeBaseUnits(txHash);
+    } catch {
+      return null;
+    }
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {

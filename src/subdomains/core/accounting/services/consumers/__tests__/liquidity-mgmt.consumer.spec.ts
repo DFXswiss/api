@@ -28,6 +28,7 @@ function lmOrder(values: {
   system: LiquidityManagementSystem;
   command: string;
   outputAmount?: number;
+  outputAmountBaseUnits?: bigint;
   targetAssetId?: number;
   targetDexName?: string;
 }): LiquidityManagementOrder {
@@ -36,6 +37,7 @@ function lmOrder(values: {
     updated: new Date('2026-06-07T00:00:00Z'),
     status: LiquidityManagementOrderStatus.COMPLETE,
     outputAmount: values.outputAmount,
+    outputAmountBaseUnits: values.outputAmountBaseUnits,
     action: { system: values.system, command: values.command },
     pipeline: {
       rule: {
@@ -354,5 +356,45 @@ describe('LiquidityMgmtConsumer', () => {
     await consumer.process();
 
     expect(booked).toHaveLength(0); // covered → no fresh seq0
+  });
+
+  // §2.3 exactness (#4287 stage 2): a bridge books a SAME-currency ASSET+TRANSIT pair — precisely assertNativeBalance's
+  // throw scope. The captured wei is therefore booked verbatim on BOTH legs (wallet +X, TRANSIT −X) so they net to 0n.
+  it('books the captured bridge wei verbatim on BOTH legs (wallet +X / transit −X) (#4287 stage 2)', async () => {
+    const wei = 500123456789012345678n; // > 8-dp beyond the float amount (500)
+    mockBatch([
+      lmOrder({
+        id: 50,
+        system: LiquidityManagementSystem.LAYERZERO_BRIDGE,
+        command: 'deposit',
+        outputAmount: 500,
+        targetAssetId: ZCHF_ASSET_ID,
+        outputAmountBaseUnits: wei,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Frankencoin/ZCHF').amountBaseUnits).toBe(wei); // wallet leg +X
+    expect(leg(tx, 'TRANSIT/bridge/ZCHF').amountBaseUnits).toBe(-wei); // TRANSIT counter −X → nets to 0n
+  });
+
+  // §2.3 fail-open (#4287 stage 2): a bridge without captured wei leaves BOTH legs' overrides undefined → the ledger
+  // derives from the float (and the TRANSIT counter is back-filled from the same float → still nets to 0n).
+  it('leaves both bridge legs without an override when no wei was captured (fail-open, #4287 stage 2)', async () => {
+    mockBatch([
+      lmOrder({
+        id: 51,
+        system: LiquidityManagementSystem.LAYERZERO_BRIDGE,
+        command: 'deposit',
+        outputAmount: 500,
+        targetAssetId: ZCHF_ASSET_ID,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Frankencoin/ZCHF').amountBaseUnits).toBeUndefined();
+    expect(leg(tx, 'TRANSIT/bridge/ZCHF').amountBaseUnits).toBeUndefined();
   });
 });

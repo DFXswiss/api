@@ -27,8 +27,18 @@ import { CustodyClass, FeedStatus, LedgerReconciliationService } from '../ledger
 interface LegQueryStub {
   native?: string; // journal native balance per account (fed through the nativeBalanceByAccount map, §7.0 m8)
   equityChf?: string; // journalEquity getRawOne
-  transit?: { id: number; name: string; native: string }[]; // checkTransitAge open-account candidates (F3)
-  transitLegs?: { amount: string; bookingDate: Date }[]; // openResidualSince per-account ordered legs (F3)
+  // checkTransitAge open-account candidates (F3); §2.3 base-unit fields optional (absent ⇒ float pre-filter verdict)
+  transit?: {
+    id: number;
+    name: string;
+    assetId?: number | null; // MAX(asset.id): a single-asset account (⇒ one decimals) ⇒ non-null; a shared/bridge transit ⇒ null
+    native: string;
+    baseUnits?: string | null;
+    legCount?: string;
+    valuedCount?: string;
+  }[];
+  // openResidualSince per-account ordered legs (F3); baseUnits present but IGNORED for an assetId-less account (float path)
+  transitLegs?: { amount: string; baseUnits?: string | null; bookingDate: Date }[];
   suspense?: { name: string; chf: string }[];
 }
 
@@ -85,6 +95,7 @@ describe('LedgerReconciliationService', () => {
     const qb: any = { _selects: [] as string[], _wheres: [] as string[] };
     const chain = () => qb;
     qb.innerJoin = chain;
+    qb.leftJoin = chain; // checkTransitAge now leftJoins account.asset to read MAX(asset.id) (single-asset gate)
     qb.select = (expr: string) => {
       qb._selects.push(expr);
       return qb;
@@ -399,24 +410,31 @@ describe('LedgerReconciliationService', () => {
   // m8: the journal native balance for reconcileFreshAsset comes from ONE GROUP-BY pass (nativeBalanceByAccount),
   // not a per-account SUM query inside the batched loop. The map keys on account.id (Σ leg.amount per account).
   describe('journal native balance GROUP-BY map (§7.0 / m8)', () => {
-    it('nativeBalanceByAccount builds the journal map from ONE GROUP-BY getRawMany (per-account)', async () => {
+    it('nativeBalanceByAccount sums exact base units for decimals-bearing accounts, float otherwise', async () => {
       nativeBalanceSpy.mockRestore(); // exercise the REAL helper (not the default spy)
 
       const qb: any = {};
+      qb.innerJoin = () => qb;
+      qb.leftJoin = () => qb;
       qb.select = () => qb;
       qb.addSelect = () => qb;
       qb.groupBy = () => qb;
       qb.getRawMany = () =>
         Promise.resolve([
-          { accountId: 1005, native: '150.123456789' },
-          { accountId: 1006, native: '-2.5' },
+          // decimals-bearing + every leg valued → EXACT base-unit path (the float 150.5 is accumulated drift, ignored)
+          { accountId: 1005, native: '150.5', baseUnits: '15012345678', legCount: '3', valuedCount: '3', decimals: 8 },
+          // no asset decimals (fiat / TRANSIT) → raw float Σ amount
+          { accountId: 1006, native: '-2.5', baseUnits: null, legCount: '1', valuedCount: '0', decimals: null },
+          // decimals present but NOT all legs valued → float fallback (a null-swallowed partial SUM would understate)
+          { accountId: 1007, native: '10.25', baseUnits: '1000000000', legCount: '3', valuedCount: '2', decimals: 8 },
         ]);
       jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(qb);
 
       const map = await (service as any).nativeBalanceByAccount();
 
-      expect(map.get(1005)).toBe(Util.round(150.123456789, 8)); // Σ rounded to 8 dp
-      expect(map.get(1006)).toBe(-2.5);
+      expect(map.get(1005)).toBe(Util.round(150.12345678, 8)); // 15012345678 base units ÷ 1e8, not the float 150.5
+      expect(map.get(1006)).toBe(-2.5); // no decimals → float fallback
+      expect(map.get(1007)).toBe(10.25); // partial-valued → float fallback (decimals never invented)
       expect(map.get(9999)).toBeUndefined(); // an account absent from the aggregate → caller falls back to ?? 0
     });
   });
@@ -430,6 +448,58 @@ describe('LedgerReconciliationService', () => {
       await service.run();
 
       expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(true);
+    });
+
+    // §2.3 mixed-decimals shared transit (FIX A regression): a bridge-style TRANSIT account carries NO assetId and can
+    // hold same-ticker legs at DIFFERENT decimals across chains (USDT 6dp on ETH/Tron, 18dp on BSC). The exact integer
+    // base-unit cumulation is INCOMMENSURABLE across scales, so the exact path must NOT be taken for an assetId-less
+    // account — the native-float cumulation nets the balanced legs and finds the LATER re-open. Here the bridge opened
+    // +100 (6dp) 20d ago, sent −100 (18dp) 19d ago (nets to 0 natively) and re-opened +50 (6dp) 1d ago → residual age
+    // 1d < 3d → no alarm. Were the exact path wrongly taken, 1e8 − 1e20 + 5e7 never returns to 0n → openSince pinned to
+    // the ancient 20d leg → a FALSE overdue alarm; asserting no alarm proves the exact path is skipped (assetId null).
+    it('uses native-float (not exact base units) for an assetId-less mixed-decimals bridge transit (no false alarm)', async () => {
+      legStub.transit = [
+        {
+          id: 7,
+          name: 'TRANSIT/bridge/USDT',
+          assetId: null,
+          native: '50',
+          baseUnits: null,
+          legCount: '3',
+          valuedCount: '3',
+        },
+      ];
+      legStub.transitLegs = [
+        { amount: '100', baseUnits: '100000000', bookingDate: Util.daysBefore(20) }, // +100 USDT-ETH (6dp) → 1e8
+        { amount: '-100', baseUnits: '-100000000000000000000', bookingDate: Util.daysBefore(19) }, // −100 USDT-BSC (18dp) → −1e20; nets to 0 natively
+        { amount: '50', baseUnits: '50000000', bookingDate: Util.daysBefore(1) }, // +50 USDT-ETH (6dp), re-opened 1d ago
+      ];
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // float openSince = 1d < 3d
+    });
+
+    // §2.3 mixed-decimals shared transit (FIX A): a GENUINELY stuck bridge residual is still flagged. The bridge
+    // received +100 USDT-ETH (6dp) 10d ago and never sent it onward (native balance 100, never returns to 0) → residual
+    // age 10d > 3d → overdue alarm. Proves the native-float fallback still surfaces a real stuck residual.
+    it('flags a genuinely stuck assetId-less bridge transit residual older than the threshold', async () => {
+      legStub.transit = [
+        {
+          id: 9,
+          name: 'TRANSIT/bridge/USDT',
+          assetId: null,
+          native: '100',
+          baseUnits: null,
+          legCount: '1',
+          valuedCount: '1',
+        },
+      ];
+      legStub.transitLegs = [{ amount: '100', baseUnits: '100000000', bookingDate: Util.daysBefore(10) }]; // stuck 10d
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(true); // real residual → alarm
     });
 
     // F3: a churning transit route that repeatedly opens and closes must be aged from the LAST zero-crossing of its
@@ -448,6 +518,112 @@ describe('LedgerReconciliationService', () => {
       expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // 1d < 3d threshold
     });
 
+    // §2.3 EXACT base-unit zero-crossing — the integer counterpart of the float churning test above. For a SINGLE-asset
+    // transit (assetId != null ⇒ one decimals scale) whose legs ALL carry base units, openResidualSince cumulates the
+    // EXACT integer base units, so a sub-8dp (wei-level) residual can neither fabricate nor swallow a zero-crossing. The
+    // assetId-less fixtures above only ever drive the float fallback; these drive the exact loop (lines 366-375) and
+    // contrast it against the float verdict to stay non-vacuous.
+
+    // (a)+(b): a 3-wei residual sits BELOW the float 8dp resolution — the balance never truly returned to 0, so the
+    // exact loop keeps openSince at the ANCIENT opening leg, whereas the float fallback rounds the wei away, sees a
+    // spurious close+re-open and reports the YOUNG leg. Asserting exact ≠ float (and exact = ancient) proves the EXACT
+    // integer path produced the answer; it would fail if the exact loop fell back to the float cumulation.
+    it('openResidualSince (exact path) keeps the ancient openSince when a sub-8dp wei residual never truly closes', async () => {
+      const opened = Util.daysBefore(20);
+      const reopened = Util.daysBefore(2);
+      legStub.transitLegs = [
+        { amount: '1.0', baseUnits: '1000000000000000000', bookingDate: opened }, // +1.0 token (18dp) → opens
+        { amount: '-1.0', baseUnits: '-999999999999999997', bookingDate: Util.daysBefore(15) }, // −(1.0 − 3 wei): float nets to 0, exact leaves 3 wei
+        { amount: '0.5', baseUnits: '500000000000000000', bookingDate: reopened }, // +0.5 token
+      ];
+
+      const exact = await (service as any).openResidualSince(1, true); // singleAsset ⇒ EXACT integer cumulation
+      const float = await (service as any).openResidualSince(1, false); // fallback ⇒ float cumulation (8dp)
+
+      expect(exact).toEqual(opened); // 3-wei residual ⇒ never closed ⇒ ancient opening leg
+      expect(float).toEqual(reopened); // wei rounded away ⇒ spurious close+re-open ⇒ young leg
+      expect(exact).not.toEqual(float); // the two paths genuinely diverge (non-vacuous)
+    });
+
+    // (b): a GENUINE exact crossing to 0n resets openSince and the next leg re-opens a fresh residual — the exact loop
+    // must return the RE-OPEN leg's date, not the ancient opener. A one-wei-short variant must NOT reset (stays ancient),
+    // proving the `=== 0n` crossing test is load-bearing (an off-by-one-wei bug would keep the ancient date).
+    it('openResidualSince (exact path) resets at an EXACT 0n crossing and re-opens at the later leg', async () => {
+      const opened = Util.daysBefore(20);
+      const reopened = Util.daysBefore(2);
+      legStub.transitLegs = [
+        { amount: '1.0', baseUnits: '1000000000000000000', bookingDate: opened }, // opens
+        { amount: '-1.0', baseUnits: '-1000000000000000000', bookingDate: Util.daysBefore(15) }, // EXACT 0n → closes
+        { amount: '0.5', baseUnits: '500000000000000000', bookingDate: reopened }, // re-opens fresh
+      ];
+      expect(await (service as any).openResidualSince(1, true)).toEqual(reopened); // reset at 0n ⇒ young re-open leg
+
+      legStub.transitLegs[1].baseUnits = '-999999999999999999'; // 1 wei short of 0n ⇒ no reset
+      expect(await (service as any).openResidualSince(1, true)).toEqual(opened); // stays the ancient opening leg
+    });
+
+    // full-flow (checkTransitAge → run): a single-asset transit whose EXACT residual is a sub-8dp wei amount is NOT
+    // skipped by isExactlyClosed (base-unit sum ≠ 0n) and its exact (ancient) openSince drives a real overdue alarm —
+    // where the assetId-less float fallback would have rounded the wei away and stayed silent. Proves the exact loop is
+    // wired end-to-end through run() and that isExactlyClosed did not short-circuit it.
+    it('emits an overdue alarm from the EXACT base-unit openSince for a single-asset transit (float would stay silent)', async () => {
+      const opened = Util.daysBefore(20);
+      legStub.transit = [
+        {
+          id: 12,
+          name: 'TRANSIT/native/xETH',
+          assetId: 77, // single-asset ⇒ exact path eligible
+          native: '0.5', // float SUM(amount) ≠ 0 → an open candidate (passes the HAVING pre-filter)
+          baseUnits: '500000000000000003', // exact residual ≠ 0n ⇒ isExactlyClosed = false (not skipped)
+          legCount: '3',
+          valuedCount: '3',
+        },
+      ];
+      legStub.transitLegs = [
+        { amount: '1.0', baseUnits: '1000000000000000000', bookingDate: opened }, // opens 20d ago
+        { amount: '-1.0', baseUnits: '-999999999999999997', bookingDate: Util.daysBefore(15) }, // 3 wei short of close
+        { amount: '0.5', baseUnits: '500000000000000000', bookingDate: Util.daysBefore(2) },
+      ];
+
+      await service.run();
+
+      const overdue = mails.find((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE);
+      expect(overdue).toBeDefined(); // exact openSince = 20d > 3d threshold ⇒ alarm (float openSince 2d ⇒ would be silent)
+      expect((overdue.input as { errors: string[] }).errors[0]).toContain(opened.toISOString()); // aged from the ancient exact crossing
+    });
+
+    // isExactlyClosed: the EXACT-zero verdict is trusted ONLY for a single-asset, fully-valued account. Directly pins
+    // the true branch (assetId != null ∧ all legs valued ∧ Σ base units = 0n) plus each guard that must fall to false.
+    it('isExactlyClosed is true only for a single-asset, fully-valued, exactly-0n residual', () => {
+      const closed = { assetId: 42, baseUnits: '0', legCount: '3', valuedCount: '3' };
+      expect((service as any).isExactlyClosed(closed)).toBe(true); // the exact-zero point
+      expect((service as any).isExactlyClosed({ ...closed, baseUnits: '5' })).toBe(false); // residual ≠ 0n
+      expect((service as any).isExactlyClosed({ ...closed, assetId: null })).toBe(false); // shared/bridge (assetId null)
+      expect((service as any).isExactlyClosed({ ...closed, valuedCount: '2' })).toBe(false); // not all legs valued
+      expect((service as any).isExactlyClosed({ ...closed, baseUnits: null })).toBe(false); // no base units at all
+    });
+
+    // full-flow: a single-asset transit that passed the float HAVING pre-filter on 8dp noise but whose EXACT base-unit
+    // sum is 0n is treated as closed by isExactlyClosed → skipped → no overdue alarm (openResidualSince never consulted).
+    it('skips a single-asset transit whose EXACT base-unit sum is 0n despite float noise (no overdue alarm)', async () => {
+      legStub.transit = [
+        {
+          id: 13,
+          name: 'TRANSIT/native/xBTC',
+          assetId: 88,
+          native: '0.00000002', // 2e-8 > 1e-8 float noise ⇒ passed the HAVING pre-filter (a candidate)
+          baseUnits: '0', // but the EXACT base-unit sum is 0n ⇒ truly closed
+          legCount: '2',
+          valuedCount: '2',
+        },
+      ];
+      legStub.transitLegs = [{ amount: '1', baseUnits: '1', bookingDate: Util.daysBefore(20) }]; // would alarm if consulted
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // isExactlyClosed ⇒ skip
+    });
+
     // Finding 1 / F3 (regression): the residual age comes from ledger_tx.bookingDate — bookingDate lives on ledger_tx,
     // NOT ledger_leg. openResidualSince MUST join leg.tx and select tx.bookingDate; a leg.bookingDate references a
     // non-existent column and crashes EVERY reconciliation run on real PG. Also assert MIN(tx.bookingDate) is gone (F3:
@@ -459,6 +635,7 @@ describe('LedgerReconciliationService', () => {
         calls.innerJoins.push([a, b]);
         return qb;
       };
+      qb.leftJoin = () => qb; // account.asset leftJoin for the single-asset (MAX(asset.id)) gate
       qb.select = (e: string) => (calls.selects.push(e), qb._selects.push(e), qb);
       qb.addSelect = (e: string) => (calls.selects.push(e), qb._selects.push(e), qb);
       qb.where = () => qb;

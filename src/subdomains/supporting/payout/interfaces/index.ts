@@ -16,5 +16,5 @@ export interface FeeResult {
 
 export type PayoutTxStatus =
   | { state: 'pending' }
-  | { state: 'complete'; fee: number }
+  | { state: 'complete'; fee: number; feeBaseUnits: bigint | null }
   | { state: 'failed'; isOutOfGas: boolean };

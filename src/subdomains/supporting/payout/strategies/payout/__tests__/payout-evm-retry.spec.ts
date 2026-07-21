@@ -54,7 +54,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
 
     it('(a) complete: records the payout fee, completes the order and persists once', async () => {
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OK' });
-      const status: PayoutTxStatus = { state: 'complete', fee: 0.001 };
+      const status: PayoutTxStatus = { state: 'complete', fee: 0.001, feeBaseUnits: null };
       jest.spyOn(payoutEvmService, 'getPayoutCompletionData').mockResolvedValue(status);
       const completeSpy = jest.spyOn(order, 'complete');
       const recordFeeSpy = jest.spyOn(order, 'recordPayoutFee');

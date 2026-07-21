@@ -257,6 +257,12 @@ export abstract class CitreaBaseClient extends EvmClient {
   // --- FEE METHODS --- //
 
   override async getTxActualFee(txHash: string): Promise<number> {
+    return EvmUtil.fromWeiAmount((await this.getTxActualFeeBaseUnits(txHash)).toString());
+  }
+
+  // §2.3 native-first exactness (issue #4287 stage 3): the EXACT on-chain fee as integer wei = L1 (l1DiffSize ×
+  // l1FeeRate, via raw RPC) + L2 (gasUsed × effectiveGasPrice), BEFORE the parseFloat collapse in getTxActualFee.
+  override async getTxActualFeeBaseUnits(txHash: string): Promise<bigint> {
     // Use raw RPC call to get l1DiffSize and l1FeeRate (not exposed by ethers.js)
     const receipt = await this.provider.send('eth_getTransactionReceipt', [txHash]);
 
@@ -271,7 +277,7 @@ export abstract class CitreaBaseClient extends EvmClient {
       l1Fee = l1DiffSize.mul(l1FeeRate);
     }
 
-    return EvmUtil.fromWeiAmount(l1Fee.add(l2Fee));
+    return BigInt(l1Fee.add(l2Fee).toString());
   }
 
   // --- TRADING INTEGRATION --- //

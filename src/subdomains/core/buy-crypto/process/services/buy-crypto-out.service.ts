@@ -219,6 +219,7 @@ export class BuyCryptoOutService {
           isComplete,
           payoutTxId,
           payoutFee: nativePayoutFee,
+          payoutAmountBaseUnits,
         } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
         if (tx.txId !== payoutTxId) {
@@ -232,10 +233,18 @@ export class BuyCryptoOutService {
             nativePayoutFee,
           );
 
-          tx.complete(payoutFee);
+          // §2.3 native-first exactness (#4287 stage 4): hand the payout order's EXACT broadcast base units (stage 1,
+          // string) to complete() as a bigint so the delivered amount is stored exactly alongside the float
+          // outputAmount; fail-open null when the chain/row did not capture it.
+          tx.complete(payoutFee, payoutAmountBaseUnits != null ? BigInt(payoutAmountBaseUnits) : null);
 
           if (tx.networkStartFeeAmount) {
-            const { payoutTxId, payoutAmount, payoutAsset } = await this.payoutService.checkOrderCompletion(
+            const {
+              payoutTxId,
+              payoutAmount,
+              payoutAsset,
+              payoutAmountBaseUnits: networkStartAmountBaseUnits,
+            } = await this.payoutService.checkOrderCompletion(
               PayoutOrderContext.BUY_CRYPTO,
               tx.networkStartCorrelationId,
             );
@@ -243,6 +252,10 @@ export class BuyCryptoOutService {
             tx.networkStartAmount = payoutAmount;
             tx.networkStartTxId = payoutTxId;
             tx.networkStartAsset = payoutAsset.name;
+            // §2.3 native-first exactness (#4287 stage 4): the network-start fee's EXACT on-chain broadcast base units
+            // (stage 1); fail-open null when uncaptured.
+            tx.networkStartAmountBaseUnits =
+              networkStartAmountBaseUnits != null ? BigInt(networkStartAmountBaseUnits) : null;
           }
 
           await this.buyCryptoRepo.save(tx);

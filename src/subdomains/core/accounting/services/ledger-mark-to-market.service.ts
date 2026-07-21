@@ -163,18 +163,41 @@ export class LedgerMarkToMarketService {
     });
   }
 
-  // current Σ amount (native) and Σ amountChf (null treated as 0) for the account
+  // current Σ amount (native) and Σ amountChf (null treated as 0) for the account. §2.3 native-first exactness: a
+  // decimals-bearing (asset-backed) account's native balance is summed on EXACT integer base units and converted back
+  // once (÷10^decimals), so the daily revaluation never re-marks accumulated 8dp float noise. The raw float Σ amount
+  // stays the fallback for a no-decimals account or one whose legs are not ALL valued (a null-swallowing partial SUM
+  // would understate it). Decimals are never invented.
   private async accountBalance(accountId: number): Promise<AccountBalance> {
     const raw = await this.ledgerLegRepository
       .createQueryBuilder('leg')
+      .innerJoin('leg.account', 'account')
+      .leftJoin('account.asset', 'asset')
       .select('SUM(leg.amount)', 'native')
+      .addSelect('SUM(leg.amountBaseUnits)', 'baseUnits')
+      .addSelect('COUNT(*)', 'legCount')
+      .addSelect('COUNT(leg.amountBaseUnits)', 'valuedCount')
+      .addSelect('MAX(asset.decimals)', 'decimals')
       .addSelect('SUM(COALESCE(leg.amountChf, 0))', 'chf')
       .where('leg.accountId = :accountId', { accountId })
-      .getRawOne<{ native: string | null; chf: string | null }>();
+      .getRawOne<{
+        native: string | null;
+        baseUnits: string | null;
+        legCount: string | null;
+        valuedCount: string | null;
+        decimals: number | null;
+        chf: string | null;
+      }>();
+
+    const allValued = raw?.baseUnits != null && +(raw.legCount ?? 0) === +(raw.valuedCount ?? 0);
+    const nativeBalance =
+      raw?.decimals != null && allValued
+        ? Util.round(Number(BigInt(raw.baseUnits as string)) / 10 ** raw.decimals, 8)
+        : Util.round(+(raw?.native ?? 0), 8);
 
     return {
       accountId,
-      nativeBalance: Util.round(+(raw?.native ?? 0), 8),
+      nativeBalance,
       chfBalance: Util.round(+(raw?.chf ?? 0), 2),
     };
   }
