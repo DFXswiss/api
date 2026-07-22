@@ -1282,16 +1282,127 @@ export class LogJobService {
 
     if (!recentSenders.length || !receiverTx.length) return [...recentSenders];
 
+    // Pass 1 — reference matching (unchanged): retire senders whose reference is present on a receiver.
     const receiverRefs = new Set<string>();
     for (const r of receiverTx) {
       const ref = this.getTxReference(r);
       if (ref) receiverRefs.add(ref);
     }
 
-    return recentSenders.filter((s) => {
+    const unmatchedByRef = recentSenders.filter((s) => {
       const ref = this.getTxReference(s);
       return !ref || !receiverRefs.has(ref);
     });
+
+    // Pass 2 — amount+date fallback for receivers without a usable reference only
+    // (e.g. already-arrived Scrypt EUR deposits with empty txId).
+    // Date window: 7 days in ms — mirrors the existing sender recency window.
+    const DATE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+    const availableReceivers = receiverTx.filter((r) => !this.getTxReference(r));
+    if (!unmatchedByRef.length || !availableReceivers.length) return unmatchedByRef;
+
+    // Maximum-cardinality bipartite matching (Kuhn's augmenting-path algorithm).
+    // Plain greedy consumption of globally cost-sorted edges can strand a matchable
+    // sender: its only in-tolerance receiver may be claimed by another sender with a
+    // lower-cost edge to that same receiver, even though a different global assignment
+    // would retire both. Kuhn guarantees maximum cardinality; per-sender candidate
+    // sort keeps exact/cheap matches preferred when multiple assignments have equal size.
+    type SenderCandidate = {
+      receiver: BankTx | ExchangeTx;
+      amountDiff: number;
+      dateDiff: number;
+    };
+
+    const candidatesBySender = new Map<BankTx | ExchangeTx, SenderCandidate[]>();
+
+    for (const sender of unmatchedByRef) {
+      const senderAmount = this.getTransferAmount(sender);
+      const senderCurrency = this.getTransferCurrency(sender);
+      const senderDate = this.getTransferDate(sender);
+
+      // null/undefined/NaN amounts must not participate (TypeORM nullable → null at runtime).
+      if (!Number.isFinite(senderAmount) || !senderCurrency) continue;
+
+      const senderCandidates: SenderCandidate[] = [];
+
+      for (const receiver of availableReceivers) {
+        const receiverAmount = this.getTransferAmount(receiver);
+        const receiverCurrency = this.getTransferCurrency(receiver);
+        const receiverDate = this.getTransferDate(receiver);
+
+        if (!Number.isFinite(receiverAmount) || !receiverCurrency) continue;
+        if (senderCurrency !== receiverCurrency) continue;
+
+        // Amount tolerance: 1% relative, minimum 1.0 absolute — covers FX/rounding noise
+        // between instructed and settled amounts without false matches on similar sizes.
+        const amountTolerance = Math.max(1.0, 0.01 * Math.max(Math.abs(senderAmount), Math.abs(receiverAmount)));
+        const amountDiff = Math.abs(senderAmount - receiverAmount);
+        if (amountDiff > amountTolerance) continue;
+
+        const dateDiff = Math.abs(senderDate.getTime() - receiverDate.getTime());
+        if (dateDiff > DATE_WINDOW_MS) continue;
+
+        senderCandidates.push({ receiver, amountDiff, dateDiff });
+      }
+
+      if (!senderCandidates.length) continue;
+
+      // Exact/closer matches first for this sender.
+      senderCandidates.sort((a, b) => {
+        if (a.amountDiff !== b.amountDiff) return a.amountDiff - b.amountDiff;
+        if (a.dateDiff !== b.dateDiff) return a.dateDiff - b.dateDiff;
+        return a.receiver.id - b.receiver.id;
+      });
+
+      candidatesBySender.set(sender, senderCandidates);
+    }
+
+    // Senders holding an exact/near-exact match get first crack at claiming it.
+    const sendersToProcess = [...candidatesBySender.keys()].sort((a, b) => {
+      const bestA = candidatesBySender.get(a)![0];
+      const bestB = candidatesBySender.get(b)![0];
+      if (bestA.amountDiff !== bestB.amountDiff) return bestA.amountDiff - bestB.amountDiff;
+      if (bestA.dateDiff !== bestB.dateDiff) return bestA.dateDiff - bestB.dateDiff;
+      return a.id - b.id;
+    });
+
+    const matchOfReceiver = new Map<BankTx | ExchangeTx, BankTx | ExchangeTx>();
+
+    const tryAssign = (sender: BankTx | ExchangeTx, visited: Set<BankTx | ExchangeTx>): boolean => {
+      for (const { receiver } of candidatesBySender.get(sender)!) {
+        if (visited.has(receiver)) continue;
+        visited.add(receiver);
+
+        const currentMatch = matchOfReceiver.get(receiver);
+        if (!currentMatch || tryAssign(currentMatch, visited)) {
+          matchOfReceiver.set(receiver, sender);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    for (const sender of sendersToProcess) {
+      tryAssign(sender, new Set());
+    }
+
+    const retiredSenders = new Set(matchOfReceiver.values());
+
+    return unmatchedByRef.filter((s) => !retiredSenders.has(s));
+  }
+
+  private getTransferAmount(tx: BankTx | ExchangeTx): number | null | undefined {
+    return tx instanceof BankTx ? tx.instructedAmount : tx.amount;
+  }
+
+  private getTransferCurrency(tx: BankTx | ExchangeTx): string | undefined {
+    const currency = tx instanceof BankTx ? tx.instructedCurrency : tx.currency;
+    return currency || undefined;
+  }
+
+  private getTransferDate(tx: BankTx | ExchangeTx): Date {
+    return tx instanceof BankTx ? (tx.valueDate ?? tx.created) : (tx.externalCreated ?? tx.created);
   }
 
   private getTxReference(tx: BankTx | ExchangeTx): string | undefined {

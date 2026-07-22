@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/exchange-tx.entity.mock';
-import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
@@ -30,7 +30,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
-import { BankTxIndicator, BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
 import { frickCHF, frickEUR, olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
@@ -1056,6 +1056,436 @@ describe('LogJobService', () => {
     const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'E2E-80100' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  // --- getUnmatchedSenders pass-2: amount+date fallback for ref-less receivers ---
+
+  it('should retire ref-less ok Scrypt EUR deposits by amount+date (bug #4311)', () => {
+    // Production bug: arrived Scrypt deposits with empty txId never entered receiverRefs,
+    // so their bank senders stayed in the toScrypt pending bucket until the 7-day cutoff.
+    const senderTx = [
+      createCustomBankTx({
+        id: 1,
+        created: Util.hoursBefore(48),
+        valueDate: Util.hoursBefore(48),
+        instructedAmount: 30000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'manual transfer A',
+      }),
+      createCustomBankTx({
+        id: 2,
+        created: Util.hoursBefore(36),
+        valueDate: Util.hoursBefore(36),
+        instructedAmount: 70000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'manual transfer B',
+      }),
+      createCustomBankTx({
+        id: 3,
+        created: Util.hoursBefore(24),
+        valueDate: Util.hoursBefore(24),
+        instructedAmount: 50015.06,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'manual transfer C',
+      }),
+    ];
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(40),
+        amount: 30000,
+        currency: 'EUR',
+        txId: undefined,
+      }),
+      createCustomExchangeTx({
+        id: 2,
+        created: Util.hoursBefore(30),
+        amount: 70000,
+        currency: 'EUR',
+        txId: undefined,
+      }),
+    ];
+
+    // Pending bucket 150015.06 correctly becomes 50015.06 after pass-2 matching.
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([senderTx[2]]);
+  });
+
+  it('should still match by payout-id reference when a ref-less receiver is also present', () => {
+    // Pass 1 and pass 2 coexist: reference match retires one pair; amount match retires another.
+    const senderTx = [
+      createCustomBankTx({
+        id: 1,
+        created: Util.hoursBefore(48),
+        valueDate: Util.hoursBefore(48),
+        instructedAmount: 10000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'DFX Payout 90100',
+      }),
+      createCustomBankTx({
+        id: 2,
+        created: Util.hoursBefore(24),
+        valueDate: Util.hoursBefore(24),
+        instructedAmount: 20000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'manual no match',
+      }),
+      createCustomBankTx({
+        id: 3,
+        created: Util.hoursBefore(12),
+        valueDate: Util.hoursBefore(12),
+        instructedAmount: 99999,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'still in transit',
+      }),
+    ];
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(40),
+        amount: 10000,
+        currency: 'EUR',
+        txId: 'DEPOSIT-90100',
+      }),
+      createCustomExchangeTx({
+        id: 2,
+        created: Util.hoursBefore(20),
+        amount: 20000,
+        currency: 'EUR',
+        txId: undefined,
+      }),
+    ];
+
+    // Sender 1 retired by pass 1 (payout id), sender 2 by pass 2 (amount), sender 3 stays.
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([senderTx[2]]);
+  });
+
+  it('should consume each ref-less receiver at most once for equal amounts', () => {
+    const senderTx = [
+      createCustomBankTx({
+        id: 1,
+        created: Util.hoursBefore(48),
+        valueDate: Util.hoursBefore(48),
+        instructedAmount: 50000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'sender one',
+      }),
+      createCustomBankTx({
+        id: 2,
+        created: Util.hoursBefore(24),
+        valueDate: Util.hoursBefore(24),
+        instructedAmount: 50000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'sender two',
+      }),
+    ];
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(36),
+        amount: 50000,
+        currency: 'EUR',
+        txId: undefined,
+      }),
+    ];
+
+    const unmatched = service.getUnmatchedSenders(senderTx, receiverTx);
+    expect(unmatched).toHaveLength(1);
+    expect(senderTx).toContain(unmatched[0]);
+  });
+
+  it('should not match when amount difference exceeds tolerance', () => {
+    // Tolerance for 30000 is max(1, 0.01*30000) = 300; 500 is beyond that.
+    const senderTx = [
+      createCustomBankTx({
+        id: 1,
+        created: Util.hoursBefore(24),
+        valueDate: Util.hoursBefore(24),
+        instructedAmount: 30000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'no amount match',
+      }),
+    ];
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(20),
+        amount: 30500,
+        currency: 'EUR',
+        txId: undefined,
+      }),
+    ];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
+  });
+
+  it('should not match when date difference exceeds the 7-day window', () => {
+    // ~8 days apart — outside the pass-2 date window (and sender still recent via created).
+    const senderTx = [
+      createCustomBankTx({
+        id: 1,
+        created: Util.hoursBefore(24),
+        valueDate: Util.hoursBefore(24),
+        instructedAmount: 30000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'date too far',
+      }),
+    ];
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(24 + 8 * 24),
+        amount: 30000,
+        currency: 'EUR',
+        txId: undefined,
+      }),
+    ];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
+  });
+
+  it('should not match across different currencies even when amount and date align', () => {
+    const senderTx = [
+      createCustomBankTx({
+        id: 1,
+        created: Util.hoursBefore(24),
+        valueDate: Util.hoursBefore(24),
+        instructedAmount: 30000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'eur sender',
+      }),
+    ];
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(20),
+        amount: 30000,
+        currency: 'CHF',
+        txId: undefined,
+      }),
+    ];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
+  });
+
+  it('should return the same result regardless of input array order (determinism, bug #4311 follow-up)', () => {
+    // senderOld and senderNew both compete for receiverX (their best amount-diff match).
+    // senderOld can ONLY match receiverX (amount too far from receiverY, outside 1% tolerance).
+    // senderNew can match BOTH receiverX and receiverY, with receiverX being its best match too.
+    // A processing order that is not sorted by transfer-date could let senderNew grab receiverX
+    // first, stranding senderOld (which has no fallback) unmatched — an order-dependent result.
+    // The deterministic date-ascending processing order always processes senderOld first, so
+    // senderOld claims receiverX and senderNew falls back to receiverY: both retired, every time,
+    // regardless of input array order.
+    const senderOld = createCustomBankTx({
+      id: 301,
+      created: Util.hoursBefore(48),
+      valueDate: Util.hoursBefore(48),
+      instructedAmount: 49700,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'det sender old',
+    });
+    const senderNew = createCustomBankTx({
+      id: 302,
+      created: Util.hoursBefore(24),
+      valueDate: Util.hoursBefore(24),
+      instructedAmount: 50300,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'det sender new',
+    });
+    const receiverX = createCustomExchangeTx({
+      id: 401,
+      created: Util.hoursBefore(36),
+      amount: 50000,
+      currency: 'EUR',
+      txId: undefined,
+    });
+    const receiverY = createCustomExchangeTx({
+      id: 402,
+      created: Util.hoursBefore(12),
+      amount: 50700,
+      currency: 'EUR',
+      txId: undefined,
+    });
+
+    const forward = service.getUnmatchedSenders([senderOld, senderNew], [receiverX, receiverY]);
+    const reversed = service.getUnmatchedSenders([senderNew, senderOld], [receiverY, receiverX]);
+
+    expect(forward).toEqual([]);
+    expect(reversed).toEqual([]);
+    expect(reversed).toEqual(forward);
+  });
+
+  it('should prefer the exact amount match over an earlier near match (global assignment)', () => {
+    // Repro of the local-greedy date-order defect: senderA (older, 20100) is within
+    // tolerance of a ref-less 20000 receiver (diff 100 <= 201) and would grab it first
+    // under date-ascending processing, stranding senderB (exact 20000 match). Global
+    // candidate sort by amountDiff first retires senderB and correctly leaves senderA pending.
+    const senderA = createCustomBankTx({
+      id: 501,
+      created: Util.hoursBefore(48),
+      valueDate: Util.hoursBefore(48),
+      instructedAmount: 20100,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'manual sender A',
+    });
+    const senderB = createCustomBankTx({
+      id: 502,
+      created: Util.hoursBefore(24),
+      valueDate: Util.hoursBefore(24),
+      instructedAmount: 20000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'manual sender B',
+    });
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 601,
+        created: Util.hoursBefore(36),
+        amount: 20000,
+        currency: 'EUR',
+        txId: undefined,
+      }),
+    ];
+
+    // Final filter preserves unmatchedByRef order (= input sender order).
+    expect(service.getUnmatchedSenders([senderA, senderB], receiverTx)).toEqual([senderA]);
+    expect(service.getUnmatchedSenders([senderB, senderA], receiverTx)).toEqual([senderA]);
+  });
+
+  it('should retire both senders via augmenting path when greedy would strand one', () => {
+    // Repro of the plain-greedy cardinality defect: edges in tolerance are
+    // S1–R1 (diff 2), S2–R1 (diff 0), S2–R2 (diff 9); S1–R2 (diff 11) is OUT.
+    // Greedy consumes S2–R1 first (lowest cost) and strands S1. Kuhn reassigns
+    // S2→R2 so S1 can take R1 — maximum cardinality, both senders retired.
+    const sender1 = createCustomBankTx({
+      id: 701,
+      created: Util.hoursBefore(48),
+      valueDate: Util.hoursBefore(48),
+      instructedAmount: 1000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'cardinality sender 1',
+    });
+    const sender2 = createCustomBankTx({
+      id: 702,
+      created: Util.hoursBefore(24),
+      valueDate: Util.hoursBefore(24),
+      instructedAmount: 1002,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'cardinality sender 2',
+    });
+    const receiver1 = createCustomExchangeTx({
+      id: 801,
+      created: Util.hoursBefore(36),
+      amount: 1002,
+      currency: 'EUR',
+      txId: undefined,
+    });
+    const receiver2 = createCustomExchangeTx({
+      id: 802,
+      created: Util.hoursBefore(12),
+      amount: 1011,
+      currency: 'EUR',
+      txId: undefined,
+    });
+
+    expect(service.getUnmatchedSenders([sender1, sender2], [receiver1, receiver2])).toEqual([]);
+    expect(service.getUnmatchedSenders([sender2, sender1], [receiver2, receiver1])).toEqual([]);
+  });
+
+  it('should not match and must not throw when a ref-less receiver or sender has a null amount', () => {
+    // TypeORM nullable columns can surface as `null` at runtime even though the TS field type says
+    // `number | undefined`. Both senders below must survive as unmatched, and the call must not throw.
+    const senderWithAmount = createCustomBankTx({
+      id: 303,
+      created: Util.hoursBefore(24),
+      valueDate: Util.hoursBefore(24),
+      instructedAmount: 30000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'sender with amount, null receiver',
+    });
+    const senderNullAmount = createCustomBankTx({
+      id: 304,
+      created: Util.hoursBefore(20),
+      valueDate: Util.hoursBefore(20),
+      instructedAmount: null as unknown as number,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'sender with null amount',
+    });
+    const receiverNullAmount = createCustomExchangeTx({
+      id: 701,
+      created: Util.hoursBefore(20),
+      amount: null as unknown as number,
+      currency: 'EUR',
+      txId: undefined,
+    });
+    const receiverWithAmount = createCustomExchangeTx({
+      id: 702,
+      created: Util.hoursBefore(20),
+      amount: 30000,
+      currency: 'EUR',
+      txId: undefined,
+    });
+
+    let result: (BankTx | ExchangeTx)[] = [];
+    expect(() => {
+      result = service.getUnmatchedSenders(
+        [senderWithAmount, senderNullAmount],
+        [receiverNullAmount, receiverWithAmount],
+      );
+    }).not.toThrow();
+
+    // senderWithAmount would normally match receiverWithAmount (30000 == 30000), so the only way
+    // it survives is if receiverNullAmount is correctly excluded as a candidate and doesn't
+    // accidentally get treated as amount 0. senderNullAmount can never match anything.
+    // Given both are in the array, senderWithAmount's real match (receiverWithAmount) is available,
+    // so it WILL be retired -- only senderNullAmount remains unmatched.
+    expect(result).toEqual([senderNullAmount]);
+  });
+
+  it('should retire an ExchangeTx withdrawal sender against a ref-less BankTx receiver by amount+date (fromScrypt direction), and reject an out-of-tolerance amount', () => {
+    // Mirrors the existing toScrypt (bank -> exchange) pass-2 tests, but in the fromScrypt
+    // direction (exchange withdrawal -> bank receipt), proving the generic fallback also collapses
+    // the fromScrypt double-count. senderMatch's `created` is recent (survives the initial recency
+    // filter) but its `externalCreated` is 9 days old -- if getTransferDate wrongly used `created`
+    // instead of `externalCreated` for ExchangeTx, this match would incorrectly fall outside the
+    // 7-day window and the test would fail, proving externalCreated is actually being used.
+    const senderMatch = createCustomExchangeTx({
+      id: 501,
+      created: Util.hoursBefore(20),
+      externalCreated: Util.hoursBefore(216),
+      type: ExchangeTxType.WITHDRAWAL,
+      amount: 20000,
+      currency: 'CHF',
+      txId: undefined,
+    });
+    const receiverMatch = createCustomBankTx({
+      id: 601,
+      created: Util.hoursBefore(216),
+      valueDate: Util.hoursBefore(216),
+      instructedAmount: 20000,
+      instructedCurrency: 'CHF',
+      remittanceInfo: undefined,
+    });
+    const senderNoMatch = createCustomExchangeTx({
+      id: 502,
+      created: Util.hoursBefore(20),
+      externalCreated: Util.hoursBefore(40),
+      type: ExchangeTxType.WITHDRAWAL,
+      amount: 20000,
+      currency: 'CHF',
+      txId: undefined,
+    });
+    const receiverNoMatch = createCustomBankTx({
+      id: 602,
+      created: Util.hoursBefore(40),
+      valueDate: Util.hoursBefore(40),
+      instructedAmount: 25000,
+      instructedCurrency: 'CHF',
+      remittanceInfo: undefined,
+    });
+
+    const result = service.getUnmatchedSenders([senderMatch, senderNoMatch], [receiverMatch, receiverNoMatch]);
+
+    expect(result).toEqual([senderNoMatch]);
   });
 
   // --- settlement-anchored buy_fiat liability (FinanceLog) ---
