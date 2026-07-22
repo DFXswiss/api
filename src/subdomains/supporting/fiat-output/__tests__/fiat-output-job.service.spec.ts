@@ -406,6 +406,7 @@ describe('FiatOutputJobService', () => {
       jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
         createCustomFiatOutput({
           id: 1,
+          originEntityId: 123,
           accountIban,
           bank: undefined,
           type: FiatOutputType.BUY_FIAT,
@@ -414,6 +415,7 @@ describe('FiatOutputJobService', () => {
         }),
         createCustomFiatOutput({
           id: 2,
+          originEntityId: 123,
           accountIban,
           bank: undefined,
           type: FiatOutputType.BUY_FIAT,
@@ -426,7 +428,13 @@ describe('FiatOutputJobService', () => {
 
       await service['assignBankAccount']();
 
-      expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('1'), expect.anything());
+      const findArgs = (fiatOutputRepo.find as jest.Mock).mock.calls[0][0];
+      expect(findArgs.where).toHaveLength(3);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error in fillPreValutaDate fiatOutput: 1:',
+        expect.objectContaining({ message: `No bank found for account IBAN ${accountIban} (fiat output 1)` }),
+      );
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
       expect(updateCalls).toHaveLength(1);
       expect(updateCalls[0][0]).toBe(2);

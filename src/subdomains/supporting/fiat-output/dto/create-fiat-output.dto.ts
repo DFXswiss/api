@@ -62,6 +62,7 @@ export class CreateFiatOutputDto {
   iban: string;
 
   @IsOptional()
+  @IsNotEmpty()
   @IsString()
   accountIban?: string;
 
