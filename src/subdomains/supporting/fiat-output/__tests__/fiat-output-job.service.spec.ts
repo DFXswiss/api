@@ -167,6 +167,29 @@ describe('FiatOutputJobService', () => {
       expect(updateCalls[1][1]).toMatchObject({ originEntityId: 102, accountIban: yapealEUR.iban });
     });
 
+    it('should assign bank account when accountIban is an empty string (legacy rows)', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          accountIban: '',
+          bank: undefined,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+
+      jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createCustomCountry({ yapealEnable: true }));
+
+      jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([yapealEUR]);
+
+      await service['assignBankAccount']();
+
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban: '' });
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: yapealEUR.iban });
+    });
+
     it('should use virtual IBAN when user has one for BuyFiat', async () => {
       const virtualIban = 'CH1234567890VIBAN';
 

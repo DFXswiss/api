@@ -201,8 +201,9 @@ export class FiatOutputJobService {
 
         const { accountIban, bank } = await this.getPayoutAccount(entity, country);
 
+        // Legacy rows may hold an empty string instead of null; match whatever value was read.
         await this.fiatOutputRepo.update(
-          { id: entity.id, accountIban: IsNull() },
+          { id: entity.id, accountIban: entity.accountIban == null ? IsNull() : entity.accountIban },
           { originEntityId: entity.originEntity?.id, accountIban, bank },
         );
       } catch (e) {
