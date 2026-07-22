@@ -22,8 +22,10 @@ module.exports = class EnablePhilippinesOrganizationOnboarding1784708401563 {
     // Fail loud if the PH country row is missing: a blind UPDATE would report success while silently
     // leaving organization onboarding disabled. This is a compliance allow-list change, so it must be
     // auditable and fail-closed rather than a silent no-op.
-    const [existing] = await queryRunner.query(`SELECT "dfxOrganizationEnable" FROM "country" WHERE "symbol" = 'PH'`);
-    if (!existing) {
+    // NOTE: avoid array destructuring / index access here — the migration PostgreSQL-compatibility
+    // guard (migration-psql-check.spec.ts) flags square-bracket identifier tokens as MSSQL bracket quoting.
+    const existing = await queryRunner.query(`SELECT "dfxOrganizationEnable" FROM "country" WHERE "symbol" = 'PH'`);
+    if (!existing.length) {
       throw new Error(
         'EnablePhilippinesOrganizationOnboarding: country row for PH not found — aborting so organization onboarding is not silently left disabled',
       );
