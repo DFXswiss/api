@@ -24,7 +24,10 @@ import {
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { SepoliaService } from 'src/integration/blockchain/sepolia/sepolia.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import {
+  Eip7702DelegationService,
+  TransactionRevertedException,
+} from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -71,7 +74,7 @@ import { Department } from 'src/subdomains/supporting/support-issue/enums/depart
 import { SupportIssueReason, SupportIssueType } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { transliterate } from 'transliteration';
-import { EntityManager, FindOptionsRelations, In, Not, Raw } from 'typeorm';
+import { EntityManager, FindOptionsRelations, In, IsNull, LessThan, Not, Raw } from 'typeorm';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
@@ -111,6 +114,13 @@ import {
   RealUnitSellDto,
   RealUnitSellPaymentInfoDto,
 } from './dto/realunit-sell.dto';
+import {
+  RealUnitTransferConfirmDto,
+  RealUnitTransferDto,
+  RealUnitTransferPaymentInfoDto,
+} from './dto/realunit-transfer.dto';
+import { RealUnitTransferRequestStatus } from './entities/realunit-transfer-request.entity';
+import { RealUnitTransferRequestRepository } from './repositories/realunit-transfer-request.repository';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
@@ -234,6 +244,7 @@ export class RealUnitService {
     private readonly aktionariatRegistrationRepo: AktionariatRegistrationRepository,
     private readonly logService: LogService,
     private readonly supportIssueService: SupportIssueService,
+    private readonly transferRequestRepo: RealUnitTransferRequestRepository,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -2445,5 +2456,294 @@ export class RealUnitService {
     const atIndex = email.indexOf('@');
     if (atIndex <= 0) return '***';
     return `${email.charAt(0)}***${email.substring(atIndex)}`;
+  }
+
+  // --- W2W TRANSFER --- //
+  // User-initiated RealUnit wallet-to-wallet transfer. DFX pays gas via the gasless EIP-7702 relay,
+  // but from a DEDICATED W2W gas-funding wallet (Config.blockchain.realunit.w2wGasWallet*) — never
+  // the Sell/OTC relayer. See issue DFXswiss/api #684 (umbrella #666).
+
+  async prepareTransfer(user: User, dto: RealUnitTransferDto): Promise<RealUnitTransferPaymentInfoDto> {
+    const userData = user.userData;
+
+    // 1. Registration required (async — must await; a bare Promise is always truthy)
+    if (!(await this.hasRegistrationForWallet(userData, user.address))) {
+      throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_TRANSFER);
+    }
+
+    // 2. KYC Level check - Level 30 minimum
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_30,
+        userData.kycLevel,
+        'KYC Level 30 required for RealUnit transfer',
+        KycContext.REALUNIT_TRANSFER,
+      );
+    }
+
+    // The W2W transfer is a pure on-chain REALU->REALU self-custody movement and is therefore
+    // limit-exempt by design (consistent with #3819: trading limits are enforced at the fiat
+    // boundary). Gate only on registration + KYC30; do NOT add a misleading limit check.
+
+    // 3. Validate recipient + amount
+    const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
+
+    if (!ethers.utils.isAddress(dto.toAddress)) {
+      throw new BadRequestException('Invalid recipient address');
+    }
+    const toAddress = ethers.utils.getAddress(dto.toAddress);
+    const sender = ethers.utils.getAddress(user.address);
+
+    if (Util.equalsIgnoreCase(toAddress, sender)) {
+      throw new BadRequestException('Recipient must differ from sender');
+    }
+    const forbiddenAddresses = [realuAsset.chainId, zchfAsset?.chainId].filter((a) => a);
+    if (forbiddenAddresses.some((a) => Util.equalsIgnoreCase(a, toAddress))) {
+      throw new BadRequestException('Recipient must not be a token contract address');
+    }
+    if (!Number.isInteger(dto.amount) || dto.amount < 1) {
+      throw new BadRequestException('Amount must be a whole number of shares (>= 1)');
+    }
+
+    // 4. Preflight: dedicated W2W gas wallet must be configured and hold enough ETH for the relay
+    await this.assertW2wGasWalletFunded();
+
+    // 5. Prepare EIP-7702 delegation data the app must sign. The delegation's `delegate` MUST be the
+    // dedicated W2W gas wallet (the redeemer at confirm), NOT the Sell/OTC relayer — the
+    // DelegationManager enforces `msg.sender == delegate` in redeemDelegations, otherwise it reverts
+    // InvalidDelegate(). Derive the delegate from the same key confirmTransfer relays with so they
+    // always match.
+    const w2wGasWalletAddress = this.getW2wGasWalletAddress();
+    const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
+      sender,
+      realuAsset.blockchain,
+      w2wGasWalletAddress,
+    );
+
+    // 6. Persist the transfer intent server-side (the delegation is blanket — recipient/amount are
+    // NOT bound by the signature, so they MUST be stored here and reused verbatim at confirm)
+    const transferRequest = await this.transferRequestRepo.save(
+      this.transferRequestRepo.create({
+        uid: Util.createUid(Config.prefixes.realUnitTransferUidPrefix),
+        user,
+        toAddress,
+        amount: dto.amount,
+        status: RealUnitTransferRequestStatus.CREATED,
+      }),
+    );
+
+    const amountWei = EvmUtil.toWeiAmount(dto.amount, realuAsset.decimals);
+
+    return {
+      id: transferRequest.id,
+      uid: transferRequest.uid,
+      toAddress,
+      amount: dto.amount,
+      tokenAddress: realuAsset.chainId,
+      chainId: realuAsset.evmChainId,
+      eip7702: {
+        ...delegationData,
+        tokenAddress: realuAsset.chainId,
+        amountWei: amountWei.toString(),
+        recipient: toAddress,
+      },
+    };
+  }
+
+  async confirmTransfer(
+    userId: number,
+    requestId: number,
+    dto: RealUnitTransferConfirmDto,
+  ): Promise<{ txHash: string }> {
+    // 1. Load stored transfer request with ownership check (user is eager-loaded by the entity)
+    const transferRequest = await this.transferRequestRepo.findOne({
+      where: { id: requestId },
+    });
+    if (!transferRequest || transferRequest.user?.id !== userId) {
+      throw new NotFoundException('Transfer request not found');
+    }
+
+    // 2. Idempotency shortcut — MUST run before any balance/gas/delegate checks: a prior attempt may
+    // already have broadcast (txHash is persisted the instant the tx is signed, before it is sent to the
+    // node — see Eip7702DelegationService._transferTokenWithUserDelegationInternal), and the sender's
+    // on-chain balance is no longer guaranteed to cover `amount` again after a successful transfer.
+    // FAILED requests are excluded so a reverted attempt's txHash is never handed back as a false success.
+    if (transferRequest.txHash && transferRequest.status !== RealUnitTransferRequestStatus.FAILED) {
+      return { txHash: transferRequest.txHash };
+    }
+
+    const realuAsset = await this.getRealuAsset();
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
+
+    // 3. Defense-in-depth: delegator must match the request owner's address (contract also verifies)
+    if (!Util.equalsIgnoreCase(dto.delegation.delegator, transferRequest.user.address)) {
+      throw new BadRequestException('Delegation delegator does not match user address');
+    }
+
+    // 4. Drain preflight: sender must hold enough REALU before we broadcast
+    const balance = await this.getEvmClient().getTokenBalance(realuAsset, transferRequest.user.address);
+    if (balance < transferRequest.amount) {
+      throw new BadRequestException('Insufficient REALU balance for transfer');
+    }
+
+    // 5. Abort cleanly if the W2W gas wallet itself is underfunded
+    await this.assertW2wGasWalletFunded();
+
+    // 6. Defense-in-depth: delegate must be the W2W gas wallet that will redeem (msg.sender == delegate)
+    const expectedDelegate = this.getW2wGasWalletAddress();
+    if (!Util.equalsIgnoreCase(dto.delegation.delegate, expectedDelegate)) {
+      throw new BadRequestException('Delegation delegate does not match the W2W gas wallet');
+    }
+
+    // 7. Dedicated W2W gas wallet pays gas — never the Sell/OTC relayer
+    const relayerPrivateKey = this.getW2wGasWalletPrivateKey();
+
+    // 8. Atomically claim the request (CREATED -> PROCESSING). This serializes concurrent/duplicate
+    // confirm calls (double-tap, retry-after-timeout): a non-atomic read-then-write on `status` would let
+    // a second caller pass the guard and relay the same blanket delegation twice.
+    const res = await this.transferRequestRepo.update(
+      { id: requestId, status: RealUnitTransferRequestStatus.CREATED },
+      { status: RealUnitTransferRequestStatus.PROCESSING },
+    );
+    if (!res.affected) {
+      throw new ConflictException('Transfer request is already in progress or completed');
+    }
+
+    // 9. Relay the STORED recipient + amount (never values from untrusted client input). Persist the
+    // txHash the instant it is broadcast — before the receipt wait — so a timeout/crash after broadcast
+    // never loses track of an already-broadcast transaction.
+    let broadcastTxHash: string | undefined;
+    let txHash: string;
+    try {
+      txHash = await this.eip7702DelegationService.transferTokenWithUserDelegation(
+        transferRequest.user.address,
+        realuAsset,
+        transferRequest.toAddress,
+        transferRequest.amount,
+        dto.delegation,
+        dto.authorization,
+        relayerPrivateKey,
+        async (hash) => {
+          broadcastTxHash = hash;
+          await this.transferRequestRepo.update(requestId, { txHash: hash });
+        },
+      );
+    } catch (e) {
+      if (e instanceof TransactionRevertedException) {
+        // Broadcast succeeded but the tx reverted on-chain: mark FAILED even though txHash is set, so a
+        // retry (which excludes FAILED from the idempotency shortcut above) never hands back the reverted
+        // hash as a success — it re-enters the atomic claim, finds status=FAILED (not CREATED),
+        // affected=0 -> ConflictException.
+        await this.transferRequestRepo.update(requestId, { status: RealUnitTransferRequestStatus.FAILED });
+      } else if (!broadcastTxHash) {
+        // Broadcast never happened — nothing is in flight on-chain, safe to mark FAILED.
+        await this.transferRequestRepo.update(requestId, { status: RealUnitTransferRequestStatus.FAILED });
+      }
+      // else: timeout/unknown error after a successful (non-reverted) broadcast — the tx may still mine.
+      // Leave the request in PROCESSING (its txHash is already persisted); the reconciliation cron
+      // (RealUnitService.reconcilePendingTransfers) resolves it on a later run.
+      throw e;
+    }
+
+    this.logger.info(`RealUnit W2W transfer confirmed via EIP-7702: ${txHash}`);
+
+    // 10. Mark request as complete
+    await this.transferRequestRepo.save(transferRequest.complete(txHash));
+
+    return { txHash };
+  }
+
+  /**
+   * Resolves RealUnitTransferRequest rows stuck in PROCESSING because a crash/restart happened between
+   * the atomic claim (CREATED -> PROCESSING) and the broadcast/callback in confirmTransfer. Called by
+   * RealUnitJobService on a cron. Since the txHash is now persisted BEFORE the tx is sent to the node
+   * (Eip7702DelegationService._transferTokenWithUserDelegationInternal), "PROCESSING without a txHash"
+   * strictly means "never signed/broadcast" and is safe to mark FAILED once stale.
+   */
+  async reconcilePendingTransfers(): Promise<void> {
+    const staleThreshold = Util.minutesBefore(5);
+    const staleRequests = await this.transferRequestRepo.find({
+      where: { status: RealUnitTransferRequestStatus.PROCESSING, updated: LessThan(staleThreshold) },
+    });
+
+    for (const request of staleRequests) {
+      try {
+        if (!request.txHash) {
+          // Conditional update: only fail if still PROCESSING with no txHash. Concurrent onBroadcast
+          // may have set txHash between our find and this write — then affected=0 and we skip.
+          const res = await this.transferRequestRepo.update(
+            { id: request.id, status: RealUnitTransferRequestStatus.PROCESSING, txHash: IsNull() },
+            { status: RealUnitTransferRequestStatus.FAILED },
+          );
+          if (res.affected) {
+            this.logger.info(`RealUnit W2W transfer request ${request.id} reconciled: no broadcast, marked FAILED`);
+          }
+          continue;
+        }
+
+        const receipt = await this.getEvmClient().getTxReceipt(request.txHash);
+        if (!receipt) continue; // not yet mined / not found — leave PROCESSING for the next run
+
+        if (receipt.status === 1) {
+          const res = await this.transferRequestRepo.update(
+            { id: request.id, status: RealUnitTransferRequestStatus.PROCESSING },
+            { status: RealUnitTransferRequestStatus.COMPLETED, txHash: request.txHash },
+          );
+          if (res.affected) {
+            this.logger.info(`RealUnit W2W transfer request ${request.id} reconciled: confirmed on-chain`);
+          }
+        } else {
+          const res = await this.transferRequestRepo.update(
+            { id: request.id, status: RealUnitTransferRequestStatus.PROCESSING },
+            { status: RealUnitTransferRequestStatus.FAILED },
+          );
+          if (res.affected) {
+            this.logger.info(
+              `RealUnit W2W transfer request ${request.id} reconciled: reverted on-chain, marked FAILED`,
+            );
+          }
+        }
+      } catch (e) {
+        this.logger.error(`Failed to reconcile RealUnit W2W transfer request ${request.id}:`, e);
+      }
+    }
+  }
+
+  private getW2wGasWalletPrivateKey(): `0x${string}` {
+    const { w2wGasWalletPrivateKey } = Config.blockchain.realunit;
+    if (!w2wGasWalletPrivateKey) {
+      throw new ServiceUnavailableException('W2W gas funding temporarily unavailable');
+    }
+    return (
+      w2wGasWalletPrivateKey.startsWith('0x') ? w2wGasWalletPrivateKey : `0x${w2wGasWalletPrivateKey}`
+    ) as `0x${string}`;
+  }
+
+  // Address that confirmTransfer actually relays redeemDelegations with (msg.sender). Derived from the
+  // SAME private key so the prepared delegation's `delegate` is guaranteed to match the redeemer and
+  // the DelegationManager's `msg.sender == delegate` check passes (otherwise: InvalidDelegate revert).
+  private getW2wGasWalletAddress(): string {
+    const derivedAddress = new ethers.Wallet(this.getW2wGasWalletPrivateKey()).address;
+    const { w2wGasWalletAddress } = Config.blockchain.realunit;
+    if (w2wGasWalletAddress && !Util.equalsIgnoreCase(derivedAddress, w2wGasWalletAddress)) {
+      throw new Error(
+        'REALUNIT_W2W_GAS_WALLET_ADDRESS does not match the address derived from REALUNIT_W2W_GAS_WALLET_PRIVATE_KEY',
+      );
+    }
+    return derivedAddress;
+  }
+
+  private async assertW2wGasWalletFunded(): Promise<void> {
+    const { w2wGasWalletPrivateKey, w2wGasWalletAddress, w2wGasLowBalanceThreshold } = Config.blockchain.realunit;
+    if (!w2wGasWalletPrivateKey || !w2wGasWalletAddress) {
+      throw new ServiceUnavailableException('W2W gas funding temporarily unavailable');
+    }
+
+    const balance = await this.getEvmClient().getNativeCoinBalanceForAddress(w2wGasWalletAddress);
+    if (balance < w2wGasLowBalanceThreshold) {
+      // Clean message for the client; the balance observer raises the operator alert.
+      throw new ServiceUnavailableException('W2W gas funding temporarily unavailable');
+    }
   }
 }

@@ -109,6 +109,7 @@ export function getIdentificationType(type: IdentType, companyId: string): KycId
 export enum KycContext {
   REALUNIT_BUY = 'RealunitBuy',
   REALUNIT_SELL = 'RealunitSell',
+  REALUNIT_TRANSFER = 'RealunitTransfer',
 }
 
 export function contextRequiredSteps(context: KycContext): Set<KycStepName> | undefined {
@@ -123,6 +124,7 @@ export function contextRequiredSteps(context: KycContext): Set<KycStepName> | un
         KycStepName.IDENT,
       ]);
     case KycContext.REALUNIT_SELL:
+    case KycContext.REALUNIT_TRANSFER:
       return undefined;
   }
 }
