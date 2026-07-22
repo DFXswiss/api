@@ -96,6 +96,7 @@ describe('LedgerAccountService', () => {
 
     expect(result).toMatchObject({ name: 'Kraken/EUR', type: AccountType.ASSET, currency: 'EUR' });
     expect((result as any).asset).toEqual({ id: 100 });
+    expect((result as any).active).toBe(true); // regression: the bootstrap bug created ASSET accounts inactive
   });
 
   it('looks up an ASSET account by assetId via the relation', async () => {
