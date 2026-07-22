@@ -22,7 +22,9 @@ module.exports = class FixFiatOutputValutaDateSerials1784600000011 {
    *
    * Audit and repair run in a single atomic statement with a shared row snapshot (data-modifying
    * CTEs): there is no window between audit insert and mutation in which concurrent changes could
-   * be repaired without being logged.
+   * be repaired without being logged. Affected rows are locked with FOR UPDATE. The final UPDATE
+   * is gated by EXISTS on the audit CTE so audit-before-mutation is structurally enforced, not only
+   * implied by statement atomicity.
    *
    * @param {QueryRunner} queryRunner
    */
@@ -47,11 +49,12 @@ WITH "affected" AS (
     ))::text
   FROM "affected"
   HAVING count(*) > 0
+  RETURNING 1
 )
 UPDATE "fiat_output" f
 SET "valutaDate" = a."repairedDate"
 FROM "affected" a
-WHERE f."id" = a."id";
+WHERE f."id" = a."id" AND EXISTS (SELECT 1 FROM "audit");
 `);
   }
 
@@ -63,7 +66,9 @@ WHERE f."id" = a."id";
    * mutation in the same atomic statement. No calendar-date or midnight heuristic: legitimate
    * production valutaDates frequently are exactly midnight UTC (00:00:00.000), so a
    * date_trunc/midnight check would falsely reverse thousands of valid rows. Missing audit log
-   * yields a no-op (0 rows).
+   * yields a no-op (0 rows). Restorable rows are locked with FOR UPDATE OF f; the after-guard is
+   * re-checked at update time. The final UPDATE is gated by EXISTS on the rollback audit CTE so
+   * audit-before-mutation is structurally enforced, not only implied by statement atomicity.
    *
    * @param {QueryRunner} queryRunner
    */
@@ -84,6 +89,7 @@ WITH "auditSource" AS (
   FROM "entries" e
   JOIN "fiat_output" f ON f."id" = (e."elem"->>'id')::int
   WHERE f."valutaDate" = (e."elem"->>'after')::timestamp
+  FOR UPDATE OF f
 ),
 "rollbackAudit" AS (
   INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
@@ -96,11 +102,12 @@ WITH "auditSource" AS (
     ))::text
   FROM "restorable"
   HAVING count(*) > 0
+  RETURNING 1
 )
 UPDATE "fiat_output" f
 SET "valutaDate" = r."beforeValue"
 FROM "restorable" r
-WHERE f."id" = r."rowId";
+WHERE f."id" = r."rowId" AND f."valutaDate" = r."afterValue" AND EXISTS (SELECT 1 FROM "rollbackAudit");
 `);
   }
 };
