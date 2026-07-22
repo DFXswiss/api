@@ -1282,16 +1282,100 @@ export class LogJobService {
 
     if (!recentSenders.length || !receiverTx.length) return [...recentSenders];
 
+    // Pass 1 — reference matching (unchanged): retire senders whose reference is present on a receiver.
     const receiverRefs = new Set<string>();
     for (const r of receiverTx) {
       const ref = this.getTxReference(r);
       if (ref) receiverRefs.add(ref);
     }
 
-    return recentSenders.filter((s) => {
+    const unmatchedByRef = recentSenders.filter((s) => {
       const ref = this.getTxReference(s);
       return !ref || !receiverRefs.has(ref);
     });
+
+    // Pass 2 — amount+date fallback for receivers without a usable reference only
+    // (e.g. already-arrived Scrypt EUR deposits with empty txId).
+    // Date window: 7 days in ms — mirrors the existing sender recency window.
+    const DATE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+    const availableReceivers = receiverTx.filter((r) => !this.getTxReference(r));
+    if (!unmatchedByRef.length || !availableReceivers.length) return unmatchedByRef;
+
+    // Deterministic processing order: transfer-date ascending, then id ascending.
+    // Does not mutate unmatchedByRef — output order stays that of unmatchedByRef.
+    const sendersByDate = [...unmatchedByRef].sort((a, b) => {
+      const dateDiff = this.getTransferDate(a).getTime() - this.getTransferDate(b).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return a.id - b.id;
+    });
+
+    const retiredSenders = new Set<BankTx | ExchangeTx>();
+
+    for (const sender of sendersByDate) {
+      const senderAmount = this.getTransferAmount(sender);
+      const senderCurrency = this.getTransferCurrency(sender);
+      const senderDate = this.getTransferDate(sender);
+
+      // null/undefined/NaN amounts must not participate (TypeORM nullable → null at runtime).
+      if (!Number.isFinite(senderAmount) || !senderCurrency) continue;
+
+      let bestIndex = -1;
+      let bestAmountDiff = Infinity;
+      let bestDateDiff = Infinity;
+      let bestReceiverId = Infinity;
+
+      for (let i = 0; i < availableReceivers.length; i++) {
+        const receiver = availableReceivers[i];
+        const receiverAmount = this.getTransferAmount(receiver);
+        const receiverCurrency = this.getTransferCurrency(receiver);
+        const receiverDate = this.getTransferDate(receiver);
+
+        if (!Number.isFinite(receiverAmount) || !receiverCurrency) continue;
+        if (senderCurrency !== receiverCurrency) continue;
+
+        // Amount tolerance: 1% relative, minimum 1.0 absolute — covers FX/rounding noise
+        // between instructed and settled amounts without false matches on similar sizes.
+        const amountTolerance = Math.max(1.0, 0.01 * Math.max(Math.abs(senderAmount), Math.abs(receiverAmount)));
+        const amountDiff = Math.abs(senderAmount - receiverAmount);
+        if (amountDiff > amountTolerance) continue;
+
+        const dateDiff = Math.abs(senderDate.getTime() - receiverDate.getTime());
+        if (dateDiff > DATE_WINDOW_MS) continue;
+
+        // Best candidate: smallest amount diff, then date diff, then receiver id.
+        if (
+          amountDiff < bestAmountDiff ||
+          (amountDiff === bestAmountDiff && dateDiff < bestDateDiff) ||
+          (amountDiff === bestAmountDiff && dateDiff === bestDateDiff && receiver.id < bestReceiverId)
+        ) {
+          bestAmountDiff = amountDiff;
+          bestDateDiff = dateDiff;
+          bestReceiverId = receiver.id;
+          bestIndex = i;
+        }
+      }
+
+      if (bestIndex === -1) continue;
+
+      availableReceivers.splice(bestIndex, 1);
+      retiredSenders.add(sender);
+    }
+
+    return unmatchedByRef.filter((s) => !retiredSenders.has(s));
+  }
+
+  private getTransferAmount(tx: BankTx | ExchangeTx): number | null | undefined {
+    return tx instanceof BankTx ? tx.instructedAmount : tx.amount;
+  }
+
+  private getTransferCurrency(tx: BankTx | ExchangeTx): string | undefined {
+    const currency = tx instanceof BankTx ? tx.instructedCurrency : tx.currency;
+    return currency || undefined;
+  }
+
+  private getTransferDate(tx: BankTx | ExchangeTx): Date {
+    return tx instanceof BankTx ? (tx.valueDate ?? tx.created) : (tx.externalCreated ?? tx.created);
   }
 
   private getTxReference(tx: BankTx | ExchangeTx): string | undefined {
