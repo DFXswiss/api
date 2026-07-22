@@ -48,8 +48,6 @@ import { PaymentLinkEvmHexBlockchains } from 'src/subdomains/core/payment-link/e
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
-import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycContext } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
