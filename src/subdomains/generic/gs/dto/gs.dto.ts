@@ -776,6 +776,30 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   language: {
     columns: ['id', 'created', 'updated', 'enable', 'foreignName', 'name', 'symbol'],
   },
+  ledger_account: {
+    // Double-entry ledger chart-of-accounts (monitoring-only). Account names are deterministic system
+    // labels (e.g. 'Frick/EUR', 'LIABILITY/...'); the only non-fixed part is the counterparty
+    // institution name embedded in untracked-bank SUSPENSE account names, identical to the value
+    // already exposed via bank_tx.bankName. No customer PII / secrets.
+    columns: ['id', 'created', 'updated', 'active', 'assetId', 'currency', 'name', 'type'],
+  },
+  ledger_leg: {
+    // Individual debit/credit legs of a ledger transaction. Numeric amounts + FK ids for traversal
+    // (txId -> ledger_tx, accountId -> ledger_account); no PII / secrets / free-form text.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'accountId',
+      'amount',
+      'amountBaseUnits',
+      'amountChf',
+      'amountChfCents',
+      'needsMark',
+      'priceChf',
+      'txId',
+    ],
+  },
   limit_request: {
     // Workflow / decision metadata only. No `fundOriginText` (free-form) and no `recipientMail`.
     columns: [
