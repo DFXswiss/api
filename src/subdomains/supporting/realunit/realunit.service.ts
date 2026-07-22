@@ -2170,30 +2170,12 @@ export class RealUnitService {
       throw new BadRequestException('Signed swap transaction does not match the expected request payload');
     }
 
-    // Race: the isComplete check above and complete() below are not atomic — two concurrent
-    // broadcasts (valid txs with different nonces, same server-derived to/value/data) can both
-    // pass payloadMatches. Atomically claim the request right before sending; only the winner proceeds.
-    const claimed = await this.transactionRequestService.claimForBroadcast(request.id);
-    if (!claimed) throw new ConflictException('Transaction request is already confirmed');
+    const result = await client.sendSignedTransaction(signedHex);
 
-    let result: Awaited<ReturnType<typeof client.sendSignedTransaction>>;
-    try {
-      result = await client.sendSignedTransaction(signedHex);
-    } catch (e) {
-      await this.transactionRequestService.releaseBroadcastClaim(request.id);
-      throw e;
-    }
-
-    if (result.error) {
-      await this.transactionRequestService.releaseBroadcastClaim(request.id);
-      throw new BadRequestException(`Broadcast failed: ${result.error.message}`);
-    }
+    if (result.error) throw new BadRequestException(`Broadcast failed: ${result.error.message}`);
 
     const txHash = result.response?.hash;
-    if (!txHash) {
-      await this.transactionRequestService.releaseBroadcastClaim(request.id);
-      throw new BadRequestException('Broadcast returned no transaction hash');
-    }
+    if (!txHash) throw new BadRequestException('Broadcast returned no transaction hash');
 
     await this.transactionRequestService.complete(request.id);
     await this.faucetRequestService.resetFaucet(userId);

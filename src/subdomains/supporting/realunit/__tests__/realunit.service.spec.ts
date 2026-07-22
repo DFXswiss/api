@@ -321,8 +321,6 @@ describe('RealUnitService', () => {
             getTransactionRequest: jest.fn(),
             complete: jest.fn(),
             confirmTransactionRequest: jest.fn(),
-            claimForBroadcast: jest.fn().mockResolvedValue(true),
-            releaseBroadcastClaim: jest.fn(),
           },
         },
         { provide: TransactionService, useValue: {} },
@@ -1229,9 +1227,6 @@ describe('RealUnitService', () => {
 
     beforeEach(() => {
       jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
-      // clearAllMocks does not reset implementations, but claimForBroadcast is overridden in
-      // concurrency tests — re-assert the default so success paths still claim successfully.
-      transactionRequestService.claimForBroadcast.mockResolvedValue(true);
     });
 
     it('should reconstruct the signed hex, broadcast it and return the txHash', async () => {
@@ -1294,34 +1289,6 @@ describe('RealUnitService', () => {
       // 2nd broadcast: getOrThrow now reflects isComplete=true BECAUSE complete() set it on the fixture
       await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(ConflictException);
       expect(evmClient.sendSignedTransaction).toHaveBeenCalledTimes(1); // not called again on the replay
-    });
-
-    it('rejects a concurrent second broadcast when claimForBroadcast loses the race (atomic claim guard)', async () => {
-      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
-      assetService.getAssetByQuery.mockImplementation((query: any) =>
-        Promise.resolve(query.name === 'ZCHF' ? zchfTxAsset : realuTxAsset),
-      );
-      evmClient.sendSignedTransaction.mockResolvedValue({ response: { hash: '0xSwapTxHash' } });
-      transactionRequestService.claimForBroadcast.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-
-      const first = await service.broadcastSwapTransaction(42, 1, broadcastDto);
-      expect(first.txHash).toBe('0xSwapTxHash');
-
-      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(
-        new ConflictException('Transaction request is already confirmed'),
-      );
-      expect(evmClient.sendSignedTransaction).toHaveBeenCalledTimes(1);
-    });
-
-    it('releases the broadcast claim when sendSignedTransaction returns an error', async () => {
-      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
-      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
-      transactionRequestService.claimForBroadcast.mockResolvedValue(true);
-      evmClient.sendSignedTransaction.mockResolvedValue({ error: { message: 'nonce too low' } });
-
-      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
-      expect(transactionRequestService.releaseBroadcastClaim).toHaveBeenCalledWith(mockRequest.id);
-      expect(transactionRequestService.complete).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException when the signed swap tx targets an unexpected contract/calldata', async () => {
