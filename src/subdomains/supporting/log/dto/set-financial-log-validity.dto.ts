@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
+import { IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class SetFinancialLogValidityDto {
   // inclusive lower bound: matches entries with created >= from
@@ -27,4 +27,10 @@ export class SetFinancialLogValidityDto {
   @IsNotEmpty()
   @IsBoolean()
   valid: boolean;
+
+  // Operator justification for the validity change — becomes part of the audit log.
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(1024)
+  reference: string;
 }
