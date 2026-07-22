@@ -1302,18 +1302,19 @@ export class LogJobService {
     const availableReceivers = receiverTx.filter((r) => !this.getTxReference(r));
     if (!unmatchedByRef.length || !availableReceivers.length) return unmatchedByRef;
 
-    // Global greedy candidate-pair assignment: exact (or closer) matches win globally,
-    // independent of sender/receiver input order and independent of date-processing order.
-    // Locally greedy date-ascending assignment could let an earlier sender consume a
-    // receiver that a later sender would match exactly, wrongly leaving the exact match pending.
-    type Candidate = {
-      sender: BankTx | ExchangeTx;
+    // Maximum-cardinality bipartite matching (Kuhn's augmenting-path algorithm).
+    // Plain greedy consumption of globally cost-sorted edges can strand a matchable
+    // sender: its only in-tolerance receiver may be claimed by another sender with a
+    // lower-cost edge to that same receiver, even though a different global assignment
+    // would retire both. Kuhn guarantees maximum cardinality; per-sender candidate
+    // sort keeps exact/cheap matches preferred when multiple assignments have equal size.
+    type SenderCandidate = {
       receiver: BankTx | ExchangeTx;
       amountDiff: number;
       dateDiff: number;
     };
 
-    const candidates: Candidate[] = [];
+    const candidatesBySender = new Map<BankTx | ExchangeTx, SenderCandidate[]>();
 
     for (const sender of unmatchedByRef) {
       const senderAmount = this.getTransferAmount(sender);
@@ -1322,6 +1323,8 @@ export class LogJobService {
 
       // null/undefined/NaN amounts must not participate (TypeORM nullable → null at runtime).
       if (!Number.isFinite(senderAmount) || !senderCurrency) continue;
+
+      const senderCandidates: SenderCandidate[] = [];
 
       for (const receiver of availableReceivers) {
         const receiverAmount = this.getTransferAmount(receiver);
@@ -1340,26 +1343,51 @@ export class LogJobService {
         const dateDiff = Math.abs(senderDate.getTime() - receiverDate.getTime());
         if (dateDiff > DATE_WINDOW_MS) continue;
 
-        candidates.push({ sender, receiver, amountDiff, dateDiff });
+        senderCandidates.push({ receiver, amountDiff, dateDiff });
       }
+
+      if (!senderCandidates.length) continue;
+
+      // Exact/closer matches first for this sender.
+      senderCandidates.sort((a, b) => {
+        if (a.amountDiff !== b.amountDiff) return a.amountDiff - b.amountDiff;
+        if (a.dateDiff !== b.dateDiff) return a.dateDiff - b.dateDiff;
+        return a.receiver.id - b.receiver.id;
+      });
+
+      candidatesBySender.set(sender, senderCandidates);
     }
 
-    // Total order over entity fields → outcome independent of input array order.
-    candidates.sort((a, b) => {
-      if (a.amountDiff !== b.amountDiff) return a.amountDiff - b.amountDiff;
-      if (a.dateDiff !== b.dateDiff) return a.dateDiff - b.dateDiff;
-      if (a.sender.id !== b.sender.id) return a.sender.id - b.sender.id;
-      return a.receiver.id - b.receiver.id;
+    // Senders holding an exact/near-exact match get first crack at claiming it.
+    const sendersToProcess = [...candidatesBySender.keys()].sort((a, b) => {
+      const bestA = candidatesBySender.get(a)![0];
+      const bestB = candidatesBySender.get(b)![0];
+      if (bestA.amountDiff !== bestB.amountDiff) return bestA.amountDiff - bestB.amountDiff;
+      if (bestA.dateDiff !== bestB.dateDiff) return bestA.dateDiff - bestB.dateDiff;
+      return a.id - b.id;
     });
 
-    const retiredSenders = new Set<BankTx | ExchangeTx>();
-    const consumedReceivers = new Set<BankTx | ExchangeTx>();
+    const matchOfReceiver = new Map<BankTx | ExchangeTx, BankTx | ExchangeTx>();
 
-    for (const candidate of candidates) {
-      if (retiredSenders.has(candidate.sender) || consumedReceivers.has(candidate.receiver)) continue;
-      retiredSenders.add(candidate.sender);
-      consumedReceivers.add(candidate.receiver);
+    const tryAssign = (sender: BankTx | ExchangeTx, visited: Set<BankTx | ExchangeTx>): boolean => {
+      for (const { receiver } of candidatesBySender.get(sender)!) {
+        if (visited.has(receiver)) continue;
+        visited.add(receiver);
+
+        const currentMatch = matchOfReceiver.get(receiver);
+        if (!currentMatch || tryAssign(currentMatch, visited)) {
+          matchOfReceiver.set(receiver, sender);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    for (const sender of sendersToProcess) {
+      tryAssign(sender, new Set());
     }
+
+    const retiredSenders = new Set(matchOfReceiver.values());
 
     return unmatchedByRef.filter((s) => !retiredSenders.has(s));
   }

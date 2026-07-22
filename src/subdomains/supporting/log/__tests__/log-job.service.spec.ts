@@ -1351,6 +1351,46 @@ describe('LogJobService', () => {
     expect(service.getUnmatchedSenders([senderB, senderA], receiverTx)).toEqual([senderA]);
   });
 
+  it('should retire both senders via augmenting path when greedy would strand one', () => {
+    // Repro of the plain-greedy cardinality defect: edges in tolerance are
+    // S1–R1 (diff 2), S2–R1 (diff 0), S2–R2 (diff 9); S1–R2 (diff 11) is OUT.
+    // Greedy consumes S2–R1 first (lowest cost) and strands S1. Kuhn reassigns
+    // S2→R2 so S1 can take R1 — maximum cardinality, both senders retired.
+    const sender1 = createCustomBankTx({
+      id: 701,
+      created: Util.hoursBefore(48),
+      valueDate: Util.hoursBefore(48),
+      instructedAmount: 1000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'cardinality sender 1',
+    });
+    const sender2 = createCustomBankTx({
+      id: 702,
+      created: Util.hoursBefore(24),
+      valueDate: Util.hoursBefore(24),
+      instructedAmount: 1002,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'cardinality sender 2',
+    });
+    const receiver1 = createCustomExchangeTx({
+      id: 801,
+      created: Util.hoursBefore(36),
+      amount: 1002,
+      currency: 'EUR',
+      txId: undefined,
+    });
+    const receiver2 = createCustomExchangeTx({
+      id: 802,
+      created: Util.hoursBefore(12),
+      amount: 1011,
+      currency: 'EUR',
+      txId: undefined,
+    });
+
+    expect(service.getUnmatchedSenders([sender1, sender2], [receiver1, receiver2])).toEqual([]);
+    expect(service.getUnmatchedSenders([sender2, sender1], [receiver2, receiver1])).toEqual([]);
+  });
+
   it('should not match and must not throw when a ref-less receiver or sender has a null amount', () => {
     // TypeORM nullable columns can surface as `null` at runtime even though the TS field type says
     // `number | undefined`. Both senders below must survive as unmatched, and the call must not throw.
