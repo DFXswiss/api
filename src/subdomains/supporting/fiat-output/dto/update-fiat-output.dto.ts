@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString, MinDate } from 'class-validator';
+import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { TransactionCharge } from '../fiat-output.entity';
 import { MIN_FIAT_OUTPUT_DATE } from './create-fiat-output.dto';
 
@@ -8,7 +9,7 @@ export class UpdateFiatOutputDto {
   @IsNumber()
   originEntityId?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsNotEmpty()
   @IsString()
   accountIban?: string;

@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { IsNull, Not } from 'typeorm';
 import { FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { IbanService } from 'src/integration/bank/services/iban.service';
@@ -430,6 +431,7 @@ describe('FiatOutputJobService', () => {
 
       const findArgs = (fiatOutputRepo.find as jest.Mock).mock.calls[0][0];
       expect(findArgs.where).toHaveLength(3);
+      expect(findArgs.where[2]).toMatchObject({ accountIban: Not(IsNull()), bank: IsNull() });
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         'Error in fillPreValutaDate fiatOutput: 1:',
