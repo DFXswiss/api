@@ -212,7 +212,6 @@ describe('RealUnitService', () => {
     getTxReceipt: jest.Mock;
   };
   let evmClient: typeof sepoliaClient;
-  let kycService: jest.Mocked<KycService>;
   let lnUrlForwardService: jest.Mocked<LnUrlForwardService>;
   let paymentLinkPaymentService: jest.Mocked<PaymentLinkPaymentService>;
   let faucetRequestService: jest.Mocked<FaucetRequestService>;
@@ -403,7 +402,6 @@ describe('RealUnitService', () => {
     buyService = module.get(BuyService);
     supportIssueService = module.get(SupportIssueService);
     transferRequestRepo = module.get(RealUnitTransferRequestRepository);
-    kycService = module.get(KycService);
     lnUrlForwardService = module.get(LnUrlForwardService);
     paymentLinkPaymentService = module.get(PaymentLinkPaymentService);
     faucetRequestService = module.get(FaucetRequestService);

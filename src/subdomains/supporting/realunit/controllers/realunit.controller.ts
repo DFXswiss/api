@@ -64,12 +64,6 @@ import {
   RealUnitConfirmAktionariatQueryDto,
 } from '../dto/realunit-confirm-aktionariat.dto';
 import {
-  RealUnitBalancePdfDto,
-  RealUnitMultiReceiptPdfDto,
-  RealUnitSingleReceiptPdfDto,
-  ReceiptCurrency,
-} from '../dto/realunit-pdf.dto';
-import {
   RealUnitOcpPayDto,
   RealUnitOcpPayResultDto,
   RealUnitOcpPayStatusDto,
@@ -79,6 +73,12 @@ import {
   RealUnitSwapPaymentInfoDto,
   RealUnitSwapUnsignedTransactionDto,
 } from '../dto/realunit-pay.dto';
+import {
+  RealUnitBalancePdfDto,
+  RealUnitMultiReceiptPdfDto,
+  RealUnitSingleReceiptPdfDto,
+  ReceiptCurrency,
+} from '../dto/realunit-pdf.dto';
 import {
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationResponseDto,
