@@ -2333,7 +2333,7 @@ export class RealUnitService {
     // 4. Drain preflight: sender must hold enough REALU before we broadcast
     const balance = await this.getEvmClient().getTokenBalance(realuAsset, transferRequest.user.address);
     if (balance < transferRequest.amount) {
-      throw new ConflictException('Insufficient REALU balance for transfer');
+      throw new BadRequestException('Insufficient REALU balance for transfer');
     }
 
     // 5. Abort cleanly if the W2W gas wallet itself is underfunded

@@ -1202,12 +1202,12 @@ describe('RealUnitService', () => {
         expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
       });
 
-      it('throws Conflict when the sender does not hold enough REALU', async () => {
+      it('throws BadRequest when the sender does not hold enough REALU', async () => {
         transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
         assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
         sepoliaClient.getTokenBalance.mockResolvedValue(4); // stored request amount is 5
 
-        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(ConflictException);
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(BadRequestException);
         expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
       });
 
