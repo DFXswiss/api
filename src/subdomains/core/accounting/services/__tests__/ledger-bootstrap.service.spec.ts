@@ -122,6 +122,7 @@ describe('LedgerBootstrapService', () => {
     await service.bootstrap();
 
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('name collision'));
+    errorSpy.mockRestore();
   });
 
   it('creates ASSET accounts from custody asset rows with name=uniqueName, currency=dexName, assetId set', async () => {
