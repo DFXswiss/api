@@ -1,6 +1,8 @@
 import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -25,9 +27,12 @@ export class LogController {
   @Put('financial/validity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async setFinancialLogValidity(@Body() dto: SetFinancialLogValidityDto): Promise<{ affected: number }> {
-    return this.logService.setFinancialLogValidity(dto);
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
+  async setFinancialLogValidity(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: SetFinancialLogValidityDto,
+  ): Promise<{ affected: number }> {
+    return this.logService.setFinancialLogValidity(jwt.account, dto);
   }
 
   @Put(':id')

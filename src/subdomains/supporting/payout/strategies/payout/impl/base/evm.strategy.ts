@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
@@ -48,6 +49,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
         const txId = await this.dispatchPayout(order);
         order.resetPayoutRetry();
         order.pendingPayout(txId);
+        order.amountBaseUnits = this.sentBaseUnits(order);
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
@@ -55,6 +57,28 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
         await this.handleBroadcastError(order, e, this.payoutOrderRepo);
       }
+    }
+  }
+
+  // §2.3 native-first exactness (issue #4287 stage 1): the EXACT integer base units that actually left custody on-chain,
+  // captured to be TAUTOLOGICALLY equal to the broadcast by scaling with the SAME decimals evm-client uses — so the
+  // stored integer can never diverge from what was sent. A native COIN is ALWAYS broadcast via parseEther = 18 dp
+  // (evm-client.ts:853/873) irrespective of the asset's configured decimals, so a coin is captured ONLY at 18 dp; a coin
+  // misconfigured with decimals ≠ 18 would otherwise store a value diverging from the sent amount → fail-open to null
+  // (derive) instead of persisting a wrong exact figure. A TOKEN is broadcast via parseUnits(amount, token.decimals)
+  // (evm-client.ts:885) = asset.decimals. For a >8-dp asset (every EVM 18-dp coin/token) the result DIFFERS from the
+  // ≤8-dp float derivation (toBaseUnits caps at 8 dp); the ledger books it verbatim on the withdrawal wallet leg.
+  // Scaling is string/BigNumber-based (no float step beyond order.amount). Additive/fail-open: unknown/incompatible
+  // decimals → null → derive as before.
+  private sentBaseUnits(order: PayoutOrder): bigint | null {
+    const decimals = order.asset?.decimals;
+    if (decimals == null) return null;
+    // a native coin is broadcast at 18 dp (parseEther) regardless of asset.decimals — never store a divergent value
+    if (this.assetType === AssetType.COIN && decimals !== 18) return null;
+    try {
+      return BigInt(EvmUtil.toWeiAmount(order.amount, decimals).toString());
+    } catch {
+      return null;
     }
   }
 
@@ -69,6 +93,9 @@ export abstract class EvmStrategy extends PayoutStrategy {
           const feeAsset = await this.feeAsset();
           const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
           order.recordPayoutFee(feeAsset, status.fee, price.convert(status.fee, Config.defaultVolumeDecimal));
+          // §2.3 exactness (#4287 stage 3): also persist the EXACT gas-fee wei so the ledger books the network-fee leg
+          // verbatim; null (capture error) -> the ledger derives from the float (fail-open).
+          order.payoutFeeAmountBaseUnits = status.feeBaseUnits;
 
           await this.payoutOrderRepo.save(order);
         } else if (status.state === 'failed' && !status.isOutOfGas) {

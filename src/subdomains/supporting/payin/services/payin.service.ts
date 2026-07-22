@@ -84,6 +84,13 @@ export class PayInService {
     throw new BadRequestException(`Address poll not supported for ${address.blockchain}`);
   }
 
+  // fail-open string → bigint for the exact base units captured at ingestion (issue #4287 stage 1): a malformed value
+  // must never wedge live pay-in creation, so anything not a clean integer string falls back to null and the ledger
+  // then derives the base units from the float amount as before.
+  private parseBaseUnits(value?: string): bigint | null {
+    return value != null && /^-?\d+$/.test(value) ? BigInt(value) : null;
+  }
+
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
     const payIns: CryptoInput[] = [];
 
@@ -95,6 +102,7 @@ export class PayInService {
       txSequence,
       blockHeight,
       amount,
+      amountBaseUnits,
       asset,
     } of transactions) {
       const payIn = CryptoInput.create(
@@ -106,6 +114,7 @@ export class PayInService {
         blockHeight,
         amount,
         asset,
+        this.parseBaseUnits(amountBaseUnits),
       );
 
       const exists = await this.payInRepository.exists({

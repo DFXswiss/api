@@ -132,6 +132,10 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
 
       if (matchingTransfer) {
         order.outputAmount = EvmUtil.fromWeiAmount(matchingTransfer.value, asset.decimals);
+        // §2.3 native-first exactness (#4287 stage 2): the exact raw on-chain wei that arrived, already in the
+        // booked target asset's (`asset` = rule.target) decimals — the ledger books it verbatim on BOTH bridge
+        // legs so they net to 0n. Fail-open null on a malformed value → the ledger derives from the float.
+        order.outputAmountBaseUnits = EvmUtil.toBaseUnitsFromRaw(matchingTransfer.value);
         return true;
       }
 

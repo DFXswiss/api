@@ -144,6 +144,26 @@ describe('CryptoInputConsumer', () => {
     expect(cents(seq0.legs)).toBe(0); // plug ≈ 0
   });
 
+  // issue #4287 stage 1: the exact on-chain base units captured on the crypto_input flow onto the seq0 ASSET leg as an
+  // explicit override, so the booking service persists them wei-exact (verified verbatim in the booking-service spec).
+  it('passes the crypto_input amountBaseUnits onto the seq0 ASSET leg as an exact override', async () => {
+    const exactWei = 123456789012345678n;
+    mockBatch([
+      cryptoInput({
+        id: 7,
+        amount: 0.12345679,
+        amountBaseUnits: exactWei,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        buyFiat: { amountInChf: 50000 } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const seq0 = booked.find((b) => b.seq === 0);
+    const assetLeg = seq0.legs.find((l) => l.account.name === 'Bitcoin/BTC');
+    expect(assetLeg.amountBaseUnits).toBe(exactWei); // captured exact value forwarded, not re-derived from the float
+  });
+
   // §10.2 fixture (B) — volatile BTC input: 3-leg with a real fx plug, received anchored at amountInChf
   it('books a volatile BTC buyFiat input as a 3-leg fx-plug tx, received = −amountInChf (Blocker R7-1)', async () => {
     mockBatch([

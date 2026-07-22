@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DEuroService } from 'src/integration/blockchain/deuro/deuro.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
@@ -82,6 +83,10 @@ export class DEuroAdapter extends FrankencoinBasedAdapter {
     order.inputAsset = sourceAsset.name;
     order.outputAmount = amount;
     order.outputAsset = dEuroAsset.name;
+    // §2.3 native-first exactness (#4287 stage 2): the 1:1 dEURO bridge-in sends toWeiAmount(amount, decimals)
+    // and the same amount arrives; capture the exact wei in the decimals the ledger books (pipeline target) so
+    // both bridge legs stay wei-exact. Fail-open null when the booked target asset / decimals are unavailable.
+    order.outputAmountBaseUnits = EvmUtil.toBroadcastBaseUnits(amount, order.pipeline?.rule?.targetAsset);
 
     return this.deuroService.bridgeToDeuro(sourceAsset, amount);
   }

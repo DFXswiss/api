@@ -12,7 +12,7 @@ import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { createCustomBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
-import { BuyCrypto } from '../buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../buy-crypto.entity';
 
 function createPrice(source: string, target: string, price?: number): Price {
   return Object.assign(new Price(), { source, target, price, steps: [] });
@@ -736,5 +736,27 @@ describe('BuyCrypto', () => {
       expect(update.amlPostProcessed).toBe(false);
       expect(entity.amlPostProcessed).toBe(false);
     });
+  });
+});
+
+describe('BuyCrypto #complete(...) exact base-unit propagation (#4287 stage 4)', () => {
+  it('stores the exact delivered base units (beyond 8 dp) handed from the linked payout order', () => {
+    const entity = createDefaultBuyCrypto();
+
+    // 0.2 ETH delivered as 18-dp wei — NOT representable in the 8-dp float `outputAmount`
+    entity.complete(0, 200000000000000000n);
+
+    expect(entity.outputAmountBaseUnits).toBe(200000000000000000n);
+    expect(entity.isComplete).toBe(true);
+    expect(entity.status).toBe(BuyCryptoStatus.COMPLETE);
+  });
+
+  it('fails open to a null outputAmountBaseUnits when no base units are provided', () => {
+    const entity = createDefaultBuyCrypto();
+
+    entity.complete(0);
+
+    expect(entity.outputAmountBaseUnits).toBeNull();
+    expect(entity.isComplete).toBe(true);
   });
 });

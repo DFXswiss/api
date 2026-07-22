@@ -140,6 +140,10 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
       txType: this.getTxType(transaction.toAddress),
       blockHeight: Number(transaction.blockNum),
       amount: Util.floorByPrecision(EvmUtil.fromWeiAmount(rawValue, decimals), 15), // temporary precision fix
+      // exact wei captured from the on-chain raw value BEFORE the float collapse above (issue #4287 stage 1), scaled to
+      // the asset's own decimals so it lands in crypto_input.amountBaseUnits at the ledger scale; undefined (→ derive
+      // from the float) when the asset scale is unknown or incompatible (fail-open).
+      amountBaseUnits: this.toBaseUnitsString(EvmUtil.fromWeiAmountString(rawValue, decimals), asset?.decimals),
       asset: asset ?? null,
     };
   }

@@ -1,6 +1,7 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { fromDecimalString } from 'src/shared/models/base-units.transformer';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
@@ -36,6 +37,19 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
     const payIns = await this.payInService.createPayIns(transactions);
 
     log.newRecords.push(...payIns.map((p) => ({ address: p.address.address, txId: p.inTxId })));
+  }
+
+  // §2.3 native-first exactness (issue #4287 stage 1): scale an EXACT decimal amount STRING (captured before any float
+  // collapse) to the integer base units of a `decimals`-decimal asset for PayInEntry.amountBaseUnits. Returns undefined
+  // (→ the ledger derives from the float, fail-open) when the asset scale is unknown or the value carries more
+  // precision than the asset can represent exactly.
+  protected toBaseUnitsString(exactDecimal: string, decimals?: number | null): string | undefined {
+    if (decimals == null) return undefined;
+    try {
+      return fromDecimalString(exactDecimal, decimals).toString();
+    } catch {
+      return undefined;
+    }
   }
 
   protected createNewLogObject(): PayInInputLog {

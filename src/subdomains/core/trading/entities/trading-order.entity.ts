@@ -1,5 +1,6 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { TradingInfo } from '../dto/trading.dto';
 import { TradingOrderStatus } from '../enums';
@@ -42,6 +43,16 @@ export class TradingOrder extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   amountOut?: number;
+
+  // §2.3 native-first exactness (issue #4287 stage 2): the EXACT integer base units (wei) of the on-chain
+  // swap INPUT (`amountIn`, DFX float scaled at broadcast) and OUTPUT (`amountOut`, the raw on-chain transfer
+  // integer). Nullable + additive — legacy rows and non-EVM/unknown-decimals swaps stay null and the ledger
+  // falls back to the <=8-dp float derivation (fail-open). numeric <-> JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  amountInBaseUnits?: bigint | null;
+
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  amountOutBaseUnits?: bigint | null;
 
   @Column({ nullable: true })
   txId?: string;

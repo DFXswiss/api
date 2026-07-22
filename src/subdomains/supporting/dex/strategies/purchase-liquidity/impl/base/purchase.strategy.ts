@@ -1,4 +1,5 @@
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { ChainSwapId, LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PurchaseLiquidityRequest } from '../../../../interfaces';
@@ -7,7 +8,15 @@ import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 export interface PurchaseDexService {
   getTargetAmount(referenceAsset: Asset, referenceAmount: number, targetAsset: Asset): Promise<number>;
   swap(swapAsset: Asset, swapAmount: number, targetAsset: Asset, maxPriceSlippage: number): Promise<ChainSwapId>;
-  getSwapResult(txId: string, asset: Asset): Promise<{ targetAmount: number; feeAmount: number }>;
+  getSwapResult(
+    txId: string,
+    asset: Asset,
+  ): Promise<{
+    targetAmount: number;
+    feeAmount: number;
+    targetAmountBaseUnits?: bigint | null;
+    feeAmountBaseUnits?: bigint | null;
+  }>;
 }
 
 export abstract class PurchaseStrategy extends PurchaseLiquidityStrategy {
@@ -59,10 +68,21 @@ export abstract class PurchaseStrategy extends PurchaseLiquidityStrategy {
   }
 
   async addPurchaseData(order: LiquidityOrder): Promise<void> {
-    const { targetAmount, feeAmount } = await this.dexService.getSwapResult(order.txId, order.targetAsset);
+    const { targetAmount, feeAmount, targetAmountBaseUnits, feeAmountBaseUnits } = await this.dexService.getSwapResult(
+      order.txId,
+      order.targetAsset,
+    );
 
     order.purchased(targetAmount);
+    // §2.3 native-first exactness (#4287 stage 2): keep the exact swap-output wei ONLY when purchased() booked
+    // the on-chain output verbatim. setTargetAmount rewrites targetAmount to referenceAmount when
+    // reference==target (dexName), so the captured integer would no longer represent order.targetAmount → drop
+    // it (fail-open, derive from the float).
+    order.targetAmountBaseUnits = order.targetAmount === targetAmount ? (targetAmountBaseUnits ?? null) : null;
     order.recordFee(await this.feeAsset(), feeAmount);
+    // §2.3 exactness (#4287 stage 3): recordFee stores feeAmount verbatim, so keep its EXACT gas-fee wei alongside;
+    // the ledger books the network-fee leg verbatim. null -> derive from the float (fail-open).
+    order.feeAmountBaseUnits = feeAmountBaseUnits ?? null;
     await this.liquidityOrderRepo.save(order);
   }
 
@@ -73,6 +93,11 @@ export abstract class PurchaseStrategy extends PurchaseLiquidityStrategy {
 
     const txId = await this.dexService.swap(referenceAsset, referenceAmount, targetAsset, maxPriceSlippage);
     order.addBlockchainTransactionMetadata(txId, referenceAsset, referenceAmount);
+    // §2.3 native-first exactness (#4287 stage 2): the EXACT wei that entered the DfxDex swap = referenceAmount
+    // scaled at the broadcast resolution (toBroadcastBaseUnits mirrors client.swap's toWeiAmount; coin=18 /
+    // token=decimals guard). PurchaseStrategy is EVM-only (non-EVM uses NoPurchaseStrategy). Fail-open null →
+    // the ledger derives from the float.
+    order.swapAmountBaseUnits = EvmUtil.toBroadcastBaseUnits(referenceAmount, referenceAsset);
   }
 
   private async estimateTargetAmount(order: LiquidityOrder): Promise<void> {

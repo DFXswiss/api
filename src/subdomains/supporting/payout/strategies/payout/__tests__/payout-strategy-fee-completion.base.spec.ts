@@ -162,7 +162,8 @@ describe('Payout strategy base classes - estimateFee / estimateBlockchainFee / c
 
     it('checkPayoutCompletionData(...) completes the order, records the fee and persists once when complete', async () => {
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'SOL_TX' });
-      jest.spyOn(solanaService, 'getPayoutCompletionData').mockResolvedValue([true, 0.00005]);
+      feeAsset.decimals = 9; // SOL at the lamports scale (SolanaUtil.coinDecimals) -> exact fee lamports are booked
+      jest.spyOn(solanaService, 'getPayoutCompletionData').mockResolvedValue([true, 0.00005, 5000n]);
       const completeSpy = jest.spyOn(order, 'complete');
       const recordFeeSpy = jest.spyOn(order, 'recordPayoutFee');
 
@@ -173,6 +174,8 @@ describe('Payout strategy base classes - estimateFee / estimateBlockchainFee / c
       expect(completeSpy).toHaveBeenCalledTimes(1);
       expect(convertFn).toHaveBeenCalledWith(0.00005, Config.defaultVolumeDecimal);
       expect(recordFeeSpy).toHaveBeenCalledWith(feeAsset, 0.00005, 42);
+      // §2.3 exactness (issue #4287): the exact fee lamports are captured verbatim when SOL is at the 9-dp scale
+      expect(order.payoutFeeAmountBaseUnits).toBe(5000n);
       expect(order.status).toBe(PayoutOrderStatus.COMPLETE);
       expect(payoutOrderRepo.save).toHaveBeenCalledTimes(1);
       expect(payoutOrderRepo.save).toHaveBeenCalledWith(order);
@@ -180,7 +183,7 @@ describe('Payout strategy base classes - estimateFee / estimateBlockchainFee / c
 
     it('checkPayoutCompletionData(...) leaves the order untouched when not yet complete', async () => {
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'SOL_TX_2' });
-      jest.spyOn(solanaService, 'getPayoutCompletionData').mockResolvedValue([false, 0]);
+      jest.spyOn(solanaService, 'getPayoutCompletionData').mockResolvedValue([false, 0, null]);
       const completeSpy = jest.spyOn(order, 'complete');
       const recordFeeSpy = jest.spyOn(order, 'recordPayoutFee');
 
@@ -358,7 +361,8 @@ describe('Payout strategy base classes - estimateFee / estimateBlockchainFee / c
 
     it('checkPayoutCompletionData(...) completes the order, records the fee and persists once when complete', async () => {
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'ADA_TX' });
-      jest.spyOn(cardanoService, 'getPayoutCompletionData').mockResolvedValue([true, 0.18]);
+      feeAsset.decimals = 6; // ADA at the lovelace scale (CardanoUtil.coinDecimals) -> exact fee lovelace are booked
+      jest.spyOn(cardanoService, 'getPayoutCompletionData').mockResolvedValue([true, 0.18, 180000n]);
       const completeSpy = jest.spyOn(order, 'complete');
       const recordFeeSpy = jest.spyOn(order, 'recordPayoutFee');
 
@@ -369,6 +373,8 @@ describe('Payout strategy base classes - estimateFee / estimateBlockchainFee / c
       expect(completeSpy).toHaveBeenCalledTimes(1);
       expect(convertFn).toHaveBeenCalledWith(0.18, Config.defaultVolumeDecimal);
       expect(recordFeeSpy).toHaveBeenCalledWith(feeAsset, 0.18, 3);
+      // §2.3 exactness (issue #4287): the exact fee lovelace are captured verbatim when ADA is at the 6-dp scale
+      expect(order.payoutFeeAmountBaseUnits).toBe(180000n);
       expect(order.status).toBe(PayoutOrderStatus.COMPLETE);
       expect(payoutOrderRepo.save).toHaveBeenCalledTimes(1);
       expect(payoutOrderRepo.save).toHaveBeenCalledWith(order);
@@ -376,7 +382,7 @@ describe('Payout strategy base classes - estimateFee / estimateBlockchainFee / c
 
     it('checkPayoutCompletionData(...) leaves the order untouched when not yet complete', async () => {
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'ADA_TX_2' });
-      jest.spyOn(cardanoService, 'getPayoutCompletionData').mockResolvedValue([false, 0]);
+      jest.spyOn(cardanoService, 'getPayoutCompletionData').mockResolvedValue([false, 0, null]);
       const completeSpy = jest.spyOn(order, 'complete');
       const recordFeeSpy = jest.spyOn(order, 'recordPayoutFee');
 

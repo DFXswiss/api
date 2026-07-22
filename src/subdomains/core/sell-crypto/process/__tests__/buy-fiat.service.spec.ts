@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -373,6 +374,51 @@ describe('BuyFiatService', () => {
         CheckStatus.PENDING,
         null,
       );
+    });
+  });
+
+  describe('createFromCryptoInput exact base-unit propagation (#4287 stage 4)', () => {
+    it('propagates the linked crypto_input on-chain base units into inputAmountBaseUnits (exact beyond 8 dp)', async () => {
+      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      jest.spyOn(buyFiatRepo, 'save').mockImplementation(async (e) => e as BuyFiat);
+      jest.spyOn(service as any, 'getAndCompleteTxRequest').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'triggerWebhook').mockResolvedValue(undefined);
+      jest.spyOn(transactionService, 'updateInternal').mockImplementation(async (t: any) => t);
+
+      const cryptoInput = createCustomCryptoInput({
+        amount: 1.23456789,
+        // 18-dp wei — NOT representable in the 8-dp float `amount`; the exact integer must survive verbatim
+        amountBaseUnits: 1234567890123456789n,
+        asset: createCustomAsset({ name: 'ETH', decimals: 18 }),
+        transaction: { id: 1 } as any,
+      });
+      const sell = { fiat: createDefaultFiat(), user: {}, userData: {} } as any;
+
+      const result = await service.createFromCryptoInput(cryptoInput, sell);
+
+      expect(result.inputAmountBaseUnits).toBe(1234567890123456789n);
+      // existing float column is untouched (backward compatible)
+      expect(result.inputAmount).toBe(1.23456789);
+    });
+
+    it('fails open to a null inputAmountBaseUnits when the crypto_input has no captured base units', async () => {
+      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      jest.spyOn(buyFiatRepo, 'save').mockImplementation(async (e) => e as BuyFiat);
+      jest.spyOn(service as any, 'getAndCompleteTxRequest').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'triggerWebhook').mockResolvedValue(undefined);
+      jest.spyOn(transactionService, 'updateInternal').mockImplementation(async (t: any) => t);
+
+      const cryptoInput = createCustomCryptoInput({
+        amount: 0.1,
+        amountBaseUnits: null,
+        transaction: { id: 2 } as any,
+      });
+      const sell = { fiat: createDefaultFiat(), user: {}, userData: {} } as any;
+
+      const result = await service.createFromCryptoInput(cryptoInput, sell);
+
+      expect(result.inputAmountBaseUnits).toBeNull();
+      expect(result.inputAmount).toBe(0.1);
     });
   });
 });

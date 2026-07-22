@@ -166,6 +166,24 @@ describe('LiquidityOrderDexConsumer', () => {
     expect(cents(tx.legs)).toBe(0);
   });
 
+  // issue #4287 stage 3: the exact on-chain gas-fee wei is booked VERBATIM on the third-asset (gas) native fee leg,
+  // negated for the credit; the folded swap/target fee branches keep deriving from the float.
+  it('books the captured exact gas-fee wei verbatim on the third-asset network-fee leg (#4287 stage 3)', async () => {
+    mockBatch([
+      liquidityOrder({
+        id: 15,
+        feeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' },
+        feeAmount: 0.01,
+        feeAmountBaseUnits: 10000000000000000n, // 0.01 ETH in wei, captured from the receipt
+      }),
+    ]);
+    await consumer.process();
+
+    const eth = leg(booked[0], 'Ethereum/ETH');
+    expect(eth.amount).toBe(-0.01); // Cr native gas leg
+    expect(eth.amountBaseUnits).toBe(-10000000000000000n); // captured wei booked verbatim, negated for the Cr leg
+  });
+
   // §4.8a Major R7-1 case 1: feeAsset == swapAsset → folds into the existing Cr ASSET/swap leg (no own leg)
   it('folds a swap-asset fee into the existing Cr ASSET/swap leg (Major R7-1 case 1)', async () => {
     mockBatch([liquidityOrder({ id: 12, feeAsset: { id: USDC_ASSET_ID, uniqueName: 'Ethereum/USDC' }, feeAmount: 5 })]);
@@ -434,5 +452,93 @@ describe('LiquidityOrderDexConsumer', () => {
     await consumer.process();
 
     expect(booked).toHaveLength(0); // covered → no fresh seq0
+  });
+
+  // §2.3 exactness (#4287 stage 2): the captured DfxDex swap wei flow verbatim onto the two cross-asset legs, signed to
+  // match each leg (Dr target = +, Cr swap = −). Cross-asset + CHF fee/spread legs → out of assertNativeBalance's scope.
+  it('books the captured DfxDex swap wei verbatim on both legs, signed to the leg (#4287 stage 2)', async () => {
+    const targetWei = 1000111222333444555n; // > 8-dp beyond the float leg amount (1000)
+    const swapWei = 1050999888777666555n;
+    mockBatch([liquidityOrder({ id: 50, targetAmountBaseUnits: targetWei, swapAmountBaseUnits: swapWei })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/EURC').amountBaseUnits).toBe(targetWei); // Dr target → positive
+    expect(leg(tx, 'Ethereum/USDC').amountBaseUnits).toBe(-swapWei); // Cr swap → negated
+  });
+
+  // §2.3 fee-fold (#4287 stage 2): a folded swap-asset fee makes the swap leg's native quantity (amount + fee) diverge
+  // from the captured swap wei → its override is dropped (derive), while the un-folded target override is retained.
+  it('drops the swap-leg override when a swap-asset fee is folded in, keeps the target override (#4287 stage 2)', async () => {
+    const targetWei = 1000111222333444555n;
+    const swapWei = 1050999888777666555n;
+    mockBatch([
+      liquidityOrder({
+        id: 51,
+        targetAmountBaseUnits: targetWei,
+        swapAmountBaseUnits: swapWei,
+        feeAsset: { id: USDC_ASSET_ID, uniqueName: 'Ethereum/USDC' },
+        feeAmount: 5,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    const swap = tx.legs.filter((l) => l.account.name === 'Ethereum/USDC'); // single folded leg
+    expect(swap).toHaveLength(1);
+    expect(swap[0].amountBaseUnits).toBeUndefined(); // fold → derive
+    expect(leg(tx, 'Ethereum/EURC').amountBaseUnits).toBe(targetWei); // target un-folded → override intact
+  });
+
+  // §2.3 fee-fold (#4287 stage 2): symmetric case — a folded target-asset fee drops the target override, keeps the swap.
+  it('drops the target-leg override when a target-asset fee is folded in, keeps the swap override (#4287 stage 2)', async () => {
+    const targetWei = 1000111222333444555n;
+    const swapWei = 1050999888777666555n;
+    mockBatch([
+      liquidityOrder({
+        id: 52,
+        targetAmountBaseUnits: targetWei,
+        swapAmountBaseUnits: swapWei,
+        feeAsset: { id: EURC_ASSET_ID, uniqueName: 'Ethereum/EURC' },
+        feeAmount: 4,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    const target = tx.legs.filter((l) => l.account.name === 'Ethereum/EURC');
+    expect(target).toHaveLength(1);
+    expect(target[0].amountBaseUnits).toBeUndefined(); // fold → derive
+    expect(leg(tx, 'Ethereum/USDC').amountBaseUnits).toBe(-swapWei); // swap un-folded → override intact
+  });
+
+  // §2.3 fee-fold (#4287 stage 2): a THIRD-asset (gas) fee folds into neither swap nor target → both overrides survive.
+  it('keeps both overrides when the fee is a distinct third asset (#4287 stage 2)', async () => {
+    const targetWei = 1000111222333444555n;
+    const swapWei = 1050999888777666555n;
+    mockBatch([
+      liquidityOrder({
+        id: 53,
+        targetAmountBaseUnits: targetWei,
+        swapAmountBaseUnits: swapWei,
+        feeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' },
+        feeAmount: 0.01,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/EURC').amountBaseUnits).toBe(targetWei);
+    expect(leg(tx, 'Ethereum/USDC').amountBaseUnits).toBe(-swapWei);
+  });
+
+  // §2.3 fail-open (#4287 stage 2): no captured base units → both overrides undefined → the ledger derives from the float.
+  it('leaves both leg overrides undefined when no base units were captured (fail-open, #4287 stage 2)', async () => {
+    mockBatch([liquidityOrder({ id: 54 })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/EURC').amountBaseUnits).toBeUndefined();
+    expect(leg(tx, 'Ethereum/USDC').amountBaseUnits).toBeUndefined();
   });
 });

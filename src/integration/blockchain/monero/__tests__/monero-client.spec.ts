@@ -9,6 +9,7 @@
 import { HttpService } from 'src/shared/services/http.service';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { TxBroadcastError } from '../../shared/errors/tx-broadcast.error';
+import { MoneroTransactionType } from '../dto/monero.dto';
 import { MoneroClient } from '../monero-client';
 
 jest.mock('src/config/config', () => {
@@ -173,6 +174,30 @@ describe('MoneroClient - broadcast boundary', () => {
 
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('Monero broadcast returned an empty tx hash');
+    });
+  });
+
+  // #4287 stage 3: the exact atomic-unit -> whole-unit XMR decimal capture used by the deposit exact path.
+  describe('getTransfers(...) exact base-unit capture (#4287 stage 3)', () => {
+    it('captures the exact whole-unit XMR decimal from the raw atomic integer (12-dp precision)', async () => {
+      mockPost.mockResolvedValueOnce({
+        result: { in: [{ amount: 123456789012, fee: 10000000000, txid: 'T', height: 5, timestamp: 1 }] },
+      });
+
+      const [transfer] = await client.getTransfers(MoneroTransactionType.in, 0);
+
+      expect(transfer.amountExact).toBe('0.123456789012'); // exact, lost by the 8-dp float derivation
+      expect(transfer.amount).toBeCloseTo(0.123456789012, 12); // the float stays as before
+    });
+
+    it('leaves amountExact undefined for an atomic value beyond the safe-integer range (fail-open)', async () => {
+      mockPost.mockResolvedValueOnce({
+        result: { in: [{ amount: Number.MAX_SAFE_INTEGER + 2, fee: 0, txid: 'T', height: 5, timestamp: 1 }] },
+      });
+
+      const [transfer] = await client.getTransfers(MoneroTransactionType.in, 0);
+
+      expect(transfer.amountExact).toBeUndefined();
     });
   });
 });

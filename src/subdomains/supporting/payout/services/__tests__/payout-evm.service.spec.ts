@@ -142,14 +142,25 @@ describe('PayoutEvmService', () => {
       expect(result).toEqual({ state: 'pending' });
     });
 
-    it('returns complete with the actual fee when the receipt is confirmed and successful (status 1)', async () => {
+    it('returns complete with the actual fee + exact fee wei when the receipt is confirmed and successful (status 1)', async () => {
       jest.spyOn(client, 'getTxReceipt').mockResolvedValue({ confirmations: 3, status: 1 } as any);
       jest.spyOn(client, 'getTxActualFee').mockResolvedValue(0.00042);
+      jest.spyOn(client, 'getTxActualFeeBaseUnits').mockResolvedValue(420000000000000n);
 
       const result = await service.getPayoutCompletionData('TX_OK');
 
       expect(client.getTxActualFee).toHaveBeenCalledWith('TX_OK');
-      expect(result).toEqual({ state: 'complete', fee: 0.00042 });
+      expect(result).toEqual({ state: 'complete', fee: 0.00042, feeBaseUnits: 420000000000000n });
+    });
+
+    it('degrades feeBaseUnits to null (fail-open) when the exact fee capture throws (#4287 stage 3)', async () => {
+      jest.spyOn(client, 'getTxReceipt').mockResolvedValue({ confirmations: 3, status: 1 } as any);
+      jest.spyOn(client, 'getTxActualFee').mockResolvedValue(0.00042);
+      jest.spyOn(client, 'getTxActualFeeBaseUnits').mockRejectedValue(new Error('rpc down'));
+
+      const result = await service.getPayoutCompletionData('TX_OK');
+
+      expect(result).toEqual({ state: 'complete', fee: 0.00042, feeBaseUnits: null });
     });
 
     it('returns failed + isOutOfGas=true when the tx reverted and consumed exactly the gas limit', async () => {

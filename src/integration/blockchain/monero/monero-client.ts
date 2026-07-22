@@ -3,6 +3,7 @@ import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { fromBaseUnits } from 'src/shared/models/base-units.transformer';
 import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
@@ -311,6 +312,15 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
   }
 
   private convertTransferAuToXmr(transfer: MoneroTransferDto): MoneroTransferDto {
+    // §2.3 native-first exactness (#4287 stage 3): capture the EXACT whole-unit XMR decimal string from the raw
+    // atomic-unit (piconero, 12-dp) integer BEFORE the lossy auToXmr float collapse below — Monero is 12-dp, beyond the
+    // ledger's 8-dp float derivation, so this lets the deposit book the 9th–12th decimals exactly. Only a safe-integer
+    // atomic value is captured: a piconero count above 2^53 is already corrupted by JSON.parse in the RPC response, so
+    // above that we leave it undefined and the ledger derives from the float (fail-open).
+    transfer.amountExact =
+      Number.isSafeInteger(transfer.amount) && transfer.amount >= 0
+        ? fromBaseUnits(BigInt(transfer.amount), MoneroHelper.AU_XMR_DECIMALS)
+        : undefined;
     transfer.amount = MoneroHelper.auToXmr(transfer.amount) ?? 0;
     transfer.fee = MoneroHelper.auToXmr(transfer.fee) ?? 0;
 

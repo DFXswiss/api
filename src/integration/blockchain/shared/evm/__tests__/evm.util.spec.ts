@@ -1,6 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { BigNumber } from 'ethers';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { EvmUtil } from '../evm.util';
 
 describe('EvmUtil', () => {
@@ -74,6 +76,52 @@ describe('EvmUtil', () => {
     it('should handle decimals=6', () => {
       const result = EvmUtil.fromWeiAmount(BigNumber.from('100000000'), 6);
       expect(result).toBe(100);
+    });
+  });
+
+  // #4287 stage 2: the broadcast-resolution base-unit capture used by the swap/bridge exact path.
+  describe('toBroadcastBaseUnits (#4287 stage 2)', () => {
+    it('preserves >8-dp precision for a token that the ≤8-dp float derivation would lose', () => {
+      const asset = createCustomAsset({ type: AssetType.TOKEN, decimals: 18 });
+      // 0.1234567891 has 10 dp — toBaseUnits caps at 8 dp; the broadcast capture keeps the full 18-dp wei
+      expect(EvmUtil.toBroadcastBaseUnits(0.1234567891, asset)).toBe(123456789100000000n);
+    });
+
+    it('captures a native coin ONLY at 18 dp (matches parseEther)', () => {
+      const coin = createCustomAsset({ type: AssetType.COIN, decimals: 18 });
+      expect(EvmUtil.toBroadcastBaseUnits(0.1234567891, coin)).toBe(123456789100000000n);
+    });
+
+    it('fails open (null) for a coin whose configured decimals ≠ 18 (broadcast is parseEther/18)', () => {
+      const coin = createCustomAsset({ type: AssetType.COIN, decimals: 8 });
+      expect(EvmUtil.toBroadcastBaseUnits(1, coin)).toBeNull();
+    });
+
+    it('fails open (null) for unknown decimals or a missing asset', () => {
+      expect(
+        EvmUtil.toBroadcastBaseUnits(1, createCustomAsset({ type: AssetType.TOKEN, decimals: undefined })),
+      ).toBeNull();
+      expect(EvmUtil.toBroadcastBaseUnits(1, null)).toBeNull();
+      expect(EvmUtil.toBroadcastBaseUnits(1, undefined)).toBeNull();
+    });
+  });
+
+  // #4287 stage 2: the raw on-chain wei -> bigint capture used by the deposit/bridge-arrival exact path.
+  describe('toBaseUnitsFromRaw (#4287 stage 2)', () => {
+    it('normalises a hex wei string to exact base units', () => {
+      expect(EvmUtil.toBaseUnitsFromRaw('0x0de0b6b3a7640000')).toBe(1000000000000000000n); // 1e18
+    });
+
+    it('preserves a full 18-dp decimal-integer string exactly', () => {
+      expect(EvmUtil.toBaseUnitsFromRaw('123456789012345678')).toBe(123456789012345678n);
+    });
+
+    it('accepts a BigNumber', () => {
+      expect(EvmUtil.toBaseUnitsFromRaw(BigNumber.from('42'))).toBe(42n);
+    });
+
+    it('fails open (null) on a malformed value', () => {
+      expect(EvmUtil.toBaseUnitsFromRaw('not-a-number')).toBeNull();
     });
   });
 });

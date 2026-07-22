@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
@@ -40,6 +41,12 @@ export class PayoutOrder extends IEntity {
   @Column({ type: 'float' })
   amount: number;
 
+  // §2.3 native-first exactness (issue #4287 stage 1): the EXACT integer base units (wei/satoshi) of the payout
+  // `amount`. Nullable + additive — a payout with no captured exact integer stays null and the ledger falls back to
+  // the ≤8-dp float derivation (fail-open). numeric ↔ JS bigint via baseUnitsTransformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  amountBaseUnits?: bigint | null;
+
   @Column({ length: 256 })
   destinationAddress: string;
 
@@ -69,6 +76,12 @@ export class PayoutOrder extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   payoutFeeAmountChf?: number;
+
+  // §2.3 native-first exactness (issue #4287 stage 3): the EXACT integer wei of the on-chain gas fee (payoutFeeAmount),
+  // captured from the tx receipt; booked verbatim on the network-fee leg. Nullable + additive — a payout with no
+  // captured exact fee stays null and the ledger derives from the float (fail-open). numeric <-> bigint via transformer.
+  @Column({ type: 'numeric', nullable: true, transformer: baseUnitsTransformer })
+  payoutFeeAmountBaseUnits?: bigint | null;
 
   @Column({ type: 'int', default: 0 })
   retryCount: number;

@@ -25,7 +25,7 @@ export class VirtualIban extends IEntity {
   bban?: string;
 
   @Column({ length: 256, nullable: true })
-  yapealAccountUid?: string;
+  providerAccountRef?: string;
 
   @Index()
   @ManyToOne(() => Fiat, { nullable: false, eager: true })

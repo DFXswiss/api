@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { DataSource, EntityManager } from 'typeorm';
 import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
+import { toBaseUnits } from '../entities/ledger-base-units.transformer';
 import { LedgerLeg } from '../entities/ledger-leg.entity';
 import { LedgerTx } from '../entities/ledger-tx.entity';
 import { LedgerAccountService } from './ledger-account.service';
@@ -14,6 +16,11 @@ export interface LedgerLegInput {
   priceChf?: number;
   amountChf?: number;
   needsMark?: boolean;
+  // §2.3 native-first exactness (issue #4287 stage 1): an EXACT integer base-unit quantity (wei/satoshi) captured at
+  // ingestion. When set it is booked into ledger_leg.amountBaseUnits VERBATIM — bypassing the ≤8-dp float derivation in
+  // populateBaseUnits — so an on-chain deposit/withdrawal leg stays wei-exact. Signed to match `amount` (Cr = −).
+  // undefined → derive from the float `amount` as before (fail-open).
+  amountBaseUnits?: bigint;
 }
 
 export interface LedgerTxInput {
@@ -45,6 +52,7 @@ export class LedgerBookingService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly ledgerAccountService: LedgerAccountService,
+    private readonly assetService: AssetService,
   ) {}
 
   /**
@@ -61,9 +69,10 @@ export class LedgerBookingService {
   // (§4.12: reversal + re-book must live in ONE transaction). Behaviour is identical to the public bookTx.
   private async bookTxWithManager(manager: EntityManager, input: LedgerTxInput): Promise<LedgerTx> {
     const legs = input.legs.map((leg) => this.prepareLeg(leg));
+    const decimalsById = await this.populateBaseUnits(legs, input.legs);
 
     await this.appendRoundingLeg(legs);
-    this.checkNativeBalance(legs, input);
+    this.assertNativeBalance(legs, input, decimalsById);
 
     const amountChfSum = legs.reduce((sum, leg) => sum + leg.amountChfCents, 0);
 
@@ -112,6 +121,9 @@ export class LedgerBookingService {
         priceChf: leg.priceChf,
         amountChf: leg.amountChf != null ? -leg.amountChf : undefined,
         needsMark: leg.needsMark,
+        // §2.3 exactness (issue #4287 stage 1): negate the stored exact base units so a reversal exactly undoes the
+        // original leg (a same-asset pair still nets to 0n); a null (fiat) base-unit leg derives from the float as before.
+        amountBaseUnits: leg.amountBaseUnits != null ? -leg.amountBaseUnits : undefined,
       })),
     });
   }
@@ -356,6 +368,77 @@ export class LedgerBookingService {
     });
   }
 
+  // §2.3 native-first exactness (phase 1): set the EXACT integer base-unit quantity from each account's asset decimals,
+  // resolved by assetId via the cached AssetService (one lookup per tx). The rule is precise: amountBaseUnits is null
+  // UNLESS the account's asset defines decimals — it is NOT a crypto-vs-fiat test. Today the fiat/bank Custody assets
+  // carry no decimals (→ null, already CHF-exact via amountChfCents), as do TRANSIT/EQUITY/EXPENSE (no assetId); a
+  // later phase covering those must therefore key per-asset, not assume "non-null ⟺ crypto". Additive: never affects
+  // the CHF close.
+  private async populateBaseUnits(legs: LedgerLeg[], inputs: LedgerLegInput[]): Promise<Map<number, number>> {
+    const assetIds = [...new Set(legs.map((leg) => leg.account.assetId).filter((id): id is number => id != null))];
+    const decimalsById = new Map<number, number>();
+    if (assetIds.length) {
+      for (const asset of await this.assetService.getAssetsById(assetIds)) {
+        if (asset.decimals != null) decimalsById.set(asset.id, asset.decimals);
+      }
+    }
+
+    for (let i = 0; i < legs.length; i++) {
+      const leg = legs[i];
+      // §2.3 exactness (issue #4287 stage 1): an explicit base-unit override — an on-chain deposit/withdrawal leg
+      // carrying the EXACT wei/satoshi captured at ingestion — is booked VERBATIM, preserving the full 18-dp precision
+      // the ≤8-dp float derivation below would lose. `legs` and `inputs` are index-aligned here (the ROUNDING leg is
+      // appended only afterwards), so inputs[i] is this leg's source; a missing entry falls back to the float derivation.
+      const override = inputs[i]?.amountBaseUnits;
+      if (override != null) {
+        leg.amountBaseUnits = override;
+        continue;
+      }
+
+      const decimals = leg.account.assetId != null ? decimalsById.get(leg.account.assetId) : undefined;
+      leg.amountBaseUnits = decimals != null ? toBaseUnits(leg.amount, decimals) : null;
+    }
+
+    this.populateTransferCounterBaseUnits(legs, decimalsById);
+
+    return decimalsById; // reused by assertNativeBalance to test whether the same-ticker scope spans one decimals
+  }
+
+  // §2.3 native-first exactness (phase 1): the TRANSIT counter of a SAME-currency internal transfer (all legs
+  // ASSET/TRANSIT of ONE currency — e.g. an exchange→wallet withdrawal or a deposit routing) is left null by the
+  // loop above, because TRANSIT accounts are keyed by currency ticker and carry NO assetId, so their decimals cannot
+  // be resolved from the account. They come from the paired ASSET leg WITHIN THE SAME tx: deriving the counter's exact
+  // base units from its own native amount at those decimals makes a conserving pair cancel to 0n and lets
+  // assertNativeBalance enforce satoshi/wei-exact conservation across the pair (a genuine check, not a tautology).
+  // Guard: only when the tx's ASSET legs share EXACTLY ONE decimals value (unambiguous). A cross-asset trade (a second
+  // currency) or a mixed-decimals tx is left untouched — its per-currency native delta is the trade, not an imbalance.
+  // Fiat/CHF legs never qualify: their asset carries no decimals, so no single asset decimals is in scope.
+  private populateTransferCounterBaseUnits(legs: LedgerLeg[], decimalsById: Map<number, number>): void {
+    const onlyAssetTransit = legs.every(
+      (leg) => leg.account.type === AccountType.ASSET || leg.account.type === AccountType.TRANSIT,
+    );
+    if (!onlyAssetTransit) return;
+
+    if (new Set(legs.map((leg) => leg.account.currency)).size !== 1) return; // cross-asset trade → out of scope
+
+    const assetDecimals = new Set(
+      legs
+        .filter((leg) => leg.account.type === AccountType.ASSET && leg.account.assetId != null)
+        .map((leg) => decimalsById.get(leg.account.assetId as number))
+        .filter((decimals): decimals is number => decimals != null),
+    );
+    if (assetDecimals.size !== 1) return; // no / ambiguous asset decimals → cannot key the counter unambiguously
+
+    const [decimals] = [...assetDecimals];
+    for (const leg of legs) {
+      // fill ONLY the assetId-less TRANSIT counter; asset legs keep the base units set above (or null when their own
+      // asset defines no decimals — decimals are never invented for an asset leg from a sibling leg)
+      if (leg.amountBaseUnits == null && leg.account.type === AccountType.TRANSIT) {
+        leg.amountBaseUnits = toBaseUnits(leg.amount, decimals);
+      }
+    }
+  }
+
   // Σ amountChfCents must close to 0; a sub-cent rest is closed by a ROUNDING leg; > tolerance → throw
   private async appendRoundingLeg(legs: LedgerLeg[]): Promise<void> {
     const sum = legs.reduce((acc, leg) => acc + leg.amountChfCents, 0);
@@ -383,18 +466,31 @@ export class LedgerBookingService {
   }
 
   /**
-   * Native balance is corrected per-asset against the feed (§7), NOT enforced per-tx. The only sanity-check
-   * is the class of pure same-asset transfers (all legs ASSET/TRANSIT of ONE currency): then Σ amount must be
-   * 0. Two things put a tx outside that scope → no native check (§2.3 Major R9-2): a leg on any non-ASSET/TRANSIT
-   * account (value-boundary booking → native one-sidedness is correct), OR a second currency — a cross-asset
-   * trade, whose per-currency native delta is the traded amount and thus never 0 (that is the point of the trade).
+   * Native balance is corrected per-asset against the feed (§7), NOT enforced per-tx. The only class that MUST
+   * conserve within a single tx is a pure same-asset transfer (all legs ASSET/TRANSIT of ONE currency): moving a
+   * quantity between two accounts of the same asset can neither create nor destroy it. Two things put a tx outside
+   * that scope → no native check (§2.3 Major R9-2): a leg on any non-ASSET/TRANSIT account (value-boundary booking →
+   * native one-sidedness is correct), OR a second currency — a cross-asset trade, whose per-currency native delta is
+   * the traded amount and thus never 0 (that is the point of the trade).
    *
-   * The residual is judged in CHF at the group mark, not natively (§7 unit-fix): a bare native tolerance flags
-   * sub-rappen fiat rounding (a fiat bank leg carries the unrounded output at >2 dp) yet is ~52'000× too loose
-   * for BTC. An unvalued tx (no mark) falls back to the raw native tolerance so a real imbalance is never
-   * silently passed.
+   * Within scope the invariant is enforced on EXACT integer base units (satoshi/wei), not the float amount: every
+   * base-unit-bearing leg here — the asset leg AND its TRANSIT counter, both keyed off the same single asset's
+   * decimals (see populateTransferCounterBaseUnits) — shares one decimals, so their base units MUST net to 0n; a
+   * non-zero residual is a real same-asset imbalance and THROWS (fail-closed; was a soft logger.error). Two retained
+   * escapes, verified needed against real prod data: (a) a scope with ZERO base-unit-bearing legs (fiat CHF transfers,
+   * or crypto whose asset defines no decimals) has nothing to enforce — return; (b) a fiat bank leg carries the
+   * unrounded output at >2 dp, but fiat = null decimals → null base units → covered by (a), so ≤2-rappen CHF rounding
+   * never trips it. Real-data verification (#4280): among 1464 prod txs the only same-currency transfers are 2-leg
+   * matched pairs that conserve exactly — a two-sided same-asset base-unit mismatch does not occur — so throwing here
+   * cannot reject a legitimate historical booking.
+   *
+   * The base-unit throw path is taken ONLY when the same-currency scope is unambiguously single-decimals — its ASSET
+   * legs share EXACTLY ONE decimals AND none has null decimals; a same-ticker cross-chain scope spanning multiple
+   * decimals (USDT 6dp on ETH/Tron, 18dp on BSC), OR one containing a null-decimals ASSET leg (whose unvalued sibling
+   * would else FALSE-throw), is treated as mixed and falls back to the pre-PR soft native-float tolerance (log-only) —
+   * see the WHY below.
    */
-  private checkNativeBalance(legs: LedgerLeg[], input: LedgerTxInput): void {
+  private assertNativeBalance(legs: LedgerLeg[], input: LedgerTxInput, decimalsById: Map<number, number>): void {
     const onlyAssetTransit = legs.every(
       (leg) => leg.account.type === AccountType.ASSET || leg.account.type === AccountType.TRANSIT,
     );
@@ -404,6 +500,45 @@ export class LedgerBookingService {
     if (byCurrency.size !== 1) return; // cross-asset trade: per-currency native delta is the trade, not an imbalance
 
     const [currency, currencyLegs] = [...byCurrency.entries()][0];
+
+    // escape (a): only decimals-bearing legs carry exact base units; a scope with none (fiat CHF, or crypto without
+    // decimals) has nothing to enforce exactly — the sub-rappen CHF rounding on fiat bank legs falls here (escape b)
+    const valued = currencyLegs.filter((leg) => leg.amountBaseUnits != null);
+    if (!valued.length) return;
+
+    // WHY base units are commensurable ONLY within ONE decimals scale: amountBaseUnits is per-assetId-scaled
+    // (amount × 10^asset.decimals), but a currency TICKER (dexName) maps to assets with DIFFERENT decimals across
+    // chains — USDT is 6dp on ETH/Tron but 18dp on BSC. Summing 6dp and 18dp integers is meaningless: a cross-chain
+    // same-ticker ASSET↔ASSET transfer that CONSERVES natively (e.g. +100 USDT-ETH, −100 USDT-BSC) has a non-zero
+    // base-unit sum (1e8 − 1e20), so the fail-closed throw below would wrongly wedge a legitimate booking. Take the
+    // exact base-unit throw path ONLY when the scope is unambiguously single-decimals: its ASSET legs share EXACTLY
+    // ONE decimals AND no ASSET leg has null decimals (mirrors populateTransferCounterBaseUnits' guard — the asset leg
+    // AND its TRANSIT counter then share that one decimals and MUST net to 0n). A null-decimals ASSET leg makes the
+    // scope ambiguous, so it is treated as MIXED (not absent): its amountBaseUnits is null → excluded from `valued`,
+    // so summing only its decimals-bearing same-ticker sibling would FALSE-throw on an otherwise natively-conserving
+    // transfer (the `!valued.length` escape does not fire because one leg IS valued). Otherwise (multiple distinct
+    // decimals OR any null-decimals ASSET leg) fall back to the pre-PR soft native-float tolerance (log-only) so the
+    // old safety net is retained while never throwing on a same-ticker tx that conserves at the currency/native level.
+    const scopedAssetDecimals = currencyLegs
+      .filter((leg) => leg.account.type === AccountType.ASSET && leg.account.assetId != null)
+      .map((leg) => decimalsById.get(leg.account.assetId as number));
+    const hasNullDecimalsAsset = scopedAssetDecimals.some((decimals) => decimals == null);
+    const assetDecimals = new Set(scopedAssetDecimals.filter((decimals): decimals is number => decimals != null));
+
+    if (assetDecimals.size === 1 && !hasNullDecimalsAsset) {
+      const baseUnitSum = valued.reduce((sum, leg) => sum + (leg.amountBaseUnits as bigint), 0n);
+      if (baseUnitSum === 0n) return; // conserves exactly in base units
+
+      const accounts = valued.map((leg) => `${leg.account.name} ${leg.amountBaseUnits}`).join(', ');
+      throw new Error(
+        `Ledger same-asset transfer base-unit imbalance for currency ${currency}: ${baseUnitSum} base units ` +
+          `(source ${input.sourceType} ${input.sourceId} seq ${input.seq}; legs: ${accounts}) (programming error)`,
+      );
+    }
+
+    // mixed-decimals same-ticker scope (cross-chain) — base units incommensurable, so judge the residual on the float
+    // native sum at the pre-PR tolerance (log-only, never fail-closed): a natively-conserving cross-chain transfer
+    // nets to ~0 here, while a gross same-currency imbalance is still surfaced (the retained pre-PR safety net).
     const nativeSum = currencyLegs.reduce((acc, leg) => acc + leg.amount, 0);
     if (Math.abs(nativeSum) <= NATIVE_BALANCE_TOLERANCE) return; // conserves natively
 

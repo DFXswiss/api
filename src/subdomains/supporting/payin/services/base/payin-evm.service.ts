@@ -31,6 +31,13 @@ export abstract class PayInEvmService {
     return this.#client.isTxComplete(txHash, minConfirmations);
   }
 
+  // §2.3 native-first exactness (issue #4287): the EXACT on-chain gas fee of a forward tx as integer wei (gasUsed *
+  // effectiveGasPrice, + the L1 data fee on the L2s) — the true native fee that left custody — so the ledger books the
+  // seq1 network-fee leg wei-exact instead of the estimate-derived float.
+  async getTxActualFeeBaseUnits(txHash: string): Promise<bigint> {
+    return this.#client.getTxActualFeeBaseUnits(txHash);
+  }
+
   async getHistory(
     address: string,
     fromBlock: number,

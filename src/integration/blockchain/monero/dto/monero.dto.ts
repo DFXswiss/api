@@ -105,6 +105,11 @@ export interface MoneroTransferDto {
   fee: number;
   txid: string;
 
+  // §2.3 native-first exactness (#4287 stage 3): the EXACT whole-unit XMR decimal STRING of `amount`, captured from the
+  // raw atomic-unit (piconero, 12-dp) integer BEFORE the lossy auToXmr float collapse. undefined when unavailable
+  // (atomic beyond the JSON safe-integer range) -> the ledger derives from the float (fail-open).
+  amountExact?: string;
+
   timestamp?: number;
   address?: string;
   confirmations?: number;

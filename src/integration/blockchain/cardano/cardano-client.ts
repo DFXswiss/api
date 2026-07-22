@@ -298,6 +298,17 @@ export class CardanoClient extends BlockchainClient {
       .then((t) => CardanoUtil.fromLovelaceAmount(t.fee));
   }
 
+  // §2.3 native-first exactness (issue #4287): the EXACT on-chain tx fee as integer LOVELACE — the raw response.fee,
+  // BEFORE the fromLovelaceAmount float collapse — i.e. ADA base units at the 6-dp lovelace scale, so the ledger books
+  // the payout network-fee leg exact. Fails LOUD on a malformed fee (the caller wraps it fail-open).
+  async getTxActualFeeBaseUnits(txHash: string): Promise<bigint> {
+    const url = Config.blockchain.cardano.cardanoApiUrl;
+
+    return this.http
+      .get<CardanoTransactionResponse>(`${url}/transaction/${txHash}`, this.httpConfig())
+      .then((t) => BigInt(t.fee));
+  }
+
   async getHistory(limit: number): Promise<CardanoTransactionDto[]> {
     return this.getHistoryForAddress(this.wallet.address, limit);
   }

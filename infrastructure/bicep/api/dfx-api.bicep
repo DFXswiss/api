@@ -245,6 +245,7 @@ param frickServerPublicKey string
 param frickCustomer string
 param frickPayoutEnabled string
 param frickApproveWithoutTan string
+param frickVbanBaseUrl string
 
 param letterUrl string
 param letterUser string
@@ -1247,6 +1248,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'FRICK_APPROVE_WITHOUT_TAN'
           value: frickApproveWithoutTan
+        }
+        {
+          name: 'FRICK_VBAN_BASE_URL'
+          value: frickVbanBaseUrl
         }
         {
           name: 'COIN_GECKO_API_KEY'

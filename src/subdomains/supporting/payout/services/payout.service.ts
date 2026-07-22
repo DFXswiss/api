@@ -64,12 +64,17 @@ export class PayoutService {
     payoutFee: FeeResult;
     payoutAmount: number;
     payoutAsset: Asset;
+    payoutAmountBaseUnits: string | null;
   }> {
     const order = await this.payoutOrderRepo.findOneBy({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
     const payoutFee = order && order.payoutFee;
     const payoutAmount = order && order.amount;
     const payoutAsset = order && order.asset;
+    // §2.3 native-first exactness (#4287 stage 4): expose the EXACT integer base units the payout actually broadcast
+    // on-chain (payout_order.amountBaseUnits, stage 1) as a STRING — never a bigint, since this result is JSON-
+    // serialised by the payout controller. Null when uncaptured; consumers fall back to the float amount (fail-open).
+    const payoutAmountBaseUnits = order?.amountBaseUnits != null ? order.amountBaseUnits.toString() : null;
 
     return {
       isComplete: order && order.status === PayoutOrderStatus.COMPLETE,
@@ -77,6 +82,7 @@ export class PayoutService {
       payoutFee,
       payoutAmount,
       payoutAsset,
+      payoutAmountBaseUnits,
     };
   }
 

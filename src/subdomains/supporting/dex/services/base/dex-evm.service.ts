@@ -95,11 +95,41 @@ export abstract class DexEvmService implements PurchaseDexService {
     }
   }
 
-  async getSwapResult(txId: string, asset: Asset): Promise<{ targetAmount: number; feeAmount: number }> {
+  async getSwapResult(
+    txId: string,
+    asset: Asset,
+  ): Promise<{
+    targetAmount: number;
+    feeAmount: number;
+    targetAmountBaseUnits: bigint | null;
+    feeAmountBaseUnits: bigint | null;
+  }> {
     return {
       targetAmount: await this.#client.getSwapResult(txId, asset),
       feeAmount: await this.#client.getTxActualFee(txId),
+      // §2.3 native-first exactness (#4287 stage 2): the exact raw on-chain swap-output wei (fail-open null on
+      // any RPC/log error so finalizePurchaseOrders never breaks); booked verbatim on the ledger swap target leg.
+      targetAmountBaseUnits: await this.swapResultBaseUnits(txId, asset),
+      // §2.3 exactness (#4287 stage 3): the exact on-chain gas-fee wei (feeAmount above), booked verbatim on the
+      // ledger network-fee leg; fail-open null on any capture error.
+      feeAmountBaseUnits: await this.feeBaseUnits(txId),
     };
+  }
+
+  private async feeBaseUnits(txId: string): Promise<bigint | null> {
+    try {
+      return await this.#client.getTxActualFeeBaseUnits(txId);
+    } catch {
+      return null;
+    }
+  }
+
+  private async swapResultBaseUnits(txId: string, asset: Asset): Promise<bigint | null> {
+    try {
+      return await this.#client.getSwapResultBaseUnits(txId, asset);
+    } catch {
+      return null;
+    }
   }
 
   async fromWeiAmount(amountWeiLike: string, asset: Asset): Promise<number> {

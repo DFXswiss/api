@@ -173,13 +173,20 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
+    return EvmUtil.fromWeiAmount((await this.getTxActualFeeBaseUnits(txHash)).toString());
+  }
+
+  // §2.3 native-first exactness (issue #4287 stage 3): the EXACT on-chain fee as integer wei = L1 data fee + L2
+  // execution fee (gasUsed × effectiveGasPrice), both exact from the L2 receipt, BEFORE the parseFloat collapse in
+  // getTxActualFee (which now derives its float from this). Booked verbatim on the network-fee leg.
+  async getTxActualFeeBaseUnits(txHash: string): Promise<bigint> {
     const receipt = await this.l2Provider.getTransactionReceipt(txHash);
 
     const { gasUsed, effectiveGasPrice, l1Fee } = receipt as BaseTransactionReceipt;
 
     const l2Fee = gasUsed.mul(effectiveGasPrice);
 
-    return EvmUtil.fromWeiAmount(l1Fee.add(l2Fee));
+    return BigInt(l1Fee.add(l2Fee).toString());
   }
 
   //*** HELPER METHODS ***//

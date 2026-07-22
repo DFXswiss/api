@@ -435,10 +435,16 @@ export abstract class EvmClient extends BlockchainClient {
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
-    const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
-    const actualFee = gasUsed.mul(effectiveGasPrice);
+    return EvmUtil.fromWeiAmount((await this.getTxActualFeeBaseUnits(txHash)).toString());
+  }
 
-    return EvmUtil.fromWeiAmount(actualFee);
+  // §2.3 native-first exactness (issue #4287 stage 3): the EXACT on-chain gas fee as integer wei — gasUsed ×
+  // effectiveGasPrice straight from the receipt — BEFORE the lossy parseFloat in getTxActualFee (which now derives its
+  // float from this same value, so the two stay tautologically consistent). Capturing it lets the ledger book the
+  // network-fee leg wei-exact (differs from the <=8-dp float derivation for the 18-dp native coin the gas is paid in).
+  async getTxActualFeeBaseUnits(txHash: string): Promise<bigint> {
+    const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
+    return BigInt(gasUsed.mul(effectiveGasPrice).toString());
   }
 
   async getGasPriceLimitFromHex(txHex: string): Promise<number> {
@@ -671,6 +677,17 @@ export abstract class EvmClient extends BlockchainClient {
   }
 
   async getSwapResult(txId: string, asset: Asset, recipientAddress?: string): Promise<number> {
+    return EvmUtil.fromWeiAmount(
+      (await this.getSwapResultBaseUnits(txId, asset, recipientAddress)).toString(),
+      asset.decimals,
+    );
+  }
+
+  // §2.3 native-first exactness (issue #4287 stage 2): the EXACT raw on-chain output integer of the swap — the wei-like
+  // value carried in the matched output-transfer log's `data` field — BEFORE the lossy parseFloat in getSwapResult.
+  // getSwapResult now derives its float from this same value, so the two stay tautologically consistent; capturing it
+  // lets the ledger book the swap output leg wei-exact (differs from the <=8-dp float derivation for a >8-dp asset).
+  async getSwapResultBaseUnits(txId: string, asset: Asset, recipientAddress?: string): Promise<bigint> {
     const receipt = await this.getTxReceipt(txId);
 
     const walletTopic = ethers.utils.hexZeroPad((recipientAddress ?? this.walletAddress).toLowerCase(), 32);
@@ -680,7 +697,7 @@ export abstract class EvmClient extends BlockchainClient {
     );
     if (!swapLog) throw new Error(`Failed to get swap result for TX ${txId}`);
 
-    return EvmUtil.fromWeiAmount(swapLog.data, asset.decimals);
+    return BigInt(swapLog.data);
   }
 
   private async getRoute(source: Asset, target: Asset, sourceAmount: number, maxSlippage: number): Promise<SwapRoute> {

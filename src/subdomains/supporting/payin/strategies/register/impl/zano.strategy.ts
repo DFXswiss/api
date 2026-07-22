@@ -102,6 +102,7 @@ export class ZanoStrategy extends PollingStrategy {
     const transferReceived = Util.groupBy<ZanoTransferReceiveDto, string>(transferResult.receive, 'assetId');
 
     for (const [assetId, transferReceivedByAssetId] of transferReceived) {
+      const asset = supportedAssets.find((a) => Util.equalsIgnoreCase(a.chainId, assetId));
       payInEntries.push({
         senderAddresses: null,
         receiverAddress: depositAddress,
@@ -109,11 +110,30 @@ export class ZanoStrategy extends PollingStrategy {
         txType: this.getTxType(depositAddress.address),
         blockHeight: transferResult.block,
         amount: Util.sum(transferReceivedByAssetId.map((r) => r.amount)),
-        asset: supportedAssets.find((a) => Util.equalsIgnoreCase(a.chainId, assetId)),
+        // §2.3 native-first exactness (#4287 stage 3): Zano is up to 12-dp, beyond the ledger's 8-dp float derivation. A
+        // tx may credit the SAME asset via several receive entries, so sum their EXACT base units (each captured from the
+        // raw atomic integer) at the asset scale; if ANY entry lacks an exact value or the asset is unknown, the whole
+        // sum stays undefined and the ledger derives from the float (fail-open).
+        amountBaseUnits: this.sumReceiveBaseUnits(transferReceivedByAssetId, asset?.decimals),
+        asset,
       });
     }
 
     return payInEntries;
+  }
+
+  // exact integer sum of several same-asset receive entries' base units, string-pure; undefined (derive from the float)
+  // when the asset decimals are unknown or ANY entry carries no exact value.
+  private sumReceiveBaseUnits(receives: ZanoTransferReceiveDto[], decimals?: number): string | undefined {
+    if (decimals == null) return undefined;
+
+    let total = 0n;
+    for (const r of receives) {
+      const baseUnits = r.amountExact != null ? this.toBaseUnitsString(r.amountExact, decimals) : undefined;
+      if (baseUnits == null) return undefined;
+      total += BigInt(baseUnits);
+    }
+    return total.toString();
   }
 
   private async getDepositAddress(paymentIdHex: string): Promise<BlockchainAddress | undefined> {
