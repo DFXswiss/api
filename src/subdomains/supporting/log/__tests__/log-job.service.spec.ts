@@ -1315,6 +1315,42 @@ describe('LogJobService', () => {
     expect(reversed).toEqual(forward);
   });
 
+  it('should prefer the exact amount match over an earlier near match (global assignment)', () => {
+    // Repro of the local-greedy date-order defect: senderA (older, 20100) is within
+    // tolerance of a ref-less 20000 receiver (diff 100 <= 201) and would grab it first
+    // under date-ascending processing, stranding senderB (exact 20000 match). Global
+    // candidate sort by amountDiff first retires senderB and correctly leaves senderA pending.
+    const senderA = createCustomBankTx({
+      id: 501,
+      created: Util.hoursBefore(48),
+      valueDate: Util.hoursBefore(48),
+      instructedAmount: 20100,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'manual sender A',
+    });
+    const senderB = createCustomBankTx({
+      id: 502,
+      created: Util.hoursBefore(24),
+      valueDate: Util.hoursBefore(24),
+      instructedAmount: 20000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'manual sender B',
+    });
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 601,
+        created: Util.hoursBefore(36),
+        amount: 20000,
+        currency: 'EUR',
+        txId: undefined,
+      }),
+    ];
+
+    // Final filter preserves unmatchedByRef order (= input sender order).
+    expect(service.getUnmatchedSenders([senderA, senderB], receiverTx)).toEqual([senderA]);
+    expect(service.getUnmatchedSenders([senderB, senderA], receiverTx)).toEqual([senderA]);
+  });
+
   it('should not match and must not throw when a ref-less receiver or sender has a null amount', () => {
     // TypeORM nullable columns can surface as `null` at runtime even though the TS field type says
     // `number | undefined`. Both senders below must survive as unmatched, and the call must not throw.

@@ -1302,17 +1302,20 @@ export class LogJobService {
     const availableReceivers = receiverTx.filter((r) => !this.getTxReference(r));
     if (!unmatchedByRef.length || !availableReceivers.length) return unmatchedByRef;
 
-    // Deterministic processing order: transfer-date ascending, then id ascending.
-    // Does not mutate unmatchedByRef — output order stays that of unmatchedByRef.
-    const sendersByDate = [...unmatchedByRef].sort((a, b) => {
-      const dateDiff = this.getTransferDate(a).getTime() - this.getTransferDate(b).getTime();
-      if (dateDiff !== 0) return dateDiff;
-      return a.id - b.id;
-    });
+    // Global greedy candidate-pair assignment: exact (or closer) matches win globally,
+    // independent of sender/receiver input order and independent of date-processing order.
+    // Locally greedy date-ascending assignment could let an earlier sender consume a
+    // receiver that a later sender would match exactly, wrongly leaving the exact match pending.
+    type Candidate = {
+      sender: BankTx | ExchangeTx;
+      receiver: BankTx | ExchangeTx;
+      amountDiff: number;
+      dateDiff: number;
+    };
 
-    const retiredSenders = new Set<BankTx | ExchangeTx>();
+    const candidates: Candidate[] = [];
 
-    for (const sender of sendersByDate) {
+    for (const sender of unmatchedByRef) {
       const senderAmount = this.getTransferAmount(sender);
       const senderCurrency = this.getTransferCurrency(sender);
       const senderDate = this.getTransferDate(sender);
@@ -1320,13 +1323,7 @@ export class LogJobService {
       // null/undefined/NaN amounts must not participate (TypeORM nullable → null at runtime).
       if (!Number.isFinite(senderAmount) || !senderCurrency) continue;
 
-      let bestIndex = -1;
-      let bestAmountDiff = Infinity;
-      let bestDateDiff = Infinity;
-      let bestReceiverId = Infinity;
-
-      for (let i = 0; i < availableReceivers.length; i++) {
-        const receiver = availableReceivers[i];
+      for (const receiver of availableReceivers) {
         const receiverAmount = this.getTransferAmount(receiver);
         const receiverCurrency = this.getTransferCurrency(receiver);
         const receiverDate = this.getTransferDate(receiver);
@@ -1343,23 +1340,25 @@ export class LogJobService {
         const dateDiff = Math.abs(senderDate.getTime() - receiverDate.getTime());
         if (dateDiff > DATE_WINDOW_MS) continue;
 
-        // Best candidate: smallest amount diff, then date diff, then receiver id.
-        if (
-          amountDiff < bestAmountDiff ||
-          (amountDiff === bestAmountDiff && dateDiff < bestDateDiff) ||
-          (amountDiff === bestAmountDiff && dateDiff === bestDateDiff && receiver.id < bestReceiverId)
-        ) {
-          bestAmountDiff = amountDiff;
-          bestDateDiff = dateDiff;
-          bestReceiverId = receiver.id;
-          bestIndex = i;
-        }
+        candidates.push({ sender, receiver, amountDiff, dateDiff });
       }
+    }
 
-      if (bestIndex === -1) continue;
+    // Total order over entity fields → outcome independent of input array order.
+    candidates.sort((a, b) => {
+      if (a.amountDiff !== b.amountDiff) return a.amountDiff - b.amountDiff;
+      if (a.dateDiff !== b.dateDiff) return a.dateDiff - b.dateDiff;
+      if (a.sender.id !== b.sender.id) return a.sender.id - b.sender.id;
+      return a.receiver.id - b.receiver.id;
+    });
 
-      availableReceivers.splice(bestIndex, 1);
-      retiredSenders.add(sender);
+    const retiredSenders = new Set<BankTx | ExchangeTx>();
+    const consumedReceivers = new Set<BankTx | ExchangeTx>();
+
+    for (const candidate of candidates) {
+      if (retiredSenders.has(candidate.sender) || consumedReceivers.has(candidate.receiver)) continue;
+      retiredSenders.add(candidate.sender);
+      consumedReceivers.add(candidate.receiver);
     }
 
     return unmatchedByRef.filter((s) => !retiredSenders.has(s));
