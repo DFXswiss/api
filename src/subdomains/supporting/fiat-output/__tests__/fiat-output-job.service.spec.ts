@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { IbanService } from 'src/integration/bank/services/iban.service';
@@ -160,10 +160,10 @@ describe('FiatOutputJobService', () => {
       await service['assignBankAccount']();
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
-      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban: IsNull() });
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: yapealEUR.iban });
 
-      expect(updateCalls[1][0]).toBe(3);
+      expect(updateCalls[1][0]).toEqual({ id: 3, accountIban: IsNull() });
       expect(updateCalls[1][1]).toMatchObject({ originEntityId: 102, accountIban: yapealEUR.iban });
     });
 
@@ -189,7 +189,7 @@ describe('FiatOutputJobService', () => {
       await service['assignBankAccount']();
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
-      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban: IsNull() });
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: virtualIban });
     });
 
@@ -215,7 +215,7 @@ describe('FiatOutputJobService', () => {
       await service['assignBankAccount']();
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
-      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban: IsNull() });
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: virtualIban });
     });
 
@@ -372,7 +372,7 @@ describe('FiatOutputJobService', () => {
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
       expect(updateCalls).toHaveLength(1);
-      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban });
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, bank: olkyEUR });
       expect(bankService.getBankByIban).not.toHaveBeenCalled();
       expect(bankService.getSenderBanks).not.toHaveBeenCalled();
@@ -396,7 +396,7 @@ describe('FiatOutputJobService', () => {
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
       expect(updateCalls).toHaveLength(1);
-      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban });
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, bank: olkyEUR });
       expect(bankService.getBankByIban).toHaveBeenCalledWith(accountIban);
       expect(bankService.getSenderBanks).not.toHaveBeenCalled();
@@ -431,7 +431,13 @@ describe('FiatOutputJobService', () => {
 
       const findArgs = (fiatOutputRepo.find as jest.Mock).mock.calls[0][0];
       expect(findArgs.where).toHaveLength(3);
-      expect(findArgs.where[2]).toMatchObject({ accountIban: Not(IsNull()), bank: IsNull() });
+      expect(findArgs.where[2]).toEqual({
+        valutaDate: IsNull(),
+        isComplete: false,
+        type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT, FiatOutputType.BANK_TX_RETURN]),
+        accountIban: Not(IsNull()),
+        bank: IsNull(),
+      });
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         'Error in fillPreValutaDate fiatOutput: 1:',
@@ -439,7 +445,7 @@ describe('FiatOutputJobService', () => {
       );
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
       expect(updateCalls).toHaveLength(1);
-      expect(updateCalls[0][0]).toBe(2);
+      expect(updateCalls[0][0]).toEqual({ id: 2, accountIban });
       expect(updateCalls[0][1]).toMatchObject({ bank: olkyEUR });
     });
   });

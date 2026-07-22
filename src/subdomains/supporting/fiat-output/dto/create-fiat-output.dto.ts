@@ -61,6 +61,10 @@ export class CreateFiatOutputDto {
   @IsString()
   iban: string;
 
+  // Deliberate deviation from the documented create-DTO convention (where @IsOptional permits both
+  // undefined and null): an explicit null account IBAN has no meaning here (absent = automatic
+  // assignment) and would bypass the bank-resolution invariant this module enforces, so it is
+  // rejected instead of tolerated.
   @ValidateIf((_o, v) => v !== undefined)
   @IsNotEmpty()
   @IsString()

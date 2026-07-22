@@ -188,7 +188,12 @@ export class FiatOutputJobService {
               throw new Error(`No bank found for account IBAN ${entity.accountIban} (fiat output ${entity.id})`);
           }
 
-          await this.fiatOutputRepo.update(entity.id, { originEntityId: entity.originEntity?.id, bank });
+          // CAS: match on the current accountIban so a concurrent write from the admin update endpoint,
+          // landing between this method's snapshot read and this write, is not silently overwritten.
+          await this.fiatOutputRepo.update(
+            { id: entity.id, accountIban: entity.accountIban },
+            { originEntityId: entity.originEntity?.id, bank },
+          );
           continue;
         }
 
@@ -196,11 +201,10 @@ export class FiatOutputJobService {
 
         const { accountIban, bank } = await this.getPayoutAccount(entity, country);
 
-        await this.fiatOutputRepo.update(entity.id, {
-          originEntityId: entity.originEntity?.id,
-          accountIban,
-          bank,
-        });
+        await this.fiatOutputRepo.update(
+          { id: entity.id, accountIban: IsNull() },
+          { originEntityId: entity.originEntity?.id, accountIban, bank },
+        );
       } catch (e) {
         this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
       }
