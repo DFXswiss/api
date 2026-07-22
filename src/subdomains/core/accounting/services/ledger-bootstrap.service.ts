@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { AccountType } from '../entities/ledger-account.entity';
 import { LedgerAccountService } from './ledger-account.service';
 
 @Injectable()
 export class LedgerBootstrapService {
+  private readonly logger = new DfxLogger(LedgerBootstrapService);
+
   // §3.4 — single authoritative bootstrap name lists (character-exact)
   private static readonly LIABILITY_ACCOUNTS = [
     'buyFiat-owed',
@@ -100,14 +103,39 @@ export class LedgerBootstrapService {
     const coaAssets = assets.filter((a) => this.isCoaAsset(a, feedAssetIds));
 
     for (const asset of coaAssets) {
-      // non-null fallback for currency (currency is NOT NULL, dexName is nullable) — §3.2 Minor R7-8
-      await this.ledgerAccountService.findOrCreate(
-        asset.uniqueName,
-        AccountType.ASSET,
-        asset.dexName ?? asset.name,
-        asset.id,
-        asset.isActive,
-      );
+      // per-asset failure isolation: on the recurring run a deterministically failing asset must not starve the
+      // assets after it (and the transit/named sections) every cycle — log and continue instead of aborting
+      try {
+        // rename-guard: UNIQUE is on name only, so after a uniqueName change findOrCreate(name) would create a
+        // second account for the same asset and make findByAssetId ambiguous — the existing account wins
+        if (await this.ledgerAccountService.findByAssetId(asset.id)) continue;
+
+        // non-null fallback for currency (currency is NOT NULL, dexName is nullable) — §3.2 Minor R7-8
+        const account = await this.ledgerAccountService.findOrCreate(
+          asset.uniqueName,
+          AccountType.ASSET,
+          asset.dexName ?? asset.name,
+          asset.id,
+        );
+
+        // name collision: findOrCreate hit an account NOT belonging to this asset (another asset's pre-rename name
+        // or a NULL-assetId row) → this asset still has no account and its consumers stay wedged; keep the
+        // recurring re-run loud instead of no-oping. The coalesce is load-bearing: @RelationId stays unset on the
+        // entity returned by the create path (only a name-hit load populates it), the create path carries the
+        // asset relation stub instead.
+        const ownerId = account.assetId ?? account.asset?.id;
+        if (ownerId !== asset.id) {
+          this.logger.error(
+            `CoA account name collision: '${asset.uniqueName}' belongs to asset ${ownerId ?? 'NULL'}, no account created for asset ${asset.id}`,
+          );
+        } else {
+          // once per new asset (the rename-guard keeps the steady state silent) — the post-deploy signal that the
+          // recurring bootstrap actually created something, distinguishable from the cron not running at all
+          this.logger.info(`CoA bootstrap created ASSET account '${asset.uniqueName}' for asset ${asset.id}`);
+        }
+      } catch (e) {
+        this.logger.error(`CoA bootstrap failed for asset ${asset.id} ('${asset.uniqueName}'):`, e);
+      }
     }
   }
 

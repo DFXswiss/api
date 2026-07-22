@@ -20,13 +20,7 @@ export class LedgerAccountService {
   // concurrent first-time create of the same lazily-created account (two consumer crons hitting the same TRANSIT
   // route) makes the loser's save hit the UNIQUE(name) constraint. Catch exactly that (SQLSTATE 23505), reload the
   // row the winner committed and return it → a true idempotent no-op. Any other error propagates unchanged.
-  async findOrCreate(
-    name: string,
-    type: AccountType,
-    currency: string,
-    assetId?: number,
-    active = true,
-  ): Promise<LedgerAccount> {
+  async findOrCreate(name: string, type: AccountType, currency: string, assetId?: number): Promise<LedgerAccount> {
     const existing = await this.findByName(name);
     if (existing) return existing;
 
@@ -34,7 +28,9 @@ export class LedgerAccountService {
       name,
       type,
       currency,
-      active,
+      // always live: active=false is a manual/historical marker, never derived from asset tradability — an
+      // inactive ASSET account would still be booked but be invisible to reconciliation (§7)
+      active: true,
       asset: assetId != null ? ({ id: assetId } as Asset) : undefined,
     });
 

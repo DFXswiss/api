@@ -12,6 +12,7 @@ import { LiquidityMgmtConsumer } from './consumers/liquidity-mgmt.consumer';
 import { LiquidityOrderDexConsumer } from './consumers/liquidity-order-dex.consumer';
 import { PayoutOrderConsumer } from './consumers/payout-order.consumer';
 import { TradingOrderConsumer } from './consumers/trading-order.consumer';
+import { LedgerBootstrapService } from './ledger-bootstrap.service';
 
 // watermark helpers live in a consumer-free file to keep the job-service↔consumer import graph acyclic (§11.3)
 export { getLedgerWatermark, LedgerWatermark, setLedgerWatermark } from './consumers/ledger-watermark.helper';
@@ -19,11 +20,12 @@ export { getLedgerWatermark, LedgerWatermark, setLedgerWatermark } from './consu
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 
 /**
- * Holds the shared cutover-gate (§4-header Blocker R1-6) and registers the @DfxCron wrappers for the consumers.
- * Each booking consumer is one @DfxCron method with its own Process.LEDGER_BOOKING_* kill-switch (Hard
- * Constraint #5). Every wrapper guards on `isLedgerReady()` (no-op until the cutover set `ledgerCutoverLogId`)
- * and is failure-isolated by the lock layer (`dfx-cron.service` lock try/catch). Further stages register their
- * own consumers (PayoutOrder/BuyCrypto/BuyFiat/LiquidityMgmt/TradingOrder/LiquidityOrderDex) here.
+ * Holds the shared cutover-gate (§4-header Blocker R1-6) and registers the @DfxCron wrappers for the consumers,
+ * plus the recurring post-cutover CoA bootstrap. Each booking consumer is one @DfxCron method with its own
+ * Process.LEDGER_BOOKING_* kill-switch (Hard Constraint #5). Every wrapper guards on `isLedgerReady()` (no-op
+ * until the cutover set `ledgerCutoverLogId`) and is failure-isolated by the lock layer (`dfx-cron.service`
+ * lock try/catch). Further stages register their own consumers
+ * (PayoutOrder/BuyCrypto/BuyFiat/LiquidityMgmt/TradingOrder/LiquidityOrderDex) here.
  */
 @Injectable()
 export class LedgerBookingJobService {
@@ -38,6 +40,7 @@ export class LedgerBookingJobService {
     private readonly liquidityMgmtConsumer: LiquidityMgmtConsumer,
     private readonly liquidityOrderDexConsumer: LiquidityOrderDexConsumer,
     private readonly tradingOrderConsumer: TradingOrderConsumer,
+    private readonly bootstrapService: LedgerBootstrapService,
   ) {}
 
   // cutover-gate (Blocker R1-6): no consumer books before bootstrap+opening set the ready marker
@@ -101,5 +104,15 @@ export class LedgerBookingJobService {
   async runTradingOrder(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.tradingOrderConsumer.process();
+  }
+
+  // post-cutover CoA maintenance: assets created AFTER the one-time cutover (new bank/custody assets, e.g. Bank
+  // Frick #4252) never get an ASSET account from the cutover-only bootstrap and wedge their consumer fail-loud
+  // ("CoA bootstrap missing"). bootstrap() is idempotent (findOrCreate, §3), so a recurring re-run is a no-op
+  // once complete. Pre-cutover the cutover run owns the bootstrap → gate on isLedgerReady.
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LEDGER_COA_BOOTSTRAP, timeout: 1800 })
+  async runCoaBootstrap(): Promise<void> {
+    if (!(await this.isLedgerReady())) return;
+    await this.bootstrapService.bootstrap();
   }
 }

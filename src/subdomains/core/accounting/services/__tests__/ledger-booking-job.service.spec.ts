@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { CronExpression } from '@nestjs/schedule';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
@@ -13,6 +14,7 @@ import { LiquidityOrderDexConsumer } from '../consumers/liquidity-order-dex.cons
 import { PayoutOrderConsumer } from '../consumers/payout-order.consumer';
 import { TradingOrderConsumer } from '../consumers/trading-order.consumer';
 import { getLedgerWatermark, LedgerBookingJobService, setLedgerWatermark } from '../ledger-booking-job.service';
+import { LedgerBootstrapService } from '../ledger-bootstrap.service';
 
 describe('LedgerBookingJobService', () => {
   let service: LedgerBookingJobService;
@@ -26,6 +28,7 @@ describe('LedgerBookingJobService', () => {
   let liquidityMgmtConsumer: LiquidityMgmtConsumer;
   let liquidityOrderDexConsumer: LiquidityOrderDexConsumer;
   let tradingOrderConsumer: TradingOrderConsumer;
+  let bootstrapService: LedgerBootstrapService;
 
   beforeEach(async () => {
     settingService = createMock<SettingService>();
@@ -38,6 +41,7 @@ describe('LedgerBookingJobService', () => {
     liquidityMgmtConsumer = createMock<LiquidityMgmtConsumer>();
     liquidityOrderDexConsumer = createMock<LiquidityOrderDexConsumer>();
     tradingOrderConsumer = createMock<TradingOrderConsumer>();
+    bootstrapService = createMock<LedgerBootstrapService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -52,6 +56,7 @@ describe('LedgerBookingJobService', () => {
         { provide: LiquidityMgmtConsumer, useValue: liquidityMgmtConsumer },
         { provide: LiquidityOrderDexConsumer, useValue: liquidityOrderDexConsumer },
         { provide: TradingOrderConsumer, useValue: tradingOrderConsumer },
+        { provide: LedgerBootstrapService, useValue: bootstrapService },
       ],
     }).compile();
 
@@ -86,6 +91,7 @@ describe('LedgerBookingJobService', () => {
       await service.runLiquidityMgmt();
       await service.runLiquidityOrderDex();
       await service.runTradingOrder();
+      await service.runCoaBootstrap();
       expect(bankTxConsumer.process).not.toHaveBeenCalled();
       expect(exchangeTxConsumer.process).not.toHaveBeenCalled();
       expect(cryptoInputConsumer.process).not.toHaveBeenCalled();
@@ -95,6 +101,7 @@ describe('LedgerBookingJobService', () => {
       expect(liquidityMgmtConsumer.process).not.toHaveBeenCalled();
       expect(liquidityOrderDexConsumer.process).not.toHaveBeenCalled();
       expect(tradingOrderConsumer.process).not.toHaveBeenCalled();
+      expect(bootstrapService.bootstrap).not.toHaveBeenCalled();
     });
 
     it('runs the consumers once the ledger is ready', async () => {
@@ -108,6 +115,7 @@ describe('LedgerBookingJobService', () => {
       await service.runLiquidityMgmt();
       await service.runLiquidityOrderDex();
       await service.runTradingOrder();
+      await service.runCoaBootstrap();
       expect(bankTxConsumer.process).toHaveBeenCalledTimes(1);
       expect(exchangeTxConsumer.process).toHaveBeenCalledTimes(1);
       expect(cryptoInputConsumer.process).toHaveBeenCalledTimes(1);
@@ -117,31 +125,42 @@ describe('LedgerBookingJobService', () => {
       expect(liquidityMgmtConsumer.process).toHaveBeenCalledTimes(1);
       expect(liquidityOrderDexConsumer.process).toHaveBeenCalledTimes(1);
       expect(tradingOrderConsumer.process).toHaveBeenCalledTimes(1);
+      expect(bootstrapService.bootstrap).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('@DfxCron kill-switch (Hard Constraint #5, Minor R9-2)', () => {
-    // every registered cron method must carry a Process.LEDGER_BOOKING_* flag (no silent no-guard cron)
-    const expectedFlags: Record<string, Process> = {
-      runBankTx: Process.LEDGER_BOOKING_BANK_TX,
-      runExchangeTx: Process.LEDGER_BOOKING_EXCHANGE_TX,
-      runCryptoInput: Process.LEDGER_BOOKING_CRYPTO_INPUT,
-      runPayoutOrder: Process.LEDGER_BOOKING_PAYOUT,
-      runBuyCrypto: Process.LEDGER_BOOKING_BUY_CRYPTO,
-      runBuyFiat: Process.LEDGER_BOOKING_BUY_FIAT,
-      runLiquidityMgmt: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT,
-      runLiquidityOrderDex: Process.LEDGER_BOOKING_LIQUIDITY_ORDER,
-      runTradingOrder: Process.LEDGER_BOOKING_TRADING_ORDER,
+  describe('@DfxCron kill-switch + schedule (Hard Constraint #5, Minor R9-2)', () => {
+    // every registered cron method must carry a Process flag (no silent no-guard cron) AND its intended schedule:
+    // the nine booking wrappers run EVERY_MINUTE, only the CoA bootstrap runs EVERY_5_MINUTES
+    const expectedCrons: Record<string, { process: Process; expression: CronExpression }> = {
+      runBankTx: { process: Process.LEDGER_BOOKING_BANK_TX, expression: CronExpression.EVERY_MINUTE },
+      runExchangeTx: { process: Process.LEDGER_BOOKING_EXCHANGE_TX, expression: CronExpression.EVERY_MINUTE },
+      runCryptoInput: { process: Process.LEDGER_BOOKING_CRYPTO_INPUT, expression: CronExpression.EVERY_MINUTE },
+      runPayoutOrder: { process: Process.LEDGER_BOOKING_PAYOUT, expression: CronExpression.EVERY_MINUTE },
+      runBuyCrypto: { process: Process.LEDGER_BOOKING_BUY_CRYPTO, expression: CronExpression.EVERY_MINUTE },
+      runBuyFiat: { process: Process.LEDGER_BOOKING_BUY_FIAT, expression: CronExpression.EVERY_MINUTE },
+      runLiquidityMgmt: {
+        process: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT,
+        expression: CronExpression.EVERY_MINUTE,
+      },
+      runLiquidityOrderDex: {
+        process: Process.LEDGER_BOOKING_LIQUIDITY_ORDER,
+        expression: CronExpression.EVERY_MINUTE,
+      },
+      runTradingOrder: { process: Process.LEDGER_BOOKING_TRADING_ORDER, expression: CronExpression.EVERY_MINUTE },
+      runCoaBootstrap: { process: Process.LEDGER_COA_BOOTSTRAP, expression: CronExpression.EVERY_5_MINUTES },
     };
 
-    for (const [method, flag] of Object.entries(expectedFlags)) {
-      it(`${method} carries its own ${flag} process flag`, () => {
+    for (const [method, expected] of Object.entries(expectedCrons)) {
+      it(`${method} carries its own ${expected.process} process flag, its schedule and the lock timeout`, () => {
         const params: DfxCronParams = Reflect.getMetadata(
           DFX_CRONJOB_PARAMS,
           LedgerBookingJobService.prototype[method as keyof LedgerBookingJobService],
         );
         expect(params).toBeDefined();
-        expect(params.process).toBe(flag);
+        expect(params.process).toBe(expected.process);
+        expect(params.expression).toBe(expected.expression);
+        expect(params.timeout).toBe(1800);
       });
     }
   });
