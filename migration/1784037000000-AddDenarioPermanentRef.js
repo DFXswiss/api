@@ -159,7 +159,7 @@ async function resolveDenarioRef(queryRunner) {
         AND u."ref" IS NOT NULL
       ORDER BY u."ref"
     `,
-    [DENARIO_USER_DATA_ID],
+    Array.of(DENARIO_USER_DATA_ID),
   );
 
   const refs = rows.map((row) => row.ref);
