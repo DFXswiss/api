@@ -5,7 +5,11 @@
 
 const REF_SETTING_KEY = 'ref-keys';
 const DENARIO_ALIAS = 'denario';
-const DENARIO_ORGANIZATION_NAMES = ['denario', 'denario ag'];
+// Pin the Denario organization by its immutable prod user_data.id (the onboarded partner account).
+// Resolving by the editable organizationName would let anyone who completes Organization KYC under the
+// name "Denario" hijack the referral routing; a numeric account id cannot be user-edited. Safe to hardcode
+// because this migration is prd-only (see up()).
+const DENARIO_USER_DATA_ID = 408808;
 const REF_CODE_FORMAT = /^\w{1,3}-\w{1,3}$/;
 const AUDIT_MIGRATION = 'AddDenarioPermanentRef1784037000000';
 const APPLY_ACTION = 'applyDenarioReferralAlias';
@@ -132,9 +136,12 @@ async function writeAuditEvent(queryRunner, event) {
 }
 
 /**
- * Resolve the environment-specific referral code from the Denario organization account.
- * Production and development assign referral codes independently, so persisting one numeric
- * code in source would inevitably point at the wrong account in one of the environments.
+ * Resolve the Denario referral code from the pinned Denario organization account.
+ *
+ * The account is pinned by its immutable prod `user_data.id` (this migration is prd-only, see up()).
+ * The referral CODE itself is still read live from that account rather than hardcoded, so a code
+ * rotation needs no source change. The `accountType`/`status` filters are defense-in-depth: if the
+ * pinned id is not an active organization, the migration fails loud instead of routing to a wrong ref.
  *
  * @param {QueryRunner} queryRunner
  * @returns {Promise<string>}
@@ -145,21 +152,21 @@ async function resolveDenarioRef(queryRunner) {
       SELECT DISTINCT u."ref" AS "ref"
       FROM "user" u
       INNER JOIN "user_data" ud ON ud."id" = u."userDataId"
-      WHERE LOWER(BTRIM(ud."organizationName")) IN ($1, $2)
+      WHERE ud."id" = $1
         AND ud."accountType" = 'Organization'
         AND ud."status" = 'Active'
         AND u."status" = 'Active'
         AND u."ref" IS NOT NULL
       ORDER BY u."ref"
     `,
-    DENARIO_ORGANIZATION_NAMES,
+    [DENARIO_USER_DATA_ID],
   );
 
   const refs = rows.map((row) => row.ref);
   if (refs.length === 0) {
     throw new Error(
-      'No active Denario organization user with a referral code was found. ' +
-        'Create and activate the Denario account in this environment before running the migration.',
+      `No active referral code found for the Denario organization account (user_data.id ${DENARIO_USER_DATA_ID}). ` +
+        'Confirm the account is active with a referral code before running the migration.',
     );
   }
   if (refs.length > 1) {
@@ -186,6 +193,12 @@ module.exports = class AddDenarioPermanentRef1784037000000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
+    // Partner-onboarding migration: NEVER run on dev/loc/CI — there no active Denario organization
+    // account exists, so resolveDenarioRef() below would throw and block boot. Returning early still
+    // records the migration as executed, the intended no-op on lower environments (same rationale as
+    // AddBankFrickCustodyAssets / ActivateBankFrick).
+    if (process.env.ENVIRONMENT !== 'prd') return;
+
     // Serialize apply/reapply/rollback before taking the mutable setting lock. This keeps lock ordering
     // identical to down() and prevents a recovery reapply from creating a second active ownership event.
     const activeApply = await getActiveApplyAudit(queryRunner);
@@ -241,6 +254,9 @@ module.exports = class AddDenarioPermanentRef1784037000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
+    // Mirror up(): the apply only ran on prd, so the rollback is a no-op everywhere else.
+    if (process.env.ENVIRONMENT !== 'prd') return;
+
     const applyAudit = await getActiveApplyAudit(queryRunner);
     if (!applyAudit) return;
 

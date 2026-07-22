@@ -39,6 +39,16 @@ async function insertInertAsset(queryRunner: QueryRunner, uniqueName: 'Polygon/D
   return rows.at(0).id;
 }
 
+// The migration under test is prod-gated (ENVIRONMENT === 'prd'); force it so up()/down() execute.
+const originalEnvironment = process.env.ENVIRONMENT;
+beforeEach(() => {
+  process.env.ENVIRONMENT = 'prd';
+});
+afterEach(() => {
+  if (originalEnvironment === undefined) delete process.env.ENVIRONMENT;
+  else process.env.ENVIRONMENT = originalEnvironment;
+});
+
 describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
   let dataSource: DataSource;
   let queryRunner: QueryRunner;

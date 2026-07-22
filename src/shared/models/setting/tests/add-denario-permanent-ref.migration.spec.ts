@@ -77,6 +77,16 @@ function createHarness(refs: unknown[] = ['123-456'], initialSetting?: string): 
 
 let AddDenarioPermanentRef: new () => Migration;
 
+// The migration under test is prod-gated (ENVIRONMENT === 'prd'); force it so up()/down() execute.
+const originalEnvironment = process.env.ENVIRONMENT;
+beforeEach(() => {
+  process.env.ENVIRONMENT = 'prd';
+});
+afterEach(() => {
+  if (originalEnvironment === undefined) delete process.env.ENVIRONMENT;
+  else process.env.ENVIRONMENT = originalEnvironment;
+});
+
 describe('AddDenarioPermanentRef migration', () => {
   beforeAll(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -93,10 +103,7 @@ describe('AddDenarioPermanentRef migration', () => {
       eternl: '222-333',
       denario: '123-456',
     });
-    expect(harness.query).toHaveBeenCalledWith(expect.stringContaining('LOWER(BTRIM(ud."organizationName"))'), [
-      'denario',
-      'denario ag',
-    ]);
+    expect(harness.query).toHaveBeenCalledWith(expect.stringContaining('ud."id" = $1'), [408808]);
   });
 
   it('writes an append-only before -> after audit event before overwriting ref-keys', async () => {
@@ -184,7 +191,7 @@ describe('AddDenarioPermanentRef migration', () => {
   });
 
   it.each([
-    { refs: [], error: 'No active Denario organization user' },
+    { refs: [], error: 'No active referral code found for the Denario organization account' },
     { refs: ['123-456', '234-567'], error: 'ambiguous' },
     { refs: ['1234-56'], error: 'invalid referral code' },
   ])('rejects an unusable target: $error', async ({ refs, error }) => {
@@ -374,12 +381,6 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
     const db = newDb();
     db.public.registerFunction({ name: 'version', returns: DataType.text, implementation: () => 'PostgreSQL 15.0' });
     db.public.registerFunction({ name: 'current_database', returns: DataType.text, implementation: () => 'test' });
-    db.public.registerFunction({
-      name: 'btrim',
-      args: [DataType.text],
-      returns: DataType.text,
-      implementation: (value: string) => value.trim(),
-    });
 
     dataSource = (await db.adapters.createTypeormDataSource({
       type: 'postgres',
@@ -439,18 +440,20 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
   });
 
   it('resolves the active organization ref and applies a reversible, auditable setting update', async () => {
+    // 408808 is the pinned Denario account. Rows 2 and 3 are same-named impostors ("Denario AG") that the
+    // old organizationName match would have hit — the id pin must ignore them.
     await dataSource.query(
       `INSERT INTO "user_data" ("id", "organizationName", "accountType", "status") VALUES
-        (1, '  DeNaRiO AG  ', 'Organization', 'Active'),
-        (2, 'Other AG', 'Organization', 'Active'),
+        (408808, 'Denario AG', 'Organization', 'Active'),
+        (2, 'Denario AG', 'Organization', 'Active'),
         (3, 'Denario AG', 'Organization', 'Blocked')`,
     );
     await dataSource.query(
       `INSERT INTO "user" ("id", "userDataId", "status", "ref") VALUES
-        (1, 1, 'Active', '123-456'),
+        (1, 408808, 'Active', '123-456'),
         (2, 2, 'Active', '999-999'),
         (3, 3, 'Active', '888-888'),
-        (4, 1, 'Deleted', '777-777')`,
+        (4, 408808, 'Deleted', '777-777')`,
     );
     await dataSource.query(`INSERT INTO "setting" ("key", "value") VALUES ($1, $2)`, [
       'ref-keys',

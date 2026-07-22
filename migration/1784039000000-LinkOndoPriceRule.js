@@ -142,6 +142,12 @@ module.exports = class LinkOndoPriceRule1784039000000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
+    // Partner-onboarding migration: NEVER run on dev/loc/CI — there the ONDO price rule may be absent
+    // (resolveOndoPriceRuleId below would throw and block boot) and ONDO is already priced via seed.
+    // Returning early still records the migration as executed, the intended no-op on lower environments
+    // (same rationale as AddBankFrickCustodyAssets).
+    if (process.env.ENVIRONMENT !== 'prd') return;
+
     if (await getActiveApplyAudit(queryRunner)) return;
 
     const assets = await queryRunner.query(
@@ -189,6 +195,9 @@ module.exports = class LinkOndoPriceRule1784039000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
+    // Mirror up(): the apply only ran on prd, so the rollback is a no-op everywhere else.
+    if (process.env.ENVIRONMENT !== 'prd') return;
+
     const applyAudit = await getActiveApplyAudit(queryRunner);
     if (!applyAudit) return;
 

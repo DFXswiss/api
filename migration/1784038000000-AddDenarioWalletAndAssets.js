@@ -280,6 +280,11 @@ module.exports = class AddDenarioWalletAndAssets1784038000000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
+    // Partner-onboarding migration: NEVER run on dev/loc/CI — there the Denario wallet/assets come from
+    // migration/seed/asset.csv (unlinked). Returning early still records the migration as executed, the
+    // intended no-op on lower environments (same rationale as AddBankFrickCustodyAssets).
+    if (process.env.ENVIRONMENT !== 'prd') return;
+
     // TypeORM can call a migration object more than once in tests or recovery tooling. An unmatched apply
     // event proves this migration already owns its exact inserts, so a repeated up() is a safe no-op.
     if (await getActiveApplyAudit(queryRunner)) return;
@@ -365,6 +370,9 @@ module.exports = class AddDenarioWalletAndAssets1784038000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
+    // Mirror up(): the apply only ran on prd, so the rollback is a no-op everywhere else.
+    if (process.env.ENVIRONMENT !== 'prd') return;
+
     const applyAudit = await getActiveApplyAudit(queryRunner);
     if (!applyAudit) return;
 
