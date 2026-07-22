@@ -779,8 +779,8 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   ledger_account: {
     // Double-entry ledger chart-of-accounts (monitoring-only). Account names are deterministic system
     // labels (e.g. 'Frick/EUR', 'LIABILITY/...'); the only non-fixed part is the counterparty
-    // institution name embedded in untracked-bank SUSPENSE account names, identical to the value
-    // already exposed via bank_tx.bankName. No customer PII / secrets.
+    // institution name embedded in untracked-bank SUSPENSE account names, sourced from bank.name or
+    // bank_tx.bankName — both already exposed on the /gs/debug allowlist. No customer PII / secrets.
     columns: ['id', 'created', 'updated', 'active', 'assetId', 'currency', 'name', 'type'],
   },
   ledger_leg: {
