@@ -1,9 +1,10 @@
 import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
-import { CoinGeckoClient } from 'coingecko-api-v3';
+import { CoinGeckoClient, CoinListResponseItem } from 'coingecko-api-v3';
 import { Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Price } from '../../domain/entities/price';
 import { PricingProvider } from './pricing-provider';
 
@@ -34,6 +35,7 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
   private readonly logger = new DfxLogger(CoinGeckoService);
 
   private readonly client: CoinGeckoClient;
+  private readonly coinsListCache = new AsyncCache<CoinListResponseItem[]>(CacheItemResetPeriod.EVERY_24_HOURS);
   private currencies: string[];
 
   constructor() {
@@ -55,6 +57,17 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
     if (param === 'contract') return this.getPriceFromContract(from, to);
 
     return this.getPriceFromToken(from, to);
+  }
+
+  async getCoinsList(includePlatform: boolean): Promise<CoinListResponseItem[]> {
+    return this.coinsListCache.get(`include_platform=${includePlatform}`, async () => {
+      try {
+        return await this.client.coinList({ include_platform: includePlatform });
+      } catch (e) {
+        this.logger.error(`Failed to get coins list (include_platform=${includePlatform}):`, e);
+        throw new ServiceUnavailableException('Failed to get coins list');
+      }
+    });
   }
 
   private async getPriceFromContract(contractAddress: string, to: string): Promise<Price> {
