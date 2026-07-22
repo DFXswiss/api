@@ -98,6 +98,14 @@ import {
 } from './dto/realunit-confirm-aktionariat.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
+  RealUnitOcpPayResultDto,
+  RealUnitOcpPayStatusDto,
+  RealUnitOcpPaySubmitDto,
+  RealUnitOcpPayUnsignedTransactionDto,
+  RealUnitSwapDto,
+  RealUnitSwapPaymentInfoDto,
+} from './dto/realunit-pay.dto';
+import {
   AktionariatRegistrationDto,
   MAX_SERIALIZED_TIN_LENGTH,
   MAX_TAX_RESIDENCES,
@@ -114,14 +122,6 @@ import {
   RealUnitUserDataDto,
   RealUnitUserType,
 } from './dto/realunit-registration.dto';
-import {
-  RealUnitOcpPayResultDto,
-  RealUnitOcpPayStatusDto,
-  RealUnitOcpPaySubmitDto,
-  RealUnitOcpPayUnsignedTransactionDto,
-  RealUnitSwapDto,
-  RealUnitSwapPaymentInfoDto,
-} from './dto/realunit-pay.dto';
 import {
   RealUnitSellBroadcastDto,
   RealUnitSellConfirmDto,
@@ -2039,7 +2039,7 @@ export class RealUnitService {
       uid: swapPaymentInfo.uid,
       routeId: swapPaymentInfo.routeId,
       timestamp: swapPaymentInfo.timestamp,
-      amount: swapPaymentInfo.amount,
+      amount: shares,
       estimatedAmount,
       targetAsset: zchfAsset.name,
       fees: swapPaymentInfo.fees,
@@ -2049,8 +2049,8 @@ export class RealUnitService {
       maxVolumeTarget: swapPaymentInfo.maxVolumeTarget,
       ethBalance,
       requiredGasEth,
-      isValid: swapPaymentInfo.isValid,
-      error: swapPaymentInfo.error,
+      isValid: shares < 1 ? false : swapPaymentInfo.isValid,
+      error: shares < 1 ? QuoteError.AMOUNT_TOO_LOW : swapPaymentInfo.error,
     };
   }
 
@@ -2146,7 +2146,12 @@ export class RealUnitService {
     const signedHex = this.reconstructSignedTransaction(dto);
 
     const client = this.getEvmClient();
-    const parsedTx = ethers.utils.parseTransaction(signedHex);
+    let parsedTx: ReturnType<typeof ethers.utils.parseTransaction>;
+    try {
+      parsedTx = ethers.utils.parseTransaction(signedHex);
+    } catch {
+      throw new BadRequestException('Invalid signed transaction');
+    }
     const expectedData = this.buildSwapCalldata(realuAsset, Math.floor(request.amount));
 
     // Fail-closed: the signed tx the client broadcasts must match what the server built for THIS request —

@@ -34,7 +34,7 @@ export class RealUnitSwapDto {
 }
 
 export class RealUnitSwapPaymentInfoDto {
-  // --- Identification ---
+  // --- Identification --- //
   @ApiProperty({ description: 'Transaction request ID (feeds PUT /swap/:id/unsigned-transaction)' })
   id: number;
 
@@ -47,7 +47,7 @@ export class RealUnitSwapPaymentInfoDto {
   @ApiProperty({ description: 'Price timestamp' })
   timestamp: Date;
 
-  // --- Amounts ---
+  // --- Amounts --- //
   @ApiProperty({ description: 'Amount of REALU shares to swap' })
   amount: number;
 
@@ -57,7 +57,7 @@ export class RealUnitSwapPaymentInfoDto {
   @ApiProperty({ description: 'Target asset name (always ZCHF)' })
   targetAsset: string;
 
-  // --- Fee Info ---
+  // --- Fee Info --- //
   @ApiProperty({ type: FeeDto, description: 'Fee infos in source asset (REALU)' })
   fees: FeeDto;
 
@@ -73,14 +73,14 @@ export class RealUnitSwapPaymentInfoDto {
   @ApiProperty({ description: 'Maximum volume in target asset (ZCHF)' })
   maxVolumeTarget: number;
 
-  // --- Gas Info ---
+  // --- Gas Info --- //
   @ApiProperty({ description: 'User ETH balance on the token chain' })
   ethBalance: number;
 
   @ApiProperty({ description: 'Required ETH to cover gas for the brokerbot swap step' })
   requiredGasEth: number;
 
-  // --- Validation ---
+  // --- Validation --- //
   @ApiProperty({ description: 'Whether the swap quote is valid' })
   isValid: boolean;
 

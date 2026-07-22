@@ -1142,8 +1142,22 @@ describe('RealUnitService', () => {
       const result = await service.getSwapPaymentInfo(buildUser(), { amount: 0.4 } as any);
 
       expect(blockchainService.getBrokerbotSellPrice).not.toHaveBeenCalled();
+      expect(result.amount).toBe(0);
       expect(result.estimatedAmount).toBe(0.38);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.AMOUNT_TOO_LOW);
       expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
+    });
+
+    it('should floor fractional REALU shares while preserving a valid swap quote', async () => {
+      swapService.createSwapPaymentInfo.mockResolvedValue({ ...swapInfo, amount: 10.9, isValid: true } as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 10.9 } as any);
+
+      expect(result.amount).toBe(10);
+      expect(result.isValid).toBe(true);
+      expect(result.error).toBeUndefined();
+      expect(blockchainService.getBrokerbotSellPrice).toHaveBeenCalledWith(expect.any(String), 10);
     });
 
     it('should throw PriceSourceUnavailableException when the brokerbot price query fails', async () => {
@@ -1339,6 +1353,28 @@ describe('RealUnitService', () => {
         service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: '0xdeadbeef' }),
       ).rejects.toThrow(BadRequestException);
       expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('maps a signed transaction parse failure to BadRequestException', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      const parseTransaction = ethers.utils.parseTransaction;
+      const parseTransactionSpy = jest.spyOn(ethers.utils, 'parseTransaction');
+      parseTransactionSpy
+        .mockImplementationOnce((rawTransaction) => parseTransaction(rawTransaction))
+        .mockImplementationOnce(() => {
+          throw new Error('invalid signature');
+        });
+
+      try {
+        await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(
+          'Invalid signed transaction',
+        );
+        expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+      } finally {
+        parseTransactionSpy.mockRestore();
+      }
     });
 
     it('throws BadRequestException when the signed swap tx sender does not match the request user address (foreign wallet)', async () => {

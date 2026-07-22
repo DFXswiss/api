@@ -70,16 +70,6 @@ import {
   ReceiptCurrency,
 } from '../dto/realunit-pdf.dto';
 import {
-  RealUnitEmailRegistrationDto,
-  RealUnitEmailRegistrationResponseDto,
-  RealUnitRegisterWalletDto,
-  RealUnitRegistrationDateDto,
-  RealUnitRegistrationDto,
-  RealUnitRegistrationInfoDto,
-  RealUnitRegistrationResponseDto,
-  RealUnitRegistrationStatus,
-} from '../dto/realunit-registration.dto';
-import {
   RealUnitOcpPayDto,
   RealUnitOcpPayResultDto,
   RealUnitOcpPayStatusDto,
@@ -89,6 +79,16 @@ import {
   RealUnitSwapPaymentInfoDto,
   RealUnitSwapUnsignedTransactionDto,
 } from '../dto/realunit-pay.dto';
+import {
+  RealUnitEmailRegistrationDto,
+  RealUnitEmailRegistrationResponseDto,
+  RealUnitRegisterWalletDto,
+  RealUnitRegistrationDateDto,
+  RealUnitRegistrationDto,
+  RealUnitRegistrationInfoDto,
+  RealUnitRegistrationResponseDto,
+  RealUnitRegistrationStatus,
+} from '../dto/realunit-registration.dto';
 import {
   RealUnitSellBroadcastDto,
   RealUnitSellConfirmDto,
