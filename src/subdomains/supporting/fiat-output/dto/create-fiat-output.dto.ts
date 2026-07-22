@@ -68,7 +68,7 @@ export class CreateFiatOutputDto {
   @IsOptional()
   @IsDate()
   @MinDate(MIN_FIAT_OUTPUT_DATE, {
-    message: 'valutaDate must be an ISO date after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+    message: 'valutaDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
   })
   @Type(() => Date)
   valutaDate?: Date;
