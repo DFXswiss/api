@@ -77,6 +77,8 @@ export class BankAdapter implements LiquidityBalanceIntegration {
         }
 
         case IbanBankName.FRICK: {
+          const normalizeIban = (iban: string): string => iban.replace(/\s/g, '').toUpperCase();
+
           const frickBalances = await this.frickService.getBalances();
 
           const banks = await this.bankService.getBanksWithAsset();
@@ -86,9 +88,9 @@ export class BankAdapter implements LiquidityBalanceIntegration {
             const bank = banks.find((bank) => bank.asset?.id === asset.id);
             if (!bank) throw new Error(`Bank Frick account is not linked to asset ${asset.uniqueName}`);
 
-            const bankIban = bank.iban.replace(/\s/g, '').toUpperCase();
+            const bankIban = normalizeIban(bank.iban);
             const balance = frickBalances.find((balance) => {
-              const balanceIban = balance.iban.replace(/\s/g, '').toUpperCase();
+              const balanceIban = normalizeIban(balance.iban);
               return balanceIban === bankIban;
             });
             if (!balance)
@@ -111,12 +113,12 @@ export class BankAdapter implements LiquidityBalanceIntegration {
             if (!Number.isFinite(balance.availableBalance))
               throw new Error(`Missing available balance for Bank Frick account ${balance.iban}`);
 
-            matchedIbans.add(balance.iban.replace(/\s/g, '').toUpperCase());
+            matchedIbans.add(normalizeIban(balance.iban));
             balances.push(LiquidityBalance.create(asset, balance.availableBalance));
           }
 
           const unmatchedIbans = frickBalances
-            .filter((balance) => !matchedIbans.has(balance.iban.replace(/\s/g, '').toUpperCase()))
+            .filter((balance) => !matchedIbans.has(normalizeIban(balance.iban)))
             .map((balance) => balance.iban);
           if (unmatchedIbans.length)
             this.logger.verbose(`Ignored unmatched Bank Frick accounts: ${unmatchedIbans.join(', ')}`);

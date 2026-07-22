@@ -352,6 +352,54 @@ describe('FiatOutputJobService', () => {
 
       expect(result).toEqual({ accountIban: undefined, bank: undefined });
     });
+
+    it('keeps an already-assigned account IBAN and bank relation without re-resolving or auto-selecting', async () => {
+      const accountIban = 'LI75088110103524';
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          accountIban,
+          bank: olkyEUR,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+      jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(olkyEUR);
+
+      await service['assignBankAccount']();
+
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, bank: olkyEUR });
+      expect(bankService.getBankByIban).not.toHaveBeenCalled();
+      expect(bankService.getSenderBanks).not.toHaveBeenCalled();
+    });
+
+    it('repairs a missing bank relation from an already-assigned account IBAN without auto-selecting', async () => {
+      const accountIban = 'LI75088110103524';
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          accountIban,
+          bank: undefined,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+      jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(olkyEUR);
+
+      await service['assignBankAccount']();
+
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, bank: olkyEUR });
+      expect(bankService.getBankByIban).toHaveBeenCalledWith(accountIban);
+      expect(bankService.getSenderBanks).not.toHaveBeenCalled();
+    });
   });
 
   describe('setReadyDate', () => {

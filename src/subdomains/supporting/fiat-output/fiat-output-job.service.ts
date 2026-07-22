@@ -22,6 +22,7 @@ import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.se
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankTxOutgoingMatchService } from '../bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
+import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -56,6 +57,7 @@ export class FiatOutputJobService {
     private readonly frickPayoutService: FiatOutputFrickService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly scryptService: ScryptService,
+    private readonly bankService: BankService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -174,8 +176,16 @@ export class FiatOutputJobService {
 
         if (entity.accountIban) {
           // An already-assigned account IBAN (set at creation, or a manual database assignment) must never
-          // be overwritten by the automatic bank selection below - only originEntityId can still be missing here.
-          await this.fiatOutputRepo.update(entity.id, { originEntityId: entity.originEntity?.id });
+          // be overwritten by the automatic bank selection below - only originEntityId (and a still-missing
+          // bank relation) can be repaired here.
+          let bank = entity.bank;
+          if (!bank) {
+            bank = await this.bankService.getBankByIban(entity.accountIban);
+            if (!bank)
+              throw new Error(`No bank found for account IBAN ${entity.accountIban} (fiat output ${entity.id})`);
+          }
+
+          await this.fiatOutputRepo.update(entity.id, { originEntityId: entity.originEntity?.id, bank });
           continue;
         }
 

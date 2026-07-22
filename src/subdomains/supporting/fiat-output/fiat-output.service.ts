@@ -121,7 +121,8 @@ export class FiatOutputService {
 
     if (entity.accountIban && !entity.bank) {
       const bank = await this.bankService.getBankByIban(entity.accountIban);
-      if (bank) entity.bank = bank;
+      if (!bank) throw new BadRequestException('No bank found for account IBAN');
+      entity.bank = bank;
     }
 
     return this.fiatOutputRepo.save(entity);
@@ -207,9 +208,14 @@ export class FiatOutputService {
       if (!entity.bankTx) throw new NotFoundException('BankTx not found');
     }
 
+    if (dto.accountIban) {
+      entity.bank = await this.bankService.getBankByIban(dto.accountIban);
+      if (!entity.bank) throw new BadRequestException('No bank found for account IBAN');
+    }
+
     if (dto.amount != null) dto.amount = Util.roundReadable(dto.amount, AmountType.FIAT);
 
-    return this.fiatOutputRepo.save({ ...entity, ...dto });
+    return this.fiatOutputRepo.save({ ...entity, ...dto, bank: entity.bank });
   }
 
   async delete(id: number): Promise<void> {

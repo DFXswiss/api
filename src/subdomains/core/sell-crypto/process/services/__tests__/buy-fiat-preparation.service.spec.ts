@@ -160,7 +160,12 @@ describe('BuyFiatPreparationService', () => {
     it.each<[string, string, string, IbanBankName]>([
       ['CHF through Yapeal', 'CHF', 'CH1234567890', IbanBankName.YAPEAL],
       ['EUR through Olkypay', 'EUR', 'DE1234567890', IbanBankName.OLKY],
-      ['Frick-eligible EUR through Bank Frick', 'EUR', 'LI1234567890', IbanBankName.FRICK],
+      [
+        'EUR through Olkypay for a Liechtenstein IBAN (Bank Frick is never auto-selected)',
+        'EUR',
+        'LI1234567890',
+        IbanBankName.OLKY,
+      ],
     ])('predicts %s and passes the selected bank to fee matching', async (_, currency, iban, bankName) => {
       const bank = createCustomBank({ name: bankName, currency });
       const { entity, country } = arrangeRefreshFee(currency, iban, bank);
@@ -187,7 +192,7 @@ describe('BuyFiatPreparationService', () => {
         entity.user,
       );
 
-      if ([IbanBankName.OLKY, IbanBankName.FRICK].includes(bankName)) {
+      if (bankName === IbanBankName.OLKY) {
         const bankOut = jest.mocked(transactionHelper.getTxFeeInfos).mock.calls[0][8];
         expect(bankOut).not.toBe(IbanBankName.YAPEAL);
       }
