@@ -1,8 +1,9 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { AccountType } from '../../entities/ledger-account.entity';
@@ -17,7 +18,7 @@ describe('LedgerBootstrapService', () => {
   let assetService: AssetService;
   let liquidityManagementBalanceService: LiquidityManagementBalanceService;
 
-  let created: { name: string; type: AccountType; currency: string; assetId?: number; active?: boolean }[];
+  let created: { name: string; type: AccountType; currency: string; assetId?: number }[];
 
   beforeEach(async () => {
     created = [];
@@ -26,12 +27,19 @@ describe('LedgerBootstrapService', () => {
     assetService = createMock<AssetService>();
     liquidityManagementBalanceService = createMock<LiquidityManagementBalanceService>();
 
-    jest
-      .spyOn(ledgerAccountService, 'findOrCreate')
-      .mockImplementation(async (name, type, currency, assetId, active) => {
-        created.push({ name, type, currency, assetId, active });
-        return createCustomLedgerAccount({ name, type, currency });
+    jest.spyOn(ledgerAccountService, 'findOrCreate').mockImplementation(async (name, type, currency, assetId) => {
+      created.push({ name, type, currency, assetId });
+      // mirror the real create path: the asset relation stub is set, @RelationId (assetId) stays unset
+      return createCustomLedgerAccount({
+        name,
+        type,
+        currency,
+        asset: assetId != null ? ({ id: assetId } as Asset) : undefined,
       });
+    });
+    jest.spyOn(ledgerAccountService, 'findByAssetId').mockResolvedValue(undefined);
+    jest.spyOn(DfxLogger.prototype, 'info').mockImplementation();
+    jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -45,8 +53,167 @@ describe('LedgerBootstrapService', () => {
     service = module.get<LedgerBootstrapService>(LedgerBootstrapService);
   });
 
+  // the DfxLogger.prototype spies must not leak call history into other spec files, even when an assert throws
+  afterEach(() => jest.restoreAllMocks());
+
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('skips an asset that already has an account under another name (rename-guard, UNIQUE is on name only)', async () => {
+    const renamed = createCustomAsset({
+      id: 435,
+      uniqueName: 'FrickLI/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([renamed]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    jest
+      .spyOn(ledgerAccountService, 'findByAssetId')
+      .mockResolvedValue(createCustomLedgerAccount({ name: 'Frick/EUR', type: AccountType.ASSET, currency: 'EUR' }));
+
+    await service.bootstrap();
+
+    expect(created.find((c) => c.name === 'FrickLI/EUR')).toBeUndefined();
+  });
+
+  it('still creates accounts for later assets in the same run when an earlier one is guard-skipped', async () => {
+    const covered = createCustomAsset({
+      id: 269,
+      uniqueName: 'Olkypay/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    const uncovered = createCustomAsset({
+      id: 435,
+      uniqueName: 'Frick/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([covered, uncovered]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    jest
+      .spyOn(ledgerAccountService, 'findByAssetId')
+      .mockImplementation(async (assetId) =>
+        assetId === 269
+          ? createCustomLedgerAccount({ name: 'Olkypay/EUR', type: AccountType.ASSET, currency: 'EUR' })
+          : undefined,
+      );
+
+    await service.bootstrap();
+
+    expect(created.find((c) => c.name === 'Olkypay/EUR')).toBeUndefined();
+    expect(created.find((c) => c.name === 'Frick/EUR')).toMatchObject({ type: AccountType.ASSET, assetId: 435 });
+  });
+
+  it('logs an error when findOrCreate resolves to a foreign account (name collision, no silent no-op)', async () => {
+    const collided = createCustomAsset({
+      id: 500,
+      uniqueName: 'Frick/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([collided]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    // the name is taken by asset 435's pre-rename account → findOrCreate name-hits the foreign account
+    jest.spyOn(ledgerAccountService, 'findOrCreate').mockResolvedValue(
+      Object.assign(createCustomLedgerAccount({ name: 'Frick/EUR', type: AccountType.ASSET, currency: 'EUR' }), {
+        assetId: 435,
+      }),
+    );
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error');
+
+    await service.bootstrap();
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('name collision'));
+  });
+
+  it('logs a name collision (not a success) when findOrCreate name-hits a row with a NULL assetId', async () => {
+    const orphaned = createCustomAsset({
+      id: 500,
+      uniqueName: 'Frick/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([orphaned]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    // manual-DB shape: the name is taken by a row without an asset id → neither assetId nor asset is populated;
+    // the asset still has no account, so this must stay loud, not count as a successful creation
+    jest
+      .spyOn(ledgerAccountService, 'findOrCreate')
+      .mockResolvedValue(createCustomLedgerAccount({ name: 'Frick/EUR', type: AccountType.ASSET, currency: 'EUR' }));
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error');
+
+    await service.bootstrap();
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('name collision'));
+  });
+
+  it('logs creation success and NO false collision error on a legitimate first creation', async () => {
+    // pins the `assetId ?? asset.id` coalesce: the create path returns an entity without @RelationId, so a
+    // plain assetId comparison would log a false collision ERROR for every real creation — the suite would stay
+    // green while prod floods the fail-loud channel
+    const custody = createCustomAsset({
+      id: 435,
+      uniqueName: 'Frick/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([custody]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    const infoSpy = jest.spyOn(DfxLogger.prototype, 'info');
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error');
+
+    await service.bootstrap();
+
+    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining("created ASSET account 'Frick/EUR'"));
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('continues with later assets and the transit/named sections when one asset fails (per-asset isolation)', async () => {
+    const failing = createCustomAsset({
+      id: 1,
+      uniqueName: 'Bad/X',
+      name: 'X',
+      dexName: 'X',
+      type: AssetType.CUSTODY,
+    });
+    const healthy = createCustomAsset({
+      id: 2,
+      uniqueName: 'Good/Y',
+      name: 'Y',
+      dexName: 'Y',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([failing, healthy]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    jest.spyOn(ledgerAccountService, 'findOrCreate').mockImplementation(async (name, type, currency, assetId) => {
+      if (name === 'Bad/X') throw new Error('value too long for type character varying(16)');
+      created.push({ name, type, currency, assetId });
+      return createCustomLedgerAccount({
+        name,
+        type,
+        currency,
+        asset: assetId != null ? ({ id: assetId } as Asset) : undefined,
+      });
+    });
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error');
+
+    await service.bootstrap();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('CoA bootstrap failed for asset 1'),
+      expect.any(Error),
+    );
+    expect(created.find((c) => c.name === 'Good/Y')).toMatchObject({ type: AccountType.ASSET, assetId: 2 });
+    expect(created.map((c) => c.name)).toContain('ROUNDING'); // named section still runs after the failure
   });
 
   it('creates ASSET accounts from custody asset rows with name=uniqueName, currency=dexName, assetId set', async () => {
@@ -183,10 +350,10 @@ describe('LedgerBootstrapService', () => {
     // already in the store returns the EXISTING account and is NOT pushed again → `created` only grows on first sight.
     const store = new Map<string, ReturnType<typeof createCustomLedgerAccount>>();
     (ledgerAccountService.findOrCreate as jest.Mock).mockImplementation(
-      async (name: string, type: AccountType, currency: string, assetId?: number, active?: boolean) => {
+      async (name: string, type: AccountType, currency: string, assetId?: number) => {
         const existing = store.get(name);
         if (existing) return existing; // re-run no-op (the second bootstrap must hit only this branch)
-        created.push({ name, type, currency, assetId, active });
+        created.push({ name, type, currency, assetId });
         const acc = createCustomLedgerAccount({ name, type, currency });
         store.set(name, acc);
         return acc;
