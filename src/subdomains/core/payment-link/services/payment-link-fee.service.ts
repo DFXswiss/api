@@ -8,7 +8,6 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
-import { PayoutFiroService } from 'src/subdomains/supporting/payout/services/payout-firo.service';
 import { BlockchainRegistryService } from '../../../../integration/blockchain/shared/services/blockchain-registry.service';
 
 interface FeeCacheData {
@@ -27,7 +26,6 @@ export class PaymentLinkFeeService implements OnModuleInit {
   constructor(
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
-    private readonly payoutFiroService: PayoutFiroService,
   ) {
     this.feeCache = new Map();
   }
@@ -83,7 +81,14 @@ export class PaymentLinkFeeService implements OnModuleInit {
         return this.payoutBitcoinService.getCurrentFeeRate();
 
       case Blockchain.FIRO:
-        return this.payoutFiroService.getCurrentFeeRate();
+        // Firo/Spark transactions carry a protocol-fixed fee (Firo's GetMinimumFee, floored at
+        // minRelayTxFee) the user cannot raise, so a valid Spark payment pays exactly the network
+        // relay floor. Requiring anything above it — the margin-multiplied payout rate
+        // (getCurrentFeeRate) or even the raw estimateSmartFee, which sits just above the floor —
+        // rejects that payment. Use the relay floor as the customer minimum; the payout margin
+        // stays on DFX's own payout path only. Bitcoin keeps getCurrentFeeRate because its fees
+        // are user-adjustable, so the margin remains satisfiable there.
+        return GetConfig().blockchain.firo.minFeeRate;
     }
   }
 
