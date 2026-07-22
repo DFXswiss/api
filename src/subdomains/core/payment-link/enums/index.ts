@@ -95,6 +95,21 @@ export enum PaymentMerchantStatus {
   PROCESSED = 'Processed',
 }
 
+// EVM blockchains the payment-link engine accepts for signed-hex payments (PaymentRequestMapper +
+// PaymentQuoteService.executeHexPayment). Includes the Sepolia testnet so Open CryptoPay is testable on
+// non-PRD (DEV/LOC); on PRD Sepolia is filtered out of PaymentLinkBlockchains (via TestBlockchains), so no
+// PRD payment-link can offer it and these EVM cases stay unreachable there.
+export const PaymentLinkEvmHexBlockchains = [
+  Blockchain.ETHEREUM,
+  Blockchain.SEPOLIA,
+  Blockchain.ARBITRUM,
+  Blockchain.OPTIMISM,
+  Blockchain.BASE,
+  Blockchain.GNOSIS,
+  Blockchain.POLYGON,
+  Blockchain.BINANCE_SMART_CHAIN,
+];
+
 // Blockchains where the payer broadcasts the tx themselves and submits the resulting txId.
 // The API marks the quote `TX_MEMPOOL` as soon as the txId is submitted, without waiting
 // for on-chain confirmation. This is by design — accepting mempool transactions is the

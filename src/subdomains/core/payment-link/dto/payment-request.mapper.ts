@@ -13,6 +13,7 @@ export class PaymentRequestMapper {
         return this.toLnurlpInvoice(paymentActivation);
 
       case Blockchain.ETHEREUM:
+      case Blockchain.SEPOLIA:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:

@@ -129,6 +129,7 @@ export class PaymentBalanceService implements OnModuleInit {
   getDepositAddress(method: Blockchain): string | undefined {
     switch (method) {
       case Blockchain.ETHEREUM:
+      case Blockchain.SEPOLIA:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
