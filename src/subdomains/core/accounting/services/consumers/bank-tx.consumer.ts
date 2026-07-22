@@ -123,8 +123,8 @@ export class BankTxConsumer {
         await this.book(tx, marks);
         lastProcessedId = tx.id;
       } catch (e) {
-        // a gate-block (AML pricing pending or chargeback link pending) is the designed self-healing retry signal —
-        // verbose, not error (§4.12 pattern)
+        // a gate-block (AML pricing pending) is the designed self-healing retry signal — verbose, not error
+        // (§4.12 pattern)
         const gateBlocked = e instanceof LedgerGateBlockedException;
         this.logger.log(
           gateBlocked ? LogLevel.VERBOSE : LogLevel.ERROR,
@@ -255,10 +255,9 @@ export class BankTxConsumer {
   ): Promise<LedgerLegInput[]> {
     const amountInChf = tx.buyCrypto?.amountInChf; // received-Cr base anchor (Major R4-4)
     if (amountInChf == null) {
-      // transient ONLY while the AML check has not run yet (doAmlCheck prices amlCheck==null rows); a linked row with
-      // an amlCheck result and no CHF (e.g. FAIL set by chargebackFillUp on a not-yet-priced row) is not re-priced by
-      // the cron — only a manual FAIL→PENDING re-trigger re-prices it → fail loud
-      if (tx.buyCrypto != null && tx.buyCrypto.amlCheck == null)
+      // gate-block only rows doAmlCheck will still price (isAmlPricingPending mirrors its eligibility); every other
+      // unpriced state (amlCheck set, amlReason set, chargeback allowed, completed, unlinked) stays fail-loud
+      if (tx.buyCrypto?.isAmlPricingPending)
         throw new LedgerGateBlockedException(
           `bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf (AML pricing pending) — retry next run`,
         );
@@ -307,15 +306,8 @@ export class BankTxConsumer {
     if (openingChf != null) return openingChf; // cutover-straddling: debit the exact opening CHF anchor
 
     const amountInChf = tx.buyCryptoChargeback?.amountInChf;
-    if (amountInChf == null) {
-      // unlinked = transient link race (the chargebackFillUp cron links the return bank_tx); a LINKED chargeback with
-      // no CHF is not re-priced by the cron (the linking cron completes the row, freezing amlCheck) → fail loud
-      if (tx.buyCryptoChargeback == null)
-        throw new LedgerGateBlockedException(
-          `bank_tx ${tx.id} BUY_CRYPTO_RETURN not yet linked to its buy_crypto chargeback — retry next run`,
-        );
+    if (amountInChf == null)
       throw new Error(`bank_tx ${tx.id} BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf`);
-    }
     return Util.round(amountInChf - (tx.buyCryptoChargeback?.totalFeeAmountChf ?? 0), 2); // completion CHF (additive null-strategy)
   }
 

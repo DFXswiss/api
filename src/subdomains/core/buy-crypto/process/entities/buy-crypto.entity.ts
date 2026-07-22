@@ -870,6 +870,19 @@ export class BuyCrypto extends IEntity {
     return this.cryptoInput != null;
   }
 
+  // mirror of doAmlCheck's amlCheck-null selection branch (BuyCryptoPreparationService.doAmlCheck) — rows the AML
+  // cron will still pick up and price; keep in sync with that query
+  get isAmlPricingPending(): boolean {
+    return (
+      this.amlCheck == null &&
+      this.amlReason == null &&
+      this.inputAmount != null &&
+      this.inputAsset != null &&
+      this.chargebackAllowedDateUser == null &&
+      !this.isComplete
+    );
+  }
+
   get exchangeRate(): { exchangeRate: number; rate: number } {
     const exchangeRate =
       (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
