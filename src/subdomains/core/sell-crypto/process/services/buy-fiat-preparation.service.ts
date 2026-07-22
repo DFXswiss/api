@@ -279,7 +279,6 @@ export class BuyFiatPreparationService {
           entity.outputAsset.name,
           FiatOutputType.BUY_FIAT,
           entity.userData,
-          false,
           country,
         );
 

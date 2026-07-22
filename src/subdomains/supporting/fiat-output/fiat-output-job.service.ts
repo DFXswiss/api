@@ -144,7 +144,7 @@ export class FiatOutputJobService {
     country: Country,
   ): Promise<{ accountIban: string | undefined; bank: Bank | undefined }> {
     const currency = entity.currency ?? entity.bankAccountCurrency;
-    return this.fiatOutputService.selectPayoutBank(currency, entity.type, entity.userData, entity.isInstant, country);
+    return this.fiatOutputService.selectPayoutBank(currency, entity.type, entity.userData, country);
   }
 
   private async assignBankAccount(): Promise<void> {
@@ -208,6 +208,8 @@ export class FiatOutputJobService {
       .getAssetsWith({ bank: true, balance: true })
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
 
+    let skippedFrickFiatOutputs = 0;
+
     for (const accountIbanGroup of groupedEntities.values()) {
       let updatedFiatOutputAmount = 0;
 
@@ -236,7 +238,10 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
-          if (entity.bank?.name === IbanBankName.FRICK && !this.frickPayoutService.canCreatePayments()) continue;
+          if (entity.bank?.name === IbanBankName.FRICK && !this.frickPayoutService.canCreatePayments()) {
+            skippedFrickFiatOutputs++;
+            continue;
+          }
           if (
             (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
             entity.type === FiatOutputType.BUY_FIAT
@@ -293,6 +298,10 @@ export class FiatOutputJobService {
               );
             }
           } else {
+            this.logger.verbose(
+              `FiatOutput ${entity.id} blocked: required ${entity.bankAmount}, ` +
+                `available ${availableBalance} ${asset.name}`,
+            );
             break;
           }
         } catch (e) {
@@ -300,6 +309,9 @@ export class FiatOutputJobService {
         }
       }
     }
+
+    if (skippedFrickFiatOutputs)
+      this.logger.verbose(`Skipped ${skippedFrickFiatOutputs} Frick fiat outputs: payout creation disabled`);
   }
 
   private async createBatches(): Promise<void> {

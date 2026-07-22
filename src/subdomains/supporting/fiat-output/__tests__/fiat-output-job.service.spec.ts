@@ -272,7 +272,7 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
     });
 
-    it('routes to Frick once its priority is lowered below the incumbent sender', async () => {
+    it('never auto-selects Bank Frick even when it has better sender priority than the incumbent', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -287,10 +287,10 @@ describe('FiatOutputJobService', () => {
         createCustomCountry({ yapealEnable: true }),
       );
 
-      expect(result).toEqual({ accountIban: frick.iban, bank: frick });
+      expect(result).toEqual({ accountIban: yapealEUR.iban, bank: yapealEUR });
     });
 
-    it('throws only when two eligible banks share the exact same priority, not merely because Frick coexists', async () => {
+    it('never throws on a priority tie with Bank Frick - Frick is filtered out before the tie can even occur', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -300,12 +300,12 @@ describe('FiatOutputJobService', () => {
       });
       jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([frick, yapealEUR]);
 
-      await expect(
-        service['getPayoutAccount'](
-          createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
-          createCustomCountry({ yapealEnable: true }),
-        ),
-      ).rejects.toThrow('Ambiguous sender bank priority for EUR');
+      const result = await service['getPayoutAccount'](
+        createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
+        createCustomCountry({ yapealEnable: true }),
+      );
+
+      expect(result).toEqual({ accountIban: yapealEUR.iban, bank: yapealEUR });
     });
 
     it('routes to the highest-priority (lowest number) sender when multiple non-Frick banks are eligible', async () => {

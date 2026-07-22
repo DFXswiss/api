@@ -172,7 +172,6 @@ describe('BuyFiatPreparationService', () => {
         entity.outputAsset.name,
         FiatOutputType.BUY_FIAT,
         entity.userData,
-        false,
         country,
       );
       expect(transactionHelper.getTxFeeInfos).toHaveBeenCalledWith(

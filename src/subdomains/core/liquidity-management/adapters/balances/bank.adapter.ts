@@ -86,10 +86,32 @@ export class BankAdapter implements LiquidityBalanceIntegration {
             // balance fails loud instead of silently substituting a different, unsafe number.
             if (!Number.isFinite(balance.availableBalance))
               throw new Error(`Missing available balance for Bank Frick account ${balance.iban}`);
-
-            const matchingAssets = assets.filter((asset) => asset.dexName === balance.currency);
-            matchingAssets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance.availableBalance)));
           }
+
+          const banks = await this.bankService.getBanksWithAsset();
+          const matchedIbans = new Set<string>();
+
+          for (const asset of assets) {
+            const bank = banks.find((bank) => bank.asset?.id === asset.id);
+            if (!bank) throw new Error(`Bank Frick account is not linked to asset ${asset.uniqueName}`);
+
+            const bankIban = bank.iban.replace(/\s/g, '').toUpperCase();
+            const balance = frickBalances.find((balance) => {
+              const balanceIban = balance.iban.replace(/\s/g, '').toUpperCase();
+              return balanceIban === bankIban;
+            });
+            if (!balance)
+              throw new Error(`No Bank Frick account found for IBAN ${bank.iban} (asset ${asset.uniqueName})`);
+
+            matchedIbans.add(balance.iban.replace(/\s/g, '').toUpperCase());
+            balances.push(LiquidityBalance.create(asset, balance.availableBalance));
+          }
+
+          const unmatchedIbans = frickBalances
+            .filter((balance) => !matchedIbans.has(balance.iban.replace(/\s/g, '').toUpperCase()))
+            .map((balance) => balance.iban);
+          if (unmatchedIbans.length)
+            this.logger.verbose(`Ignored unmatched Bank Frick accounts: ${unmatchedIbans.join(', ')}`);
 
           break;
         }
