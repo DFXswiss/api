@@ -1,6 +1,8 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, MinDate } from 'class-validator';
 import { FiatOutputType } from '../fiat-output.entity';
+
+export const MIN_FIAT_OUTPUT_DATE = new Date('2000-01-01T00:00:00Z');
 
 export class CreateFiatOutputDto {
   @IsOptional()
@@ -65,6 +67,9 @@ export class CreateFiatOutputDto {
 
   @IsOptional()
   @IsDate()
+  @MinDate(MIN_FIAT_OUTPUT_DATE, {
+    message: 'valutaDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+  })
   @Type(() => Date)
   valutaDate?: Date;
 
