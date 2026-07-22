@@ -5,7 +5,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { Equal, IsNull, Not } from 'typeorm';
+import { Equal, IsNull, Like, Not } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 
@@ -45,7 +45,7 @@ export class BankAccountService {
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BANK_ACCOUNT, timeout: 3600 })
   async reloadErrorBankAccounts(): Promise<void> {
-    const bankAccounts = await this.bankAccountRepo.findBy({ result: 'Error: AggregateError' });
+    const bankAccounts = await this.bankAccountRepo.findBy({ result: Like('Error:%') });
     for (const bankAccount of bankAccounts) {
       await this.reloadBankAccount(bankAccount);
     }
