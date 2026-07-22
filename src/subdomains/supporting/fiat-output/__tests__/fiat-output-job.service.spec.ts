@@ -400,6 +400,38 @@ describe('FiatOutputJobService', () => {
       expect(bankService.getBankByIban).toHaveBeenCalledWith(accountIban);
       expect(bankService.getSenderBanks).not.toHaveBeenCalled();
     });
+
+    it('logs a bank lookup miss and continues to repair the next entity in the same run', async () => {
+      const accountIban = 'LI75088110103524';
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          accountIban,
+          bank: undefined,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+        createCustomFiatOutput({
+          id: 2,
+          accountIban,
+          bank: undefined,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 200, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+      jest.spyOn(bankService, 'getBankByIban').mockResolvedValueOnce(undefined).mockResolvedValueOnce(olkyEUR);
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      await service['assignBankAccount']();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('1'), expect.anything());
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][0]).toBe(2);
+      expect(updateCalls[0][1]).toMatchObject({ bank: olkyEUR });
+    });
   });
 
   describe('setReadyDate', () => {

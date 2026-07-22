@@ -22,13 +22,13 @@ import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.se
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankTxOutgoingMatchService } from '../bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
-import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutputFrickService } from './fiat-output-frick.service';
@@ -158,10 +158,13 @@ export class FiatOutputJobService {
       type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT, FiatOutputType.BANK_TX_RETURN]),
     };
 
+    // OR branches: (1) missing originEntityId, (2) missing accountIban (full assignment),
+    // (3) accountIban set but bank relation missing — so the repair path in the loop can run.
     const entities = await this.fiatOutputRepo.find({
       where: [
         { ...request, originEntityId: IsNull() },
         { ...request, accountIban: IsNull() },
+        { ...request, accountIban: Not(IsNull()), bank: IsNull() },
       ],
       relations: {
         buyCrypto: { bankTx: true, transaction: { userData: true } },
