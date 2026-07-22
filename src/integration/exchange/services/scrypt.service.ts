@@ -237,7 +237,8 @@ export class ScryptService extends PricingProvider {
     const filters: Record<string, unknown> = {};
     if (since) filters.StartDate = since.toISOString();
 
-    return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, filters);
+    // fetchAll: the report may be on a later page, a single page would miss existing orders
+    return this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, filters);
   }
 
   async getTrades(since?: Date): Promise<ScryptTrade[]> {
@@ -263,7 +264,7 @@ export class ScryptService extends PricingProvider {
     return side === ScryptOrderSide.BUY ? price : 1 / price;
   }
 
-  async sell(from: string, to: string, amount: number): Promise<string> {
+  async sell(from: string, to: string, amount: number, clOrdId?: string): Promise<string> {
     const { symbol, side } = await this.getTradePair(from, to);
     const price = await this.getOrderBookPrice(symbol, side);
     const sizeIncrement = await this.getSizeIncrement(symbol);
@@ -274,10 +275,10 @@ export class ScryptService extends PricingProvider {
     const rawQty = side === ScryptOrderSide.SELL ? amount : amount / price;
     const orderQty = Util.floorToValue(rawQty, sizeIncrement);
 
-    return this.placeAndReturnId(symbol, side, orderQty, price);
+    return this.placeAndReturnId(symbol, side, orderQty, price, clOrdId);
   }
 
-  async buy(from: string, to: string, amount: number): Promise<string> {
+  async buy(from: string, to: string, amount: number, clOrdId?: string): Promise<string> {
     const { symbol, side } = await this.getTradePair(from, to);
     const price = await this.getOrderBookPrice(symbol, side);
     const sizeIncrement = await this.getSizeIncrement(symbol);
@@ -288,7 +289,7 @@ export class ScryptService extends PricingProvider {
     const rawQty = side === ScryptOrderSide.BUY ? amount : amount / price;
     const orderQty = Util.floorToValue(rawQty, sizeIncrement);
 
-    return this.placeAndReturnId(symbol, side, orderQty, price);
+    return this.placeAndReturnId(symbol, side, orderQty, price, clOrdId);
   }
 
   private async getSizeIncrement(symbol: string): Promise<number> {
@@ -301,6 +302,7 @@ export class ScryptService extends PricingProvider {
     side: ScryptOrderSide,
     orderQty: number,
     price: number,
+    clOrdId?: string,
   ): Promise<string> {
     const response = await this.placeOrder(
       symbol,
@@ -309,6 +311,7 @@ export class ScryptService extends PricingProvider {
       ScryptOrderType.LIMIT,
       ScryptTimeInForce.GOOD_TILL_CANCEL,
       price,
+      clOrdId,
     );
     return response.id;
   }
@@ -454,8 +457,10 @@ export class ScryptService extends PricingProvider {
     orderType: ScryptOrderType = ScryptOrderType.LIMIT,
     timeInForce: ScryptTimeInForce = ScryptTimeInForce.GOOD_TILL_CANCEL,
     price?: number,
+    presetClOrdId?: string,
   ): Promise<ScryptOrderResponse> {
-    const clOrdId = randomUUID();
+    // a caller-provided ClOrdID allows recovering the order if the connection drops after sending
+    const clOrdId = presetClOrdId ?? randomUUID();
 
     // Price is required for LIMIT orders
     if (orderType === ScryptOrderType.LIMIT && price === undefined) {
