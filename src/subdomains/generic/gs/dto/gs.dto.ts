@@ -1108,11 +1108,12 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   setting: {
-    // `key` is included so a debug investigation can locate a specific setting row by name.
-    // `value` is excluded — settings can hold credentials, exchange API config, etc.
-    // Listing key names alone discloses the config schema, but that schema is also visible
-    // in the codebase; values are the secret part and stay redacted.
-    columns: ['id', 'created', 'updated', 'key'],
+    // `value` is now readable via /gs/debug (data-owner-approved 2026-07-22); genuine
+    // secrets/credentials live in the Vault, not this table. The column can still hold
+    // internal IP/address/clerk lists, and exposing those to the Debug admin role is an
+    // accepted decision.
+    columns: ['id', 'created', 'updated', 'key', 'value'],
+    jsonbColumns: ['value'],
   },
   sift_error_log: {
     // No `requestPayload` (full Sift request body — may contain card / KYC fields).
