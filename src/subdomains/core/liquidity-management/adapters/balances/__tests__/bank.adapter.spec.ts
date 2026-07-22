@@ -117,12 +117,39 @@ describe('BankAdapter', () => {
     expect(result[0].amount).toBe(900);
   });
 
-  it('fails closed when Bank Frick reports no available balance for an account, instead of silently using the booked balance', async () => {
+  it('fails closed when Bank Frick reports no available balance for a linked account, instead of silently using the booked balance', async () => {
+    const eurAsset = frickAsset('EUR', 1);
+    jest.spyOn(bankService, 'getBanksWithAsset').mockResolvedValue([frickBank(eurAsset, 'LI-EUR')]);
     jest.spyOn(frickService, 'getBalances').mockResolvedValue([{ iban: 'LI-EUR', currency: 'EUR', balance: 1000 }]);
 
-    await expect(adapter.getForBank(IbanBankName.FRICK, [frickAsset('EUR')])).rejects.toThrow(
+    await expect(adapter.getForBank(IbanBankName.FRICK, [eurAsset])).rejects.toThrow(
       'Missing available balance for Bank Frick account LI-EUR',
     );
+  });
+
+  it('ignores an unmatched Bank Frick account with no available balance and still processes the linked account', async () => {
+    const eurAsset = frickAsset('EUR', 1);
+    jest.spyOn(bankService, 'getBanksWithAsset').mockResolvedValue([frickBank(eurAsset, 'LI-LINKED')]);
+    jest.spyOn(frickService, 'getBalances').mockResolvedValue([
+      { iban: 'LI-LINKED', currency: 'EUR', balance: 1000, availableBalance: 900 },
+      { iban: 'LI-OPERATING', currency: 'EUR', balance: 5000 },
+    ]);
+
+    const result = await adapter.getForBank(IbanBankName.FRICK, [eurAsset]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].asset).toBe(eurAsset);
+    expect(result[0].amount).toBe(900);
+  });
+
+  it('fails closed when the linked Bank Frick account currency does not match the asset', async () => {
+    const eurAsset = frickAsset('EUR', 1);
+    jest.spyOn(bankService, 'getBanksWithAsset').mockResolvedValue([frickBank(eurAsset, 'LI-LINKED')]);
+    jest
+      .spyOn(frickService, 'getBalances')
+      .mockResolvedValue([{ iban: 'LI-LINKED', currency: 'CHF', balance: 1000, availableBalance: 900 }]);
+
+    await expect(adapter.getForBank(IbanBankName.FRICK, [eurAsset])).rejects.toThrow(/currency mismatch/i);
   });
 
   it('propagates and logs a getBalances() failure the same way as the other cases', async () => {

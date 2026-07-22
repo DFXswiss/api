@@ -10,7 +10,8 @@ import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balan
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
 
 export interface BankBalanceUpdate {
-  bank?: Bank | null;
+  bank: Bank | null;
+  iban: string;
   balance: number;
 }
 
@@ -60,7 +61,7 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
 
   async refreshBankBalance(dto: BankBalanceUpdate): Promise<void> {
     if (!dto.bank) {
-      this.logger.verbose('Skipping bank balance refresh: bank not found');
+      this.logger.verbose(`Skipping bank balance refresh: no bank found for IBAN ${dto.iban}`);
       return;
     }
 

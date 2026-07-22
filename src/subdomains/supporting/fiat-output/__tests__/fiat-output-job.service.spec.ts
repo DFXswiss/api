@@ -218,7 +218,7 @@ describe('FiatOutputJobService', () => {
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: virtualIban });
     });
 
-    it('skips an unavailable Bank Frick sender and selects the next eligible sender', async () => {
+    it('excludes Bank Frick from automatic sender selection regardless of payout-creation availability', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -236,7 +236,7 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: yapealEUR.iban, bank: yapealEUR });
     });
 
-    it('does not select Bank Frick without the configured instant-payment capability', async () => {
+    it('excludes Bank Frick from automatic sender selection regardless of its instant-payment capability', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -254,7 +254,7 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
     });
 
-    it('still routes an EUR payout to Olkypay while Frick EUR is send=true with the seeded (worse) default priority', async () => {
+    it('excludes Bank Frick from automatic sender selection even when its sender priority is worse', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -334,7 +334,7 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
     });
 
-    it('does not use an unavailable Bank Frick virtual IBAN', async () => {
+    it('excludes an unavailable Bank Frick virtual IBAN from automatic selection unconditionally', async () => {
       const frick = createCustomBank({ name: IbanBankName.FRICK, send: true });
       jest.spyOn(frickPayoutService, 'canCreatePayments').mockReturnValue(false);
       jest

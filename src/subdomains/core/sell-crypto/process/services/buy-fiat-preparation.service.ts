@@ -293,7 +293,7 @@ export class BuyFiatPreparationService {
           undefined,
           // This prediction and the later FiatOutput bank assignment share the single source of truth,
           // FiatOutputService.selectPayoutBank, and agree while the underlying state is unchanged. Active
-          // virtual IBANs, sender-bank send/sendPriority, and Bank Frick availability are live and mutable;
+          // virtual IBANs and sender-bank send/sendPriority are live and mutable;
           // because this prediction is neither persisted nor reconciled, bankOut is best-effort and can
           // differ if, for example, a virtual IBAN activates or a bank's send/priority changes between calls.
           // Fee.verifyForTx in fee.entity.ts matches bank-scoped Fees against its banks array, so an unknown

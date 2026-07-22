@@ -172,6 +172,13 @@ export class FiatOutputJobService {
       try {
         if (!entity.buyFiats?.length && !entity.buyCrypto && !entity.bankTxReturn) continue;
 
+        if (entity.accountIban) {
+          // An already-assigned account IBAN (set at creation, or a manual database assignment) must never
+          // be overwritten by the automatic bank selection below - only originEntityId can still be missing here.
+          await this.fiatOutputRepo.update(entity.id, { originEntityId: entity.originEntity?.id });
+          continue;
+        }
+
         const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
 
         const { accountIban, bank } = await this.getPayoutAccount(entity, country);
