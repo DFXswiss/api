@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { CronExpression } from '@nestjs/schedule';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
@@ -128,29 +129,38 @@ describe('LedgerBookingJobService', () => {
     });
   });
 
-  describe('@DfxCron kill-switch (Hard Constraint #5, Minor R9-2)', () => {
-    // every registered cron method must carry a Process.LEDGER_BOOKING_* flag (no silent no-guard cron)
-    const expectedFlags: Record<string, Process> = {
-      runBankTx: Process.LEDGER_BOOKING_BANK_TX,
-      runExchangeTx: Process.LEDGER_BOOKING_EXCHANGE_TX,
-      runCryptoInput: Process.LEDGER_BOOKING_CRYPTO_INPUT,
-      runPayoutOrder: Process.LEDGER_BOOKING_PAYOUT,
-      runBuyCrypto: Process.LEDGER_BOOKING_BUY_CRYPTO,
-      runBuyFiat: Process.LEDGER_BOOKING_BUY_FIAT,
-      runLiquidityMgmt: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT,
-      runLiquidityOrderDex: Process.LEDGER_BOOKING_LIQUIDITY_ORDER,
-      runTradingOrder: Process.LEDGER_BOOKING_TRADING_ORDER,
-      runCoaBootstrap: Process.LEDGER_COA_BOOTSTRAP,
+  describe('@DfxCron kill-switch + schedule (Hard Constraint #5, Minor R9-2)', () => {
+    // every registered cron method must carry a Process flag (no silent no-guard cron) AND its intended schedule:
+    // the nine booking wrappers run EVERY_MINUTE, only the CoA bootstrap runs EVERY_5_MINUTES
+    const expectedCrons: Record<string, { process: Process; expression: CronExpression }> = {
+      runBankTx: { process: Process.LEDGER_BOOKING_BANK_TX, expression: CronExpression.EVERY_MINUTE },
+      runExchangeTx: { process: Process.LEDGER_BOOKING_EXCHANGE_TX, expression: CronExpression.EVERY_MINUTE },
+      runCryptoInput: { process: Process.LEDGER_BOOKING_CRYPTO_INPUT, expression: CronExpression.EVERY_MINUTE },
+      runPayoutOrder: { process: Process.LEDGER_BOOKING_PAYOUT, expression: CronExpression.EVERY_MINUTE },
+      runBuyCrypto: { process: Process.LEDGER_BOOKING_BUY_CRYPTO, expression: CronExpression.EVERY_MINUTE },
+      runBuyFiat: { process: Process.LEDGER_BOOKING_BUY_FIAT, expression: CronExpression.EVERY_MINUTE },
+      runLiquidityMgmt: {
+        process: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT,
+        expression: CronExpression.EVERY_MINUTE,
+      },
+      runLiquidityOrderDex: {
+        process: Process.LEDGER_BOOKING_LIQUIDITY_ORDER,
+        expression: CronExpression.EVERY_MINUTE,
+      },
+      runTradingOrder: { process: Process.LEDGER_BOOKING_TRADING_ORDER, expression: CronExpression.EVERY_MINUTE },
+      runCoaBootstrap: { process: Process.LEDGER_COA_BOOTSTRAP, expression: CronExpression.EVERY_5_MINUTES },
     };
 
-    for (const [method, flag] of Object.entries(expectedFlags)) {
-      it(`${method} carries its own ${flag} process flag`, () => {
+    for (const [method, expected] of Object.entries(expectedCrons)) {
+      it(`${method} carries its own ${expected.process} process flag, its schedule and the lock timeout`, () => {
         const params: DfxCronParams = Reflect.getMetadata(
           DFX_CRONJOB_PARAMS,
           LedgerBookingJobService.prototype[method as keyof LedgerBookingJobService],
         );
         expect(params).toBeDefined();
-        expect(params.process).toBe(flag);
+        expect(params.process).toBe(expected.process);
+        expect(params.expression).toBe(expected.expression);
+        expect(params.timeout).toBe(1800);
       });
     }
   });
