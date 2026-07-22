@@ -11,12 +11,14 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { isConnectionFailure } from 'src/shared/utils/outage-logger';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
 import { Price } from '../domain/entities/price';
 import { PriceRule, PriceSource, Rule } from '../domain/entities/price-rule.entity';
 import { PriceInvalidException } from '../domain/exceptions/price-invalid.exception';
+import { PriceUnavailableException } from '../domain/exceptions/price-unavailable.exception';
 import { PricingProviderMap } from '../domain/interfaces';
 import { PriceRuleRepository } from '../repositories/price-rule.repository';
 import { AssetPricesService } from './asset-prices.service';
@@ -219,6 +221,9 @@ export class PricingService implements OnModuleInit {
       return price;
     } catch (e) {
       this.logger.info(`Failed to get price for ${this.itemString(from)} -> ${this.itemString(to)}:`, e);
+
+      if (e instanceof Error && isConnectionFailure(e))
+        throw new PriceUnavailableException(`No valid price found for ${from.name} -> ${to.name}`, e);
 
       throw new PriceInvalidException(`No valid price found for ${from.name} -> ${to.name}`);
     }

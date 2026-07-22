@@ -53,4 +53,30 @@ describe('CoinGeckoService', () => {
     await expect(service.getPrice('sometoken', 'chf', '')).rejects.toThrow(ServiceUnavailableException);
     expect(simplePrice).toHaveBeenCalledTimes(1);
   });
+
+  describe('contract path', () => {
+    const contract = '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599';
+    let simpleTokenPrice: jest.Mock;
+
+    beforeEach(() => {
+      simpleTokenPrice = jest.fn();
+      (service as any).client = { simpleTokenPrice };
+    });
+
+    it('retries once on a transient connect failure and returns the price', async () => {
+      simpleTokenPrice.mockRejectedValueOnce(connectFailure()).mockResolvedValueOnce({ [contract]: { chf: 4 } });
+
+      const price = await service.getPrice(contract, 'chf', 'contract');
+
+      expect(price.price).toBe(0.25);
+      expect(simpleTokenPrice).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry non-network errors', async () => {
+      simpleTokenPrice.mockRejectedValue(new Error('Rate limit exceeded'));
+
+      await expect(service.getPrice(contract, 'chf', 'contract')).rejects.toThrow(ServiceUnavailableException);
+      expect(simpleTokenPrice).toHaveBeenCalledTimes(1);
+    });
+  });
 });

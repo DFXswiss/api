@@ -28,7 +28,7 @@ import { MoreThan } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
-import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
+import { PriceUnavailableException } from '../../pricing/domain/exceptions/price-unavailable.exception';
 import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
 import { FeeInfo } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
@@ -98,11 +98,11 @@ export class FeeService {
         blockchainFee.updated = new Date();
         await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
-        // A price outage heals on a later cycle while the stored fee stays in effect - downgrade
-        // only while the fee is still served (FeeValidityMinutes); a permanently unpriceable
-        // asset (e.g. missing price rule) must stay loud.
+        // A transient price-source outage heals on a later cycle while the stored fee stays in effect -
+        // downgrade only that case while the fee is still served (FeeValidityMinutes); every other
+        // failure (incl. non-transient PriceInvalidException causes) stays at error immediately.
         const isFreshPriceOutage =
-          e instanceof PriceInvalidException && blockchainFee.updated > Util.minutesBefore(FeeValidityMinutes);
+          e instanceof PriceUnavailableException && blockchainFee.updated > Util.minutesBefore(FeeValidityMinutes);
         const logLevel = isFreshPriceOutage ? LogLevel.WARN : LogLevel.ERROR;
 
         this.logger.log(logLevel, `Failed to update blockchain fee of asset id ${blockchainFee.asset.id}:`, e);

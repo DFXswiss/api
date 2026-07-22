@@ -9,6 +9,7 @@ import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mock
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
+import { PriceUnavailableException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-unavailable.exception';
 import { BankService } from '../../../bank/bank/bank.service';
 import { PayoutService } from '../../../payout/services/payout.service';
 import { PricingService } from '../../../pricing/services/pricing.service';
@@ -47,11 +48,15 @@ describe('FeeService', () => {
   describe('updateBlockchainFees', () => {
     const feeRow = (updated: Date) => [{ asset: { id: 398 }, amount: 1, updated } as any];
 
-    it('logs a fresh price outage at warn and keeps the stored fee', async () => {
+    const priceSourceOutage = () =>
+      new PriceUnavailableException(
+        'No valid price found for ETH -> CHF',
+        Object.assign(new Error('connect ETIMEDOUT 203.0.113.10:443'), { code: 'ETIMEDOUT' }),
+      );
+
+    it('logs a fresh price-source outage at warn and keeps the stored fee', async () => {
       blockchainFeeRepo.find.mockResolvedValue(feeRow(new Date()));
-      jest
-        .spyOn(service as any, 'calculateBlockchainFeeInChf')
-        .mockRejectedValue(new PriceInvalidException('No valid price found for ETH -> CHF'));
+      jest.spyOn(service as any, 'calculateBlockchainFeeInChf').mockRejectedValue(priceSourceOutage());
       const loggerLog = jest.spyOn(DfxLogger.prototype, 'log').mockImplementation();
 
       await service.updateBlockchainFees();
@@ -59,13 +64,28 @@ describe('FeeService', () => {
       expect(loggerLog).toHaveBeenCalledWith(
         LogLevel.WARN,
         expect.stringContaining('398'),
-        expect.any(PriceInvalidException),
+        expect.any(PriceUnavailableException),
       );
+      expect(loggerLog).not.toHaveBeenCalledWith(LogLevel.ERROR, expect.anything(), expect.anything());
       expect(blockchainFeeRepo.save).not.toHaveBeenCalled();
     });
 
-    it('escalates a persistent price outage to error once the stored fee goes stale', async () => {
+    it('escalates a persistent price-source outage to error once the stored fee goes stale', async () => {
       blockchainFeeRepo.find.mockResolvedValue(feeRow(new Date(Date.now() - 31 * 60 * 1000)));
+      jest.spyOn(service as any, 'calculateBlockchainFeeInChf').mockRejectedValue(priceSourceOutage());
+      const loggerLog = jest.spyOn(DfxLogger.prototype, 'log').mockImplementation();
+
+      await service.updateBlockchainFees();
+
+      expect(loggerLog).toHaveBeenCalledWith(
+        LogLevel.ERROR,
+        expect.stringContaining('398'),
+        expect.any(PriceUnavailableException),
+      );
+    });
+
+    it('logs a non-transient price failure at error even while the stored fee is fresh', async () => {
+      blockchainFeeRepo.find.mockResolvedValue(feeRow(new Date()));
       jest
         .spyOn(service as any, 'calculateBlockchainFeeInChf')
         .mockRejectedValue(new PriceInvalidException('No price rule found for asset ETH'));
