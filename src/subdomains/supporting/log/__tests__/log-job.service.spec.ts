@@ -1407,10 +1407,7 @@ describe('LogJobService', () => {
       remittanceInfo: undefined,
     });
 
-    const result = service.getUnmatchedSenders(
-      [senderMatch, senderNoMatch],
-      [receiverMatch, receiverNoMatch],
-    );
+    const result = service.getUnmatchedSenders([senderMatch, senderNoMatch], [receiverMatch, receiverNoMatch]);
 
     expect(result).toEqual([senderNoMatch]);
   });
