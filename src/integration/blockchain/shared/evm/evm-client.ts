@@ -144,6 +144,12 @@ export abstract class EvmClient extends BlockchainClient {
     return evmTokenBalances[0]?.balance ?? 0;
   }
 
+  async getTokenBalanceWei(asset: Asset, address?: string): Promise<EthersNumber> {
+    const owner = address ?? this.walletAddress;
+    const contract = this.getERC20ContractForDex(asset.chainId);
+    return contract.balanceOf(owner);
+  }
+
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const owner = address ?? this.walletAddress;
     const evmTokenBalances: BlockchainTokenBalance[] = [];
@@ -178,8 +184,11 @@ export abstract class EvmClient extends BlockchainClient {
     return block.timestamp;
   }
 
-  async getTransactionCount(address: string): Promise<number> {
-    return this.provider.getTransactionCount(address);
+  // Defaults to the `latest` (mined) nonce. Pass `'pending'` to also count still-pending txs in the
+  // mempool, which is required when a follow-up tx is built before a prior tx of the same sender is mined
+  // (otherwise both would reuse the same nonce and collide).
+  async getTransactionCount(address: string, blockTag: ethers.providers.BlockTag = 'latest'): Promise<number> {
+    return this.provider.getTransactionCount(address, blockTag);
   }
 
   protected async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {

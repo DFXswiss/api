@@ -69,6 +69,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
         return 0;
 
       case Blockchain.ETHEREUM:
+      case Blockchain.SEPOLIA:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:

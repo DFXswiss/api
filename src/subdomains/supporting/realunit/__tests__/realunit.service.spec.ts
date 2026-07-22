@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Wallet } from 'ethers';
+import { ethers, Wallet } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
@@ -12,6 +12,7 @@ import {
   Eip7702DelegationService,
   TransactionRevertedException,
 } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -21,7 +22,11 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
+import { PaymentLinkPaymentStatus } from 'src/subdomains/core/payment-link/enums';
+import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
@@ -103,7 +108,7 @@ jest.mock('src/config/config', () => ({
   GetConfig: jest.fn(() => ({
     blockchain: {
       realunit: {
-        brokerbotAddress: '0xBrokerbotAddress',
+        brokerbotAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         graphUrl: 'https://mock-ponder.example.com',
         api: { url: 'https://mock-api.example.com', key: 'mock-key' },
         bank: {
@@ -184,6 +189,7 @@ describe('RealUnitService', () => {
   let eip7702DelegationService: jest.Mocked<Eip7702DelegationService>;
   let transactionRequestService: jest.Mocked<TransactionRequestService>;
   let sellService: jest.Mocked<SellService>;
+  let swapService: jest.Mocked<SwapService>;
   let userService: jest.Mocked<UserService>;
   let userDataService: jest.Mocked<UserDataService>;
   let httpService: jest.Mocked<HttpService>;
@@ -195,7 +201,20 @@ describe('RealUnitService', () => {
   let buyService: jest.Mocked<BuyService>;
   let supportIssueService: jest.Mocked<SupportIssueService>;
   let transferRequestRepo: jest.Mocked<RealUnitTransferRequestRepository>;
-  let sepoliaClient: { getNativeCoinBalanceForAddress: jest.Mock; getTokenBalance: jest.Mock; getTxReceipt: jest.Mock };
+  let sepoliaClient: {
+    chainId: number;
+    getTransactionCount: jest.Mock;
+    getRecommendedGasPrice: jest.Mock;
+    getNativeCoinBalanceForAddress: jest.Mock;
+    sendSignedTransaction: jest.Mock;
+    getTokenBalance: jest.Mock;
+    getTokenBalanceWei: jest.Mock;
+    getTxReceipt: jest.Mock;
+  };
+  let evmClient: typeof sepoliaClient;
+  let lnUrlForwardService: jest.Mocked<LnUrlForwardService>;
+  let paymentLinkPaymentService: jest.Mocked<PaymentLinkPaymentService>;
+  let faucetRequestService: jest.Mocked<FaucetRequestService>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -228,7 +247,17 @@ describe('RealUnitService', () => {
     aktionariatManager = {
       transaction: jest.fn(async (cb: any) => cb(aktionariatTxManager)),
     };
-    sepoliaClient = { getNativeCoinBalanceForAddress: jest.fn(), getTokenBalance: jest.fn(), getTxReceipt: jest.fn() };
+    sepoliaClient = {
+      chainId: 11155111,
+      getTransactionCount: jest.fn(),
+      getRecommendedGasPrice: jest.fn(),
+      getNativeCoinBalanceForAddress: jest.fn(),
+      sendSignedTransaction: jest.fn(),
+      getTokenBalance: jest.fn().mockResolvedValue(1_000_000),
+      getTokenBalanceWei: jest.fn().mockResolvedValue(ethers.BigNumber.from('1000000000000000000000000')),
+      getTxReceipt: jest.fn(),
+    };
+    evmClient = sepoliaClient;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -272,6 +301,12 @@ describe('RealUnitService', () => {
           },
         },
         {
+          provide: SwapService,
+          useValue: {
+            createSwapPaymentInfo: jest.fn(),
+          },
+        },
+        {
           provide: Eip7702DelegationService,
           useValue: {
             executeBrokerBotSellForRealUnit: jest.fn(),
@@ -293,14 +328,15 @@ describe('RealUnitService', () => {
         { provide: RealUnitDevService, useValue: { simulatePaymentForRequest: jest.fn() } },
         { provide: SwissQRService, useValue: {} },
         { provide: FeeService, useValue: {} },
-        { provide: FaucetRequestService, useValue: {} },
-        { provide: EthereumService, useValue: {} },
+        { provide: FaucetRequestService, useValue: { resetFaucet: jest.fn() } },
+        { provide: EthereumService, useValue: { getDefaultClient: jest.fn().mockReturnValue(sepoliaClient) } },
         {
           provide: SepoliaService,
           useValue: {
             getDefaultClient: jest.fn().mockReturnValue(sepoliaClient),
           },
         },
+
         {
           provide: AktionariatRegistrationRepository,
           useValue: {
@@ -333,6 +369,20 @@ describe('RealUnitService', () => {
             update: jest.fn().mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] }),
           },
         },
+        {
+          provide: LnUrlForwardService,
+          useValue: {
+            lnurlpCallbackForward: jest.fn(),
+            txHexForward: jest.fn(),
+            waitForPayment: jest.fn(),
+          },
+        },
+        {
+          provide: PaymentLinkPaymentService,
+          useValue: {
+            getMostRecentPayment: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -342,6 +392,7 @@ describe('RealUnitService', () => {
     eip7702DelegationService = module.get(Eip7702DelegationService);
     transactionRequestService = module.get(TransactionRequestService);
     sellService = module.get(SellService);
+    swapService = module.get(SwapService);
     userService = module.get(UserService);
     userDataService = module.get(UserDataService);
     httpService = module.get(HttpService);
@@ -351,6 +402,9 @@ describe('RealUnitService', () => {
     buyService = module.get(BuyService);
     supportIssueService = module.get(SupportIssueService);
     transferRequestRepo = module.get(RealUnitTransferRequestRepository);
+    lnUrlForwardService = module.get(LnUrlForwardService);
+    paymentLinkPaymentService = module.get(PaymentLinkPaymentService);
+    faucetRequestService = module.get(FaucetRequestService);
   });
 
   afterEach(() => {
@@ -361,7 +415,7 @@ describe('RealUnitService', () => {
     it('should call assetService.getAssetByQuery for REALU and ZCHF', async () => {
       assetService.getAssetByQuery.mockResolvedValueOnce(realuAsset).mockResolvedValueOnce(zchfAsset);
       blockchainService.getBrokerbotInfo.mockResolvedValue({
-        brokerbotAddress: '0xBrokerbotAddress',
+        brokerbotAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         tokenAddress: realuAsset.chainId,
         baseCurrencyAddress: zchfAsset.chainId,
         pricePerShare: 100,
@@ -393,7 +447,7 @@ describe('RealUnitService', () => {
       await service.getBrokerbotInfo();
 
       expect(blockchainService.getBrokerbotInfo).toHaveBeenCalledWith(
-        '0xBrokerbotAddress',
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         '0xRealuChainId',
         '0xZchfChainId',
         undefined,
@@ -407,7 +461,7 @@ describe('RealUnitService', () => {
       await service.getBrokerbotInfo(BrokerbotCurrency.EUR);
 
       expect(blockchainService.getBrokerbotInfo).toHaveBeenCalledWith(
-        '0xBrokerbotAddress',
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         '0xRealuChainId',
         '0xZchfChainId',
         BrokerbotCurrency.EUR,
@@ -417,7 +471,7 @@ describe('RealUnitService', () => {
     it('should return the result from blockchainService', async () => {
       assetService.getAssetByQuery.mockResolvedValueOnce(realuAsset).mockResolvedValueOnce(zchfAsset);
       const expected = {
-        brokerbotAddress: '0xBrokerbotAddress',
+        brokerbotAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         tokenAddress: '0xRealuChainId',
         baseCurrencyAddress: '0xZchfChainId',
         pricePerShare: 100,
@@ -483,12 +537,15 @@ describe('RealUnitService', () => {
       });
 
       expect(result.txHash).toBe(mockTxHash);
-      expect(blockchainService.getBrokerbotSellPrice).toHaveBeenCalledWith('0xBrokerbotAddress', 10);
+      expect(blockchainService.getBrokerbotSellPrice).toHaveBeenCalledWith(
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+        10,
+      );
       expect(eip7702DelegationService.executeBrokerBotSellForRealUnit).toHaveBeenCalledWith(
         userAddress,
         realuAsset,
         '0xZchfChainId',
-        '0xBrokerbotAddress',
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         depositAddress,
         10,
         BigInt('995000000000000000000'),
@@ -847,6 +904,737 @@ describe('RealUnitService', () => {
     });
   });
 
+  // Valid EVM addresses (checksummed) for the serialization / encoding paths
+  const userAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+  const realuContract = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  const zchfContract = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+  const dfxDepositAddress = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+
+  const realuTxAsset = createCustomAsset({
+    id: 1,
+    name: 'REALU',
+    blockchain: Blockchain.SEPOLIA,
+    type: AssetType.TOKEN,
+    chainId: realuContract,
+    decimals: 0,
+  });
+
+  const zchfTxAsset = createCustomAsset({
+    id: 2,
+    name: 'ZCHF',
+    blockchain: Blockchain.SEPOLIA,
+    type: AssetType.TOKEN,
+    chainId: zchfContract,
+    decimals: 18,
+  });
+
+  describe('createSwapUnsignedTransaction', () => {
+    const mockRequest = {
+      id: 1,
+      isValid: true,
+      amount: 10,
+      routeId: 5,
+      type: TransactionRequestType.SWAP,
+      sourceId: realuTxAsset.id,
+      targetId: zchfTxAsset.id,
+      user: { address: userAddress, userData: { kycLevel: KycLevel.LEVEL_30 } },
+    };
+
+    beforeEach(() => {
+      evmClient.getTransactionCount.mockResolvedValue(7);
+      evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
+    });
+
+    it('should build the swap tx without a deposit leg', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      const result = await service.createSwapUnsignedTransaction(42, 1);
+
+      expect(Object.keys(result)).toEqual(['swap']);
+      const parsed = ethers.utils.parseTransaction(result.swap);
+      expect(parsed.to?.toLowerCase()).toBe(realuTxAsset.chainId.toLowerCase());
+      expect(parsed.nonce).toBe(7);
+      // brokerbot is not queried for a deposit amount in the swap-only flow
+      expect(blockchainService.getBrokerbotSellPrice).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if request is not valid', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue({ ...mockRequest, isValid: false } as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if ETH balance is insufficient for gas', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if the REALU asset has no contract address', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery
+        .mockResolvedValueOnce(createCustomAsset({ id: realuTxAsset.id, name: 'REALU', chainId: undefined } as any))
+        .mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should default REALU decimals to 18 when the asset has no decimals set', async () => {
+      // decimals null/undefined exercises the `?? 18` fallback in buildSwapUnsignedTransaction
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      const noDecimalsAsset = createCustomAsset({
+        id: realuTxAsset.id,
+        name: 'REALU',
+        chainId: realuContract,
+        decimals: undefined,
+      } as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(noDecimalsAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      const result = await service.createSwapUnsignedTransaction(42, 1);
+
+      // request amount 10 -> 10 shares encoded with 18 decimals = 10e18
+      const parsed = ethers.utils.parseTransaction(result.swap);
+      const iface = new ethers.utils.Interface([
+        'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
+      ]);
+      const [, value] = iface.decodeFunctionData('transferAndCall', parsed.data);
+      expect(value.toString()).toBe(ethers.utils.parseUnits('10', 18).toString());
+    });
+
+    it('should throw NotFoundException if the REALU asset is not found', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(undefined as any).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if the ZCHF asset is not found', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(undefined as any);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getSwapPaymentInfo', () => {
+    const walletAddress = '0x4444444444444444444444444444444444444444';
+
+    function buildUser(opts: { kycLevel?: number } = {}): any {
+      return {
+        id: 42,
+        address: walletAddress,
+        userData: {
+          kycLevel: opts.kycLevel ?? KycLevel.LEVEL_30,
+        },
+      };
+    }
+
+    const swapInfo = {
+      id: 99,
+      uid: 'MOCK-UID',
+      routeId: 7,
+      timestamp: new Date('2026-06-03T00:00:00.000Z'),
+      amount: 10,
+      estimatedAmount: 950,
+      fees: { dfx: 1, network: 0.5, total: 1.5 } as any,
+      minVolume: 1,
+      maxVolume: 1000,
+      minVolumeTarget: 95,
+      maxVolumeTarget: 95000,
+      isValid: true,
+      error: undefined,
+    };
+
+    beforeEach(() => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+      evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+      blockchainService.getBrokerbotSellPrice.mockResolvedValue({ zchfAmountWei: BigInt('960000000000000000000') });
+      transactionRequestService.updateEstimatedAmount = jest.fn();
+    });
+
+    it('should create an IBAN-free SWAP quote (no iban/Sell route) and return the request id + ZCHF estimate', async () => {
+      swapService.createSwapPaymentInfo.mockResolvedValue(swapInfo as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any);
+
+      expect(result.id).toBe(99);
+      expect(result.uid).toBe('MOCK-UID');
+      expect(result.routeId).toBe(7);
+      expect(result.targetAsset).toBe('ZCHF');
+      expect(result.isValid).toBe(true);
+
+      // SWAP quote is created via the IBAN-free SwapService path (REALU -> ZCHF), NOT the Sell path
+      expect(sellService.getById).not.toHaveBeenCalled();
+      const [, dto] = swapService.createSwapPaymentInfo.mock.calls[0];
+      expect(dto.sourceAsset.name).toBe('REALU');
+      expect(dto.targetAsset.name).toBe('ZCHF');
+      // the DTO carries no iban field — the IBAN-free contract
+      expect('iban' in dto).toBe(false);
+
+      // estimated ZCHF is anchored to the live on-chain brokerbot price
+      expect(result.estimatedAmount).toBe(960);
+      expect(transactionRequestService.updateEstimatedAmount).toHaveBeenCalledWith(99, 960);
+    });
+
+    it('should NOT throw a KYC-level error on a trading-limit signal — the swap is limit-exempt by design', async () => {
+      // KYC trading limits are enforced at the fiat boundary (buy/sell). A REALU -> ZCHF swap is a crypto ->
+      // crypto self-custody on-chain action, so the non-fiat RealUnit carve-out in TransactionHelper.getLimits
+      // means QuoteError.LIMIT_EXCEEDED can never fire for this pair. Even on a (hypothetical) limit signal the
+      // service must surface the DTO error rather than map it to a KYC level.
+      swapService.createSwapPaymentInfo.mockResolvedValue({
+        ...swapInfo,
+        isValid: false,
+        error: QuoteError.LIMIT_EXCEEDED,
+      } as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 100000 } as any);
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.LIMIT_EXCEEDED);
+    });
+
+    it('should require RealUnit registration', async () => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(false);
+
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any)).rejects.toBeInstanceOf(
+        RegistrationRequiredException,
+      );
+      expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
+    });
+
+    it('should require KYC Level 30', async () => {
+      await expect(
+        service.getSwapPaymentInfo(buildUser({ kycLevel: KycLevel.LEVEL_20 }), { amount: 10 } as any),
+      ).rejects.toBeInstanceOf(KycLevelRequiredException);
+      expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the REALU asset is not found', async () => {
+      assetService.getAssetByQuery.mockReset();
+      assetService.getAssetByQuery.mockResolvedValueOnce(undefined as any).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any)).rejects.toThrow(NotFoundException);
+      expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the ZCHF asset is not found', async () => {
+      assetService.getAssetByQuery.mockReset();
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(undefined as any);
+
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any)).rejects.toThrow(NotFoundException);
+      expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
+    });
+
+    it('should keep the SwapService estimate (no brokerbot anchor) when shares floor to 0', async () => {
+      // amount < 1 floors to 0 shares: the brokerbot price is not queried and the estimate stays as-is
+      swapService.createSwapPaymentInfo.mockResolvedValue({ ...swapInfo, amount: 0.4, estimatedAmount: 0.38 } as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 0.4 } as any);
+
+      expect(blockchainService.getBrokerbotSellPrice).not.toHaveBeenCalled();
+      expect(result.amount).toBe(0);
+      expect(result.estimatedAmount).toBe(0.38);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.AMOUNT_TOO_LOW);
+      expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
+    });
+
+    it('should floor fractional REALU shares while preserving a valid swap quote', async () => {
+      swapService.createSwapPaymentInfo.mockResolvedValue({ ...swapInfo, amount: 10.9, isValid: true } as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 10.9 } as any);
+
+      expect(result.amount).toBe(10);
+      expect(result.isValid).toBe(true);
+      expect(result.error).toBeUndefined();
+      expect(blockchainService.getBrokerbotSellPrice).toHaveBeenCalledWith(expect.any(String), 10);
+    });
+
+    it('should throw PriceSourceUnavailableException when the brokerbot price query fails', async () => {
+      swapService.createSwapPaymentInfo.mockResolvedValue(swapInfo as any);
+      blockchainService.getBrokerbotSellPrice.mockRejectedValue(new Error('rpc down'));
+
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any)).rejects.toBeInstanceOf(
+        PriceSourceUnavailableException,
+      );
+      expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
+    });
+
+    it('should keep the SwapService estimate when the request has no id (brokerbot anchor skipped)', async () => {
+      // swapPaymentInfo.id falsy -> the `brokerbotResult && swapPaymentInfo.id` guard is false
+      swapService.createSwapPaymentInfo.mockResolvedValue({ ...swapInfo, id: 0 } as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any);
+
+      expect(result.estimatedAmount).toBe(950);
+      expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('broadcastSwapTransaction', () => {
+    const signerWallet = new ethers.Wallet('0x' + '11'.repeat(32));
+
+    const mockRequest = {
+      id: 1,
+      isValid: true,
+      amount: 10,
+      routeId: 7,
+      type: TransactionRequestType.SWAP,
+      sourceId: realuTxAsset.id,
+      targetId: zchfTxAsset.id,
+      user: { address: signerWallet.address, userData: { kycLevel: KycLevel.LEVEL_30 } },
+    };
+
+    const erc677Interface = new ethers.utils.Interface([
+      'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
+    ]);
+    const swapData = erc677Interface.encodeFunctionData('transferAndCall', [
+      '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', // brokerbotAddress from the GetConfig mock
+      ethers.BigNumber.from(10), // mockRequest.amount = 10 shares, realuTxAsset.decimals = 0
+      '0x',
+    ]);
+
+    let txFields: any;
+    let unsignedTx: string;
+    let broadcastDto: { unsignedTx: string; r: string; s: string; v: number };
+
+    beforeAll(async () => {
+      txFields = {
+        type: 2,
+        chainId: 11155111,
+        nonce: 7,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(350_000),
+        to: realuContract,
+        value: ethers.BigNumber.from(0),
+        data: swapData,
+        accessList: [],
+      };
+      unsignedTx = ethers.utils.serializeTransaction(txFields);
+      const fullySignedTx = await signerWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(fullySignedTx);
+      broadcastDto = { unsignedTx, r: r!, s: s!, v: v! };
+    });
+
+    beforeEach(() => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
+    });
+
+    it('should reconstruct the signed hex, broadcast it and return the txHash', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+      evmClient.sendSignedTransaction.mockResolvedValue({ response: { hash: '0xSwapTxHash' } });
+
+      const result = await service.broadcastSwapTransaction(42, 1, broadcastDto);
+
+      expect(result.txHash).toBe('0xSwapTxHash');
+      expect(evmClient.sendSignedTransaction).toHaveBeenCalledTimes(1);
+      expect(evmClient.sendSignedTransaction.mock.calls[0][0]).toMatch(/^0x/);
+      expect(transactionRequestService.complete).toHaveBeenCalledWith(1);
+    });
+
+    it('should throw BadRequestException if the request is not valid', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue({ ...mockRequest, isValid: false } as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when the broadcast returns an error', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+      evmClient.sendSignedTransaction.mockResolvedValue({ error: { message: 'nonce too low' } });
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
+      expect(faucetRequestService.resetFaucet).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when the broadcast returns no transaction hash', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+      evmClient.sendSignedTransaction.mockResolvedValue({ response: {} });
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
+      expect(faucetRequestService.resetFaucet).not.toHaveBeenCalled();
+    });
+
+    it('rejects a second swap broadcast for the same request after the first one completed it (replay guard)', async () => {
+      assetService.getAssetByQuery.mockImplementation((query: any) =>
+        Promise.resolve(query.name === 'ZCHF' ? zchfTxAsset : realuTxAsset),
+      );
+      evmClient.sendSignedTransaction.mockResolvedValue({ response: { hash: '0xSwapTxHash' } });
+
+      const requestFixture = { ...mockRequest, isComplete: false };
+      transactionRequestService.complete.mockImplementation(async (id: number) => {
+        if (id === requestFixture.id) requestFixture.isComplete = true;
+      });
+      transactionRequestService.getOrThrow.mockImplementation(async () => ({ ...requestFixture }) as any);
+
+      // 1st broadcast: request not yet complete -> succeeds and marks it complete via complete()
+      const first = await service.broadcastSwapTransaction(42, 1, broadcastDto);
+      expect(first.txHash).toBe('0xSwapTxHash');
+      expect(transactionRequestService.complete).toHaveBeenCalledWith(requestFixture.id);
+      expect(requestFixture.isComplete).toBe(true);
+
+      // 2nd broadcast: getOrThrow now reflects isComplete=true BECAUSE complete() set it on the fixture
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(ConflictException);
+      expect(evmClient.sendSignedTransaction).toHaveBeenCalledTimes(1); // not called again on the replay
+    });
+
+    it('throws BadRequestException when the signed swap tx targets an unexpected contract/calldata', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      const badUnsignedTx = ethers.utils.serializeTransaction({
+        type: 2,
+        chainId: 11155111,
+        nonce: 7,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(350_000),
+        to: '0x000000000000000000000000000000000000dEaD', // wrong recipient contract
+        value: ethers.BigNumber.from(0),
+        data: '0x12345678',
+        accessList: [],
+      });
+
+      await expect(
+        service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: badUnsignedTx }),
+      ).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the signed swap tx has correct to/chainId/value but mismatched calldata', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      // Correct to/chainId/value, but different transferAndCall amount so expectedData mismatches
+      const mismatchedData = erc677Interface.encodeFunctionData('transferAndCall', [
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+        ethers.BigNumber.from(99), // wrong shares amount vs mockRequest.amount = 10
+        '0x',
+      ]);
+      const mismatchedCalldataTx = ethers.utils.serializeTransaction({
+        type: 2,
+        chainId: 11155111,
+        nonce: 7,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(350_000),
+        to: realuContract,
+        value: ethers.BigNumber.from(0),
+        data: mismatchedData,
+        accessList: [],
+      });
+
+      await expect(
+        service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: mismatchedCalldataTx }),
+      ).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException (not a raw 500) when unsignedTx is syntactically malformed', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(
+        service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: '0xdeadbeef' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('maps a signed transaction parse failure to BadRequestException', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      const parseTransaction = ethers.utils.parseTransaction;
+      const parseTransactionSpy = jest.spyOn(ethers.utils, 'parseTransaction');
+      parseTransactionSpy
+        .mockImplementationOnce((rawTransaction) => parseTransaction(rawTransaction))
+        .mockImplementationOnce(() => {
+          throw new Error('invalid signature');
+        });
+
+      try {
+        await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(
+          'Invalid signed transaction',
+        );
+        expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+      } finally {
+        parseTransactionSpy.mockRestore();
+      }
+    });
+
+    it('throws BadRequestException when the signed swap tx sender does not match the request user address (foreign wallet)', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      const foreignWallet = new ethers.Wallet('0x' + '22'.repeat(32));
+      const foreignSignedTx = await foreignWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(foreignSignedTx);
+
+      await expect(service.broadcastSwapTransaction(42, 1, { unsignedTx, r, s, v })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the REALU asset is not found', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(undefined as any).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(NotFoundException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the ZCHF asset is not found', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(undefined as any);
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(NotFoundException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws the specific "Invalid unsigned transaction" fee-field-guard failure (not merely a generic BadRequestException) when unsignedTx is a legacy type-0 tx without EIP-1559 fee fields', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      // Legacy type-0 uses gasPrice only — parseTransaction yields undefined maxFeePerGas/maxPriorityFeePerGas,
+      // which trips the fee-field guard inside reconstructSignedTransaction BEFORE the downstream
+      // payload/sender-match check ever runs. That guard's own Error message is caught by
+      // reconstructSignedTransaction's catch-all and remapped to 'Invalid unsigned transaction' — so THAT is
+      // the specific, discriminating signal to assert on here.
+      // Proof this is sharp, not incidental: reusing broadcastDto's r/s/v (a valid signature for the ORIGINAL
+      // type-2 payload) against this legacy payload means that if the fee-field guard did NOT fire first,
+      // execution would fall through to the payload/sender-match check and throw a DIFFERENT message
+      // ('...does not match the expected request payload') instead — so the two failure modes are
+      // distinguishable and this assertion cannot pass for the wrong reason.
+      const legacyUnsignedTx = ethers.utils.serializeTransaction({
+        type: 0,
+        chainId: 11155111,
+        nonce: 7,
+        gasPrice: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(350_000),
+        to: realuContract,
+        value: ethers.BigNumber.from(0),
+        data: swapData,
+      });
+
+      await expect(
+        service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: legacyUnsignedTx }),
+      ).rejects.toThrow('Invalid unsigned transaction');
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  // The engine-touching OCP specs run under PRD (→ Ethereum) to exercise the mainnet branch. A dedicated
+  // block below asserts that on the LOC/Sepolia branch the method guard now PASSES (Sepolia is a supported
+  // payment-link EVM method on non-PRD), so the OCP pay flow is testable end-to-end on the testnet.
+  describe('createOcpPayUnsignedTransaction', () => {
+    const amountWei = '5000000000000000000';
+
+    beforeAll(() => {
+      mockEnvironment = 'prd';
+    });
+
+    afterAll(() => {
+      mockEnvironment = 'loc';
+    });
+
+    beforeEach(() => {
+      evmClient.getTransactionCount.mockResolvedValue(3);
+      evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+    });
+
+    it('should activate the quote, parse the EVM uri and build the ZCHF transfer tx', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      const result = await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
+
+      expect(lnUrlForwardService.lnurlpCallbackForward).toHaveBeenCalledWith('pl_abc', {
+        method: Blockchain.ETHEREUM,
+        asset: 'ZCHF',
+        quote: 'quote_xyz',
+      });
+      expect(result.recipient).toBe(dfxDepositAddress);
+      expect(result.amountWei).toBe(amountWei);
+      expect(result.tokenAddress).toBe(zchfTxAsset.chainId);
+
+      const parsed = ethers.utils.parseTransaction(result.unsignedTx);
+      expect(parsed.to?.toLowerCase()).toBe(zchfTxAsset.chainId.toLowerCase());
+      expect(parsed.nonce).toBe(3);
+    });
+
+    it('should derive the pay-tx nonce from the pending block tag (avoids collision with a still-pending swap tx)', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
+
+      expect(evmClient.getTransactionCount).toHaveBeenCalledWith(userAddress, 'pending');
+    });
+
+    it('should throw BadRequestException if the EVM uri token contract does not match the ZCHF asset', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${realuContract}@11155111/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the EVM uri amount is malformed', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}&uint256=not-a-number`,
+        hint: '',
+      });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the EVM uri recipient is not a valid address', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=0xNotAnAddress&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the quote returns no EVM payment request', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({ pr: 'lnbc...' } as any);
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the EVM uri is missing recipient or amount', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}`,
+        hint: '',
+      });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the ZCHF asset has no contract address', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(createCustomAsset({ name: 'ZCHF', chainId: undefined } as any));
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(lnUrlForwardService.lnurlpCallbackForward).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if ETH balance is insufficient for gas', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0);
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw ConflictException if ZCHF balance is insufficient (swap not yet settled)', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+      evmClient.getTokenBalanceWei.mockResolvedValueOnce(ethers.BigNumber.from(0));
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should reject a wallet whose ETH balance covers the base gas cost but not the buffered maxFeePerGas (F5)', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+      // gasPrice=1e9, gasLimit=100_000 -> base requirement 0.0001 ETH, buffered (x1.2) requirement 0.00012 ETH
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0.00011);
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should build the pay tx when ETH balance is just above the buffered maxFeePerGas requirement (F5) and the tx carries the buffered fee', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+      // gasPrice=1e9, gasLimit=100_000 -> buffered (x1.2) requirement 0.00012 ETH; use a balance just above it
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0.000121);
+
+      const result = await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
+
+      const parsed = ethers.utils.parseTransaction(result.unsignedTx);
+      const expectedBufferedMaxFeePerGas = ethers.BigNumber.from(1_000_000_000).mul(120).div(100);
+      expect(parsed.maxFeePerGas?.toString()).toBe(expectedBufferedMaxFeePerGas.toString());
+    });
+  });
+
   describe('confirmPaymentReceived (REALU scoping)', () => {
     // mockEnvironment stays at its 'loc' default so confirmPaymentReceived takes the DEV
     // simulation path (devService.simulatePaymentForRequest), never the PRD payAndAllocate path.
@@ -936,6 +1724,97 @@ describe('RealUnitService', () => {
 
       await expect(service.confirmPaymentReceived(1)).rejects.toThrow(NotFoundException);
       expect(devService()).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('submitOcpPay', () => {
+    beforeAll(() => {
+      mockEnvironment = 'prd';
+    });
+
+    afterAll(() => {
+      mockEnvironment = 'loc';
+    });
+
+    it('should reconstruct the signed hex and forward it into the lnurlp tx path', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.txHexForward.mockResolvedValue({ txId: '0xTxId' });
+
+      const signerWallet = new ethers.Wallet('0x' + '11'.repeat(32));
+      const payAmountWei = ethers.BigNumber.from('5000000000000000000');
+      const txFields = {
+        type: 2,
+        chainId: 1,
+        nonce: 1,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(100_000),
+        to: zchfTxAsset.chainId,
+        value: ethers.BigNumber.from(0),
+        data: EvmUtil.encodeErc20Transfer(dfxDepositAddress, payAmountWei),
+        accessList: [],
+      };
+      const unsignedTx = ethers.utils.serializeTransaction(txFields);
+      const fullySignedTx = await signerWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(fullySignedTx);
+
+      const result = await service.submitOcpPay({
+        paymentLinkId: 'pl_abc',
+        quoteId: 'quote_xyz',
+        unsignedTx,
+        r,
+        s,
+        v,
+      });
+
+      expect(result.txId).toBe('0xTxId');
+      expect(lnUrlForwardService.txHexForward).toHaveBeenCalledWith(
+        'pl_abc',
+        expect.objectContaining({ method: Blockchain.ETHEREUM, asset: 'ZCHF', quote: 'quote_xyz' }),
+      );
+      expect(lnUrlForwardService.txHexForward.mock.calls[0][1].hex).toMatch(/^0x/);
+    });
+
+    it('should throw BadRequestException (not a raw 500) when the signed tx data is not a valid ERC-20 transfer', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+
+      const signerWallet = new ethers.Wallet('0x' + '11'.repeat(32));
+      const txFields = {
+        type: 2,
+        chainId: 1,
+        nonce: 1,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(100_000),
+        to: zchfTxAsset.chainId,
+        value: ethers.BigNumber.from(0),
+        data: '0x12345678', // garbage selector — not the ERC-20 transfer() selector
+        accessList: [],
+      };
+      const unsignedTx = ethers.utils.serializeTransaction(txFields);
+      const fullySignedTx = await signerWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(fullySignedTx);
+
+      await expect(
+        service.submitOcpPay({ paymentLinkId: 'pl_abc', quoteId: 'quote_xyz', unsignedTx, r, s, v }),
+      ).rejects.toThrow(BadRequestException);
+      expect(lnUrlForwardService.txHexForward).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the ZCHF asset is not found', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(undefined as any);
+
+      await expect(
+        service.submitOcpPay({
+          paymentLinkId: 'pl_abc',
+          quoteId: 'quote_xyz',
+          unsignedTx: '0x',
+          r: '0x',
+          s: '0x',
+          v: 27,
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(lnUrlForwardService.txHexForward).not.toHaveBeenCalled();
     });
   });
 
@@ -1466,6 +2345,104 @@ describe('RealUnitService', () => {
         );
         expect(transferRequestRepo.save).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('getOcpPayStatus', () => {
+    it('should map the most recent payment status', async () => {
+      paymentLinkPaymentService.getMostRecentPayment.mockResolvedValue({
+        status: PaymentLinkPaymentStatus.COMPLETED,
+      } as any);
+
+      const result = await service.getOcpPayStatus('pl_abc');
+
+      expect(result).toEqual({ status: PaymentLinkPaymentStatus.COMPLETED });
+      expect(paymentLinkPaymentService.getMostRecentPayment).toHaveBeenCalledWith('pl_abc');
+    });
+  });
+
+  describe('assertPaymentLinkSupportsMethod (private guard)', () => {
+    it('throws ServiceUnavailableException (not BadRequestException) for an unsupported token blockchain', () => {
+      jest.spyOn(service as any, 'tokenBlockchain', 'get').mockReturnValue(Blockchain.BITCOIN);
+
+      expect(() =>
+        (service as unknown as { assertPaymentLinkSupportsMethod: () => void }).assertPaymentLinkSupportsMethod(),
+      ).toThrow(ServiceUnavailableException);
+
+      expect(() =>
+        (service as unknown as { assertPaymentLinkSupportsMethod: () => void }).assertPaymentLinkSupportsMethod(),
+      ).not.toThrow(BadRequestException);
+    });
+  });
+
+  // On LOC/DEV the token blockchain resolves to Sepolia. Sepolia is a supported payment-link EVM method on
+  // non-PRD, so the method guard passes and both OCP pay endpoints proceed into the payment-link engine
+  // (OCP is testable end-to-end on the testnet).
+  describe('OCP pay supported on non-PRD testnet (Sepolia)', () => {
+    const amountWei = '5000000000000000000';
+
+    beforeEach(() => {
+      evmClient.getTransactionCount.mockResolvedValue(3);
+      evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+    });
+
+    it('createOcpPayUnsignedTransaction passes the method guard and activates the Sepolia quote', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      const result = await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
+
+      expect(lnUrlForwardService.lnurlpCallbackForward).toHaveBeenCalledWith('pl_abc', {
+        method: Blockchain.SEPOLIA,
+        asset: 'ZCHF',
+        quote: 'quote_xyz',
+      });
+      expect(result.recipient).toBe(dfxDepositAddress);
+      expect(result.amountWei).toBe(amountWei);
+    });
+
+    it('submitOcpPay passes the method guard and forwards the hex with the Sepolia method', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.txHexForward.mockResolvedValue({ txId: '0xTxId' });
+
+      const signerWallet = new ethers.Wallet('0x' + '11'.repeat(32));
+      const payAmountWei = ethers.BigNumber.from('5000000000000000000');
+      const txFields = {
+        type: 2,
+        chainId: 11155111,
+        nonce: 1,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(100_000),
+        to: zchfTxAsset.chainId,
+        value: ethers.BigNumber.from(0),
+        data: EvmUtil.encodeErc20Transfer(dfxDepositAddress, payAmountWei),
+        accessList: [],
+      };
+      const unsignedTx = ethers.utils.serializeTransaction(txFields);
+      const fullySignedTx = await signerWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(fullySignedTx);
+
+      const result = await service.submitOcpPay({
+        paymentLinkId: 'pl_abc',
+        quoteId: 'quote_xyz',
+        unsignedTx,
+        r,
+        s,
+        v,
+      });
+
+      expect(result.txId).toBe('0xTxId');
+      expect(lnUrlForwardService.txHexForward).toHaveBeenCalledWith(
+        'pl_abc',
+        expect.objectContaining({ method: Blockchain.SEPOLIA, asset: 'ZCHF', quote: 'quote_xyz' }),
+      );
     });
   });
 
