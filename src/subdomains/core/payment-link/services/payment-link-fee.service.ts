@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Environment, GetConfig } from 'src/config/config';
+import { MIN_FEE_RATE_SAT_VB } from 'src/integration/blockchain/bitcoin/services/bitcoin-based-fee.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -77,17 +78,21 @@ export class PaymentLinkFeeService implements OnModuleInit {
         return +(await client.getRecommendedGasPrice());
       }
 
+      // The customer minimum is the network's own minimum for an inbound payment to confirm — it
+      // must NOT include the CPFP/default margin from getSendFeeRate, which exists only for DFX's
+      // own outbound spends. The value differs per chain because the chains do, but neither carries
+      // the payout margin.
       case Blockchain.BITCOIN:
-        return this.payoutBitcoinService.getCurrentFeeRate();
+        // Bitcoin fees are user-adjustable and the chain can congest, so use the recommended
+        // (next-block) rate, which adapts to congestion — floored at the relay minimum so the
+        // advertised minimum is always relayable.
+        return Math.max(await this.payoutBitcoinService.getRecommendedFeeRate(), MIN_FEE_RATE_SAT_VB);
 
       case Blockchain.FIRO:
         // Firo/Spark transactions carry a protocol-fixed fee (Firo's GetMinimumFee, floored at
         // minRelayTxFee) the user cannot raise, so a valid Spark payment pays exactly the network
-        // relay floor. Requiring anything above it — the margin-multiplied payout rate
-        // (getCurrentFeeRate) or even the raw estimateSmartFee, which sits just above the floor —
-        // rejects that payment. Use the relay floor as the customer minimum; the payout margin
-        // stays on DFX's own payout path only. Bitcoin keeps getCurrentFeeRate because its fees
-        // are user-adjustable, so the margin remains satisfiable there.
+        // relay floor, and Firo does not congest. Use the relay floor itself (below even the
+        // recommended rate; configurable via FIRO_MIN_FEE_RATE) — anything above it rejects Spark.
         return GetConfig().blockchain.firo.minFeeRate;
     }
   }

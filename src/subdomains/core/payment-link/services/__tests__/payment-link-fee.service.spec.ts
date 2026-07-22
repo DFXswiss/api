@@ -13,7 +13,8 @@ describe('PaymentLinkFeeService', () => {
     blockchainRegistryService = {} as unknown as jest.Mocked<BlockchainRegistryService>;
 
     payoutBitcoinService = {
-      getCurrentFeeRate: jest.fn().mockResolvedValue(4),
+      getCurrentFeeRate: jest.fn().mockResolvedValue(8),
+      getRecommendedFeeRate: jest.fn().mockResolvedValue(4),
     } as unknown as jest.Mocked<PayoutBitcoinService>;
 
     service = new PaymentLinkFeeService(blockchainRegistryService, payoutBitcoinService);
@@ -34,11 +35,20 @@ describe('PaymentLinkFeeService', () => {
       expect(GetConfig().blockchain.firo.minFeeRate).toBeLessThanOrEqual(1);
     });
 
-    it('should keep the CPFP-multiplied payout rate as the Bitcoin customer minimum', async () => {
+    it('should use the recommended rate (not the CPFP-multiplied payout rate) as the Bitcoin customer minimum', async () => {
       const fee = await service['calculateFee'](Blockchain.BITCOIN);
 
       expect(fee).toBe(4);
-      expect(payoutBitcoinService.getCurrentFeeRate).toHaveBeenCalledTimes(1);
+      expect(payoutBitcoinService.getRecommendedFeeRate).toHaveBeenCalledTimes(1);
+      expect(payoutBitcoinService.getCurrentFeeRate).not.toHaveBeenCalled();
+    });
+
+    it('should floor the Bitcoin minimum at the relay minimum when the recommended rate dips below it', async () => {
+      payoutBitcoinService.getRecommendedFeeRate.mockResolvedValueOnce(0.4);
+
+      const fee = await service['calculateFee'](Blockchain.BITCOIN);
+
+      expect(fee).toBe(1);
     });
   });
 });
