@@ -315,6 +315,19 @@ export class TransactionRequestService {
     });
   }
 
+  // Atomically claims the request for broadcast: returns false when another concurrent
+  // call already claimed it. The conditional WHERE makes this race-free at the DB level.
+  async claimForBroadcast(id: number): Promise<boolean> {
+    const res = await this.transactionRequestRepo.update({ id, isComplete: false }, { isComplete: true });
+    return Boolean(res.affected);
+  }
+
+  // Releases a claim taken by claimForBroadcast when the broadcast did not happen,
+  // so the user can retry.
+  async releaseBroadcastClaim(id: number): Promise<void> {
+    await this.transactionRequestRepo.update(id, { isComplete: false });
+  }
+
   async getUsedSettlementTxIds(userId: number): Promise<string[]> {
     return this.transactionRequestRepo
       .find({
