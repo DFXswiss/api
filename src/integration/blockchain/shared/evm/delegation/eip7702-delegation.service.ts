@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Config, Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
@@ -13,6 +13,7 @@ import {
   encodePacked,
   Hex,
   http,
+  keccak256,
   parseAbi,
   recoverTypedDataAddress,
 } from 'viem';
@@ -29,6 +30,13 @@ interface Eip7702Authorization {
   r: string;
   s: string;
   yParity: number;
+}
+
+export class TransactionRevertedException extends Error {
+  constructor(public readonly txHash: string) {
+    super(`Transaction reverted on-chain: ${txHash}`);
+    this.name = 'TransactionRevertedException';
+  }
 }
 
 // Contract addresses (same on all EVM chains via CREATE2)
@@ -91,16 +99,18 @@ export class Eip7702DelegationService {
   private readonly logger = new DfxLogger(Eip7702DelegationService);
   private readonly config = GetConfig().blockchain;
 
-  // Sequential lock for relayer nonce management (prevents concurrent nonce collisions)
-  private nonceLock: Promise<void> = Promise.resolve();
+  // Sequential lock for relayer nonce management, keyed per relayer account address (prevents
+  // concurrent nonce collisions per account) — unrelated relayer accounts run in parallel, e.g.
+  // the RealUnit W2W gas wallet must never block the Sell/OTC per-chain relayer or vice versa.
+  private readonly nonceLocks = new Map<string, Promise<void>>();
 
-  private async withNonceLock<T>(fn: () => Promise<T>): Promise<T> {
+  private async withNonceLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
     let release: () => void;
     const lock = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const previousLock = this.nonceLock;
-    this.nonceLock = lock;
+    const previousLock = this.nonceLocks.get(lockKey) ?? Promise.resolve();
+    this.nonceLocks.set(lockKey, lock);
     await previousLock;
     try {
       return await fn();
@@ -184,10 +194,17 @@ export class Eip7702DelegationService {
   /**
    * Prepare delegation data for RealUnit (bypasses global disable)
    * RealUnit app supports eth_sign, so EIP-7702 works unlike MetaMask
+   *
+   * `delegateAddressOverride` (optional) sets the delegation's `delegate` to a caller-supplied
+   * address instead of the per-chain Sell/OTC relayer. The MetaMask DelegationManager enforces
+   * `msg.sender === delegation.delegate` in `redeemDelegations`, so the delegate MUST equal the
+   * address that relays (pays gas) at confirm time. The RealUnit W2W transfer relays from the
+   * dedicated W2W gas wallet, so it passes that wallet's address here to keep delegate == redeemer.
    */
   async prepareDelegationDataForRealUnit(
     userAddress: string,
     blockchain: Blockchain,
+    delegateAddressOverride?: string,
   ): Promise<{
     relayerAddress: string;
     delegationManagerAddress: string;
@@ -200,7 +217,7 @@ export class Eip7702DelegationService {
     if (!this.isDelegationSupportedForRealUnit(blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for RealUnit on ${blockchain}`);
     }
-    return this._prepareDelegationDataInternal(userAddress, blockchain);
+    return this._prepareDelegationDataInternal(userAddress, blockchain, delegateAddressOverride);
   }
 
   /**
@@ -209,6 +226,7 @@ export class Eip7702DelegationService {
   private async _prepareDelegationDataInternal(
     userAddress: string,
     blockchain: Blockchain,
+    delegateAddressOverride?: string,
   ): Promise<{
     relayerAddress: string;
     delegationManagerAddress: string;
@@ -229,8 +247,11 @@ export class Eip7702DelegationService {
 
     const userNonce = Number(await publicClient.getTransactionCount({ address: userAddress as Address }));
 
+    // The delegate must equal the address that relays redeemDelegations (msg.sender). Default is the
+    // per-chain Sell/OTC relayer (which also redeems for sell/OTC); the W2W transfer overrides it with
+    // the dedicated W2W gas wallet address so the contract's `msg.sender == delegate` check passes.
     const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
-    const relayerAccount = privateKeyToAccount(relayerPrivateKey);
+    const relayerAddress = (delegateAddressOverride ?? privateKeyToAccount(relayerPrivateKey).address) as Address;
     const salt = BigInt(Date.now());
 
     const domain = getDelegationEip712Domain(chainConfig.chain.id);
@@ -238,7 +259,7 @@ export class Eip7702DelegationService {
 
     // Delegation message
     const message = {
-      delegate: relayerAccount.address,
+      delegate: relayerAddress,
       delegator: userAddress,
       authority: ROOT_AUTHORITY,
       caveats: [],
@@ -246,7 +267,7 @@ export class Eip7702DelegationService {
     };
 
     return {
-      relayerAddress: relayerAccount.address,
+      relayerAddress,
       delegationManagerAddress: DELEGATION_MANAGER_ADDRESS,
       delegatorAddress: DELEGATOR_ADDRESS,
       userNonce,
@@ -259,6 +280,10 @@ export class Eip7702DelegationService {
   /**
    * Execute token transfer using frontend-signed EIP-7702 delegation
    * Used for sell transactions where user has 0 native token
+   *
+   * `relayerPrivateKeyOverride` (optional) pays gas from a caller-supplied wallet instead of the
+   * per-chain Sell/OTC relayer. Defaults to `getRelayerPrivateKey(blockchain)`, so existing callers
+   * are unchanged. Used by the RealUnit W2W transfer to pay gas from the dedicated W2W gas wallet.
    */
   async transferTokenWithUserDelegation(
     userAddress: string,
@@ -273,8 +298,10 @@ export class Eip7702DelegationService {
       signature: string;
     },
     authorization: Eip7702Authorization,
+    relayerPrivateKeyOverride?: Hex,
+    onBroadcast?: (txHash: string) => Promise<void>,
   ): Promise<string> {
-    if (!this.isDelegationSupported(token.blockchain)) {
+    if (!this.isDelegationSupported(token.blockchain) && !this.isDelegationSupportedForRealUnit(token.blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for ${token.blockchain}`);
     }
     return this._transferTokenWithUserDelegationInternal(
@@ -284,6 +311,8 @@ export class Eip7702DelegationService {
       amount,
       signedDelegation,
       authorization,
+      relayerPrivateKeyOverride,
+      onBroadcast,
     );
   }
 
@@ -372,10 +401,12 @@ export class Eip7702DelegationService {
 
     // Validate authorization fields
     if (Number(authorization.chainId) !== expectedChainId) {
-      throw new Error(`Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`);
+      throw new BadRequestException(
+        `Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`,
+      );
     }
     if (authorization.address.toLowerCase() !== DELEGATOR_ADDRESS.toLowerCase()) {
-      throw new Error(
+      throw new BadRequestException(
         `Authorization contract address mismatch: expected ${DELEGATOR_ADDRESS}, got ${authorization.address}`,
       );
     }
@@ -477,7 +508,7 @@ export class Eip7702DelegationService {
     };
 
     // Sign, broadcast and confirm within nonce lock to prevent concurrent nonce collisions
-    return this.withNonceLock(async () => {
+    return this.withNonceLock(relayerAccount.address, async () => {
       const nonce = await publicClient.getTransactionCount({
         address: relayerAccount.address,
         blockTag: 'pending',
@@ -535,6 +566,8 @@ export class Eip7702DelegationService {
       signature: string;
     },
     authorization: Eip7702Authorization,
+    relayerPrivateKeyOverride?: Hex,
+    onBroadcast?: (txHash: string) => Promise<void>,
   ): Promise<string> {
     const blockchain = token.blockchain;
 
@@ -558,10 +591,12 @@ export class Eip7702DelegationService {
 
     // Validate authorization fields
     if (Number(authorization.chainId) !== expectedChainId) {
-      throw new Error(`Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`);
+      throw new BadRequestException(
+        `Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`,
+      );
     }
     if (authorization.address.toLowerCase() !== DELEGATOR_ADDRESS.toLowerCase()) {
-      throw new Error(
+      throw new BadRequestException(
         `Authorization contract address mismatch: expected ${DELEGATOR_ADDRESS}, got ${authorization.address}`,
       );
     }
@@ -572,8 +607,8 @@ export class Eip7702DelegationService {
     // Verify EIP-7702 authorization signature
     await this.verifyAuthorizationSignature(authorization, userAddress);
 
-    // Get relayer account
-    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    // Get relayer account (default: per-chain Sell/OTC relayer; override: dedicated gas wallet)
+    const relayerPrivateKey = relayerPrivateKeyOverride ?? this.getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
 
     // Create clients
@@ -648,7 +683,7 @@ export class Eip7702DelegationService {
     };
 
     // Sign, broadcast and confirm within nonce lock to prevent concurrent nonce collisions
-    return this.withNonceLock(async () => {
+    return this.withNonceLock(relayerAccount.address, async () => {
       const nonce = await publicClient.getTransactionCount({
         address: relayerAccount.address,
         blockTag: 'pending',
@@ -670,7 +705,20 @@ export class Eip7702DelegationService {
       };
 
       const signedTx = await walletClient.signTransaction(transaction as any);
+      const computedTxHash = keccak256(signedTx as `0x${string}`);
+
+      // Persist the tx hash BEFORE it is sent to the node: a crash/restart between signing and mining
+      // must never lose track of an already-signed tx. With this ordering, "PROCESSING without a
+      // persisted txHash" strictly means "never signed/broadcast, safe to mark FAILED" (see
+      // RealUnitService.reconcilePendingTransfers).
+      if (onBroadcast) await onBroadcast(computedTxHash);
+
       const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
+      if (txHash !== computedTxHash) {
+        throw new Error(
+          `Broadcast tx hash ${txHash} does not match locally computed hash ${computedTxHash} for user delegation transfer`,
+        );
+      }
 
       this.logger.info(
         `User delegation transfer broadcast on ${blockchain}: ` +
@@ -681,7 +729,7 @@ export class Eip7702DelegationService {
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 60_000 });
 
       if (receipt.status === 'reverted') {
-        throw new Error(`Transaction reverted on-chain: ${txHash}`);
+        throw new TransactionRevertedException(txHash);
       }
 
       this.logger.info(
@@ -939,7 +987,9 @@ export class Eip7702DelegationService {
     });
 
     if (recoveredAddress.toLowerCase() !== expectedSigner.toLowerCase()) {
-      throw new Error(`Invalid delegation signature: recovered ${recoveredAddress}, expected ${expectedSigner}`);
+      throw new BadRequestException(
+        `Invalid delegation signature: recovered ${recoveredAddress}, expected ${expectedSigner}`,
+      );
     }
   }
 
@@ -962,7 +1012,9 @@ export class Eip7702DelegationService {
     });
 
     if (recoveredAddress.toLowerCase() !== expectedSigner.toLowerCase()) {
-      throw new Error(`Invalid authorization signature: recovered ${recoveredAddress}, expected ${expectedSigner}`);
+      throw new BadRequestException(
+        `Invalid authorization signature: recovered ${recoveredAddress}, expected ${expectedSigner}`,
+      );
     }
   }
 

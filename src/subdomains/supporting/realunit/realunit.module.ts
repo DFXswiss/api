@@ -24,6 +24,7 @@ import { RealUnitSupportController } from './controllers/realunit-support.contro
 import { RealUnitController } from './controllers/realunit.controller';
 import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
 import { RealUnitLegalAcceptance } from './entities/realunit-legal-acceptance.entity';
+import { RealUnitTransferRequest } from './entities/realunit-transfer-request.entity';
 import { RealUnitComplianceService } from './realunit-compliance.service';
 import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitJobService } from './realunit-job.service';
@@ -32,10 +33,11 @@ import { RealUnitScopeService } from './realunit-scope.service';
 import { RealUnitService } from './realunit.service';
 import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
 import { RealUnitLegalAcceptanceRepository } from './repositories/realunit-legal-acceptance.repository';
+import { RealUnitTransferRequestRepository } from './repositories/realunit-transfer-request.repository';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AktionariatRegistration, RealUnitLegalAcceptance]),
+    TypeOrmModule.forFeature([AktionariatRegistration, RealUnitLegalAcceptance, RealUnitTransferRequest]),
     SharedModule,
     LogModule,
     PricingModule,
@@ -65,6 +67,7 @@ import { RealUnitLegalAcceptanceRepository } from './repositories/realunit-legal
     RealUnitLegalService,
     AktionariatRegistrationRepository,
     RealUnitLegalAcceptanceRepository,
+    RealUnitTransferRequestRepository,
   ],
   exports: [RealUnitService, RealUnitScopeService],
 })
