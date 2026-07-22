@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { AccountType } from '../entities/ledger-account.entity';
 import { LedgerAccountService } from './ledger-account.service';
 
 @Injectable()
 export class LedgerBootstrapService {
+  private readonly logger = new DfxLogger(LedgerBootstrapService);
+
   // §3.4 — single authoritative bootstrap name lists (character-exact)
   private static readonly LIABILITY_ACCOUNTS = [
     'buyFiat-owed',
@@ -105,13 +108,21 @@ export class LedgerBootstrapService {
       if (await this.ledgerAccountService.findByAssetId(asset.id)) continue;
 
       // non-null fallback for currency (currency is NOT NULL, dexName is nullable) — §3.2 Minor R7-8
-      await this.ledgerAccountService.findOrCreate(
+      const account = await this.ledgerAccountService.findOrCreate(
         asset.uniqueName,
         AccountType.ASSET,
         asset.dexName ?? asset.name,
         asset.id,
         asset.isActive,
       );
+
+      // name collision: findOrCreate hit an account of ANOTHER asset (its pre-rename name reused) → this asset
+      // still has no account and its consumers stay wedged; keep the recurring re-run loud instead of no-oping
+      if (account.assetId != null && account.assetId !== asset.id) {
+        this.logger.error(
+          `CoA account name collision: '${asset.uniqueName}' belongs to asset ${account.assetId}, no account created for asset ${asset.id}`,
+        );
+      }
     }
   }
 

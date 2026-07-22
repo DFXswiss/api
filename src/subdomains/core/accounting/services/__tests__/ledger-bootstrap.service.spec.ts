@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { AccountType } from '../../entities/ledger-account.entity';
@@ -67,6 +68,60 @@ describe('LedgerBootstrapService', () => {
     await service.bootstrap();
 
     expect(created.find((c) => c.name === 'FrickLI/EUR')).toBeUndefined();
+  });
+
+  it('still creates accounts for later assets in the same run when an earlier one is guard-skipped', async () => {
+    const covered = createCustomAsset({
+      id: 269,
+      uniqueName: 'Olkypay/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    const uncovered = createCustomAsset({
+      id: 435,
+      uniqueName: 'Frick/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([covered, uncovered]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    jest
+      .spyOn(ledgerAccountService, 'findByAssetId')
+      .mockImplementation(async (assetId) =>
+        assetId === 269
+          ? createCustomLedgerAccount({ name: 'Olkypay/EUR', type: AccountType.ASSET, currency: 'EUR' })
+          : undefined,
+      );
+
+    await service.bootstrap();
+
+    expect(created.find((c) => c.name === 'Olkypay/EUR')).toBeUndefined();
+    expect(created.find((c) => c.name === 'Frick/EUR')).toMatchObject({ type: AccountType.ASSET, assetId: 435 });
+  });
+
+  it('logs an error when findOrCreate resolves to a foreign account (name collision, no silent no-op)', async () => {
+    const collided = createCustomAsset({
+      id: 500,
+      uniqueName: 'Frick/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([collided]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    // the name is taken by asset 435's pre-rename account → findOrCreate name-hits the foreign account
+    jest.spyOn(ledgerAccountService, 'findOrCreate').mockResolvedValue(
+      Object.assign(createCustomLedgerAccount({ name: 'Frick/EUR', type: AccountType.ASSET, currency: 'EUR' }), {
+        assetId: 435,
+      }),
+    );
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+    await service.bootstrap();
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('name collision'));
   });
 
   it('creates ASSET accounts from custody asset rows with name=uniqueName, currency=dexName, assetId set', async () => {
