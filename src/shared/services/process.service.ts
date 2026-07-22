@@ -111,6 +111,7 @@ export enum Process {
   LEDGER_RECONCILIATION = 'LedgerReconciliation',
   LEDGER_MARK_TO_MARKET = 'LedgerMarkToMarket',
   LEDGER_CUTOVER = 'LedgerCutover',
+  LEDGER_COA_BOOTSTRAP = 'LedgerCoaBootstrap',
 }
 
 const safetyProcesses: Process[] = [

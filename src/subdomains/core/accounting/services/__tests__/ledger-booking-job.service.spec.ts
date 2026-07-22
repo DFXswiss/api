@@ -13,6 +13,7 @@ import { LiquidityOrderDexConsumer } from '../consumers/liquidity-order-dex.cons
 import { PayoutOrderConsumer } from '../consumers/payout-order.consumer';
 import { TradingOrderConsumer } from '../consumers/trading-order.consumer';
 import { getLedgerWatermark, LedgerBookingJobService, setLedgerWatermark } from '../ledger-booking-job.service';
+import { LedgerBootstrapService } from '../ledger-bootstrap.service';
 
 describe('LedgerBookingJobService', () => {
   let service: LedgerBookingJobService;
@@ -26,6 +27,7 @@ describe('LedgerBookingJobService', () => {
   let liquidityMgmtConsumer: LiquidityMgmtConsumer;
   let liquidityOrderDexConsumer: LiquidityOrderDexConsumer;
   let tradingOrderConsumer: TradingOrderConsumer;
+  let bootstrapService: LedgerBootstrapService;
 
   beforeEach(async () => {
     settingService = createMock<SettingService>();
@@ -38,6 +40,7 @@ describe('LedgerBookingJobService', () => {
     liquidityMgmtConsumer = createMock<LiquidityMgmtConsumer>();
     liquidityOrderDexConsumer = createMock<LiquidityOrderDexConsumer>();
     tradingOrderConsumer = createMock<TradingOrderConsumer>();
+    bootstrapService = createMock<LedgerBootstrapService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -52,6 +55,7 @@ describe('LedgerBookingJobService', () => {
         { provide: LiquidityMgmtConsumer, useValue: liquidityMgmtConsumer },
         { provide: LiquidityOrderDexConsumer, useValue: liquidityOrderDexConsumer },
         { provide: TradingOrderConsumer, useValue: tradingOrderConsumer },
+        { provide: LedgerBootstrapService, useValue: bootstrapService },
       ],
     }).compile();
 
@@ -86,6 +90,7 @@ describe('LedgerBookingJobService', () => {
       await service.runLiquidityMgmt();
       await service.runLiquidityOrderDex();
       await service.runTradingOrder();
+      await service.runCoaBootstrap();
       expect(bankTxConsumer.process).not.toHaveBeenCalled();
       expect(exchangeTxConsumer.process).not.toHaveBeenCalled();
       expect(cryptoInputConsumer.process).not.toHaveBeenCalled();
@@ -95,6 +100,7 @@ describe('LedgerBookingJobService', () => {
       expect(liquidityMgmtConsumer.process).not.toHaveBeenCalled();
       expect(liquidityOrderDexConsumer.process).not.toHaveBeenCalled();
       expect(tradingOrderConsumer.process).not.toHaveBeenCalled();
+      expect(bootstrapService.bootstrap).not.toHaveBeenCalled();
     });
 
     it('runs the consumers once the ledger is ready', async () => {
@@ -108,6 +114,7 @@ describe('LedgerBookingJobService', () => {
       await service.runLiquidityMgmt();
       await service.runLiquidityOrderDex();
       await service.runTradingOrder();
+      await service.runCoaBootstrap();
       expect(bankTxConsumer.process).toHaveBeenCalledTimes(1);
       expect(exchangeTxConsumer.process).toHaveBeenCalledTimes(1);
       expect(cryptoInputConsumer.process).toHaveBeenCalledTimes(1);
@@ -117,6 +124,7 @@ describe('LedgerBookingJobService', () => {
       expect(liquidityMgmtConsumer.process).toHaveBeenCalledTimes(1);
       expect(liquidityOrderDexConsumer.process).toHaveBeenCalledTimes(1);
       expect(tradingOrderConsumer.process).toHaveBeenCalledTimes(1);
+      expect(bootstrapService.bootstrap).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -132,6 +140,7 @@ describe('LedgerBookingJobService', () => {
       runLiquidityMgmt: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT,
       runLiquidityOrderDex: Process.LEDGER_BOOKING_LIQUIDITY_ORDER,
       runTradingOrder: Process.LEDGER_BOOKING_TRADING_ORDER,
+      runCoaBootstrap: Process.LEDGER_COA_BOOTSTRAP,
     };
 
     for (const [method, flag] of Object.entries(expectedFlags)) {

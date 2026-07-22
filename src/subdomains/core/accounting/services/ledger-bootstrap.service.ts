@@ -100,6 +100,10 @@ export class LedgerBootstrapService {
     const coaAssets = assets.filter((a) => this.isCoaAsset(a, feedAssetIds));
 
     for (const asset of coaAssets) {
+      // rename-guard: UNIQUE is on name only, so after a uniqueName change findOrCreate(name) would create a
+      // second account for the same asset and make findByAssetId ambiguous — the existing account wins
+      if (await this.ledgerAccountService.findByAssetId(asset.id)) continue;
+
       // non-null fallback for currency (currency is NOT NULL, dexName is nullable) — §3.2 Minor R7-8
       await this.ledgerAccountService.findOrCreate(
         asset.uniqueName,

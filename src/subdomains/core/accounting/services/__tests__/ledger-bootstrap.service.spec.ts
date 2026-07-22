@@ -32,6 +32,7 @@ describe('LedgerBootstrapService', () => {
         created.push({ name, type, currency, assetId, active });
         return createCustomLedgerAccount({ name, type, currency });
       });
+    jest.spyOn(ledgerAccountService, 'findByAssetId').mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -47,6 +48,25 @@ describe('LedgerBootstrapService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('skips an asset that already has an account under another name (rename-guard, UNIQUE is on name only)', async () => {
+    const renamed = createCustomAsset({
+      id: 435,
+      uniqueName: 'FrickLI/EUR',
+      name: 'EUR',
+      dexName: 'EUR',
+      type: AssetType.CUSTODY,
+    });
+    jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([renamed]);
+    jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    jest
+      .spyOn(ledgerAccountService, 'findByAssetId')
+      .mockResolvedValue(createCustomLedgerAccount({ name: 'Frick/EUR', type: AccountType.ASSET, currency: 'EUR' }));
+
+    await service.bootstrap();
+
+    expect(created.find((c) => c.name === 'FrickLI/EUR')).toBeUndefined();
   });
 
   it('creates ASSET accounts from custody asset rows with name=uniqueName, currency=dexName, assetId set', async () => {
