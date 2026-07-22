@@ -1474,7 +1474,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'reservedUntil',
       'status',
       'userDataId',
-      'yapealAccountUid',
+      'providerAccountRef',
     ],
   },
   wallet: {

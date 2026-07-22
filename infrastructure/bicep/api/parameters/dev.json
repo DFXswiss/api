@@ -455,6 +455,9 @@
     "frickApproveWithoutTan": {
       "value": "false"
     },
+    "frickVbanBaseUrl": {
+      "value": ""
+    },
     "letterUrl": {
       "value": "https://sandbox.letterxpress.de/v1"
     },

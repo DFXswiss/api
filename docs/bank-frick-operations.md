@@ -185,6 +185,10 @@ All values remain blank in `.env.example`. Deployment must provide:
   obtain it from Bank Frick through the authenticated onboarding channel
 - `FRICK_PAYOUT_ENABLED=true` only after inbound verification
 - `FRICK_APPROVE_WITHOUT_TAN=true` only after Bank Frick confirms backend exemption
+- `FRICK_VBAN_BASE_URL` — base URL of Bank Frick's separate VBAN API (test
+  `https://api-test.bankfrick.li/vban`, production `https://api.bankfrick.li/vban`), used to issue
+  EUR personal IBANs; opt-in — when unset, the Frick virtual-IBAN provider is unavailable and there
+  is no behaviour change
 
 `BankFrickService.isAvailable()` requires both keys. Every request signs the exact serialized
 body. Every response remains raw text until its detached `Signature` and `algorithm` headers have

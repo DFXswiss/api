@@ -57,4 +57,12 @@ describe('buildFrickConfig', () => {
 
     expect(config.approveWithoutTan).toBe(expected);
   });
+
+  it('passes through vbanBaseUrl from FRICK_VBAN_BASE_URL when set, and is undefined when unset', () => {
+    const withUrl = buildFrickConfig(env({ FRICK_VBAN_BASE_URL: 'https://api.bankfrick.li/vban' }));
+    expect(withUrl.vbanBaseUrl).toBe('https://api.bankfrick.li/vban');
+
+    const withoutUrl = buildFrickConfig(env());
+    expect(withoutUrl.vbanBaseUrl).toBeUndefined();
+  });
 });
