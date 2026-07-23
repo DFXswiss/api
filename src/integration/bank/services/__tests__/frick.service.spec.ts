@@ -551,6 +551,59 @@ describe('BankFrickService', () => {
     ).rejects.toThrow('Invalid Bank Frick payment lookup response for DFX-FO-42');
   });
 
+  it.each([
+    [undefined],
+    [{}],
+    [{ moreResults: false, resultSetSize: 0 }],
+    [{ moreResults: false, resultSetSize: 0, transactions: [] }],
+  ])('treats empty Bank Frick transaction lookup shapes as no-match %#', async (response) => {
+    expect(service['isEmptyTransactionsResponse'](response)).toBe(true);
+
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await expect(
+      service['getFilteredPaymentOrder'](new URLSearchParams({ customId: 'DFX-FO-42' }), 'DFX-FO-42'),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    [{ moreResults: false, resultSetSize: 1, transactions: [] }],
+    [{ moreResults: true, resultSetSize: 0 }],
+    ['x'],
+  ])('does not treat responses with a positive signal as empty %#', async (response) => {
+    expect(service['isEmptyTransactionsResponse'](response)).toBe(false);
+
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await expect(
+      service['getFilteredPaymentOrder'](new URLSearchParams({ customId: 'DFX-FO-42' }), 'DFX-FO-42'),
+    ).rejects.toThrow('Invalid Bank Frick transactions response');
+  });
+
+  it('includes a sanitized shape diagnosis when the transactions envelope is invalid', () => {
+    const invalid = {
+      moreResults: 'not-a-boolean',
+      resultSetSize: 1,
+      transactions: [paymentOrder()],
+    };
+
+    expect(() => service['validateTransactionsResponse'](invalid as never, true)).toThrow(
+      'Invalid Bank Frick transactions response',
+    );
+
+    let message = '';
+    try {
+      service['validateTransactionsResponse'](invalid as never, true);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toMatch(/moreResults=|transactions=/);
+    expect(message).not.toContain('Synthetic Recipient');
+    expect(message).not.toContain(creditorIban);
+    expect(message).not.toContain(debtorIban);
+  });
+
   it('recognises an already-BOOKED order missing customId/type as idempotent instead of a collision', async () => {
     Config.bank.frick.payoutEnabled = true;
     const bookedWithoutCustomIdOrType = {
