@@ -551,6 +551,140 @@ describe('BankFrickService', () => {
     ).rejects.toThrow('Invalid Bank Frick payment lookup response for DFX-FO-42');
   });
 
+  it.each([
+    [undefined],
+    [{}],
+    [{ moreResults: false, resultSetSize: 0 }],
+    [{ moreResults: false, resultSetSize: 0, transactions: [] }],
+  ])('treats empty Bank Frick transaction lookup shapes as no-match %#', async (response) => {
+    expect(service['isEmptyTransactionsResponse'](response)).toBe(true);
+
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await expect(
+      service['getFilteredPaymentOrder'](new URLSearchParams({ customId: 'DFX-FO-42' }), 'DFX-FO-42'),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    [{ moreResults: false, resultSetSize: 1, transactions: [] }],
+    [{ moreResults: true, resultSetSize: 0 }],
+    ['x'],
+  ])('does not treat responses with a positive signal as empty %#', async (response) => {
+    expect(service['isEmptyTransactionsResponse'](response)).toBe(false);
+
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await expect(
+      service['getFilteredPaymentOrder'](new URLSearchParams({ customId: 'DFX-FO-42' }), 'DFX-FO-42'),
+    ).rejects.toThrow('Invalid Bank Frick transactions response');
+  });
+
+  it.each([
+    [{ data: { transactions: [{ orderId: 1, state: 'BOOKED' }] } }],
+    [[{ orderId: 1 }]],
+    [{ error: 'maintenance' }],
+    [{ resultSetSize: '0' }],
+    [{ moreResults: 'false' }],
+    [{ transactions: {} }],
+    [false],
+    [0],
+  ])('does not treat non-whitelisted lookup shapes as empty %#', async (response) => {
+    expect(service['isEmptyTransactionsResponse'](response)).toBe(false);
+
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await expect(
+      service['getFilteredPaymentOrder'](new URLSearchParams({ customId: 'DFX-FO-42' }), 'DFX-FO-42'),
+    ).rejects.toThrow('Invalid Bank Frick transactions response');
+  });
+
+  it('still rejects an invalid PUT payment response after empty lookup results', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    // Both lookups return the whitelisted empty shape so createPaymentOrder proceeds to PUT; the PUT
+    // response deliberately violates requireTypeAndCustomId (missing customId) so getSinglePayment
+    // must still fail closed.
+    const putWithoutCustomId = {
+      moreResults: false,
+      resultSetSize: 1,
+      transactions: [
+        {
+          orderId: 4242,
+          state: FrickPaymentState.PREPARED,
+          type: FrickPaymentType.SEPA,
+          amount: 10.25,
+          currency: 'EUR',
+          debitor: { iban: debtorIban },
+          creditor: { name: 'Synthetic Recipient', iban: creditorIban },
+        },
+      ],
+    };
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce(putWithoutCustomId);
+
+    await expect(service.createPaymentOrder(paymentInput())).rejects.toThrow(
+      'Invalid Bank Frick payment order response',
+    );
+  });
+
+  it('includes a sanitized shape diagnosis when the transactions envelope is invalid', () => {
+    const invalid = {
+      moreResults: 'not-a-boolean',
+      resultSetSize: 1,
+      transactions: [paymentOrder()],
+    };
+
+    expect(() => service['validateTransactionsResponse'](invalid as never, true)).toThrow(
+      'Invalid Bank Frick transactions response',
+    );
+
+    let message = '';
+    try {
+      service['validateTransactionsResponse'](invalid as never, true);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toMatch(/moreResults=|transactions=/);
+    expect(message).not.toContain('Synthetic Recipient');
+    expect(message).not.toContain(creditorIban);
+    expect(message).not.toContain(debtorIban);
+  });
+
+  it('does not leak string resultSetSize values in the shape diagnosis', () => {
+    const invalid = { resultSetSize: 'SECRET' };
+
+    let message = '';
+    try {
+      service['validateTransactionsResponse'](invalid as never, true);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toContain('Invalid Bank Frick transactions response');
+    expect(message).toContain('typeof string');
+    expect(message).not.toContain('SECRET');
+  });
+
+  it('caps key names and key count in the shape diagnosis', () => {
+    const longKey = 'aVeryLongUnexpectedResponseKeyName';
+    const invalid = Object.fromEntries([[longKey, 1], ...Array.from({ length: 11 }, (_, i) => [`k${i}`, i])]);
+
+    let message = '';
+    try {
+      service['validateTransactionsResponse'](invalid as never, true);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toContain(`keys: [${longKey.slice(0, 24)}, k0`);
+    expect(message).toContain('k8, +2 more], moreResults=');
+    expect(message).not.toContain(longKey);
+  });
+
   it('recognises an already-BOOKED order missing customId/type as idempotent instead of a collision', async () => {
     Config.bank.frick.payoutEnabled = true;
     const bookedWithoutCustomIdOrType = {
