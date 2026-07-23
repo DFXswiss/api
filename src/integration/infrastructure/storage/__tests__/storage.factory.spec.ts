@@ -85,6 +85,12 @@ describe('createStorageService', () => {
     expect(() => createStorageService('kyc')).toThrow(/Invalid storage config/);
   });
 
+  it('throws on invalid combo (s3 write / azure read) when the factory is invoked', async () => {
+    await provideConfig(Environment.DEV, validS3, 's3', 'azure');
+
+    expect(() => createStorageService('kyc')).toThrow(/Invalid storage config/);
+  });
+
   it('throws when STORAGE_WRITE_MODE and STORAGE_READ_SOURCE are completely unset in a non-LOC environment', async () => {
     await provideConfig(Environment.DEV);
 

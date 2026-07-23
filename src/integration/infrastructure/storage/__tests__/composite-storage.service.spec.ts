@@ -252,6 +252,23 @@ describe('CompositeStorageService', () => {
       expect(azureCopy).toHaveBeenCalledWith('src/', 'dst/');
       expect(s3Copy).toHaveBeenCalledWith('src/', 'dst/');
     });
+
+    it('copies S3 first when readSource=s3', async () => {
+      await provideConfig('dual', 's3');
+
+      await new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/');
+
+      expect(s3Copy.mock.invocationCallOrder[0]).toBeLessThan(azureCopy.mock.invocationCallOrder[0]);
+    });
+
+    it('rejects the whole call when one backend copyBlobs rejects', async () => {
+      await provideConfig('dual', 'azure');
+      azureCopy.mockRejectedValue(new Error('azure copy failed'));
+
+      await expect(new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/')).rejects.toThrow(
+        'azure copy failed',
+      );
+    });
   });
 
   describe('uploadWormBlob', () => {
@@ -272,6 +289,16 @@ describe('CompositeStorageService', () => {
         new CompositeStorageService(CONTAINER).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
       ).rejects.toThrow('could not verify Object Lock is enabled');
       expect(azureUploadWorm).not.toHaveBeenCalled();
+    });
+
+    it('rejects when first side (azure) succeeds and second side (s3) fails with readSource=azure', async () => {
+      await provideConfig('dual', 'azure');
+      s3UploadWorm.mockRejectedValue(new Error('Object Lock is not enabled'));
+
+      await expect(
+        new CompositeStorageService(CONTAINER).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow('Object Lock is not enabled');
+      expect(azureUploadWorm).toHaveBeenCalled();
     });
 
     it('calls both uploadWormBlob paths in dual mode (never uploadBlob directly)', async () => {

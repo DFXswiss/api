@@ -27,8 +27,12 @@ export class AzureStorageService extends StorageService {
 
   private get client(): ContainerClient {
     if (!this._client) {
-      const { connectionString } = Config.azure.storage;
+      const { connectionString, url } = Config.azure.storage;
       if (!connectionString) throw new Error('Incomplete Azure config: connectionString is required');
+      if (!url)
+        throw new Error(
+          'Azure storage URL could not be derived from AZURE_STORAGE_CONNECTION_STRING (missing BlobEndpoint segment); cannot build blob URLs',
+        );
       this._client = BlobServiceClient.fromConnectionString(connectionString).getContainerClient(this.container);
     }
     return this._client;

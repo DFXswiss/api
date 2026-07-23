@@ -102,6 +102,20 @@ describe('AzureStorageService', () => {
         'Incomplete Azure config: connectionString is required',
       );
     });
+
+    it('throws when connectionString is present but url is missing (no BlobEndpoint segment)', async () => {
+      await provideConfig({
+        storage: {
+          url: undefined,
+          connectionString:
+            'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net',
+        },
+      });
+
+      await expect(new AzureStorageService(CONTAINER).getBlob('x')).rejects.toThrow(
+        'Azure storage URL could not be derived from AZURE_STORAGE_CONNECTION_STRING (missing BlobEndpoint segment); cannot build blob URLs',
+      );
+    });
   });
 
   describe('blobUrl / blobName round-trip', () => {
