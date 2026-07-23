@@ -13,48 +13,46 @@
  * complete no-op; returning early still records the migration as executed, which is the intended
  * lower-env behaviour.
  *
- * Fachlich:
- *   - Reaktiviert die dormante Ethereum/ZCHF-Regel (context='Ethereum', target asset uniqueName
- *     'Ethereum/ZCHF'): status Inactive → Active, maximal 10000000 → 10000. Die Redundancy-Logik
- *     schiebt damit ZCHF-Überschuss oberhalb von maximal=10000 wieder Richtung optimal=100 (und
- *     damit Richtung MEXC).
- *   - Schaltet den MEXC→USDT-Abverkaufspfad scharf: Regel "308" (context='MEXC', uniqueName
- *     'MEXC/ZCHF') wechselt von einer reinen Observe-Regel (minimal/optimal/maximal alle NULL)
- *     auf minimal=0 / optimal=0 / maximal=500 mit sendNotifications=true. Die zugehörige
- *     redundancyStartAction (system='MEXC', command='sell') wird von reinem Verkauf
- *     (`{"tradeAsset":"USDT"}`) auf `{"tradeAsset":"USDT","liquidityLimited":true}` umgestellt.
+ * What it does:
+ *   - Reactivates the dormant Ethereum/ZCHF rule (context='Ethereum', target asset uniqueName
+ *     'Ethereum/ZCHF'): status Inactive -> Active, maximal 10000000 -> 10000. The redundancy branch
+ *     then offloads ZCHF held above maximal=10000 back down towards optimal=100 (i.e. towards MEXC).
+ *   - Arms the MEXC -> USDT sell path: rule "308" (context='MEXC', uniqueName 'MEXC/ZCHF') moves from
+ *     an observe-only rule (minimal/optimal/maximal all NULL) to minimal=0 / optimal=0 / maximal=500
+ *     with sendNotifications=true. Its redundancyStartAction (system='MEXC', command='sell') is
+ *     switched from a plain sell (`{"tradeAsset":"USDT"}`) to
+ *     `{"tradeAsset":"USDT","liquidityLimited":true}`.
  *
- * Werte-Herkunft:
- *   - maximal=10000 (Regel 170) ist der letzte belegte Live-Wert, rekonstruiert aus 12 historischen
- *     Redundancy-Orders, bei denen maxAmount − minAmount konstant 9900 war
- *     (bei optimal=100 ⇒ maximal = 100 + 9900 = 10000).
- *   - Regel-308-Werte (minimal=0, optimal=0, maximal=500) sind bewusst gesetzt, kein historischer
- *     Anker (Action 225 ist nie gelaufen). maximal=500 dient als Trigger-Floor deutlich über der
- *     MEXC-Mindestordergrösse, damit ein fehlgeschlagener Dust-Sell nicht über `handlePipelineFail`
- *     die gesamte Regel 308 pausiert und dadurch den produktiven Kauf-Pfad (Action 223, 846 Orders)
- *     mit lahmlegt.
- *   - `"liquidityLimited":true` auf der Sell-Action sorgt dafür, dass die grosse Erst-Abwicklung in
- *     Best-Price-Chunks statt als einzelner Market-Order über den 5%-Preis-Guard läuft — spiegelt
- *     die bestehende Kauf-Action 223.
+ * Where the values come from:
+ *   - maximal=10000 (rule 170) is the last operational value, reconstructed from the 12 historical
+ *     redundancy orders whose maxAmount - minAmount was a constant 9900 (at optimal=100 => maximal =
+ *     100 + 9900 = 10000).
+ *   - The rule-308 values (minimal=0, optimal=0, maximal=500) are deliberately chosen; there is no
+ *     historical anchor (the sell action has never run). maximal=500 acts as a trigger floor well
+ *     above the MEXC minimum order size, so a failed dust sell cannot pause the whole rule 308 (via
+ *     handlePipelineFail) and take the productive buy path (action 223, 846 orders) down with it.
+ *   - `"liquidityLimited":true` on the sell action makes the large initial offload sell in
+ *     best-price chunks instead of a single market order tripping the 5% price guard - mirroring the
+ *     existing buy action 223.
  *
- * up() ist NICHT idempotent im Sinne eines Re-run-Schutzes über INSERT-ON-CONFLICT wie bei den
- * Frick-Migrationen. Die Preconditions in up() sind bewusst strikt (fail-loud bei jedem Zustand
- * ausser dem exakt erwarteten Ausgangszustand), damit ein versehentlicher zweiter Lauf sofort mit
- * Error abbricht statt die Werte ein zweites Mal zu verschieben.
+ * up() is NOT idempotent via INSERT-ON-CONFLICT like the Frick migrations. Its preconditions are
+ * deliberately strict (fail-loud on any state other than the exact expected starting state), so an
+ * accidental second run aborts with an Error instead of shifting the values a second time.
  *
- * Der lock_timeout wird transaction-scoped via `SET LOCAL lock_timeout` gesetzt (konsistent mit den
- * Frick-Referenzmigrationen); TypeORM führt up()/down() jeweils in einer eigenen Transaktion aus.
+ * The lock_timeout is set transaction-scoped via `SET LOCAL lock_timeout` (consistent with the Frick
+ * reference migrations); TypeORM runs up()/down() each inside its own transaction.
  *
  * up():
  *   1. prod guard (no-op elsewhere)
  *   2. lock_timeout
- *   3. fail-loud precondition Regel 170 (Inactive, 0/100/10000000)
- *   4. UPDATE Regel 170 → Active, maximal=10000
- *   5. fail-loud precondition Regel 308 (Active, NULL/NULL/NULL, redundancyStartActionId gesetzt)
- *   6. UPDATE Regel 308 → 0/0/500, sendNotifications=true
- *   7. fail-loud precondition MEXC-Sell-Action (system=MEXC, command=sell)
- *   8. UPDATE Action params → tradeAsset=USDT, liquidityLimited=true
- *   9. fail-loud post-conditions für Regel 170 und 308
+ *   3. fail-loud precondition rule 170 (Inactive, 0/100/10000000)
+ *   4. UPDATE rule 170 -> Active, maximal=10000
+ *   5. fail-loud precondition rule 308 (Active, NULL/NULL/NULL, sendNotifications=false,
+ *      redundancyStartActionId set)
+ *   6. UPDATE rule 308 -> 0/0/500, sendNotifications=true
+ *   7. fail-loud precondition MEXC sell action (system=MEXC, command=sell)
+ *   8. UPDATE action params -> tradeAsset=USDT, liquidityLimited=true
+ *   9. fail-loud post-conditions for rule 170 and rule 308
  *
  * down() reverses rules and action params (no preconditions), prod-guarded the same way.
  *
@@ -75,7 +73,7 @@ module.exports = class ReactivateEthZchfLiquidityAndEnableMexcZchfSell1784700000
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
-    // --- Precondition Regel 170 (Ethereum/ZCHF, dormant) ---
+    // --- Precondition rule 170 (Ethereum/ZCHF, dormant) ---
     const rule170 = (
       await queryRunner.query(`
         SELECT lmr."status", lmr."minimal", lmr."optimal", lmr."maximal"
@@ -110,10 +108,10 @@ module.exports = class ReactivateEthZchfLiquidityAndEnableMexcZchfSell1784700000
         AND "targetFiatId" IS NULL
     `);
 
-    // --- Precondition Regel 308 (MEXC/ZCHF, observe-only) ---
+    // --- Precondition rule 308 (MEXC/ZCHF, observe-only) ---
     const rule308 = (
       await queryRunner.query(`
-        SELECT lmr."status", lmr."minimal", lmr."optimal", lmr."maximal", lmr."redundancyStartActionId"
+        SELECT lmr."status", lmr."minimal", lmr."optimal", lmr."maximal", lmr."sendNotifications", lmr."redundancyStartActionId"
         FROM "liquidity_management_rule" lmr
         JOIN "asset" a ON a."id" = lmr."targetAssetId"
         WHERE lmr."context" = 'MEXC'
@@ -131,10 +129,11 @@ module.exports = class ReactivateEthZchfLiquidityAndEnableMexcZchfSell1784700000
       rule308.minimal !== null ||
       rule308.optimal !== null ||
       rule308.maximal !== null ||
+      rule308.sendNotifications !== false ||
       rule308.redundancyStartActionId == null
     ) {
       throw new Error(
-        `Precondition failed for MEXC/ZCHF rule: expected status=Active, minimal/optimal/maximal=NULL, redundancyStartActionId set; got status=${rule308.status}, minimal=${rule308.minimal}, optimal=${rule308.optimal}, maximal=${rule308.maximal}, redundancyStartActionId=${rule308.redundancyStartActionId}`,
+        `Precondition failed for MEXC/ZCHF rule: expected status=Active, minimal/optimal/maximal=NULL, sendNotifications=false, redundancyStartActionId set; got status=${rule308.status}, minimal=${rule308.minimal}, optimal=${rule308.optimal}, maximal=${rule308.maximal}, sendNotifications=${rule308.sendNotifications}, redundancyStartActionId=${rule308.redundancyStartActionId}`,
       );
     }
 
@@ -146,7 +145,7 @@ module.exports = class ReactivateEthZchfLiquidityAndEnableMexcZchfSell1784700000
         AND "targetFiatId" IS NULL
     `);
 
-    // --- Precondition MEXC-Sell-Action (system + command only; params format may vary) ---
+    // --- Precondition MEXC sell action (system + command only; params format may vary) ---
     const sellAction = (
       await queryRunner.query(`
         SELECT "id", "system", "command"
@@ -190,7 +189,7 @@ module.exports = class ReactivateEthZchfLiquidityAndEnableMexcZchfSell1784700000
 
     const rule308After = (
       await queryRunner.query(`
-        SELECT lmr."status", lmr."minimal", lmr."optimal", lmr."maximal", lmr."redundancyStartActionId"
+        SELECT lmr."status", lmr."minimal", lmr."optimal", lmr."maximal", lmr."sendNotifications", lmr."redundancyStartActionId"
         FROM "liquidity_management_rule" lmr
         JOIN "asset" a ON a."id" = lmr."targetAssetId"
         WHERE lmr."context" = 'MEXC'
@@ -202,10 +201,11 @@ module.exports = class ReactivateEthZchfLiquidityAndEnableMexcZchfSell1784700000
       !rule308After ||
       Number(rule308After.minimal) !== 0 ||
       Number(rule308After.optimal) !== 0 ||
-      Number(rule308After.maximal) !== 500
+      Number(rule308After.maximal) !== 500 ||
+      rule308After.sendNotifications !== true
     ) {
       throw new Error(
-        `Post-condition failed for MEXC/ZCHF rule: expected minimal=0, optimal=0, maximal=500; got minimal=${rule308After && rule308After.minimal}, optimal=${rule308After && rule308After.optimal}, maximal=${rule308After && rule308After.maximal}`,
+        `Post-condition failed for MEXC/ZCHF rule: expected minimal=0, optimal=0, maximal=500, sendNotifications=true; got minimal=${rule308After && rule308After.minimal}, optimal=${rule308After && rule308After.optimal}, maximal=${rule308After && rule308After.maximal}, sendNotifications=${rule308After && rule308After.sendNotifications}`,
       );
     }
   }
