@@ -187,22 +187,13 @@ export class ScryptService extends PricingProvider {
     };
   }
 
+  // The cache is refreshed by the 5-minute sync (getAllTransactions -> fetchAll), which is what heals a
+  // withdrawal whose completion event was missed. An active per-poll fetch here does not work: withdrawFunds()
+  // already seeds a non-terminal cache entry via the permanent BalanceTransaction subscriber (constructor), so a
+  // cache-miss fallback (as used in getOrderStatus) can never fire for a real stuck withdrawal.
   async getWithdrawalStatus(clReqId: string): Promise<ScryptWithdrawStatus | null> {
-    // Try in-memory cache first
-    let transaction = this.balanceTransactions.get(clReqId);
-
-    // Fallback: fetch from Scrypt API (e.g. after restart or a WS reconnect that missed the event)
-    if (!transaction || transaction.TransactionType !== ScryptTransactionType.WITHDRAWAL) {
-      const transactions = await this.fetchBalanceTransactions(Util.daysBefore(30));
-      const fetched = transactions.find((t) => t.ClReqID === clReqId);
-      if (fetched) {
-        this.balanceTransactions.set(fetched.ClReqID, fetched);
-        transaction = fetched;
-      }
-    }
-
+    const transaction = this.balanceTransactions.get(clReqId);
     if (!transaction || transaction.TransactionType !== ScryptTransactionType.WITHDRAWAL) return null;
-
     return {
       id: transaction.TransactionID,
       status: transaction.Status,
@@ -240,19 +231,42 @@ export class ScryptService extends PricingProvider {
   }
 
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
-    // Fetch fresh from the API (the 5-minute EXCHANGE_TX_SYNC relies on this; the event cache alone can be
-    // stale after a missed WS event). Refresh the cache with what we fetched, then apply the since filter.
-    const transactions = await this.fetchBalanceTransactions(since);
-    for (const t of transactions) this.balanceTransactions.set(t.ClReqID, t);
+    // Fetch fresh from the API so a missed WS event self-heals within one sync cycle. fetchAll (not fetch)
+    // follows pagination so the accounting sync is not truncated to page 1. On failure, degrade LOUDLY to the
+    // last-known-good cache instead of throwing (which would also discard the caller's concurrent trade fetch).
+    let fetched: ScryptBalanceTransaction[] | undefined;
+    try {
+      const filters: Record<string, unknown> = {};
+      if (since) filters.StartDate = since.toISOString();
+      fetched = await this.connection.fetchAll<ScryptBalanceTransaction>(
+        ScryptMessageType.BALANCE_TRANSACTION,
+        filters,
+      );
+    } catch (e) {
+      this.logger.warn('Failed to fetch fresh Scrypt balance transactions; using last-known-good cache:', e);
+    }
 
-    return transactions.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
+    if (fetched) for (const t of fetched) this.cacheBalanceTransaction(t);
+
+    const source = fetched ?? Array.from(this.balanceTransactions.values());
+    return source.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
   }
 
-  private async fetchBalanceTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
-    const filters: Record<string, unknown> = {};
-    if (since) filters.StartDate = since.toISOString();
+  // A balance transaction is terminal when its outcome is final: a rejected/failed transfer, or a completed one
+  // that carries its on-chain tx hash. Non-terminal entries (pending, or completed-without-hash) may still change.
+  private isTerminalBalanceTransaction(t: ScryptBalanceTransaction): boolean {
+    return (
+      [ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(t.Status) ||
+      (t.Status === ScryptTransactionStatus.COMPLETED && !!t.TxHash)
+    );
+  }
 
-    return this.connection.fetch<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION, filters);
+  // Do not let a non-terminal fetched record overwrite a terminal cached one (a fetch can race a fresher WS
+  // event push that already delivered the final state). Otherwise take the fetched record.
+  private cacheBalanceTransaction(t: ScryptBalanceTransaction): void {
+    const existing = this.balanceTransactions.get(t.ClReqID);
+    if (existing && this.isTerminalBalanceTransaction(existing) && !this.isTerminalBalanceTransaction(t)) return;
+    this.balanceTransactions.set(t.ClReqID, t);
   }
 
   private async fetchExecutionReports(since?: Date): Promise<ScryptExecutionReport[]> {

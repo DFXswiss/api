@@ -1,3 +1,4 @@
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ScryptBalanceTransaction, ScryptTransactionStatus, ScryptTransactionType } from '../../dto/scrypt.dto';
 import { ScryptMessageType } from '../scrypt-websocket-connection';
 import { ScryptService } from '../scrypt.service';
@@ -20,23 +21,27 @@ function createWithdrawalTx(overrides: Partial<ScryptBalanceTransaction> = {}): 
 
 describe('ScryptService', () => {
   let service: ScryptService;
-  let fetchMock: jest.Mock;
+  let fetchAllMock: jest.Mock;
+  let warnSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    fetchMock = jest.fn();
+    fetchAllMock = jest.fn();
     service = Object.create(ScryptService.prototype) as ScryptService;
     const mutable = service as unknown as {
       balanceTransactions: Map<string, ScryptBalanceTransaction>;
-      connection: { fetch: jest.Mock };
+      connection: { fetchAll: jest.Mock };
+      logger: DfxLogger;
     };
     mutable.balanceTransactions = new Map();
-    mutable.connection = { fetch: fetchMock };
+    mutable.connection = { fetchAll: fetchAllMock };
+    mutable.logger = new DfxLogger(ScryptService);
+    warnSpy = jest.spyOn(mutable.logger, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => jest.restoreAllMocks());
 
   describe('getWithdrawalStatus', () => {
-    it('returns a cached withdrawal without calling connection.fetch', async () => {
+    it('returns a terminal cached withdrawal without calling fetchAll', async () => {
       const cached = createWithdrawalTx({ ClReqID: 'cl-cached' });
       service['balanceTransactions'].set('cl-cached', cached);
 
@@ -50,75 +55,48 @@ describe('ScryptService', () => {
         rejectReason: undefined,
         rejectText: undefined,
       });
-      expect(fetchMock).not.toHaveBeenCalled();
+      expect(fetchAllMock).not.toHaveBeenCalled();
     });
 
-    it('fetches on cache miss, returns the match, and caches it for subsequent calls', async () => {
-      const fetched = createWithdrawalTx({ ClReqID: 'cl-miss', TransactionID: 'wtx-miss' });
-      fetchMock.mockResolvedValue([fetched]);
+    it('returns a non-terminal cached withdrawal as-is without calling fetchAll', async () => {
+      const cached = createWithdrawalTx({
+        ClReqID: 'cl-pending',
+        Status: ScryptTransactionStatus.COMPLETED,
+        TxHash: undefined,
+      });
+      service['balanceTransactions'].set('cl-pending', cached);
 
-      const first = await service.getWithdrawalStatus('cl-miss');
-      expect(first).toEqual(
-        expect.objectContaining({
-          id: 'wtx-miss',
-          status: ScryptTransactionStatus.COMPLETED,
-          txHash: '0xhash-1',
-          amount: 1.5,
-        }),
-      );
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock).toHaveBeenCalledWith(
-        ScryptMessageType.BALANCE_TRANSACTION,
-        expect.objectContaining({ StartDate: expect.any(String) }),
-      );
+      const result = await service.getWithdrawalStatus('cl-pending');
 
-      const second = await service.getWithdrawalStatus('cl-miss');
-      expect(second).toEqual(first);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        id: 'wtx-1',
+        status: ScryptTransactionStatus.COMPLETED,
+        txHash: undefined,
+        amount: 1.5,
+        rejectReason: undefined,
+        rejectText: undefined,
+      });
+      expect(fetchAllMock).not.toHaveBeenCalled();
     });
 
-    it('returns null when cache miss and fetch has no matching transaction', async () => {
-      fetchMock.mockResolvedValue([createWithdrawalTx({ ClReqID: 'other-id' })]);
+    it('returns null when cache is absent or entry is the wrong TransactionType', async () => {
+      expect(await service.getWithdrawalStatus('missing-id')).toBeNull();
+      expect(fetchAllMock).not.toHaveBeenCalled();
 
-      const result = await service.getWithdrawalStatus('missing-id');
-
-      expect(result).toBeNull();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
-    it('falls through to fetch when the cached entry is a DEPOSIT and uses the fetched withdrawal', async () => {
       const deposit = createWithdrawalTx({
-        ClReqID: 'cl-wrong-type',
+        ClReqID: 'cl-deposit',
         TransactionType: ScryptTransactionType.DEPOSIT,
         TransactionID: 'dep-1',
-        TxHash: '0xdep',
       });
-      service['balanceTransactions'].set('cl-wrong-type', deposit);
+      service['balanceTransactions'].set('cl-deposit', deposit);
 
-      const withdrawal = createWithdrawalTx({
-        ClReqID: 'cl-wrong-type',
-        TransactionID: 'wtx-real',
-        TxHash: '0xwd',
-        Quantity: '2.25',
-      });
-      fetchMock.mockResolvedValue([withdrawal]);
-
-      const result = await service.getWithdrawalStatus('cl-wrong-type');
-
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(result).toEqual(
-        expect.objectContaining({
-          id: 'wtx-real',
-          status: ScryptTransactionStatus.COMPLETED,
-          txHash: '0xwd',
-          amount: 2.25,
-        }),
-      );
+      expect(await service.getWithdrawalStatus('cl-deposit')).toBeNull();
+      expect(fetchAllMock).not.toHaveBeenCalled();
     });
   });
 
   describe('getAllTransactions', () => {
-    it('fetches fresh via connection.fetch, caches all results, and applies the since filter on the return value', async () => {
+    it('calls connection.fetchAll with BALANCE_TRANSACTION and applies the since filter on the return value', async () => {
       const since = new Date('2024-06-15T00:00:00.000Z');
       const oldTx = createWithdrawalTx({
         ClReqID: 'old',
@@ -130,17 +108,104 @@ describe('ScryptService', () => {
         TransactionID: 'new-1',
         TransactTime: '2024-06-20T00:00:00.000Z',
       });
-      fetchMock.mockResolvedValue([oldTx, newTx]);
+      fetchAllMock.mockResolvedValue([oldTx, newTx]);
 
       const result = await service.getAllTransactions(since);
 
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock).toHaveBeenCalledWith(ScryptMessageType.BALANCE_TRANSACTION, {
+      expect(fetchAllMock).toHaveBeenCalledTimes(1);
+      expect(fetchAllMock).toHaveBeenCalledWith(ScryptMessageType.BALANCE_TRANSACTION, {
         StartDate: since.toISOString(),
       });
       expect(result).toEqual([newTx]);
-      expect(service['balanceTransactions'].get('old')).toBe(oldTx);
-      expect(service['balanceTransactions'].get('new')).toBe(newTx);
+    });
+
+    it('does not let a non-terminal fetched record clobber a terminal cached one', async () => {
+      const terminal = createWithdrawalTx({
+        ClReqID: 'X',
+        TransactionID: 'term-1',
+        Status: ScryptTransactionStatus.COMPLETED,
+        TxHash: '0xterminal',
+      });
+      service['balanceTransactions'].set('X', terminal);
+
+      const nonTerminal = createWithdrawalTx({
+        ClReqID: 'X',
+        TransactionID: 'stale-1',
+        Status: ScryptTransactionStatus.COMPLETED,
+        TxHash: undefined,
+      });
+      fetchAllMock.mockResolvedValue([nonTerminal]);
+
+      await service.getAllTransactions();
+
+      expect(service['balanceTransactions'].get('X')).toBe(terminal);
+      const status = await service.getWithdrawalStatus('X');
+      expect(status).toEqual(
+        expect.objectContaining({
+          id: 'term-1',
+          status: ScryptTransactionStatus.COMPLETED,
+          txHash: '0xterminal',
+        }),
+      );
+    });
+
+    it('updates a non-terminal cache entry when fetchAll returns a terminal record', async () => {
+      const nonTerminal = createWithdrawalTx({
+        ClReqID: 'X',
+        TransactionID: 'pending-1',
+        Status: ScryptTransactionStatus.COMPLETED,
+        TxHash: undefined,
+      });
+      service['balanceTransactions'].set('X', nonTerminal);
+
+      const terminal = createWithdrawalTx({
+        ClReqID: 'X',
+        TransactionID: 'term-1',
+        Status: ScryptTransactionStatus.COMPLETED,
+        TxHash: '0xhealed',
+      });
+      fetchAllMock.mockResolvedValue([terminal]);
+
+      await service.getAllTransactions();
+
+      expect(service['balanceTransactions'].get('X')).toBe(terminal);
+      const status = await service.getWithdrawalStatus('X');
+      expect(status).toEqual(
+        expect.objectContaining({
+          id: 'term-1',
+          status: ScryptTransactionStatus.COMPLETED,
+          txHash: '0xhealed',
+        }),
+      );
+    });
+
+    it('logs a warning and falls back to last-known-good cache when fetchAll rejects', async () => {
+      const since = new Date('2024-06-15T00:00:00.000Z');
+      const oldCached = createWithdrawalTx({
+        ClReqID: 'old',
+        TransactionID: 'old-1',
+        TransactTime: '2024-06-01T00:00:00.000Z',
+      });
+      const newCached = createWithdrawalTx({
+        ClReqID: 'new',
+        TransactionID: 'new-1',
+        TransactTime: '2024-06-20T00:00:00.000Z',
+      });
+      service['balanceTransactions'].set('old', oldCached);
+      service['balanceTransactions'].set('new', newCached);
+
+      const error = new Error('ws down');
+      fetchAllMock.mockRejectedValue(error);
+
+      const result = await service.getAllTransactions(since);
+
+      expect(result).toEqual([newCached]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Failed to fetch fresh Scrypt balance transactions; using last-known-good cache:',
+        error,
+      );
+      expect(service['balanceTransactions'].get('old')).toBe(oldCached);
+      expect(service['balanceTransactions'].get('new')).toBe(newCached);
     });
   });
 });
