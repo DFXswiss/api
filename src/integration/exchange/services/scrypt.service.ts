@@ -188,7 +188,18 @@ export class ScryptService extends PricingProvider {
   }
 
   async getWithdrawalStatus(clReqId: string): Promise<ScryptWithdrawStatus | null> {
-    const transaction = this.balanceTransactions.get(clReqId);
+    // Try in-memory cache first
+    let transaction = this.balanceTransactions.get(clReqId);
+
+    // Fallback: fetch from Scrypt API (e.g. after restart or a WS reconnect that missed the event)
+    if (!transaction || transaction.TransactionType !== ScryptTransactionType.WITHDRAWAL) {
+      const transactions = await this.fetchBalanceTransactions(Util.daysBefore(30));
+      const fetched = transactions.find((t) => t.ClReqID === clReqId);
+      if (fetched) {
+        this.balanceTransactions.set(fetched.ClReqID, fetched);
+        transaction = fetched;
+      }
+    }
 
     if (!transaction || transaction.TransactionType !== ScryptTransactionType.WITHDRAWAL) return null;
 
@@ -229,8 +240,19 @@ export class ScryptService extends PricingProvider {
   }
 
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
-    const transactions = Array.from(this.balanceTransactions.values());
+    // Fetch fresh from the API (the 5-minute EXCHANGE_TX_SYNC relies on this; the event cache alone can be
+    // stale after a missed WS event). Refresh the cache with what we fetched, then apply the since filter.
+    const transactions = await this.fetchBalanceTransactions(since);
+    for (const t of transactions) this.balanceTransactions.set(t.ClReqID, t);
+
     return transactions.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
+  }
+
+  private async fetchBalanceTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
+    const filters: Record<string, unknown> = {};
+    if (since) filters.StartDate = since.toISOString();
+
+    return this.connection.fetch<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION, filters);
   }
 
   private async fetchExecutionReports(since?: Date): Promise<ScryptExecutionReport[]> {
