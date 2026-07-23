@@ -196,6 +196,7 @@ export class ScryptWebSocketConnection {
       this.reconnectTimer = undefined;
     }
     this.isReconnecting = false;
+    this.hasEverConnected = false; // full reset: a later reuse re-subscribes as a first connect (no double-send)
     this.reconnectEpoch++; // supersede any in-flight reconnect loop (stale timer/then/catch become no-ops)
     this.connectionState = ConnectionState.DISCONNECTED;
     this.connectionPromise = undefined;
@@ -258,6 +259,12 @@ export class ScryptWebSocketConnection {
     }
 
     this.connectionState = ConnectionState.CONNECTED; // fully ready only now
+    // We are fully connected — clear any reconnect loop, whether it healed us or a business call did.
+    this.isReconnecting = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
   }
 
   private assertCurrentGeneration(generation: number): void {

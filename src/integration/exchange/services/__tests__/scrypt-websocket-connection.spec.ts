@@ -432,6 +432,54 @@ describe('ScryptWebSocketConnection', () => {
     ).toBe(true);
   });
 
+  it('clears stale reconnect state when a business call heals the socket (finding 1 — heal clears isReconnecting)', async () => {
+    const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+
+    firstWs.remoteClose(1006, 'gone');
+    expect((connection as any).isReconnecting).toBe(true);
+    expect((connection as any).reconnectTimer).toBeDefined();
+
+    // Before the backoff timer fires, a business call heals via ensureConnected.
+    const sendPromise = connection.send(ScryptMessageType.TRADE, [{ side: 'buy' }]);
+    await flushPromises();
+    latestWs().open();
+    await flushPromises();
+    await sendPromise;
+
+    expect((connection as any).connectionState).toBe('connected');
+    expect((connection as any).isReconnecting).toBe(false);
+    expect((connection as any).reconnectTimer).toBeUndefined();
+
+    // A second drop on the healed socket must start a fresh reconnect loop (not skipped by stale true).
+    loggerWarn.mockClear();
+    latestWs().remoteClose(1006, 'gone again');
+    expect((connection as any).isReconnecting).toBe(true);
+    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/closed.*scheduling reconnect/));
+  });
+
+  it('disconnect() resets hasEverConnected so a later re-subscribe sends only one SUBSCRIBE (finding 2 — no double-send on reuse)', async () => {
+    const streamName = ScryptMessageType.BALANCE_TRANSACTION;
+    await firstConnectWithStream(streamName);
+
+    await connection.disconnect();
+
+    connection.subscribeToStream(streamName, () => undefined);
+    const newWs = latestWs();
+    newWs.open();
+    await flushPromises();
+
+    const streamSubs = subscribeMessages(newWs).filter((msg: any) =>
+      msg.streams?.some((s: any) => s.name === streamName),
+    );
+    expect(streamSubs).toHaveLength(1);
+    expect(streamSubs[0]).toEqual(
+      expect.objectContaining({
+        type: 'subscribe',
+        streams: [expect.objectContaining({ name: streamName })],
+      }),
+    );
+  });
+
   it('mid-establish drop does not spawn a second establishConnection (concurrency)', async () => {
     const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
     firstWs.remoteClose(1006, 'gone');
