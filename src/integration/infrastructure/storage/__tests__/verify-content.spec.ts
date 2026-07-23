@@ -1,5 +1,6 @@
 import {
   assertHashedSize,
+  assertHashVersionUnchanged,
   assertWithinHashCap,
   classifyKey,
   ContentObject,
@@ -224,6 +225,16 @@ describe('isStillProvenByHash', () => {
   });
 });
 
+describe('assertHashVersionUnchanged', () => {
+  it('does not throw when listed and downloaded ETag are the same', () => {
+    expect(() => assertHashVersionUnchanged('"etag-1"', '"etag-1"', 'azure test/key')).not.toThrow();
+  });
+
+  it('throws when listed and downloaded ETag differ (message includes label)', () => {
+    expect(() => assertHashVersionUnchanged('"etag-1"', '"etag-2"', 'azure test/key')).toThrow(/azure test\/key/);
+  });
+});
+
 describe('parseConfig BACKFILL_PROOF_CUTOFF bounds', () => {
   const envKeys = [
     'BACKFILL_PROOF_CUTOFF',
@@ -275,6 +286,21 @@ describe('parseConfig BACKFILL_PROOF_CUTOFF bounds', () => {
   it('throws when cutoff is not ISO-8601', () => {
     process.env.BACKFILL_PROOF_CUTOFF = '07/14/2026';
     expect(() => parseConfig()).toThrow(/ISO-8601/);
+  });
+
+  it('throws on invalid calendar date that Date would silently roll over', () => {
+    process.env.BACKFILL_PROOF_CUTOFF = '2026-04-31T00:00:00Z';
+    expect(() => parseConfig()).toThrow();
+  });
+
+  it('throws when cutoff is not UTC-anchored (missing Z)', () => {
+    process.env.BACKFILL_PROOF_CUTOFF = '2026-07-14T00:00:00';
+    expect(() => parseConfig()).toThrow(/UTC/);
+  });
+
+  it('does not throw for valid UTC ISO-8601 cutoff in the past', () => {
+    process.env.BACKFILL_PROOF_CUTOFF = '2026-07-14T00:00:00Z';
+    expect(() => parseConfig()).not.toThrow();
   });
 });
 

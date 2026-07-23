@@ -52,7 +52,7 @@
  *   - Azure: AZURE_STORAGE_CONNECTION_STRING
  *   - Containers: CLI positional args or VERIFY_CONTAINERS (space- and/or comma-separated)
  *   - Mode: --hash-delta or VERIFY_HASH_DELTA=true (default: REPORT)
- *   - BACKFILL_PROOF_CUTOFF: required ISO-8601 date string
+ *   - BACKFILL_PROOF_CUTOFF: required UTC ISO-8601 date string (YYYY-MM-DDTHH:mm:ssZ)
  *   - BACKFILL_CONTENT_PROVEN: only exact 'true' enables backfill-covered (else false)
  *   - Hash cap: VERIFY_HASH_CAP (positive integer) or DEFAULT_HASH_CAP
  *   - HASH_CONCURRENCY: fixed documented constant (not env-configurable)
@@ -82,8 +82,8 @@ const MAX_FIXPOINT_ITERATIONS = 10;
 /** Pacing delay (ms) between concurrent hash batches to avoid I/O storms. */
 const HASH_BATCH_PACING_MS = 100;
 
-/** Strict ISO-8601 date (optional time / fraction / timezone) for BACKFILL_PROOF_CUTOFF. */
-const ISO_8601_REGEX = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
+/** UTC-only, seconds mandatory, `Z` suffix mandatory for BACKFILL_PROOF_CUTOFF. */
+const ISO_8601_UTC_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
 export interface ContentObject {
   key: string;
@@ -154,6 +154,19 @@ export function md5Matches(azureContentMd5: string | undefined, s3Etag: string |
  */
 export function objectSignature(azure: ContentObject, s3: ContentObject): string {
   return `${azure.etag}|${azure.size}|${s3.etag}|${s3.size}`;
+}
+
+/**
+ * Guards against TOCTOU/ABA: the object that was actually hashed (download-time ETag)
+ * must be the exact same version that was listed (listing-time ETag) — otherwise the
+ * proof we are about to store would vouch for bytes we never actually hashed.
+ */
+export function assertHashVersionUnchanged(listedEtag: string, downloadedEtag: string, label: string): void {
+  if (listedEtag !== downloadedEtag) {
+    throw new Error(
+      `object changed between listing and hash — ${label}: listedEtag=${listedEtag} downloadedEtag=${downloadedEtag}`,
+    );
+  }
 }
 
 /**
@@ -376,12 +389,15 @@ export function parseConfig(): {
         'Set it to the backfill completion timestamp used as the content-proof cutoff.',
     );
   }
-  if (!ISO_8601_REGEX.test(cutoffRaw)) {
-    throw new Error(`BACKFILL_PROOF_CUTOFF must be ISO-8601: ${cutoffRaw}`);
+  if (!ISO_8601_UTC_REGEX.test(cutoffRaw)) {
+    throw new Error(`BACKFILL_PROOF_CUTOFF must be UTC ISO-8601 ending in Z: ${cutoffRaw}`);
   }
   const backfillCutoff = new Date(cutoffRaw);
   if (Number.isNaN(backfillCutoff.getTime())) {
     throw new Error(`Invalid BACKFILL_PROOF_CUTOFF: ${cutoffRaw} (expected ISO-8601 date string)`);
+  }
+  if (backfillCutoff.toISOString().slice(0, 19) !== cutoffRaw.slice(0, 19)) {
+    throw new Error(`BACKFILL_PROOF_CUTOFF is not a valid calendar date/time (rolled over): ${cutoffRaw}`);
   }
   if (backfillCutoff.getTime() > Date.now()) {
     throw new Error(
@@ -445,20 +461,37 @@ export async function streamSha256(readable: NodeJS.ReadableStream, expectedSize
   });
 }
 
-async function hashAzureBlob(containerClient: ContainerClient, key: string, expectedSize: number): Promise<string> {
+async function hashAzureBlob(
+  containerClient: ContainerClient,
+  key: string,
+  expectedSize: number,
+): Promise<{ digest: string; etag: string }> {
   const download = await containerClient.getBlobClient(key).download();
   if (!download.readableStreamBody) {
     throw new Error(`Empty readableStreamBody for Azure blob "${containerClient.containerName}/${key}"`);
   }
-  return streamSha256(download.readableStreamBody, expectedSize);
+  if (!download.etag) {
+    throw new Error(`Missing etag on Azure download response for "${containerClient.containerName}/${key}"`);
+  }
+  const digest = await streamSha256(download.readableStreamBody, expectedSize);
+  return { digest, etag: download.etag };
 }
 
-async function hashS3Object(client: S3Client, bucket: string, key: string, expectedSize: number): Promise<string> {
+async function hashS3Object(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  expectedSize: number,
+): Promise<{ digest: string; etag: string }> {
   const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   if (!res.Body) {
     throw new Error(`Empty body for S3 object "${bucket}/${key}"`);
   }
-  return streamSha256(res.Body as NodeJS.ReadableStream, expectedSize);
+  if (!res.ETag) {
+    throw new Error(`Missing ETag on S3 GetObject response for "${bucket}/${key}"`);
+  }
+  const digest = await streamSha256(res.Body as NodeJS.ReadableStream, expectedSize);
+  return { digest, etag: res.ETag };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -709,18 +742,30 @@ async function main(): Promise<number> {
           const expectedSize = azureObj.size;
 
           const azureContainer = azure.getContainerClient(item.container);
-          const [azureDigest, s3Digest] = await Promise.all([
+          const [azureResult, s3Result] = await Promise.all([
             hashAzureBlob(azureContainer, item.key, expectedSize),
             hashS3Object(s3, item.container, item.key, expectedSize),
           ]);
 
-          if (azureDigest === s3Digest) {
+          try {
+            assertHashVersionUnchanged(azureObj.etag, azureResult.etag, `azure ${item.container}/${item.key}`);
+            assertHashVersionUnchanged(s3Obj.etag, s3Result.etag, `s3 ${item.container}/${item.key}`);
+          } catch (versionErr) {
+            console.log(
+              `SKIP (changed during hash, will re-list) ${item.container}/${item.key}: ` +
+                `${(versionErr as Error).message}`,
+            );
+            return;
+          }
+
+          if (azureResult.digest === s3Result.digest) {
             provenByHash.set(scopedKey(item.container, item.key), objectSignature(azureObj, s3Obj));
             console.log(`HASH MATCH ${item.container}/${item.key}`);
           } else {
             contentDivergence.push({ container: item.container, key: item.key });
             console.error(
-              `CONTENT DIVERGENCE ${item.container}/${item.key}: ` + `azureSha256=${azureDigest} s3Sha256=${s3Digest}`,
+              `CONTENT DIVERGENCE ${item.container}/${item.key}: ` +
+                `azureSha256=${azureResult.digest} s3Sha256=${s3Result.digest}`,
             );
           }
         } catch (e) {
