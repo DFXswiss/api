@@ -4,9 +4,9 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { AzureStorageService } from '../azure-storage.service';
 
 const CONTAINER = 'kyc';
-const AZURE_URL = 'https://dfxstorage.blob.core.windows.net/';
+const AZURE_URL = 'https://myaccount.blob.core.windows.net/';
 const CONNECTION_STRING =
-  'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net;BlobEndpoint=https://dfxstorage.blob.core.windows.net/';
+  'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net;BlobEndpoint=https://myaccount.blob.core.windows.net/';
 
 const validAzure = {
   storage: {
@@ -22,7 +22,7 @@ function mockBlobClient(
     data?: Buffer;
     uploadData?: jest.Mock;
   } = {},
-) {
+): { getProperties: jest.Mock; downloadToBuffer: jest.Mock; uploadData: jest.Mock } {
   return {
     getProperties: jest.fn().mockResolvedValue(
       overrides.properties ?? {
@@ -42,7 +42,7 @@ function mockContainerClient(
     blobItems?: Array<{ name: string; properties?: Record<string, unknown>; metadata?: Record<string, string> }>;
     blobClient?: ReturnType<typeof mockBlobClient>;
   } = {},
-) {
+): { listBlobsFlat: jest.Mock; getBlockBlobClient: jest.Mock; _blobClient: ReturnType<typeof mockBlobClient> } {
   const blobClient = opts.blobClient ?? mockBlobClient();
   const blobItems = opts.blobItems ?? [];
 

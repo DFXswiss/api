@@ -7,7 +7,7 @@ import { S3StorageService } from '../s3-storage.service';
 
 const CONTAINER = 'kyc';
 const S3_PUBLIC_URL = 'https://files.test.local/';
-const AZURE_URL = 'https://dfxstorage.blob.core.windows.net/';
+const AZURE_URL = 'https://myaccount.blob.core.windows.net/';
 
 const validS3 = {
   endpoint: 'https://s3.test.local',
@@ -21,7 +21,7 @@ const validAzure = {
   storage: {
     url: AZURE_URL,
     connectionString:
-      'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net;BlobEndpoint=https://dfxstorage.blob.core.windows.net/',
+      'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net;BlobEndpoint=https://myaccount.blob.core.windows.net/',
   },
 };
 
