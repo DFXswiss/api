@@ -760,4 +760,123 @@ describe('ScryptWebSocketConnection', () => {
     expect(scheduleSpy.mock.calls.length).toBe(scheduleCountBeforeLoopB + 1);
     expect(WebSocket.instances.length).toBe(constructCountWithLoopBPending);
   });
+
+  it('fetchAll sends a cancel after collecting all pages', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.BALANCE_TRANSACTION;
+
+    const fetchPromise = connection.fetchAll(streamName);
+    await flushPromises();
+
+    // First page (subscribe) — find the ad-hoc subscribe reqid (not the long-lived stream sub).
+    const page1Send = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(page1Send).toBeDefined();
+    const reqId = page1Send!.msg.reqid as number;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        initial: true,
+        data: [{ id: 1 }],
+        next: 'cursor1',
+      }),
+    );
+    await flushPromises();
+
+    // Second page (page request reuses the same reqid)
+    const page2Send = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .find(({ msg }) => msg.type === 'page' && msg.reqid === reqId);
+    expect(page2Send).toBeDefined();
+    const page2Idx = page2Send!.idx;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        data: [{ id: 2 }],
+      }),
+    );
+    await flushPromises();
+
+    const result = await fetchPromise;
+    expect(result).toEqual([{ id: 1 }, { id: 2 }]);
+
+    const cancelSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .find(({ msg }) => msg.type === 'cancel' && msg.reqid === reqId);
+    expect(cancelSend).toBeDefined();
+    expect(cancelSend!.msg).toEqual({ reqid: reqId, type: 'cancel' });
+    // Cancel must be sent after the page-2 request (collection complete).
+    expect(cancelSend!.idx).toBeGreaterThan(page2Idx);
+  });
+
+  it('fetch sends a cancel after collecting its response', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.EXECUTION_REPORT;
+
+    const fetchPromise = connection.fetch(streamName);
+    await flushPromises();
+
+    const subscribeSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(subscribeSend).toBeDefined();
+    const reqId = subscribeSend!.msg.reqid as number;
+    const subscribeIdx = subscribeSend!.idx;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        initial: true,
+        data: [{ ClOrdID: 'ord-1' }],
+      }),
+    );
+    await flushPromises();
+
+    const result = await fetchPromise;
+    expect(result).toEqual([{ ClOrdID: 'ord-1' }]);
+
+    const cancelSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .find(({ msg }) => msg.type === 'cancel' && msg.reqid === reqId);
+    expect(cancelSend).toBeDefined();
+    expect(cancelSend!.msg).toEqual({ reqid: reqId, type: 'cancel' });
+    expect(cancelSend!.idx).toBeGreaterThan(subscribeIdx);
+  });
+
+  it('sendCancel is a no-op when the socket is not open', () => {
+    expect(WebSocket.instances.length).toBe(0);
+    expect((connection as any).ws).toBeUndefined();
+
+    expect(() => (connection as any).sendCancel(123)).not.toThrow();
+
+    expect(WebSocket.instances.length).toBe(0);
+  });
+
+  it('fires onReconnect callbacks on genuine reconnect but not on first connect', async () => {
+    const cb = jest.fn();
+    connection.onReconnect(cb);
+
+    await firstConnectWithStream();
+    expect(cb).not.toHaveBeenCalled();
+
+    const firstWs = latestWs();
+    firstWs.remoteClose(1006, 'gone');
+    await fireReconnectAttempt(0);
+    const reconnectedWs = latestWs();
+    reconnectedWs.open();
+    await flushPromises();
+
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
 });

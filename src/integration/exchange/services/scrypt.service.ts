@@ -107,6 +107,43 @@ export class ScryptService extends PricingProvider {
         }
       },
     );
+
+    this.connection.onReconnect(() => this.catchUpAfterReconnect());
+  }
+
+  private isTerminalBalanceTransaction(t: ScryptBalanceTransaction): boolean {
+    return (
+      [ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(t.Status) ||
+      (t.Status === ScryptTransactionStatus.COMPLETED && !!t.TxHash)
+    );
+  }
+
+  private cacheBalanceTransaction(t: ScryptBalanceTransaction): void {
+    const existing = this.balanceTransactions.get(t.ClReqID);
+    if (existing && this.isTerminalBalanceTransaction(existing) && !this.isTerminalBalanceTransaction(t)) return;
+    this.balanceTransactions.set(t.ClReqID, t);
+  }
+
+  // After a WS reconnect, re-fetch balance transactions + execution reports so an event missed during the outage
+  // is recovered (a bare re-subscribe is not documented to replay it). Mirrors the constructor warm-up's fetchAll,
+  // but not its subscribeToStream (resubscription is handled by the reconnect itself). Best-effort; logs on failure.
+  private async catchUpAfterReconnect(): Promise<void> {
+    const cacheMaxAge = Util.daysBefore(365);
+    try {
+      const reports = await this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
+      for (const r of reports)
+        if (!r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge) this.executionReports.set(r.ClOrdID, r);
+    } catch (e) {
+      this.logger.error('Scrypt reconnect catch-up (execution reports) failed:', e);
+    }
+    try {
+      const transactions = await this.connection.fetchAll<ScryptBalanceTransaction>(
+        ScryptMessageType.BALANCE_TRANSACTION,
+      );
+      for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
+    } catch (e) {
+      this.logger.error('Scrypt reconnect catch-up (balance transactions) failed:', e);
+    }
   }
 
   // --- BALANCES --- //

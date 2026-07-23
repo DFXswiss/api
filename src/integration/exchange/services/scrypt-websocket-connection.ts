@@ -41,6 +41,7 @@ enum ScryptRequestType {
   SUBSCRIBE = 'subscribe',
   UNSUBSCRIBE = 'unsubscribe',
   PAGE = 'page',
+  CANCEL = 'cancel',
 }
 
 export const TRANSIENT_WS_ERROR_MARKERS = ['Connection closed', 'unknown reqid'];
@@ -80,6 +81,7 @@ export class ScryptWebSocketConnection {
   private isReconnecting = false; // guards against overlapping reconnect loops
   private reconnectEpoch = 0; // bumped on disconnect / new loop so stale scheduleReconnect continuations no-op
   private reconnectTimer?: NodeJS.Timeout;
+  private reconnectCallbacks: Array<() => void> = [];
 
   // requests
   private reqIdCounter = 0;
@@ -103,12 +105,15 @@ export class ScryptWebSocketConnection {
 
   async fetch<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
     const doFetch = async (): Promise<T[]> => {
-      const response = await this.request({
+      const reqId = ++this.reqIdCounter;
+      const response = await this.requestWithId(reqId, {
         type: ScryptRequestType.SUBSCRIBE,
         streams: [{ name: streamName, ...filters }],
       });
 
       if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
+
+      this.sendCancel(reqId);
 
       return (response.data ?? []) as T[];
     };
@@ -141,10 +146,18 @@ export class ScryptWebSocketConnection {
         allData.push(...((response.data ?? []) as T[]));
       }
 
+      this.sendCancel(reqId);
+
       return allData;
     };
 
     return this.retryOnTransientWsError(doFetch, `fetchAll ${streamName}`);
+  }
+
+  // Register a callback fired after a successful RE-connect (not the first connect). Used to re-fetch state that
+  // a bare re-subscribe does not replay (see ScryptService catch-up). Callbacks must not throw / handle their own errors.
+  onReconnect(callback: () => void): void {
+    this.reconnectCallbacks.push(callback);
   }
 
   private async retryOnTransientWsError<T>(operation: () => Promise<T>, label: string): Promise<T> {
@@ -244,6 +257,7 @@ export class ScryptWebSocketConnection {
   // CONNECTING until the very end, so a business call arriving mid-resubscribe joins connectionPromise (via
   // connect()'s CONNECTING branch) rather than proceeding on the half-ready socket.
   private async establishConnection(generation: number): Promise<void> {
+    const isReconnect = this.hasEverConnected;
     // rejects on error or handshake timeout; a close-before-open without an error is bounded by the
     // handshake timeout (it does not itself reject)
     await this.connectWebSocket(generation);
@@ -264,6 +278,17 @@ export class ScryptWebSocketConnection {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
+    }
+    if (isReconnect) this.fireReconnectCallbacks();
+  }
+
+  private fireReconnectCallbacks(): void {
+    for (const cb of this.reconnectCallbacks) {
+      try {
+        cb();
+      } catch (e) {
+        this.logger.error('Scrypt onReconnect callback failed:', e);
+      }
     }
   }
 
@@ -433,6 +458,17 @@ export class ScryptWebSocketConnection {
       request.reject(new Error(`Scrypt error: ${errorMsg}`));
     } else {
       request.resolve(message);
+    }
+  }
+
+  // Stop an ad-hoc fetch/fetchAll stream by its request id (venue: cancel-by-reqid, no response). Best-effort:
+  // if the socket is not open the server-side stream is moot anyway; never throw (must not affect the fetch result).
+  private sendCancel(reqId: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    try {
+      this.ws.send(JSON.stringify({ reqid: reqId, type: ScryptRequestType.CANCEL }));
+    } catch (e) {
+      this.logger.warn(`Failed to cancel Scrypt stream ${reqId}:`, e);
     }
   }
 
