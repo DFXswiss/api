@@ -1,13 +1,15 @@
 import {
   DEFAULT_RETENTION_YEARS,
+  GEBUEV_RETENTION_CEILING_YEARS,
   GEBUEV_RETENTION_FLOOR_YEARS,
   getRetentionYears,
 } from '../../../../../scripts/storage/provision-bucket';
 
-// Proves the GeBüV retention-floor guard in the WORM bucket provisioning script: COMPLIANCE-mode
-// Object Lock retention is extend-only/irreversible, so a value below the 10-year floor must fail
-// closed rather than silently under-retain compliance objects.
-describe('provision-bucket getRetentionYears (GeBüV retention floor)', () => {
+// Proves the GeBüV retention-floor/ceiling guard in the WORM bucket provisioning script:
+// COMPLIANCE-mode Object Lock retention is extend-only/irreversible, so a value below the
+// 10-year floor or above the 12-year ceiling must fail closed rather than silently under- or
+// over-retain compliance objects.
+describe('provision-bucket getRetentionYears (GeBüV retention floor/ceiling)', () => {
   const RETENTION_ENV = 'RETENTION_YEARS';
   let savedEnv: string | undefined;
   let savedArgv: string[];
@@ -28,6 +30,10 @@ describe('provision-bucket getRetentionYears (GeBüV retention floor)', () => {
 
   it('exposes a 10-year GeBüV floor', () => {
     expect(GEBUEV_RETENTION_FLOOR_YEARS).toBe(10);
+  });
+
+  it('exposes a 12-year GeBüV retention ceiling', () => {
+    expect(GEBUEV_RETENTION_CEILING_YEARS).toBe(12);
   });
 
   it('defaults to 11 years (GeBüV 10y + safety margin) when unset', () => {
@@ -54,6 +60,23 @@ describe('provision-bucket getRetentionYears (GeBüV retention floor)', () => {
   it('accepts 11 years (the default, above the floor)', () => {
     process.env[RETENTION_ENV] = String(DEFAULT_RETENTION_YEARS);
     expect(getRetentionYears()).toBe(DEFAULT_RETENTION_YEARS);
+  });
+
+  it('accepts exactly the 12-year ceiling', () => {
+    process.env[RETENTION_ENV] = String(GEBUEV_RETENTION_CEILING_YEARS);
+    expect(getRetentionYears()).toBe(GEBUEV_RETENTION_CEILING_YEARS);
+  });
+
+  it('rejects RETENTION_YEARS=13 with a ceiling error naming both bounds', () => {
+    process.env[RETENTION_ENV] = '13';
+    expect(() => getRetentionYears()).toThrow(/retention ceiling/);
+    expect(() => getRetentionYears()).toThrow(new RegExp(String(GEBUEV_RETENTION_CEILING_YEARS)));
+    expect(() => getRetentionYears()).toThrow(new RegExp(String(GEBUEV_RETENTION_FLOOR_YEARS)));
+  });
+
+  it('rejects every year above the ceiling', () => {
+    process.env[RETENTION_ENV] = String(GEBUEV_RETENTION_CEILING_YEARS + 1);
+    expect(() => getRetentionYears()).toThrow(/retention ceiling/);
   });
 
   it('still rejects non-positive / non-integer values before the floor check', () => {

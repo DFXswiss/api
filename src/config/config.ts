@@ -36,6 +36,24 @@ export enum Environment {
   PRD = 'prd',
 }
 
+export type StorageWriteMode = 'azure' | 'dual' | 's3';
+export type StorageReadSource = 'azure' | 's3';
+
+const STORAGE_WRITE_MODES: StorageWriteMode[] = ['azure', 'dual', 's3'];
+const STORAGE_READ_SOURCES: StorageReadSource[] = ['azure', 's3'];
+
+// Exported so both the Configuration getter below and CompositeStorageService's lazy re-check can
+// reuse the identical rule and error text — never duplicate the invalid-combination logic.
+export function assertValidStorageCombo(writeMode: StorageWriteMode, readSource: StorageReadSource): void {
+  if ((writeMode === 'azure' && readSource === 's3') || (writeMode === 's3' && readSource === 'azure'))
+    throw new Error(
+      `Invalid storage config: STORAGE_WRITE_MODE="${writeMode}" cannot be combined with ` +
+        `STORAGE_READ_SOURCE="${readSource}" (reading from a store that receives no writes / is not ` +
+        `kept in sync with the write side). Valid combinations: (azure,azure), (dual,azure), ` +
+        `(dual,s3), (s3,s3).`,
+    );
+}
+
 type Version = '1' | '2';
 
 export function GetConfig(): Configuration {
@@ -1298,6 +1316,12 @@ export class Configuration {
     tenantId: process.env.AZURE_TENANT_ID,
     clientId: process.env.AZURE_CLIENT_ID,
     clientSecret: process.env.AZURE_CLIENT_SECRET,
+    storage: {
+      url: process.env.AZURE_STORAGE_CONNECTION_STRING?.split(';')
+        .find((p) => p.includes('BlobEndpoint'))
+        ?.replace('BlobEndpoint=', ''),
+      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    },
   };
 
   // S3-compatible object storage (on-prem MinIO) — replacement for Azure Blob.
@@ -1310,6 +1334,40 @@ export class Configuration {
     secretKey: process.env.S3_SECRET_KEY,
     publicUrl: process.env.S3_PUBLIC_URL,
   };
+
+  // Storage migration knobs (Azure -> MinIO dual-write cutover). Two independent switches so every
+  // step is individually reversible. Getter (not a plain field): only runs when Config.storage is
+  // accessed, so unrelated GetConfig() paths never crash on missing migration env vars. Full
+  // validation of both vars + the combo runs on every access (fail-loud on read).
+  get storage(): { writeMode: StorageWriteMode; readSource: StorageReadSource } {
+    if (this.environment === Environment.LOC) {
+      // Never actually consulted for LOC (the factory routes LOC to MockStorageService before ever
+      // touching this getter) — return the raw values uncast/unvalidated so a direct access in LOC
+      // (e.g. from a test) never throws.
+      return {
+        writeMode: process.env.STORAGE_WRITE_MODE as StorageWriteMode,
+        readSource: process.env.STORAGE_READ_SOURCE as StorageReadSource,
+      };
+    }
+
+    const writeMode = process.env.STORAGE_WRITE_MODE as StorageWriteMode;
+    if (!STORAGE_WRITE_MODES.includes(writeMode))
+      throw new Error(
+        `Missing/invalid STORAGE_WRITE_MODE: "${process.env.STORAGE_WRITE_MODE}" ` +
+          `(expected one of: ${STORAGE_WRITE_MODES.join(', ')})`,
+      );
+
+    const readSource = process.env.STORAGE_READ_SOURCE as StorageReadSource;
+    if (!STORAGE_READ_SOURCES.includes(readSource))
+      throw new Error(
+        `Missing/invalid STORAGE_READ_SOURCE: "${process.env.STORAGE_READ_SOURCE}" ` +
+          `(expected one of: ${STORAGE_READ_SOURCES.join(', ')})`,
+      );
+
+    assertValidStorageCombo(writeMode, readSource);
+
+    return { writeMode, readSource };
+  }
 
   alby = {
     clientId: process.env.ALBY_CLIENT_ID,

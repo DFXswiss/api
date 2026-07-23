@@ -44,16 +44,29 @@ describe('Config bootstrap ordering', () => {
     // Without this, sourcing a local .env with ENVIRONMENT=loc would make the factory return
     // a MockStorageService instead, and this test would pass vacuously even against the old,
     // broken (eager Config-reading) S3StorageService constructor.
+    // Also pin STORAGE_WRITE_MODE / STORAGE_READ_SOURCE: for any non-LOC environment the
+    // factory's cfg.storage.writeMode / readSource getter is fail-loud when those env vars
+    // are missing/invalid (see assertValidStorageCombo in src/config/config.ts).
     let savedEnvironment: string | undefined;
+    let savedStorageWriteMode: string | undefined;
+    let savedStorageReadSource: string | undefined;
 
     beforeEach(() => {
       savedEnvironment = process.env.ENVIRONMENT;
+      savedStorageWriteMode = process.env.STORAGE_WRITE_MODE;
+      savedStorageReadSource = process.env.STORAGE_READ_SOURCE;
       process.env.ENVIRONMENT = Environment.DEV;
+      process.env.STORAGE_WRITE_MODE = 's3';
+      process.env.STORAGE_READ_SOURCE = 's3';
     });
 
     afterEach(() => {
       if (savedEnvironment === undefined) delete process.env.ENVIRONMENT;
       else process.env.ENVIRONMENT = savedEnvironment;
+      if (savedStorageWriteMode === undefined) delete process.env.STORAGE_WRITE_MODE;
+      else process.env.STORAGE_WRITE_MODE = savedStorageWriteMode;
+      if (savedStorageReadSource === undefined) delete process.env.STORAGE_READ_SOURCE;
+      else process.env.STORAGE_READ_SOURCE = savedStorageReadSource;
     });
 
     it('constructs without reading the uninitialized Config singleton', () => {

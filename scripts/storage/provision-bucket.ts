@@ -44,7 +44,10 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-import { GEBUEV_RETENTION_FLOOR_YEARS } from '../../src/integration/infrastructure/storage/worm-retention.const';
+import {
+  GEBUEV_RETENTION_CEILING_YEARS,
+  GEBUEV_RETENTION_FLOOR_YEARS,
+} from '../../src/integration/infrastructure/storage/worm-retention.const';
 
 /** GeBüV floor + 1-year safety margin; single source for the script's default retention. */
 export const DEFAULT_RETENTION_YEARS = GEBUEV_RETENTION_FLOOR_YEARS + 1;
@@ -55,7 +58,7 @@ function getBucketName(): string {
   return bucket;
 }
 
-export { GEBUEV_RETENTION_FLOOR_YEARS };
+export { GEBUEV_RETENTION_CEILING_YEARS, GEBUEV_RETENTION_FLOOR_YEARS };
 
 export function getRetentionYears(): number {
   const raw = process.env.RETENTION_YEARS ?? process.argv[3];
@@ -69,6 +72,12 @@ export function getRetentionYears(): number {
       `RETENTION_YEARS=${years} is below the GeBüV ${GEBUEV_RETENTION_FLOOR_YEARS}-year retention floor. ` +
         `COMPLIANCE-mode WORM retention is extend-only and irreversible, so refusing to provision an ` +
         `under-retained bucket. Set RETENTION_YEARS to at least ${GEBUEV_RETENTION_FLOOR_YEARS} (default ${DEFAULT_RETENTION_YEARS}).`,
+    );
+  if (years > GEBUEV_RETENTION_CEILING_YEARS)
+    throw new Error(
+      `RETENTION_YEARS=${years} exceeds the GeBüV retention ceiling of ${GEBUEV_RETENTION_CEILING_YEARS} years ` +
+        `(valid range: ${GEBUEV_RETENTION_FLOOR_YEARS}-${GEBUEV_RETENTION_CEILING_YEARS}). COMPLIANCE-mode ` +
+        `retention is extend-only and irreversible, so refusing to provision an over-retained bucket.`,
     );
   return years;
 }
