@@ -73,6 +73,9 @@ export class ScryptWebSocketConnection {
   private connectionPromise?: Promise<void>;
 
   private readonly reconnectDelay = 5000; // 5 seconds
+  private readonly maxReconnectDelay = 60000; // 60s cap for the exponential backoff
+  private hasEverConnected = false; // first connect subscribes directly; later connects must resubscribe
+  private isReconnecting = false; // guards against overlapping reconnect loops
 
   // requests
   private reqIdCounter = 0;
@@ -214,6 +217,19 @@ export class ScryptWebSocketConnection {
     try {
       await this.connectionPromise;
       this.connectionState = ConnectionState.CONNECTED;
+
+      if (this.hasEverConnected) {
+        // Every re-connect (including the implicit one via ensureConnected from a business call) must restore the
+        // subscriptions — otherwise the raw socket heals but the streams (e.g. BalanceTransaction) stay dead
+        // (#4310 B). Safe from recursion: state is CONNECTED and ws is OPEN here, so sendSubscription→
+        // ensureConnected returns immediately without re-entering connect(). resubscribeToStreams swallows
+        // per-stream errors, so it cannot fail this connect.
+        await this.resubscribeToStreams();
+      } else {
+        // First connect: the initial subscribe() call(s) send their own SUBSCRIBE directly; resubscribing here
+        // would double-send. Mark connected so all subsequent connects take the resubscribe path above.
+        this.hasEverConnected = true;
+      }
     } catch (error) {
       this.connectionState = ConnectionState.DISCONNECTED;
       this.connectionPromise = undefined;
@@ -288,17 +304,28 @@ export class ScryptWebSocketConnection {
     this.pendingRequests.clear();
 
     // reconnect
-    if (wasConnected) {
-      this.logger.warn(
-        `Scrypt WebSocket closed (code: ${code}, reason: ${reason}), attempting reconnect in ${this.reconnectDelay}ms`,
-      );
-
-      setTimeout(() => {
-        void this.connect()
-          .then(() => this.resubscribeToStreams())
-          .catch((error) => this.logger.error('Reconnection failed:', error));
-      }, this.reconnectDelay);
+    if (wasConnected && !this.isReconnecting) {
+      this.isReconnecting = true;
+      this.logger.warn(`Scrypt WebSocket closed (code: ${code}, reason: ${reason}), scheduling reconnect`);
+      this.scheduleReconnect(0);
     }
+  }
+
+  private scheduleReconnect(attempt: number): void {
+    const delay = Math.min(this.reconnectDelay * 2 ** attempt, this.maxReconnectDelay);
+    setTimeout(() => {
+      void this.connect()
+        .then(() => {
+          this.isReconnecting = false;
+          this.logger.info(`Scrypt WebSocket reconnected (after ${attempt + 1} attempt(s))`);
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `Scrypt WebSocket reconnect attempt ${attempt + 1} failed: ${error}; retrying in up to ${this.maxReconnectDelay}ms`,
+          );
+          this.scheduleReconnect(attempt + 1);
+        });
+    }, delay);
   }
 
   // --- REQUEST/RESPONSE --- //
@@ -444,15 +471,12 @@ export class ScryptWebSocketConnection {
   }
 
   private async resubscribeToStreams(): Promise<void> {
-    const streams = Array.from(this.activeStreams);
-    this.activeStreams.clear();
-
-    for (const streamName of streams) {
+    for (const streamName of Array.from(this.activeStreams)) {
       try {
         await this.sendSubscription(streamName);
-        this.activeStreams.add(streamName);
       } catch (error) {
         this.logger.error(`Failed to resubscribe to ${streamName}:`, error);
+        // keep it in activeStreams so the next reconnect retries it (do not drop it)
       }
     }
   }
