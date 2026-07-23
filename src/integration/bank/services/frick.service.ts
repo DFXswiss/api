@@ -380,6 +380,12 @@ export class BankFrickService {
     // Bank Frick's real BOOKED transaction objects carry neither customId nor type - requiring them
     // here would make every settled payout throw and never reach a terminal state. Trust the filter:
     // customId/type are validated when present, but their absence is not itself an error.
+    // Empty lookup results are accepted only via an explicit whitelist of empty encodings (fully
+    // empty body, or an object whose sole keys are the three known result fields in empty states).
+    // Unknown keys, wrapper shapes, and bare arrays are not treated as empty and therefore fall
+    // through to the strict validation below, so a schema shift can never be misread as "no
+    // existing order" on the payout path.
+    if (this.isEmptyTransactionsResponse(response)) return undefined;
     this.validateTransactionsResponse(response, false);
 
     if (response.moreResults) throw new Error(`Ambiguous Bank Frick payment lookup for ${customId}`);
@@ -401,6 +407,61 @@ export class BankFrickService {
     return matches[0];
   }
 
+  private isEmptyTransactionsResponse(response: unknown): boolean {
+    // Only the exact empty encodings we accept on purpose: an entirely empty body, or an object
+    // consisting solely of the three known result fields in their empty states. Any unknown key,
+    // array response, or wrapper shape must keep failing loud through the strict validation so a
+    // schema shift can never be misread as "no existing order" on the payout path.
+    if (response === undefined || response === null || response === '') return true;
+    if (typeof response !== 'object' || Array.isArray(response)) return false;
+
+    const body = response as Record<string, unknown>;
+    const knownKeys = ['transactions', 'resultSetSize', 'moreResults'];
+    if (!Object.keys(body).every((key) => knownKeys.includes(key))) return false;
+
+    const emptyTransactions =
+      body.transactions === undefined ||
+      body.transactions === null ||
+      (Array.isArray(body.transactions) && body.transactions.length === 0);
+    const emptyResultSetSize =
+      body.resultSetSize === undefined || body.resultSetSize === null || body.resultSetSize === 0;
+    const emptyMoreResults = body.moreResults === undefined || body.moreResults === null || body.moreResults === false;
+
+    return emptyTransactions && emptyResultSetSize && emptyMoreResults;
+  }
+
+  private describeTransactionsResponseShape(response: unknown): string {
+    if (response === null || typeof response !== 'object') return `typeof=${typeof response}`;
+
+    const body = response as Record<string, unknown>;
+    // key names are schema metadata needed for diagnosis; values are never printed except the two
+    // numeric/boolean counters
+    const allKeys = Object.keys(body);
+    const shownKeys = allKeys.slice(0, 10).map((key) => (key.length > 24 ? key.slice(0, 24) : key));
+    const overflow = allKeys.length - shownKeys.length;
+    const keys = overflow > 0 ? `${shownKeys.join(', ')}, +${overflow} more` : shownKeys.join(', ');
+
+    const moreResultsDesc =
+      typeof body.moreResults === 'boolean' ? String(body.moreResults) : `typeof ${typeof body.moreResults}`;
+    const resultSetSizeDesc =
+      typeof body.resultSetSize === 'number' ? String(body.resultSetSize) : `typeof ${typeof body.resultSetSize}`;
+
+    const transactions = body.transactions;
+    let transactionsDesc: string;
+    if (transactions === undefined || transactions === null) {
+      transactionsDesc = 'missing';
+    } else if (Array.isArray(transactions)) {
+      transactionsDesc = `array(${transactions.length})`;
+    } else {
+      transactionsDesc = `typeof ${typeof transactions}`;
+    }
+
+    return (
+      `keys: [${keys}], moreResults=${moreResultsDesc}, resultSetSize=${resultSetSizeDesc}, ` +
+      `transactions=${transactionsDesc}`
+    );
+  }
+
   private validateTransactionsResponse(response: FrickTransactionsResponse, requireTypeAndCustomId: boolean): void {
     if (
       !response ||
@@ -410,7 +471,7 @@ export class BankFrickService {
       !Array.isArray(response.transactions) ||
       response.resultSetSize !== response.transactions.length
     )
-      throw new Error('Invalid Bank Frick transactions response');
+      throw new Error(`Invalid Bank Frick transactions response (${this.describeTransactionsResponseShape(response)})`);
 
     for (const payment of response.transactions) {
       const hasValidCustomId =
