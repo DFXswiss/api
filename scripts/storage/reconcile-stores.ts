@@ -11,14 +11,15 @@
  * Comparison is (key, size) plus a lastModified overwrite signature — key presence alone is
  * not enough: an Azure overwrite of a key after backfill leaves identical key sets with
  * diverging content; after Azure teardown the stale S3 copy would become truth (silent data
- * loss). Same-size content overwrites are NOT detectable here (would need a byte-hash scrub
- * — deliberately out of scope); lastModified only catches time-skewed overwrites within
- * OVERWRITE_SKEW_TOLERANCE_MS. The hard gate is (key, size) parity only (onlyOnAzure,
+ * loss). Same-size content overwrites are NOT detectable here (would need a full byte-level
+ * comparison — deliberately out of scope); lastModified only catches time-skewed overwrites
+ * within OVERWRITE_SKEW_TOLERANCE_MS. The hard gate is (key, size) parity only (onlyOnAzure,
  * onlyOnS3, sizeMismatch); suspectedOverwrite is advisory (lastModified heuristic) and is
  * systematically false-positive after heals because a healed object receives a new
- * lastModified. Exit code 0 therefore proves (key, size) parity — it does NOT prove
- * byte-identity. Same-size objects with different content are not detectable by this script;
- * a separate Azure↔S3 byte-/content-hash gate is required before Azure teardown.
+ * lastModified. Exit code 0 therefore proves (key, size) parity only — it does NOT prove
+ * byte-identity. Same-size objects with different content are not detectable by this tool
+ * and require a separate, not-yet-built byte-level Azure↔S3 verification before Azure
+ * teardown (that check is not part of this tool).
  *
  * Overwrite direction is one-sided on purpose: only azure.lastModified >= s3.lastModified +
  * tolerance is flagged. The reverse (s3 newer than azure) is the normal backfill / dual-write
@@ -92,17 +93,14 @@ export interface DiffResult {
   suspectedOverwrite: string[];
 }
 
-// --- Pure diff / guards (unit-testable, no I/O) ---------------------------------------------
+// Unit-testable pure helpers — no I/O.
+// --- PURE DIFF / GUARDS --- //
 
 /**
  * Compare Azure and S3 object inventories by (key, size) and lastModified overwrite signature.
  * Pure: no network or filesystem calls.
  */
-export function diffStores(
-  azureObjs: StoredObject[],
-  s3Objs: StoredObject[],
-  skewToleranceMs: number,
-): DiffResult {
+export function diffStores(azureObjs: StoredObject[], s3Objs: StoredObject[], skewToleranceMs: number): DiffResult {
   const azureMap = new Map<string, StoredObject>();
   for (const o of azureObjs) azureMap.set(o.key, o);
 
@@ -185,11 +183,7 @@ export function assertRequestedContainersExist(existingS3Buckets: string[], requ
  * Fail if any existing S3 bucket is neither in the requested reconcile list nor in the
  * explicit ignore list (RECONCILE_IGNORE_BUCKETS). Completeness gate for cutover.
  */
-export function assertBucketsAccounted(
-  existingS3Buckets: string[],
-  requested: string[],
-  ignore: string[],
-): void {
+export function assertBucketsAccounted(existingS3Buckets: string[], requested: string[], ignore: string[]): void {
   const accounted = new Set([...requested, ...ignore]);
   const unaccounted = existingS3Buckets.filter((name) => !accounted.has(name));
   if (unaccounted.length > 0) {
@@ -206,7 +200,7 @@ export function assertBucketsAccounted(
  * token would leave the inventory incomplete if the loop simply stopped.
  */
 export function assertPageComplete(isTruncated: boolean, nextToken: string | undefined): void {
-  if (isTruncated && nextToken === undefined) {
+  if (isTruncated && !nextToken) {
     throw new Error(
       'S3 ListObjectsV2 reported IsTruncated=true without NextContinuationToken; ' +
         'inventory would be incomplete if pagination stopped here.',
@@ -247,7 +241,8 @@ export async function assertBucketWorm(
   verified.set(bucket, true);
 }
 
-// --- Listing (size/lastModified from list pages only — no HeadObject per key) --------------
+// size/lastModified from list pages only — no HeadObject per key.
+// --- LISTING --- //
 
 export async function listS3Objects(client: S3Client, bucket: string): Promise<StoredObject[]> {
   const objects: StoredObject[] = [];
@@ -300,7 +295,7 @@ export async function listAzureObjects(containerClient: ContainerClient): Promis
   return objects;
 }
 
-// --- Clients / config ----------------------------------------------------------------------
+// --- CLIENTS / CONFIG --- //
 
 function buildS3Client(): S3Client {
   const endpoint = process.env.S3_ENDPOINT;
@@ -322,8 +317,7 @@ function buildS3Client(): S3Client {
 
 function buildAzureClient(): BlobServiceClient {
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
-  if (!connectionString)
-    throw new Error('Incomplete Azure config: AZURE_STORAGE_CONNECTION_STRING is required');
+  if (!connectionString) throw new Error('Incomplete Azure config: AZURE_STORAGE_CONNECTION_STRING is required');
 
   return BlobServiceClient.fromConnectionString(connectionString);
 }
@@ -403,7 +397,7 @@ function isEmptyDiff(diff: DiffResult): boolean {
   );
 }
 
-function additiveCount(diff: DiffResult): number {
+function countAdditive(diff: DiffResult): number {
   return diff.onlyOnAzure.length + diff.onlyOnS3.length;
 }
 
@@ -427,16 +421,24 @@ export async function streamToBuffer(readable: NodeJS.ReadableStream): Promise<B
   });
 }
 
-function isS3PreconditionFailed(err: any): boolean {
-  return err?.$metadata?.httpStatusCode === 412 || err?.name === 'PreconditionFailed';
+export function isS3PreconditionFailed(err: unknown): boolean {
+  const e = err as {
+    $metadata?: { httpStatusCode?: number };
+    name?: string;
+    statusCode?: number;
+    details?: { errorCode?: string };
+  };
+  return e?.$metadata?.httpStatusCode === 412 || e?.name === 'PreconditionFailed';
 }
 
-function isAzurePreconditionFailed(err: any): boolean {
-  return (
-    err?.statusCode === 409 ||
-    err?.statusCode === 412 ||
-    err?.details?.errorCode === 'BlobAlreadyExists'
-  );
+export function isAzurePreconditionFailed(err: unknown): boolean {
+  const e = err as {
+    $metadata?: { httpStatusCode?: number };
+    name?: string;
+    statusCode?: number;
+    details?: { errorCode?: string };
+  };
+  return e?.statusCode === 412 || e?.details?.errorCode === 'BlobAlreadyExists';
 }
 
 async function copyAzureToS3(
@@ -463,7 +465,7 @@ async function copyAzureToS3(
         IfNoneMatch: '*',
       }),
     );
-  } catch (err: any) {
+  } catch (err) {
     if (isS3PreconditionFailed(err)) {
       console.log(`SKIPPED (appeared concurrently) azure->s3 ${bucket}/${key}`);
       return 'skipped';
@@ -490,7 +492,7 @@ async function copyS3ToAzure(
       metadata: res.Metadata,
       conditions: { ifNoneMatch: '*' },
     });
-  } catch (err: any) {
+  } catch (err) {
     if (isAzurePreconditionFailed(err)) {
       console.log(`SKIPPED (appeared concurrently) s3->azure ${bucket}/${key}`);
       return 'skipped';
@@ -501,7 +503,7 @@ async function copyS3ToAzure(
   return 'healed';
 }
 
-// --- main ----------------------------------------------------------------------------------
+// --- MAIN --- //
 
 async function main(): Promise<number> {
   const { containers, ignoreBuckets, heal, healCap, verbose } = parseConfig();
@@ -515,10 +517,22 @@ async function main(): Promise<number> {
       `skewToleranceMs=${OVERWRITE_SKEW_TOLERANCE_MS}`,
   );
 
-  const bucketsRes = await s3.send(new ListBucketsCommand({}));
-  const existingS3Buckets = (bucketsRes.Buckets ?? [])
-    .map((b) => b.Name)
-    .filter((n): n is string => n != null && n !== '');
+  const existingS3Buckets: string[] = [];
+  let listBucketsToken: string | undefined;
+
+  do {
+    const bucketsRes = await s3.send(new ListBucketsCommand({ ContinuationToken: listBucketsToken }));
+
+    for (const b of bucketsRes.Buckets ?? []) {
+      if (b.Name == null || b.Name === '') {
+        throw new Error('Incomplete S3 ListBuckets entry: Name is required (refusing silent skip of unnamed bucket)');
+      }
+      existingS3Buckets.push(b.Name);
+    }
+
+    // Same falsy-token termination as listS3Objects / assertPageComplete (!token covers '' and undefined).
+    listBucketsToken = bucketsRes.ContinuationToken;
+  } while (listBucketsToken);
 
   assertRequestedContainersExist(existingS3Buckets, containers);
   assertBucketsAccounted(existingS3Buckets, containers, ignoreBuckets);
@@ -543,7 +557,7 @@ async function main(): Promise<number> {
       printCategory('sizeMismatch', diff.sizeMismatch, verbose);
       printCategory('suspectedOverwrite', diff.suspectedOverwrite, verbose);
       if (isEmptyDiff(diff)) console.log('    OK: no divergence');
-    } catch (e: any) {
+    } catch (e) {
       throw new Error(`[container="${container}"] ${e?.message ?? e}`, { cause: e });
     }
   }
@@ -573,16 +587,18 @@ async function main(): Promise<number> {
       if (r.diff.suspectedOverwrite.length > 0) {
         console.log(
           `ADVISORY: suspectedOverwrite=${r.diff.suspectedOverwrite.length} in ${r.container} ` +
-            `(lastModified hint; unreliable after heals -- authoritative same-size check is the ` +
-            `separate content-hash gate; does NOT block the gate)`,
+            `(lastModified hint; unreliable after heals -- NOTE: (key,size) parity only; byte identity ` +
+            `is NOT verified here. Same-size content divergence is out of scope and requires a separate ` +
+            `byte-level Azure/S3 comparison (not part of this tool) before Azure teardown; does NOT block the gate)`,
         );
       }
     }
     console.log(
       `RECONCILED: 0 (key,size) divergence across ${containers.length} containers ` +
         `(hard gate is (key,size) parity; suspectedOverwrite is an advisory lastModified hint, ` +
-        `unreliable after heals) -- NOTE: byte-identity is NOT proven; run the separate ` +
-        `content-hash gate before Azure teardown.`,
+        `unreliable after heals) -- NOTE: (key,size) parity only; byte identity is NOT verified here. ` +
+        `Same-size content divergence is out of scope and requires a separate byte-level Azure/S3 ` +
+        `comparison (not part of this tool) before Azure teardown.`,
     );
     return 0;
   }
@@ -598,7 +614,7 @@ async function main(): Promise<number> {
   }
 
   // HEAL: additive copies only (never delete; never overwrite content divergence)
-  const totalAdditive = reports.reduce((sum, r) => sum + additiveCount(r.diff), 0);
+  const totalAdditive = reports.reduce((sum, r) => sum + countAdditive(r.diff), 0);
   assertWithinHealCap(totalAdditive, healCap);
 
   const wormVerified = new Map<string, boolean>();
@@ -629,7 +645,7 @@ async function main(): Promise<number> {
           skippedCount++;
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       throw new Error(`[container="${r.container}"] ${e?.message ?? e}`, { cause: e });
     }
   }
@@ -661,15 +677,14 @@ async function main(): Promise<number> {
         `\n[post-heal ${container}] sizeMismatch=${diff.sizeMismatch.length} ` +
           `suspectedOverwrite=${diff.suspectedOverwrite.length}`,
       );
-    } catch (e: any) {
+    } catch (e) {
       throw new Error(`[container="${container}"] ${e?.message ?? e}`, { cause: e });
     }
   }
 
   if (residualMismatch > 0) {
     console.error(
-      `DIVERGENCE after heal: sizeMismatch=${residualMismatch} ` +
-        `(not auto-healable). Gate remains red.`,
+      `DIVERGENCE after heal: sizeMismatch=${residualMismatch} ` + `(not auto-healable). Gate remains red.`,
     );
     return 1;
   }
@@ -677,16 +692,18 @@ async function main(): Promise<number> {
   if (residualOverwrite > 0) {
     console.log(
       `ADVISORY: residual suspectedOverwrite=${residualOverwrite} after heal ` +
-        `(lastModified hint; unreliable after heals -- authoritative same-size check is the ` +
-        `separate content-hash gate; does NOT block the gate)`,
+        `(lastModified hint; unreliable after heals -- NOTE: (key,size) parity only; byte identity ` +
+        `is NOT verified here. Same-size content divergence is out of scope and requires a separate ` +
+        `byte-level Azure/S3 comparison (not part of this tool) before Azure teardown; does NOT block the gate)`,
     );
   }
 
   console.log(
     `RECONCILED: 0 (key,size) divergence across ${containers.length} containers ` +
       `(hard gate is (key,size) parity; suspectedOverwrite is an advisory lastModified hint, ` +
-      `unreliable after heals) -- NOTE: byte-identity is NOT proven; run the separate ` +
-      `content-hash gate before Azure teardown.`,
+      `unreliable after heals) -- NOTE: (key,size) parity only; byte identity is NOT verified here. ` +
+      `Same-size content divergence is out of scope and requires a separate byte-level Azure/S3 ` +
+      `comparison (not part of this tool) before Azure teardown.`,
   );
   return 0;
 }

@@ -7,13 +7,15 @@ import {
   DEFAULT_HEAL_CAP,
   diffStores,
   DiffResult,
+  isAzurePreconditionFailed,
   isGateBlocking,
+  isS3PreconditionFailed,
   OVERWRITE_SKEW_TOLERANCE_MS,
   parseConfig,
   StoredObject,
 } from '../../../../../scripts/storage/reconcile-stores';
 
-function obj(key: string, size: number, lastModified: Date): StoredObject {
+function storedObject(key: string, size: number, lastModified: Date): StoredObject {
   return { key, size, lastModified };
 }
 
@@ -22,8 +24,8 @@ const skewMs = 60 * 60 * 1000; // 1 hour — matches OVERWRITE_SKEW_TOLERANCE_MS
 
 describe('diffStores', () => {
   it('returns empty lists when inventories are identical', () => {
-    const azure = [obj('a', 10, t0), obj('b', 20, t0)];
-    const s3 = [obj('a', 10, t0), obj('b', 20, t0)];
+    const azure = [storedObject('a', 10, t0), storedObject('b', 20, t0)];
+    const s3 = [storedObject('a', 10, t0), storedObject('b', 20, t0)];
     const diff: DiffResult = diffStores(azure, s3, skewMs);
     expect(diff.onlyOnAzure).toEqual([]);
     expect(diff.onlyOnS3).toEqual([]);
@@ -32,7 +34,7 @@ describe('diffStores', () => {
   });
 
   it('puts keys present only on Azure into onlyOnAzure', () => {
-    const azure = [obj('only-az', 1, t0)];
+    const azure = [storedObject('only-az', 1, t0)];
     const s3: StoredObject[] = [];
     const diff = diffStores(azure, s3, skewMs);
     expect(diff.onlyOnAzure).toEqual(['only-az']);
@@ -43,7 +45,7 @@ describe('diffStores', () => {
 
   it('puts keys present only on S3 into onlyOnS3', () => {
     const azure: StoredObject[] = [];
-    const s3 = [obj('only-s3', 1, t0)];
+    const s3 = [storedObject('only-s3', 1, t0)];
     const diff = diffStores(azure, s3, skewMs);
     expect(diff.onlyOnAzure).toEqual([]);
     expect(diff.onlyOnS3).toEqual(['only-s3']);
@@ -52,8 +54,8 @@ describe('diffStores', () => {
   });
 
   it('puts same key with different size into sizeMismatch', () => {
-    const azure = [obj('k', 100, t0)];
-    const s3 = [obj('k', 99, t0)];
+    const azure = [storedObject('k', 100, t0)];
+    const s3 = [storedObject('k', 99, t0)];
     const diff = diffStores(azure, s3, skewMs);
     expect(diff.sizeMismatch).toEqual(['k']);
     expect(diff.onlyOnAzure).toEqual([]);
@@ -64,8 +66,8 @@ describe('diffStores', () => {
   it('puts same key/size with Azure lastModified beyond skew into suspectedOverwrite', () => {
     const s3Time = t0;
     const azureTime = new Date(t0.getTime() + skewMs + 1);
-    const azure = [obj('k', 50, azureTime)];
-    const s3 = [obj('k', 50, s3Time)];
+    const azure = [storedObject('k', 50, azureTime)];
+    const s3 = [storedObject('k', 50, s3Time)];
     const diff = diffStores(azure, s3, skewMs);
     expect(diff.suspectedOverwrite).toEqual(['k']);
     expect(diff.sizeMismatch).toEqual([]);
@@ -76,8 +78,8 @@ describe('diffStores', () => {
   // Documented (key,size) trust boundary of diffStores — byte equality is intentionally not checked
   // (see source docblock: "Same-size objects with different content are not detectable by this script").
   it('does not flag same key/size/lastModified (same-size different content is undetectable)', () => {
-    const azure = [obj('k', 50, t0)];
-    const s3 = [obj('k', 50, t0)];
+    const azure = [storedObject('k', 50, t0)];
+    const s3 = [storedObject('k', 50, t0)];
     const diff = diffStores(azure, s3, skewMs);
     expect(diff.sizeMismatch).toEqual([]);
     expect(diff.suspectedOverwrite).toEqual([]);
@@ -89,8 +91,8 @@ describe('diffStores', () => {
   it('flags suspectedOverwrite when Azure lastModified is exactly at skew tolerance boundary', () => {
     const s3Time = t0;
     const azureTime = new Date(s3Time.getTime() + OVERWRITE_SKEW_TOLERANCE_MS);
-    const azure = [obj('k', 50, azureTime)];
-    const s3 = [obj('k', 50, s3Time)];
+    const azure = [storedObject('k', 50, azureTime)];
+    const s3 = [storedObject('k', 50, s3Time)];
     const diff = diffStores(azure, s3, OVERWRITE_SKEW_TOLERANCE_MS);
     expect(diff.suspectedOverwrite).toEqual(['k']);
     expect(diff.sizeMismatch).toEqual([]);
@@ -101,8 +103,8 @@ describe('diffStores', () => {
   it('does not flag suspectedOverwrite when Azure lastModified is just under skew tolerance', () => {
     const s3Time = t0;
     const azureTime = new Date(s3Time.getTime() + OVERWRITE_SKEW_TOLERANCE_MS - 1);
-    const azure = [obj('k', 50, azureTime)];
-    const s3 = [obj('k', 50, s3Time)];
+    const azure = [storedObject('k', 50, azureTime)];
+    const s3 = [storedObject('k', 50, s3Time)];
     const diff = diffStores(azure, s3, OVERWRITE_SKEW_TOLERANCE_MS);
     expect(diff.suspectedOverwrite).toEqual([]);
     expect(diff.sizeMismatch).toEqual([]);
@@ -346,11 +348,55 @@ describe('assertPageComplete', () => {
     expect(() => assertPageComplete(true, undefined)).toThrow(/IsTruncated/);
   });
 
+  it('throws when truncated with an empty next token', () => {
+    expect(() => assertPageComplete(true, '')).toThrow(/IsTruncated/);
+  });
+
   it('does not throw when truncated with a next token', () => {
     expect(() => assertPageComplete(true, 'some-token')).not.toThrow();
   });
 
   it('does not throw when not truncated', () => {
     expect(() => assertPageComplete(false, undefined)).not.toThrow();
+  });
+});
+
+describe('isS3PreconditionFailed', () => {
+  it('returns true for httpStatusCode 412', () => {
+    expect(isS3PreconditionFailed({ $metadata: { httpStatusCode: 412 } })).toBe(true);
+  });
+
+  it('returns true for name PreconditionFailed', () => {
+    expect(isS3PreconditionFailed({ name: 'PreconditionFailed' })).toBe(true);
+  });
+
+  it('returns false for httpStatusCode 500', () => {
+    expect(isS3PreconditionFailed({ $metadata: { httpStatusCode: 500 } })).toBe(false);
+  });
+
+  it('returns false for undefined', () => {
+    expect(isS3PreconditionFailed(undefined)).toBe(false);
+  });
+
+  it('returns false for empty object', () => {
+    expect(isS3PreconditionFailed({})).toBe(false);
+  });
+});
+
+describe('isAzurePreconditionFailed', () => {
+  it('returns true for statusCode 412', () => {
+    expect(isAzurePreconditionFailed({ statusCode: 412 })).toBe(true);
+  });
+
+  it('returns true for BlobAlreadyExists errorCode', () => {
+    expect(isAzurePreconditionFailed({ details: { errorCode: 'BlobAlreadyExists' } })).toBe(true);
+  });
+
+  it('returns false for generic statusCode 409 without BlobAlreadyExists', () => {
+    expect(isAzurePreconditionFailed({ statusCode: 409 })).toBe(false);
+  });
+
+  it('returns false for statusCode 500', () => {
+    expect(isAzurePreconditionFailed({ statusCode: 500 })).toBe(false);
   });
 });
