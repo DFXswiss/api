@@ -74,7 +74,7 @@ export interface BalancesTotal {
    * Set (true) only when this entry was adopted as valid via the stability path — i.e. a level shift beyond
    * `financeLogTotalBalanceChangeLimit` that was trusted because the current total and its predecessors form
    * a stable plateau, not because it hugs the last valid baseline. Absent (not false) on normal-drift entries.
-   * The ledger equity-parity check excludes these level-shift adoptions from its median baseline (#4313).
+   * Intended to let a future ledger equity-parity check (#4313) exclude these level-shift adoptions from its median baseline — not yet consumed anywhere as of this change.
    */
   validatedByStability?: boolean;
 }

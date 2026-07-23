@@ -156,7 +156,11 @@ export class LogJobService {
         !totalBalanceIsFinite || !minTotalBalanceIsFinite || totalBalanceChf < minTotalBalanceChf;
       await this.processService.setSafetyModeActive(safetyModeActive);
 
-      const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
+      const stabilityWindow = Config.financeLogStabilityWindow;
+      const [lastLog, predecessors] = await Promise.all([
+        this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true),
+        this.logService.getLatestFinancialLogs(stabilityWindow - 1),
+      ]);
       const lastFinanceLog = JSON.parse(lastLog.message) as FinanceLog;
       const lastTotalBalance = lastFinanceLog.balancesTotal.totalBalanceChf;
 
@@ -176,11 +180,16 @@ export class LogJobService {
       // valid:false until it either stabilises (then the plateau adopts it) or an operator runs the audited
       // PUT /log/financial/validity sweep. Time alone must never validate a single unverified reading — a
       // still-moving equity level is not a trustworthy baseline.
-      const stabilityWindow = Config.financeLogStabilityWindow;
-      const predecessors = await this.logService.getLatestFinancialLogs(stabilityWindow - 1);
-      const predecessorTotals = predecessors.map(
-        (l) => (JSON.parse(l.message) as FinanceLog).balancesTotal.totalBalanceChf,
-      );
+      // Note: LogService.create dedups a byte-identical message, so a stuck feed replaying identical snapshots
+      // never fills the window and stays valid:false (fail-safe, needs a manual sweep).
+      const predecessorTotals = predecessors.map((l) => {
+        try {
+          return (JSON.parse(l.message) as FinanceLog).balancesTotal.totalBalanceChf;
+        } catch (e) {
+          this.logger.error(`Skipping malformed FinancialDataLog predecessor ${l.id} in stability window:`, e);
+          return NaN; // non-finite blocks stability adoption this run (isStablePlateau's every(Number.isFinite) guard) without aborting the cron
+        }
+      });
       const stabilityValues = [totalBalanceChf, ...predecessorTotals];
       const isStablePlateau =
         stabilityWindow >= 2 &&
@@ -193,7 +202,8 @@ export class LogJobService {
         Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit;
 
       // A level-shift adoption = trusted purely because the new level is stable, not because it hugs the
-      // baseline. Tag these so the ledger equity-parity check (#4313) can exclude them from its median.
+      // baseline. Tag these so a future ledger equity-parity check (#4313) can exclude them from its median
+      // (not yet consumed anywhere).
       const validatedByStability = totalBalanceIsFinite && !nearBaseline && isStablePlateau;
 
       const valid = totalBalanceIsFinite && (nearBaseline || isStablePlateau);
