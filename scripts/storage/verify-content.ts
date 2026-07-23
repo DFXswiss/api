@@ -32,7 +32,10 @@
  * Must run during the dual-write phase, before Azure is switched off / s3-only. A final,
  * fully-authoritative run belongs inside a write-freeze window so concurrent writes cannot
  * race the inventory (the --hash-delta fixpoint loop re-checks keys modified after run
- * start, but a freeze is the only truly authoritative boundary).
+ * start, but a freeze is the only truly authoritative boundary). A green (passing) result
+ * from this gate is authoritative ONLY when the run was executed inside a write freeze,
+ * because Azure and S3 are listed sequentially / non-atomically, so an overwrite that
+ * lands in the window between the two listings is not detectable.
  *
  * BACKFILL_CONTENT_PROVEN precondition: set to the exact string 'true' ONLY after
  * confirming from the backfill run logs that zero objects had unverifiable/unchecked
@@ -677,6 +680,12 @@ async function main(): Promise<number> {
         `CONTENT VERIFIED (REPORT): all shared keys are metadata-match or backfill-covered; ` +
           `0 size-mismatch, 0 needs-hash, 0 missingKeys across ${containers.length} container(s).`,
       );
+      console.log(
+        `AUTHORITATIVE ONLY UNDER A WRITE FREEZE: this gate lists Azure and S3 non-atomically, ` +
+          `so an overwrite during the listing window is not detectable. Treat a green result ` +
+          `from an unfrozen (live dual-write) run as provisional; the final authoritative run ` +
+          `MUST hold a write freeze.`,
+      );
       return 0;
     }
 
@@ -933,6 +942,12 @@ async function main(): Promise<number> {
     console.log(
       `CONTENT VERIFIED (HASH-DELTA): 0 contentDivergence, 0 remaining needs-hash, ` +
         `0 size-mismatch, 0 missingKeys across ${containers.length} container(s).`,
+    );
+    console.log(
+      `AUTHORITATIVE ONLY UNDER A WRITE FREEZE: this gate lists Azure and S3 non-atomically, ` +
+        `so an overwrite during the listing window is not detectable. Treat a green result ` +
+        `from an unfrozen (live dual-write) run as provisional; the final authoritative run ` +
+        `MUST hold a write freeze.`,
     );
     return 0;
   }
