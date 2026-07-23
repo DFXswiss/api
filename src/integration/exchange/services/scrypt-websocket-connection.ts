@@ -217,12 +217,17 @@ export class ScryptWebSocketConnection {
     if (this.connectionState === ConnectionState.CONNECTING && this.connectionPromise) return this.connectionPromise;
 
     this.connectionState = ConnectionState.CONNECTING;
-    this.connectionPromise = this.establishConnection();
+    const promise = this.establishConnection();
+    this.connectionPromise = promise;
     try {
-      await this.connectionPromise;
+      await promise;
     } catch (error) {
-      this.connectionState = ConnectionState.DISCONNECTED;
-      this.connectionPromise = undefined;
+      // Only the owner of the current in-flight promise may reset state — a late reject from a
+      // stale establish must not clobber a newer attempt that already installed its own promise.
+      if (this.connectionPromise === promise) {
+        this.connectionState = ConnectionState.DISCONNECTED;
+        this.connectionPromise = undefined;
+      }
       throw error;
     }
   }
@@ -311,8 +316,11 @@ export class ScryptWebSocketConnection {
   }
 
   private handleDisconnection(code?: number, reason?: string): void {
+    // Only flip to DISCONNECTED when the live socket dropped. A mid-establish close (CONNECTING)
+    // must leave state alone so concurrent connect() callers still join connectionPromise instead
+    // of starting a second establishConnection.
     const wasConnected = this.connectionState === ConnectionState.CONNECTED;
-    this.connectionState = ConnectionState.DISCONNECTED;
+    if (wasConnected) this.connectionState = ConnectionState.DISCONNECTED;
     this.ws = undefined;
 
     // reject pending requests

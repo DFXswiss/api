@@ -385,15 +385,24 @@ describe('ScryptWebSocketConnection', () => {
     await fireReconnectAttempt(0);
     const reconnectedWs = latestWs();
 
-    // Drop the socket as soon as a SUBSCRIBE is attempted during resubscribe.
+    // Emit a real close during resubscribe so handleDisconnection actually runs (not just a
+    // readyState flip that only trips assertSocketOpen). Mid-establish → CONNECTING must stay.
+    let stateAtDrop: string | undefined;
     reconnectedWs.send.mockImplementation(() => {
-      reconnectedWs.readyState = WebSocket.CLOSED;
+      reconnectedWs.remoteClose(1006, 'drop mid-resubscribe');
+      // handleDisconnection is sync on emit; Fix A leaves CONNECTING (was not CONNECTED).
+      // Captured here (not asserted) because this callback runs inside resubscribeToStreams'
+      // try/catch, which would otherwise swallow a failing expect() and make it vacuous.
+      stateAtDrop = (connection as any).connectionState;
     });
 
     reconnectedWs.open();
     await flushPromises();
 
     // connect() must reject → no success log; isReconnecting stays true; next attempt scheduled.
+    // Final DISCONNECTED comes from connect()'s catch after establishConnection rejects, not from
+    // handleDisconnection (which left CONNECTING — asserted above via stateAtDrop).
+    expect(stateAtDrop).toBe('connecting');
     expect(loggerInfo).not.toHaveBeenCalledWith(expect.stringMatching(/reconnected/));
     expect((connection as any).isReconnecting).toBe(true);
     expect((connection as any).connectionState).toBe('disconnected');
@@ -415,6 +424,57 @@ describe('ScryptWebSocketConnection', () => {
     expect(
       subscribeMessages(retryWs).some((msg: any) => msg.streams?.[0]?.name === ScryptMessageType.BALANCE_TRANSACTION),
     ).toBe(true);
+  });
+
+  it('mid-establish drop does not spawn a second establishConnection (concurrency)', async () => {
+    const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+    firstWs.remoteClose(1006, 'gone');
+
+    // Gate resubscribe so we can observe the CONNECTING window after a real mid-establish close.
+    let releaseResubscribe!: () => void;
+    const resubscribeGate = new Promise<void>((resolve) => {
+      releaseResubscribe = resolve;
+    });
+    const originalResubscribe = (connection as any).resubscribeToStreams.bind(connection);
+    jest.spyOn(connection as any, 'resubscribeToStreams').mockImplementation(async () => {
+      await resubscribeGate;
+      return originalResubscribe();
+    });
+
+    await fireReconnectAttempt(0);
+    const reconnectedWs = latestWs();
+    reconnectedWs.open();
+    await flushPromises();
+
+    // Handshake done, resubscribe gated — still CONNECTING with an in-flight connectionPromise.
+    expect((connection as any).connectionState).toBe('connecting');
+    expect((connection as any).connectionPromise).toBeDefined();
+    const inFlightPromise = (connection as any).connectionPromise;
+    const constructCountBeforeClose = WebSocket.instances.length;
+
+    // Real close mid-establish: Fix A leaves CONNECTING (was not CONNECTED).
+    reconnectedWs.remoteClose(1006, 'drop mid-establish');
+    expect((connection as any).connectionState).toBe('connecting');
+    expect((connection as any).connectionPromise).toBe(inFlightPromise);
+    expect((connection as any).ws).toBeUndefined();
+
+    // Concurrent business call must join the same in-flight promise — no second WebSocket.
+    const sendPromise = connection.send(ScryptMessageType.TRADE, [{ side: 'buy' }]);
+    await flushPromises();
+
+    expect(WebSocket.instances.length).toBe(constructCountBeforeClose);
+    expect((connection as any).connectionState).toBe('connecting');
+    expect((connection as any).connectionPromise).toBe(inFlightPromise);
+
+    // Let establishConnection finish: resubscribe sees dead socket, assertSocketOpen rejects.
+    releaseResubscribe();
+    await flushPromises();
+
+    await expect(sendPromise).rejects.toThrow();
+    expect((connection as any).connectionState).toBe('disconnected');
+    expect((connection as any).connectionPromise).toBeUndefined();
+    // Still no extra socket constructed during the concurrent join window.
+    expect(WebSocket.instances.length).toBe(constructCountBeforeClose);
   });
 
   it('resubscribes all active streams on reconnect (multi-stream)', async () => {
