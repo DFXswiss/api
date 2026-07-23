@@ -137,6 +137,25 @@ describe('ScryptService', () => {
     expect((service as any).balanceTransactions.get('c')).toEqual(freshTerminal);
   });
 
+  it('cacheBalanceTransaction does not suppress keyless non-terminal after keyless terminal (ClReqID optional)', () => {
+    const now = new Date().toISOString();
+    const terminalNoKey = {
+      TransactionID: 'tx-keyless-terminal',
+      Status: ScryptTransactionStatus.FAILED,
+      Timestamp: now,
+    };
+    const nonTerminalNoKey = {
+      TransactionID: 'tx-keyless-nonterminal',
+      Status: ScryptTransactionStatus.COMPLETED,
+      Timestamp: now,
+    };
+
+    (service as any).cacheBalanceTransaction(terminalNoKey);
+    (service as any).cacheBalanceTransaction(nonTerminalNoKey);
+
+    expect((service as any).balanceTransactions.get(undefined)).toEqual(nonTerminalNoKey);
+  });
+
   it('registers catch-up via connection.onReconnect in the constructor', async () => {
     expect(instance.onReconnect).toHaveBeenCalledTimes(1);
     expect(instance.onReconnect).toHaveBeenCalledWith(expect.any(Function));
@@ -248,6 +267,42 @@ describe('ScryptService', () => {
 
     expect((service as any).executionReports.get('ord-live-1')).toBe(terminalBefore);
     expect((service as any).executionReports.get('ord-live-1')).toEqual(existingTerminal);
+  });
+
+  it('getOrderStatus fallback does not clobber a live terminal push that arrived during the API await', async () => {
+    const now = new Date().toISOString();
+    const staleNonTerminal = {
+      ClOrdID: 'X',
+      Symbol: 'BTC-USD',
+      Side: 'Buy',
+      OrdStatus: ScryptOrderStatus.NEW,
+      OrderQty: '1',
+      CumQty: '0',
+      LeavesQty: '1',
+      SubmitTime: now,
+    };
+    const liveTerminal = {
+      ClOrdID: 'X',
+      Symbol: 'BTC-USD',
+      Side: 'Buy',
+      OrdStatus: ScryptOrderStatus.FILLED,
+      OrderQty: '1',
+      CumQty: '1',
+      LeavesQty: '0',
+      SubmitTime: now,
+    };
+
+    expect((service as any).executionReports.get('X')).toBeUndefined();
+
+    (instance as any).fetch.mockImplementation(async () => {
+      (service as any).cacheExecutionReport(liveTerminal);
+      return [staleNonTerminal];
+    });
+
+    const result = await (service as any).getOrderStatus('X');
+
+    expect(result).toEqual(expect.objectContaining({ status: ScryptOrderStatus.FILLED }));
+    expect((service as any).executionReports.get('X')).toEqual(liveTerminal);
   });
 
   it('constructor warm-up BalanceTransaction fetch goes through the terminal-aware guard', async () => {

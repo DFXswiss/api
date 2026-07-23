@@ -110,7 +110,10 @@ export class ScryptService extends PricingProvider {
 
   private cacheBalanceTransaction(t: ScryptBalanceTransaction): void {
     const existing = this.balanceTransactions.get(t.ClReqID);
-    if (existing && this.isTerminalBalanceTransaction(existing) && !this.isTerminalBalanceTransaction(t)) return;
+    // Only apply the terminal guard for a real key: two distinct records that both lack a ClReqID collide under the
+    // `undefined` key, so the guard must not suppress one for the other (fall back to last-write-wins as before).
+    if (t.ClReqID && existing && this.isTerminalBalanceTransaction(existing) && !this.isTerminalBalanceTransaction(t))
+      return;
     this.balanceTransactions.set(t.ClReqID, t);
   }
 
@@ -381,10 +384,13 @@ export class ScryptService extends PricingProvider {
     // Fallback: fetch from Scrypt API (e.g. after restart or WS reconnect)
     if (!report) {
       const reports = await this.fetchExecutionReports(Util.daysBefore(30));
-      report = reports.find((r) => r.ClOrdID === clOrdId);
+      const fetched = reports.find((r) => r.ClOrdID === clOrdId);
 
-      if (report) {
-        this.executionReports.set(report.ClOrdID, report);
+      if (fetched) {
+        // Route through the terminal-aware guard: a live terminal push that arrived during the await
+        // must not be clobbered by a stale non-terminal snapshot from this fallback fetch.
+        this.cacheExecutionReport(fetched);
+        report = this.executionReports.get(clOrdId);
       }
     }
 
