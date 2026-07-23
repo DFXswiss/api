@@ -147,7 +147,7 @@ export class GsService {
       }),
     );
 
-    this.warnIfCapped(cappedByDefault, data.length, query);
+    this.warnIfCapped(cappedByDefault && data.length >= GsService.DEFAULT_MAX_LINE, query);
 
     const runTime = Util.round((Date.now() - startTime) / 1000, 1);
 
@@ -195,15 +195,15 @@ export class GsService {
 
     switch (query.table) {
       case 'bank_tx': {
-        const data = await this.getExtendedBankTxData(query);
-        this.warnIfCapped(cappedByDefault, data.length, query);
+        const { data, capReached } = await this.getExtendedBankTxData(query);
+        this.warnIfCapped(cappedByDefault && capReached, query);
         return this.transformResultArray(data, query.table, role);
       }
     }
   }
 
-  private warnIfCapped(cappedByDefault: boolean, rowCount: number, query: DbQueryBaseDto): void {
-    if (cappedByDefault && rowCount >= GsService.DEFAULT_MAX_LINE)
+  private warnIfCapped(hitDefaultCap: boolean, query: DbQueryBaseDto): void {
+    if (hitDefaultCap)
       this.logger.warn(
         `GS export for ${query.identifier} hit the default maxLine cap (${GsService.DEFAULT_MAX_LINE}) on table ${query.table} — rows beyond the cap were not returned`,
       );
@@ -854,7 +854,7 @@ export class GsService {
     }
   }
 
-  private async getExtendedBankTxData(dbQuery: DbQueryBaseDto): Promise<any[]> {
+  private async getExtendedBankTxData(dbQuery: DbQueryBaseDto): Promise<{ data: any[]; capReached: boolean }> {
     const select = dbQuery.select ? dbQuery.select.map((e) => dbQuery.table + '.' + e).join(',') : dbQuery.table;
 
     const buyCryptoData = await this.dataSource
@@ -917,11 +917,15 @@ export class GsService {
         throw new BadRequestException(e.message);
       });
 
-    return Util.sort(
-      buyCryptoData.concat(buyFiatData, bankTxRestData),
-      dbQuery.select ? 'id' : 'bank_tx_id',
-      dbQuery.sorting,
-    );
+    return {
+      data: Util.sort(
+        buyCryptoData.concat(buyFiatData, bankTxRestData),
+        dbQuery.select ? 'id' : 'bank_tx_id',
+        dbQuery.sorting,
+      ),
+      // each leg is capped individually — only a full leg means rows were actually cut off
+      capReached: [buyCryptoData, buyFiatData, bankTxRestData].some((d) => d.length >= dbQuery.maxLine),
+    };
   }
 
   private filterSelectDocumentColumn(select: string[]): string[] {
