@@ -33,7 +33,7 @@ import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.enti
 import { BankTx, BankTxIndicator, BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
-import { frickCHF, frickEUR, olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
+import { frickCHF, frickEUR, olkyEUR, yapealCHF, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
@@ -1828,6 +1828,86 @@ describe('LogJobService', () => {
       expect(assetLog[frickAsset.id].plusBalance.pending.toScrypt).toBe(7500);
       // Yapeal/CHF must not pick up the Frick debit (no double-count; baseline stays empty)
       expect(assetLog[yapealAsset.id].plusBalance.pending?.toScrypt ?? 0).toBe(0);
+    });
+  });
+
+  describe('useUnfilteredTx per-leg clamp (toKrakenUnfiltered < 0)', () => {
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.YAPEAL}-CHF`,
+        yapealCHF.iban,
+      );
+    });
+
+    afterEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    });
+
+    function setupUnfilteredToKrakenClamp(depositTx: ReturnType<typeof createCustomExchangeTx>) {
+      jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
+      jest.spyOn(settingService, 'getObj').mockImplementation(async (key, defaultValue) => {
+        if (key === 'financeLogUnfilteredTx') return true as never;
+        if (key === 'financeLogPairIds')
+          return {
+            fromKraken: { chf: { bankTxId: 0, exchangeTxId: 0 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+            toKraken: { chf: { bankTxId: 0, exchangeTxId: 0 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+            toScrypt: { chf: { bankTxId: 0, exchangeTxId: 0 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+          } as never;
+        return defaultValue as never;
+      });
+
+      jest.spyOn(bankService, 'getBankInternal').mockImplementation(async (name, currency) => {
+        if (name === IbanBankName.YAPEAL && currency === 'CHF') return yapealCHF;
+        if (name === IbanBankName.YAPEAL && currency === 'EUR') return yapealEUR;
+        if (name === IbanBankName.FRICK && currency === 'CHF') return frickCHF;
+        if (name === IbanBankName.FRICK && currency === 'EUR') return frickEUR;
+        if (name === IbanBankName.OLKY && currency === 'EUR') return olkyEUR;
+        return Object.assign(new Bank(), { name, currency, iban: `IBAN_${name}_${currency}`, bic: 'BICTEST' });
+      });
+
+      jest.spyOn(liquidityManagementPipelineService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(payInService, 'getPendingPayIns').mockResolvedValue([]);
+      jest.spyOn(buyFiatService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(buyCryptoService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
+      jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
+      jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);
+      jest
+        .spyOn(exchangeTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, exchange, _types) => (exchange === ExchangeName.KRAKEN ? [depositTx] : []));
+    }
+
+    it('floors a negative unfiltered toKraken leg so plusBalance.total is 0 (not -10000)', async () => {
+      const yapealChfAsset = createCustomAsset({
+        id: 8003,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'CHF',
+        sellable: true,
+      });
+
+      // Unmatched Kraken DEPOSIT credited to Yapeal CHF BIC → pendingBankAmount = -amount for toKrakenUnfiltered
+      const theDepositTx = createCustomExchangeTx({
+        id: 5001,
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'CHF',
+        method: 'Bank Frick (SIC) International',
+        address: yapealCHF.bic.padEnd(11, 'XXX'),
+        amount: 10000,
+      });
+      setupUnfilteredToKrakenClamp(theDepositTx);
+
+      const assetLog = await service['getAssetLog']([yapealChfAsset]);
+
+      // Without the per-leg clamp, toKrakenUnfiltered (-10000) would make plusBalance.total negative
+      expect(assetLog[yapealChfAsset.id].plusBalance.total).toBe(0);
+      // pending is only populated when totalPlusPending !== 0; after floor both read as 0
+      expect(assetLog[yapealChfAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
     });
   });
 });
