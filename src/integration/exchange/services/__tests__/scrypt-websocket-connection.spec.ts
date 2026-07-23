@@ -863,6 +863,90 @@ describe('ScryptWebSocketConnection', () => {
     expect(WebSocket.instances.length).toBe(0);
   });
 
+  it('sendCancel is a no-op when the socket is present but not OPEN', async () => {
+    const ws = await firstConnectWithStream();
+    const sendCallsBefore = ws.send.mock.calls.length;
+
+    ws.readyState = WebSocket.CLOSING;
+    (connection as any).ws = ws;
+
+    expect(() => (connection as any).sendCancel(456)).not.toThrow();
+
+    const cancelSends = ws.send.mock.calls
+      .slice(sendCallsBefore)
+      .map(([payload]) => JSON.parse(payload as string))
+      .filter((msg) => msg.type === 'cancel');
+    expect(cancelSends).toHaveLength(0);
+  });
+
+  it('fetch still sends cancel when the collect path throws (malformed initial)', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.EXECUTION_REPORT;
+
+    const fetchPromise = connection.fetch(streamName);
+    await flushPromises();
+
+    const subscribeSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(subscribeSend).toBeDefined();
+    const reqId = subscribeSend!.msg.reqid as number;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        initial: false,
+        data: [{ ClOrdID: 'ord-bad' }],
+      }),
+    );
+    await flushPromises();
+
+    await expect(fetchPromise).rejects.toThrow(/Expected initial/);
+
+    const cancelSend = ws.send.mock.calls
+      .map(([payload]) => JSON.parse(payload as string))
+      .find((msg) => msg.type === 'cancel' && msg.reqid === reqId);
+    expect(cancelSend).toBeDefined();
+    expect(cancelSend).toEqual({ reqid: reqId, type: 'cancel' });
+  });
+
+  it('fetchAll still sends cancel when the collect path throws (malformed initial)', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.BALANCE_TRANSACTION;
+
+    const fetchPromise = connection.fetchAll(streamName);
+    await flushPromises();
+
+    const page1Send = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(page1Send).toBeDefined();
+    const reqId = page1Send!.msg.reqid as number;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        // omit initial — malformed first page
+        data: [{ id: 1 }],
+      }),
+    );
+    await flushPromises();
+
+    await expect(fetchPromise).rejects.toThrow(/Expected initial/);
+
+    const cancelSend = ws.send.mock.calls
+      .map(([payload]) => JSON.parse(payload as string))
+      .find((msg) => msg.type === 'cancel' && msg.reqid === reqId);
+    expect(cancelSend).toBeDefined();
+    expect(cancelSend).toEqual({ reqid: reqId, type: 'cancel' });
+  });
+
   it('fires onReconnect callbacks on genuine reconnect but not on first connect', async () => {
     const cb = jest.fn();
     connection.onReconnect(cb);

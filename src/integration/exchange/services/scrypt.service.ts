@@ -38,6 +38,7 @@ export class ScryptService extends PricingProvider {
   private readonly balances?: AsyncSubscription<Map<string, ScryptBalance>>;
   private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
   private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
+  private catchUpInProgress = false;
 
   readonly name: string = 'Scrypt';
 
@@ -95,7 +96,7 @@ export class ScryptService extends PricingProvider {
       .fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION)
       .then((transactions) => {
         const recent = transactions.filter((t) => new Date(t.Timestamp) >= cacheMaxAge);
-        for (const t of recent) this.balanceTransactions.set(t.ClReqID, t);
+        for (const t of recent) this.cacheBalanceTransaction(t);
       })
       .catch((error) => this.logger.error('Failed to fetch balance transactions:', error));
 
@@ -103,7 +104,7 @@ export class ScryptService extends PricingProvider {
       ScryptMessageType.BALANCE_TRANSACTION,
       (transactions) => {
         for (const t of transactions) {
-          this.balanceTransactions.set(t.ClReqID, t);
+          this.cacheBalanceTransaction(t);
         }
       },
     );
@@ -128,21 +129,27 @@ export class ScryptService extends PricingProvider {
   // is recovered (a bare re-subscribe is not documented to replay it). Mirrors the constructor warm-up's fetchAll,
   // but not its subscribeToStream (resubscription is handled by the reconnect itself). Best-effort; logs on failure.
   private async catchUpAfterReconnect(): Promise<void> {
-    const cacheMaxAge = Util.daysBefore(365);
+    if (this.catchUpInProgress) return; // a catch-up is already running; it will fetch the current post-reconnect state
+    this.catchUpInProgress = true;
     try {
-      const reports = await this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
-      for (const r of reports)
-        if (!r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge) this.executionReports.set(r.ClOrdID, r);
-    } catch (e) {
-      this.logger.error('Scrypt reconnect catch-up (execution reports) failed:', e);
-    }
-    try {
-      const transactions = await this.connection.fetchAll<ScryptBalanceTransaction>(
-        ScryptMessageType.BALANCE_TRANSACTION,
-      );
-      for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
-    } catch (e) {
-      this.logger.error('Scrypt reconnect catch-up (balance transactions) failed:', e);
+      const cacheMaxAge = Util.daysBefore(365);
+      try {
+        const reports = await this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
+        for (const r of reports)
+          if (!r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge) this.executionReports.set(r.ClOrdID, r);
+      } catch (e) {
+        this.logger.error('Scrypt reconnect catch-up (execution reports) failed:', e);
+      }
+      try {
+        const transactions = await this.connection.fetchAll<ScryptBalanceTransaction>(
+          ScryptMessageType.BALANCE_TRANSACTION,
+        );
+        for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
+      } catch (e) {
+        this.logger.error('Scrypt reconnect catch-up (balance transactions) failed:', e);
+      }
+    } finally {
+      this.catchUpInProgress = false;
     }
   }
 

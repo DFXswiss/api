@@ -81,7 +81,7 @@ export class ScryptWebSocketConnection {
   private isReconnecting = false; // guards against overlapping reconnect loops
   private reconnectEpoch = 0; // bumped on disconnect / new loop so stale scheduleReconnect continuations no-op
   private reconnectTimer?: NodeJS.Timeout;
-  private reconnectCallbacks: Array<() => void> = [];
+  private reconnectCallbacks: Array<() => void | Promise<void>> = [];
 
   // requests
   private reqIdCounter = 0;
@@ -106,16 +106,18 @@ export class ScryptWebSocketConnection {
   async fetch<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
     const doFetch = async (): Promise<T[]> => {
       const reqId = ++this.reqIdCounter;
-      const response = await this.requestWithId(reqId, {
-        type: ScryptRequestType.SUBSCRIBE,
-        streams: [{ name: streamName, ...filters }],
-      });
+      try {
+        const response = await this.requestWithId(reqId, {
+          type: ScryptRequestType.SUBSCRIBE,
+          streams: [{ name: streamName, ...filters }],
+        });
 
-      if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
+        if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
 
-      this.sendCancel(reqId);
-
-      return (response.data ?? []) as T[];
+        return (response.data ?? []) as T[];
+      } finally {
+        this.sendCancel(reqId);
+      }
     };
 
     return this.retryOnTransientWsError(doFetch, `fetch ${streamName}`);
@@ -126,29 +128,31 @@ export class ScryptWebSocketConnection {
       const allData: T[] = [];
       const reqId = ++this.reqIdCounter;
 
-      // First request
-      let response = await this.requestWithId(reqId, {
-        type: ScryptRequestType.SUBSCRIBE,
-        streams: [{ name: streamName, ...filters }],
-      });
-
-      if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
-
-      allData.push(...((response.data ?? []) as T[]));
-
-      // Paginate through all pages
-      while (response.next) {
-        response = await this.requestWithId(reqId, {
-          type: ScryptRequestType.PAGE,
-          streams: [{ name: streamName, after: response.next }],
+      try {
+        // First request
+        let response = await this.requestWithId(reqId, {
+          type: ScryptRequestType.SUBSCRIBE,
+          streams: [{ name: streamName, ...filters }],
         });
 
+        if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
+
         allData.push(...((response.data ?? []) as T[]));
+
+        // Paginate through all pages
+        while (response.next) {
+          response = await this.requestWithId(reqId, {
+            type: ScryptRequestType.PAGE,
+            streams: [{ name: streamName, after: response.next }],
+          });
+
+          allData.push(...((response.data ?? []) as T[]));
+        }
+
+        return allData;
+      } finally {
+        this.sendCancel(reqId);
       }
-
-      this.sendCancel(reqId);
-
-      return allData;
     };
 
     return this.retryOnTransientWsError(doFetch, `fetchAll ${streamName}`);
@@ -156,7 +160,7 @@ export class ScryptWebSocketConnection {
 
   // Register a callback fired after a successful RE-connect (not the first connect). Used to re-fetch state that
   // a bare re-subscribe does not replay (see ScryptService catch-up). Callbacks must not throw / handle their own errors.
-  onReconnect(callback: () => void): void {
+  onReconnect(callback: () => void | Promise<void>): void {
     this.reconnectCallbacks.push(callback);
   }
 
@@ -285,7 +289,7 @@ export class ScryptWebSocketConnection {
   private fireReconnectCallbacks(): void {
     for (const cb of this.reconnectCallbacks) {
       try {
-        cb();
+        void Promise.resolve(cb()).catch((e) => this.logger.error('Scrypt onReconnect callback rejected:', e));
       } catch (e) {
         this.logger.error('Scrypt onReconnect callback failed:', e);
       }
