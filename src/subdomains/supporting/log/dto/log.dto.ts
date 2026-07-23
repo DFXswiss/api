@@ -47,14 +47,15 @@ export interface FinanceLog {
  * step that persists (especially negative) is suspicious rather than customer activity.
  * Two guardrails act on this signal in LogJobService: the entry is flagged `valid: false`
  * when the jump vs. the last VALID entry (not necessarily the direct predecessor) exceeds
- * `Config.financeLogTotalBalanceChangeLimit` and that entry is under 15 minutes old (a
- * larger logging gap suppresses the flag), and safety mode is triggered when
+ * `Config.financeLogTotalBalanceChangeLimit` and the current total does not yet form a stable
+ * plateau with its immediate predecessors, and safety mode is triggered when
  * `totalBalanceChf` drops below the `minTotalBalanceChf` setting or is not finite
  * (unknown books fail closed). A non-finite total is never `valid`, so it can not
- * become the comparison baseline. The flag detects the step, not persistence: a
- * persisting error is flagged only while the pre-step level is still the last valid
- * entry, so once that entry ages past 15 minutes the jump is force-validated and the
- * new level silently becomes the baseline.
+ * become the comparison baseline. A persisting new level is adopted as `valid` only once
+ * `Config.financeLogStabilityWindow` consecutive snapshots (current + predecessors) agree
+ * within one change-limit band — replacing the old 15-minute force-validate, which trusted
+ * a single unverified reading. Such a level-shift adoption is tagged `validatedByStability`
+ * (see `BalancesTotal.validatedByStability`).
  */
 export interface BalancesTotal {
   plusBalanceChf: number;
@@ -67,6 +68,13 @@ export interface BalancesTotal {
    * the first entry, which has no previous snapshot to diff against.
    */
   fxPnlChf?: number;
+  /**
+   * Set (true) only when this entry was adopted as valid via the stability path — i.e. a level shift beyond
+   * `financeLogTotalBalanceChangeLimit` that was trusted because the current total and its predecessors form
+   * a stable plateau, not because it hugs the last valid baseline. Absent (not false) on normal-drift entries.
+   * The ledger equity-parity check excludes these level-shift adoptions from its median baseline (#4313).
+   */
+  validatedByStability?: boolean;
 }
 
 export interface BalancesByFinancialType {

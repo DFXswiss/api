@@ -147,6 +147,10 @@ export class LogService {
     return this.logRepo.getLatestValidFinancialLogs(count);
   }
 
+  async getLatestFinancialLogs(count: number): Promise<Log[]> {
+    return this.logRepo.getLatestFinancialLogs(count);
+  }
+
   async getLatestFinancialChangesLog(): Promise<Log | undefined> {
     return this.logRepo.getLatestFinancialChangesLog();
   }

@@ -165,6 +165,33 @@ export class LogJobService {
       // deliberately left outside any try/catch — it cannot throw and a wrapping catch would only mask a bug.
       const fxPnlChf = this.getFxPnlChf(lastFinanceLog, assetLog, assets);
 
+      // Stability-based adoption (replaces the old 15-minute force-validate, #4312): a jump beyond the change
+      // limit vs. the last valid baseline is only trusted once the current total and its immediate predecessors
+      // form a stable plateau — the whole window sits inside one change-limit-wide band. A transient spike never
+      // has enough agreeing neighbours; a persistent new level is adopted after the window fills. Predecessors
+      // are read regardless of their valid flag so a returned-true level re-validates against its own recent
+      // history even when the last valid baseline is still a stale bad level.
+      const stabilityWindow = Config.financeLogStabilityWindow;
+      const predecessors = await this.logService.getLatestFinancialLogs(stabilityWindow - 1);
+      const predecessorTotals = predecessors.map(
+        (l) => (JSON.parse(l.message) as FinanceLog).balancesTotal.totalBalanceChf,
+      );
+      const stabilityValues = [totalBalanceChf, ...predecessorTotals];
+      const isStablePlateau =
+        stabilityValues.length === stabilityWindow &&
+        stabilityValues.every((v) => Number.isFinite(v)) &&
+        Math.max(...stabilityValues) - Math.min(...stabilityValues) <= Config.financeLogTotalBalanceChangeLimit;
+
+      const nearBaseline =
+        totalBalanceIsFinite &&
+        Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit;
+
+      // A level-shift adoption = trusted purely because the new level is stable, not because it hugs the
+      // baseline. Tag these so the ledger equity-parity check (#4313) can exclude them from its median.
+      const validatedByStability = totalBalanceIsFinite && !nearBaseline && isStablePlateau;
+
+      const valid = totalBalanceIsFinite && (nearBaseline || isStablePlateau);
+
       await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
@@ -184,16 +211,14 @@ export class LogJobService {
             // returnNegativeValue so a negative drift stays numeric). Left undefined when there is no
             // predecessor to diff against; JSON.stringify then drops the key (absence, not a false 0).
             fxPnlChf: fxPnlChf === undefined ? undefined : this.getJsonValue(fxPnlChf, AmountType.FIAT, true, true),
+            validatedByStability: validatedByStability ? true : undefined,
           },
         }),
         // jump vs. the last VALID entry (lastLog above), not the direct predecessor; must be
         // read as transient skew vs. persisting deviation -- see BalancesTotal in dto/log.dto.ts.
-        // A non-finite total is never valid: the 15-minute clause would otherwise mark a long
-        // incident entry valid and make its null total the baseline for later comparisons.
-        valid:
-          totalBalanceIsFinite &&
-          (Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
-            Util.minutesDiff(lastLog.created) > 15),
+        // A non-finite total is never valid: stability-based adoption (see above) would otherwise never
+        // fire for it either, since totalBalanceIsFinite gates the whole expression.
+        valid,
         category: null,
       });
 

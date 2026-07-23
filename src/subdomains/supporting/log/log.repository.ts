@@ -88,6 +88,17 @@ export class LogRepository extends BaseRepository<Log> {
     });
   }
 
+  // The last `count` FinancialDataLog snapshots, newest first, REGARDLESS of their valid flag. Used by the
+  // stability check in LogJobService: a level shift is only adopted once these predecessors agree with the
+  // current total inside one change-limit band (see BalancesTotal, log.dto.ts, and #4312).
+  async getLatestFinancialLogs(count: number): Promise<Log[]> {
+    return this.find({
+      where: { system: 'LogService', subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM, severity: LogSeverity.INFO },
+      order: { id: 'DESC' },
+      take: count,
+    });
+  }
+
   async getLatestFinancialChangesLog(): Promise<Log | undefined> {
     return this.findOne({
       where: { system: 'LogService', subsystem: 'FinancialChangesLog', severity: LogSeverity.INFO },

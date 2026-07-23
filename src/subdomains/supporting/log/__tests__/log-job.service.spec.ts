@@ -190,6 +190,7 @@ describe('LogJobService', () => {
       jest
         .spyOn(logService, 'maxEntity')
         .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 5000 } }) } as any);
+      jest.spyOn(logService, 'getLatestFinancialLogs').mockResolvedValue([]);
       return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
     }
 
@@ -237,6 +238,7 @@ describe('LogJobService', () => {
       jest
         .spyOn(logService, 'maxEntity')
         .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }) } as any);
+      jest.spyOn(logService, 'getLatestFinancialLogs').mockResolvedValue([]);
       return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
     }
 
@@ -414,6 +416,7 @@ describe('LogJobService', () => {
       jest
         .spyOn(logService, 'maxEntity')
         .mockResolvedValue({ created: new Date(), message: JSON.stringify(params.lastMessage) } as any);
+      jest.spyOn(logService, 'getLatestFinancialLogs').mockResolvedValue([]);
       return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
     }
 
@@ -472,6 +475,7 @@ describe('LogJobService', () => {
       jest
         .spyOn(logService, 'maxEntity')
         .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }) } as any);
+      jest.spyOn(logService, 'getLatestFinancialLogs').mockResolvedValue([]);
       jest.spyOn(logService, 'create').mockResolvedValue({} as any);
     }
 
@@ -531,11 +535,18 @@ describe('LogJobService', () => {
     });
   });
 
-  describe('valid flag (change-limit interaction with negative totals)', () => {
-    // drive saveTradingLog with a controllable current book and last valid entry, then read the
-    // FinancialDataLog `valid` flag. A fresh `created` keeps minutesDiff under 15, so the 15-minute
-    // gap clause stays out of the way and the change-limit branch is what is under test.
-    function setup(buckets: Record<string, unknown>, lastTotalBalanceChf: number, createdMinutesAgo: number) {
+  describe('valid flag (change-limit and stability-window interaction, #4312)', () => {
+    // drive saveTradingLog with a controllable current book, last VALID entry, and immediate predecessor
+    // snapshots (newest first, mirroring LogService.getLatestFinancialLogs), then read the FinancialDataLog
+    // `valid` flag and its balancesTotal.validatedByStability marker. `predecessors` defaults to an empty
+    // array (cold start / insufficient history), under which the stability path can never fire and the
+    // change-limit-vs-baseline check alone decides validity.
+    function setup(
+      buckets: Record<string, unknown>,
+      lastTotalBalanceChf: number,
+      createdMinutesAgo: number,
+      predecessors: unknown[] = [],
+    ) {
       jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
       jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
       jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue(buckets);
@@ -547,16 +558,35 @@ describe('LogJobService', () => {
         created: new Date(Date.now() - createdMinutesAgo * 60 * 1000),
         message: JSON.stringify({ balancesTotal: { totalBalanceChf: lastTotalBalanceChf } }),
       } as any);
+      jest.spyOn(logService, 'getLatestFinancialLogs').mockResolvedValue(predecessors as any);
       return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
     }
 
+    // builds a mock predecessor Log whose parsed FinanceLog.balancesTotal.totalBalanceChf is `totalBalanceChf`
+    function predecessor(totalBalanceChf: number | null) {
+      return { message: JSON.stringify({ balancesTotal: { totalBalanceChf } }) };
+    }
+
+    function dataLogDto(createSpy: jest.SpyInstance) {
+      return createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog')?.[0];
+    }
+
+    function financialLog(createSpy: jest.SpyInstance) {
+      return JSON.parse(dataLogDto(createSpy).message);
+    }
+
     function validFlag(createSpy: jest.SpyInstance): boolean {
-      return createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog')?.[0].valid;
+      return dataLogDto(createSpy).valid;
     }
 
     // book totalling -4000 (plus 1000, minus 5000), i.e. a genuinely negative equity on both sides
     const negativeBook = () => ({
       EUR: { plusBalance: 0, plusBalanceChf: 1000, minusBalance: 5000, minusBalanceChf: 5000 },
+    });
+
+    // book totalling `total` on the plus side only (no minus), for the stability-window scenarios below
+    const bookOf = (total: number) => ({
+      EUR: { plusBalance: 0, plusBalanceChf: total, minusBalance: 0, minusBalanceChf: 0 },
     });
 
     it('validates a negative-to-negative move that stays under the change limit', async () => {
@@ -568,9 +598,133 @@ describe('LogJobService', () => {
       expect(validFlag(createSpy)).toBe(true);
     });
 
-    it('invalidates a positive-to-negative jump over the change limit within the 15-minute window', async () => {
-      // total -4000 vs last +50000 -> |diff| 54000 > 5000 limit and the entry is fresh -> not force-validated
+    it('invalidates a positive-to-negative jump over the change limit with no predecessor history', async () => {
+      // total -4000 vs last +50000 -> |diff| 54000 > 5000 limit; no predecessors -> stability path cannot
+      // fire either -> not valid
       const createSpy = setup(negativeBook(), 50000, 1);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(false);
+    });
+
+    it('1. normal drift stays valid with no validatedByStability marker', async () => {
+      // total 102000 vs baseline 100000 -> |diff| 2000 <= 5000 limit -> valid via the baseline path, not stability
+      const createSpy = setup(bookOf(102000), 100000, 1);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(true);
+      expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('validatedByStability');
+    });
+
+    it('2. a lone transient spike stays invalid (predecessors all still at the old level)', async () => {
+      // total 110000 vs baseline 100000 -> |diff| 10000 > 5000 limit; all 4 predecessors are still at 100000,
+      // so the 5-value window band is 10000 > 5000 -> not a stable plateau -> invalid
+      const createSpy = setup(bookOf(110000), 100000, 1, [
+        predecessor(100000),
+        predecessor(100000),
+        predecessor(100000),
+        predecessor(100000),
+      ]);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(false);
+    });
+
+    it('3. a 2-minute spike (only 2 of 5 window values at the new level) stays invalid', async () => {
+      // window = [current=spike, predecessor=spike, base, base, base]; band = spike - base > 5000 -> invalid
+      const createSpy = setup(bookOf(110000), 100000, 1, [
+        predecessor(110000),
+        predecessor(100000),
+        predecessor(100000),
+        predecessor(100000),
+      ]);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(false);
+    });
+
+    it('4. a stable new plateau is adopted as valid and tagged validatedByStability', async () => {
+      // total 110000 vs baseline 100000 -> |diff| 10000 > 5000 limit (not near baseline), but the current
+      // total plus all 4 predecessors sit within a 2000-wide band (108000..110000) -> stable plateau -> valid
+      const createSpy = setup(bookOf(110000), 100000, 1, [
+        predecessor(109000),
+        predecessor(108500),
+        predecessor(109500),
+        predecessor(108000),
+      ]);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(true);
+      expect(financialLog(createSpy).balancesTotal.validatedByStability).toBe(true);
+    });
+
+    it('5. a returned-true value re-validates against a stale bad baseline via its own predecessors', async () => {
+      // last VALID entry is a stale bad level (200000), but the current total (100000) plus all 4
+      // predecessors form their own stable plateau (98500..100500, a 2000-wide band) at the true level ->
+      // valid via stability, proving the predecessor plateau (not the stale baseline) drives adoption
+      const createSpy = setup(bookOf(100000), 200000, 1, [
+        predecessor(99500),
+        predecessor(100500),
+        predecessor(98500),
+        predecessor(99000),
+      ]);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(true);
+      expect(financialLog(createSpy).balancesTotal.validatedByStability).toBe(true);
+    });
+
+    it('6a. cold start / insufficient predecessor history near baseline still validates', async () => {
+      // only 2 of the required 4 predecessors exist -> the 5-value stability window can never fill ->
+      // isStablePlateau is always false -> validity depends purely on the near-baseline check
+      const createSpy = setup(bookOf(102000), 100000, 1, [predecessor(102000), predecessor(102000)]);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(true); // |diff| 2000 <= 5000 -> near baseline -> valid
+    });
+
+    it('6b. cold start / insufficient predecessor history far from baseline stays invalid', async () => {
+      // only 2 of the required 4 predecessors exist -> the 5-value stability window can never fill ->
+      // isStablePlateau is always false -> validity depends purely on the near-baseline check
+      const createSpy = setup(bookOf(110000), 100000, 1, [predecessor(110000), predecessor(110000)]);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(false); // |diff| 10000 > 5000 and stability can't fire -> invalid
+    });
+
+    it('7. a non-finite total is never valid, regardless of predecessors (regression)', async () => {
+      // an unsummable bucket (undefined chf) makes the summed total NaN -> non-finite; predecessors would
+      // otherwise form a plateau, but totalBalanceIsFinite must still gate the whole expression
+      const createSpy = setup(
+        { EUR: { plusBalance: 0, plusBalanceChf: undefined, minusBalance: 0, minusBalanceChf: 0 } },
+        100000,
+        1,
+        [predecessor(100000), predecessor(100000), predecessor(100000), predecessor(100000)],
+      );
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(false);
+      expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('validatedByStability');
+    });
+
+    it('8. a non-finite predecessor total blocks stability adoption', async () => {
+      // total 110000 vs baseline 100000 -> jump > 5000 limit; 3 predecessors near 110000 but one predecessor
+      // total is non-finite (null) -> the plateau can never be confirmed -> invalid
+      const createSpy = setup(bookOf(110000), 100000, 1, [
+        predecessor(109000),
+        predecessor(null),
+        predecessor(109500),
+        predecessor(108500),
+      ]);
 
       await service.saveTradingLog();
 

@@ -56,6 +56,11 @@ export class Configuration {
   txRequestWaitingExpiryDays = 7;
   txRequestValidityMinutes = 30;
   financeLogTotalBalanceChangeLimit = 5000; // CHF
+  // A level shift (jump beyond financeLogTotalBalanceChangeLimit vs. the last valid baseline) is adopted as
+  // valid only once this many consecutive snapshots (current + predecessors) agree within one change-limit
+  // band — i.e. the new level must persist for (window - 1) minutes before it is trusted. Replaces the old
+  // 15-minute force-validate, which trusted a single unverified reading. See BalancesTotal (log.dto.ts).
+  financeLogStabilityWindow = 5; // snapshots (~minutes)
   faucetAmount = 0.0005; // ETH
   faucetEnabled =
     process.env.FAUCET_ENABLED === 'true' || [Environment.DEV, Environment.LOC].includes(this.environment);
