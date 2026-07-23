@@ -38,6 +38,8 @@ export class ScryptService extends PricingProvider {
   private readonly balances?: AsyncSubscription<Map<string, ScryptBalance>>;
   private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
   private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
+  private catchUpInProgress = false;
+  private catchUpPending = false;
 
   readonly name: string = 'Scrypt';
 
@@ -73,40 +75,102 @@ export class ScryptService extends PricingProvider {
       });
     });
 
-    const cacheMaxAge = Util.daysBefore(365);
-
     // ExecutionReport subscription (all pages + subscription)
     this.connection
       .fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT)
-      .then((reports) => {
-        const recent = reports.filter((r) => !r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge);
-        for (const r of recent) this.executionReports.set(r.ClOrdID, r);
-      })
+      .then((reports) => this.applyExecutionReports(reports))
       .catch((error) => this.logger.error('Failed to fetch execution reports:', error));
 
     this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) => {
-      for (const report of reports) {
-        this.executionReports.set(report.ClOrdID, report);
-      }
+      for (const r of reports) this.cacheExecutionReport(r); // live event: always cache (terminal guard only, no age cutoff)
     });
 
     // BalanceTransaction subscription (all pages + subscription)
     this.connection
       .fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION)
-      .then((transactions) => {
-        const recent = transactions.filter((t) => new Date(t.Timestamp) >= cacheMaxAge);
-        for (const t of recent) this.balanceTransactions.set(t.ClReqID, t);
-      })
+      .then((transactions) => this.applyBalanceTransactions(transactions))
       .catch((error) => this.logger.error('Failed to fetch balance transactions:', error));
 
     this.connection.subscribeToStream<ScryptBalanceTransaction>(
       ScryptMessageType.BALANCE_TRANSACTION,
       (transactions) => {
-        for (const t of transactions) {
-          this.balanceTransactions.set(t.ClReqID, t);
-        }
+        for (const t of transactions) this.cacheBalanceTransaction(t); // live event: always cache (terminal guard only)
       },
     );
+
+    this.connection.onReconnect(() => this.catchUpAfterReconnect());
+  }
+
+  private isTerminalBalanceTransaction(t: ScryptBalanceTransaction): boolean {
+    return (
+      [ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(t.Status) ||
+      (t.Status === ScryptTransactionStatus.COMPLETED && !!t.TxHash)
+    );
+  }
+
+  private cacheBalanceTransaction(t: ScryptBalanceTransaction): void {
+    const existing = this.balanceTransactions.get(t.ClReqID);
+    // Only apply the terminal guard for a real key: two distinct records that both lack a ClReqID collide under the
+    // `undefined` key, so the guard must not suppress one for the other (fall back to last-write-wins as before).
+    if (t.ClReqID && existing && this.isTerminalBalanceTransaction(existing) && !this.isTerminalBalanceTransaction(t))
+      return;
+    this.balanceTransactions.set(t.ClReqID, t);
+  }
+
+  private isTerminalExecutionReport(r: ScryptExecutionReport): boolean {
+    return [ScryptOrderStatus.FILLED, ScryptOrderStatus.CANCELED, ScryptOrderStatus.REJECTED].includes(r.OrdStatus);
+  }
+
+  private cacheExecutionReport(r: ScryptExecutionReport): void {
+    const existing = this.executionReports.get(r.ClOrdID);
+    if (existing && this.isTerminalExecutionReport(existing) && !this.isTerminalExecutionReport(r)) return;
+    this.executionReports.set(r.ClOrdID, r);
+  }
+
+  // Bulk (age-bounded) warm-up/catch-up path only — live subscriptions must cache directly via cacheExecutionReport/cacheBalanceTransaction, see constructor.
+  private applyExecutionReports(reports: ScryptExecutionReport[]): void {
+    const cacheMaxAge = Util.daysBefore(365);
+    for (const r of reports) if (!r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge) this.cacheExecutionReport(r);
+  }
+
+  // Bulk (age-bounded) warm-up/catch-up path only — live subscriptions must cache directly via cacheExecutionReport/cacheBalanceTransaction, see constructor.
+  private applyBalanceTransactions(transactions: ScryptBalanceTransaction[]): void {
+    const cacheMaxAge = Util.daysBefore(365);
+    for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
+  }
+
+  // After a WS reconnect, re-fetch balance transactions + execution reports so an event missed during the outage
+  // is recovered (a bare re-subscribe is not documented to replay it). Mirrors the constructor warm-up's fetchAll,
+  // but not its subscribeToStream (resubscription is handled by the reconnect itself). Best-effort; logs on failure.
+  private async catchUpAfterReconnect(): Promise<void> {
+    if (this.catchUpInProgress) {
+      this.catchUpPending = true; // coalesce: re-run once after the in-flight catch-up, to cover this reconnect's downtime
+      return;
+    }
+    this.catchUpInProgress = true;
+    try {
+      do {
+        this.catchUpPending = false;
+        const [executionResult, balanceResult] = await Promise.allSettled([
+          this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT),
+          this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION),
+        ]);
+
+        if (executionResult.status === 'fulfilled') {
+          this.applyExecutionReports(executionResult.value);
+        } else {
+          this.logger.error('Scrypt reconnect catch-up (execution reports) failed:', executionResult.reason);
+        }
+
+        if (balanceResult.status === 'fulfilled') {
+          this.applyBalanceTransactions(balanceResult.value);
+        } else {
+          this.logger.error('Scrypt reconnect catch-up (balance transactions) failed:', balanceResult.reason);
+        }
+      } while (this.catchUpPending);
+    } finally {
+      this.catchUpInProgress = false;
+    }
   }
 
   // --- BALANCES --- //
@@ -320,10 +384,13 @@ export class ScryptService extends PricingProvider {
     // Fallback: fetch from Scrypt API (e.g. after restart or WS reconnect)
     if (!report) {
       const reports = await this.fetchExecutionReports(Util.daysBefore(30));
-      report = reports.find((r) => r.ClOrdID === clOrdId);
+      const fetched = reports.find((r) => r.ClOrdID === clOrdId);
 
-      if (report) {
-        this.executionReports.set(report.ClOrdID, report);
+      if (fetched) {
+        // Route through the terminal-aware guard: a live terminal push that arrived during the await
+        // must not be clobbered by a stale non-terminal snapshot from this fallback fetch.
+        this.cacheExecutionReport(fetched);
+        report = this.executionReports.get(clOrdId);
       }
     }
 

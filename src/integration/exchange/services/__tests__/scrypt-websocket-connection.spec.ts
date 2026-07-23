@@ -760,4 +760,243 @@ describe('ScryptWebSocketConnection', () => {
     expect(scheduleSpy.mock.calls.length).toBe(scheduleCountBeforeLoopB + 1);
     expect(WebSocket.instances.length).toBe(constructCountWithLoopBPending);
   });
+
+  it('fetchAll sends a cancel after collecting all pages', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.BALANCE_TRANSACTION;
+
+    const fetchPromise = connection.fetchAll(streamName);
+    await flushPromises();
+
+    // First page (subscribe) — find the ad-hoc subscribe reqid (not the long-lived stream sub).
+    const page1Send = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(page1Send).toBeDefined();
+    const reqId = page1Send!.msg.reqid as number;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        initial: true,
+        data: [{ id: 1 }],
+        next: 'cursor1',
+      }),
+    );
+    await flushPromises();
+
+    // Second page (page request reuses the same reqid)
+    const page2Send = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .find(({ msg }) => msg.type === 'page' && msg.reqid === reqId);
+    expect(page2Send).toBeDefined();
+    const page2Idx = page2Send!.idx;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        data: [{ id: 2 }],
+      }),
+    );
+    await flushPromises();
+
+    const result = await fetchPromise;
+    expect(result).toEqual([{ id: 1 }, { id: 2 }]);
+
+    const cancelSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .find(({ msg }) => msg.type === 'cancel' && msg.reqid === reqId);
+    expect(cancelSend).toBeDefined();
+    expect(cancelSend!.msg).toEqual({ reqid: reqId, type: 'cancel' });
+    // Cancel must be sent after the page-2 request (collection complete).
+    expect(cancelSend!.idx).toBeGreaterThan(page2Idx);
+  });
+
+  it('fetch sends a cancel after collecting its response', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.EXECUTION_REPORT;
+
+    const fetchPromise = connection.fetch(streamName);
+    await flushPromises();
+
+    const subscribeSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(subscribeSend).toBeDefined();
+    const reqId = subscribeSend!.msg.reqid as number;
+    const subscribeIdx = subscribeSend!.idx;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        initial: true,
+        data: [{ ClOrdID: 'ord-1' }],
+      }),
+    );
+    await flushPromises();
+
+    const result = await fetchPromise;
+    expect(result).toEqual([{ ClOrdID: 'ord-1' }]);
+
+    const cancelSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .find(({ msg }) => msg.type === 'cancel' && msg.reqid === reqId);
+    expect(cancelSend).toBeDefined();
+    expect(cancelSend!.msg).toEqual({ reqid: reqId, type: 'cancel' });
+    expect(cancelSend!.idx).toBeGreaterThan(subscribeIdx);
+  });
+
+  it('sendCancel is a no-op when the socket is not open', () => {
+    expect(WebSocket.instances.length).toBe(0);
+    expect((connection as any).ws).toBeUndefined();
+
+    expect(() => (connection as any).sendCancel(123)).not.toThrow();
+
+    expect(WebSocket.instances.length).toBe(0);
+  });
+
+  it('sendCancel is a no-op when the socket is present but not OPEN', async () => {
+    const ws = await firstConnectWithStream();
+    const sendCallsBefore = ws.send.mock.calls.length;
+
+    ws.readyState = WebSocket.CLOSING;
+    (connection as any).ws = ws;
+
+    expect(() => (connection as any).sendCancel(456)).not.toThrow();
+
+    const cancelSends = ws.send.mock.calls
+      .slice(sendCallsBefore)
+      .map(([payload]) => JSON.parse(payload as string))
+      .filter((msg) => msg.type === 'cancel');
+    expect(cancelSends).toHaveLength(0);
+  });
+
+  it('fetch resolves with its collected data even when the cancel frame throws synchronously', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.EXECUTION_REPORT;
+
+    const fetchPromise = connection.fetch(streamName);
+    await flushPromises();
+
+    const subscribeSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(subscribeSend).toBeDefined();
+    const reqId = subscribeSend!.msg.reqid as number;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        initial: true,
+        data: [{ ClOrdID: 'ord-cancel-throw' }],
+      }),
+    );
+
+    // Scope the throw to the very next ws.send call — the CANCEL frame sent from fetch's finally block.
+    // Must be set synchronously right after emit, before any await drains the microtask queue.
+    ws.send.mockImplementationOnce(() => {
+      throw new Error('send failed');
+    });
+
+    const result = await fetchPromise;
+
+    expect(result).toEqual([{ ClOrdID: 'ord-cancel-throw' }]);
+    expect(loggerError).toHaveBeenCalledWith(`Failed to cancel Scrypt stream ${reqId}:`, expect.any(Error));
+  });
+
+  it('fetch still sends cancel when the collect path throws (malformed initial)', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.EXECUTION_REPORT;
+
+    const fetchPromise = connection.fetch(streamName);
+    await flushPromises();
+
+    const subscribeSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(subscribeSend).toBeDefined();
+    const reqId = subscribeSend!.msg.reqid as number;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        initial: false,
+        data: [{ ClOrdID: 'ord-bad' }],
+      }),
+    );
+    await flushPromises();
+
+    await expect(fetchPromise).rejects.toThrow(/Expected initial/);
+
+    const cancelSend = ws.send.mock.calls
+      .map(([payload]) => JSON.parse(payload as string))
+      .find((msg) => msg.type === 'cancel' && msg.reqid === reqId);
+    expect(cancelSend).toBeDefined();
+    expect(cancelSend).toEqual({ reqid: reqId, type: 'cancel' });
+  });
+
+  it('fetchAll still sends cancel when the collect path throws (malformed initial)', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.BALANCE_TRANSACTION;
+
+    const fetchPromise = connection.fetchAll(streamName);
+    await flushPromises();
+
+    const page1Send = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(page1Send).toBeDefined();
+    const reqId = page1Send!.msg.reqid as number;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        // omit initial — malformed first page
+        data: [{ id: 1 }],
+      }),
+    );
+    await flushPromises();
+
+    await expect(fetchPromise).rejects.toThrow(/Expected initial/);
+
+    const cancelSend = ws.send.mock.calls
+      .map(([payload]) => JSON.parse(payload as string))
+      .find((msg) => msg.type === 'cancel' && msg.reqid === reqId);
+    expect(cancelSend).toBeDefined();
+    expect(cancelSend).toEqual({ reqid: reqId, type: 'cancel' });
+  });
+
+  it('fires onReconnect callbacks on genuine reconnect but not on first connect', async () => {
+    const cb = jest.fn();
+    connection.onReconnect(cb);
+
+    await firstConnectWithStream();
+    expect(cb).not.toHaveBeenCalled();
+
+    const firstWs = latestWs();
+    firstWs.remoteClose(1006, 'gone');
+    await fireReconnectAttempt(0);
+    const reconnectedWs = latestWs();
+    reconnectedWs.open();
+    await flushPromises();
+
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
 });
