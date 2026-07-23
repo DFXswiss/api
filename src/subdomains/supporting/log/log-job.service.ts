@@ -808,11 +808,11 @@ export class LogJobService {
             : 0;
       const pendingScryptBankMinusAmountUnfiltered = 0;
 
-      const fromKrakenUnfiltered =
+      let fromKrakenUnfiltered =
         pendingChfKrakenYapealPlusAmountUnfiltered +
         pendingEurKrakenYapealPlusAmountUnfiltered +
         pendingKrakenYapealMinusAmountUnfiltered;
-      const toKrakenUnfiltered =
+      let toKrakenUnfiltered =
         pendingYapealKrakenPlusAmountUnfiltered +
         pendingChfYapealKrakenMinusAmountUnfiltered +
         pendingEurYapealKrakenMinusAmountUnfiltered;
@@ -825,11 +825,11 @@ export class LogJobService {
       let fromScrypt = pendingChfScryptBankPlusAmount + pendingEurScryptBankPlusAmount + pendingScryptBankMinusAmount;
       let toScrypt = pendingBankScryptPlusAmount + pendingChfBankScryptMinusAmount + pendingEurBankScryptMinusAmount;
 
-      const fromScryptUnfiltered =
+      let fromScryptUnfiltered =
         pendingChfScryptBankPlusAmountUnfiltered +
         pendingEurScryptBankPlusAmountUnfiltered +
         pendingScryptBankMinusAmountUnfiltered;
-      const toScryptUnfiltered =
+      let toScryptUnfiltered =
         pendingBankScryptPlusAmountUnfiltered +
         pendingChfBankScryptMinusAmountUnfiltered +
         pendingEurBankScryptMinusAmountUnfiltered;
@@ -899,6 +899,27 @@ export class LogJobService {
           pendingMinusAmount: ${pendingScryptBankMinusAmount}`,
         );
         fromScrypt = 0;
+      }
+
+      if (fromKrakenUnfiltered < 0) {
+        errors.push(`fromKrakenUnfiltered < 0`);
+        this.logger.verbose(`Error in financial log, fromKrakenUnfiltered balance < 0 for asset: ${curr.id}`);
+        fromKrakenUnfiltered = 0;
+      }
+      if (toKrakenUnfiltered < 0) {
+        errors.push(`toKrakenUnfiltered < 0`);
+        this.logger.verbose(`Error in financial log, toKrakenUnfiltered balance < 0 for asset: ${curr.id}`);
+        toKrakenUnfiltered = 0;
+      }
+      if (fromScryptUnfiltered < 0) {
+        errors.push(`fromScryptUnfiltered < 0`);
+        this.logger.verbose(`Error in financial log, fromScryptUnfiltered balance < 0 for asset: ${curr.id}`);
+        fromScryptUnfiltered = 0;
+      }
+      if (toScryptUnfiltered < 0) {
+        errors.push(`toScryptUnfiltered < 0`);
+        this.logger.verbose(`Error in financial log, toScryptUnfiltered balance < 0 for asset: ${curr.id}`);
+        toScryptUnfiltered = 0;
       }
 
       // total pending balance
