@@ -294,6 +294,79 @@ describe('ScryptService', () => {
     expect((freshService as any).balanceTransactions.get('warm-1')).toBe(terminalRecord);
   });
 
+  it('live BalanceTransaction without Timestamp is still cached (no age cutoff on live path)', () => {
+    const balanceTxCall = instance.subscribeToStream.mock.calls.find(
+      ([streamName]) => streamName === ScryptMessageType.BALANCE_TRANSACTION,
+    );
+    expect(balanceTxCall).toBeDefined();
+    const liveSubscriber = balanceTxCall![1] as (transactions: unknown[]) => void;
+
+    const liveNoTimestamp = {
+      ClReqID: 'live-no-ts',
+      TransactionID: 'tx-live-no-ts',
+      Status: ScryptTransactionStatus.COMPLETED,
+    };
+    liveSubscriber([liveNoTimestamp]);
+
+    expect((service as any).balanceTransactions.get('live-no-ts')).toEqual(liveNoTimestamp);
+  });
+
+  it('live ExecutionReport older than 365 days is still cached (no age cutoff on live path)', () => {
+    const executionReportCall = instance.subscribeToStream.mock.calls.find(
+      ([streamName]) => streamName === ScryptMessageType.EXECUTION_REPORT,
+    );
+    expect(executionReportCall).toBeDefined();
+    const liveSubscriber = executionReportCall![1] as (reports: unknown[]) => void;
+
+    const oldSubmitTime = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const oldReport = {
+      ClOrdID: 'ord-live-old',
+      Symbol: 'BTC-USD',
+      Side: 'Buy',
+      OrdStatus: ScryptOrderStatus.NEW,
+      OrderQty: '1',
+      CumQty: '0',
+      LeavesQty: '1',
+      SubmitTime: oldSubmitTime,
+    };
+    liveSubscriber([oldReport]);
+
+    expect((service as any).executionReports.get('ord-live-old')).toEqual(oldReport);
+  });
+
+  it('constructor warm-up drops BalanceTransaction older than 365 days (bulk age filter)', async () => {
+    const oldTimestamp = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const oldBalanceTx = {
+      ClReqID: 'warm-old',
+      TransactionID: 'tx-warm-old',
+      Status: ScryptTransactionStatus.COMPLETED,
+      Timestamp: oldTimestamp,
+    };
+
+    const MockedConnection = ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>;
+    MockedConnection.mockImplementationOnce(
+      () =>
+        ({
+          fetchAll: jest.fn().mockImplementation(async (streamName: string) => {
+            if (streamName === ScryptMessageType.BALANCE_TRANSACTION) {
+              return [oldBalanceTx];
+            }
+            return [];
+          }),
+          fetch: jest.fn().mockResolvedValue([]),
+          subscribeToStream: jest.fn().mockReturnValue(() => undefined),
+          onReconnect: jest.fn(),
+          send: jest.fn(),
+          requestAndWaitForUpdate: jest.fn(),
+        }) as any,
+    );
+
+    const freshService = new ScryptService();
+    await flushPromises();
+
+    expect((freshService as any).balanceTransactions.get('warm-old')).toBeUndefined();
+  });
+
   it('catchUpAfterReconnect coalesces overlapping reconnects into a second full run', async () => {
     let resolveFirstExecutionReport: (value: unknown[]) => void;
     const firstExecutionReportPromise = new Promise<unknown[]>((resolve) => {

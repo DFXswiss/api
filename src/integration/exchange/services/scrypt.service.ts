@@ -81,9 +81,9 @@ export class ScryptService extends PricingProvider {
       .then((reports) => this.applyExecutionReports(reports))
       .catch((error) => this.logger.error('Failed to fetch execution reports:', error));
 
-    this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) =>
-      this.applyExecutionReports(reports),
-    );
+    this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) => {
+      for (const r of reports) this.cacheExecutionReport(r); // live event: always cache (terminal guard only, no age cutoff)
+    });
 
     // BalanceTransaction subscription (all pages + subscription)
     this.connection
@@ -91,8 +91,11 @@ export class ScryptService extends PricingProvider {
       .then((transactions) => this.applyBalanceTransactions(transactions))
       .catch((error) => this.logger.error('Failed to fetch balance transactions:', error));
 
-    this.connection.subscribeToStream<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION, (transactions) =>
-      this.applyBalanceTransactions(transactions),
+    this.connection.subscribeToStream<ScryptBalanceTransaction>(
+      ScryptMessageType.BALANCE_TRANSACTION,
+      (transactions) => {
+        for (const t of transactions) this.cacheBalanceTransaction(t); // live event: always cache (terminal guard only)
+      },
     );
 
     this.connection.onReconnect(() => this.catchUpAfterReconnect());
@@ -121,11 +124,13 @@ export class ScryptService extends PricingProvider {
     this.executionReports.set(r.ClOrdID, r);
   }
 
+  // Bulk (age-bounded) warm-up/catch-up path only — live subscriptions must cache directly via cacheExecutionReport/cacheBalanceTransaction, see constructor.
   private applyExecutionReports(reports: ScryptExecutionReport[]): void {
     const cacheMaxAge = Util.daysBefore(365);
     for (const r of reports) if (!r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge) this.cacheExecutionReport(r);
   }
 
+  // Bulk (age-bounded) warm-up/catch-up path only — live subscriptions must cache directly via cacheExecutionReport/cacheBalanceTransaction, see constructor.
   private applyBalanceTransactions(transactions: ScryptBalanceTransaction[]): void {
     const cacheMaxAge = Util.daysBefore(365);
     for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
