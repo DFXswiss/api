@@ -680,9 +680,9 @@ describe('BankFrickService', () => {
       message = error instanceof Error ? error.message : String(error);
     }
 
-    expect(message).toContain(longKey.slice(0, 24));
+    expect(message).toContain(`keys: [${longKey.slice(0, 24)}, k0`);
+    expect(message).toContain('k8, +2 more], moreResults=');
     expect(message).not.toContain(longKey);
-    expect(message).toContain('+2 more');
   });
 
   it('recognises an already-BOOKED order missing customId/type as idempotent instead of a collision', async () => {
