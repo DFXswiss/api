@@ -72,20 +72,6 @@ describe('LiquidityManagementService', () => {
       expect(service['ruleActivations'].has(rule.id)).toBe(true);
     });
 
-    it('clears the activation timer when a rule is paused', async () => {
-      const rule = createRule({
-        id: 2,
-        status: LiquidityManagementRuleStatus.PAUSED,
-      });
-
-      service['ruleActivations'].set(rule.id, new Date());
-
-      await service['verifyRule'](rule, []);
-
-      expect(service['ruleActivations'].has(rule.id)).toBe(false);
-      expect(executeRuleSpy).not.toHaveBeenCalled();
-    });
-
     it('keeps the activation timer while a rule is processing between chunks', async () => {
       const rule = createRule({
         id: 3,
@@ -98,6 +84,18 @@ describe('LiquidityManagementService', () => {
 
       expect(service['ruleActivations'].has(rule.id)).toBe(true);
       expect(executeRuleSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resetActivation', () => {
+    it('clears the activation timer for the given rule id', () => {
+      const ruleId = 7;
+
+      service['ruleActivations'].set(ruleId, new Date());
+
+      service.resetActivation(ruleId);
+
+      expect(service['ruleActivations'].has(ruleId)).toBe(false);
     });
   });
 });
