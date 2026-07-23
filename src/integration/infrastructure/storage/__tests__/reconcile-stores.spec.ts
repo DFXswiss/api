@@ -7,6 +7,7 @@ import {
   DEFAULT_HEAL_CAP,
   diffStores,
   DiffResult,
+  isGateBlocking,
   OVERWRITE_SKEW_TOLERANCE_MS,
   parseConfig,
   StoredObject,
@@ -107,6 +108,58 @@ describe('diffStores', () => {
     expect(diff.sizeMismatch).toEqual([]);
     expect(diff.onlyOnAzure).toEqual([]);
     expect(diff.onlyOnS3).toEqual([]);
+  });
+});
+
+describe('isGateBlocking', () => {
+  it('returns false for an empty diff', () => {
+    const diff: DiffResult = {
+      onlyOnAzure: [],
+      onlyOnS3: [],
+      sizeMismatch: [],
+      suspectedOverwrite: [],
+    };
+    expect(isGateBlocking(diff)).toBe(false);
+  });
+
+  it('returns true when only onlyOnAzure is non-empty', () => {
+    const diff: DiffResult = {
+      onlyOnAzure: ['a'],
+      onlyOnS3: [],
+      sizeMismatch: [],
+      suspectedOverwrite: [],
+    };
+    expect(isGateBlocking(diff)).toBe(true);
+  });
+
+  it('returns true when only onlyOnS3 is non-empty', () => {
+    const diff: DiffResult = {
+      onlyOnAzure: [],
+      onlyOnS3: ['a'],
+      sizeMismatch: [],
+      suspectedOverwrite: [],
+    };
+    expect(isGateBlocking(diff)).toBe(true);
+  });
+
+  it('returns true when only sizeMismatch is non-empty', () => {
+    const diff: DiffResult = {
+      onlyOnAzure: [],
+      onlyOnS3: [],
+      sizeMismatch: ['a'],
+      suspectedOverwrite: [],
+    };
+    expect(isGateBlocking(diff)).toBe(true);
+  });
+
+  it('returns false when only suspectedOverwrite is non-empty', () => {
+    const diff: DiffResult = {
+      onlyOnAzure: [],
+      onlyOnS3: [],
+      sizeMismatch: [],
+      suspectedOverwrite: ['a'],
+    };
+    expect(isGateBlocking(diff)).toBe(false);
   });
 });
 

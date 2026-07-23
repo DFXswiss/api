@@ -13,10 +13,12 @@
  * diverging content; after Azure teardown the stale S3 copy would become truth (silent data
  * loss). Same-size content overwrites are NOT detectable here (would need a byte-hash scrub
  * — deliberately out of scope); lastModified only catches time-skewed overwrites within
- * OVERWRITE_SKEW_TOLERANCE_MS. Exit code 0 therefore proves (key, size) parity plus absence
- * of time-skew-detectable overwrites — it does NOT prove byte-identity. Same-size objects
- * with different content are not detectable by this script; a separate Azure↔S3 byte-/
- * content-hash gate is required before Azure teardown.
+ * OVERWRITE_SKEW_TOLERANCE_MS. The hard gate is (key, size) parity only (onlyOnAzure,
+ * onlyOnS3, sizeMismatch); suspectedOverwrite is advisory (lastModified heuristic) and is
+ * systematically false-positive after heals because a healed object receives a new
+ * lastModified. Exit code 0 therefore proves (key, size) parity — it does NOT prove
+ * byte-identity. Same-size objects with different content are not detectable by this script;
+ * a separate Azure↔S3 byte-/content-hash gate is required before Azure teardown.
  *
  * Overwrite direction is one-sided on purpose: only azure.lastModified >= s3.lastModified +
  * tolerance is flagged. The reverse (s3 newer than azure) is the normal backfill / dual-write
@@ -85,7 +87,7 @@ export interface DiffResult {
   sizeMismatch: string[];
   /**
    * Present on both, same size, but azure.lastModified >= s3.lastModified + tolerance →
-   * gate-blocking, not auto-healable
+   * advisory lastModified hint (not gate-blocking; unreliable after heals), not auto-healable
    */
   suspectedOverwrite: string[];
 }
@@ -132,6 +134,14 @@ export function diffStores(
   }
 
   return { onlyOnAzure, onlyOnS3, sizeMismatch, suspectedOverwrite };
+}
+
+/**
+ * Hard gate: true when (key, size) divergence remains. suspectedOverwrite is advisory only
+ * (lastModified heuristic; systematically false-positive after heals) and does not block.
+ */
+export function isGateBlocking(diff: DiffResult): boolean {
+  return diff.onlyOnAzure.length > 0 || diff.onlyOnS3.length > 0 || diff.sizeMismatch.length > 0;
 }
 
 /**
@@ -557,10 +567,22 @@ async function main(): Promise<number> {
       `sizeMismatch=${totals.sizeMismatch} suspectedOverwrite=${totals.suspectedOverwrite}`,
   );
 
-  const allEqual = reports.every((r) => isEmptyDiff(r.diff));
-  if (allEqual) {
+  const anyGateBlocking = reports.some((r) => isGateBlocking(r.diff));
+  if (!anyGateBlocking) {
+    for (const r of reports) {
+      if (r.diff.suspectedOverwrite.length > 0) {
+        console.log(
+          `ADVISORY: suspectedOverwrite=${r.diff.suspectedOverwrite.length} in ${r.container} ` +
+            `(lastModified hint; unreliable after heals -- authoritative same-size check is the ` +
+            `separate content-hash gate; does NOT block the gate)`,
+        );
+      }
+    }
     console.log(
-      `RECONCILED: 0 (key,size) divergence across ${containers.length} containers -- NOTE: byte-identity is NOT proven; run the separate content-hash gate before Azure teardown.`,
+      `RECONCILED: 0 (key,size) divergence across ${containers.length} containers ` +
+        `(hard gate is (key,size) parity; suspectedOverwrite is an advisory lastModified hint, ` +
+        `unreliable after heals) -- NOTE: byte-identity is NOT proven; run the separate ` +
+        `content-hash gate before Azure teardown.`,
     );
     return 0;
   }
@@ -644,16 +666,27 @@ async function main(): Promise<number> {
     }
   }
 
-  if (residualMismatch > 0 || residualOverwrite > 0) {
+  if (residualMismatch > 0) {
     console.error(
-      `DIVERGENCE after heal: sizeMismatch=${residualMismatch} suspectedOverwrite=${residualOverwrite} ` +
+      `DIVERGENCE after heal: sizeMismatch=${residualMismatch} ` +
         `(not auto-healable). Gate remains red.`,
     );
     return 1;
   }
 
+  if (residualOverwrite > 0) {
+    console.log(
+      `ADVISORY: residual suspectedOverwrite=${residualOverwrite} after heal ` +
+        `(lastModified hint; unreliable after heals -- authoritative same-size check is the ` +
+        `separate content-hash gate; does NOT block the gate)`,
+    );
+  }
+
   console.log(
-    `RECONCILED: 0 (key,size) divergence across ${containers.length} containers -- NOTE: byte-identity is NOT proven; run the separate content-hash gate before Azure teardown.`,
+    `RECONCILED: 0 (key,size) divergence across ${containers.length} containers ` +
+      `(hard gate is (key,size) parity; suspectedOverwrite is an advisory lastModified hint, ` +
+      `unreliable after heals) -- NOTE: byte-identity is NOT proven; run the separate ` +
+      `content-hash gate before Azure teardown.`,
   );
   return 0;
 }
