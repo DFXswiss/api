@@ -17,6 +17,7 @@ import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
+import { LiquidityManagementService } from './liquidity-management.service';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -28,6 +29,7 @@ export class LiquidityManagementPipelineService {
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
+    private readonly liquidityManagementService: LiquidityManagementService,
   ) {}
 
   //*** JOBS ***//
@@ -263,6 +265,9 @@ export class LiquidityManagementPipelineService {
     order: LiquidityManagementOrder,
   ): Promise<void> {
     const rule = pipeline.rule.pause();
+
+    // The rule is now paused; clear its activation-debounce timer so a later reactivation re-debounces.
+    this.liquidityManagementService.resetActivation(rule.id);
 
     await this.ruleRepo.save(rule);
 

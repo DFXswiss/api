@@ -97,6 +97,12 @@ export class LiquidityManagementService {
     return this.executeRule(rule, liquidityState, LiquidityOptimizationType.REDUNDANCY);
   }
 
+  // Clears the activation-debounce timer for a rule. Called when a rule leaves the drain lifecycle
+  // (e.g. paused after a failed pipeline) so that a subsequent reactivation re-debounces from scratch.
+  resetActivation(ruleId: number): void {
+    this.ruleActivations.delete(ruleId);
+  }
+
   //*** HELPER METHODS ***//
 
   private async findRuleByAssetOrThrow(assetId: number): Promise<LiquidityManagementRule> {
@@ -144,8 +150,6 @@ export class LiquidityManagementService {
         const requiredActivationTime = Util.minutesBefore(+delay);
 
         if (!rule.delayActivation || this.ruleActivations.get(rule.id) < requiredActivationTime) {
-          this.ruleActivations.delete(rule.id);
-
           await this.executeRule(rule, result);
         }
       } else {
