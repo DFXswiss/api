@@ -71,6 +71,7 @@ export class ScryptWebSocketConnection {
   private ws?: WebSocket;
   private connectionState: ConnectionState = ConnectionState.DISCONNECTED;
   private connectionPromise?: Promise<void>;
+  private connectionGeneration = 0;
 
   private readonly reconnectDelay = 5000; // 5 seconds
   private readonly maxReconnectDelay = 60000; // 60s cap for the exponential backoff
@@ -188,6 +189,7 @@ export class ScryptWebSocketConnection {
   }
 
   async disconnect(): Promise<void> {
+    this.connectionGeneration++; // supersede any in-flight connect attempt (its socket events become no-ops)
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
@@ -216,8 +218,9 @@ export class ScryptWebSocketConnection {
     if (this.connectionState === ConnectionState.CONNECTED) return;
     if (this.connectionState === ConnectionState.CONNECTING && this.connectionPromise) return this.connectionPromise;
 
+    const generation = ++this.connectionGeneration;
     this.connectionState = ConnectionState.CONNECTING;
-    const promise = this.establishConnection();
+    const promise = this.establishConnection(generation);
     this.connectionPromise = promise;
     try {
       await promise;
@@ -237,18 +240,24 @@ export class ScryptWebSocketConnection {
   // backoff loop retries instead of treating a dead socket as connected (finding 2). connectionState stays
   // CONNECTING until the very end, so a business call arriving mid-resubscribe joins connectionPromise (via
   // connect()'s CONNECTING branch) rather than proceeding on the half-ready socket.
-  private async establishConnection(): Promise<void> {
-    await this.connectWebSocket(); // rejects on error / close-before-open / handshake timeout
+  private async establishConnection(generation: number): Promise<void> {
+    await this.connectWebSocket(generation); // rejects on error / close-before-open / handshake timeout
+    this.assertCurrentGeneration(generation);
     this.assertSocketOpen('after handshake');
 
     if (this.hasEverConnected) {
       await this.resubscribeToStreams(); // sends on the current socket directly, no ensureConnected (no reentrancy)
+      this.assertCurrentGeneration(generation);
       this.assertSocketOpen('after resubscription');
     } else {
       this.hasEverConnected = true;
     }
 
     this.connectionState = ConnectionState.CONNECTED; // fully ready only now
+  }
+
+  private assertCurrentGeneration(generation: number): void {
+    if (generation !== this.connectionGeneration) throw new Error('Scrypt WebSocket connection attempt superseded');
   }
 
   private assertSocketOpen(when: string): void {
@@ -269,7 +278,7 @@ export class ScryptWebSocketConnection {
     return this.ws;
   }
 
-  private async connectWebSocket(): Promise<void> {
+  private async connectWebSocket(generation: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const url = new URL(this.wsUrl);
       const host = url.host;
@@ -295,6 +304,11 @@ export class ScryptWebSocketConnection {
 
       ws.on('open', () => {
         clearTimeout(handshakeTimeout);
+        if (generation !== this.connectionGeneration) {
+          ws.terminate(); // a newer attempt or disconnect() superseded us — do not adopt this socket
+          reject(new Error('Scrypt WebSocket connection attempt superseded'));
+          return;
+        }
         this.ws = ws;
         resolve();
       });
@@ -310,12 +324,14 @@ export class ScryptWebSocketConnection {
       });
 
       ws.on('close', (code, reason) => {
-        this.handleDisconnection(code, reason);
+        this.handleDisconnection(generation, code, reason);
       });
     });
   }
 
-  private handleDisconnection(code?: number, reason?: string): void {
+  private handleDisconnection(generation: number, code?: number, reason?: string): void {
+    if (generation !== this.connectionGeneration) return; // stale socket — its close is not our concern
+
     // Only flip to DISCONNECTED when the live socket dropped. A mid-establish close (CONNECTING)
     // must leave state alone so concurrent connect() callers still join connectionPromise instead
     // of starting a second establishConnection.
@@ -344,12 +360,15 @@ export class ScryptWebSocketConnection {
     if (attempt > 0 && attempt % 10 === 0)
       this.logger.error(`Scrypt WebSocket still not reconnected after ${attempt} attempts`);
     this.reconnectTimer = setTimeout(() => {
+      if (!this.isReconnecting) return; // disconnect() stopped the loop
       void this.connect()
         .then(() => {
+          if (!this.isReconnecting) return;
           this.isReconnecting = false;
           this.logger.info(`Scrypt WebSocket reconnected (after ${attempt + 1} attempt(s))`);
         })
         .catch((error) => {
+          if (!this.isReconnecting) return; // disconnect() stopped the loop; do not re-arm
           this.logger.warn(`Scrypt WebSocket reconnect attempt ${attempt + 1} failed: ${error}; retrying`);
           this.scheduleReconnect(attempt + 1);
         });

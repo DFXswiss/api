@@ -534,4 +534,60 @@ describe('ScryptWebSocketConnection', () => {
     expect((connection as any).isReconnecting).toBe(true);
     expect(loggerInfo).not.toHaveBeenCalledWith(expect.stringMatching(/reconnected/));
   });
+
+  it("ignores a stale (superseded) socket's close (B3)", async () => {
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+    const firstWs = await firstConnectWithStream();
+
+    expect((connection as any).connectionGeneration).toBe(1);
+    expect((connection as any).ws).toBe(firstWs);
+    expect((connection as any).connectionState).toBe('connected');
+
+    // Simulate a close event from a prior attempt whose captured generation is no longer current.
+    (connection as any).handleDisconnection(0, 1006, 'stale');
+
+    expect((connection as any).ws).toBe(firstWs);
+    expect((connection as any).connectionState).toBe('connected');
+    expect((connection as any).isReconnecting).toBe(false);
+    expect(scheduleSpy).not.toHaveBeenCalled();
+    expect(loggerWarn).not.toHaveBeenCalledWith(expect.stringMatching(/scheduling reconnect/));
+  });
+
+  it('disconnect() during pre-open handshake supersedes it — socket is terminated and not adopted (B1)', async () => {
+    const connectPromise = (connection as any).connect();
+    await flushPromises();
+
+    expect((connection as any).connectionState).toBe('connecting');
+    const preOpenWs = latestWs();
+    expect(preOpenWs.readyState).toBe(WebSocket.CONNECTING);
+
+    await connection.disconnect();
+
+    preOpenWs.open();
+    await flushPromises();
+
+    expect(preOpenWs.terminate).toHaveBeenCalled();
+    expect((connection as any).ws).toBeUndefined();
+    expect((connection as any).connectionState).toBe('disconnected');
+    await expect(connectPromise).rejects.toThrow(/superseded/i);
+  });
+
+  it('disconnect() stops the backoff loop — no further reconnect after advancing timers (B2)', async () => {
+    const firstWs = await firstConnectWithStream();
+    firstWs.remoteClose(1006, 'gone');
+    expect((connection as any).isReconnecting).toBe(true);
+
+    const constructCountBeforeDisconnect = WebSocket.instances.length;
+    await connection.disconnect();
+    expect((connection as any).isReconnecting).toBe(false);
+
+    // Re-arm a timer after disconnect so the setTimeout callback's own guard is exercised
+    // (not merely clearTimeout of a still-pending timer).
+    (connection as any).scheduleReconnect(0);
+    jest.advanceTimersByTime(60000 * 3);
+    await flushPromises();
+
+    expect(WebSocket.instances.length).toBe(constructCountBeforeDisconnect);
+    expect((connection as any).isReconnecting).toBe(false);
+  });
 });
