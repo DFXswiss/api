@@ -472,7 +472,7 @@ export class ScryptWebSocketConnection {
     try {
       this.ws.send(JSON.stringify({ reqid: reqId, type: ScryptRequestType.CANCEL }));
     } catch (e) {
-      this.logger.warn(`Failed to cancel Scrypt stream ${reqId}:`, e);
+      this.logger.error(`Failed to cancel Scrypt stream ${reqId}:`, e);
     }
   }
 

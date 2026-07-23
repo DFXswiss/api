@@ -1,3 +1,4 @@
+import { ScryptOrderStatus, ScryptTransactionStatus } from '../../dto/scrypt.dto';
 import { ScryptMessageType, ScryptWebSocketConnection } from '../scrypt-websocket-connection';
 import { ScryptService } from '../scrypt.service';
 
@@ -63,13 +64,13 @@ describe('ScryptService', () => {
     const existingNonTerminal = {
       ClReqID: 'a',
       TransactionID: 'tx-a-old',
-      Status: 'Completed',
+      Status: ScryptTransactionStatus.COMPLETED,
       Timestamp: now,
     };
     const existingTerminal = {
       ClReqID: 'b',
       TransactionID: 'tx-b-terminal',
-      Status: 'Rejected',
+      Status: ScryptTransactionStatus.REJECTED,
       Timestamp: now,
     };
     (service as any).balanceTransactions.set('a', existingNonTerminal);
@@ -79,14 +80,14 @@ describe('ScryptService', () => {
     const freshTerminalA = {
       ClReqID: 'a',
       TransactionID: 'tx-a-new',
-      Status: 'Completed',
+      Status: ScryptTransactionStatus.COMPLETED,
       TxHash: 'hash1',
       Timestamp: now,
     };
     const freshNonTerminalB = {
       ClReqID: 'b',
       TransactionID: 'tx-b-nonterminal',
-      Status: 'Completed',
+      Status: ScryptTransactionStatus.COMPLETED,
       Timestamp: now,
     };
     const freshReport = {
@@ -96,10 +97,10 @@ describe('ScryptService', () => {
     };
 
     instance.fetchAll.mockImplementation(async (streamName: string) => {
-      if (streamName === ScryptMessageType.BALANCE_TRANSACTION || streamName === 'BalanceTransaction') {
+      if (streamName === ScryptMessageType.BALANCE_TRANSACTION) {
         return [freshTerminalA, freshNonTerminalB];
       }
-      if (streamName === ScryptMessageType.EXECUTION_REPORT || streamName === 'ExecutionReport') {
+      if (streamName === ScryptMessageType.EXECUTION_REPORT) {
         return [freshReport];
       }
       return [];
@@ -118,13 +119,13 @@ describe('ScryptService', () => {
     const existingTerminal = {
       ClReqID: 'c',
       TransactionID: 'tx-c-old',
-      Status: 'Rejected',
+      Status: ScryptTransactionStatus.REJECTED,
       Timestamp: now,
     };
     const freshTerminal = {
       ClReqID: 'c',
       TransactionID: 'tx-c-corrected',
-      Status: 'Completed',
+      Status: ScryptTransactionStatus.COMPLETED,
       TxHash: 'hash-corrected',
       Timestamp: now,
     };
@@ -155,7 +156,7 @@ describe('ScryptService', () => {
     const existingTerminal = {
       ClReqID: 'live-1',
       TransactionID: 'tx-live-terminal',
-      Status: 'Rejected',
+      Status: ScryptTransactionStatus.REJECTED,
       Timestamp: now,
     };
     (service as any).balanceTransactions.set('live-1', existingTerminal);
@@ -170,7 +171,7 @@ describe('ScryptService', () => {
     const nonTerminalUpdate = {
       ClReqID: 'live-1',
       TransactionID: 'tx-live-nonterminal',
-      Status: 'Completed',
+      Status: ScryptTransactionStatus.COMPLETED,
       Timestamp: now,
     };
     liveSubscriber([nonTerminalUpdate]);
@@ -179,19 +180,56 @@ describe('ScryptService', () => {
     expect((service as any).balanceTransactions.get('live-1')).toEqual(existingTerminal);
   });
 
+  it('live ExecutionReport subscriber goes through the terminal-aware guard', () => {
+    const now = new Date().toISOString();
+    const existingTerminal = {
+      ClOrdID: 'ord-live-1',
+      Symbol: 'BTC-USD',
+      Side: 'Buy',
+      OrdStatus: ScryptOrderStatus.FILLED,
+      OrderQty: '1',
+      CumQty: '1',
+      LeavesQty: '0',
+      SubmitTime: now,
+    };
+    (service as any).executionReports.set('ord-live-1', existingTerminal);
+    const terminalBefore = (service as any).executionReports.get('ord-live-1');
+
+    const executionReportCall = instance.subscribeToStream.mock.calls.find(
+      ([streamName]) => streamName === ScryptMessageType.EXECUTION_REPORT,
+    );
+    expect(executionReportCall).toBeDefined();
+    const liveSubscriber = executionReportCall![1] as (reports: unknown[]) => void;
+
+    const nonTerminalUpdate = {
+      ClOrdID: 'ord-live-1',
+      Symbol: 'BTC-USD',
+      Side: 'Buy',
+      OrdStatus: ScryptOrderStatus.NEW,
+      OrderQty: '1',
+      CumQty: '0',
+      LeavesQty: '1',
+      SubmitTime: now,
+    };
+    liveSubscriber([nonTerminalUpdate]);
+
+    expect((service as any).executionReports.get('ord-live-1')).toBe(terminalBefore);
+    expect((service as any).executionReports.get('ord-live-1')).toEqual(existingTerminal);
+  });
+
   it('constructor warm-up BalanceTransaction fetch goes through the terminal-aware guard', async () => {
     const now = new Date().toISOString();
     const terminalRecord = {
       ClReqID: 'warm-1',
       TransactionID: 'tx-warm-terminal',
-      Status: 'Completed',
+      Status: ScryptTransactionStatus.COMPLETED,
       TxHash: 'hash-warm',
       Timestamp: now,
     };
     const nonTerminalDuplicate = {
       ClReqID: 'warm-1',
       TransactionID: 'tx-warm-nonterminal',
-      Status: 'Completed',
+      Status: ScryptTransactionStatus.COMPLETED,
       Timestamp: now,
     };
 
@@ -200,7 +238,7 @@ describe('ScryptService', () => {
       () =>
         ({
           fetchAll: jest.fn().mockImplementation(async (streamName: string) => {
-            if (streamName === ScryptMessageType.BALANCE_TRANSACTION || streamName === 'BalanceTransaction') {
+            if (streamName === ScryptMessageType.BALANCE_TRANSACTION) {
               return [terminalRecord, nonTerminalDuplicate];
             }
             return [];

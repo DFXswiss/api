@@ -75,39 +75,24 @@ export class ScryptService extends PricingProvider {
       });
     });
 
-    const cacheMaxAge = Util.daysBefore(365);
-
     // ExecutionReport subscription (all pages + subscription)
     this.connection
       .fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT)
-      .then((reports) => {
-        const recent = reports.filter((r) => !r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge);
-        for (const r of recent) this.executionReports.set(r.ClOrdID, r);
-      })
+      .then((reports) => this.applyExecutionReports(reports))
       .catch((error) => this.logger.error('Failed to fetch execution reports:', error));
 
-    this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) => {
-      for (const report of reports) {
-        this.executionReports.set(report.ClOrdID, report);
-      }
-    });
+    this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) =>
+      this.applyExecutionReports(reports),
+    );
 
     // BalanceTransaction subscription (all pages + subscription)
     this.connection
       .fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION)
-      .then((transactions) => {
-        const recent = transactions.filter((t) => new Date(t.Timestamp) >= cacheMaxAge);
-        for (const t of recent) this.cacheBalanceTransaction(t);
-      })
+      .then((transactions) => this.applyBalanceTransactions(transactions))
       .catch((error) => this.logger.error('Failed to fetch balance transactions:', error));
 
-    this.connection.subscribeToStream<ScryptBalanceTransaction>(
-      ScryptMessageType.BALANCE_TRANSACTION,
-      (transactions) => {
-        for (const t of transactions) {
-          this.cacheBalanceTransaction(t);
-        }
-      },
+    this.connection.subscribeToStream<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION, (transactions) =>
+      this.applyBalanceTransactions(transactions),
     );
 
     this.connection.onReconnect(() => this.catchUpAfterReconnect());
@@ -126,6 +111,26 @@ export class ScryptService extends PricingProvider {
     this.balanceTransactions.set(t.ClReqID, t);
   }
 
+  private isTerminalExecutionReport(r: ScryptExecutionReport): boolean {
+    return [ScryptOrderStatus.FILLED, ScryptOrderStatus.CANCELED, ScryptOrderStatus.REJECTED].includes(r.OrdStatus);
+  }
+
+  private cacheExecutionReport(r: ScryptExecutionReport): void {
+    const existing = this.executionReports.get(r.ClOrdID);
+    if (existing && this.isTerminalExecutionReport(existing) && !this.isTerminalExecutionReport(r)) return;
+    this.executionReports.set(r.ClOrdID, r);
+  }
+
+  private applyExecutionReports(reports: ScryptExecutionReport[]): void {
+    const cacheMaxAge = Util.daysBefore(365);
+    for (const r of reports) if (!r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge) this.cacheExecutionReport(r);
+  }
+
+  private applyBalanceTransactions(transactions: ScryptBalanceTransaction[]): void {
+    const cacheMaxAge = Util.daysBefore(365);
+    for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
+  }
+
   // After a WS reconnect, re-fetch balance transactions + execution reports so an event missed during the outage
   // is recovered (a bare re-subscribe is not documented to replay it). Mirrors the constructor warm-up's fetchAll,
   // but not its subscribeToStream (resubscription is handled by the reconnect itself). Best-effort; logs on failure.
@@ -138,21 +143,21 @@ export class ScryptService extends PricingProvider {
     try {
       do {
         this.catchUpPending = false;
-        const cacheMaxAge = Util.daysBefore(365);
-        try {
-          const reports = await this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
-          for (const r of reports)
-            if (!r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge) this.executionReports.set(r.ClOrdID, r);
-        } catch (e) {
-          this.logger.error('Scrypt reconnect catch-up (execution reports) failed:', e);
+        const [executionResult, balanceResult] = await Promise.allSettled([
+          this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT),
+          this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION),
+        ]);
+
+        if (executionResult.status === 'fulfilled') {
+          this.applyExecutionReports(executionResult.value);
+        } else {
+          this.logger.error('Scrypt reconnect catch-up (execution reports) failed:', executionResult.reason);
         }
-        try {
-          const transactions = await this.connection.fetchAll<ScryptBalanceTransaction>(
-            ScryptMessageType.BALANCE_TRANSACTION,
-          );
-          for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
-        } catch (e) {
-          this.logger.error('Scrypt reconnect catch-up (balance transactions) failed:', e);
+
+        if (balanceResult.status === 'fulfilled') {
+          this.applyBalanceTransactions(balanceResult.value);
+        } else {
+          this.logger.error('Scrypt reconnect catch-up (balance transactions) failed:', balanceResult.reason);
         }
       } while (this.catchUpPending);
     } finally {
