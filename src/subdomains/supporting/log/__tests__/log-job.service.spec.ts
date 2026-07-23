@@ -1928,5 +1928,46 @@ describe('LogJobService', () => {
       // Per-leg unfiltered clamps must not exist — they would leave total = 881163.51 and skip this path.
       expect(verboseSpy.mock.calls.some((call) => String(call[0]).includes('totalPlusPending < 0'))).toBe(true);
     });
+
+    it('keeps signed negative unfiltered pending legs in the log when net totalPlusPending is positive', async () => {
+      // Active Yapeal/EUR custody asset (sellable keeps it in the asset-log reduce).
+      const yapealEurAsset = createCustomAsset({
+        id: 8005,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'EUR',
+        sellable: true,
+      });
+
+      // Net-positive pending so the pending object is built (not aggregate-clamped away):
+      // fromKrakenUnfiltered = +900000 (unmatched Kraken WITHDRAWAL to bank)
+      // toKrakenUnfiltered   = -100000 (unmatched Kraken DEPOSIT from bank)
+      // Net totalPlusPending = +800000 → pending is present; toKraken must stay negative for observability.
+      const fromKrakenWithdrawalTx = createCustomExchangeTx({
+        id: 5003,
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: 'YAPEAL AG',
+        amount: 900000,
+      });
+      const toKrakenDepositTx = createCustomExchangeTx({
+        id: 5004,
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: yapealEUR.bic.padEnd(11, 'XXX'),
+        amount: 100000,
+      });
+      setupUnfilteredKrakenNetting([fromKrakenWithdrawalTx, toKrakenDepositTx]);
+
+      const assetLog = await service['getAssetLog']([yapealEurAsset]);
+
+      // Pending must exist (net positive — not clamped away by totalPlusPending < 0).
+      expect(assetLog[yapealEurAsset.id].plusBalance.pending).toBeDefined();
+      // Load-bearing: negative leg must be present and signed (getJsonValue returnNegativeValue=true).
+      expect(assetLog[yapealEurAsset.id].plusBalance.pending.toKraken).toBe(-100000);
+      expect(assetLog[yapealEurAsset.id].plusBalance.pending.fromKraken).toBe(900000);
+    });
   });
 });

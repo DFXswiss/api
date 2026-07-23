@@ -1048,10 +1048,30 @@ export class LogJobService {
                 exchangeOrder: this.getJsonValue(exchangeOrder, amountType(curr)),
                 bridgeOrder: this.getJsonValue(bridgeOrder, amountType(curr)),
                 fromOlky: this.getJsonValue(pendingOlkyYapealAmount, amountType(curr)),
-                fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
-                toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
-                fromScrypt: this.getJsonValue(useUnfilteredTx ? fromScryptUnfiltered : fromScrypt, amountType(curr)),
-                toScrypt: this.getJsonValue(useUnfilteredTx ? toScryptUnfiltered : toScrypt, amountType(curr)),
+                fromKraken: this.getJsonValue(
+                  useUnfilteredTx ? fromKrakenUnfiltered : fromKraken,
+                  amountType(curr),
+                  false,
+                  true,
+                ),
+                toKraken: this.getJsonValue(
+                  useUnfilteredTx ? toKrakenUnfiltered : toKraken,
+                  amountType(curr),
+                  false,
+                  true,
+                ),
+                fromScrypt: this.getJsonValue(
+                  useUnfilteredTx ? fromScryptUnfiltered : fromScrypt,
+                  amountType(curr),
+                  false,
+                  true,
+                ),
+                toScrypt: this.getJsonValue(
+                  useUnfilteredTx ? toScryptUnfiltered : toScrypt,
+                  amountType(curr),
+                  false,
+                  true,
+                ),
               }
             : undefined,
           // monitoring: errors.length
