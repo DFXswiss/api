@@ -78,6 +78,7 @@ export class ScryptWebSocketConnection {
   private readonly handshakeTimeoutMs = 15000;
   private hasEverConnected = false; // first connect subscribes directly; later connects must resubscribe
   private isReconnecting = false; // guards against overlapping reconnect loops
+  private reconnectEpoch = 0; // bumped on disconnect / new loop so stale scheduleReconnect continuations no-op
   private reconnectTimer?: NodeJS.Timeout;
 
   // requests
@@ -195,6 +196,7 @@ export class ScryptWebSocketConnection {
       this.reconnectTimer = undefined;
     }
     this.isReconnecting = false;
+    this.reconnectEpoch++; // supersede any in-flight reconnect loop (stale timer/then/catch become no-ops)
     this.connectionState = ConnectionState.DISCONNECTED;
     this.connectionPromise = undefined;
 
@@ -351,28 +353,29 @@ export class ScryptWebSocketConnection {
     // reconnect
     if (wasConnected && !this.isReconnecting) {
       this.isReconnecting = true;
+      const epoch = ++this.reconnectEpoch;
       this.logger.warn(`Scrypt WebSocket closed (code: ${code}, reason: ${reason}), scheduling reconnect`);
-      this.scheduleReconnect(0);
+      this.scheduleReconnect(0, epoch);
     }
   }
 
-  private scheduleReconnect(attempt: number): void {
+  private scheduleReconnect(attempt: number, epoch: number): void {
     const capped = Math.min(this.reconnectDelay * 2 ** attempt, this.maxReconnectDelay);
     const delay = capped / 2 + Math.random() * (capped / 2); // equal jitter to avoid synchronized retry storms
     if (attempt > 0 && attempt % 10 === 0)
       this.logger.error(`Scrypt WebSocket still not reconnected after ${attempt} attempts`);
     this.reconnectTimer = setTimeout(() => {
-      if (!this.isReconnecting) return; // disconnect() stopped the loop
+      if (epoch !== this.reconnectEpoch) return; // this loop was superseded (disconnect or a newer loop)
       void this.connect()
         .then(() => {
-          if (!this.isReconnecting) return;
+          if (epoch !== this.reconnectEpoch) return;
           this.isReconnecting = false;
           this.logger.info(`Scrypt WebSocket reconnected (after ${attempt + 1} attempt(s))`);
         })
         .catch((error) => {
-          if (!this.isReconnecting) return; // disconnect() stopped the loop; do not re-arm
+          if (epoch !== this.reconnectEpoch) return;
           this.logger.warn(`Scrypt WebSocket reconnect attempt ${attempt + 1} failed; retrying`, error);
-          this.scheduleReconnect(attempt + 1);
+          this.scheduleReconnect(attempt + 1, epoch);
         });
     }, delay);
   }
@@ -429,10 +432,12 @@ export class ScryptWebSocketConnection {
   // --- STREAMING SUBSCRIPTIONS --- //
 
   /**
-   * Call at construction or while connected. Subscribing a brand-new stream while the connection is
-   * down/reconnecting can double-send the SUBSCRIBE frame (the in-flight reconnect's resubscribe and
-   * this call's immediate send both fire). All current callers subscribe at construction, so this is
-   * not hit today — see #4310 follow-up.
+   * Safe to call for a stream that is already active (it only adds a callback — no new SUBSCRIBE is
+   * sent). Subscribing a brand-new stream while the connection is down/reconnecting can double-send
+   * the SUBSCRIBE frame (the in-flight reconnect's resubscribe and this call both send it). All
+   * current callers either subscribe at construction or, like
+   * ExchangeTxService.onBalanceTransactions(), only add a callback to an already-active stream — see
+   * #4310 follow-up.
    */
   subscribeToStream<T>(
     streamName: ScryptMessageType,
