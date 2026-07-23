@@ -879,6 +879,42 @@ describe('ScryptWebSocketConnection', () => {
     expect(cancelSends).toHaveLength(0);
   });
 
+  it('fetch resolves with its collected data even when the cancel frame throws synchronously', async () => {
+    const ws = await firstConnectWithStream();
+    const streamName = ScryptMessageType.EXECUTION_REPORT;
+
+    const fetchPromise = connection.fetch(streamName);
+    await flushPromises();
+
+    const subscribeSend = ws.send.mock.calls
+      .map(([payload], idx) => ({ msg: JSON.parse(payload as string), idx }))
+      .filter(({ msg }) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+      .pop();
+    expect(subscribeSend).toBeDefined();
+    const reqId = subscribeSend!.msg.reqid as number;
+
+    ws.emit(
+      'message',
+      JSON.stringify({
+        reqid: reqId,
+        type: streamName,
+        initial: true,
+        data: [{ ClOrdID: 'ord-cancel-throw' }],
+      }),
+    );
+
+    // Scope the throw to the very next ws.send call — the CANCEL frame sent from fetch's finally block.
+    // Must be set synchronously right after emit, before any await drains the microtask queue.
+    ws.send.mockImplementationOnce(() => {
+      throw new Error('send failed');
+    });
+
+    const result = await fetchPromise;
+
+    expect(result).toEqual([{ ClOrdID: 'ord-cancel-throw' }]);
+    expect(loggerError).toHaveBeenCalledWith(`Failed to cancel Scrypt stream ${reqId}:`, expect.any(Error));
+  });
+
   it('fetch still sends cancel when the collect path throws (malformed initial)', async () => {
     const ws = await firstConnectWithStream();
     const streamName = ScryptMessageType.EXECUTION_REPORT;

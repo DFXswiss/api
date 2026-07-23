@@ -151,6 +151,39 @@ describe('ScryptService', () => {
     expect(instance.fetchAll).toHaveBeenCalledWith(ScryptMessageType.BALANCE_TRANSACTION);
   });
 
+  it('catchUpAfterReconnect applies the fulfilled stream even when the other stream rejects (Promise.allSettled isolation)', async () => {
+    const now = new Date().toISOString();
+    const freshBalanceTx = {
+      ClReqID: 'iso-1',
+      TransactionID: 'tx-iso-new',
+      Status: ScryptTransactionStatus.COMPLETED,
+      TxHash: 'hash-iso',
+      Timestamp: now,
+    };
+    const rejectionError = new Error('execution reports fetch failed');
+
+    const loggerErrorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+
+    const registeredCallback = instance.onReconnect.mock.calls[0][0] as () => void | Promise<void>;
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockImplementation(async (streamName: string) => {
+      if (streamName === ScryptMessageType.EXECUTION_REPORT) throw rejectionError;
+      if (streamName === ScryptMessageType.BALANCE_TRANSACTION) return [freshBalanceTx];
+      return [];
+    });
+
+    await registeredCallback();
+    await flushPromises();
+
+    expect((service as any).balanceTransactions.get('iso-1')).toEqual(freshBalanceTx);
+    expect((service as any).executionReports.size).toBe(0);
+    expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
+      'Scrypt reconnect catch-up (execution reports) failed:',
+      rejectionError,
+    );
+  });
+
   it('live BalanceTransaction subscriber goes through the terminal-aware guard', () => {
     const now = new Date().toISOString();
     const existingTerminal = {
