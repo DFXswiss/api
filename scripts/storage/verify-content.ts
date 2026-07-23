@@ -82,12 +82,16 @@ const MAX_FIXPOINT_ITERATIONS = 10;
 /** Pacing delay (ms) between concurrent hash batches to avoid I/O storms. */
 const HASH_BATCH_PACING_MS = 100;
 
+/** Strict ISO-8601 date (optional time / fraction / timezone) for BACKFILL_PROOF_CUTOFF. */
+const ISO_8601_REGEX = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
+
 export interface ContentObject {
   key: string;
   size: number;
   lastModified: Date;
   contentMd5?: string; // base64 string, Azure only, when present
-  etag?: string; // raw as returned by the SDK (with surrounding quotes), S3 only
+  /** Native ETag/version id from list response (raw as returned by the SDK), both stores. */
+  etag: string;
 }
 
 export type ProofClass = 'metadata-match' | 'backfill-covered' | 'size-mismatch' | 'needs-hash';
@@ -143,11 +147,32 @@ export function md5Matches(azureContentMd5: string | undefined, s3Etag: string |
 
 /**
  * Stable signature of the listed Azure+S3 object pair used to bind a prior hash proof
- * to that exact listing state. Same-size content overwrites change S3 ETag (and usually
- * lastModified), so a stale hash proof is invalidated on the next re-list.
+ * to that exact listing state. Bound to both sides' ETags (each store's own version
+ * identifier, which changes on every write to that side) and sizes — not timestamps —
+ * so a same-second overwrite on either side reliably invalidates a stale hash proof
+ * regardless of clock granularity.
  */
 export function objectSignature(azure: ContentObject, s3: ContentObject): string {
-  return `${azure.lastModified.getTime()}|${azure.size}|${s3.lastModified.getTime()}|${s3.size}|${s3.etag ?? ''}`;
+  return `${azure.etag}|${azure.size}|${s3.etag}|${s3.size}`;
+}
+
+/**
+ * True only if a prior hash proof still matches the CURRENT listed objects.
+ * Mutates `provenByHash`: deletes the entry when the signature no longer matches.
+ */
+export function isStillProvenByHash(
+  provenByHash: Map<string, string>,
+  sk: string,
+  azureObj: ContentObject,
+  s3Obj: ContentObject,
+): boolean {
+  const provenSig = provenByHash.get(sk);
+  if (provenSig === undefined) return false;
+  const currentSig = objectSignature(azureObj, s3Obj);
+  if (provenSig === currentSig) return true;
+  // Object changed since hash — discard stale proof so the key is reclassified/re-hashed.
+  provenByHash.delete(sk);
+  return false;
 }
 
 /**
@@ -205,18 +230,25 @@ export async function listS3(client: S3Client, bucket: string): Promise<ContentO
     assertPageComplete(res.IsTruncated === true, res.NextContinuationToken);
 
     for (const o of res.Contents ?? []) {
-      if (o.Key == null || o.Key === '' || o.Size == null || o.LastModified == null) {
+      if (
+        o.Key == null ||
+        o.Key === '' ||
+        o.Size == null ||
+        o.LastModified == null ||
+        o.ETag == null ||
+        o.ETag === ''
+      ) {
         throw new Error(
           `Incomplete S3 list entry in bucket "${bucket}"` +
             (o.Key != null && o.Key !== '' ? ` key="${o.Key}"` : '') +
-            `: Key, Size and LastModified are required from ListObjectsV2 (no HeadObject fallback)`,
+            `: Key, Size, LastModified and ETag are required from ListObjectsV2 (no HeadObject fallback)`,
         );
       }
       objects.push({
         key: o.Key,
         size: o.Size,
         lastModified: o.LastModified,
-        etag: o.ETag ?? undefined,
+        etag: o.ETag,
       });
     }
 
@@ -234,12 +266,13 @@ export async function listAzure(containerClient: ContainerClient): Promise<Conte
     const name = b.name;
     const contentLength = b.properties?.contentLength;
     const lastModified = b.properties?.lastModified;
+    const etag = b.properties?.etag;
 
-    if (name == null || name === '' || contentLength == null || lastModified == null) {
+    if (name == null || name === '' || contentLength == null || lastModified == null || etag == null || etag === '') {
       throw new Error(
         `Incomplete Azure list entry in container "${container}"` +
           (name != null && name !== '' ? ` name="${name}"` : '') +
-          `: name, properties.contentLength and properties.lastModified are required from listBlobsFlat`,
+          `: name, properties.contentLength, properties.lastModified and properties.etag are required from listBlobsFlat`,
       );
     }
 
@@ -253,6 +286,7 @@ export async function listAzure(containerClient: ContainerClient): Promise<Conte
       size: contentLength,
       lastModified,
       contentMd5,
+      etag,
     });
   }
 
@@ -342,6 +376,9 @@ export function parseConfig(): {
         'Set it to the backfill completion timestamp used as the content-proof cutoff.',
     );
   }
+  if (!ISO_8601_REGEX.test(cutoffRaw)) {
+    throw new Error(`BACKFILL_PROOF_CUTOFF must be ISO-8601: ${cutoffRaw}`);
+  }
   const backfillCutoff = new Date(cutoffRaw);
   if (Number.isNaN(backfillCutoff.getTime())) {
     throw new Error(`Invalid BACKFILL_PROOF_CUTOFF: ${cutoffRaw} (expected ISO-8601 date string)`);
@@ -393,7 +430,7 @@ export async function streamSha256(readable: NodeJS.ReadableStream, expectedSize
   let total = 0;
   return new Promise<string>((resolve, reject) => {
     readable.on('data', (chunk: Buffer | string) => {
-      total += chunk.length;
+      total += Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
       hash.update(chunk);
     });
     readable.on('end', () => {
@@ -639,17 +676,6 @@ async function main(): Promise<number> {
 
   const scopedKey = (container: string, key: string): string => `${container}\0${key}`;
 
-  /** True only if a prior hash proof still matches the CURRENT listed objects. */
-  function isStillProvenByHash(sk: string, azureObj: ContentObject, s3Obj: ContentObject): boolean {
-    const provenSig = provenByHash.get(sk);
-    if (provenSig === undefined) return false;
-    const currentSig = objectSignature(azureObj, s3Obj);
-    if (provenSig === currentSig) return true;
-    // Object changed since hash — discard stale proof so the key is reclassified/re-hashed.
-    provenByHash.delete(sk);
-    return false;
-  }
-
   async function hashWorkItems(items: HashWorkItem[]): Promise<void> {
     if (items.length === 0) return;
 
@@ -760,7 +786,7 @@ async function main(): Promise<number> {
           if (!azureObj || !s3Obj) continue; // missing on one side — handled by missingKeys
 
           // Only skip when the CURRENT listed objects still match the hash-time signature.
-          if (isStillProvenByHash(sk, azureObj, s3Obj)) continue;
+          if (isStillProvenByHash(provenByHash, sk, azureObj, s3Obj)) continue;
 
           const cls = classifyKey(azureObj, s3Obj, backfillCutoff, backfillContentProven);
           if (cls === 'needs-hash') {
@@ -822,7 +848,7 @@ async function main(): Promise<number> {
       }
 
       // Only treat as resolved when the CURRENT listed objects still match the hash-time signature.
-      if (isStillProvenByHash(sk, azureObj, s3Obj)) continue;
+      if (isStillProvenByHash(provenByHash, sk, azureObj, s3Obj)) continue;
 
       remainingNeedsHash++;
     }

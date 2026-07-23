@@ -4,6 +4,7 @@ import {
   classifyKey,
   ContentObject,
   isSinglePartEtag,
+  isStillProvenByHash,
   md5Matches,
   objectSignature,
   parseConfig,
@@ -13,7 +14,7 @@ function contentObject(
   key: string,
   size: number,
   lastModified: Date,
-  extras: { contentMd5?: string; etag?: string } = {},
+  extras: { contentMd5?: string; etag: string },
 ): ContentObject {
   return { key, size, lastModified, ...extras };
 }
@@ -28,6 +29,12 @@ const EMPTY_MD5_BASE64 = Buffer.from(EMPTY_MD5_HEX, 'hex').toString('base64');
 // Different MD5 (of "x"): 9dd4e461268c8034f5c8564e155c67a6
 const OTHER_MD5_HEX = '9dd4e461268c8034f5c8564e155c67a6';
 const OTHER_MD5_BASE64 = Buffer.from(OTHER_MD5_HEX, 'hex').toString('base64');
+
+const AZURE_ETAG = '"azure-etag-1"';
+const AZURE_ETAG_OTHER = '"azure-etag-2"';
+const S3_ETAG = `"${EMPTY_MD5_HEX}"`;
+const S3_ETAG_OTHER = `"${OTHER_MD5_HEX}"`;
+const PLACEHOLDER_ETAG = '"placeholder-etag"';
 
 describe('isSinglePartEtag', () => {
   it('returns true for 32 lowercase hex characters', () => {
@@ -80,62 +87,62 @@ describe('md5Matches', () => {
 
 describe('classifyKey', () => {
   it('returns size-mismatch when sizes differ (checked first, unconditionally)', () => {
-    const azure = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
-    const s3 = contentObject('k', 99, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    const azure = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const s3 = contentObject('k', 99, beforeCutoff, { etag: S3_ETAG });
     expect(classifyKey(azure, s3, cutoff, true)).toBe('size-mismatch');
   });
 
   it('returns metadata-match when md5/etag match (same size)', () => {
-    const azure = contentObject('k', 50, afterCutoff, { contentMd5: EMPTY_MD5_BASE64 });
-    const s3 = contentObject('k', 50, afterCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    const azure = contentObject('k', 50, afterCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const s3 = contentObject('k', 50, afterCutoff, { etag: S3_ETAG });
     expect(classifyKey(azure, s3, cutoff, false)).toBe('metadata-match');
   });
 
   it('returns backfill-covered when backfillContentProven is true and both timestamps <= cutoff', () => {
-    const azure = contentObject('k', 50, beforeCutoff); // no contentMd5
-    const s3 = contentObject('k', 50, beforeCutoff); // no etag / not comparable
+    const azure = contentObject('k', 50, beforeCutoff, { etag: AZURE_ETAG }); // no contentMd5
+    const s3 = contentObject('k', 50, beforeCutoff, { etag: PLACEHOLDER_ETAG }); // not comparable via md5
     expect(classifyKey(azure, s3, cutoff, true)).toBe('backfill-covered');
   });
 
   it('returns backfill-covered when both lastModified are exactly at the cutoff', () => {
-    const azure = contentObject('k', 10, cutoff);
-    const s3 = contentObject('k', 10, cutoff);
+    const azure = contentObject('k', 10, cutoff, { etag: AZURE_ETAG });
+    const s3 = contentObject('k', 10, cutoff, { etag: PLACEHOLDER_ETAG });
     expect(classifyKey(azure, s3, cutoff, true)).toBe('backfill-covered');
   });
 
   it('returns needs-hash when either side is newer than the cutoff', () => {
-    const azureNew = contentObject('k', 50, afterCutoff);
-    const s3Old = contentObject('k', 50, beforeCutoff);
+    const azureNew = contentObject('k', 50, afterCutoff, { etag: AZURE_ETAG });
+    const s3Old = contentObject('k', 50, beforeCutoff, { etag: PLACEHOLDER_ETAG });
     expect(classifyKey(azureNew, s3Old, cutoff, true)).toBe('needs-hash');
 
-    const azureOld = contentObject('k', 50, beforeCutoff);
-    const s3New = contentObject('k', 50, afterCutoff);
+    const azureOld = contentObject('k', 50, beforeCutoff, { etag: AZURE_ETAG });
+    const s3New = contentObject('k', 50, afterCutoff, { etag: PLACEHOLDER_ETAG });
     expect(classifyKey(azureOld, s3New, cutoff, true)).toBe('needs-hash');
   });
 
   it('returns needs-hash when md5 mismatches (same size) — never backfill-covered', () => {
-    const azure = contentObject('k', 50, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
-    const s3 = contentObject('k', 50, beforeCutoff, { etag: `"${OTHER_MD5_HEX}"` });
+    const azure = contentObject('k', 50, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const s3 = contentObject('k', 50, beforeCutoff, { etag: S3_ETAG_OTHER });
     // Even with backfillContentProven and both <= cutoff: md5 false must not pass.
     expect(classifyKey(azure, s3, cutoff, true)).toBe('needs-hash');
     expect(classifyKey(azure, s3, cutoff, false)).toBe('needs-hash');
   });
 
   it('returns needs-hash when azure contentMd5 is missing and not backfill-covered', () => {
-    const azure = contentObject('k', 50, afterCutoff); // no contentMd5, after cutoff
-    const s3 = contentObject('k', 50, afterCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    const azure = contentObject('k', 50, afterCutoff, { etag: AZURE_ETAG }); // no contentMd5, after cutoff
+    const s3 = contentObject('k', 50, afterCutoff, { etag: S3_ETAG });
     expect(classifyKey(azure, s3, cutoff, true)).toBe('needs-hash');
   });
 
   it('returns needs-hash (NOT backfill-covered) when backfillContentProven is false even if both timestamps <= cutoff', () => {
-    const azure = contentObject('k', 50, beforeCutoff);
-    const s3 = contentObject('k', 50, beforeCutoff);
+    const azure = contentObject('k', 50, beforeCutoff, { etag: AZURE_ETAG });
+    const s3 = contentObject('k', 50, beforeCutoff, { etag: PLACEHOLDER_ETAG });
     expect(classifyKey(azure, s3, cutoff, false)).toBe('needs-hash');
   });
 
   it('prefers metadata-match over backfill-covered when md5 matches', () => {
-    const azure = contentObject('k', 50, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
-    const s3 = contentObject('k', 50, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    const azure = contentObject('k', 50, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const s3 = contentObject('k', 50, beforeCutoff, { etag: S3_ETAG });
     expect(classifyKey(azure, s3, cutoff, true)).toBe('metadata-match');
   });
 });
@@ -156,39 +163,64 @@ describe('assertWithinHashCap', () => {
 });
 
 describe('objectSignature', () => {
-  const azureBase = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
-  const s3Base = contentObject('k', 100, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+  const azureBase = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+  const s3Base = contentObject('k', 100, beforeCutoff, { etag: S3_ETAG });
 
   it('returns a stable equal signature for identical objects', () => {
-    const a1 = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
-    const s1 = contentObject('k', 100, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
-    const a2 = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
-    const s2 = contentObject('k', 100, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    const a1 = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const s1 = contentObject('k', 100, beforeCutoff, { etag: S3_ETAG });
+    const a2 = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const s2 = contentObject('k', 100, beforeCutoff, { etag: S3_ETAG });
     expect(objectSignature(a1, s1)).toBe(objectSignature(a2, s2));
-    expect(objectSignature(a1, s1)).toBe(
-      `${beforeCutoff.getTime()}|100|${beforeCutoff.getTime()}|100|"${EMPTY_MD5_HEX}"`,
-    );
+    expect(objectSignature(a1, s1)).toBe(`${AZURE_ETAG}|100|${S3_ETAG}|100`);
   });
 
-  it('changes when s3.etag changes', () => {
-    const s3Changed = contentObject('k', 100, beforeCutoff, { etag: `"${OTHER_MD5_HEX}"` });
-    expect(objectSignature(azureBase, s3Changed)).not.toBe(objectSignature(azureBase, s3Base));
-  });
-
-  it('changes when s3.lastModified changes', () => {
-    const s3Changed = contentObject('k', 100, afterCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
-    expect(objectSignature(azureBase, s3Changed)).not.toBe(objectSignature(azureBase, s3Base));
-  });
-
-  it('changes when azure.lastModified changes', () => {
-    const azureChanged = contentObject('k', 100, afterCutoff, { contentMd5: EMPTY_MD5_BASE64 });
+  it('changes when azure.etag changes (same size/timestamps)', () => {
+    const azureChanged = contentObject('k', 100, beforeCutoff, {
+      contentMd5: EMPTY_MD5_BASE64,
+      etag: AZURE_ETAG_OTHER,
+    });
     expect(objectSignature(azureChanged, s3Base)).not.toBe(objectSignature(azureBase, s3Base));
   });
 
+  it('changes when s3.etag changes (same size/timestamps)', () => {
+    const s3Changed = contentObject('k', 100, beforeCutoff, { etag: S3_ETAG_OTHER });
+    expect(objectSignature(azureBase, s3Changed)).not.toBe(objectSignature(azureBase, s3Base));
+  });
+
   it('changes when size changes', () => {
-    const azureChanged = contentObject('k', 101, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
-    const s3Changed = contentObject('k', 101, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    const azureChanged = contentObject('k', 101, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const s3Changed = contentObject('k', 101, beforeCutoff, { etag: S3_ETAG });
     expect(objectSignature(azureChanged, s3Changed)).not.toBe(objectSignature(azureBase, s3Base));
+  });
+});
+
+describe('isStillProvenByHash', () => {
+  const azure = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+  const s3 = contentObject('k', 100, beforeCutoff, { etag: S3_ETAG });
+  const sk = 'container\0k';
+
+  it('returns false when sk is not present in the map', () => {
+    const map = new Map<string, string>();
+    expect(isStillProvenByHash(map, sk, azure, s3)).toBe(false);
+  });
+
+  it('returns true when map signature matches current objects and keeps the entry', () => {
+    const map = new Map<string, string>();
+    map.set(sk, objectSignature(azure, s3));
+    expect(isStillProvenByHash(map, sk, azure, s3)).toBe(true);
+    expect(map.has(sk)).toBe(true);
+  });
+
+  it('returns false and deletes the entry when objects produce a different signature', () => {
+    const map = new Map<string, string>();
+    map.set(sk, objectSignature(azure, s3));
+    const azureChanged = contentObject('k', 100, beforeCutoff, {
+      contentMd5: EMPTY_MD5_BASE64,
+      etag: AZURE_ETAG_OTHER,
+    });
+    expect(isStillProvenByHash(map, sk, azureChanged, s3)).toBe(false);
+    expect(map.has(sk)).toBe(false);
   });
 });
 
@@ -238,6 +270,11 @@ describe('parseConfig BACKFILL_PROOF_CUTOFF bounds', () => {
     expect(() => parseConfig()).not.toThrow();
     const cfg = parseConfig();
     expect(cfg.backfillCutoff.toISOString()).toBe('2020-01-01T00:00:00.000Z');
+  });
+
+  it('throws when cutoff is not ISO-8601', () => {
+    process.env.BACKFILL_PROOF_CUTOFF = '07/14/2026';
+    expect(() => parseConfig()).toThrow(/ISO-8601/);
   });
 });
 
