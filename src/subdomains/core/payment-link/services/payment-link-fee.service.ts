@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Environment, GetConfig } from 'src/config/config';
+import { MIN_FEE_RATE_SAT_VB } from 'src/integration/blockchain/bitcoin/services/bitcoin-based-fee.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -80,11 +81,25 @@ export class PaymentLinkFeeService implements OnModuleInit {
         return +(await client.getRecommendedGasPrice());
       }
 
+      // The customer minimum is the network's own minimum for an inbound payment to confirm — it
+      // must NOT include the CPFP/default margin from getSendFeeRate, which exists only for DFX's
+      // own outbound spends. The value differs per chain because the chains do, but neither carries
+      // the payout margin.
       case Blockchain.BITCOIN:
-        return this.payoutBitcoinService.getCurrentFeeRate();
+        // Bitcoin fees are user-adjustable and the chain can congest, so use the recommended
+        // (next-block) rate, which adapts to congestion — floored at the relay minimum so the
+        // advertised minimum is always relayable.
+        return Math.max(await this.payoutBitcoinService.getRecommendedFeeRate(), MIN_FEE_RATE_SAT_VB);
 
       case Blockchain.FIRO:
-        return this.payoutFiroService.getCurrentFeeRate();
+        // Same principle as Bitcoin: Firo's own next-block rate without the payout margin, floored
+        // at the relay minimum so it stays relayable. The current OCP deposit address is transparent,
+        // so a Stack Wallet payment is a Spark-spend to it, whose fee sits at the relay floor and
+        // cannot be raised; Firo does not congest and its node usually returns no estimate, so this
+        // resolves to the relay floor in practice — exactly what that Spark-spend pays. A dedicated
+        // relay-floor cap belongs here only once a Spark `sm1…` deposit address is deployed, whose
+        // protocol-capped fee cannot follow a congestion-adaptive minimum.
+        return Math.max(await this.payoutFiroService.getRecommendedFeeRate(), MIN_FEE_RATE_SAT_VB);
     }
   }
 

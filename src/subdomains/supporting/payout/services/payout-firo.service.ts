@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { MIN_FEE_RATE_SAT_VB } from 'src/integration/blockchain/bitcoin/services/bitcoin-based-fee.service';
 import { FiroClient } from 'src/integration/blockchain/firo/firo-client';
 import { FiroFeeService } from 'src/integration/blockchain/firo/services/firo-fee.service';
 import { FiroService } from 'src/integration/blockchain/firo/services/firo.service';
@@ -61,5 +62,16 @@ export class PayoutFiroService extends PayoutBitcoinBasedService {
 
   async getCurrentFeeRate(): Promise<number> {
     return this.feeService.getSendFeeRate();
+  }
+
+  // Network's recommended (next-block) rate without the payout send margin (see getCurrentFeeRate),
+  // used as the customer-facing minimum for inbound Open CryptoPay payments. Firo's estimatesmartfee
+  // returns null on a quiet node (little traffic) — the normal state, where the relay floor is the
+  // correct customer minimum (a Spark-spend to the transparent deposit address pays exactly that), so
+  // degrade to it. A genuine node/RPC error still propagates (estimateSmartFee returns null only when
+  // the node answers without an estimate; callNode rethrows connection errors), so a down node fails
+  // closed like Bitcoin — the chain drops out of the fee cache rather than being advertised at 1.
+  async getRecommendedFeeRate(): Promise<number> {
+    return (await this.client.estimateSmartFee(1)) ?? MIN_FEE_RATE_SAT_VB;
   }
 }

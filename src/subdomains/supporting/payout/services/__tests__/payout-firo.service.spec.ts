@@ -32,6 +32,7 @@ describe('PayoutFiroService', () => {
       mintSpark: mintSparkSpy,
       getInfo: jest.fn(),
       getTx: jest.fn(),
+      estimateSmartFee: jest.fn(),
     } as unknown as jest.Mocked<FiroClient>;
 
     const mockFiroService = {
@@ -223,6 +224,29 @@ describe('PayoutFiroService', () => {
     it('delegates to the fee service', async () => {
       await expect(service.getCurrentFeeRate()).resolves.toBe(10);
       expect(mockFeeService.getSendFeeRate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getRecommendedFeeRate()', () => {
+    it('returns the node estimate without the payout margin', async () => {
+      (mockClient.estimateSmartFee as jest.Mock).mockResolvedValueOnce(3);
+
+      await expect(service.getRecommendedFeeRate()).resolves.toBe(3);
+      expect(mockClient.estimateSmartFee).toHaveBeenCalledWith(1);
+      expect(mockFeeService.getSendFeeRate).not.toHaveBeenCalled();
+    });
+
+    it('degrades to the relay floor when the quiet node returns no estimate (null)', async () => {
+      (mockClient.estimateSmartFee as jest.Mock).mockResolvedValueOnce(null);
+
+      await expect(service.getRecommendedFeeRate()).resolves.toBe(1);
+    });
+
+    it('propagates a node/RPC error (fail-closed) instead of masking it as the relay floor', async () => {
+      const nodeError = new Error('Firo node unreachable');
+      (mockClient.estimateSmartFee as jest.Mock).mockRejectedValueOnce(nodeError);
+
+      await expect(service.getRecommendedFeeRate()).rejects.toBe(nodeError);
     });
   });
 });
