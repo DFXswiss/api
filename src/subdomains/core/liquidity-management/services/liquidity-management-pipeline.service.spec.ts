@@ -3,11 +3,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
-import {
-  LiquidityManagementPipelineStatus,
-  LiquidityManagementRuleStatus,
-  LiquidityOptimizationType,
-} from '../enums';
+import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
@@ -57,9 +53,7 @@ describe('LiquidityManagementPipelineService', () => {
         status: LiquidityManagementPipelineStatus.FAILED,
         rule,
       });
-      const order = Object.assign(new LiquidityManagementOrder(), {
-        errorMessage: 'order failed',
-      });
+      const order = Object.assign(new LiquidityManagementOrder(), { errorMessage: 'order failed' });
 
       await service['handlePipelineFail'](pipeline, order);
 
