@@ -1902,12 +1902,22 @@ describe('LogJobService', () => {
       });
       setupUnfilteredToKrakenClamp(theDepositTx);
 
+      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
+
       const assetLog = await service['getAssetLog']([yapealChfAsset]);
 
       // Without the per-leg clamp, toKrakenUnfiltered (-10000) would make plusBalance.total negative
       expect(assetLog[yapealChfAsset.id].plusBalance.total).toBe(0);
       // pending is only populated when totalPlusPending !== 0; after floor both read as 0
       expect(assetLog[yapealChfAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
+
+      // Prove the PER-LEG clamp fired (not only the aggregate totalPlusPending clamp downstream):
+      // with per-leg active, totalPlusPending is already 0 so the aggregate clamp never logs.
+      // If per-leg flooring is reverted, toKrakenUnfiltered stays negative → aggregate clamp logs instead.
+      expect(verboseSpy.mock.calls.some((call) => String(call[0]).includes('toKrakenUnfiltered balance < 0'))).toBe(
+        true,
+      );
+      expect(verboseSpy.mock.calls.some((call) => String(call[0]).includes('totalPlusPending < 0'))).toBe(false);
     });
   });
 });
