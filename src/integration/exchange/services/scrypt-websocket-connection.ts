@@ -198,19 +198,18 @@ export class ScryptWebSocketConnection {
     this.connectionState = ConnectionState.DISCONNECTED;
     this.connectionPromise = undefined;
 
-    if (!this.ws) return;
-
-    this.ws.close();
-    this.ws = undefined;
-
     this.pendingRequests.forEach((request) => {
       clearTimeout(request.timeout);
       request.reject(new Error('Connection closed'));
     });
     this.pendingRequests.clear();
-
     this.subscriptions.clear();
     this.activeStreams.clear();
+
+    if (this.ws) {
+      this.ws.close();
+      this.ws = undefined;
+    }
   }
 
   // --- CONNECTION MANAGEMENT --- //
@@ -242,7 +241,9 @@ export class ScryptWebSocketConnection {
   // CONNECTING until the very end, so a business call arriving mid-resubscribe joins connectionPromise (via
   // connect()'s CONNECTING branch) rather than proceeding on the half-ready socket.
   private async establishConnection(generation: number): Promise<void> {
-    await this.connectWebSocket(generation); // rejects on error / close-before-open / handshake timeout
+    // rejects on error or handshake timeout; a close-before-open without an error is bounded by the
+    // handshake timeout (it does not itself reject)
+    await this.connectWebSocket(generation);
     this.assertCurrentGeneration(generation);
     this.assertSocketOpen('after handshake');
 
@@ -357,7 +358,7 @@ export class ScryptWebSocketConnection {
 
   private scheduleReconnect(attempt: number): void {
     const capped = Math.min(this.reconnectDelay * 2 ** attempt, this.maxReconnectDelay);
-    const delay = capped / 2 + Math.random() * (capped / 2); // full jitter to avoid synchronized retry storms
+    const delay = capped / 2 + Math.random() * (capped / 2); // equal jitter to avoid synchronized retry storms
     if (attempt > 0 && attempt % 10 === 0)
       this.logger.error(`Scrypt WebSocket still not reconnected after ${attempt} attempts`);
     this.reconnectTimer = setTimeout(() => {
@@ -370,7 +371,7 @@ export class ScryptWebSocketConnection {
         })
         .catch((error) => {
           if (!this.isReconnecting) return; // disconnect() stopped the loop; do not re-arm
-          this.logger.warn(`Scrypt WebSocket reconnect attempt ${attempt + 1} failed: ${error}; retrying`);
+          this.logger.warn(`Scrypt WebSocket reconnect attempt ${attempt + 1} failed; retrying`, error);
           this.scheduleReconnect(attempt + 1);
         });
     }, delay);
@@ -427,6 +428,12 @@ export class ScryptWebSocketConnection {
 
   // --- STREAMING SUBSCRIPTIONS --- //
 
+  /**
+   * Call at construction or while connected. Subscribing a brand-new stream while the connection is
+   * down/reconnecting can double-send the SUBSCRIBE frame (the in-flight reconnect's resubscribe and
+   * this call's immediate send both fire). All current callers subscribe at construction, so this is
+   * not hit today — see #4310 follow-up.
+   */
   subscribeToStream<T>(
     streamName: ScryptMessageType,
     callback: (data: T[]) => void,
@@ -521,7 +528,7 @@ export class ScryptWebSocketConnection {
   }
 
   private async resubscribeToStreams(): Promise<void> {
-    for (const streamName of Array.from(this.activeStreams)) {
+    for (const streamName of this.activeStreams) {
       try {
         this.sendSubscriptionOnSocket(streamName); // throws if the socket isn't open; caught + logged, kept for retry
       } catch (error) {

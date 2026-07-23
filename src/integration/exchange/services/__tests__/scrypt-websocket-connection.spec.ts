@@ -211,7 +211,7 @@ describe('ScryptWebSocketConnection', () => {
 
     // connectWebSocket's ws.on('error') logs via logger.error before rejecting
     expect(loggerError).toHaveBeenCalledWith('Scrypt WebSocket error:', authError);
-    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 1 failed/));
+    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 1 failed/), expect.any(Error));
     expect(scheduleSpy).toHaveBeenCalledWith(1);
 
     // attempt 1 → delay in [5000, 10000]
@@ -221,7 +221,7 @@ describe('ScryptWebSocketConnection', () => {
     attempt1.remoteClose();
     await flushPromises();
 
-    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 2 failed/));
+    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 2 failed/), expect.any(Error));
     expect(scheduleSpy).toHaveBeenCalledWith(2);
 
     // attempt 2 → delay in [10000, 20000], then succeed
@@ -406,7 +406,7 @@ describe('ScryptWebSocketConnection', () => {
     expect(loggerInfo).not.toHaveBeenCalledWith(expect.stringMatching(/reconnected/));
     expect((connection as any).isReconnecting).toBe(true);
     expect((connection as any).connectionState).toBe('disconnected');
-    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 1 failed/));
+    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 1 failed/), expect.any(Error));
     expect(scheduleSpy).toHaveBeenCalledWith(1);
 
     // Active stream must be kept for the next reconnect retry.
@@ -496,7 +496,7 @@ describe('ScryptWebSocketConnection', () => {
     expect((connection as any).isReconnecting).toBe(false);
   });
 
-  it('caps reconnect backoff at 60s with full jitter in [capped/2, capped]', async () => {
+  it('caps reconnect backoff at 60s with equal jitter in [capped/2, capped]', async () => {
     const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
 
     // attempt >= 4 → min(5000 * 2**4, 60000) = 60000
@@ -528,8 +528,10 @@ describe('ScryptWebSocketConnection', () => {
     await flushPromises();
 
     expect(hungWs.terminate).toHaveBeenCalled();
-    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 1 failed/));
-    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/handshake timed out after 15000ms/));
+    expect(loggerWarn).toHaveBeenCalledWith(
+      expect.stringMatching(/reconnect attempt 1 failed/),
+      expect.objectContaining({ message: expect.stringMatching(/handshake timed out after 15000ms/) }),
+    );
     expect(scheduleSpy).toHaveBeenCalledWith(1);
     expect((connection as any).isReconnecting).toBe(true);
     expect(loggerInfo).not.toHaveBeenCalledWith(expect.stringMatching(/reconnected/));
