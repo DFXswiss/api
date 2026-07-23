@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/exchange-tx.entity.mock';
@@ -502,9 +503,9 @@ describe('LogJobService', () => {
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('minTotalBalanceChf is not finite'));
     });
 
-    it('never marks a non-finite total as valid, even after a long logging gap', async () => {
+    it('never marks a non-finite total as valid, even when the last valid entry is old', async () => {
       setup({ EUR: { plusBalance: 0, plusBalanceChf: undefined, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
-      // last valid entry is older than 15 minutes -> the gap clause alone would force-validate
+      // last valid entry is stale (1h ago); there is no time-based validation path, so age alone never validates
       jest.spyOn(logService, 'maxEntity').mockResolvedValue({
         created: new Date(Date.now() - 60 * 60 * 1000),
         message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }),
@@ -659,6 +660,7 @@ describe('LogJobService', () => {
 
       await service.saveTradingLog();
 
+      expect(logService.getLatestFinancialLogs).toHaveBeenCalledWith(Config.financeLogStabilityWindow - 1);
       expect(validFlag(createSpy)).toBe(true);
       expect(financialLog(createSpy).balancesTotal.validatedByStability).toBe(true);
     });
@@ -729,6 +731,22 @@ describe('LogJobService', () => {
       await service.saveTradingLog();
 
       expect(validFlag(createSpy)).toBe(false);
+    });
+
+    it('9. a plateau band exactly at the change limit (boundary) is adopted as valid', async () => {
+      // stability window [110000, 108000, 107000, 106000, 105000] -> max-min = 5000 exactly (<= limit);
+      // |110000 - 100000| = 10000 > 5000 so not near-baseline -> adopted purely via the inclusive stability path
+      const createSpy = setup(bookOf(110000), 100000, 1, [
+        predecessor(108000),
+        predecessor(107000),
+        predecessor(106000),
+        predecessor(105000),
+      ]);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(true);
+      expect(financialLog(createSpy).balancesTotal.validatedByStability).toBe(true);
     });
   });
 

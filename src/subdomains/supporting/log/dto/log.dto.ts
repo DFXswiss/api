@@ -55,7 +55,9 @@ export interface FinanceLog {
  * `Config.financeLogStabilityWindow` consecutive snapshots (current + predecessors) agree
  * within one change-limit band — replacing the old 15-minute force-validate, which trusted
  * a single unverified reading. Such a level-shift adoption is tagged `validatedByStability`
- * (see `BalancesTotal.validatedByStability`).
+ * (see `BalancesTotal.validatedByStability`). During a sustained move above the change limit
+ * that never forms a stable plateau, the entry stays `valid: false` until the level stabilises
+ * or an operator sweeps it via the audited validity endpoint — there is no time-based escape.
  */
 export interface BalancesTotal {
   plusBalanceChf: number;

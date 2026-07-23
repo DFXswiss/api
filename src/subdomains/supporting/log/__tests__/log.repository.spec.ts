@@ -1,5 +1,5 @@
 import { EntityManager, UpdateResult } from 'typeorm';
-import { FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM } from '../log.entity';
+import { FINANCIAL_DATA_LOG_SUBSYSTEM, FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM, LogSeverity } from '../log.entity';
 import { LogRepository } from '../log.repository';
 
 // Minimal chainable stub for the update query builder: every condition call returns itself, and
@@ -75,6 +75,39 @@ describe('LogRepository', () => {
       await expect(repo.setFinancialLogValidity(dto, [11, 12])).rejects.toThrow(
         'Financial log validity update returned no affected count',
       );
+    });
+  });
+
+  describe('getLatestFinancialLogs / getLatestValidFinancialLogs', () => {
+    it('getLatestFinancialLogs queries FinancialDataLog INFO without a valid filter', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const findSpy = jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+      await repo.getLatestFinancialLogs(5);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        where: { system: 'LogService', subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM, severity: LogSeverity.INFO },
+        order: { id: 'DESC' },
+        take: 5,
+      });
+    });
+
+    it('getLatestValidFinancialLogs queries FinancialDataLog INFO with valid: true', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const findSpy = jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+      await repo.getLatestValidFinancialLogs(5);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        where: {
+          system: 'LogService',
+          subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM,
+          severity: LogSeverity.INFO,
+          valid: true,
+        },
+        order: { id: 'DESC' },
+        take: 5,
+      });
     });
   });
 });

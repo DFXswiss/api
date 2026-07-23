@@ -171,6 +171,11 @@ export class LogJobService {
       // has enough agreeing neighbours; a persistent new level is adopted after the window fills. Predecessors
       // are read regardless of their valid flag so a returned-true level re-validates against its own recent
       // history even when the last valid baseline is still a stale bad level.
+      // There is intentionally no time-based escape: unlike the old 15-minute force-validate, a genuinely
+      // sustained move larger than the change limit minute-over-minute (never forming a stable plateau) stays
+      // valid:false until it either stabilises (then the plateau adopts it) or an operator runs the audited
+      // PUT /log/financial/validity sweep. Time alone must never validate a single unverified reading — a
+      // still-moving equity level is not a trustworthy baseline.
       const stabilityWindow = Config.financeLogStabilityWindow;
       const predecessors = await this.logService.getLatestFinancialLogs(stabilityWindow - 1);
       const predecessorTotals = predecessors.map(
@@ -178,6 +183,7 @@ export class LogJobService {
       );
       const stabilityValues = [totalBalanceChf, ...predecessorTotals];
       const isStablePlateau =
+        stabilityWindow >= 2 &&
         stabilityValues.length === stabilityWindow &&
         stabilityValues.every((v) => Number.isFinite(v)) &&
         Math.max(...stabilityValues) - Math.min(...stabilityValues) <= Config.financeLogTotalBalanceChangeLimit;
