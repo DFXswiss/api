@@ -1,6 +1,7 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -77,6 +78,10 @@ interface DebugQueryEmitCtx {
 export class GsService {
   private readonly logger = new DfxLogger(GsService);
 
+  // Sheet exports are latency-tolerant batch consumers: cap their concurrency so sync
+  // bursts cannot monopolize the process at the expense of interactive requests.
+  private readonly exportQueue = new QueueHandler(240_000, undefined, 2);
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
@@ -102,6 +107,10 @@ export class GsService {
   ) {}
 
   async getDbData(query: DbQueryDto, role: UserRole): Promise<DbReturnData> {
+    return this.exportQueue.handle(() => this.executeDbData(query, role));
+  }
+
+  private async executeDbData(query: DbQueryDto, role: UserRole): Promise<DbReturnData> {
     const additionalSelect = Array.from(
       new Set([
         ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
@@ -168,6 +177,10 @@ export class GsService {
   }
 
   async getExtendedDbData(query: DbQueryBaseDto, role: UserRole): Promise<DbReturnData> {
+    return this.exportQueue.handle(() => this.executeExtendedDbData(query, role));
+  }
+
+  private async executeExtendedDbData(query: DbQueryBaseDto, role: UserRole): Promise<DbReturnData> {
     switch (query.table) {
       case 'bank_tx': {
         const data = await this.getExtendedBankTxData(query);

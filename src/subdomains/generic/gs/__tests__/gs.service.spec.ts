@@ -15,6 +15,8 @@ import {
   GsRestrictedColumns,
   GsRestrictedMarker,
 } from '../dto/gs.dto';
+import { DbQueryDto } from '../dto/db-query.dto';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -3586,5 +3588,66 @@ describe('DebugQueryDto - ValidationPipe layer', () => {
     });
     expect(errors.length).toBeGreaterThan(0);
     expect(constraintNames(errors)).toContain('arrayMaxSize');
+  });
+});
+
+describe('DbQueryDto maxLine default', () => {
+  it('defaults an absent maxLine to the hard cap', () => {
+    const dto = plainToInstance(DbQueryDto, { table: 'user', updatedSince: '2026-01-01' });
+    expect(dto.maxLine).toBe(10000);
+  });
+
+  it('keeps an explicitly provided maxLine', () => {
+    const dto = plainToInstance(DbQueryDto, { table: 'user', updatedSince: '2026-01-01', maxLine: 500 });
+    expect(dto.maxLine).toBe(500);
+  });
+});
+
+describe('GS export queue', () => {
+  let service: GsService;
+
+  beforeEach(() => {
+    service = buildGsService(createMock<KycDocumentService>(), createMock<DataSource>());
+  });
+
+  afterEach(() => {
+    (service as any).exportQueue.stop();
+  });
+
+  it('processes at most 2 exports concurrently and preserves per-call results', async () => {
+    let active = 0;
+    let peak = 0;
+    const gates: (() => void)[] = [];
+
+    jest.spyOn(service as any, 'executeDbData').mockImplementation(async (query: any) => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise<void>((resolve) => gates.push(resolve));
+      active--;
+      return { keys: ['id'], values: [[query.min]] };
+    });
+
+    const calls = [1, 2, 3, 4].map((min) => service.getDbData({ min } as any, UserRole.ADMIN));
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(peak).toBe(2);
+    expect(active).toBe(2);
+
+    gates.splice(0).forEach((release) => release());
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    gates.splice(0).forEach((release) => release());
+
+    const results = await Promise.all(calls);
+    expect(results.map((r) => (r as any).values[0][0])).toEqual([1, 2, 3, 4]);
+    expect(peak).toBe(2);
+  });
+
+  it('routes custom exports through the same queue', async () => {
+    const handleSpy = jest.spyOn((service as any).exportQueue, 'handle');
+    jest.spyOn(service as any, 'executeExtendedDbData').mockResolvedValue({ keys: [], values: [] });
+
+    await service.getExtendedDbData({ table: 'bank_tx' } as any, UserRole.ADMIN);
+
+    expect(handleSpy).toHaveBeenCalledTimes(1);
   });
 });

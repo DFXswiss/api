@@ -22,6 +22,7 @@ export enum Process {
   LIQUIDITY_MANAGEMENT_CHECK_BALANCES = 'LiquidityManagementCheckBalances',
   MONITORING = 'Monitoring',
   MONITOR_CONNECTION_POOL = 'MonitorConnectionPool',
+  MONITOR_EVENT_LOOP = 'MonitorEventLoop',
   UPDATE_STATISTIC = 'UpdateStatistic',
   KYC = 'Kyc',
   KYC_IDENT_REVIEW = 'KycIdentReview',
