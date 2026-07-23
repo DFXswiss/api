@@ -18,10 +18,9 @@ export class DbQueryBaseDto {
   @IsNumber()
   min = 1;
 
-  // absent limit falls back to a hard cap — unbounded exports must be requested explicitly
   @IsOptional()
   @IsNumber()
-  maxLine = 10000;
+  maxLine: number;
 
   @IsNotEmpty()
   @IsDate()

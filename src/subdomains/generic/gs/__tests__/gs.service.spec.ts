@@ -15,7 +15,8 @@ import {
   GsRestrictedColumns,
   GsRestrictedMarker,
 } from '../dto/gs.dto';
-import { DbQueryDto } from '../dto/db-query.dto';
+import { DbQueryDto, DbReturnData } from '../dto/db-query.dto';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
@@ -106,6 +107,10 @@ describe('GsService', () => {
 
     // Reuse the same constructor helper as the round-trip test, passing in the mocks the tests reference.
     service = buildGsService(kycDocumentService, dataSource);
+  });
+
+  afterEach(() => {
+    service['exportQueue'].stop();
   });
 
   // Helper that captures the SQL string and the bound-parameter array passed to the data
@@ -3367,6 +3372,7 @@ describe('GsService', () => {
         );
 
       const realService = buildGsService(realKycDocumentService, createMock<DataSource>());
+      realService['exportQueue'].stop(); // this test never dispatches through the queue
 
       const userData = personalUser(1);
       // Two disjoint select paths force an empty common prefix, so getAllUserDocuments (user + spider) runs.
@@ -3591,17 +3597,23 @@ describe('DebugQueryDto - ValidationPipe layer', () => {
   });
 });
 
-describe('DbQueryDto maxLine default', () => {
-  it('defaults an absent maxLine to the hard cap', () => {
-    const dto = plainToInstance(DbQueryDto, { table: 'user', updatedSince: '2026-01-01' });
-    expect(dto.maxLine).toBe(10000);
-  });
+// Typed bridge to GsService internals the export-queue tests need (same pattern as
+// asKycFileBlobs above: a narrow, documented cast instead of `any`).
+type GsServiceInternals = {
+  exportQueue: QueueHandler;
+  executeDbData: GsService['getDbData'];
+  executeExtendedDbData: GsService['getExtendedDbData'];
+  getRawDbData: (query: DbQueryDto) => Promise<Record<string, unknown>[]>;
+  transformResultArray: (data: Record<string, unknown>[], table: string, role: UserRole) => DbReturnData;
+};
 
-  it('keeps an explicitly provided maxLine', () => {
-    const dto = plainToInstance(DbQueryDto, { table: 'user', updatedSince: '2026-01-01', maxLine: 500 });
-    expect(dto.maxLine).toBe(500);
-  });
-});
+function internals(service: GsService): GsServiceInternals {
+  return service as unknown as GsServiceInternals;
+}
+
+function exportQuery(overrides: Partial<DbQueryDto> = {}): DbQueryDto {
+  return plainToInstance(DbQueryDto, { table: 'user', updatedSince: '2026-01-01', ...overrides });
+}
 
 describe('GS export queue', () => {
   let service: GsService;
@@ -3611,7 +3623,7 @@ describe('GS export queue', () => {
   });
 
   afterEach(() => {
-    (service as any).exportQueue.stop();
+    internals(service).exportQueue.stop();
   });
 
   it('processes at most 2 exports concurrently and preserves per-call results', async () => {
@@ -3619,15 +3631,15 @@ describe('GS export queue', () => {
     let peak = 0;
     const gates: (() => void)[] = [];
 
-    jest.spyOn(service as any, 'executeDbData').mockImplementation(async (query: any) => {
+    jest.spyOn(internals(service), 'executeDbData').mockImplementation(async (query) => {
       active++;
       peak = Math.max(peak, active);
       await new Promise<void>((resolve) => gates.push(resolve));
       active--;
-      return { keys: ['id'], values: [[query.min]] };
+      return { keys: ['min'], values: [[query.min]] };
     });
 
-    const calls = [1, 2, 3, 4].map((min) => service.getDbData({ min } as any, UserRole.ADMIN));
+    const calls = [1, 2, 3, 4].map((min) => service.getDbData(exportQuery({ min }), UserRole.ADMIN));
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(peak).toBe(2);
@@ -3638,16 +3650,44 @@ describe('GS export queue', () => {
     gates.splice(0).forEach((release) => release());
 
     const results = await Promise.all(calls);
-    expect(results.map((r) => (r as any).values[0][0])).toEqual([1, 2, 3, 4]);
+    expect(results.map((r) => r.values[0][0])).toEqual([1, 2, 3, 4]);
     expect(peak).toBe(2);
   });
 
   it('routes custom exports through the same queue', async () => {
-    const handleSpy = jest.spyOn((service as any).exportQueue, 'handle');
-    jest.spyOn(service as any, 'executeExtendedDbData').mockResolvedValue({ keys: [], values: [] });
+    const handleSpy = jest.spyOn(internals(service).exportQueue, 'handle');
+    jest.spyOn(internals(service), 'executeExtendedDbData').mockResolvedValue({ keys: [], values: [] });
 
-    await service.getExtendedDbData({ table: 'bank_tx' } as any, UserRole.ADMIN);
+    await service.getExtendedDbData(exportQuery({ table: 'bank_tx' }), UserRole.ADMIN);
 
     expect(handleSpy).toHaveBeenCalledTimes(1);
+  });
+
+  describe('maxLine default cap', () => {
+    let received: DbQueryDto[];
+
+    beforeEach(() => {
+      received = [];
+      jest.spyOn(internals(service), 'getRawDbData').mockImplementation(async (query) => {
+        received.push(query);
+        return [];
+      });
+      jest.spyOn(internals(service), 'transformResultArray').mockReturnValue({ keys: [], values: [] });
+    });
+
+    it('applies the default cap when maxLine is absent', async () => {
+      await service.getDbData(exportQuery(), UserRole.ADMIN);
+      expect(received[0].maxLine).toBe(10000);
+    });
+
+    it('applies the default cap when maxLine is null', async () => {
+      await service.getDbData(exportQuery({ maxLine: null }), UserRole.ADMIN);
+      expect(received[0].maxLine).toBe(10000);
+    });
+
+    it('keeps an explicitly provided maxLine', async () => {
+      await service.getDbData(exportQuery({ maxLine: 500 }), UserRole.ADMIN);
+      expect(received[0].maxLine).toBe(500);
+    });
   });
 });

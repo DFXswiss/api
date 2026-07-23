@@ -79,8 +79,12 @@ export class GsService {
   private readonly logger = new DfxLogger(GsService);
 
   // Sheet exports are latency-tolerant batch consumers: cap their concurrency so sync
-  // bursts cannot monopolize the process at the expense of interactive requests.
-  private readonly exportQueue = new QueueHandler(240_000, undefined, 2);
+  // bursts cannot monopolize the process at the expense of interactive requests. The item
+  // timeout frees a worker slot even if a query never settles (e.g. a dead connection).
+  private readonly exportQueue = new QueueHandler(240_000, 240_000, 2);
+
+  // applied when a request specifies no maxLine — unbounded exports must be requested explicitly
+  private static readonly DEFAULT_MAX_LINE = 10000;
 
   constructor(
     private readonly userDataService: UserDataService,
@@ -111,6 +115,9 @@ export class GsService {
   }
 
   private async executeDbData(query: DbQueryDto, role: UserRole): Promise<DbReturnData> {
+    const cappedByDefault = query.maxLine == null;
+    if (cappedByDefault) query.maxLine = GsService.DEFAULT_MAX_LINE;
+
     const additionalSelect = Array.from(
       new Set([
         ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
@@ -139,6 +146,8 @@ export class GsService {
         if (value?.toString().length >= 50000) delete e[key];
       }),
     );
+
+    this.warnIfCapped(cappedByDefault, data.length, query);
 
     const runTime = Util.round((Date.now() - startTime) / 1000, 1);
 
@@ -181,12 +190,23 @@ export class GsService {
   }
 
   private async executeExtendedDbData(query: DbQueryBaseDto, role: UserRole): Promise<DbReturnData> {
+    const cappedByDefault = query.maxLine == null;
+    if (cappedByDefault) query.maxLine = GsService.DEFAULT_MAX_LINE;
+
     switch (query.table) {
       case 'bank_tx': {
         const data = await this.getExtendedBankTxData(query);
+        this.warnIfCapped(cappedByDefault, data.length, query);
         return this.transformResultArray(data, query.table, role);
       }
     }
+  }
+
+  private warnIfCapped(cappedByDefault: boolean, rowCount: number, query: DbQueryBaseDto): void {
+    if (cappedByDefault && rowCount >= GsService.DEFAULT_MAX_LINE)
+      this.logger.warn(
+        `GS export for ${query.identifier} hit the default maxLine cap (${GsService.DEFAULT_MAX_LINE}) on table ${query.table} — rows beyond the cap were not returned`,
+      );
   }
 
   async getSupportData(query: SupportDataQuery): Promise<SupportReturnData> {

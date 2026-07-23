@@ -16,7 +16,7 @@ export class MonitorEventLoopService {
   }
 
   @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.MONITOR_EVENT_LOOP })
-  monitorEventLoop() {
+  monitorEventLoop(): void {
     const toMs = (ns: number) => Math.round(ns / 1e6);
 
     this.logger.info(

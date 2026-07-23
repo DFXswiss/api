@@ -7,21 +7,29 @@ class QueueItem<T> {
   private resolve: (value: T | PromiseLike<T>) => void;
   private reject: (e: Error) => void;
 
+  private settled = false;
+
   constructor(
     private readonly action: () => Promise<T>,
     timeout?: number,
   ) {
     this.promise = new Promise((resolve, reject) => {
       this.resolve = (v) => {
+        this.settled = true;
         if (this.timeout) clearTimeout(this.timeout);
         resolve(v);
       };
       this.reject = (e) => {
+        this.settled = true;
         if (this.timeout) clearTimeout(this.timeout);
         reject(e);
       };
     });
     if (timeout) this.timeout = setTimeout(() => this.reject(new Error('Queue timeout')), timeout);
+  }
+
+  get isSettled(): boolean {
+    return this.settled;
   }
 
   public wait(): Promise<T> {
@@ -81,7 +89,11 @@ export class QueueHandler {
     while (this.isRunning) {
       try {
         if (this.queue.length > 0 && this.workParallelCounter < this.maxWorkParallel) {
-          const work = this.queue.shift().doWork(this.itemTimeout);
+          const item = this.queue.shift();
+          // already settled (queue timeout while waiting): the caller is gone, don't run the action
+          if (item.isSettled) continue;
+
+          const work = item.doWork(this.itemTimeout);
 
           this.workParallelCounter++;
           void work.finally(() => this.workParallelCounter--);
