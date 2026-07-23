@@ -222,4 +222,39 @@ describe('ScryptService', () => {
     expect((freshService as any).balanceTransactions.get('warm-1')).toEqual(terminalRecord);
     expect((freshService as any).balanceTransactions.get('warm-1')).toBe(terminalRecord);
   });
+
+  it('catchUpAfterReconnect coalesces overlapping reconnects into a second full run', async () => {
+    let resolveFirstExecutionReport: (value: unknown[]) => void;
+    const firstExecutionReportPromise = new Promise<unknown[]>((resolve) => {
+      resolveFirstExecutionReport = resolve;
+    });
+    let fetchAllCallCount = 0;
+
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockImplementation((streamName: string) => {
+      fetchAllCallCount += 1;
+      if (fetchAllCallCount === 1 && streamName === ScryptMessageType.EXECUTION_REPORT) {
+        return firstExecutionReportPromise;
+      }
+      return Promise.resolve([]);
+    });
+
+    const inFlight = (service as any).catchUpAfterReconnect();
+
+    // Overlapping reconnect while first catch-up is still pending on EXECUTION_REPORT
+    await (service as any).catchUpAfterReconnect();
+
+    resolveFirstExecutionReport!([]);
+    await inFlight;
+    await flushPromises();
+
+    const executionReportCalls = instance.fetchAll.mock.calls.filter(
+      ([streamName]) => streamName === ScryptMessageType.EXECUTION_REPORT,
+    );
+    const balanceTransactionCalls = instance.fetchAll.mock.calls.filter(
+      ([streamName]) => streamName === ScryptMessageType.BALANCE_TRANSACTION,
+    );
+    expect(executionReportCalls).toHaveLength(2);
+    expect(balanceTransactionCalls).toHaveLength(2);
+  });
 });
