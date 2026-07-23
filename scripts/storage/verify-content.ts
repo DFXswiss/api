@@ -11,8 +11,11 @@
  * SHA-256 on both sides (capped, concurrency-limited) and compared.
  *
  * Proof classes (fail-closed — anything not provably equal is gate-blocking):
- *   - metadata-match: Azure contentMD5 (base64) matches S3 single-part ETag (MD5 hex);
- *     proves full-object MD5 equality from list-metadata alone (no download).
+ *   - metadata-match: Azure contentMD5 (base64) matches S3 single-part ETag under the
+ *     assumption that the S3-compatible store returns the full-object MD5 as the ETag
+ *     for single-part objects (true for MinIO without SSE-KMS/SSE-C). A non-MD5 ETag
+ *     simply fails the comparison and falls through to needs-hash (fail-closed).
+ *     No download required when the comparison succeeds.
  *   - backfill-covered: same size, both lastModified <= BACKFILL_PROOF_CUTOFF, and
  *     BACKFILL_CONTENT_PROVEN=true (operator-asserted that the backfill run itself
  *     content-verified every object). Does NOT apply when md5Matches is false.
@@ -106,8 +109,9 @@ export function assertPageComplete(isTruncated: boolean, nextToken: string | und
 }
 
 /**
- * True iff the ETag (quotes stripped) is exactly 32 hex chars — a single-part upload MD5.
- * Multipart ETags have the form `<32-hex>-<partCount>` and are never a whole-object MD5.
+ * True iff the ETag (quotes stripped) is exactly 32 hex chars — the shape of a single-part
+ * upload MD5. Multipart ETags have the form `<32-hex>-<partCount>` and are never a
+ * whole-object MD5. Shape alone does not prove the value is an MD5 (see md5Matches).
  */
 export function isSinglePartEtag(etag: string): boolean {
   let stripped = etag;
@@ -117,7 +121,11 @@ export function isSinglePartEtag(etag: string): boolean {
 }
 
 /**
- * Compare Azure contentMD5 (base64) to S3 single-part ETag (MD5 hex).
+ * Compare Azure contentMD5 (base64) to S3 single-part ETag under the assumption that the
+ * S3-compatible store returns the full-object MD5 as the ETag for single-part objects
+ * (holds for MinIO without SSE-KMS/SSE-C). This is not a general-case proof of MD5
+ * equality: a non-MD5 ETag (e.g. under SSE-KMS) will not match Azure contentMD5, so this
+ * returns false and classification falls through to needs-hash (fail-closed, safe).
  * Returns null when not comparable (missing md5, missing etag, or multipart etag).
  */
 export function md5Matches(azureContentMd5: string | undefined, s3Etag: string | undefined): boolean | null {
@@ -131,6 +139,15 @@ export function md5Matches(azureContentMd5: string | undefined, s3Etag: string |
 
   const azureHex = Buffer.from(azureContentMd5, 'base64').toString('hex').toLowerCase();
   return azureHex === etagHex;
+}
+
+/**
+ * Stable signature of the listed Azure+S3 object pair used to bind a prior hash proof
+ * to that exact listing state. Same-size content overwrites change S3 ETag (and usually
+ * lastModified), so a stale hash proof is invalidated on the next re-list.
+ */
+export function objectSignature(azure: ContentObject, s3: ContentObject): string {
+  return `${azure.lastModified.getTime()}|${azure.size}|${s3.lastModified.getTime()}|${s3.size}|${s3.etag ?? ''}`;
 }
 
 /**
@@ -329,6 +346,13 @@ export function parseConfig(): {
   if (Number.isNaN(backfillCutoff.getTime())) {
     throw new Error(`Invalid BACKFILL_PROOF_CUTOFF: ${cutoffRaw} (expected ISO-8601 date string)`);
   }
+  if (backfillCutoff.getTime() > Date.now()) {
+    throw new Error(
+      `BACKFILL_PROOF_CUTOFF is in the future (${cutoffRaw}). ` +
+        `A future cutoff with BACKFILL_CONTENT_PROVEN=true would let virtually every current ` +
+        `object pass as backfill-covered without any MD5 proof.`,
+    );
+  }
 
   const backfillContentProven = process.env.BACKFILL_CONTENT_PROVEN === 'true';
 
@@ -347,32 +371,57 @@ export function parseConfig(): {
 
 // --- HASHING --- //
 
-/** Stream a readable through incremental SHA-256; do not buffer the whole object. */
-export async function streamSha256(readable: NodeJS.ReadableStream): Promise<string> {
+/**
+ * Fail-loud guard: a truncated stream that still emits 'end' must not produce a trusted hash.
+ */
+export function assertHashedSize(total: number, expected: number): void {
+  if (total !== expected) {
+    throw new Error(
+      `Stream byte count ${total} does not match expected size ${expected}; ` +
+        `hash is incomplete or truncated and must not be trusted.`,
+    );
+  }
+}
+
+/**
+ * Stream a readable through incremental SHA-256; do not buffer the whole object.
+ * `expectedSize` is the known listing size; after 'end', the accumulated byte count must
+ * match or the hash is rejected (fail-loud against silent truncation).
+ */
+export async function streamSha256(readable: NodeJS.ReadableStream, expectedSize: number): Promise<string> {
   const hash = crypto.createHash('sha256');
+  let total = 0;
   return new Promise<string>((resolve, reject) => {
     readable.on('data', (chunk: Buffer | string) => {
+      total += chunk.length;
       hash.update(chunk);
     });
-    readable.on('end', () => resolve(hash.digest('hex')));
+    readable.on('end', () => {
+      try {
+        assertHashedSize(total, expectedSize);
+        resolve(hash.digest('hex'));
+      } catch (err) {
+        reject(err);
+      }
+    });
     readable.on('error', (err) => reject(err));
   });
 }
 
-async function hashAzureBlob(containerClient: ContainerClient, key: string): Promise<string> {
+async function hashAzureBlob(containerClient: ContainerClient, key: string, expectedSize: number): Promise<string> {
   const download = await containerClient.getBlobClient(key).download();
   if (!download.readableStreamBody) {
     throw new Error(`Empty readableStreamBody for Azure blob "${containerClient.containerName}/${key}"`);
   }
-  return streamSha256(download.readableStreamBody);
+  return streamSha256(download.readableStreamBody, expectedSize);
 }
 
-async function hashS3Object(client: S3Client, bucket: string, key: string): Promise<string> {
+async function hashS3Object(client: S3Client, bucket: string, key: string, expectedSize: number): Promise<string> {
   const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   if (!res.Body) {
     throw new Error(`Empty body for S3 object "${bucket}/${key}"`);
   }
-  return streamSha256(res.Body as NodeJS.ReadableStream);
+  return streamSha256(res.Body as NodeJS.ReadableStream, expectedSize);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -584,10 +633,22 @@ async function main(): Promise<number> {
   type Divergence = { container: string; key: string };
 
   const contentDivergence: Divergence[] = [];
-  const provenByHash = new Set<string>(); // `${container}\0${key}`
+  // scopedKey -> objectSignature at the time the hash was computed (binds proof to listing state).
+  const provenByHash = new Map<string, string>();
   let totalHashed = 0;
 
-  const scopedKey = (container: string, key: string) => `${container}\0${key}`;
+  const scopedKey = (container: string, key: string): string => `${container}\0${key}`;
+
+  /** True only if a prior hash proof still matches the CURRENT listed objects. */
+  function isStillProvenByHash(sk: string, azureObj: ContentObject, s3Obj: ContentObject): boolean {
+    const provenSig = provenByHash.get(sk);
+    if (provenSig === undefined) return false;
+    const currentSig = objectSignature(azureObj, s3Obj);
+    if (provenSig === currentSig) return true;
+    // Object changed since hash — discard stale proof so the key is reclassified/re-hashed.
+    provenByHash.delete(sk);
+    return false;
+  }
 
   async function hashWorkItems(items: HashWorkItem[]): Promise<void> {
     if (items.length === 0) return;
@@ -606,14 +667,29 @@ async function main(): Promise<number> {
       HASH_CONCURRENCY,
       async (item) => {
         try {
+          const report = reports.find((r) => r.container === item.container);
+          if (!report) {
+            throw new Error(`No classification report for container "${item.container}" while hashing`);
+          }
+          const azureObj = report.azureMap.get(item.key);
+          const s3Obj = report.s3Map.get(item.key);
+          if (!azureObj || !s3Obj) {
+            throw new Error(
+              `Missing list metadata for "${item.container}/${item.key}" while hashing ` +
+                `(both sides required; size mismatch would not reach hashing)`,
+            );
+          }
+          // Both sides share the same size here; size-mismatch never reaches hashing.
+          const expectedSize = azureObj.size;
+
           const azureContainer = azure.getContainerClient(item.container);
           const [azureDigest, s3Digest] = await Promise.all([
-            hashAzureBlob(azureContainer, item.key),
-            hashS3Object(s3, item.container, item.key),
+            hashAzureBlob(azureContainer, item.key, expectedSize),
+            hashS3Object(s3, item.container, item.key, expectedSize),
           ]);
 
           if (azureDigest === s3Digest) {
-            provenByHash.add(scopedKey(item.container, item.key));
+            provenByHash.set(scopedKey(item.container, item.key), objectSignature(azureObj, s3Obj));
             console.log(`HASH MATCH ${item.container}/${item.key}`);
           } else {
             contentDivergence.push({ container: item.container, key: item.key });
@@ -632,7 +708,7 @@ async function main(): Promise<number> {
   }
 
   // Initial needs-hash set across all containers.
-  let pending: HashWorkItem[] = [];
+  const pending: HashWorkItem[] = [];
   for (const r of reports) {
     for (const key of r.needsHash) {
       pending.push({ container: r.container, key });
@@ -676,13 +752,15 @@ async function main(): Promise<number> {
 
         for (const key of candidateKeys) {
           const sk = scopedKey(container, key);
-          if (provenByHash.has(sk)) continue;
           if (contentDivergence.some((d) => d.container === container && d.key === key)) continue;
           if (alreadyQueued.has(sk)) continue;
 
           const azureObj = report.azureMap.get(key);
           const s3Obj = report.s3Map.get(key);
           if (!azureObj || !s3Obj) continue; // missing on one side — handled by missingKeys
+
+          // Only skip when the CURRENT listed objects still match the hash-time signature.
+          if (isStillProvenByHash(sk, azureObj, s3Obj)) continue;
 
           const cls = classifyKey(azureObj, s3Obj, backfillCutoff, backfillContentProven);
           if (cls === 'needs-hash') {
@@ -733,8 +811,19 @@ async function main(): Promise<number> {
   for (const r of finalReports) {
     for (const key of r.needsHash) {
       const sk = scopedKey(r.container, key);
-      if (provenByHash.has(sk)) continue;
       if (contentDivergence.some((d) => d.container === r.container && d.key === key)) continue;
+
+      const azureObj = r.azureMap.get(key);
+      const s3Obj = r.s3Map.get(key);
+      if (!azureObj || !s3Obj) {
+        // needs-hash keys are always present on both sides; missing map entry is still gate-red.
+        remainingNeedsHash++;
+        continue;
+      }
+
+      // Only treat as resolved when the CURRENT listed objects still match the hash-time signature.
+      if (isStillProvenByHash(sk, azureObj, s3Obj)) continue;
+
       remainingNeedsHash++;
     }
   }

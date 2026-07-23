@@ -1,9 +1,12 @@
 import {
+  assertHashedSize,
   assertWithinHashCap,
   classifyKey,
   ContentObject,
   isSinglePartEtag,
   md5Matches,
+  objectSignature,
+  parseConfig,
 } from '../../../../../scripts/storage/verify-content';
 
 function contentObject(
@@ -149,5 +152,103 @@ describe('assertWithinHashCap', () => {
 
   it('does not throw when count is below cap', () => {
     expect(() => assertWithinHashCap(5, 5000)).not.toThrow();
+  });
+});
+
+describe('objectSignature', () => {
+  const azureBase = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
+  const s3Base = contentObject('k', 100, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+
+  it('returns a stable equal signature for identical objects', () => {
+    const a1 = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
+    const s1 = contentObject('k', 100, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    const a2 = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
+    const s2 = contentObject('k', 100, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    expect(objectSignature(a1, s1)).toBe(objectSignature(a2, s2));
+    expect(objectSignature(a1, s1)).toBe(
+      `${beforeCutoff.getTime()}|100|${beforeCutoff.getTime()}|100|"${EMPTY_MD5_HEX}"`,
+    );
+  });
+
+  it('changes when s3.etag changes', () => {
+    const s3Changed = contentObject('k', 100, beforeCutoff, { etag: `"${OTHER_MD5_HEX}"` });
+    expect(objectSignature(azureBase, s3Changed)).not.toBe(objectSignature(azureBase, s3Base));
+  });
+
+  it('changes when s3.lastModified changes', () => {
+    const s3Changed = contentObject('k', 100, afterCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    expect(objectSignature(azureBase, s3Changed)).not.toBe(objectSignature(azureBase, s3Base));
+  });
+
+  it('changes when azure.lastModified changes', () => {
+    const azureChanged = contentObject('k', 100, afterCutoff, { contentMd5: EMPTY_MD5_BASE64 });
+    expect(objectSignature(azureChanged, s3Base)).not.toBe(objectSignature(azureBase, s3Base));
+  });
+
+  it('changes when size changes', () => {
+    const azureChanged = contentObject('k', 101, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64 });
+    const s3Changed = contentObject('k', 101, beforeCutoff, { etag: `"${EMPTY_MD5_HEX}"` });
+    expect(objectSignature(azureChanged, s3Changed)).not.toBe(objectSignature(azureBase, s3Base));
+  });
+});
+
+describe('parseConfig BACKFILL_PROOF_CUTOFF bounds', () => {
+  const envKeys = [
+    'BACKFILL_PROOF_CUTOFF',
+    'BACKFILL_CONTENT_PROVEN',
+    'VERIFY_CONTAINERS',
+    'VERIFY_HASH_DELTA',
+    'VERIFY_HASH_CAP',
+  ] as const;
+  let savedEnv: Record<string, string | undefined>;
+  let savedArgv: string[];
+
+  beforeEach(() => {
+    savedEnv = {};
+    for (const k of envKeys) {
+      savedEnv[k] = process.env[k];
+    }
+    savedArgv = process.argv;
+    process.argv = ['node', 'verify-content.ts', 'test-container'];
+    delete process.env.VERIFY_CONTAINERS;
+    delete process.env.VERIFY_HASH_DELTA;
+    delete process.env.VERIFY_HASH_CAP;
+    process.env.BACKFILL_CONTENT_PROVEN = 'false';
+  });
+
+  afterEach(() => {
+    for (const k of envKeys) {
+      if (savedEnv[k] === undefined) {
+        delete process.env[k];
+      } else {
+        process.env[k] = savedEnv[k];
+      }
+    }
+    process.argv = savedArgv;
+  });
+
+  it('throws when cutoff is in the future', () => {
+    process.env.BACKFILL_PROOF_CUTOFF = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    expect(() => parseConfig()).toThrow(/future/i);
+    expect(() => parseConfig()).toThrow(/BACKFILL_PROOF_CUTOFF/);
+  });
+
+  it('does not throw when cutoff is in the past', () => {
+    process.env.BACKFILL_PROOF_CUTOFF = '2020-01-01T00:00:00.000Z';
+    expect(() => parseConfig()).not.toThrow();
+    const cfg = parseConfig();
+    expect(cfg.backfillCutoff.toISOString()).toBe('2020-01-01T00:00:00.000Z');
+  });
+});
+
+describe('assertHashedSize', () => {
+  it('throws when total does not match expected size', () => {
+    expect(() => assertHashedSize(10, 20)).toThrow(/10/);
+    expect(() => assertHashedSize(10, 20)).toThrow(/20/);
+  });
+
+  it('does not throw when total equals expected size', () => {
+    expect(() => assertHashedSize(100, 100)).not.toThrow();
+    expect(() => assertHashedSize(0, 0)).not.toThrow();
   });
 });
