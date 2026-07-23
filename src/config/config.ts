@@ -998,7 +998,6 @@ export class Configuration {
       allowUnconfirmedUtxos: process.env.FIRO_ALLOW_UNCONFIRMED_UTXOS === 'true',
       cpfpFeeMultiplier: +(process.env.FIRO_CPFP_FEE_MULTIPLIER ?? '2.0'),
       defaultFeeMultiplier: +(process.env.FIRO_DEFAULT_FEE_MULTIPLIER ?? '1.5'),
-      minFeeRate: +(process.env.FIRO_MIN_FEE_RATE ?? '1'), // sat/vB — Firo minRelayTxFee (0.00001 FIRO/kB)
     },
     monero: {
       node: {
