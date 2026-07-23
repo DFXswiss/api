@@ -1,0 +1,303 @@
+import {
+  assertBucketsAccounted,
+  assertNotOneSidedEmpty,
+  assertPageComplete,
+  assertRequestedContainersExist,
+  assertWithinHealCap,
+  DEFAULT_HEAL_CAP,
+  diffStores,
+  DiffResult,
+  OVERWRITE_SKEW_TOLERANCE_MS,
+  parseConfig,
+  StoredObject,
+} from '../../../../../scripts/storage/reconcile-stores';
+
+function obj(key: string, size: number, lastModified: Date): StoredObject {
+  return { key, size, lastModified };
+}
+
+const t0 = new Date('2024-01-01T00:00:00.000Z');
+const skewMs = 60 * 60 * 1000; // 1 hour — matches OVERWRITE_SKEW_TOLERANCE_MS
+
+describe('diffStores', () => {
+  it('returns empty lists when inventories are identical', () => {
+    const azure = [obj('a', 10, t0), obj('b', 20, t0)];
+    const s3 = [obj('a', 10, t0), obj('b', 20, t0)];
+    const diff: DiffResult = diffStores(azure, s3, skewMs);
+    expect(diff.onlyOnAzure).toEqual([]);
+    expect(diff.onlyOnS3).toEqual([]);
+    expect(diff.sizeMismatch).toEqual([]);
+    expect(diff.suspectedOverwrite).toEqual([]);
+  });
+
+  it('puts keys present only on Azure into onlyOnAzure', () => {
+    const azure = [obj('only-az', 1, t0)];
+    const s3: StoredObject[] = [];
+    const diff = diffStores(azure, s3, skewMs);
+    expect(diff.onlyOnAzure).toEqual(['only-az']);
+    expect(diff.onlyOnS3).toEqual([]);
+    expect(diff.sizeMismatch).toEqual([]);
+    expect(diff.suspectedOverwrite).toEqual([]);
+  });
+
+  it('puts keys present only on S3 into onlyOnS3', () => {
+    const azure: StoredObject[] = [];
+    const s3 = [obj('only-s3', 1, t0)];
+    const diff = diffStores(azure, s3, skewMs);
+    expect(diff.onlyOnAzure).toEqual([]);
+    expect(diff.onlyOnS3).toEqual(['only-s3']);
+    expect(diff.sizeMismatch).toEqual([]);
+    expect(diff.suspectedOverwrite).toEqual([]);
+  });
+
+  it('puts same key with different size into sizeMismatch', () => {
+    const azure = [obj('k', 100, t0)];
+    const s3 = [obj('k', 99, t0)];
+    const diff = diffStores(azure, s3, skewMs);
+    expect(diff.sizeMismatch).toEqual(['k']);
+    expect(diff.onlyOnAzure).toEqual([]);
+    expect(diff.onlyOnS3).toEqual([]);
+    expect(diff.suspectedOverwrite).toEqual([]);
+  });
+
+  it('puts same key/size with Azure lastModified beyond skew into suspectedOverwrite', () => {
+    const s3Time = t0;
+    const azureTime = new Date(t0.getTime() + skewMs + 1);
+    const azure = [obj('k', 50, azureTime)];
+    const s3 = [obj('k', 50, s3Time)];
+    const diff = diffStores(azure, s3, skewMs);
+    expect(diff.suspectedOverwrite).toEqual(['k']);
+    expect(diff.sizeMismatch).toEqual([]);
+    expect(diff.onlyOnAzure).toEqual([]);
+    expect(diff.onlyOnS3).toEqual([]);
+  });
+
+  // Documented (key,size) trust boundary of diffStores — byte equality is intentionally not checked
+  // (see source docblock: "Same-size objects with different content are not detectable by this script").
+  it('does not flag same key/size/lastModified (same-size different content is undetectable)', () => {
+    const azure = [obj('k', 50, t0)];
+    const s3 = [obj('k', 50, t0)];
+    const diff = diffStores(azure, s3, skewMs);
+    expect(diff.sizeMismatch).toEqual([]);
+    expect(diff.suspectedOverwrite).toEqual([]);
+    expect(diff.onlyOnAzure).toEqual([]);
+    expect(diff.onlyOnS3).toEqual([]);
+  });
+
+  // Comparison is >=, so exactly at the tolerance boundary is already flagged.
+  it('flags suspectedOverwrite when Azure lastModified is exactly at skew tolerance boundary', () => {
+    const s3Time = t0;
+    const azureTime = new Date(s3Time.getTime() + OVERWRITE_SKEW_TOLERANCE_MS);
+    const azure = [obj('k', 50, azureTime)];
+    const s3 = [obj('k', 50, s3Time)];
+    const diff = diffStores(azure, s3, OVERWRITE_SKEW_TOLERANCE_MS);
+    expect(diff.suspectedOverwrite).toEqual(['k']);
+    expect(diff.sizeMismatch).toEqual([]);
+    expect(diff.onlyOnAzure).toEqual([]);
+    expect(diff.onlyOnS3).toEqual([]);
+  });
+
+  it('does not flag suspectedOverwrite when Azure lastModified is just under skew tolerance', () => {
+    const s3Time = t0;
+    const azureTime = new Date(s3Time.getTime() + OVERWRITE_SKEW_TOLERANCE_MS - 1);
+    const azure = [obj('k', 50, azureTime)];
+    const s3 = [obj('k', 50, s3Time)];
+    const diff = diffStores(azure, s3, OVERWRITE_SKEW_TOLERANCE_MS);
+    expect(diff.suspectedOverwrite).toEqual([]);
+    expect(diff.sizeMismatch).toEqual([]);
+    expect(diff.onlyOnAzure).toEqual([]);
+    expect(diff.onlyOnS3).toEqual([]);
+  });
+});
+
+describe('assertNotOneSidedEmpty', () => {
+  it('throws when Azure is empty and S3 is not', () => {
+    expect(() => assertNotOneSidedEmpty(0, 5, 'x')).toThrow(/x/);
+    expect(() => assertNotOneSidedEmpty(0, 5, 'x')).toThrow(/azureCount=0/);
+    expect(() => assertNotOneSidedEmpty(0, 5, 'x')).toThrow(/s3Count=5/);
+  });
+
+  it('throws when S3 is empty and Azure is not', () => {
+    expect(() => assertNotOneSidedEmpty(5, 0, 'x')).toThrow(/x/);
+    expect(() => assertNotOneSidedEmpty(5, 0, 'x')).toThrow(/azureCount=5/);
+    expect(() => assertNotOneSidedEmpty(5, 0, 'x')).toThrow(/s3Count=0/);
+  });
+
+  it('does not throw when both sides are empty', () => {
+    expect(() => assertNotOneSidedEmpty(0, 0, 'x')).not.toThrow();
+  });
+
+  it('does not throw when both sides are non-empty', () => {
+    expect(() => assertNotOneSidedEmpty(5, 5, 'x')).not.toThrow();
+  });
+});
+
+describe('assertWithinHealCap', () => {
+  it('throws when candidateCount exceeds cap', () => {
+    expect(() => assertWithinHealCap(1001, 1000)).toThrow(/1001/);
+    expect(() => assertWithinHealCap(1001, 1000)).toThrow(/1000/);
+  });
+
+  it('does not throw when candidateCount equals cap', () => {
+    expect(() => assertWithinHealCap(1000, 1000)).not.toThrow();
+  });
+
+  it('does not throw when candidateCount is below cap', () => {
+    expect(() => assertWithinHealCap(5, 1000)).not.toThrow();
+  });
+});
+
+describe('assertRequestedContainersExist', () => {
+  it('throws when a requested container is missing from S3 buckets', () => {
+    expect(() => assertRequestedContainersExist(['kyc'], ['kyc', 'support'])).toThrow(/support/);
+  });
+
+  it('does not throw when all requested containers exist (extra S3 buckets ok)', () => {
+    expect(() => assertRequestedContainersExist(['kyc', 'support'], ['kyc'])).not.toThrow();
+  });
+});
+
+describe('parseConfig', () => {
+  const ENV_KEYS = [
+    'RECONCILE_CONTAINERS',
+    'RECONCILE_IGNORE_BUCKETS',
+    'RECONCILE_HEAL',
+    'RECONCILE_HEAL_CAP',
+  ] as const;
+
+  let savedEnv: Record<(typeof ENV_KEYS)[number], string | undefined>;
+  let savedArgv: string[];
+
+  beforeEach(() => {
+    savedEnv = {
+      RECONCILE_CONTAINERS: process.env.RECONCILE_CONTAINERS,
+      RECONCILE_IGNORE_BUCKETS: process.env.RECONCILE_IGNORE_BUCKETS,
+      RECONCILE_HEAL: process.env.RECONCILE_HEAL,
+      RECONCILE_HEAL_CAP: process.env.RECONCILE_HEAL_CAP,
+    };
+    savedArgv = process.argv;
+    for (const key of ENV_KEYS) {
+      delete process.env[key];
+    }
+    process.argv = ['node', 'script'];
+  });
+
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (savedEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedEnv[key];
+    }
+    process.argv = savedArgv;
+  });
+
+  it('reads containers from CLI positional args in order', () => {
+    process.argv = ['node', 'script', 'kyc', 'support'];
+    const cfg = parseConfig();
+    expect(cfg.containers).toEqual(['kyc', 'support']);
+  });
+
+  it('reads containers from RECONCILE_CONTAINERS with space and comma separation', () => {
+    process.env.RECONCILE_CONTAINERS = 'kyc, support  spar-ep2';
+    const cfg = parseConfig();
+    expect(cfg.containers).toEqual(['kyc', 'support', 'spar-ep2']);
+  });
+
+  it('dedupes containers while preserving first-seen order', () => {
+    process.argv = ['node', 'script', 'kyc', 'kyc', 'support'];
+    const cfg = parseConfig();
+    expect(cfg.containers).toEqual(['kyc', 'support']);
+  });
+
+  it('throws on unknown flag', () => {
+    process.argv = ['node', 'script', 'kyc', '--foo'];
+    expect(() => parseConfig()).toThrow(/Unknown flag/);
+  });
+
+  it('sets heal true when --heal is present', () => {
+    process.argv = ['node', 'script', 'kyc', '--heal'];
+    const cfg = parseConfig();
+    expect(cfg.heal).toBe(true);
+  });
+
+  it('sets verbose true when --verbose is present', () => {
+    process.argv = ['node', 'script', 'kyc', '--verbose'];
+    const cfg = parseConfig();
+    expect(cfg.verbose).toBe(true);
+  });
+
+  it('defaults heal and verbose to false when flags and RECONCILE_HEAL are absent', () => {
+    process.argv = ['node', 'script', 'kyc'];
+    const cfg = parseConfig();
+    expect(cfg.heal).toBe(false);
+    expect(cfg.verbose).toBe(false);
+  });
+
+  it('sets heal true from RECONCILE_HEAL=true without --heal flag', () => {
+    process.argv = ['node', 'script', 'kyc'];
+    process.env.RECONCILE_HEAL = 'true';
+    const cfg = parseConfig();
+    expect(cfg.heal).toBe(true);
+  });
+
+  it('throws when no containers are specified via CLI or ENV', () => {
+    process.argv = ['node', 'script'];
+    expect(() => parseConfig()).toThrow(/No containers specified/);
+  });
+
+  it('throws on invalid RECONCILE_HEAL_CAP values', () => {
+    process.argv = ['node', 'script', 'kyc'];
+    for (const invalid of ['0', '-1', 'x']) {
+      process.env.RECONCILE_HEAL_CAP = invalid;
+      expect(() => parseConfig()).toThrow(/Invalid RECONCILE_HEAL_CAP/);
+    }
+  });
+
+  it('accepts valid RECONCILE_HEAL_CAP', () => {
+    process.argv = ['node', 'script', 'kyc'];
+    process.env.RECONCILE_HEAL_CAP = '50';
+    const cfg = parseConfig();
+    expect(cfg.healCap).toBe(50);
+  });
+
+  it('defaults healCap to DEFAULT_HEAL_CAP when RECONCILE_HEAL_CAP is unset', () => {
+    process.argv = ['node', 'script', 'kyc'];
+    const cfg = parseConfig();
+    expect(cfg.healCap).toBe(DEFAULT_HEAL_CAP);
+    expect(cfg.healCap).toBe(1000);
+  });
+
+  it('parses RECONCILE_IGNORE_BUCKETS', () => {
+    process.argv = ['node', 'script', 'kyc'];
+    process.env.RECONCILE_IGNORE_BUCKETS = 'system, temp';
+    const cfg = parseConfig();
+    expect(cfg.ignoreBuckets).toEqual(['system', 'temp']);
+  });
+});
+
+describe('assertBucketsAccounted', () => {
+  it('does not throw when every existing S3 bucket is requested', () => {
+    expect(() => assertBucketsAccounted(['kyc', 'support'], ['kyc', 'support'], [])).not.toThrow();
+  });
+
+  it('throws when a bucket is neither requested nor ignored', () => {
+    expect(() => assertBucketsAccounted(['kyc', 'orphan'], ['kyc'], [])).toThrow(/orphan/);
+  });
+
+  it('does not throw when an unrequested bucket is in the ignore list', () => {
+    expect(() => assertBucketsAccounted(['kyc', 'system'], ['kyc'], ['system'])).not.toThrow();
+  });
+});
+
+describe('assertPageComplete', () => {
+  it('throws when truncated without a next token', () => {
+    expect(() => assertPageComplete(true, undefined)).toThrow(/IsTruncated/);
+  });
+
+  it('does not throw when truncated with a next token', () => {
+    expect(() => assertPageComplete(true, 'some-token')).not.toThrow();
+  });
+
+  it('does not throw when not truncated', () => {
+    expect(() => assertPageComplete(false, undefined)).not.toThrow();
+  });
+});
