@@ -17,7 +17,7 @@ export interface FeeConfig {
 }
 
 // Node's own minimum relay fee floor (sat/vB); broadcasts below this are rejected outright.
-const MIN_FEE_RATE_SAT_VB = 1;
+export const MIN_FEE_RATE_SAT_VB = 1;
 
 export abstract class BitcoinBasedFeeService {
   private readonly logger = new DfxLogger(BitcoinBasedFeeService);

@@ -63,6 +63,12 @@ export class PayoutBitcoinService extends PayoutBitcoinBasedService {
     return this.feeService.getSendFeeRate();
   }
 
+  // Network's recommended (next-block) rate without the payout send margin (see getSendFeeRate).
+  // Used as the customer-facing minimum for inbound Open CryptoPay payments.
+  async getRecommendedFeeRate(): Promise<number> {
+    return this.feeService.getRecommendedFeeRate();
+  }
+
   // Quantize each amount to 8 decimals before serializing to the RPC. Even though
   // BitcoinBasedStrategy.aggregatePayout already rounds once, downstream fee
   // adjustments and fixRoundingMismatch can re-introduce float artifacts. Reject
