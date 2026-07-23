@@ -28,6 +28,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutputFrickService } from './fiat-output-frick.service';
@@ -56,6 +57,7 @@ export class FiatOutputJobService {
     private readonly frickPayoutService: FiatOutputFrickService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly scryptService: ScryptService,
+    private readonly bankService: BankService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -144,7 +146,7 @@ export class FiatOutputJobService {
     country: Country,
   ): Promise<{ accountIban: string | undefined; bank: Bank | undefined }> {
     const currency = entity.currency ?? entity.bankAccountCurrency;
-    return this.fiatOutputService.selectPayoutBank(currency, entity.type, entity.userData, entity.isInstant, country);
+    return this.fiatOutputService.selectPayoutBank(currency, entity.type, entity.userData, country);
   }
 
   private async assignBankAccount(): Promise<void> {
@@ -156,10 +158,13 @@ export class FiatOutputJobService {
       type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT, FiatOutputType.BANK_TX_RETURN]),
     };
 
+    // OR branches: (1) missing originEntityId, (2) missing accountIban (full assignment),
+    // (3) accountIban set but bank relation missing — so the repair path in the loop can run.
     const entities = await this.fiatOutputRepo.find({
       where: [
         { ...request, originEntityId: IsNull() },
         { ...request, accountIban: IsNull() },
+        { ...request, accountIban: Not(IsNull()), bank: IsNull() },
       ],
       relations: {
         buyCrypto: { bankTx: true, transaction: { userData: true } },
@@ -172,15 +177,35 @@ export class FiatOutputJobService {
       try {
         if (!entity.buyFiats?.length && !entity.buyCrypto && !entity.bankTxReturn) continue;
 
+        if (entity.accountIban) {
+          // An already-assigned account IBAN (set at creation, or a manual database assignment) must never
+          // be overwritten by the automatic bank selection below - only originEntityId (and a still-missing
+          // bank relation) can be repaired here.
+          let bank = entity.bank;
+          if (!bank) {
+            bank = await this.bankService.getBankByIban(entity.accountIban);
+            if (!bank)
+              throw new Error(`No bank found for account IBAN ${entity.accountIban} (fiat output ${entity.id})`);
+          }
+
+          // CAS: match on the current accountIban so a concurrent write from the admin update endpoint,
+          // landing between this method's snapshot read and this write, is not silently overwritten.
+          await this.fiatOutputRepo.update(
+            { id: entity.id, accountIban: entity.accountIban },
+            { originEntityId: entity.originEntity?.id, bank },
+          );
+          continue;
+        }
+
         const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
 
         const { accountIban, bank } = await this.getPayoutAccount(entity, country);
 
-        await this.fiatOutputRepo.update(entity.id, {
-          originEntityId: entity.originEntity?.id,
-          accountIban,
-          bank,
-        });
+        // Legacy rows may hold an empty string instead of null; match whatever value was read.
+        await this.fiatOutputRepo.update(
+          { id: entity.id, accountIban: entity.accountIban == null ? IsNull() : entity.accountIban },
+          { originEntityId: entity.originEntity?.id, accountIban, bank },
+        );
       } catch (e) {
         this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
       }
@@ -207,6 +232,8 @@ export class FiatOutputJobService {
     const assets = await this.assetService
       .getAssetsWith({ bank: true, balance: true })
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
+
+    let skippedFrickFiatOutputs = 0;
 
     for (const accountIbanGroup of groupedEntities.values()) {
       let updatedFiatOutputAmount = 0;
@@ -236,7 +263,10 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
-          if (entity.bank?.name === IbanBankName.FRICK && !this.frickPayoutService.canCreatePayments()) continue;
+          if (entity.bank?.name === IbanBankName.FRICK && !this.frickPayoutService.canCreatePayments()) {
+            skippedFrickFiatOutputs++;
+            continue;
+          }
           if (
             (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
             entity.type === FiatOutputType.BUY_FIAT
@@ -293,6 +323,10 @@ export class FiatOutputJobService {
               );
             }
           } else {
+            this.logger.verbose(
+              `FiatOutput ${entity.id} blocked: required ${entity.bankAmount}, ` +
+                `available ${availableBalance} ${asset.name}`,
+            );
             break;
           }
         } catch (e) {
@@ -300,6 +334,9 @@ export class FiatOutputJobService {
         }
       }
     }
+
+    if (skippedFrickFiatOutputs)
+      this.logger.verbose(`Skipped ${skippedFrickFiatOutputs} Frick fiat outputs: payout creation disabled`);
   }
 
   private async createBatches(): Promise<void> {

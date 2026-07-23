@@ -583,7 +583,7 @@ export class BankTxService implements OnModuleInit {
 
     // update bank liq balance
     const bank = await this.bankService.getBankByIban(batch.iban);
-    this.bankBalanceSubject.next({ bank, balance: batch.bankBalanceAfter });
+    this.bankBalanceSubject.next({ bank, iban: batch.iban, balance: batch.bankBalanceAfter });
 
     // avoid infinite loop in JSON
     batch.transactions = newTxs.map((tx) => {
