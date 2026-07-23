@@ -195,10 +195,11 @@ export class ScryptWebSocketConnection {
       this.reconnectTimer = undefined;
     }
     this.isReconnecting = false;
+    this.connectionState = ConnectionState.DISCONNECTED;
+    this.connectionPromise = undefined;
 
     if (!this.ws) return;
 
-    this.connectionState = ConnectionState.DISCONNECTED;
     this.ws.close();
     this.ws = undefined;
 

@@ -572,6 +572,49 @@ describe('ScryptWebSocketConnection', () => {
     await expect(connectPromise).rejects.toThrow(/superseded/i);
   });
 
+  it('disconnect() during pre-open handshake then connect() starts a fresh attempt, not joining the superseded promise', async () => {
+    const firstConnectPromise = (connection as any).connect();
+    await flushPromises();
+
+    expect((connection as any).connectionState).toBe('connecting');
+    const preOpenWs = latestWs();
+    expect(preOpenWs.readyState).toBe(WebSocket.CONNECTING);
+    const constructCountBeforeDisconnect = WebSocket.instances.length;
+    const generationBeforeDisconnect = (connection as any).connectionGeneration;
+
+    await connection.disconnect();
+
+    // Fix: disconnect() resets state synchronously even though ws never opened.
+    expect((connection as any).connectionState).toBe('disconnected');
+    expect((connection as any).connectionPromise).toBeUndefined();
+
+    // A fresh connect() call, issued before the pre-open socket ever settles, must start a NEW
+    // attempt — not join the doomed promise from the superseded attempt.
+    const secondConnectPromise = (connection as any).connect();
+    await flushPromises();
+
+    expect(WebSocket.instances.length).toBe(constructCountBeforeDisconnect + 1);
+    expect((connection as any).connectionGeneration).toBeGreaterThan(generationBeforeDisconnect);
+    expect(secondConnectPromise).not.toBe(firstConnectPromise);
+
+    const freshWs = latestWs();
+    expect(freshWs).not.toBe(preOpenWs);
+    freshWs.open();
+    await flushPromises();
+
+    await expect(secondConnectPromise).resolves.toBeUndefined();
+    expect((connection as any).connectionState).toBe('connected');
+
+    // The stale pre-open socket, when it eventually opens, must still be rejected/terminated and
+    // must not clobber the fresh connection now in place.
+    preOpenWs.open();
+    await flushPromises();
+    await expect(firstConnectPromise).rejects.toThrow(/superseded/i);
+    expect(preOpenWs.terminate).toHaveBeenCalled();
+    expect((connection as any).ws).toBe(freshWs);
+    expect((connection as any).connectionState).toBe('connected');
+  });
+
   it('disconnect() stops the backoff loop — no further reconnect after advancing timers (B2)', async () => {
     const firstWs = await firstConnectWithStream();
     firstWs.remoteClose(1006, 'gone');
