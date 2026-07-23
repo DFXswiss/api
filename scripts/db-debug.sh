@@ -92,10 +92,14 @@
 #   A single-snapshot spike (one entry, reverted by the next 1-minute snapshot) is expected
 #   skew from these non-atomic reads and is benign. A spike that persists across multiple
 #   snapshots is NOT skew -- treat it as an error / realised loss (case 3) and investigate.
-#   The `valid` column is false when the jump vs. the last valid entry exceeds
-#   Config.financeLogTotalBalanceChangeLimit and that entry is under 15 minutes old (a larger
-#   gap suppresses the flag); --anomalies lists these valid=false rows. Full reference: the
-#   BalancesTotal type in src/subdomains/supporting/log/dto/log.dto.ts and LogJobService.
+#   The `valid` column is false when the current total is neither within one
+#   Config.financeLogTotalBalanceChangeLimit band of the last VALID entry nor part of a
+#   stable plateau (current total + its Config.financeLogStabilityWindow-1 immediate
+#   predecessors all within one such band). There is no time-based escape -- a persisting
+#   invalid level stays valid=false until it stabilises into a plateau or an operator runs
+#   the audited PUT /log/financial/validity sweep; --anomalies lists these valid=false rows.
+#   Full reference: the BalancesTotal type in
+#   src/subdomains/supporting/log/dto/log.dto.ts and LogJobService.
 
 set -e
 

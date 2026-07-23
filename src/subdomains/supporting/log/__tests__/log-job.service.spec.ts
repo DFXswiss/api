@@ -609,7 +609,7 @@ describe('LogJobService', () => {
       expect(validFlag(createSpy)).toBe(false);
     });
 
-    it('1. normal drift stays valid with no validatedByStability marker', async () => {
+    it('normal drift stays valid with no validatedByStability marker', async () => {
       // total 102000 vs baseline 100000 -> |diff| 2000 <= 5000 limit -> valid via the baseline path, not stability
       const createSpy = setup(bookOf(102000), 100000, 1);
 
@@ -619,7 +619,7 @@ describe('LogJobService', () => {
       expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('validatedByStability');
     });
 
-    it('2. a lone transient spike stays invalid (predecessors all still at the old level)', async () => {
+    it('a lone transient spike stays invalid (predecessors all still at the old level)', async () => {
       // total 110000 vs baseline 100000 -> |diff| 10000 > 5000 limit; all 4 predecessors are still at 100000,
       // so the 5-value window band is 10000 > 5000 -> not a stable plateau -> invalid
       const createSpy = setup(bookOf(110000), 100000, 1, [
@@ -634,7 +634,7 @@ describe('LogJobService', () => {
       expect(validFlag(createSpy)).toBe(false);
     });
 
-    it('3. a 2-minute spike (only 2 of 5 window values at the new level) stays invalid', async () => {
+    it('a 2-minute spike (only 2 of 5 window values at the new level) stays invalid', async () => {
       // window = [current=spike, predecessor=spike, base, base, base]; band = spike - base > 5000 -> invalid
       const createSpy = setup(bookOf(110000), 100000, 1, [
         predecessor(110000),
@@ -648,7 +648,7 @@ describe('LogJobService', () => {
       expect(validFlag(createSpy)).toBe(false);
     });
 
-    it('4. a stable new plateau is adopted as valid and tagged validatedByStability', async () => {
+    it('a stable new plateau is adopted as valid and tagged validatedByStability', async () => {
       // total 110000 vs baseline 100000 -> |diff| 10000 > 5000 limit (not near baseline), but the current
       // total plus all 4 predecessors sit within a 2000-wide band (108000..110000) -> stable plateau -> valid
       const createSpy = setup(bookOf(110000), 100000, 1, [
@@ -665,7 +665,7 @@ describe('LogJobService', () => {
       expect(financialLog(createSpy).balancesTotal.validatedByStability).toBe(true);
     });
 
-    it('5. a returned-true value re-validates against a stale bad baseline via its own predecessors', async () => {
+    it('a returned-true value re-validates against a stale bad baseline via its own predecessors', async () => {
       // last VALID entry is a stale bad level (200000), but the current total (100000) plus all 4
       // predecessors form their own stable plateau (98500..100500, a 2000-wide band) at the true level ->
       // valid via stability, proving the predecessor plateau (not the stale baseline) drives adoption
@@ -682,7 +682,7 @@ describe('LogJobService', () => {
       expect(financialLog(createSpy).balancesTotal.validatedByStability).toBe(true);
     });
 
-    it('6a. cold start / insufficient predecessor history near baseline still validates', async () => {
+    it('cold start / insufficient predecessor history near baseline still validates', async () => {
       // only 2 of the required 4 predecessors exist -> the 5-value stability window can never fill ->
       // isStablePlateau is always false -> validity depends purely on the near-baseline check
       const createSpy = setup(bookOf(102000), 100000, 1, [predecessor(102000), predecessor(102000)]);
@@ -692,7 +692,7 @@ describe('LogJobService', () => {
       expect(validFlag(createSpy)).toBe(true); // |diff| 2000 <= 5000 -> near baseline -> valid
     });
 
-    it('6b. cold start / insufficient predecessor history far from baseline stays invalid', async () => {
+    it('cold start / insufficient predecessor history far from baseline stays invalid', async () => {
       // only 2 of the required 4 predecessors exist -> the 5-value stability window can never fill ->
       // isStablePlateau is always false -> validity depends purely on the near-baseline check
       const createSpy = setup(bookOf(110000), 100000, 1, [predecessor(110000), predecessor(110000)]);
@@ -702,7 +702,7 @@ describe('LogJobService', () => {
       expect(validFlag(createSpy)).toBe(false); // |diff| 10000 > 5000 and stability can't fire -> invalid
     });
 
-    it('7. a non-finite total is never valid, regardless of predecessors (regression)', async () => {
+    it('a non-finite total is never valid, regardless of predecessors (regression)', async () => {
       // an unsummable bucket (undefined chf) makes the summed total NaN -> non-finite; predecessors would
       // otherwise form a plateau, but totalBalanceIsFinite must still gate the whole expression
       const createSpy = setup(
@@ -718,7 +718,7 @@ describe('LogJobService', () => {
       expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('validatedByStability');
     });
 
-    it('8. a non-finite predecessor total blocks stability adoption', async () => {
+    it('a non-finite predecessor total blocks stability adoption', async () => {
       // total 110000 vs baseline 100000 -> jump > 5000 limit; 3 predecessors near 110000 but one predecessor
       // total is non-finite (null) -> the plateau can never be confirmed -> invalid
       const createSpy = setup(bookOf(110000), 100000, 1, [
@@ -733,7 +733,7 @@ describe('LogJobService', () => {
       expect(validFlag(createSpy)).toBe(false);
     });
 
-    it('9. a plateau band exactly at the change limit (boundary) is adopted as valid', async () => {
+    it('a plateau band exactly at the change limit (boundary) is adopted as valid', async () => {
       // stability window [110000, 108000, 107000, 106000, 105000] -> max-min = 5000 exactly (<= limit);
       // |110000 - 100000| = 10000 > 5000 so not near-baseline -> adopted purely via the inclusive stability path
       const createSpy = setup(bookOf(110000), 100000, 1, [

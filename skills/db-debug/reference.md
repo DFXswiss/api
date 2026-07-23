@@ -52,9 +52,13 @@ the TypeORM entities in this repository.
   lowers both). So `totalBalanceChf` approximates operating equity and moves only via:
   (1) fees / operating profit, (2) FX drift on open orders, (3) an error or realized loss.
   A sudden negative step is suspicious rather than customer activity.
-- `valid = false` when the jump versus the previous entry exceeds
-  `Config.financeLogTotalBalanceChangeLimit` and that entry is under 15 minutes old (a larger gap
-  suppresses the flag). `--anomalies` lists these rows.
+- `valid = false` when the current total is neither within one
+  `Config.financeLogTotalBalanceChangeLimit` band of the last VALID entry nor part of a stable
+  plateau (current total + its `Config.financeLogStabilityWindow - 1` immediate predecessors all
+  within one such band). There is no time-based escape — a persisting invalid level stays
+  `valid = false` until it stabilises into a plateau (auto-adopted, tagged
+  `validatedByStability`) or an operator runs the audited `PUT /log/financial/validity` sweep.
+  `--anomalies` lists these rows.
 - Reference: `BalancesTotal` in `src/subdomains/supporting/log/dto/log.dto.ts` and `LogJobService`.
 - The companion scripts (`compare-balance-logs.sh`, `inspect-asset-balance.sh`, `sum-asset-balances.sh`)
   read these same `message` snapshots by `log.id`: diff two entries, inspect one asset's plus/minus

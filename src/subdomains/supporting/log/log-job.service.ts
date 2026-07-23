@@ -187,7 +187,9 @@ export class LogJobService {
           return (JSON.parse(l.message) as FinanceLog).balancesTotal.totalBalanceChf;
         } catch (e) {
           this.logger.error(`Skipping malformed FinancialDataLog predecessor ${l.id} in stability window:`, e);
-          return NaN; // non-finite blocks stability adoption this run (isStablePlateau's every(Number.isFinite) guard) without aborting the cron
+          // non-finite blocks stability adoption this run (isStablePlateau's every(Number.isFinite) guard)
+          // without aborting the cron
+          return NaN;
         }
       });
       const stabilityValues = [totalBalanceChf, ...predecessorTotals];
