@@ -77,19 +77,51 @@ export class BankAdapter implements LiquidityBalanceIntegration {
         }
 
         case IbanBankName.FRICK: {
+          const normalizeIban = (iban: string): string => iban.replace(/\s/g, '').toUpperCase();
+
           const frickBalances = await this.frickService.getBalances();
 
-          for (const balance of frickBalances) {
-            // Bank Frick's `available` field is optional in its own account-listing contract. Falling
-            // back to the booked `balance` would overstate spendable liquidity (it ignores pending
-            // debits) - exactly the overdraft risk this case exists to close - so a missing available
-            // balance fails loud instead of silently substituting a different, unsafe number.
+          const banks = await this.bankService.getBanksWithAsset();
+          const matchedIbans = new Set<string>();
+
+          for (const asset of assets) {
+            const bank = banks.find((bank) => bank.asset?.id === asset.id);
+            if (!bank) throw new Error(`Bank Frick account is not linked to asset ${asset.uniqueName}`);
+
+            const bankIban = normalizeIban(bank.iban);
+            const balance = frickBalances.find((balance) => {
+              const balanceIban = normalizeIban(balance.iban);
+              return balanceIban === bankIban;
+            });
+            if (!balance)
+              throw new Error(`No Bank Frick account found for IBAN ${bank.iban} (asset ${asset.uniqueName})`);
+
+            // A wrongly linked IBAN (e.g. a CHF account linked to a Frick EUR asset) must fail loud instead of
+            // silently recording the wrong currency's balance as this asset's liquidity.
+            if (balance.currency !== asset.dexName)
+              throw new Error(
+                `Currency mismatch for Bank Frick account ${bank.iban}: ` +
+                  `expected ${asset.dexName}, found ${balance.currency} (asset ${asset.uniqueName})`,
+              );
+
+            // Bank Frick's `available` field is optional in its own account-listing contract. Falling back to
+            // the booked `balance` would overstate spendable liquidity (it ignores pending debits) - exactly
+            // the overdraft risk this case exists to close - so a missing available balance fails loud instead
+            // of silently substituting a different, unsafe number. This only applies to the account actually
+            // matched to an asset here - an unmatched account without an available balance (e.g. the operating
+            // account) plays no role in any asset's liquidity figure and must not crash the refresh.
             if (!Number.isFinite(balance.availableBalance))
               throw new Error(`Missing available balance for Bank Frick account ${balance.iban}`);
 
-            const matchingAssets = assets.filter((asset) => asset.dexName === balance.currency);
-            matchingAssets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance.availableBalance)));
+            matchedIbans.add(normalizeIban(balance.iban));
+            balances.push(LiquidityBalance.create(asset, balance.availableBalance));
           }
+
+          const unmatchedIbans = frickBalances
+            .filter((balance) => !matchedIbans.has(normalizeIban(balance.iban)))
+            .map((balance) => balance.iban);
+          if (unmatchedIbans.length)
+            this.logger.verbose(`Ignored unmatched Bank Frick accounts: ${unmatchedIbans.join(', ')}`);
 
           break;
         }

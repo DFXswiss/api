@@ -1,6 +1,8 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, MinDate, ValidateIf } from 'class-validator';
 import { FiatOutputType } from '../fiat-output.entity';
+
+export const MIN_FIAT_OUTPUT_DATE = new Date('2000-01-01T00:00:00Z');
 
 export class CreateFiatOutputDto {
   @IsOptional()
@@ -59,12 +61,20 @@ export class CreateFiatOutputDto {
   @IsString()
   iban: string;
 
-  @IsOptional()
+  // Deliberate deviation from the documented create-DTO convention (where @IsOptional permits both
+  // undefined and null): an explicit null account IBAN has no meaning here (absent = automatic
+  // assignment) and would bypass the bank-resolution invariant this module enforces, so it is
+  // rejected instead of tolerated.
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsNotEmpty()
   @IsString()
   accountIban?: string;
 
   @IsOptional()
   @IsDate()
+  @MinDate(MIN_FIAT_OUTPUT_DATE, {
+    message: 'valutaDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+  })
   @Type(() => Date)
   valutaDate?: Date;
 

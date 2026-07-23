@@ -28,6 +28,10 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findCached(`all`);
   }
 
+  async getBanksWithAsset(): Promise<Bank[]> {
+    return this.bankRepo.find({ relations: { asset: true } });
+  }
+
   async getBanksByName(bankName: IbanBankName): Promise<Bank[]> {
     return this.bankRepo.findCachedBy(bankName, { name: bankName });
   }

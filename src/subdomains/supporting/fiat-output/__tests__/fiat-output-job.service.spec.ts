@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { In, IsNull, Not } from 'typeorm';
 import { FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { IbanService } from 'src/integration/bank/services/iban.service';
@@ -159,11 +160,34 @@ describe('FiatOutputJobService', () => {
       await service['assignBankAccount']();
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
-      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban: IsNull() });
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: yapealEUR.iban });
 
-      expect(updateCalls[1][0]).toBe(3);
+      expect(updateCalls[1][0]).toEqual({ id: 3, accountIban: IsNull() });
       expect(updateCalls[1][1]).toMatchObject({ originEntityId: 102, accountIban: yapealEUR.iban });
+    });
+
+    it('should assign bank account when accountIban is an empty string (legacy rows)', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          accountIban: '',
+          bank: undefined,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+
+      jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createCustomCountry({ yapealEnable: true }));
+
+      jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([yapealEUR]);
+
+      await service['assignBankAccount']();
+
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban: '' });
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: yapealEUR.iban });
     });
 
     it('should use virtual IBAN when user has one for BuyFiat', async () => {
@@ -188,7 +212,7 @@ describe('FiatOutputJobService', () => {
       await service['assignBankAccount']();
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
-      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban: IsNull() });
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: virtualIban });
     });
 
@@ -214,11 +238,11 @@ describe('FiatOutputJobService', () => {
       await service['assignBankAccount']();
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
-      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban: IsNull() });
       expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: virtualIban });
     });
 
-    it('skips an unavailable Bank Frick sender and selects the next eligible sender', async () => {
+    it('excludes Bank Frick from automatic sender selection regardless of payout-creation availability', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -236,7 +260,7 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: yapealEUR.iban, bank: yapealEUR });
     });
 
-    it('does not select Bank Frick without the configured instant-payment capability', async () => {
+    it('excludes Bank Frick from automatic sender selection regardless of its instant-payment capability', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -254,7 +278,7 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
     });
 
-    it('still routes an EUR payout to Olkypay while Frick EUR is send=true with the seeded (worse) default priority', async () => {
+    it('excludes Bank Frick from automatic sender selection even when its sender priority is worse', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -272,7 +296,7 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
     });
 
-    it('routes to Frick once its priority is lowered below the incumbent sender', async () => {
+    it('never auto-selects Bank Frick even when it has better sender priority than the incumbent', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -287,10 +311,10 @@ describe('FiatOutputJobService', () => {
         createCustomCountry({ yapealEnable: true }),
       );
 
-      expect(result).toEqual({ accountIban: frick.iban, bank: frick });
+      expect(result).toEqual({ accountIban: yapealEUR.iban, bank: yapealEUR });
     });
 
-    it('throws only when two eligible banks share the exact same priority, not merely because Frick coexists', async () => {
+    it('never throws on a priority tie with Bank Frick - Frick is filtered out before the tie can even occur', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
@@ -300,12 +324,12 @@ describe('FiatOutputJobService', () => {
       });
       jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([frick, yapealEUR]);
 
-      await expect(
-        service['getPayoutAccount'](
-          createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
-          createCustomCountry({ yapealEnable: true }),
-        ),
-      ).rejects.toThrow('Ambiguous sender bank priority for EUR');
+      const result = await service['getPayoutAccount'](
+        createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
+        createCustomCountry({ yapealEnable: true }),
+      );
+
+      expect(result).toEqual({ accountIban: yapealEUR.iban, bank: yapealEUR });
     });
 
     it('routes to the highest-priority (lowest number) sender when multiple non-Frick banks are eligible', async () => {
@@ -334,7 +358,7 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
     });
 
-    it('does not use an unavailable Bank Frick virtual IBAN', async () => {
+    it('excludes an unavailable Bank Frick virtual IBAN from automatic selection unconditionally', async () => {
       const frick = createCustomBank({ name: IbanBankName.FRICK, send: true });
       jest.spyOn(frickPayoutService, 'canCreatePayments').mockReturnValue(false);
       jest
@@ -351,6 +375,101 @@ describe('FiatOutputJobService', () => {
       );
 
       expect(result).toEqual({ accountIban: undefined, bank: undefined });
+    });
+
+    it('keeps an already-assigned account IBAN and bank relation without re-resolving or auto-selecting', async () => {
+      const accountIban = 'LI75088110103524';
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          accountIban,
+          bank: olkyEUR,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+      jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(olkyEUR);
+
+      await service['assignBankAccount']();
+
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban });
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, bank: olkyEUR });
+      expect(bankService.getBankByIban).not.toHaveBeenCalled();
+      expect(bankService.getSenderBanks).not.toHaveBeenCalled();
+    });
+
+    it('repairs a missing bank relation from an already-assigned account IBAN without auto-selecting', async () => {
+      const accountIban = 'LI75088110103524';
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          accountIban,
+          bank: undefined,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+      jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(olkyEUR);
+
+      await service['assignBankAccount']();
+
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][0]).toEqual({ id: 1, accountIban });
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, bank: olkyEUR });
+      expect(bankService.getBankByIban).toHaveBeenCalledWith(accountIban);
+      expect(bankService.getSenderBanks).not.toHaveBeenCalled();
+    });
+
+    it('logs a bank lookup miss and continues to repair the next entity in the same run', async () => {
+      const accountIban = 'LI75088110103524';
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          originEntityId: 123,
+          accountIban,
+          bank: undefined,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+        createCustomFiatOutput({
+          id: 2,
+          originEntityId: 123,
+          accountIban,
+          bank: undefined,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 200, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+      jest.spyOn(bankService, 'getBankByIban').mockResolvedValueOnce(undefined).mockResolvedValueOnce(olkyEUR);
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      await service['assignBankAccount']();
+
+      const findArgs = (fiatOutputRepo.find as jest.Mock).mock.calls[0][0];
+      expect(findArgs.where).toHaveLength(3);
+      expect(findArgs.where[2]).toEqual({
+        valutaDate: IsNull(),
+        isComplete: false,
+        type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT, FiatOutputType.BANK_TX_RETURN]),
+        accountIban: Not(IsNull()),
+        bank: IsNull(),
+      });
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error in fillPreValutaDate fiatOutput: 1:',
+        expect.objectContaining({ message: `No bank found for account IBAN ${accountIban} (fiat output 1)` }),
+      );
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][0]).toEqual({ id: 2, accountIban });
+      expect(updateCalls[0][1]).toMatchObject({ bank: olkyEUR });
     });
   });
 

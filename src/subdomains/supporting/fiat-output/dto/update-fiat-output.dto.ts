@@ -1,13 +1,16 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDate, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString, MinDate } from 'class-validator';
+import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { TransactionCharge } from '../fiat-output.entity';
+import { MIN_FIAT_OUTPUT_DATE } from './create-fiat-output.dto';
 
 export class UpdateFiatOutputDto {
   @IsOptional()
   @IsNumber()
   originEntityId?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
+  @IsNotEmpty()
   @IsString()
   accountIban?: string;
 
@@ -29,6 +32,9 @@ export class UpdateFiatOutputDto {
 
   @IsOptional()
   @IsDate()
+  @MinDate(MIN_FIAT_OUTPUT_DATE, {
+    message: 'valutaDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+  })
   @Type(() => Date)
   valutaDate?: Date;
 
@@ -106,21 +112,36 @@ export class UpdateFiatOutputDto {
 
   @IsOptional()
   @IsDate()
+  @MinDate(MIN_FIAT_OUTPUT_DATE, {
+    message: 'isReadyDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+  })
   @Type(() => Date)
   isReadyDate?: Date;
 
   @IsOptional()
   @IsDate()
+  @MinDate(MIN_FIAT_OUTPUT_DATE, {
+    message:
+      'isTransmittedDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+  })
   @Type(() => Date)
   isTransmittedDate?: Date;
 
   @IsOptional()
   @IsDate()
+  @MinDate(MIN_FIAT_OUTPUT_DATE, {
+    message:
+      'isConfirmedDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+  })
   @Type(() => Date)
   isConfirmedDate?: Date;
 
   @IsOptional()
   @IsDate()
+  @MinDate(MIN_FIAT_OUTPUT_DATE, {
+    message:
+      'isApprovedDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+  })
   @Type(() => Date)
   isApprovedDate?: Date;
 
@@ -130,6 +151,9 @@ export class UpdateFiatOutputDto {
 
   @IsOptional()
   @IsDate()
+  @MinDate(MIN_FIAT_OUTPUT_DATE, {
+    message: 'outputDate must be an ISO date on or after 2000-01-01 (numeric spreadsheet date serials are rejected)',
+  })
   @Type(() => Date)
   outputDate?: Date;
 

@@ -10,7 +10,8 @@ import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balan
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
 
 export interface BankBalanceUpdate {
-  bank: Bank;
+  bank: Bank | null;
+  iban: string;
   balance: number;
 }
 
@@ -59,7 +60,17 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
   }
 
   async refreshBankBalance(dto: BankBalanceUpdate): Promise<void> {
+    if (!dto.bank) {
+      this.logger.verbose(`Skipping bank balance refresh: no bank found for IBAN ${dto.iban}`);
+      return;
+    }
+
     const entity = await this.balanceRepo.findOne({ where: { asset: { bank: { id: dto.bank.id } } } });
+    if (!entity) {
+      this.logger.verbose(`Skipping bank balance refresh for bank ${dto.bank.id}: liquidity balance not found`);
+      return;
+    }
+
     await this.balanceRepo.update(entity.id, { amount: dto.balance });
   }
 

@@ -137,6 +137,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'created',
       'updated',
       'amlEnabled',
+      'assetId',
       'bic',
       'currency',
       'iban',
@@ -144,6 +145,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'receive',
       'sctInst',
       'send',
+      'sendPriority',
     ],
   },
   bank_account: {
