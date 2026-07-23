@@ -110,6 +110,11 @@ export class LiquidityManagementService {
   private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
     try {
       if (rule.status !== LiquidityManagementRuleStatus.ACTIVE) {
+        // A rule paused after a failed pipeline must re-debounce on reactivation, so clear its
+        // activation timer. Do NOT clear for other non-active states — notably PROCESSING, which
+        // occurs between drain chunks; clearing there would reset the debounce and re-serialize the
+        // drain to one chunk per full delay.
+        if (rule.status === LiquidityManagementRuleStatus.PAUSED) this.ruleActivations.delete(rule.id);
         this.logger.info(`Could not verify rule ${rule.id}: status is ${rule.status}`);
         return;
       }
@@ -144,8 +149,6 @@ export class LiquidityManagementService {
         const requiredActivationTime = Util.minutesBefore(+delay);
 
         if (!rule.delayActivation || this.ruleActivations.get(rule.id) < requiredActivationTime) {
-          this.ruleActivations.delete(rule.id);
-
           await this.executeRule(rule, result);
         }
       } else {
