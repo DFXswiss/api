@@ -76,7 +76,7 @@ describe('diffStores', () => {
   });
 
   // Documented (key,size) trust boundary of diffStores — byte equality is intentionally not checked
-  // (see source docblock: "Same-size objects with different content are not detectable by this script").
+  // (see source docblock: "Same-size objects with different content are not detectable by this tool").
   it('does not flag same key/size/lastModified (same-size different content is undetectable)', () => {
     const azure = [storedObject('k', 50, t0)];
     const s3 = [storedObject('k', 50, t0)];
@@ -252,9 +252,9 @@ describe('parseConfig', () => {
   });
 
   it('reads containers from RECONCILE_CONTAINERS with space and comma separation', () => {
-    process.env.RECONCILE_CONTAINERS = 'kyc, support  spar-ep2';
+    process.env.RECONCILE_CONTAINERS = 'kyc, support  ep2-example';
     const cfg = parseConfig();
-    expect(cfg.containers).toEqual(['kyc', 'support', 'spar-ep2']);
+    expect(cfg.containers).toEqual(['kyc', 'support', 'ep2-example']);
   });
 
   it('dedupes containers while preserving first-seen order', () => {

@@ -37,8 +37,8 @@
  *   - Heal cap: RECONCILE_HEAL_CAP (positive integer) or DEFAULT_HEAL_CAP
  *
  * Run examples:
- *   RECONCILE_CONTAINERS="kyc support spar-ep2" npx ts-node scripts/storage/reconcile-stores.ts
- *   RECONCILE_CONTAINERS="kyc support spar-ep2" npx ts-node scripts/storage/reconcile-stores.ts --heal
+ *   RECONCILE_CONTAINERS="kyc support ep2-example" npx ts-node scripts/storage/reconcile-stores.ts
+ *   RECONCILE_CONTAINERS="kyc support ep2-example" npx ts-node scripts/storage/reconcile-stores.ts --heal
  *   npx ts-node scripts/storage/reconcile-stores.ts kyc support --verbose
  *
  * Scope boundary: Azure SAS connection strings cannot list containers, so the requested
