@@ -11,6 +11,12 @@ import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from 
 import { SupportIssueLog } from './support-issue-log.entity';
 import { SupportMessage } from './support-message.entity';
 
+// Department-scoped list/counts + the paged closed-ticket tabs (state = X ORDER BY created DESC
+// LIMIT n) hit these columns (department IN … AND state IN …, group-by department → state); the
+// composite lets Postgres range-scan + return in sort order instead of a full support_issue seq
+// scan + sort. Not used by the RealUnit customerIds path, which filters via the userData join
+// instead. See support-issue.service.ts getSupportIssueList/Counts.
+@Index((issue: SupportIssue) => [issue.department, issue.state, issue.created])
 @Entity()
 export class SupportIssue extends IEntity {
   @Column({ length: 256, unique: true })

@@ -186,6 +186,132 @@ describe('SupportIssueService.getSupportIssueList', () => {
     });
   });
 
+  describe('pagination', () => {
+    it('applies take and skip when both are provided', async () => {
+      await run({ states: [SupportIssueInternalState.PENDING], take: 20, skip: 40 });
+      expect(qb.take).toHaveBeenCalledWith(20);
+      expect(qb.skip).toHaveBeenCalledWith(40);
+    });
+
+    it('does not apply skip when take is absent', async () => {
+      await run({});
+      expect(qb.take).not.toHaveBeenCalled();
+      expect(qb.skip).not.toHaveBeenCalled();
+    });
+  });
+
+  // Non-empty result path: exercises the SupportIssueListDto mapping and the private
+  // getMessageStats aggregation getSupportIssueList calls for every non-empty result page.
+  // Uses its own service instance so the message-repo query builder can be shaped independently
+  // of the outer suite's leftJoin/andWhere-only qb mock.
+  describe('non-empty result mapping (getMessageStats)', () => {
+    let localService: SupportIssueService;
+    let localSupportIssueRepo: DeepMocked<SupportIssueRepository>;
+    let localMessageRepo: DeepMocked<SupportMessageRepository>;
+    let localQb: Record<string, jest.Mock>;
+    let messageQb: Record<string, jest.Mock>;
+
+    const issueRow = Object.assign(new SupportIssue(), {
+      id: 1,
+      uid: 'x',
+      type: SupportIssueType.GENERIC_ISSUE,
+      reason: SupportIssueReason.OTHER,
+      state: SupportIssueInternalState.PENDING,
+      name: 'Help',
+      clerk: 'Alice',
+      department: Department.SUPPORT,
+      created: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    beforeEach(() => {
+      localQb = createQbMock();
+      localQb.getManyAndCount.mockResolvedValue([[issueRow], 1]);
+
+      messageQb = {};
+      for (const m of ['select', 'where', 'groupBy']) {
+        messageQb[m] = jest.fn(() => messageQb);
+      }
+      // addSelect is called both with a plain (expr, alias) pair (the COUNT(*) select) and with a
+      // sub-query builder factory (the lastDate/lastAuthor correlated selects) - invoke the factory
+      // against a chainable sub-builder stub so its body (the actual sub-query shape) executes too.
+      messageQb.addSelect = jest.fn((selectionOrFactory: unknown) => {
+        if (typeof selectionOrFactory === 'function') {
+          const subQb: Record<string, jest.Mock> = {};
+          for (const m of ['select', 'from', 'where', 'orderBy', 'limit']) {
+            subQb[m] = jest.fn(() => subQb);
+          }
+          (selectionOrFactory as (sub: Record<string, jest.Mock>) => unknown)(subQb);
+        }
+        return messageQb;
+      });
+      messageQb.getRawMany = jest
+        .fn()
+        .mockResolvedValue([
+          { issueId: '1', count: '3', lastDate: new Date('2026-01-02T00:00:00.000Z'), lastAuthor: 'Support' },
+        ]);
+
+      localSupportIssueRepo = createMock<SupportIssueRepository>();
+      (localSupportIssueRepo.createQueryBuilder as jest.Mock).mockReturnValue(localQb);
+      localMessageRepo = createMock<SupportMessageRepository>();
+      (localMessageRepo.createQueryBuilder as jest.Mock).mockReturnValue(messageQb);
+
+      localService = new SupportIssueService(
+        localSupportIssueRepo,
+        createMock<TransactionService>(),
+        createMock<SupportDocumentService>(),
+        createMock<UserDataService>(),
+        localMessageRepo,
+        createMock<SupportIssueNotificationService>(),
+        createMock<LimitRequestService>(),
+        createMock<TransactionRequestService>(),
+        createMock<SupportLogService>(),
+        createMock<BankDataService>(),
+        createMock<SettingService>(),
+        createMock<WalletService>(),
+      );
+    });
+
+    it('maps a non-empty page through getMessageStats into the list DTO', async () => {
+      const result = await localService.getSupportIssueList({} as GetSupportIssueListFilter, UserRole.ADMIN);
+
+      expect(result.total).toBe(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        id: 1,
+        uid: 'x',
+        messageCount: 3,
+        lastMessageAuthor: 'Support',
+        lastMessageDate: new Date('2026-01-02T00:00:00.000Z'),
+      });
+
+      // getMessageStats batched the single issue id into the message query builder
+      expect(localMessageRepo.createQueryBuilder).toHaveBeenCalledWith('m');
+      expect(messageQb.where).toHaveBeenCalledWith('m."issueId" IN (:...ids)', { ids: [1] });
+      expect(messageQb.groupBy).toHaveBeenCalledWith('m."issueId"');
+    });
+  });
+
+  // Guards the department + state predicates that back the composite index
+  // on support_issue (department, state, created) — a future refactor that drops either predicate
+  // would make the index useless for the overview/list query.
+  describe('department + state filter (composite index guard)', () => {
+    it('emits both the department scope and the state filter when the filter provides states', async () => {
+      await run(
+        { states: [SupportIssueInternalState.PENDING, SupportIssueInternalState.IN_PROGRESS] },
+        UserRole.SUPPORT,
+      );
+      expect(andWhereClauses().some((c) => c.includes('issue.department IN'))).toBe(true);
+      expect(qb.andWhere).toHaveBeenCalledWith('issue.state IN (:...states)', {
+        states: [SupportIssueInternalState.PENDING, SupportIssueInternalState.IN_PROGRESS],
+      });
+    });
+
+    it('does not add a state clause when the filter provides no states', async () => {
+      await run({});
+      expect(andWhereClauses().some((c) => c.includes('issue.state IN'))).toBe(false);
+    });
+  });
+
   // The id branch of the search predicate is added only when the term is fully numeric AND
   // fits int4. Anything above 2^31-1 (a pasted phone number) would produce a Postgres 22003
   // range error and 500 the entire search — this block pins the guard against that regression.
@@ -237,6 +363,69 @@ describe('SupportIssueService.getSupportIssueList', () => {
       expect(calls[0][1]).toEqual({ term0: '%alice%' });
       expect(calls[1][1]).toEqual({ term1: '%12345%', term1Id: 12345 });
     });
+  });
+});
+
+describe('SupportIssueService.getSupportIssueCounts', () => {
+  let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
+  let qb: Record<string, jest.Mock>;
+
+  // chainable query-builder recorder mirroring the shape getSupportIssueCounts builds
+  // (select/addSelect/groupBy, an optional innerJoin, and andWhere for the scope predicate).
+  function createCountsQbMock(): Record<string, jest.Mock> {
+    const builder: Record<string, jest.Mock> = {};
+    for (const method of ['select', 'addSelect', 'groupBy', 'innerJoin', 'andWhere']) {
+      builder[method] = jest.fn(() => builder);
+    }
+    builder.getRawMany = jest.fn().mockResolvedValue([]);
+    return builder;
+  }
+
+  const andWhereClauses = (): string[] => qb.andWhere.mock.calls.map((c) => String(c[0]));
+
+  beforeEach(() => {
+    qb = createCountsQbMock();
+    supportIssueRepo = createMock<SupportIssueRepository>();
+    (supportIssueRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      createMock<SupportMessageRepository>(),
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+      createMock<WalletService>(),
+    );
+  });
+
+  // Guards the department scope + state group-by that back the composite index
+  // on support_issue (department, state, created) — a future refactor that drops either would
+  // make the index useless for the counts query.
+  it('groups by state and scopes to the department IN predicate for a department-restricted role', async () => {
+    await service.getSupportIssueCounts(UserRole.SUPPORT);
+    expect(qb.groupBy).toHaveBeenCalledWith('issue.state');
+    expect(andWhereClauses().some((c) => c.includes('issue.department IN'))).toBe(true);
+  });
+
+  it('does not scope by department for an unrestricted admin role', async () => {
+    await service.getSupportIssueCounts(UserRole.ADMIN);
+    expect(qb.groupBy).toHaveBeenCalledWith('issue.state');
+    expect(andWhereClauses().some((c) => c.includes('issue.department IN'))).toBe(false);
+  });
+
+  // customerIds (RealUnit tenant scope) takes precedence over the department gate and joins
+  // through userData instead.
+  it('scopes to the customerIds predicate via an innerJoin when customerIds are provided', async () => {
+    await service.getSupportIssueCounts(UserRole.SUPPORT, [1, 2, 3]);
+    expect(qb.innerJoin).toHaveBeenCalledWith('issue.userData', 'scopeUd');
+    expect(qb.andWhere).toHaveBeenCalledWith('scopeUd.id IN (:...customerIds)', { customerIds: [1, 2, 3] });
   });
 });
 
