@@ -13,7 +13,7 @@ import { ScryptAdapter, ScryptAdapterCommands } from '../scrypt.adapter';
 const DEST_ENV = 'TEST_SCRYPT_WITHDRAW_ADDR';
 
 function createWithdrawOrder(overrides: Partial<LiquidityManagementOrder> = {}): LiquidityManagementOrder {
-  return {
+  return Object.assign(new LiquidityManagementOrder(), {
     correlationId: 'corr-1',
     action: {
       command: ScryptAdapterCommands.WITHDRAW,
@@ -24,7 +24,7 @@ function createWithdrawOrder(overrides: Partial<LiquidityManagementOrder> = {}):
     },
     outputAmount: undefined,
     ...overrides,
-  } as LiquidityManagementOrder;
+  });
 }
 
 describe('ScryptAdapter', () => {
@@ -74,6 +74,19 @@ describe('ScryptAdapter', () => {
         id: 'w-2',
         status: ScryptTransactionStatus.FAILED,
         txHash: '0xdead',
+        rejectReason: 'NetworkError',
+        rejectText: 'timeout',
+      };
+      jest.spyOn(scryptService, 'getWithdrawalStatus').mockResolvedValue(withdrawal);
+
+      await expect(adapter.checkCompletion(createWithdrawOrder())).rejects.toThrow(OrderFailedException);
+      expect(dexService.checkTransferCompletion).not.toHaveBeenCalled();
+    });
+
+    it('throws OrderFailedException when status is FAILED with no txHash', async () => {
+      const withdrawal: ScryptWithdrawStatus = {
+        id: 'w-3',
+        status: ScryptTransactionStatus.FAILED,
         rejectReason: 'NetworkError',
         rejectText: 'timeout',
       };
