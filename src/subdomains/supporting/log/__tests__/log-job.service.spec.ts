@@ -1831,12 +1831,12 @@ describe('LogJobService', () => {
     });
   });
 
-  describe('useUnfilteredTx per-leg clamp (toKrakenUnfiltered < 0)', () => {
+  describe('useUnfilteredTx nets unfiltered Kraken legs before aggregate clamp', () => {
     beforeEach(() => {
       (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
       (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
-        `${IbanBankName.YAPEAL}-CHF`,
-        yapealCHF.iban,
+        `${IbanBankName.YAPEAL}-EUR`,
+        yapealEUR.iban,
       );
     });
 
@@ -1844,7 +1844,7 @@ describe('LogJobService', () => {
       (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
     });
 
-    function setupUnfilteredToKrakenClamp(depositTx: ReturnType<typeof createCustomExchangeTx>) {
+    function setupUnfilteredKrakenNetting(exchangeTxs: ReturnType<typeof createCustomExchangeTx>[]): void {
       jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
       jest.spyOn(settingService, 'getObj').mockImplementation(async (key, defaultValue) => {
         if (key === 'financeLogUnfilteredTx') return true as never;
@@ -1879,45 +1879,54 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);
       jest
         .spyOn(exchangeTxService, 'getRecentExchangeTx')
-        .mockImplementation(async (_minId, exchange, _types) => (exchange === ExchangeName.KRAKEN ? [depositTx] : []));
+        .mockImplementation(async (_minId, exchange, _types) => (exchange === ExchangeName.KRAKEN ? exchangeTxs : []));
     }
 
-    it('floors a negative unfiltered toKraken leg so plusBalance.total is 0 (not -10000)', async () => {
-      const yapealChfAsset = createCustomAsset({
-        id: 8003,
+    it('nets opposing unfiltered Kraken legs so net-negative pending floors to 0 (prod regression)', async () => {
+      // Active Yapeal/EUR custody asset (sellable keeps it in the asset-log reduce).
+      const yapealEurAsset = createCustomAsset({
+        id: 8004,
         blockchain: Blockchain.YAPEAL,
-        dexName: 'CHF',
+        dexName: 'EUR',
         sellable: true,
       });
 
-      // Unmatched Kraken DEPOSIT credited to Yapeal CHF BIC → pendingBankAmount = -amount for toKrakenUnfiltered
-      const theDepositTx = createCustomExchangeTx({
+      // Prod-shaped components for the same asset:
+      // fromKrakenUnfiltered = +881163.51 (unmatched Kraken WITHDRAWAL to bank)
+      // toKrakenUnfiltered   = -5878500   (unmatched Kraken DEPOSIT from bank)
+      // Net totalPlusPending = -4997336.49 → aggregate clamp to 0.
+      // Per-leg clamps would zero only the negative leg and leave phantom pending +881163.51.
+      const fromKrakenWithdrawalTx = createCustomExchangeTx({
         id: 5001,
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: 'YAPEAL AG',
+        amount: 881163.51,
+      });
+      const toKrakenDepositTx = createCustomExchangeTx({
+        id: 5002,
         type: ExchangeTxType.DEPOSIT,
         status: 'ok',
-        currency: 'CHF',
-        method: 'Bank Frick (SIC) International',
-        address: yapealCHF.bic.padEnd(11, 'XXX'),
-        amount: 10000,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: yapealEUR.bic.padEnd(11, 'XXX'),
+        amount: 5878500,
       });
-      setupUnfilteredToKrakenClamp(theDepositTx);
+      setupUnfilteredKrakenNetting([fromKrakenWithdrawalTx, toKrakenDepositTx]);
 
       const verboseSpy = jest.spyOn(service['logger'], 'verbose');
 
-      const assetLog = await service['getAssetLog']([yapealChfAsset]);
+      const assetLog = await service['getAssetLog']([yapealEurAsset]);
 
-      // Without the per-leg clamp, toKrakenUnfiltered (-10000) would make plusBalance.total negative
-      expect(assetLog[yapealChfAsset.id].plusBalance.total).toBe(0);
-      // pending is only populated when totalPlusPending !== 0; after floor both read as 0
-      expect(assetLog[yapealChfAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
+      // Correct: opposing legs net first, then aggregate clamp floors the net-negative sum.
+      expect(assetLog[yapealEurAsset.id].plusBalance.total).toBe(0);
+      expect(assetLog[yapealEurAsset.id].plusBalance.pending?.fromKraken ?? 0).toBe(0);
+      expect(assetLog[yapealEurAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
 
-      // Prove the PER-LEG clamp fired (not only the aggregate totalPlusPending clamp downstream):
-      // with per-leg active, totalPlusPending is already 0 so the aggregate clamp never logs.
-      // If per-leg flooring is reverted, toKrakenUnfiltered stays negative → aggregate clamp logs instead.
-      expect(verboseSpy.mock.calls.some((call) => String(call[0]).includes('toKrakenUnfiltered balance < 0'))).toBe(
-        true,
-      );
-      expect(verboseSpy.mock.calls.some((call) => String(call[0]).includes('totalPlusPending < 0'))).toBe(false);
+      // Aggregate clamp must have run (proves netting reached a negative totalPlusPending).
+      // Per-leg unfiltered clamps must not exist — they would leave total = 881163.51 and skip this path.
+      expect(verboseSpy.mock.calls.some((call) => String(call[0]).includes('totalPlusPending < 0'))).toBe(true);
     });
   });
 });
