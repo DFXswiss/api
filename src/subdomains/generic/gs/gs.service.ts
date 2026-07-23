@@ -870,7 +870,7 @@ export class GsService {
       .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_CRYPTO })
       .orderBy('bank_tx.id', dbQuery.sorting)
-      .take(dbQuery.maxLine)
+      .limit(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -889,7 +889,7 @@ export class GsService {
       .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_FIAT })
       .orderBy('bank_tx.id', dbQuery.sorting)
-      .take(dbQuery.maxLine)
+      .limit(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -911,7 +911,7 @@ export class GsService {
         fiat: BankTxType.BUY_FIAT,
       })
       .orderBy('bank_tx.id', dbQuery.sorting)
-      .take(dbQuery.maxLine)
+      .limit(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
