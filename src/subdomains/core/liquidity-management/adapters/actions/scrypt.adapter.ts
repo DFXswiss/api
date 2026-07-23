@@ -189,16 +189,19 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const { correlationId } = order;
 
     const withdrawal = await this.scryptService.getWithdrawalStatus(correlationId);
-    if (!withdrawal?.txHash) {
-      this.logger.verbose(`No withdrawal id for id ${correlationId} at ${this.scryptService.name} found`);
-      return false;
-    } else if ([ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(withdrawal.status)) {
+
+    if (withdrawal && [ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(withdrawal.status)) {
       const rejectMessage = withdrawal.rejectReason
         ? `${withdrawal.rejectReason} (${withdrawal.rejectText})`
         : 'unknown reason';
       throw new OrderFailedException(
         `Withdrawal ${correlationId} has failed with status ${withdrawal.status}: ${rejectMessage}`,
       );
+    }
+
+    if (!withdrawal?.txHash) {
+      this.logger.verbose(`No withdrawal id for id ${correlationId} at ${this.scryptService.name} found`);
+      return false;
     }
 
     order.outputAmount = withdrawal.amount;
