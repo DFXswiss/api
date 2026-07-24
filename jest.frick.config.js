@@ -5,6 +5,11 @@ const base = require('./package.json').jest;
 
 module.exports = {
   ...base,
+  // Coverage instrumentation must match the production build's emit. The main suite runs ts-jest in
+  // transpile-only mode (isolatedModules), which emits the emitDecoratorMetadata helpers differently
+  // and produces phantom uncovered branches on dependency-injected constructors. Compile with full
+  // type info here (tsconfig.coverage.json sets isolatedModules: false) so the 100% gate stays exact.
+  transform: { '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.coverage.json' }] },
   coverageThreshold: {
     'src/integration/bank/dto/frick.dto.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/integration/bank/services/frick.service.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
