@@ -28,11 +28,14 @@
  * Heal semantics (additive only): missing objects are copied azure→s3 or s3→azure; never
  * delete; never overwrite content divergence. Before every azure→s3 heal copy, containers
  * explicitly declared in RECONCILE_WORM_CONTAINERS are fail-closed checked for Object Lock
- * COMPLIANCE (assertBucketWorm). Containers not on that list skip the WORM assert so
- * legitimate heals into normal (non-Object-Lock) buckets are not blocked. The WORM set is
- * never guessed: --heal with RECONCILE_WORM_CONTAINERS unset or empty aborts, because guessing
- * either blocks heals into normal buckets or silently writes compliance records into an
- * unprotected bucket. REPORT mode does not require this variable.
+ * COMPLIANCE (assertBucketWorm). Containers not on that list are probed once: if Object Lock
+ * is unexpectedly Enabled, heal aborts (under-declaration guard — closes the gap where a
+ * forgotten WORM container would otherwise be written without a COMPLIANCE check); if the
+ * bucket has no Object Lock (ObjectLockConfigurationNotFoundError), the heal proceeds into
+ * the normal bucket. Any other probe error fails closed. The WORM set is never guessed:
+ * --heal with RECONCILE_WORM_CONTAINERS unset or empty aborts, because guessing either blocks
+ * heals into normal buckets or silently writes compliance records into an unprotected bucket.
+ * REPORT mode does not require this variable and is unaffected by its value (no-op).
  *
  * Very large buckets may need extra heap because all objects are held in memory, e.g.:
  *   node --max-old-space-size=4096 ./node_modules/.bin/ts-node scripts/storage/reconcile-stores.ts
@@ -225,7 +228,7 @@ export function assertPageComplete(isTruncated: boolean, nextToken: string | und
  * Verify the target S3 bucket enforces Object Lock COMPLIANCE with GeBüV floor retention
  * before an azure→s3 heal copy into a declared WORM container. Memoized per bucket name in
  * `verified` (only successes). Call only for containers listed in RECONCILE_WORM_CONTAINERS —
- * non-WORM targets must skip this check (see assertBucketWormIfDeclared).
+ * undeclared targets use assertUndeclaredBucketHasNoWorm instead (see assertBucketWormIfDeclared).
  */
 export async function assertBucketWorm(
   client: S3Client,
@@ -257,32 +260,84 @@ export async function assertBucketWorm(
 }
 
 /**
- * Heal-path WORM gate for azure→s3 copies: run assertBucketWorm only when `bucket` is in the
- * explicit RECONCILE_WORM_CONTAINERS set. Non-declared containers skip the check so additive
- * heals into normal buckets are not blocked by a missing Object Lock configuration.
+ * Under-declaration guard for undeclared azure→s3 heal targets: probe once whether the bucket
+ * has Object Lock enabled. If it does, abort (operator must list it in RECONCILE_WORM_CONTAINERS
+ * so COMPLIANCE is checked). If the probe rejects with ObjectLockConfigurationNotFoundError,
+ * the bucket genuinely has no Object Lock — proceed. Any other probe error fails closed.
+ * Memoized per bucket in `verified` (only successes; never cache a failure).
+ */
+export async function assertUndeclaredBucketHasNoWorm(
+  client: S3Client,
+  bucket: string,
+  verified: Map<string, boolean>,
+): Promise<void> {
+  if (verified.get(bucket) === true) return;
+
+  let result: { ObjectLockConfiguration?: { ObjectLockEnabled?: string } };
+  try {
+    result = await client.send(new GetObjectLockConfigurationCommand({ Bucket: bucket }));
+  } catch (e) {
+    const err = e as { name?: string; message?: string };
+    if (err?.name === 'ObjectLockConfigurationNotFoundError') {
+      verified.set(bucket, true);
+      return;
+    }
+    throw new Error(
+      `Refusing azure→s3 heal into undeclared bucket "${bucket}": could not verify Object Lock status ` +
+        `(${err?.name ?? 'error'}: ${err?.message ?? e}). Heal will not proceed without a verified ` +
+        `Object Lock status (fail-closed; not treating this as "no lock").`,
+    );
+  }
+
+  if (result.ObjectLockConfiguration?.ObjectLockEnabled === 'Enabled') {
+    throw new Error(
+      `Bucket/container "${bucket}" has Object Lock enabled but is not declared in RECONCILE_WORM_CONTAINERS. ` +
+        `A heal will not proceed into a protected bucket without the declaration — this closes the ` +
+        `under-declaration gap. Add "${bucket}" to RECONCILE_WORM_CONTAINERS so Object Lock COMPLIANCE ` +
+        `is checked before azure→s3 copies.`,
+    );
+  }
+
+  verified.set(bucket, true);
+}
+
+/**
+ * Heal-path WORM gate for azure→s3 copies:
+ * - Declared in RECONCILE_WORM_CONTAINERS → assertBucketWorm (fail-closed COMPLIANCE check).
+ * - Not declared → assertUndeclaredBucketHasNoWorm (under-declaration guard: abort if the
+ *   bucket unexpectedly has Object Lock Enabled; allow genuine non-WORM buckets).
+ * `verified` memoizes declared-bucket COMPLIANCE successes; `noWormVerified` memoizes
+ * undeclared-bucket "safe to proceed" successes. Failures are never cached.
  */
 export async function assertBucketWormIfDeclared(
   client: S3Client,
   bucket: string,
   wormContainers: ReadonlySet<string>,
   verified: Map<string, boolean>,
+  noWormVerified: Map<string, boolean>,
 ): Promise<void> {
-  if (!wormContainers.has(bucket)) return;
-  await assertBucketWorm(client, bucket, verified);
+  if (wormContainers.has(bucket)) {
+    await assertBucketWorm(client, bucket, verified);
+    return;
+  }
+  await assertUndeclaredBucketHasNoWorm(client, bucket, noWormVerified);
 }
 
 /**
- * Fail-loud config gate for RECONCILE_WORM_CONTAINERS.
+ * Fail-loud config gate for RECONCILE_WORM_CONTAINERS. Entire function is a no-op when
+ * `heal` is false (REPORT mode is unaffected by this variable, whether empty, set, or
+ * containing names outside the reconciled set).
  * - Heal mode requires an explicit non-empty declaration (no silent default / empty-list default).
- * - Any declared name must appear among the reconciled containers (typo gate).
- * REPORT mode may leave the list empty; a non-empty list is still typo-checked.
+ * - In heal mode, any declared name must appear among the reconciled containers (typo gate).
  */
 export function assertWormContainersConfig(
   heal: boolean,
   wormContainers: string[],
   reconciledContainers: string[],
 ): void {
-  if (heal && wormContainers.length === 0) {
+  if (!heal) return;
+
+  if (wormContainers.length === 0) {
     throw new Error(
       'RECONCILE_WORM_CONTAINERS is required when --heal (or RECONCILE_HEAL=true) is requested and must not be empty. ' +
         'Declare which containers enforce Object Lock COMPLIANCE (space- and/or comma-separated). ' +
@@ -685,6 +740,7 @@ async function main(): Promise<number> {
   assertWithinHealCap(totalAdditive, healCap);
 
   const wormVerified = new Map<string, boolean>();
+  const noWormVerified = new Map<string, boolean>();
   let healedCount = 0;
   let skippedCount = 0;
 
@@ -693,7 +749,7 @@ async function main(): Promise<number> {
       const azureContainer = azure.getContainerClient(r.container);
 
       for (const key of r.diff.onlyOnAzure) {
-        await assertBucketWormIfDeclared(s3, r.container, wormSet, wormVerified);
+        await assertBucketWormIfDeclared(s3, r.container, wormSet, wormVerified, noWormVerified);
         const result = await copyAzureToS3(azureContainer, s3, r.container, key);
         if (result === 'healed') {
           healedCount++;

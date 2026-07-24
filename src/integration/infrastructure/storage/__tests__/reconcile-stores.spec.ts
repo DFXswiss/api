@@ -1,4 +1,5 @@
-import { S3Client } from '@aws-sdk/client-s3';
+import { GetObjectLockConfigurationCommand, S3Client } from '@aws-sdk/client-s3';
+import { mockClient } from 'aws-sdk-client-mock';
 import {
   assertBucketWorm,
   assertBucketWormIfDeclared,
@@ -6,6 +7,7 @@ import {
   assertNotOneSidedEmpty,
   assertPageComplete,
   assertRequestedContainersExist,
+  assertUndeclaredBucketHasNoWorm,
   assertWithinHealCap,
   assertWormContainersConfig,
   DEFAULT_HEAL_CAP,
@@ -19,6 +21,16 @@ import {
   StoredObject,
 } from '../../../../../scripts/storage/reconcile-stores';
 import { GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
+
+const s3Mock = mockClient(S3Client);
+
+/** Real S3Client instance; mockClient patches at the class-prototype level. */
+function makeS3Client(): S3Client {
+  return new S3Client({
+    region: 'us-east-1',
+    credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
+  });
+}
 
 function storedObject(key: string, size: number, lastModified: Date): StoredObject {
   return { key, size, lastModified };
@@ -369,11 +381,19 @@ describe('parseConfig', () => {
     expect(() => parseConfig()).toThrow(/RECONCILE_WORM_CONTAINERS is required/);
   });
 
-  it('throws when a declared WORM container is not among the reconciled containers', () => {
-    process.argv = ['node', 'script', 'kyc', 'support'];
+  it('throws when --heal and a declared WORM container is not among the reconciled containers', () => {
+    process.argv = ['node', 'script', 'kyc', 'support', '--heal'];
     process.env.RECONCILE_WORM_CONTAINERS = 'kyc, typo-bucket';
     expect(() => parseConfig()).toThrow(/not among the reconciled containers/);
     expect(() => parseConfig()).toThrow(/typo-bucket/);
+  });
+
+  it('REPORT mode does not throw when RECONCILE_WORM_CONTAINERS has names outside the reconciled set', () => {
+    process.argv = ['node', 'script', 'kyc', 'support'];
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc, typo-bucket';
+    const cfg = parseConfig();
+    expect(cfg.heal).toBe(false);
+    expect(cfg.wormContainers).toEqual(['kyc', 'typo-bucket']);
   });
 });
 
@@ -391,6 +411,10 @@ describe('assertWormContainersConfig', () => {
     expect(() => assertWormContainersConfig(false, [], ['kyc', 'support'])).not.toThrow();
   });
 
+  it('does not throw when heal is false even if declared names are outside the reconciled set', () => {
+    expect(() => assertWormContainersConfig(false, ['kyc', 'typo-bucket'], ['kyc', 'support'])).not.toThrow();
+  });
+
   it('throws when a declared WORM container is missing from the reconciled list', () => {
     expect(() => assertWormContainersConfig(true, ['kyc', 'missing'], ['kyc', 'support'])).toThrow(
       /not among the reconciled containers/,
@@ -405,29 +429,16 @@ describe('assertWormContainersConfig', () => {
   });
 });
 
-describe('assertBucketWorm / assertBucketWormIfDeclared', () => {
-  function mockS3Client(sendImpl: jest.Mock): S3Client {
-    return { send: sendImpl } as unknown as S3Client;
-  }
-
-  function noObjectLockConfigResult() {
-    return {
-      ObjectLockConfiguration: undefined,
-    };
-  }
-
-  function complianceLockConfigResult(years: number = GEBUEV_RETENTION_FLOOR_YEARS) {
-    return {
-      ObjectLockConfiguration: {
-        ObjectLockEnabled: 'Enabled',
-        Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: years } },
-      },
-    };
-  }
+describe('assertBucketWorm / assertBucketWormIfDeclared / assertUndeclaredBucketHasNoWorm', () => {
+  beforeEach(() => {
+    s3Mock.reset();
+  });
 
   it('assertBucketWorm throws when Object Lock configuration is missing (fail-closed)', async () => {
-    const send = jest.fn().mockResolvedValue(noObjectLockConfigResult());
-    const client = mockS3Client(send);
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: undefined,
+    });
+    const client = makeS3Client();
     const verified = new Map<string, boolean>();
     await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(
       /Refusing azure→s3 heal into bucket "kyc"/,
@@ -437,35 +448,102 @@ describe('assertBucketWorm / assertBucketWormIfDeclared', () => {
   });
 
   it('assertBucketWormIfDeclared throws for a declared WORM container without Object Lock', async () => {
-    const send = jest.fn().mockResolvedValue(noObjectLockConfigResult());
-    const client = mockS3Client(send);
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: undefined,
+    });
+    const client = makeS3Client();
     const verified = new Map<string, boolean>();
+    const noWormVerified = new Map<string, boolean>();
     const worm = new Set(['kyc']);
-    await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified)).rejects.toThrow(
+    await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified)).rejects.toThrow(
       /Refusing azure→s3 heal into bucket "kyc"/,
     );
-    expect(send).toHaveBeenCalled();
+    expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
   });
 
-  it('assertBucketWormIfDeclared skips WORM assert for a container not declared WORM', async () => {
-    const send = jest.fn().mockResolvedValue(noObjectLockConfigResult());
-    const client = mockS3Client(send);
+  it('assertBucketWormIfDeclared probes and allows an undeclared container with no Object Lock', async () => {
+    const err = Object.assign(new Error('Object Lock configuration does not exist for this bucket'), {
+      name: 'ObjectLockConfigurationNotFoundError',
+    });
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'support' }).rejects(err);
+    const client = makeS3Client();
     const verified = new Map<string, boolean>();
-    // support is reconciled but deliberately not WORM — heal must proceed without Object Lock
+    const noWormVerified = new Map<string, boolean>();
+    // support is reconciled but deliberately not WORM — genuine non-lock bucket may proceed
     const worm = new Set(['kyc']);
-    await expect(assertBucketWormIfDeclared(client, 'support', worm, verified)).resolves.toBeUndefined();
-    expect(send).not.toHaveBeenCalled();
+    await expect(
+      assertBucketWormIfDeclared(client, 'support', worm, verified, noWormVerified),
+    ).resolves.toBeUndefined();
+    expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
+    expect(noWormVerified.get('support')).toBe(true);
     expect(verified.size).toBe(0);
   });
 
   it('assertBucketWormIfDeclared accepts a declared WORM container with COMPLIANCE lock', async () => {
-    const send = jest.fn().mockResolvedValue(complianceLockConfigResult());
-    const client = mockS3Client(send);
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: GEBUEV_RETENTION_FLOOR_YEARS } },
+      },
+    });
+    const client = makeS3Client();
     const verified = new Map<string, boolean>();
+    const noWormVerified = new Map<string, boolean>();
     const worm = new Set(['kyc']);
-    await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified)).resolves.toBeUndefined();
+    await expect(
+      assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified),
+    ).resolves.toBeUndefined();
     expect(verified.get('kyc')).toBe(true);
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
+  });
+
+  it('assertBucketWormIfDeclared throws when an undeclared container has Object Lock enabled', async () => {
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: GEBUEV_RETENTION_FLOOR_YEARS } },
+      },
+    });
+    const client = makeS3Client();
+    const verified = new Map<string, boolean>();
+    const noWormVerified = new Map<string, boolean>();
+    // kyc has Object Lock but was forgotten from RECONCILE_WORM_CONTAINERS
+    const worm = new Set(['ep2-example']);
+    await expect(
+      assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified),
+    ).rejects.toThrow(/not declared in RECONCILE_WORM_CONTAINERS/);
+    await expect(
+      assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified),
+    ).rejects.toThrow(/under-declaration/);
+    expect(noWormVerified.get('kyc')).toBeUndefined();
+  });
+
+  it('assertUndeclaredBucketHasNoWorm throws fail-closed on non-NotFound probe errors', async () => {
+    const err = Object.assign(new Error('Access Denied'), { name: 'AccessDenied' });
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'support' }).rejects(err);
+    const client = makeS3Client();
+    const verified = new Map<string, boolean>();
+    await expect(assertUndeclaredBucketHasNoWorm(client, 'support', verified)).rejects.toThrow(
+      /could not verify Object Lock status/,
+    );
+    await expect(assertUndeclaredBucketHasNoWorm(client, 'support', verified)).rejects.toThrow(/AccessDenied/);
+    await expect(assertUndeclaredBucketHasNoWorm(client, 'support', verified)).rejects.toThrow(
+      /not treating this as "no lock"/,
+    );
+    expect(verified.get('support')).toBeUndefined();
+  });
+
+  it('assertUndeclaredBucketHasNoWorm memoizes successful no-lock probes per bucket', async () => {
+    const err = Object.assign(new Error('Object Lock configuration does not exist for this bucket'), {
+      name: 'ObjectLockConfigurationNotFoundError',
+    });
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'support' }).rejects(err);
+    const client = makeS3Client();
+    const verified = new Map<string, boolean>();
+    await assertUndeclaredBucketHasNoWorm(client, 'support', verified);
+    await assertUndeclaredBucketHasNoWorm(client, 'support', verified);
+    expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
+    expect(verified.get('support')).toBe(true);
   });
 });
 
