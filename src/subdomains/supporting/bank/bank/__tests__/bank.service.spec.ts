@@ -188,6 +188,24 @@ describe('BankService', () => {
       expect(result).toHaveLength(4);
     });
 
+    it('excludes retired "Bank Frick (legacy)" rows (renamed by the ActivateBankFrick migration)', async () => {
+      const frickLegacy = createCustomBank({
+        name: `${IbanBankName.FRICK} (legacy)` as IbanBankName,
+        currency: 'EUR',
+        iban: 'LI5600000FRICKEUR0001',
+        bic: 'BFRILI22',
+        receive: false,
+        send: false,
+      });
+      const allBanks = [olkyEUR, frickLegacy];
+      jest.spyOn(bankRepo, 'findCached').mockResolvedValue(allBanks);
+
+      const result = await service.getPublicBanks();
+
+      expect(result).not.toContain(frickLegacy);
+      expect(result).toEqual([olkyEUR]);
+    });
+
     it('leaves getAllBanks untouched (still includes Frick) - the internal path is unaffected', async () => {
       const allBanks = [...createDefaultBanks(), frickEUR, frickCHF];
       const findCachedSpy = jest.spyOn(bankRepo, 'findCached').mockResolvedValue(allBanks);
@@ -204,6 +222,12 @@ describe('BankService', () => {
 describe('Bank.isCustomerFacing', () => {
   it('is false for a Bank Frick row', () => {
     expect(Object.assign(new Bank(), { name: IbanBankName.FRICK }).isCustomerFacing).toBe(false);
+  });
+
+  it('is false for a retired "Bank Frick (legacy)" row', () => {
+    expect(Object.assign(new Bank(), { name: `${IbanBankName.FRICK} (legacy)` as IbanBankName }).isCustomerFacing).toBe(
+      false,
+    );
   });
 
   it('is true for a non-Frick bank', () => {

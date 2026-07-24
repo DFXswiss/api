@@ -60,7 +60,10 @@ export class Bank extends IEntity {
     return this.name !== IbanBankName.FRICK || !this.send || this.receive;
   }
 
+  // Bank Frick's virtual-IBAN base accounts must never be shown to customers. Match by prefix, not exact
+  // name: the ActivateBankFrick migration renames retired rows to 'Bank Frick (legacy)', which still carry
+  // real Frick IBANs and would otherwise pass an exact-name check and leak on the public /bank listing.
   get isCustomerFacing(): boolean {
-    return this.name !== IbanBankName.FRICK;
+    return !this.name.startsWith(IbanBankName.FRICK);
   }
 }

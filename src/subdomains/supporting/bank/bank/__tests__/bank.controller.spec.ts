@@ -48,13 +48,5 @@ describe('BankController', () => {
         },
       ]);
     });
-
-    it('never returns Bank Frick in the response', async () => {
-      jest.spyOn(bankService, 'getPublicBanks').mockResolvedValue([]);
-
-      const result = await controller.getAllBanks();
-
-      expect(result.some((b) => b.name === IbanBankName.FRICK)).toBe(false);
-    });
   });
 });
