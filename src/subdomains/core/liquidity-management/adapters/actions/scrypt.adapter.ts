@@ -359,6 +359,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     try {
       return await this.scryptService.sell(fromAsset, toAsset, amount);
     } catch (e) {
+      // No "(balance: ..., min. requested: ..., max. requested: ...)" suffix: balance/min/max are not in scope here.
+      // The only production Scrypt 'sell' action has no onFail/onSuccess chain, so its error never reaches the liquidity-pipeline regex parser.
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
