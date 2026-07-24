@@ -1976,6 +1976,7 @@ describe('LogJobService', () => {
         id: 8006,
         blockchain: Blockchain.YAPEAL,
         dexName: 'EUR',
+        financialType: 'EUR',
         sellable: true,
       });
 
@@ -2004,11 +2005,12 @@ describe('LogJobService', () => {
       ).toBe(false);
     });
 
-    it('still reports fromKraken !== fromKrakenUnfiltered for a deviation above BALANCE_TOLERANCE (regression against over-wide masking)', async () => {
+    it('still reports fromKraken !== fromKrakenUnfiltered for a deviation above BALANCE_TOLERANCE (regression against over-wide masking), and stays silent for a deviation within the tolerance band (pins the 0.01 boundary for a fiat asset)', async () => {
       const yapealEurAsset = createCustomAsset({
         id: 8007,
         blockchain: Blockchain.YAPEAL,
         dexName: 'EUR',
+        financialType: 'EUR',
         sellable: true,
       });
 
@@ -2033,6 +2035,29 @@ describe('LogJobService', () => {
           String(call[0]).includes('fromKraken balance !== fromKrakenUnfiltered balance'),
         ),
       ).toBe(true);
+
+      // Boundary check: a deviation clearly inside the fiat tolerance band (below BALANCE_TOLERANCE =
+      // 0.01, but well above ASSET_BALANCE_TOLERANCE = 1e-8) must stay unreported for the same fiat
+      // asset — this pins the 0.01 boundary itself, not just an extreme value far outside it.
+      verboseSpy.mockClear();
+
+      const boundaryTx = createCustomExchangeTx({
+        id: 6004,
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: 'YAPEAL AG',
+        amount: 0.005,
+      });
+      setupUnfilteredKrakenNetting([boundaryTx]);
+
+      await service['getAssetLog']([yapealEurAsset]);
+
+      expect(
+        verboseSpy.mock.calls.some((call) =>
+          String(call[0]).includes('fromKraken balance !== fromKrakenUnfiltered balance'),
+        ),
+      ).toBe(false);
     });
 
     it('does not report totalPlusPending < 0 for a residue below BALANCE_TOLERANCE, but still clamps it to 0', async () => {
@@ -2040,6 +2065,7 @@ describe('LogJobService', () => {
         id: 8008,
         blockchain: Blockchain.YAPEAL,
         dexName: 'EUR',
+        financialType: 'EUR',
         sellable: true,
       });
 
