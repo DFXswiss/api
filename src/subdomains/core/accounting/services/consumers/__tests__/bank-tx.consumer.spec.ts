@@ -923,6 +923,33 @@ describe('BankTxConsumer', () => {
     expect(written.lastProcessedId).toBe(207715);
   });
 
+  // pins the guard's PLACEMENT: it must run before buildSeq0Input, not just exist. A row whose fresh leg-rebuild would
+  // itself throw (here: an unpriced BUY_CRYPTO outside doAmlCheck eligibility — the existing fail-loud-at-error case
+  // below) must still be skipped cleanly when it's already booked — the crash-recovery guard is only useful if it
+  // pre-empts EVERY throw site in book(), not just the original UNIQUE-constraint one it was written against.
+  it('skips an already-booked row even when its fresh leg-rebuild would itself throw (guard runs before buildSeq0Input)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(true);
+    mockBatch([
+      bankTx({
+        id: 207714,
+        type: BankTxType.BUY_CRYPTO,
+        accountIban: 'CHF-IBAN',
+        amount: 1000,
+        buyCrypto: pendingBuyCrypto({ amlReason: AmlReason.NO_COMMUNICATION }), // buildSeq0Input WOULD throw here
+      }),
+    ]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // never reached bookTx
+    expect(errSpy).not.toHaveBeenCalled(); // never reached the throwing leg-rebuild either
+    expect(setSpy).toHaveBeenCalledTimes(1); // watermark still advances past the already-booked row
+    const written = JSON.parse(setSpy.mock.calls[0][1]);
+    expect(written.lastProcessedId).toBe(207714);
+  });
+
   it('no-ops on an empty batch', async () => {
     mockBatch([]);
     const setSpy = jest.spyOn(settingService, 'set');
