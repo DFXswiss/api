@@ -45,7 +45,7 @@ describe('StorageService', () => {
     const key = 'user/42/CommercialRegister/HR Auszug.pdf';
     const encoded = 'user/42/CommercialRegister/HR%20Auszug.pdf';
 
-    const legacyAzureUrl = `https://dfxstorageprd.blob.core.windows.net/kyc/${encoded}`;
+    const legacyAzureUrl = `https://myaccount.blob.core.windows.net/kyc/${encoded}`;
     const liveMinioUrl = `https://files.dfx.swiss/kyc/${encoded}`;
 
     it('decodes a legacy Azure-host URL to the container-relative key', () => {

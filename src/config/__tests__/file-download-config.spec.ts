@@ -22,7 +22,7 @@ describe('fileDownloadConfig - host-independent KYC document selection (storage 
 
   // Same container-relative object key, served from two different storage hosts.
   const key = 'user/42/CommercialRegister/hr-auszug.pdf';
-  const legacyAzureUrl = `https://dfxstorageprd.blob.core.windows.net/kyc/${key}`;
+  const legacyAzureUrl = `https://myaccount.blob.core.windows.net/kyc/${key}`;
   const liveMinioUrl = `https://files.dfx.swiss/kyc/${key}`;
 
   function fileWithUrl(url: string, path: string): KycFileBlob {
@@ -45,7 +45,7 @@ describe('fileDownloadConfig - host-independent KYC document selection (storage 
     });
 
     it('is robust to percent-encoded path segments (space in the file name)', () => {
-      const encodedAzure = 'https://dfxstorageprd.blob.core.windows.net/kyc/user/42/Authority/HR%20Vollmacht.pdf';
+      const encodedAzure = 'https://myaccount.blob.core.windows.net/kyc/user/42/Authority/HR%20Vollmacht.pdf';
       const encodedMinio = 'https://files.dfx.swiss/kyc/user/42/Authority/HR%20Vollmacht.pdf';
       expect(Configuration.isSameKycBlob(encodedAzure, encodedMinio)).toBe(true);
     });
@@ -116,7 +116,7 @@ describe('fileDownloadConfig - host-independent KYC document selection (storage 
 
     it('selects the doc when the stored AUTHORITY result is a legacy Azure URL and the live file.url is MinIO', () => {
       const authorityKey = 'user/42/Authority/vollmacht.pdf';
-      const storedAzure = `https://dfxstorageprd.blob.core.windows.net/kyc/${authorityKey}`;
+      const storedAzure = `https://myaccount.blob.core.windows.net/kyc/${authorityKey}`;
       const liveMinio = `https://files.dfx.swiss/kyc/${authorityKey}`;
 
       const userData = {
