@@ -100,7 +100,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return response.id;
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
+        throw new OrderNotProcessableException(
+          `${e.message} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+        );
       }
 
       throw e;
@@ -176,7 +178,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return await this.scryptService.sell(tradeAsset, targetAssetEntity.dexName, amount);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
+        throw new OrderNotProcessableException(
+          `${e.message} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
+        );
       }
 
       throw e;

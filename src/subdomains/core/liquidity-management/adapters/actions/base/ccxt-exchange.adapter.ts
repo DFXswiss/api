@@ -114,7 +114,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       return response.id;
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
+        throw new OrderNotProcessableException(
+          `${e.message} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+        );
       }
 
       throw e;
@@ -173,7 +175,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       return await this.exchangeService.sell(tradeAsset, targetAssetEntity.name, amount);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
+        throw new OrderNotProcessableException(
+          `${e.message} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
+        );
       }
 
       if (e.message?.includes('Illegal characters found')) {
@@ -218,7 +222,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       return await this.exchangeService.sell(asset, tradeAsset, amount);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
+        throw new OrderNotProcessableException(
+          `${e.message} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+        );
       }
 
       if (e.message?.includes('Illegal characters found')) {
@@ -276,7 +282,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       return response.id;
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
+        throw new OrderNotProcessableException(
+          `${e.message} (balance: ${sourceBalance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
+        );
       }
 
       throw e;
