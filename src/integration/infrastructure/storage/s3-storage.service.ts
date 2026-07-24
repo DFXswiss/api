@@ -79,6 +79,13 @@ export class S3StorageService extends StorageService {
   // retention mirroring the bucket's validated default years (floor-clamped): an explicit
   // per-object retention overrides the bucket default, so it must never be shorter than that
   // validated default.
+  //
+  // Deliberate residual: probing then writing leaves a sub-millisecond window in which a bucket
+  // default RAISED between probe and PUT is not mirrored, so the object carries the previously
+  // validated years. That is accepted because the alternatives are worse — dropping the explicit
+  // retention reopens the dangerous case (a WEAKENED default silently under-protecting records),
+  // and pinning every record to the provisioning ceiling would irreversibly over-retain all
+  // compliance data. The worst case here still satisfies the GeBüV floor and stays extendable.
   async uploadWormBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
     const validatedBucketYears = await this.assertObjectLockEnabled();
     const retainYears = Math.max(validatedBucketYears, GEBUEV_RETENTION_FLOOR_YEARS);
