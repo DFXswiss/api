@@ -32,10 +32,7 @@ describe('TradingRuleService', () => {
 
   it('logs a price-source outage at warn', async () => {
     tradingService.createTradingInfo.mockRejectedValue(
-      new PriceUnavailableException(
-        'Failed to get price',
-        new Error('connect ETIMEDOUT 203.0.113.10:443'),
-      ),
+      new PriceUnavailableException('Failed to get price', new Error('connect ETIMEDOUT 203.0.113.10:443')),
     );
 
     await service.processRules();

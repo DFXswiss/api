@@ -45,8 +45,7 @@ describe('pricing outage integration (CoinGecko client mock only)', () => {
   const feeAsset = createCustomAsset({ id: 398, name: 'ETH' });
   const chf = createCustomFiat({ id: 3, name: 'CHF' });
 
-  const connectFailure = () =>
-    Object.assign(new Error('connect ETIMEDOUT 203.0.113.10:443'), { code: 'ETIMEDOUT' });
+  const connectFailure = () => Object.assign(new Error('connect ETIMEDOUT 203.0.113.10:443'), { code: 'ETIMEDOUT' });
 
   const createCoinGeckoRule = (): PriceRule =>
     Object.assign(new PriceRule(), {
@@ -136,12 +135,10 @@ describe('pricing outage integration (CoinGecko client mock only)', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('surfaces a CoinGecko connection outage as PriceUnavailableException through FeeService', async () => {
-    const error = await (feeService as any)
-      .calculateBlockchainFeeInChf(feeAsset, PriceValidity.ANY)
-      .then(
-        () => fail('expected calculateBlockchainFeeInChf to reject'),
-        (e: unknown) => e,
-      );
+    const error = await (feeService as any).calculateBlockchainFeeInChf(feeAsset, PriceValidity.ANY).then(
+      () => fail('expected calculateBlockchainFeeInChf to reject'),
+      (e: unknown) => e,
+    );
 
     expect(error).toBeInstanceOf(PriceUnavailableException);
 

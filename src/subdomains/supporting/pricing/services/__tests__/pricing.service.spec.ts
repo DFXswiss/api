@@ -36,8 +36,7 @@ describe('PricingService', () => {
   const from = createCustomAsset({ id: 7, name: 'ETH' });
   const to = createCustomFiat({ id: 3, name: 'CHF' });
 
-  const connectionError = () =>
-    Object.assign(new Error('connect ETIMEDOUT 203.0.113.10:443'), { code: 'ETIMEDOUT' });
+  const connectionError = () => Object.assign(new Error('connect ETIMEDOUT 203.0.113.10:443'), { code: 'ETIMEDOUT' });
 
   const createCoinGeckoRule = (id: number): PriceRule =>
     Object.assign(new PriceRule(), {
@@ -127,7 +126,9 @@ describe('PricingService', () => {
     it('classifies a connection-class provider failure as PriceUnavailableException with the cause preserved', async () => {
       const providerError = connectionError();
       jest.spyOn(coinGeckoService, 'getPrice').mockRejectedValue(providerError);
-      jest.spyOn(priceRuleRepo, 'createQueryBuilder').mockImplementation(() => mockQueryBuilder(createCoinGeckoRule(1)));
+      jest
+        .spyOn(priceRuleRepo, 'createQueryBuilder')
+        .mockImplementation(() => mockQueryBuilder(createCoinGeckoRule(1)));
 
       const error = await service.getPrice(from, to, PriceValidity.ANY).then(
         () => fail('expected getPrice to reject'),
@@ -141,7 +142,10 @@ describe('PricingService', () => {
       // which carries the original provider error.
       let foundProviderError = false;
       for (let cur: unknown = error; cur instanceof Error; cur = cur.cause) {
-        if (cur === providerError || ((cur as NodeJS.ErrnoException).code === 'ETIMEDOUT' && cur.message.includes('ETIMEDOUT'))) {
+        if (
+          cur === providerError ||
+          ((cur as NodeJS.ErrnoException).code === 'ETIMEDOUT' && cur.message.includes('ETIMEDOUT'))
+        ) {
           foundProviderError = true;
           break;
         }
