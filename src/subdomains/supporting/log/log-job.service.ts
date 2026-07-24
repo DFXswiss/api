@@ -66,6 +66,12 @@ const SETTLEMENT_SLA_MS = SETTLEMENT_SLA_HOURS * 60 * 60 * 1000;
 // tolerance for comparing summed float balances (avoids false alarms on rounding)
 const BALANCE_TOLERANCE = 0.01;
 
+// Asset amounts in this log are rounded/displayed at 8 decimals (see AmountType.ASSET); below that,
+// only float-summation residue can remain. BALANCE_TOLERANCE (a "cent") is fine for EUR/USD/CHF-valued
+// balances but would be a material amount on a high-priced crypto asset, so non-fiat assets get a
+// much tighter reporting tolerance (see financialTypeAmountType below for the fiat/asset distinction).
+const ASSET_BALANCE_TOLERANCE = 1e-8;
+
 // synthetic balancesByFinancialType key under which the open referral-credit liability is booked.
 // Referral rewards are paid from DFX funds, so the accrued-but-unpaid credit is a real liability;
 // booking it keeps totalBalanceChf at true equity and makes ref payouts balance-neutral.
@@ -834,34 +840,43 @@ export class LogJobService {
         pendingChfBankScryptMinusAmountUnfiltered +
         pendingEurBankScryptMinusAmountUnfiltered;
 
+      // getAssetLog only ever sees Asset entities, never Fiat entities, so amountType(curr) (an
+      // instanceof-Fiat check) can never resolve to FIAT here. The financialType-based helper below
+      // (also used for rounding, see getBalancesByFinancialType) is this log's established way to tell
+      // EUR/USD/CHF-denominated bank positions apart from priced crypto assets.
+      const reportTolerance =
+        this.financialTypeAmountType(curr.financialType) === AmountType.FIAT
+          ? BALANCE_TOLERANCE
+          : ASSET_BALANCE_TOLERANCE;
+
       const errors = [];
 
       // Float-summation residues from aggregating large pending amounts (bank/exchange legs) can leave
       // sub-cent differences between filtered and unfiltered sums, or nudge a balance minimally negative.
-      // Only material deviations (beyond BALANCE_TOLERANCE) indicate a real reconciliation anomaly; the
+      // Only material deviations (beyond reportTolerance) indicate a real reconciliation anomaly; the
       // clamp to 0 below still applies to every negative value, regardless of whether it gets reported.
-      if (Math.abs(fromKraken - fromKrakenUnfiltered) > BALANCE_TOLERANCE) {
+      if (Math.abs(fromKraken - fromKrakenUnfiltered) > reportTolerance) {
         errors.push(`fromKraken !== fromKrakenUnfiltered`);
         this.logger
           .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount:
         ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
       }
 
-      if (Math.abs(toKraken - toKrakenUnfiltered) > BALANCE_TOLERANCE) {
+      if (Math.abs(toKraken - toKrakenUnfiltered) > reportTolerance) {
         errors.push(`toKraken !== toKrakenUnfiltered`);
         this.logger
           .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount:
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
       }
 
-      if (Math.abs(fromScrypt - fromScryptUnfiltered) > BALANCE_TOLERANCE) {
+      if (Math.abs(fromScrypt - fromScryptUnfiltered) > reportTolerance) {
         errors.push(`fromScrypt !== fromScryptUnfiltered`);
         this.logger.verbose(
           `Error in financial log, fromScrypt balance !== fromScryptUnfiltered balance for asset: ${curr.id}, fromScryptAmount: ${fromScrypt}, fromScryptUnfilteredAmount: ${fromScryptUnfiltered}`,
         );
       }
 
-      if (Math.abs(toScrypt - toScryptUnfiltered) > BALANCE_TOLERANCE) {
+      if (Math.abs(toScrypt - toScryptUnfiltered) > reportTolerance) {
         errors.push(`toScrypt !== toScryptUnfiltered`);
         this.logger.verbose(
           `Error in financial log, toScrypt balance !== toScryptUnfiltered balance for asset: ${curr.id}, toScryptAmount: ${toScrypt}, toScryptUnfilteredAmount: ${toScryptUnfiltered}`,
@@ -869,7 +884,7 @@ export class LogJobService {
       }
 
       if (fromKraken < 0) {
-        if (fromKraken < -BALANCE_TOLERANCE) {
+        if (fromKraken < -reportTolerance) {
           errors.push(`fromKraken < 0`);
           this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
         ${pendingYapealKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealKrakenMinusAmount},
@@ -878,7 +893,7 @@ export class LogJobService {
         fromKraken = 0;
       }
       if (toKraken < 0) {
-        if (toKraken < -BALANCE_TOLERANCE) {
+        if (toKraken < -reportTolerance) {
           errors.push(`toKraken < 0`);
           this.logger.verbose(
             `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
@@ -890,7 +905,7 @@ export class LogJobService {
       }
 
       if (toScrypt < 0) {
-        if (toScrypt < -BALANCE_TOLERANCE) {
+        if (toScrypt < -reportTolerance) {
           errors.push(`toScrypt < 0`);
           this.logger.verbose(
             `Error in financial log, toScrypt balance < 0 for asset: ${curr.id}, pendingPlusAmount:
@@ -902,7 +917,7 @@ export class LogJobService {
       }
 
       if (fromScrypt < 0) {
-        if (fromScrypt < -BALANCE_TOLERANCE) {
+        if (fromScrypt < -reportTolerance) {
           errors.push(`fromScrypt < 0`);
           this.logger.verbose(
             `Error in financial log, fromScrypt balance < 0 for asset: ${curr.id}, pendingChfPlusAmount:
@@ -927,7 +942,7 @@ export class LogJobService {
       // Clamp totalPlusPending to prevent negative plus balances
       // This catches any negative values from unfiltered Kraken/Scrypt or other components
       if (totalPlusPending < 0) {
-        if (totalPlusPending < -BALANCE_TOLERANCE) {
+        if (totalPlusPending < -reportTolerance) {
           errors.push(`totalPlusPending < 0`);
           this.logger.verbose(
             `Error in financial log, totalPlusPending < 0 for asset: ${curr.id}, totalPlusPending: ${totalPlusPending}. ` +
