@@ -92,6 +92,8 @@ describe('BankTxConsumer', () => {
     // by default a chargeback resolves to no opening row → opening-CHF lookup falls back to the close value
     jest.spyOn(bankTxReturnRepo, 'findOne').mockResolvedValue(null);
     jest.spyOn(bankTxRepeatRepo, 'findOne').mockResolvedValue(null);
+    // by default nothing is booked yet → the forward crash-recovery guard never skips (tests opt in via `true`)
+    jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(false);
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       booked.push(input);
@@ -860,6 +862,65 @@ describe('BankTxConsumer', () => {
     expect(setSpy).toHaveBeenCalledTimes(1);
     const written = JSON.parse(setSpy.mock.calls[0][1]);
     expect(written.lastProcessedId).toBe(5);
+  });
+
+  // crash-recovery: a prior run's bookTx transaction committed but the run was killed before the batch's end-of-loop
+  // watermark write persisted (this cron re-bootstraps a fresh process every cycle, so a kill mid-batch is a real
+  // window). The next run re-selects the same row; without the hasAnyTxAt guard, a raw re-insert would collide on the
+  // UNIQUE(sourceType, sourceId, seq) constraint every cycle forever. The guard must skip the re-insert AND still let
+  // the watermark advance past it, since the row genuinely is booked.
+  it('skips an already-booked row (crash-recovery) and still advances the watermark past it', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const hasAnyTxAtSpy = jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(true);
+    mockBatch([
+      bankTx({
+        id: 207714,
+        type: BankTxType.EXTRAORDINARY_EXPENSES,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 10,
+      }),
+    ]);
+
+    await consumer.process();
+
+    expect(hasAnyTxAtSpy).toHaveBeenCalledWith('bank_tx', '207714', 0);
+    expect(booked).toHaveLength(0); // no re-insert attempted
+    expect(setSpy).toHaveBeenCalledTimes(1); // watermark still advances — the row IS booked, just not by this run
+    const written = JSON.parse(setSpy.mock.calls[0][1]);
+    expect(written.lastProcessedId).toBe(207714);
+  });
+
+  // the guard must not swallow a genuinely un-booked row further down the same batch: skip the already-booked one,
+  // keep booking forward, and land the watermark on the last row that was actually processed this run.
+  it('books the next row normally after skipping an earlier already-booked one in the same batch', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest
+      .spyOn(bookingService, 'hasAnyTxAt')
+      .mockImplementation((_type, sourceId) => Promise.resolve(sourceId === '207714'));
+    mockBatch([
+      bankTx({
+        id: 207714,
+        type: BankTxType.EXTRAORDINARY_EXPENSES,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 10,
+      }),
+      bankTx({
+        id: 207715,
+        type: BankTxType.EXTRAORDINARY_EXPENSES,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 20,
+      }),
+    ]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(1); // only the genuinely un-booked row was inserted
+    expect(booked[0].sourceId).toBe('207715');
+    const written = JSON.parse(setSpy.mock.calls[0][1]);
+    expect(written.lastProcessedId).toBe(207715);
   });
 
   it('no-ops on an empty batch', async () => {

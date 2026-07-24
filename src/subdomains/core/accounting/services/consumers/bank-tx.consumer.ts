@@ -144,6 +144,14 @@ export class BankTxConsumer {
     const input = await this.buildSeq0Input(tx, marks);
     if (!input) return; // skipped type (BUY_FIAT / TEST_FIAT_FIAT)
 
+    // crash-recovery: this cron re-bootstraps a fresh process every cycle, so a run whose bookTx transaction commits
+    // but is then killed before the batch's single end-of-loop watermark write persists leaves the watermark BEHIND
+    // an already-booked row. The next run re-selects it and a raw re-insert collides on the (sourceType, sourceId,
+    // seq) UNIQUE constraint forever — an unrecoverable ERROR loop, since nothing about that condition self-heals.
+    // Treat "already booked" as done and let the watermark catch up; the content-change scan (§4.12) is the
+    // correctness backstop if the already-committed legs ever need correcting.
+    if (await this.bookingService.hasAnyTxAt(SOURCE_TYPE, `${tx.id}`, input.seq)) return;
+
     await this.bookingService.bookTx(input);
   }
 
