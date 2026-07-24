@@ -20,7 +20,7 @@ import {
   parseConfig,
   StoredObject,
 } from '../../../../../scripts/storage/reconcile-stores';
-import { GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
+import { GEBUEV_RETENTION_FLOOR_DAYS, GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
 
 const s3Mock = mockClient(S3Client);
 
@@ -489,6 +489,89 @@ describe('assertBucketWorm / assertBucketWormIfDeclared / assertUndeclaredBucket
     await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified)).resolves.toBeUndefined();
     expect(verified.get('kyc')).toBe(true);
     expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
+  });
+
+  // MinIO production default retention is Days: 4015 (not Years).
+  it('assertBucketWorm accepts COMPLIANCE Days retention at the MinIO production value (4015)', async () => {
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Days: 4015 } },
+      },
+    });
+    const client = makeS3Client();
+    const verified = new Map<string, boolean>();
+    await expect(assertBucketWorm(client, 'kyc', verified)).resolves.toBeUndefined();
+    expect(verified.get('kyc')).toBe(true);
+    expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
+  });
+
+  it('assertBucketWorm fails closed when COMPLIANCE Days retention is below the GeBüV day floor', async () => {
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Days: GEBUEV_RETENTION_FLOOR_DAYS - 1 } },
+      },
+    });
+    const client = makeS3Client();
+    const verified = new Map<string, boolean>();
+    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(/Refusing azure→s3 heal into bucket "kyc"/);
+    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(
+      new RegExp(`Days=${GEBUEV_RETENTION_FLOOR_DAYS - 1}`),
+    );
+    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(
+      new RegExp(String(GEBUEV_RETENTION_FLOOR_DAYS)),
+    );
+    expect(verified.get('kyc')).toBeUndefined();
+  });
+
+  it('assertBucketWorm fails closed and does not cache verification when both retention units are set', async () => {
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: {
+          DefaultRetention: {
+            Mode: 'COMPLIANCE',
+            Years: GEBUEV_RETENTION_FLOOR_YEARS,
+            Days: 4015,
+          },
+        },
+      },
+    });
+    const client = makeS3Client();
+    const verified = new Map<string, boolean>();
+
+    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(
+      `Years=${GEBUEV_RETENTION_FLOOR_YEARS}, Days=4015`,
+    );
+
+    expect(verified.get('kyc')).toBeUndefined();
+  });
+
+  it.each([
+    {
+      unit: 'Years',
+      value: GEBUEV_RETENTION_FLOOR_YEARS + 0.5,
+      retention: { Mode: 'COMPLIANCE' as const, Years: GEBUEV_RETENTION_FLOOR_YEARS + 0.5 },
+    },
+    {
+      unit: 'Days',
+      value: GEBUEV_RETENTION_FLOOR_DAYS + 0.5,
+      retention: { Mode: 'COMPLIANCE' as const, Days: GEBUEV_RETENTION_FLOOR_DAYS + 0.5 },
+    },
+  ])('assertBucketWorm fails closed and does not cache non-integer $unit retention', async (testCase) => {
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: testCase.retention },
+      },
+    });
+    const client = makeS3Client();
+    const verified = new Map<string, boolean>();
+
+    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(`${testCase.unit}=${testCase.value}`);
+
+    expect(verified.get('kyc')).toBeUndefined();
   });
 
   it('assertBucketWormIfDeclared throws when an undeclared container has Object Lock enabled', async () => {

@@ -12,7 +12,7 @@ import { Test } from '@nestjs/testing';
 import { mockClient } from 'aws-sdk-client-mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { S3StorageService } from '../s3-storage.service';
-import { GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
+import { GEBUEV_RETENTION_FLOOR_DAYS, GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
 
 const validS3 = {
   endpoint: 'https://s3.test.local',
@@ -218,6 +218,15 @@ describe('S3StorageService', () => {
       const max = new Date(afterMs);
       max.setUTCFullYear(max.getUTCFullYear() + years);
       max.setUTCDate(max.getUTCDate() + 1);
+      return { min, max };
+    }
+
+    /** Expected RetainUntil bounds: bucket days + 1-day safety margin (calendar-day arithmetic). */
+    function retainUntilBoundsDays(beforeMs: number, afterMs: number, days: number): { min: Date; max: Date } {
+      const min = new Date(beforeMs);
+      min.setUTCDate(min.getUTCDate() + days + 1);
+      const max = new Date(afterMs);
+      max.setUTCDate(max.getUTCDate() + days + 1);
       return { min, max };
     }
 
@@ -465,6 +474,119 @@ describe('S3StorageService', () => {
       await expect(
         new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
       ).rejects.toThrow('Object Lock is not enabled');
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+    });
+
+    // MinIO surfaces the production default retention as Days (e.g. 4015), not Years.
+    it('PUTs into a MinIO-style bucket with COMPLIANCE Days retention (4015) and mirrors RetainUntil', async () => {
+      const container = 'ep2-worm-minio-days';
+      const bucketDays = 4015;
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Days: bucketDays } },
+        },
+      });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      const before = Date.now();
+      const url = await new S3StorageService(container).uploadWormBlob(
+        'settlement.ep2',
+        Buffer.from('<ep2/>'),
+        'text/xml',
+      );
+      const after = Date.now();
+
+      expect(url).toBe(`https://files.test.local/${container}/settlement.ep2`);
+      const puts = s3Mock.commandCalls(PutObjectCommand);
+      expect(puts).toHaveLength(1);
+      expect(puts[0].args[0].input).toMatchObject({
+        Bucket: container,
+        Key: 'settlement.ep2',
+        ContentType: 'text/xml',
+        ObjectLockMode: ObjectLockRetentionMode.COMPLIANCE,
+      });
+      const retainUntil = puts[0].args[0].input.ObjectLockRetainUntilDate as Date;
+      expect(retainUntil).toBeInstanceOf(Date);
+      // validated days only (no safety day yet) must be at or before retainUntil
+      const daysOnlyMin = new Date(before);
+      daysOnlyMin.setUTCDate(daysOnlyMin.getUTCDate() + bucketDays);
+      expect(retainUntil.getTime()).toBeGreaterThanOrEqual(daysOnlyMin.getTime());
+      // full bounds: validated days + 1-day safety margin
+      const { min, max } = retainUntilBoundsDays(before, after, bucketDays);
+      expect(retainUntil.getTime()).toBeGreaterThanOrEqual(min.getTime());
+      expect(retainUntil.getTime()).toBeLessThanOrEqual(max.getTime());
+    });
+
+    it('fails closed and does NOT PUT when COMPLIANCE Days retention is below the GeBüV day floor', async () => {
+      const container = 'ep2-worm-days-under-floor';
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Days: GEBUEV_RETENTION_FLOOR_DAYS - 1 } },
+        },
+      });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow('Object Lock is not enabled');
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow(new RegExp(`Days=${GEBUEV_RETENTION_FLOOR_DAYS - 1}`));
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+    });
+
+    it('fails closed and does NOT PUT when both retention Years and Days are set', async () => {
+      const container = 'ep2-worm-both-retention-units';
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: {
+            DefaultRetention: {
+              Mode: 'COMPLIANCE',
+              Years: GEBUEV_RETENTION_FLOOR_YEARS,
+              Days: 4015,
+            },
+          },
+        },
+      });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow(`Years=${GEBUEV_RETENTION_FLOOR_YEARS}, Days=4015`);
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+    });
+
+    it.each([
+      {
+        unit: 'Years',
+        value: GEBUEV_RETENTION_FLOOR_YEARS + 0.5,
+        retention: { Mode: 'COMPLIANCE' as const, Years: GEBUEV_RETENTION_FLOOR_YEARS + 0.5 },
+      },
+      {
+        unit: 'Days',
+        value: GEBUEV_RETENTION_FLOOR_DAYS + 0.5,
+        retention: { Mode: 'COMPLIANCE' as const, Days: GEBUEV_RETENTION_FLOOR_DAYS + 0.5 },
+      },
+    ])('fails closed and does NOT PUT when COMPLIANCE $unit retention is not an integer', async (testCase) => {
+      const container = `ep2-worm-non-integer-${testCase.unit.toLowerCase()}`;
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: testCase.retention },
+        },
+      });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow(`${testCase.unit}=${testCase.value}`);
 
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
     });
