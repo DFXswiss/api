@@ -12,7 +12,7 @@ export class BankController {
   @Get()
   @ApiOkResponse({ type: BankDto, isArray: true })
   async getAllBanks(): Promise<BankDto[]> {
-    const banks = await this.bankService.getAllBanks();
+    const banks = await this.bankService.getPublicBanks();
 
     return banks.map(BankMapper.toDto);
   }

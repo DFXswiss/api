@@ -59,4 +59,8 @@ export class Bank extends IEntity {
   get isReconcilable(): boolean {
     return this.name !== IbanBankName.FRICK || !this.send || this.receive;
   }
+
+  get isCustomerFacing(): boolean {
+    return this.name !== IbanBankName.FRICK;
+  }
 }

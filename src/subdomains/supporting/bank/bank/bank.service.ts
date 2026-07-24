@@ -31,6 +31,10 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findCached(`all`);
   }
 
+  async getPublicBanks(): Promise<Bank[]> {
+    return (await this.getAllBanks()).filter((b) => b.isCustomerFacing);
+  }
+
   async getBanksWithAsset(): Promise<Bank[]> {
     return this.bankRepo.find({ relations: { asset: true } });
   }
@@ -78,7 +82,7 @@ export class BankService implements OnModuleInit {
     // inbound crediting runs via BankTxFrickService, not this path, and the outbound payout selector
     // applies its own separate Frick handling, so the exclusion affects only the deposit IBAN shown to
     // customers.
-    const banks = (await this.getReceiveBanks()).filter((b) => b.name !== IbanBankName.FRICK);
+    const banks = (await this.getReceiveBanks()).filter((b) => b.isCustomerFacing);
 
     // select the matching bank account
     let account: Bank;

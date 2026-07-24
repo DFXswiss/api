@@ -14,6 +14,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
+  createCustomBank,
   createDefaultBanks,
   createDefaultDisabledBanks,
   yapealCHF,
@@ -153,6 +154,60 @@ describe('BankService', () => {
 
     const chf = await service.getBank(createBankSelectorInput('CHF', 10000));
     expect(chf.name).toBe(IbanBankName.YAPEAL);
+  });
+
+  describe('getPublicBanks', () => {
+    it('excludes Bank Frick rows from the public listing', async () => {
+      const allBanks = [...createDefaultBanks(), frickEUR, frickCHF];
+      jest.spyOn(bankRepo, 'findCached').mockResolvedValue(allBanks);
+
+      const result = await service.getPublicBanks();
+
+      expect(result).not.toContain(frickEUR);
+      expect(result).not.toContain(frickCHF);
+      expect(result.some((b) => b.name === IbanBankName.FRICK)).toBe(false);
+    });
+
+    it('keeps every non-Frick bank in the public listing, including a receive=false bank', async () => {
+      const disabledNonFrick = createCustomBank({
+        name: IbanBankName.MAERKI,
+        currency: 'CHF',
+        iban: 'CH0000000000000000000',
+        bic: 'MAEBCHZZ',
+        receive: false,
+      });
+      const allBanks = [olkyEUR, yapealEUR, yapealCHF, disabledNonFrick, frickEUR, frickCHF];
+      jest.spyOn(bankRepo, 'findCached').mockResolvedValue(allBanks);
+
+      const result = await service.getPublicBanks();
+
+      expect(result).toContain(olkyEUR);
+      expect(result).toContain(yapealEUR);
+      expect(result).toContain(yapealCHF);
+      expect(result).toContain(disabledNonFrick);
+      expect(result).toHaveLength(4);
+    });
+
+    it('leaves getAllBanks untouched (still includes Frick) - the internal path is unaffected', async () => {
+      const allBanks = [...createDefaultBanks(), frickEUR, frickCHF];
+      const findCachedSpy = jest.spyOn(bankRepo, 'findCached').mockResolvedValue(allBanks);
+
+      const result = await service.getAllBanks();
+
+      expect(findCachedSpy).toHaveBeenCalledWith('all');
+      expect(result).toContain(frickEUR);
+      expect(result).toContain(frickCHF);
+    });
+  });
+});
+
+describe('Bank.isCustomerFacing', () => {
+  it('is false for a Bank Frick row', () => {
+    expect(Object.assign(new Bank(), { name: IbanBankName.FRICK }).isCustomerFacing).toBe(false);
+  });
+
+  it('is true for a non-Frick bank', () => {
+    expect(Object.assign(new Bank(), { name: IbanBankName.OLKY }).isCustomerFacing).toBe(true);
   });
 });
 
