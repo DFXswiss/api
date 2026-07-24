@@ -733,6 +733,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'outputDate',
       'pmtInfId',
       'reportCreated',
+      'scryptDepositNotifiedDate',
       'type',
       'valutaDate',
       'yapealMsgId',
