@@ -1112,6 +1112,28 @@ describe('FiatOutputJobService', () => {
       },
     );
 
+    it('throttles the Rejected/Failed alert log to once per retry interval, then re-alerts after it elapses', async () => {
+      const entity = createScryptDepositEntity({ id: 66 });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue({
+        id: 'tx-rejected-throttle',
+        status: ScryptTransactionStatus.REJECTED,
+        rejectText: 'Broker rejected deposit',
+      });
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      await service['notifyScryptDeposits']();
+      await service['notifyScryptDeposits']();
+
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+
+      (service as any).scryptDepositAttempts.set(entity.id, new Date(Date.now() - 61 * 60 * 1000));
+
+      await service['notifyScryptDeposits']();
+
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(2);
+    });
+
     it('sends a deposit request using endToEndId as reqId when no status is known yet', async () => {
       const entity = createScryptDepositEntity({ endToEndId: 'E2E-CUSTOM-42', id: 42 });
       jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);

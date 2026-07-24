@@ -619,6 +619,9 @@ export class FiatOutputJobService {
     }
   }
 
+  // Last send/alert time per fiat output. In-memory only: a restart resets the pacing, which at
+  // worst causes one extra send — assumed safe because the ClReqID stays stable per entity, so
+  // repeated requests are deduplicatable on the receiving side.
   private readonly scryptDepositAttempts = new Map<number, Date>();
 
   private async notifyScryptDeposits(): Promise<void> {
@@ -651,6 +654,12 @@ export class FiatOutputJobService {
     const status = this.scryptService.getDepositStatus(reqId);
     if (status) {
       if (status.status === ScryptTransactionStatus.REJECTED || status.status === ScryptTransactionStatus.FAILED) {
+        // Deliberately not terminalized: a rejected/failed deposit request needs manual intervention,
+        // so the entity stays in the sweep and keeps alerting (throttled) until resolved.
+        const lastAlert = this.scryptDepositAttempts.get(entity.id);
+        if (lastAlert && Date.now() - lastAlert.getTime() < SCRYPT_DEPOSIT_RETRY_INTERVAL_MS) return;
+
+        this.scryptDepositAttempts.set(entity.id, new Date());
         this.logger.error(
           `Scrypt deposit request for fiat output ${entity.id} was ${status.status}: ${status.rejectText ?? status.rejectReason ?? 'unknown reason'}`,
         );
