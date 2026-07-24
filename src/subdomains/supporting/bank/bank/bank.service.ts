@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
@@ -135,16 +136,7 @@ export class BankService implements OnModuleInit {
     // selectAttributionBank is deterministic; asset-linked rows still beat newer unbound ones.
     const banks = await this.bankRepo.find({ order: { id: 'DESC' }, relations: { asset: true } });
 
-    const byKey = new Map<string, Bank[]>();
-    for (const bank of banks) {
-      const key = `${bank.name}-${bank.currency}`;
-      const group = byKey.get(key);
-      if (group) {
-        group.push(bank);
-      } else {
-        byKey.set(key, [bank]);
-      }
-    }
+    const byKey = Util.groupByAccessor(banks, (b) => `${b.name}-${b.currency}`);
 
     for (const [key, group] of byKey) {
       const selected = BankService.selectAttributionBank(group);
