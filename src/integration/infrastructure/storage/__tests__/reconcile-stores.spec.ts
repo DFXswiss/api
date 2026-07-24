@@ -1,20 +1,37 @@
-import { GetObjectLockConfigurationCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  GetObjectLockConfigurationCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { mockClient } from 'aws-sdk-client-mock';
+import { Readable } from 'stream';
 import {
   assertBucketWorm,
   assertBucketWormIfDeclared,
   assertBucketsAccounted,
+  assertExactHealBinding,
   assertNotOneSidedEmpty,
   assertPageComplete,
   assertRequestedContainersExist,
   assertUndeclaredBucketHasNoWorm,
   assertWithinHealCap,
   assertWormContainersConfig,
+  buildAdditiveReconcileSummary,
+  buildMachineReadableReconcileReport,
+  collectAdditiveCandidatesForContainer,
+  computeCandidateSetSha256,
   copyAzureToS3,
   copyS3ToAzure,
   DEFAULT_HEAL_CAP,
   diffStores,
   DiffResult,
+  formatDetailObjectLine,
+  formatReconcileReportJsonLine,
+  hashObjectKeySha256,
+  HealContainerReport,
+  indexStoredObjectsByKey,
   isAzurePreconditionFailed,
   isGateBlocking,
   isS3PreconditionFailed,
@@ -24,7 +41,9 @@ import {
   OVERWRITE_SKEW_TOLERANCE_MS,
   parseConfig,
   printCategory,
+  RECONCILE_REPORT_SCHEMA_VERSION,
   RECONCILER_PRIVACY_LOG_VERSION,
+  runAdditiveHealOrchestration,
   safeObjectReference,
   StoredObject,
 } from '../../../../../scripts/storage/reconcile-stores';
@@ -44,6 +63,17 @@ function storedObject(key: string, size: number, lastModified: Date): StoredObje
   return { key, size, lastModified };
 }
 
+/** Conspicuous ETag-like sentinels — must never appear in privacy-safe detail/logs. */
+const ETAG_SENTINEL_AZURE = '"ETAG_SENTINEL_AZURE_NEVER_LOG_0xDEAD"';
+const ETAG_SENTINEL_S3 = '"ETAG_SENTINEL_S3_NEVER_LOG_abc123"';
+
+function assertNoEtagSentinelLeak(text: string): void {
+  expect(text).not.toContain(ETAG_SENTINEL_AZURE);
+  expect(text).not.toContain(ETAG_SENTINEL_S3);
+  expect(text).not.toContain('ETAG_SENTINEL');
+  expect(text).not.toMatch(/\betag=/i);
+}
+
 async function rejectedError(promise: Promise<unknown>): Promise<Error> {
   try {
     await promise;
@@ -57,47 +87,74 @@ async function rejectedError(promise: Promise<unknown>): Promise<Error> {
 const t0 = new Date('2024-01-01T00:00:00.000Z');
 const skewMs = 60 * 60 * 1000; // 1 hour — matches OVERWRITE_SKEW_TOLERANCE_MS
 
+/** Conspicuous sentinel raw keys — must never appear in logs, JSON, or digests. */
+const SENTINEL_KEY_A = 'SENTINEL_RAW_KEY_user/999/private-document-NEVER-LOG.pdf';
+const SENTINEL_KEY_B = 'SENTINEL_RAW_KEY_user/888/another-secret-file-NEVER-LOG.bin';
+const SENTINEL_KEY_C = 'SENTINEL_RAW_KEY_acct/777/third-private-NEVER-LOG.dat';
+
+function assertNoSentinelLeak(text: string): void {
+  expect(text).not.toContain(SENTINEL_KEY_A);
+  expect(text).not.toContain(SENTINEL_KEY_B);
+  expect(text).not.toContain(SENTINEL_KEY_C);
+  expect(text).not.toContain('private-document-NEVER-LOG');
+  expect(text).not.toContain('another-secret-file-NEVER-LOG');
+  expect(text).not.toContain('third-private-NEVER-LOG');
+  expect(text).not.toContain('SENTINEL_RAW_KEY');
+}
+
 describe('safeObjectReference', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('uses a stable SHA-256 digest without exposing the raw key', () => {
-    const rawKey = 'user/123/private-document.pdf';
+    const rawKey = SENTINEL_KEY_A;
     const reference = safeObjectReference('kyc', rawKey);
 
     expect(reference).toMatch(/^kyc\/key-sha256:[a-f0-9]{64}$/);
     expect(reference).toBe(safeObjectReference('kyc', rawKey));
     expect(reference).not.toContain(rawKey);
-    expect(reference).not.toContain('private-document');
+    assertNoSentinelLeak(reference);
   });
 
   it('keeps verbose, heal, skip, and object-specific errors free of raw keys', async () => {
-    const rawKey = 'user/123/private-document.pdf';
+    const rawKey = SENTINEL_KEY_A;
     const expectedReference = safeObjectReference('kyc', rawKey);
     const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
-    printCategory('kyc', 'onlyOnAzure', [rawKey], true);
+    const azureByKey = indexStoredObjectsByKey([storedObject(rawKey, 42, t0)]);
+    printCategory('kyc', 'onlyOnAzure', [rawKey], true, {
+      bytes: 42,
+      azureByKey,
+      singleSource: 'azure',
+    });
     logObjectAction('HEALED', 'azure->s3', 'kyc', rawKey);
     logObjectAction('SKIPPED (appeared concurrently)', 's3->azure', 'kyc', rawKey);
 
     const azureDownloadFailure = {
       getBlockBlobClient: () => ({ download: jest.fn().mockRejectedValue(new Error(`failed ${rawKey}`)) }),
     } as never;
-    await expect(copyAzureToS3(azureDownloadFailure, makeS3Client(), 'kyc', rawKey)).rejects.toThrow(expectedReference);
+    await expect(copyAzureToS3(azureDownloadFailure, makeS3Client(), 'kyc', rawKey, 42)).rejects.toThrow(
+      expectedReference,
+    );
 
     const s3DownloadFailure = {
       send: jest.fn().mockRejectedValue(new Error(`failed ${rawKey}`)),
     } as never;
-    await expect(copyS3ToAzure(s3DownloadFailure, 'kyc', {} as never, rawKey)).rejects.toThrow(expectedReference);
+    await expect(copyS3ToAzure(s3DownloadFailure, 'kyc', {} as never, rawKey, 42)).rejects.toThrow(expectedReference);
 
     const output = consoleSpy.mock.calls.flat().join('\n');
     expect(output).toContain(expectedReference);
-    expect(output).not.toContain(rawKey);
-    expect(output).not.toContain('private-document');
-    expect(RECONCILER_PRIVACY_LOG_VERSION).toBe('storage-reconciler-private-logs-v1');
+    expect(output).toContain(`key-sha256=${hashObjectKeySha256(rawKey)}`);
+    expect(output).toContain('source=azure');
+    expect(output).toContain('size=42');
+    expect(output).not.toContain('contentType');
+    expect(output).not.toContain('content-type');
+    assertNoSentinelLeak(output);
+    assertNoEtagSentinelLeak(output);
+    expect(RECONCILER_PRIVACY_LOG_VERSION).toBe('storage-reconciler-private-logs-v2');
   });
 
   it('redacts raw keys in incomplete S3 and Azure listing errors', async () => {
-    const rawKey = 'user/456/incomplete-private-document.pdf';
+    const rawKey = SENTINEL_KEY_B;
     const expectedReference = safeObjectReference('kyc', rawKey);
 
     s3Mock.reset();
@@ -107,8 +164,7 @@ describe('safeObjectReference', () => {
     });
     const s3Error = await rejectedError(listS3Objects(makeS3Client(), 'kyc'));
     expect(s3Error.message).toContain(expectedReference);
-    expect(s3Error.message).not.toContain(rawKey);
-    expect(s3Error.message).not.toContain('incomplete-private-document');
+    assertNoSentinelLeak(s3Error.message);
 
     const azureContainer = {
       containerName: 'kyc',
@@ -118,8 +174,40 @@ describe('safeObjectReference', () => {
     } as never;
     const azureError = await rejectedError(listAzureObjects(azureContainer));
     expect(azureError.message).toContain(expectedReference);
-    expect(azureError.message).not.toContain(rawKey);
-    expect(azureError.message).not.toContain('incomplete-private-document');
+    assertNoSentinelLeak(azureError.message);
+  });
+});
+
+describe('listing does not capture ETags', () => {
+  beforeEach(() => {
+    s3Mock.reset();
+  });
+
+  it('listS3Objects stores only key, size, lastModified (ignores listing ETag)', async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({
+      IsTruncated: false,
+      Contents: [{ Key: 'a', Size: 10, LastModified: t0, ETag: ETAG_SENTINEL_S3 }],
+    });
+    const objects = await listS3Objects(makeS3Client(), 'kyc');
+    expect(objects).toEqual([{ key: 'a', size: 10, lastModified: t0 }]);
+    expect(objects[0]).not.toHaveProperty('etag');
+    assertNoEtagSentinelLeak(JSON.stringify(objects));
+  });
+
+  it('listAzureObjects stores only key, size, lastModified (ignores properties.etag)', async () => {
+    const azureContainer = {
+      containerName: 'kyc',
+      async *listBlobsFlat() {
+        yield {
+          name: 'b',
+          properties: { contentLength: 20, lastModified: t0, etag: ETAG_SENTINEL_AZURE },
+        };
+      },
+    } as never;
+    const objects = await listAzureObjects(azureContainer);
+    expect(objects).toEqual([{ key: 'b', size: 20, lastModified: t0 }]);
+    expect(objects[0]).not.toHaveProperty('etag');
+    assertNoEtagSentinelLeak(JSON.stringify(objects));
   });
 });
 
@@ -303,6 +391,29 @@ describe('assertWithinHealCap', () => {
   });
 });
 
+describe('assertExactHealBinding', () => {
+  const digest = 'a'.repeat(64);
+  const other = 'b'.repeat(64);
+
+  it('does not throw when count and digest match exactly', () => {
+    expect(() => assertExactHealBinding(3, 3, digest, digest)).not.toThrow();
+  });
+
+  it('throws on candidate count mismatch before any I/O', () => {
+    expect(() => assertExactHealBinding(2, 3, digest, digest)).toThrow(/Exact-cap heal binding failed/);
+    expect(() => assertExactHealBinding(2, 3, digest, digest)).toThrow(/additive candidate count 2/);
+    expect(() => assertExactHealBinding(2, 3, digest, digest)).toThrow(/RECONCILE_HEAL_CAP 3/);
+    expect(() => assertExactHealBinding(2, 3, digest, digest)).toThrow(/before any WORM probe, download, or PUT/);
+  });
+
+  it('throws on candidate-set digest mismatch before any I/O', () => {
+    expect(() => assertExactHealBinding(3, 3, digest, other)).toThrow(/Exact-cap heal binding failed/);
+    expect(() => assertExactHealBinding(3, 3, digest, other)).toThrow(new RegExp(digest));
+    expect(() => assertExactHealBinding(3, 3, digest, other)).toThrow(new RegExp(other));
+    expect(() => assertExactHealBinding(3, 3, digest, other)).toThrow(/before any WORM probe, download, or PUT/);
+  });
+});
+
 describe('assertRequestedContainersExist', () => {
   it('throws when a requested container is missing from S3 buckets', () => {
     expect(() => assertRequestedContainersExist(['kyc'], ['kyc', 'support'])).toThrow(/support/);
@@ -313,6 +424,187 @@ describe('assertRequestedContainersExist', () => {
   });
 });
 
+describe('additive summary and candidateSetSha256', () => {
+  it('is stable and order-independent over the same candidate multiset', () => {
+    const candidatesForward = [
+      { container: 'kyc', direction: 'azureToS3' as const, keySha256: hashObjectKeySha256(SENTINEL_KEY_A), size: 10 },
+      {
+        container: 'support',
+        direction: 's3ToAzure' as const,
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_B),
+        size: 20,
+      },
+      { container: 'kyc', direction: 's3ToAzure' as const, keySha256: hashObjectKeySha256(SENTINEL_KEY_C), size: 30 },
+    ];
+    const candidatesReversed = [...candidatesForward].reverse();
+    const candidatesShuffled = [candidatesForward[1], candidatesForward[2], candidatesForward[0]];
+
+    const d1 = computeCandidateSetSha256(candidatesForward);
+    const d2 = computeCandidateSetSha256(candidatesReversed);
+    const d3 = computeCandidateSetSha256(candidatesShuffled);
+
+    expect(d1).toMatch(/^[a-f0-9]{64}$/);
+    expect(d1).toBe(d2);
+    expect(d1).toBe(d3);
+    assertNoSentinelLeak(d1);
+  });
+
+  it('changes when container, direction, key, or size changes', () => {
+    const base = {
+      container: 'kyc',
+      direction: 'azureToS3' as const,
+      keySha256: hashObjectKeySha256(SENTINEL_KEY_A),
+      size: 10,
+    };
+    const baseDigest = computeCandidateSetSha256([base]);
+
+    expect(computeCandidateSetSha256([{ ...base, container: 'support' }])).not.toBe(baseDigest);
+    expect(computeCandidateSetSha256([{ ...base, direction: 's3ToAzure' }])).not.toBe(baseDigest);
+    expect(computeCandidateSetSha256([{ ...base, keySha256: hashObjectKeySha256(SENTINEL_KEY_B) }])).not.toBe(
+      baseDigest,
+    );
+    expect(computeCandidateSetSha256([{ ...base, size: 11 }])).not.toBe(baseDigest);
+  });
+
+  it('sums candidate bytes per direction and never embeds raw keys in the report JSON', () => {
+    const azureObjs = [
+      storedObject(SENTINEL_KEY_A, 100, t0),
+      storedObject(SENTINEL_KEY_B, 250, t0),
+      storedObject('shared', 5, t0),
+    ];
+    const s3Objs = [storedObject(SENTINEL_KEY_C, 40, t0), storedObject('shared', 5, t0)];
+    const diff = diffStores(azureObjs, s3Objs, skewMs);
+
+    expect(new Set(diff.onlyOnAzure)).toEqual(new Set([SENTINEL_KEY_A, SENTINEL_KEY_B]));
+    expect(diff.onlyOnS3).toEqual([SENTINEL_KEY_C]);
+
+    const summary = buildAdditiveReconcileSummary([
+      { container: 'kyc', diff, azureObjs, s3Objs },
+      {
+        container: 'support',
+        diff: { onlyOnAzure: [], onlyOnS3: [], sizeMismatch: [], suspectedOverwrite: [] },
+        azureObjs: [],
+        s3Objs: [],
+      },
+      {
+        container: 'ep2-example',
+        diff: { onlyOnAzure: [], onlyOnS3: [], sizeMismatch: [], suspectedOverwrite: [] },
+        azureObjs: [],
+        s3Objs: [],
+      },
+    ]);
+
+    expect(summary.containers).toHaveLength(3);
+    const kyc = summary.containers.find((c) => c.container === 'kyc');
+    expect(kyc?.azureToS3).toEqual({ count: 2, bytes: 350 });
+    expect(kyc?.s3ToAzure).toEqual({ count: 1, bytes: 40 });
+    expect(summary.totals.azureToS3).toEqual({ count: 2, bytes: 350 });
+    expect(summary.totals.s3ToAzure).toEqual({ count: 1, bytes: 40 });
+    expect(summary.totals.additiveCandidates).toBe(3);
+    expect(summary.totals.onlyOnAzure).toBe(2);
+    expect(summary.totals.onlyOnS3).toBe(1);
+    expect(summary.candidateSetSha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const azureByKey = indexStoredObjectsByKey(azureObjs);
+    const s3ByKey = indexStoredObjectsByKey(s3Objs);
+    const candidates = collectAdditiveCandidatesForContainer('kyc', diff, azureByKey, s3ByKey);
+    expect(computeCandidateSetSha256(candidates)).toBe(summary.candidateSetSha256);
+
+    const report = buildMachineReadableReconcileReport(summary, 'REPORT', '2024-01-01T00:00:00.000Z', {
+      apiImageDigest: 'sha256:deadbeef',
+      operatorCommitSha: 'abc123def',
+    });
+    expect(report.schemaVersion).toBe(RECONCILE_REPORT_SCHEMA_VERSION);
+    expect(report.privacyLogVersion).toBe('storage-reconciler-private-logs-v2');
+    expect(report.mode).toBe('REPORT');
+    expect(report.apiImageDigest).toBe('sha256:deadbeef');
+    expect(report.operatorCommitSha).toBe('abc123def');
+
+    const line = formatReconcileReportJsonLine(report);
+    expect(line.startsWith('RECONCILE_REPORT_JSON=')).toBe(true);
+    const jsonPart = line.slice('RECONCILE_REPORT_JSON='.length);
+    const parsed = JSON.parse(jsonPart) as Record<string, unknown>;
+    expect(parsed.candidateSetSha256).toBe(summary.candidateSetSha256);
+    expect(parsed.schemaVersion).toBe(1);
+    assertNoSentinelLeak(line);
+    assertNoSentinelLeak(JSON.stringify(parsed));
+  });
+});
+
+describe('privacy-safe detail mode', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('prints only the technical whitelist and both sides for sizeMismatch (no ETag)', () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    const azureObj = storedObject(SENTINEL_KEY_A, 100, t0);
+    const s3Obj = storedObject(SENTINEL_KEY_A, 99, new Date('2024-02-01T00:00:00.000Z'));
+    const azureByKey = indexStoredObjectsByKey([azureObj]);
+    const s3ByKey = indexStoredObjectsByKey([s3Obj]);
+
+    printCategory('kyc', 'sizeMismatch', [SENTINEL_KEY_A], true, {
+      azureByKey,
+      s3ByKey,
+      dualSide: true,
+    });
+
+    const output = consoleSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('sizeMismatch: 1');
+    expect(output).toContain(formatDetailObjectLine('kyc', SENTINEL_KEY_A, 'azure', azureObj));
+    expect(output).toContain(formatDetailObjectLine('kyc', SENTINEL_KEY_A, 's3', s3Obj));
+    expect(output).toContain('source=azure');
+    expect(output).toContain('source=s3');
+    expect(output).toContain('size=100');
+    expect(output).toContain('size=99');
+    expect(output).toContain('lastModified=2024-01-01T00:00:00.000Z');
+    expect(output).toContain('lastModified=2024-02-01T00:00:00.000Z');
+    // Conspicuous ETag sentinels must never appear even if present on listing payloads elsewhere
+    expect(output).not.toContain(ETAG_SENTINEL_AZURE);
+    expect(output).not.toContain(ETAG_SENTINEL_S3);
+    expect(output).not.toMatch(/\betag=/i);
+    expect(output).not.toContain('contentType');
+    expect(output).not.toContain('content-type');
+    expect(output).not.toContain('metadata');
+    expect(output).not.toContain('user-meta');
+    assertNoSentinelLeak(output);
+    assertNoEtagSentinelLeak(output);
+  });
+
+  it('formatDetailObjectLine never emits ETag sentinels or etag= fields', () => {
+    const obj = storedObject(SENTINEL_KEY_A, 42, t0);
+    const line = formatDetailObjectLine('kyc', SENTINEL_KEY_A, 'azure', obj);
+    expect(line).toContain('container=kyc');
+    expect(line).toContain(`key-sha256=${hashObjectKeySha256(SENTINEL_KEY_A)}`);
+    expect(line).toContain('source=azure');
+    expect(line).toContain('size=42');
+    expect(line).toContain('lastModified=2024-01-01T00:00:00.000Z');
+    expect(line).not.toContain(ETAG_SENTINEL_AZURE);
+    expect(line).not.toContain(ETAG_SENTINEL_S3);
+    expect(line).not.toMatch(/\betag=/i);
+    assertNoSentinelLeak(line);
+    assertNoEtagSentinelLeak(line);
+  });
+
+  it('caps verbose samples at 20 entries per category', () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    const keys: string[] = [];
+    const objs: StoredObject[] = [];
+    for (let i = 0; i < 25; i++) {
+      const key = `key-${i}`;
+      keys.push(key);
+      objs.push(storedObject(key, i, t0));
+    }
+    printCategory('kyc', 'onlyOnAzure', keys, true, {
+      bytes: objs.reduce((s, o) => s + o.size, 0),
+      azureByKey: indexStoredObjectsByKey(objs),
+      singleSource: 'azure',
+    });
+    const output = consoleSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('... and 5 more');
+    const detailLines = consoleSpy.mock.calls.map((c) => String(c[0])).filter((line) => line.includes('key-sha256='));
+    expect(detailLines).toHaveLength(20);
+  });
+});
+
 describe('parseConfig', () => {
   const ENV_KEYS = [
     'RECONCILE_CONTAINERS',
@@ -320,6 +612,9 @@ describe('parseConfig', () => {
     'RECONCILE_WORM_CONTAINERS',
     'RECONCILE_HEAL',
     'RECONCILE_HEAL_CAP',
+    'RECONCILE_EXPECTED_CANDIDATE_SET_SHA256',
+    'RECONCILE_API_IMAGE_DIGEST',
+    'RECONCILE_OPERATOR_COMMIT_SHA',
   ] as const;
 
   let savedEnv: Record<(typeof ENV_KEYS)[number], string | undefined>;
@@ -332,6 +627,9 @@ describe('parseConfig', () => {
       RECONCILE_WORM_CONTAINERS: process.env.RECONCILE_WORM_CONTAINERS,
       RECONCILE_HEAL: process.env.RECONCILE_HEAL,
       RECONCILE_HEAL_CAP: process.env.RECONCILE_HEAL_CAP,
+      RECONCILE_EXPECTED_CANDIDATE_SET_SHA256: process.env.RECONCILE_EXPECTED_CANDIDATE_SET_SHA256,
+      RECONCILE_API_IMAGE_DIGEST: process.env.RECONCILE_API_IMAGE_DIGEST,
+      RECONCILE_OPERATOR_COMMIT_SHA: process.env.RECONCILE_OPERATOR_COMMIT_SHA,
     };
     savedArgv = process.argv;
     for (const key of ENV_KEYS) {
@@ -389,6 +687,7 @@ describe('parseConfig', () => {
     const cfg = parseConfig();
     expect(cfg.heal).toBe(false);
     expect(cfg.verbose).toBe(false);
+    expect(cfg.exactCap).toBe(false);
   });
 
   it('sets heal true from RECONCILE_HEAL=true without --heal flag', () => {
@@ -478,6 +777,52 @@ describe('parseConfig', () => {
     const cfg = parseConfig();
     expect(cfg.heal).toBe(false);
     expect(cfg.wormContainers).toEqual(['kyc', 'typo-bucket']);
+  });
+
+  it('throws when --exact-cap is used without heal', () => {
+    process.argv = ['node', 'script', 'kyc', '--exact-cap'];
+    expect(() => parseConfig()).toThrow(/--exact-cap is only allowed together with --heal/);
+  });
+
+  it('throws when --exact-cap lacks RECONCILE_HEAL_CAP (no silent default)', () => {
+    process.argv = ['node', 'script', 'kyc', '--heal', '--exact-cap'];
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc';
+    process.env.RECONCILE_EXPECTED_CANDIDATE_SET_SHA256 = 'a'.repeat(64);
+    expect(() => parseConfig()).toThrow(/RECONCILE_HEAL_CAP is required when --exact-cap/);
+  });
+
+  it('throws when --exact-cap lacks RECONCILE_EXPECTED_CANDIDATE_SET_SHA256', () => {
+    process.argv = ['node', 'script', 'kyc', '--heal', '--exact-cap'];
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc';
+    process.env.RECONCILE_HEAL_CAP = '2';
+    expect(() => parseConfig()).toThrow(/RECONCILE_EXPECTED_CANDIDATE_SET_SHA256 is required/);
+  });
+
+  it('throws when expected candidate digest is not 64 lowercase hex', () => {
+    process.argv = ['node', 'script', 'kyc', '--heal', '--exact-cap'];
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc';
+    process.env.RECONCILE_HEAL_CAP = '2';
+    for (const invalid of ['ABC', 'A'.repeat(64), 'g'.repeat(64), 'a'.repeat(63), 'a'.repeat(65)]) {
+      process.env.RECONCILE_EXPECTED_CANDIDATE_SET_SHA256 = invalid;
+      expect(() => parseConfig()).toThrow(/64 lowercase hex/);
+    }
+  });
+
+  it('accepts valid --exact-cap configuration', () => {
+    const digest = '0123456789abcdef'.repeat(4);
+    process.argv = ['node', 'script', 'kyc', '--heal', '--exact-cap'];
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc';
+    process.env.RECONCILE_HEAL_CAP = '7';
+    process.env.RECONCILE_EXPECTED_CANDIDATE_SET_SHA256 = digest;
+    process.env.RECONCILE_API_IMAGE_DIGEST = 'sha256:image';
+    process.env.RECONCILE_OPERATOR_COMMIT_SHA = 'deadbeef';
+    const cfg = parseConfig();
+    expect(cfg.exactCap).toBe(true);
+    expect(cfg.heal).toBe(true);
+    expect(cfg.healCap).toBe(7);
+    expect(cfg.expectedCandidateSetSha256).toBe(digest);
+    expect(cfg.apiImageDigest).toBe('sha256:image');
+    expect(cfg.operatorCommitSha).toBe('deadbeef');
   });
 });
 
@@ -706,6 +1051,22 @@ describe('assertBucketWorm / assertBucketWormIfDeclared / assertUndeclaredBucket
     expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
     expect(verified.get('support')).toBe(true);
   });
+
+  it('WORM probe remains fail-closed before azure→s3 heal path (declared COMPLIANCE failure)', async () => {
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'GOVERNANCE', Years: GEBUEV_RETENTION_FLOOR_YEARS } },
+      },
+    });
+    const client = makeS3Client();
+    const verified = new Map<string, boolean>();
+    const noWormVerified = new Map<string, boolean>();
+    await expect(assertBucketWormIfDeclared(client, 'kyc', new Set(['kyc']), verified, noWormVerified)).rejects.toThrow(
+      /Refusing azure→s3 heal/,
+    );
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  });
 });
 
 describe('assertBucketsAccounted', () => {
@@ -777,5 +1138,726 @@ describe('isAzurePreconditionFailed', () => {
 
   it('returns false for statusCode 500', () => {
     expect(isAzurePreconditionFailed({ statusCode: 500 })).toBe(false);
+  });
+});
+
+describe('copyAzureToS3 / copyS3ToAzure preconditions', () => {
+  beforeEach(() => {
+    s3Mock.reset();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('S3 PUT includes IfNoneMatch: * and returns healed on success', async () => {
+    const body = Buffer.from('payload');
+    const readable = Readable.from([body]);
+    const azureContainer = {
+      getBlockBlobClient: () => ({
+        download: jest.fn().mockResolvedValue({
+          readableStreamBody: readable,
+          contentType: 'application/pdf',
+          metadata: { owner: 'should-not-be-logged' },
+        }),
+      }),
+    } as never;
+
+    s3Mock.on(PutObjectCommand).resolves({});
+    const result = await copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, body.length);
+    expect(result).toBe('healed');
+
+    const putCalls = s3Mock.commandCalls(PutObjectCommand);
+    expect(putCalls).toHaveLength(1);
+    expect(putCalls[0].args[0].input.IfNoneMatch).toBe('*');
+    expect(putCalls[0].args[0].input.Key).toBe(SENTINEL_KEY_A);
+  });
+
+  it('S3 precondition conflict is skipped (atomic concurrency)', async () => {
+    jest.spyOn(console, 'log').mockImplementation();
+    const body = Buffer.from('payload');
+    const readable = Readable.from([body]);
+    const azureContainer = {
+      getBlockBlobClient: () => ({
+        download: jest.fn().mockResolvedValue({
+          readableStreamBody: readable,
+          contentType: 'application/octet-stream',
+          metadata: {},
+        }),
+      }),
+    } as never;
+
+    s3Mock.on(PutObjectCommand).rejects(
+      Object.assign(new Error('Precondition Failed'), {
+        name: 'PreconditionFailed',
+        $metadata: { httpStatusCode: 412 },
+      }),
+    );
+
+    const result = await copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, body.length);
+    expect(result).toBe('skipped');
+  });
+
+  it('Azure upload includes conditions.ifNoneMatch: * and returns healed on success', async () => {
+    const bodyBytes = new Uint8Array([1, 2, 3]);
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: {
+        transformToByteArray: async () => bodyBytes,
+      } as never,
+      ContentType: 'text/plain',
+      Metadata: { note: 'should-not-be-logged' },
+    });
+
+    const uploadData = jest.fn().mockResolvedValue(undefined);
+    const azureContainer = {
+      getBlockBlobClient: () => ({ uploadData }),
+    } as never;
+
+    const result = await copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, bodyBytes.length);
+    expect(result).toBe('healed');
+    expect(uploadData).toHaveBeenCalledTimes(1);
+    const uploadOpts = uploadData.mock.calls[0][1] as {
+      conditions: { ifNoneMatch: string };
+      metadata?: Record<string, string>;
+    };
+    expect(uploadOpts.conditions.ifNoneMatch).toBe('*');
+  });
+
+  it('Azure precondition conflict is skipped (atomic concurrency)', async () => {
+    jest.spyOn(console, 'log').mockImplementation();
+    const bodyBytes = new Uint8Array([1, 2, 3]);
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: {
+        transformToByteArray: async () => bodyBytes,
+      } as never,
+      ContentType: 'text/plain',
+      Metadata: {},
+    });
+
+    const uploadData = jest.fn().mockRejectedValue(
+      Object.assign(new Error('BlobAlreadyExists'), {
+        statusCode: 412,
+        details: { errorCode: 'BlobAlreadyExists' },
+      }),
+    );
+    const azureContainer = {
+      getBlockBlobClient: () => ({ uploadData }),
+    } as never;
+
+    const result = await copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, bodyBytes.length);
+    expect(result).toBe('skipped');
+  });
+
+  it('Azure→S3 rejects when downloaded size differs from inventory size (no PutObject)', async () => {
+    // Inventory bound 3 bytes; source grew to 4 between list and download.
+    const inventorySize = 3;
+    const downloaded = Buffer.from([1, 2, 3, 4]);
+    const azureContainer = {
+      getBlockBlobClient: () => ({
+        download: jest.fn().mockResolvedValue({
+          readableStreamBody: Readable.from([downloaded]),
+          contentType: 'application/octet-stream',
+          metadata: { owner: 'should-not-be-logged' },
+        }),
+      }),
+    } as never;
+
+    const err = await rejectedError(
+      copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, inventorySize),
+    );
+
+    expect(err.message).toMatch(/Source size race for azure->s3/);
+    expect(err.message).toContain('expected 3 bytes');
+    expect(err.message).toContain('got 4 bytes');
+    expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_A));
+    assertNoSentinelLeak(err.message);
+    assertNoEtagSentinelLeak(err.message);
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  });
+
+  it('S3→Azure rejects when downloaded size differs from inventory size (no uploadData)', async () => {
+    // Inventory bound 3 bytes; source grew to 4 between list and download.
+    const inventorySize = 3;
+    const downloaded = new Uint8Array([1, 2, 3, 4]);
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: {
+        transformToByteArray: async () => downloaded,
+      } as never,
+      ContentType: 'text/plain',
+      Metadata: { note: 'should-not-be-logged' },
+    });
+
+    const uploadData = jest.fn().mockResolvedValue(undefined);
+    const azureContainer = {
+      getBlockBlobClient: () => ({ uploadData }),
+    } as never;
+
+    const err = await rejectedError(
+      copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, inventorySize),
+    );
+
+    expect(err.message).toMatch(/Source size race for s3->azure/);
+    expect(err.message).toContain('expected 3 bytes');
+    expect(err.message).toContain('got 4 bytes');
+    expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_B));
+    assertNoSentinelLeak(err.message);
+    assertNoEtagSentinelLeak(err.message);
+    expect(uploadData).not.toHaveBeenCalled();
+  });
+
+  it('Azure→S3 rejects invalid expectedSourceSize before download or PutObject', async () => {
+    const download = jest.fn();
+    const azureContainer = {
+      getBlockBlobClient: () => ({ download }),
+    } as never;
+
+    for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      const err = await rejectedError(copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, invalid));
+      expect(err.message).toMatch(/Invalid expectedSourceSize for azure->s3/);
+      expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_A));
+      assertNoSentinelLeak(err.message);
+    }
+
+    expect(download).not.toHaveBeenCalled();
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  });
+
+  it('S3→Azure rejects invalid expectedSourceSize before GetObject or uploadData', async () => {
+    const uploadData = jest.fn();
+    const azureContainer = {
+      getBlockBlobClient: () => ({ uploadData }),
+    } as never;
+
+    for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      const err = await rejectedError(copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, invalid));
+      expect(err.message).toMatch(/Invalid expectedSourceSize for s3->azure/);
+      expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_B));
+      assertNoSentinelLeak(err.message);
+    }
+
+    expect(uploadData).not.toHaveBeenCalled();
+    expect(s3Mock.commandCalls(GetObjectCommand)).toHaveLength(0);
+  });
+});
+
+describe('runAdditiveHealOrchestration (production HEAL path)', () => {
+  beforeEach(() => {
+    s3Mock.reset();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  function makeAzureClient(opts?: { download?: jest.Mock; uploadData?: jest.Mock; getContainerClient?: jest.Mock }): {
+    getContainerClient: jest.Mock;
+    download: jest.Mock;
+    uploadData: jest.Mock;
+  } {
+    const download = opts?.download ?? jest.fn();
+    const uploadData = opts?.uploadData ?? jest.fn();
+    const getContainerClient =
+      opts?.getContainerClient ??
+      jest.fn().mockReturnValue({
+        getBlockBlobClient: () => ({ download, uploadData }),
+      });
+    return { getContainerClient, download, uploadData };
+  }
+
+  function emptyHealReport(container = 'kyc'): HealContainerReport {
+    return {
+      container,
+      diff: {
+        onlyOnAzure: [] as string[],
+        onlyOnS3: [] as string[],
+        sizeMismatch: [] as string[],
+        suspectedOverwrite: [] as string[],
+      },
+      azureByKey: new Map<string, StoredObject>(),
+      s3ByKey: new Map<string, StoredObject>(),
+    };
+  }
+
+  function azureOnlyHealReport(container: string, key: string, size: number): HealContainerReport {
+    const obj = storedObject(key, size, t0);
+    return {
+      container,
+      diff: {
+        onlyOnAzure: [key],
+        onlyOnS3: [] as string[],
+        sizeMismatch: [] as string[],
+        suspectedOverwrite: [] as string[],
+      },
+      azureByKey: indexStoredObjectsByKey([obj]),
+      s3ByKey: new Map<string, StoredObject>(),
+    };
+  }
+
+  function assertZeroStorageAndWormIo(): void {
+    expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(0);
+    expect(s3Mock.commandCalls(GetObjectCommand)).toHaveLength(0);
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  }
+
+  it('rejects exact count mismatch with zero storage/WORM I/O', async () => {
+    const azure = makeAzureClient();
+    const report = azureOnlyHealReport('kyc', SENTINEL_KEY_A, 10);
+    const actualDigest = computeCandidateSetSha256([
+      {
+        container: 'kyc',
+        direction: 'azureToS3',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_A),
+        size: 10,
+      },
+    ]);
+
+    const err = await rejectedError(
+      runAdditiveHealOrchestration({
+        reports: [report],
+        s3: makeS3Client(),
+        azure,
+        wormContainers: new Set(['kyc']),
+        healCap: 2,
+        exactCap: true,
+        actualCandidateSetSha256: actualDigest,
+        expectedCandidateSetSha256: actualDigest,
+      }),
+    );
+
+    expect(err.message).toMatch(/Exact-cap heal binding failed/);
+    expect(err.message).toMatch(/additive candidate count 1/);
+    expect(err.message).toMatch(/RECONCILE_HEAL_CAP 2/);
+    expect(err.message).toMatch(/before any WORM probe, download, or PUT/);
+    assertNoSentinelLeak(err.message);
+    assertNoEtagSentinelLeak(err.message);
+    expect(azure.getContainerClient).not.toHaveBeenCalled();
+    expect(azure.download).not.toHaveBeenCalled();
+    expect(azure.uploadData).not.toHaveBeenCalled();
+    assertZeroStorageAndWormIo();
+  });
+
+  it('rejects same-count digest mismatch with zero storage/WORM I/O', async () => {
+    const azure = makeAzureClient();
+    const report = azureOnlyHealReport('kyc', SENTINEL_KEY_A, 10);
+    const actualDigest = computeCandidateSetSha256([
+      {
+        container: 'kyc',
+        direction: 'azureToS3',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_A),
+        size: 10,
+      },
+    ]);
+    const expectedDigest = 'b'.repeat(64);
+
+    const err = await rejectedError(
+      runAdditiveHealOrchestration({
+        reports: [report],
+        s3: makeS3Client(),
+        azure,
+        wormContainers: new Set(['kyc']),
+        healCap: 1,
+        exactCap: true,
+        actualCandidateSetSha256: actualDigest,
+        expectedCandidateSetSha256: expectedDigest,
+      }),
+    );
+
+    expect(err.message).toMatch(/Exact-cap heal binding failed/);
+    expect(err.message).toContain(actualDigest);
+    expect(err.message).toContain(expectedDigest);
+    expect(err.message).toMatch(/before any WORM probe, download, or PUT/);
+    assertNoSentinelLeak(err.message);
+    assertNoEtagSentinelLeak(err.message);
+    expect(azure.getContainerClient).not.toHaveBeenCalled();
+    expect(azure.download).not.toHaveBeenCalled();
+    expect(azure.uploadData).not.toHaveBeenCalled();
+    assertZeroStorageAndWormIo();
+  });
+
+  it('rejects empty live candidate set under positive exact-cap (no clean-parity bypass)', async () => {
+    const azure = makeAzureClient();
+    const emptyDigest = computeCandidateSetSha256([]);
+    // Approved positive cap/digest from a prior report, but live inventory is now empty.
+    const staleApprovedDigest = 'c'.repeat(64);
+
+    const err = await rejectedError(
+      runAdditiveHealOrchestration({
+        reports: [emptyHealReport('kyc')],
+        s3: makeS3Client(),
+        azure,
+        wormContainers: new Set(['kyc']),
+        healCap: 3,
+        exactCap: true,
+        actualCandidateSetSha256: emptyDigest,
+        expectedCandidateSetSha256: staleApprovedDigest,
+      }),
+    );
+
+    expect(err.message).toMatch(/Exact-cap heal binding failed/);
+    expect(err.message).toMatch(/additive candidate count 0/);
+    expect(err.message).toMatch(/RECONCILE_HEAL_CAP 3/);
+    expect(err.message).toMatch(/before any WORM probe, download, or PUT/);
+    assertNoSentinelLeak(err.message);
+    assertNoEtagSentinelLeak(err.message);
+    expect(azure.getContainerClient).not.toHaveBeenCalled();
+    expect(azure.download).not.toHaveBeenCalled();
+    expect(azure.uploadData).not.toHaveBeenCalled();
+    assertZeroStorageAndWormIo();
+  });
+
+  it('rejects WORM failure for azure→s3 after probe but before Azure download and S3 PutObject', async () => {
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'GOVERNANCE', Years: GEBUEV_RETENTION_FLOOR_YEARS } },
+      },
+    });
+
+    const azure = makeAzureClient({
+      download: jest.fn().mockResolvedValue({
+        readableStreamBody: Readable.from([Buffer.from('payload')]),
+        contentType: 'application/octet-stream',
+        metadata: {},
+      }),
+    });
+    const report = azureOnlyHealReport('kyc', SENTINEL_KEY_A, 7);
+    const actualDigest = computeCandidateSetSha256([
+      {
+        container: 'kyc',
+        direction: 'azureToS3',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_A),
+        size: 7,
+      },
+    ]);
+
+    const err = await rejectedError(
+      runAdditiveHealOrchestration({
+        reports: [report],
+        s3: makeS3Client(),
+        azure,
+        wormContainers: new Set(['kyc']),
+        healCap: 1,
+        exactCap: false,
+        actualCandidateSetSha256: actualDigest,
+      }),
+    );
+
+    expect(err.message).toMatch(/Refusing azure→s3 heal/);
+    assertNoSentinelLeak(err.message);
+    assertNoEtagSentinelLeak(err.message);
+    // WORM probe is expected; copy I/O must not follow.
+    expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
+    expect(azure.getContainerClient).toHaveBeenCalledWith('kyc');
+    expect(azure.download).not.toHaveBeenCalled();
+    expect(azure.uploadData).not.toHaveBeenCalled();
+    expect(s3Mock.commandCalls(GetObjectCommand)).toHaveLength(0);
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  });
+
+  it('normal non-exact HEAL with zero candidates is a no-op success after max-cap auth', async () => {
+    const azure = makeAzureClient();
+    const stats = await runAdditiveHealOrchestration({
+      reports: [emptyHealReport('kyc')],
+      s3: makeS3Client(),
+      azure,
+      wormContainers: new Set(['kyc']),
+      healCap: DEFAULT_HEAL_CAP,
+      exactCap: false,
+      actualCandidateSetSha256: computeCandidateSetSha256([]),
+    });
+
+    expect(stats.azureToS3).toEqual({
+      healedCount: 0,
+      healedBytes: 0,
+      skippedCount: 0,
+      skippedBytes: 0,
+    });
+    expect(stats.s3ToAzure).toEqual({
+      healedCount: 0,
+      healedBytes: 0,
+      skippedCount: 0,
+      skippedBytes: 0,
+    });
+    // Container client may be resolved, but no WORM probe / download / PUT / upload.
+    expect(azure.download).not.toHaveBeenCalled();
+    expect(azure.uploadData).not.toHaveBeenCalled();
+    assertZeroStorageAndWormIo();
+  });
+
+  it('exact-cap success heals both directions with WORM-before-copy ordering, conditional targets, stats, and privacy', async () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    const callOrder: string[] = [];
+
+    // Inventory sizes must equal the buffers that will be downloaded (digest-bound (key,size) gate).
+    const azurePayload = Buffer.from('azure-source-payload');
+    const s3Payload = new Uint8Array([9, 8, 7, 6]);
+    const azureToS3Size = azurePayload.length;
+    const s3ToAzureSize = s3Payload.length;
+    const contentTypeSentinel = 'application/pdf-NEVER-LOG-CONTENT-TYPE';
+    const reverseContentTypeSentinel = 'text/plain-NEVER-LOG-CONTENT-TYPE';
+    const userMetaSentinel = 'user-meta-NEVER-LOG-OWNER';
+
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).callsFake(async () => {
+      callOrder.push('worm-probe');
+      return {
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: GEBUEV_RETENTION_FLOOR_YEARS } },
+        },
+      };
+    });
+
+    s3Mock.on(PutObjectCommand).callsFake(async () => {
+      callOrder.push('s3-put');
+      return {};
+    });
+
+    s3Mock.on(GetObjectCommand).callsFake(async () => {
+      callOrder.push('s3-get');
+      return {
+        Body: {
+          transformToByteArray: async () => s3Payload,
+        } as never,
+        ContentType: reverseContentTypeSentinel,
+        Metadata: { note: userMetaSentinel },
+      };
+    });
+
+    const download = jest.fn().mockImplementation(async () => {
+      callOrder.push('azure-download');
+      return {
+        readableStreamBody: Readable.from([azurePayload]),
+        contentType: contentTypeSentinel,
+        metadata: { owner: userMetaSentinel },
+      };
+    });
+
+    const uploadData = jest.fn().mockImplementation(async () => {
+      callOrder.push('azure-upload');
+    });
+
+    const getBlockBlobClientKeys: string[] = [];
+    const getContainerClient = jest.fn().mockImplementation((container: string) => ({
+      getBlockBlobClient: (key: string) => {
+        getBlockBlobClientKeys.push(`${container}:${key}`);
+        return { download, uploadData };
+      },
+    }));
+
+    const azure = makeAzureClient({ download, uploadData, getContainerClient });
+
+    const wormAzureToS3Report: HealContainerReport = {
+      container: 'kyc',
+      diff: {
+        onlyOnAzure: [SENTINEL_KEY_A],
+        onlyOnS3: [],
+        sizeMismatch: [],
+        suspectedOverwrite: [],
+      },
+      azureByKey: indexStoredObjectsByKey([storedObject(SENTINEL_KEY_A, azureToS3Size, t0)]),
+      s3ByKey: new Map(),
+    };
+
+    const normalS3ToAzureReport: HealContainerReport = {
+      container: 'support',
+      diff: {
+        onlyOnAzure: [],
+        onlyOnS3: [SENTINEL_KEY_B],
+        sizeMismatch: [],
+        suspectedOverwrite: [],
+      },
+      azureByKey: new Map(),
+      s3ByKey: indexStoredObjectsByKey([storedObject(SENTINEL_KEY_B, s3ToAzureSize, t0)]),
+    };
+
+    const expectedDigest = computeCandidateSetSha256([
+      {
+        container: 'kyc',
+        direction: 'azureToS3',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_A),
+        size: azureToS3Size,
+      },
+      {
+        container: 'support',
+        direction: 's3ToAzure',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_B),
+        size: s3ToAzureSize,
+      },
+    ]);
+
+    const stats = await runAdditiveHealOrchestration({
+      reports: [wormAzureToS3Report, normalS3ToAzureReport],
+      s3: makeS3Client(),
+      azure,
+      wormContainers: new Set(['kyc']),
+      healCap: 2,
+      exactCap: true,
+      actualCandidateSetSha256: expectedDigest,
+      expectedCandidateSetSha256: expectedDigest,
+    });
+
+    // Real production sequence: WORM probe before Azure download + S3 PUT; reverse is S3 GET + Azure upload.
+    expect(callOrder).toEqual(['worm-probe', 'azure-download', 's3-put', 's3-get', 'azure-upload']);
+
+    const wormCalls = s3Mock.commandCalls(GetObjectLockConfigurationCommand);
+    expect(wormCalls).toHaveLength(1);
+    expect(wormCalls[0].args[0].input.Bucket).toBe('kyc');
+
+    const putCalls = s3Mock.commandCalls(PutObjectCommand);
+    expect(putCalls).toHaveLength(1);
+    expect(putCalls[0].args[0].input.Bucket).toBe('kyc');
+    expect(putCalls[0].args[0].input.Key).toBe(SENTINEL_KEY_A);
+    expect(putCalls[0].args[0].input.IfNoneMatch).toBe('*');
+    // Proves orchestration passed the digest-bound inventory size into azure→s3 copy:
+    // only matching expectedSourceSize allows PutObject with this Body length.
+    const putBody = putCalls[0].args[0].input.Body as Buffer;
+    expect(Buffer.isBuffer(putBody) ? putBody.length : 0).toBe(azureToS3Size);
+
+    const getCalls = s3Mock.commandCalls(GetObjectCommand);
+    expect(getCalls).toHaveLength(1);
+    expect(getCalls[0].args[0].input.Bucket).toBe('support');
+    expect(getCalls[0].args[0].input.Key).toBe(SENTINEL_KEY_B);
+
+    expect(uploadData).toHaveBeenCalledTimes(1);
+    const uploadBody = uploadData.mock.calls[0][0] as Buffer;
+    // Proves orchestration passed the digest-bound inventory size into s3→azure copy.
+    expect(Buffer.isBuffer(uploadBody) ? uploadBody.length : 0).toBe(s3ToAzureSize);
+    const uploadOpts = uploadData.mock.calls[0][1] as {
+      conditions: { ifNoneMatch: string };
+      metadata?: Record<string, string>;
+    };
+    expect(uploadOpts.conditions.ifNoneMatch).toBe('*');
+
+    expect(getBlockBlobClientKeys).toEqual([`kyc:${SENTINEL_KEY_A}`, `support:${SENTINEL_KEY_B}`]);
+    expect(azure.getContainerClient).toHaveBeenCalledWith('kyc');
+    expect(azure.getContainerClient).toHaveBeenCalledWith('support');
+
+    expect(stats.azureToS3).toEqual({
+      healedCount: 1,
+      healedBytes: azureToS3Size,
+      skippedCount: 0,
+      skippedBytes: 0,
+    });
+    expect(stats.s3ToAzure).toEqual({
+      healedCount: 1,
+      healedBytes: s3ToAzureSize,
+      skippedCount: 0,
+      skippedBytes: 0,
+    });
+
+    const output = consoleSpy.mock.calls.flat().join('\n');
+    const azureToS3Ref = safeObjectReference('kyc', SENTINEL_KEY_A);
+    const s3ToAzureRef = safeObjectReference('support', SENTINEL_KEY_B);
+    expect(output).toContain(`HEALED azure->s3 ${azureToS3Ref}`);
+    expect(output).toContain(`HEALED s3->azure ${s3ToAzureRef}`);
+    assertNoSentinelLeak(output);
+    assertNoEtagSentinelLeak(output);
+    expect(output).not.toContain(contentTypeSentinel);
+    expect(output).not.toContain(reverseContentTypeSentinel);
+    expect(output).not.toContain(userMetaSentinel);
+    expect(output).not.toContain('contentType');
+    expect(output).not.toContain('content-type');
+    expect(output).not.toContain('metadata');
+    expect(output).not.toContain('user-meta');
+  });
+
+  it('orchestration azure→s3 fails closed when download size differs from inventory size', async () => {
+    // Inventory bound size=3; download returns 4 bytes — proves size is passed into copyAzureToS3.
+    const inventorySize = 3;
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: GEBUEV_RETENTION_FLOOR_YEARS } },
+      },
+    });
+
+    const download = jest.fn().mockResolvedValue({
+      readableStreamBody: Readable.from([Buffer.from([1, 2, 3, 4])]),
+      contentType: 'application/octet-stream',
+      metadata: {},
+    });
+    const uploadData = jest.fn();
+    const azure = makeAzureClient({ download, uploadData });
+    const report = azureOnlyHealReport('kyc', SENTINEL_KEY_A, inventorySize);
+    const actualDigest = computeCandidateSetSha256([
+      {
+        container: 'kyc',
+        direction: 'azureToS3',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_A),
+        size: inventorySize,
+      },
+    ]);
+
+    const err = await rejectedError(
+      runAdditiveHealOrchestration({
+        reports: [report],
+        s3: makeS3Client(),
+        azure,
+        wormContainers: new Set(['kyc']),
+        healCap: 1,
+        exactCap: false,
+        actualCandidateSetSha256: actualDigest,
+      }),
+    );
+
+    expect(err.message).toMatch(/Source size race for azure->s3/);
+    expect(err.message).toContain('expected 3 bytes');
+    expect(err.message).toContain('got 4 bytes');
+    assertNoSentinelLeak(err.message);
+    expect(download).toHaveBeenCalled();
+    expect(uploadData).not.toHaveBeenCalled();
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  });
+
+  it('orchestration s3→azure fails closed when download size differs from inventory size', async () => {
+    // Inventory bound size=3; download returns 4 bytes — proves size is passed into copyS3ToAzure.
+    const inventorySize = 3;
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: {
+        transformToByteArray: async () => new Uint8Array([1, 2, 3, 4]),
+      } as never,
+      ContentType: 'text/plain',
+      Metadata: {},
+    });
+
+    const uploadData = jest.fn();
+    const azure = makeAzureClient({ uploadData });
+    const report: HealContainerReport = {
+      container: 'support',
+      diff: {
+        onlyOnAzure: [],
+        onlyOnS3: [SENTINEL_KEY_B],
+        sizeMismatch: [],
+        suspectedOverwrite: [],
+      },
+      azureByKey: new Map(),
+      s3ByKey: indexStoredObjectsByKey([storedObject(SENTINEL_KEY_B, inventorySize, t0)]),
+    };
+    const actualDigest = computeCandidateSetSha256([
+      {
+        container: 'support',
+        direction: 's3ToAzure',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_B),
+        size: inventorySize,
+      },
+    ]);
+
+    const err = await rejectedError(
+      runAdditiveHealOrchestration({
+        reports: [report],
+        s3: makeS3Client(),
+        azure,
+        wormContainers: new Set(['kyc']),
+        healCap: 1,
+        exactCap: false,
+        actualCandidateSetSha256: actualDigest,
+      }),
+    );
+
+    expect(err.message).toMatch(/Source size race for s3->azure/);
+    expect(err.message).toContain('expected 3 bytes');
+    expect(err.message).toContain('got 4 bytes');
+    assertNoSentinelLeak(err.message);
+    expect(uploadData).not.toHaveBeenCalled();
   });
 });
