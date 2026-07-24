@@ -61,6 +61,10 @@
  * list is intentionally Azure's authority for which stores are reconciled. Every existing
  * S3 bucket must either be in the requested container list or explicitly declared via
  * RECONCILE_IGNORE_BUCKETS (non-document / system buckets) — unaccounted buckets fail hard.
+ *
+ * Privacy boundary: raw object keys are held in memory for comparison and passed to the
+ * storage SDKs, but are never printed. Verbose diagnostics and heal progress identify an
+ * object only as a stable SHA-256 key digest.
  */
 
 import {
@@ -72,6 +76,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
+import * as crypto from 'crypto';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -83,6 +88,9 @@ import {
 
 /** Max additive heal copies per run when RECONCILE_HEAL_CAP is unset. Logged at runtime. */
 export const DEFAULT_HEAL_CAP = 1000;
+
+/** Runtime marker required by the production operator wrapper before credentials are passed. */
+export const RECONCILER_PRIVACY_LOG_VERSION = 'storage-reconciler-private-logs-v1';
 
 /**
  * Azure lastModified may legitimately lag S3 (or vice versa) by clock skew / write ordering.
@@ -387,9 +395,9 @@ export async function listS3Objects(client: S3Client, bucket: string): Promise<S
 
     for (const o of res.Contents ?? []) {
       if (o.Key == null || o.Key === '' || o.Size == null || o.LastModified == null) {
+        const objectRef = o.Key ? safeObjectReference(bucket, o.Key) : 'key=missing';
         throw new Error(
-          `Incomplete S3 list entry in bucket "${bucket}"` +
-            (o.Key != null && o.Key !== '' ? ` key="${o.Key}"` : '') +
+          `Incomplete S3 list entry in bucket "${bucket}" (${objectRef})` +
             `: Key, Size and LastModified are required from ListObjectsV2 (no HeadObject fallback)`,
         );
       }
@@ -412,9 +420,9 @@ export async function listAzureObjects(containerClient: ContainerClient): Promis
     const lastModified = b.properties?.lastModified;
 
     if (name == null || name === '' || contentLength == null || lastModified == null) {
+      const objectRef = name ? safeObjectReference(container, name) : 'key=missing';
       throw new Error(
-        `Incomplete Azure list entry in container "${container}"` +
-          (name != null && name !== '' ? ` name="${name}"` : '') +
+        `Incomplete Azure list entry in container "${container}" (${objectRef})` +
           `: name, properties.contentLength and properties.lastModified are required from listBlobsFlat`,
       );
     }
@@ -536,12 +544,21 @@ function countAdditive(diff: DiffResult): number {
   return diff.onlyOnAzure.length + diff.onlyOnS3.length;
 }
 
-function printCategory(label: string, keys: string[], verbose: boolean): void {
+export function safeObjectReference(container: string, key: string): string {
+  const keyDigest = crypto.createHash('sha256').update(key).digest('hex');
+  return `${container}/key-sha256:${keyDigest}`;
+}
+
+export function printCategory(container: string, label: string, keys: string[], verbose: boolean): void {
   console.log(`    ${label}: ${keys.length}`);
   if (!verbose || keys.length === 0) return;
   const samples = keys.slice(0, 20);
-  for (const k of samples) console.log(`      - ${k}`);
+  for (const key of samples) console.log(`      - ${safeObjectReference(container, key)}`);
   if (keys.length > 20) console.log(`      ... and ${keys.length - 20} more`);
+}
+
+export function logObjectAction(action: string, direction: string, container: string, key: string): void {
+  console.log(`${action} ${direction} ${safeObjectReference(container, key)}`);
 }
 
 /** Collect a Node readable stream into a single Buffer (for atomic Azure download). */
@@ -576,18 +593,26 @@ export function isAzurePreconditionFailed(err: unknown): boolean {
   return e?.statusCode === 412 || e?.details?.errorCode === 'BlobAlreadyExists';
 }
 
-async function copyAzureToS3(
+export async function copyAzureToS3(
   azureContainer: ContainerClient,
   s3: S3Client,
   bucket: string,
   key: string,
 ): Promise<'healed' | 'skipped'> {
   const blobClient = azureContainer.getBlockBlobClient(key);
-  const download = await blobClient.download();
+  const objectRef = safeObjectReference(bucket, key);
+  const download = await blobClient.download().catch((err) => {
+    throw new Error(`Azure download failed for ${objectRef}`, { cause: err });
+  });
   if (!download.readableStreamBody) {
-    throw new Error(`Empty readableStreamBody for Azure blob ${bucket}/${key}`);
+    throw new Error(`Empty readableStreamBody for Azure blob ${objectRef}`);
   }
-  const data = await streamToBuffer(download.readableStreamBody);
+  let data: Buffer;
+  try {
+    data = await streamToBuffer(download.readableStreamBody);
+  } catch (err) {
+    throw new Error(`Azure download stream failed for ${objectRef}`, { cause: err });
+  }
 
   try {
     await s3.send(
@@ -602,25 +627,33 @@ async function copyAzureToS3(
     );
   } catch (err) {
     if (isS3PreconditionFailed(err)) {
-      console.log(`SKIPPED (appeared concurrently) azure->s3 ${bucket}/${key}`);
+      logObjectAction('SKIPPED (appeared concurrently)', 'azure->s3', bucket, key);
       return 'skipped';
     }
-    throw err;
+    throw new Error(`Azure->S3 copy failed for ${objectRef}`, { cause: err });
   }
 
   return 'healed';
 }
 
-async function copyS3ToAzure(
+export async function copyS3ToAzure(
   s3: S3Client,
   bucket: string,
   azureContainer: ContainerClient,
   key: string,
 ): Promise<'healed' | 'skipped'> {
-  const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-  if (!res.Body) throw new Error(`Empty body for S3 object ${bucket}/${key}`);
+  const objectRef = safeObjectReference(bucket, key);
+  const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key })).catch((err) => {
+    throw new Error(`S3 download failed for ${objectRef}`, { cause: err });
+  });
+  if (!res.Body) throw new Error(`Empty body for S3 object ${objectRef}`);
 
-  const data = Buffer.from(await res.Body.transformToByteArray());
+  let data: Buffer;
+  try {
+    data = Buffer.from(await res.Body.transformToByteArray());
+  } catch (err) {
+    throw new Error(`S3 download stream failed for ${objectRef}`, { cause: err });
+  }
   try {
     await azureContainer.getBlockBlobClient(key).uploadData(data, {
       blobHTTPHeaders: { blobContentType: res.ContentType },
@@ -629,10 +662,10 @@ async function copyS3ToAzure(
     });
   } catch (err) {
     if (isAzurePreconditionFailed(err)) {
-      console.log(`SKIPPED (appeared concurrently) s3->azure ${bucket}/${key}`);
+      logObjectAction('SKIPPED (appeared concurrently)', 's3->azure', bucket, key);
       return 'skipped';
     }
-    throw err;
+    throw new Error(`S3->Azure copy failed for ${objectRef}`, { cause: err });
   }
 
   return 'healed';
@@ -689,10 +722,10 @@ async function main(): Promise<number> {
       reports.push({ container, diff, azureCount: azureObjs.length, s3Count: s3Objs.length });
 
       console.log(`\n[${container}] azure=${azureObjs.length} s3=${s3Objs.length}`);
-      printCategory('onlyOnAzure', diff.onlyOnAzure, verbose);
-      printCategory('onlyOnS3', diff.onlyOnS3, verbose);
-      printCategory('sizeMismatch', diff.sizeMismatch, verbose);
-      printCategory('suspectedOverwrite', diff.suspectedOverwrite, verbose);
+      printCategory(container, 'onlyOnAzure', diff.onlyOnAzure, verbose);
+      printCategory(container, 'onlyOnS3', diff.onlyOnS3, verbose);
+      printCategory(container, 'sizeMismatch', diff.sizeMismatch, verbose);
+      printCategory(container, 'suspectedOverwrite', diff.suspectedOverwrite, verbose);
       if (isEmptyDiff(diff)) console.log('    OK: no divergence');
     } catch (e) {
       throw new Error(`[container="${container}"] ${e?.message ?? e}`, { cause: e });
@@ -768,7 +801,7 @@ async function main(): Promise<number> {
         const result = await copyAzureToS3(azureContainer, s3, r.container, key);
         if (result === 'healed') {
           healedCount++;
-          console.log(`HEALED azure->s3 ${r.container}/${key}`);
+          logObjectAction('HEALED', 'azure->s3', r.container, key);
         } else {
           skippedCount++;
         }
@@ -778,7 +811,7 @@ async function main(): Promise<number> {
         const result = await copyS3ToAzure(s3, r.container, azureContainer, key);
         if (result === 'healed') {
           healedCount++;
-          console.log(`HEALED s3->azure ${r.container}/${key}`);
+          logObjectAction('HEALED', 's3->azure', r.container, key);
         } else {
           skippedCount++;
         }
