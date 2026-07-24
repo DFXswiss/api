@@ -1,12 +1,38 @@
 import { DfxLogger } from '../services/dfx-logger';
 import { Util } from './util';
 
+// Node system-error codes plus the one free-text phrase (socket hang up) that has no
+// code. Deliberately no bare "timeout" — that also matches unrelated DB/query timeouts.
+const CONNECTION_FAILURE_PATTERN =
+  /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|EPIPE|socket hang up/i;
+
 export function isConnectionFailure(e: Error): boolean {
-  // Node system-error codes plus the one free-text phrase (socket hang up) that has no
-  // code. Deliberately no bare "timeout" — that also matches unrelated DB/query timeouts.
-  return /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|EPIPE|socket hang up/i.test(
-    e.message ?? '',
-  );
+  return isConnectionFailureInternal(e, new Set());
+}
+
+function isConnectionFailureInternal(e: Error, visited: Set<Error>): boolean {
+  if (visited.has(e)) return false;
+  visited.add(e);
+
+  // Multi-address connects fail as AggregateError with an empty message; the system-error
+  // code then sits only on the code field / member errors (logged as "AggregateError [ETIMEDOUT]").
+  if (
+    e instanceof AggregateError &&
+    e.errors.some((inner) => inner instanceof Error && isConnectionFailureInternal(inner, visited))
+  )
+    return true;
+
+  if (
+    CONNECTION_FAILURE_PATTERN.test(e.message ?? '') ||
+    CONNECTION_FAILURE_PATTERN.test((e as NodeJS.ErrnoException).code ?? '')
+  )
+    return true;
+
+  // CoinGeckoService (and similar) wrap the raw connect error as { cause: e }; the outer
+  // ServiceUnavailableException then has an empty message and no top-level code, so walk cause.
+  if (e.cause instanceof Error) return isConnectionFailureInternal(e.cause, visited);
+
+  return false;
 }
 
 // Edge-triggered logging for an ongoing outage of a polled dependency: one ERROR when the
