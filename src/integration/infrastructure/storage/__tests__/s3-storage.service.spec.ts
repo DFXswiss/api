@@ -210,8 +210,17 @@ describe('S3StorageService', () => {
   });
 
   describe('uploadWormBlob (WORM/EP2 sink, fail-closed Object-Lock guard)', () => {
-    // Distinct container per test: the verified-container cache is a process-wide static, so reusing
-    // a name would let one test's verification leak into the next.
+    /** Expected RetainUntil bounds: bucket years + 1-day safety margin for client latency/skew. */
+    function retainUntilBounds(beforeMs: number, afterMs: number, years: number): { min: Date; max: Date } {
+      const min = new Date(beforeMs);
+      min.setUTCFullYear(min.getUTCFullYear() + years);
+      min.setUTCDate(min.getUTCDate() + 1);
+      const max = new Date(afterMs);
+      max.setUTCFullYear(max.getUTCFullYear() + years);
+      max.setUTCDate(max.getUTCDate() + 1);
+      return { min, max };
+    }
+
     it('PUTs into a bucket whose Object Lock is enabled', async () => {
       const container = 'ep2-worm-locked';
       const bucketYears = GEBUEV_RETENTION_FLOOR_YEARS;
@@ -242,12 +251,13 @@ describe('S3StorageService', () => {
       });
       const retainUntil = puts[0].args[0].input.ObjectLockRetainUntilDate as Date;
       expect(retainUntil).toBeInstanceOf(Date);
-      const expectedMin = new Date(before);
-      expectedMin.setUTCFullYear(expectedMin.getUTCFullYear() + bucketYears);
-      const expectedMax = new Date(after);
-      expectedMax.setUTCFullYear(expectedMax.getUTCFullYear() + bucketYears);
-      expect(retainUntil.getTime()).toBeGreaterThanOrEqual(expectedMin.getTime());
-      expect(retainUntil.getTime()).toBeLessThanOrEqual(expectedMax.getTime());
+      // at least the bucket default years out (margin makes it slightly more, never less)
+      const yearsOnlyMin = new Date(before);
+      yearsOnlyMin.setUTCFullYear(yearsOnlyMin.getUTCFullYear() + bucketYears);
+      expect(retainUntil.getTime()).toBeGreaterThanOrEqual(yearsOnlyMin.getTime());
+      const { min, max } = retainUntilBounds(before, after, bucketYears);
+      expect(retainUntil.getTime()).toBeGreaterThanOrEqual(min.getTime());
+      expect(retainUntil.getTime()).toBeLessThanOrEqual(max.getTime());
     });
 
     it('mirrors a bucket default higher than the floor on per-object RetainUntilDate', async () => {
@@ -262,26 +272,22 @@ describe('S3StorageService', () => {
       s3Mock.on(PutObjectCommand).resolves({});
 
       const before = Date.now();
-      await new S3StorageService(container).uploadWormBlob(
-        'settlement.ep2',
-        Buffer.from('<ep2/>'),
-        'text/xml',
-      );
+      await new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml');
       const after = Date.now();
 
-      const retainUntil = s3Mock.commandCalls(PutObjectCommand)[0].args[0].input
-        .ObjectLockRetainUntilDate as Date;
+      const retainUntil = s3Mock.commandCalls(PutObjectCommand)[0].args[0].input.ObjectLockRetainUntilDate as Date;
       expect(retainUntil).toBeInstanceOf(Date);
-      // must use the validated bucket years (11), not the floor (10)
-      const expectedMin = new Date(before);
-      expectedMin.setUTCFullYear(expectedMin.getUTCFullYear() + bucketYears);
-      const expectedMax = new Date(after);
-      expectedMax.setUTCFullYear(expectedMax.getUTCFullYear() + bucketYears);
-      expect(retainUntil.getTime()).toBeGreaterThanOrEqual(expectedMin.getTime());
-      expect(retainUntil.getTime()).toBeLessThanOrEqual(expectedMax.getTime());
+      // must use the validated bucket years (11), not the floor (10); at least years out
+      const yearsOnlyMin = new Date(before);
+      yearsOnlyMin.setUTCFullYear(yearsOnlyMin.getUTCFullYear() + bucketYears);
+      expect(retainUntil.getTime()).toBeGreaterThanOrEqual(yearsOnlyMin.getTime());
+      const { min, max } = retainUntilBounds(before, after, bucketYears);
+      expect(retainUntil.getTime()).toBeGreaterThanOrEqual(min.getTime());
+      expect(retainUntil.getTime()).toBeLessThanOrEqual(max.getTime());
       // and must be past what the floor alone would produce
       const floorMax = new Date(after);
       floorMax.setUTCFullYear(floorMax.getUTCFullYear() + GEBUEV_RETENTION_FLOOR_YEARS);
+      floorMax.setUTCDate(floorMax.getUTCDate() + 1);
       expect(retainUntil.getTime()).toBeGreaterThan(floorMax.getTime());
     });
 
@@ -295,12 +301,9 @@ describe('S3StorageService', () => {
       });
       s3Mock.on(PutObjectCommand).resolves({});
 
-      await new S3StorageService(container).uploadWormBlob(
-        'settlement.ep2',
-        Buffer.from('<ep2/>'),
-        'text/xml',
-        { source: 'ep2' },
-      );
+      await new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml', {
+        source: 'ep2',
+      });
 
       const put = s3Mock.commandCalls(PutObjectCommand)[0].args[0].input;
       expect(put.ObjectLockMode).toBe(ObjectLockRetentionMode.COMPLIANCE);
@@ -330,8 +333,9 @@ describe('S3StorageService', () => {
 
     it('fails closed when the lock configuration cannot be read (e.g. bucket has no Object Lock config)', async () => {
       const container = 'ep2-worm-noconfig';
-      const err: any = new Error('Object Lock configuration does not exist for this bucket');
-      err.name = 'ObjectLockConfigurationNotFoundError';
+      const err = Object.assign(new Error('Object Lock configuration does not exist for this bucket'), {
+        name: 'ObjectLockConfigurationNotFoundError',
+      });
       s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).rejects(err);
       s3Mock.on(PutObjectCommand).resolves({});
 
@@ -342,8 +346,8 @@ describe('S3StorageService', () => {
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
     });
 
-    it('verifies Object Lock once per container, then skips the probe on subsequent WORM writes', async () => {
-      const container = 'ep2-worm-cache';
+    it('probes Object Lock on every WORM write (no TTL cache)', async () => {
+      const container = 'ep2-worm-probe-every-write';
       s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
         ObjectLockConfiguration: {
           ObjectLockEnabled: 'Enabled',
@@ -355,11 +359,63 @@ describe('S3StorageService', () => {
       const service = new S3StorageService(container);
       await service.uploadWormBlob('a.ep2', Buffer.from('a'), 'text/xml');
       await service.uploadWormBlob('b.ep2', Buffer.from('b'), 'text/xml');
-      // a fresh instance for the same container must also reuse the cached verification
       await new S3StorageService(container).uploadWormBlob('c.ep2', Buffer.from('c'), 'text/xml');
 
-      expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
+      expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(3);
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(3);
+    });
+
+    it('picks up a raised bucket default retention on the very next WORM write', async () => {
+      const container = 'ep2-worm-raised-default';
+      const lowerYears = GEBUEV_RETENTION_FLOOR_YEARS;
+      const raisedYears = GEBUEV_RETENTION_FLOOR_YEARS + 2;
+      s3Mock
+        .on(GetObjectLockConfigurationCommand, { Bucket: container })
+        .resolvesOnce({
+          ObjectLockConfiguration: {
+            ObjectLockEnabled: 'Enabled',
+            Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: lowerYears } },
+          },
+        })
+        .resolvesOnce({
+          ObjectLockConfiguration: {
+            ObjectLockEnabled: 'Enabled',
+            Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: raisedYears } },
+          },
+        });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      const service = new S3StorageService(container);
+      const beforeFirst = Date.now();
+      await service.uploadWormBlob('first.ep2', Buffer.from('a'), 'text/xml');
+      const afterFirst = Date.now();
+      const beforeSecond = Date.now();
+      await service.uploadWormBlob('second.ep2', Buffer.from('b'), 'text/xml');
+      const afterSecond = Date.now();
+
+      expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(2);
+      const puts = s3Mock.commandCalls(PutObjectCommand);
+      expect(puts).toHaveLength(2);
+
+      const firstRetain = puts[0].args[0].input.ObjectLockRetainUntilDate as Date;
+      const secondRetain = puts[1].args[0].input.ObjectLockRetainUntilDate as Date;
+
+      // first write uses the lower default (at least those years out; margin may add a day)
+      const firstYearsOnlyMin = new Date(beforeFirst);
+      firstYearsOnlyMin.setUTCFullYear(firstYearsOnlyMin.getUTCFullYear() + lowerYears);
+      expect(firstRetain.getTime()).toBeGreaterThanOrEqual(firstYearsOnlyMin.getTime());
+      const firstBounds = retainUntilBounds(beforeFirst, afterFirst, lowerYears);
+      expect(firstRetain.getTime()).toBeGreaterThanOrEqual(firstBounds.min.getTime());
+      expect(firstRetain.getTime()).toBeLessThanOrEqual(firstBounds.max.getTime());
+
+      // second write must mirror the raised default immediately — no stale lower value
+      const secondYearsOnlyMin = new Date(beforeSecond);
+      secondYearsOnlyMin.setUTCFullYear(secondYearsOnlyMin.getUTCFullYear() + raisedYears);
+      expect(secondRetain.getTime()).toBeGreaterThanOrEqual(secondYearsOnlyMin.getTime());
+      const secondBounds = retainUntilBounds(beforeSecond, afterSecond, raisedYears);
+      expect(secondRetain.getTime()).toBeGreaterThanOrEqual(secondBounds.min.getTime());
+      expect(secondRetain.getTime()).toBeLessThanOrEqual(secondBounds.max.getTime());
+      expect(secondRetain.getTime()).toBeGreaterThan(firstRetain.getTime());
     });
 
     it('fails closed when the default retention mode is GOVERNANCE instead of COMPLIANCE', async () => {
