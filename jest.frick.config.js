@@ -38,5 +38,11 @@ module.exports = {
       lines: 100,
       statements: 100,
     },
+    'src/subdomains/supporting/bank/virtual-iban/providers/frick-viban.provider.ts': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
   },
 };
