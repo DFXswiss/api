@@ -2067,60 +2067,45 @@ describe('LogJobService', () => {
       expect(assetLog[yapealEurAsset.id].plusBalance.total).toBe(0);
     });
 
-    it('still reports totalPlusPending < 0 on a non-fiat asset for a deviation between ASSET_BALANCE_TOLERANCE and BALANCE_TOLERANCE', async () => {
-      // Default createCustomAsset() fixture (dexName 'USDT', Blockchain.ETHEREUM) — a non-fiat crypto
-      // asset, distinct from the EUR/CHF Yapeal bank assets used in the other tests of this block.
+    it('reports totalPlusPending < 0 for the same deviation on a non-fiat asset but not on a fiat (EUR) bank asset processed in the same call, both still clamped to 0', async () => {
+      // Same negative deviation (-0.001) on two assets processed in one getAssetLog call, differing
+      // only in amount type: this pins down the branch the asset-dependent tolerance introduces —
+      // whether a deviation is reported depends on financialTypeAmountType(curr.financialType), not on
+      // a flat tolerance shared by every asset.
+      // Non-fiat: default createCustomAsset() fixture (dexName 'USDT', Blockchain.ETHEREUM).
       const cryptoAsset = createCustomAsset({ id: 8009, sellable: true });
+      // Fiat: financialType 'EUR' is what financialTypeAmountType() keys off. Blockchain stays the
+      // (non-Monero/Lightning/Zano) default so cryptoInput is not forced to 0.
+      const fiatAsset = createCustomAsset({ id: 8010, dexName: 'EUR', financialType: 'EUR', sellable: true });
 
       // No Kraken legs at all — isolates the effect to cryptoInput.
       setupUnfilteredKrakenNetting([]);
 
-      // A pending payIn with a negative amount drives cryptoInput (and thus totalPlusPending) to
-      // -0.001 — well below BALANCE_TOLERANCE (0.01) so the flat fiat tolerance would have silently
-      // swallowed this, but well above ASSET_BALANCE_TOLERANCE (1e-8) so it must still be reported for
-      // a non-fiat asset.
+      // Identical -0.001 pending payIn on each asset: above ASSET_BALANCE_TOLERANCE (1e-8) but below
+      // BALANCE_TOLERANCE (0.01) — reported for the non-fiat asset, not for the fiat asset.
       jest
         .spyOn(payInService, 'getPendingPayIns')
-        .mockResolvedValue([createCustomCryptoInput({ asset: cryptoAsset, amount: -0.001 })]);
+        .mockResolvedValue([
+          createCustomCryptoInput({ asset: cryptoAsset, amount: -0.001 }),
+          createCustomCryptoInput({ asset: fiatAsset, amount: -0.001 }),
+        ]);
 
       const verboseSpy = jest.spyOn(service['logger'], 'verbose');
 
-      const assetLog = await service['getAssetLog']([cryptoAsset]);
+      const assetLog = await service['getAssetLog']([cryptoAsset, fiatAsset]);
 
       expect(
         verboseSpy.mock.calls.some((call) =>
-          String(call[0]).includes('Error in financial log, totalPlusPending < 0 for asset:'),
+          String(call[0]).includes(`Error in financial log, totalPlusPending < 0 for asset: ${cryptoAsset.id},`),
         ),
       ).toBe(true);
-      expect(assetLog[cryptoAsset.id].plusBalance.total).toBe(0);
-    });
-
-    it('does not report totalPlusPending < 0 on a fiat (EUR) bank asset for a deviation between ASSET_BALANCE_TOLERANCE and BALANCE_TOLERANCE, but still clamps it to 0', async () => {
-      // financialType 'EUR' is what financialTypeAmountType() actually keys off — this is the
-      // counterpart to the non-fiat test above (asset 8009), isolating the fiat/asset distinction to
-      // financialType rather than blockchain/dexName. Blockchain stays the (non-Monero/Lightning/Zano)
-      // default so cryptoInput is not forced to 0.
-      const eurBankAsset = createCustomAsset({ id: 8010, dexName: 'EUR', financialType: 'EUR', sellable: true });
-
-      // No Kraken legs at all — isolates the effect to cryptoInput.
-      setupUnfilteredKrakenNetting([]);
-
-      // Same magnitude as the non-fiat test (-0.001): above ASSET_BALANCE_TOLERANCE (1e-8) but below
-      // BALANCE_TOLERANCE (0.01) — for a fiat-typed asset this must stay unreported, unlike asset 8009.
-      jest
-        .spyOn(payInService, 'getPendingPayIns')
-        .mockResolvedValue([createCustomCryptoInput({ asset: eurBankAsset, amount: -0.001 })]);
-
-      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
-
-      const assetLog = await service['getAssetLog']([eurBankAsset]);
-
       expect(
         verboseSpy.mock.calls.some((call) =>
-          String(call[0]).includes('Error in financial log, totalPlusPending < 0 for asset:'),
+          String(call[0]).includes(`Error in financial log, totalPlusPending < 0 for asset: ${fiatAsset.id},`),
         ),
       ).toBe(false);
-      expect(assetLog[eurBankAsset.id].plusBalance.total).toBe(0);
+      expect(assetLog[cryptoAsset.id].plusBalance.total).toBe(0);
+      expect(assetLog[fiatAsset.id].plusBalance.total).toBe(0);
     });
   });
 });
