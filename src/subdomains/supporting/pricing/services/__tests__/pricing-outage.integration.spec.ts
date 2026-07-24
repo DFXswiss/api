@@ -173,4 +173,42 @@ describe('pricing outage integration (CoinGecko client mock only)', () => {
     expect(loggerLog).not.toHaveBeenCalledWith(LogLevel.ERROR, expect.anything(), expect.anything());
     expect(blockchainFeeRepo.save).not.toHaveBeenCalled();
   });
+
+  it('surfaces a CoinGecko AggregateError (empty message, code on members only) as PriceUnavailableException', async () => {
+    // Real-world multi-address connect failure: empty top-level message, no top-level code;
+    // ETIMEDOUT lives only on AggregateError member errors. CoinGeckoService wraps this as
+    // ServiceUnavailableException({ cause }), so classification must walk the cause chain.
+    simplePrice = jest
+      .fn()
+      .mockRejectedValue(new AggregateError([Object.assign(new Error(), { code: 'ETIMEDOUT' })], ''));
+    (coinGeckoService as any).client = { simplePrice };
+
+    const error = await (feeService as any).calculateBlockchainFeeInChf(feeAsset, PriceValidity.ANY).then(
+      () => fail('expected calculateBlockchainFeeInChf to reject'),
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(PriceUnavailableException);
+    expect(simplePrice).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs a CoinGecko AggregateError outage at WARN in updateBlockchainFees', async () => {
+    simplePrice = jest
+      .fn()
+      .mockRejectedValue(new AggregateError([Object.assign(new Error(), { code: 'ETIMEDOUT' })], ''));
+    (coinGeckoService as any).client = { simplePrice };
+
+    blockchainFeeRepo.find.mockResolvedValue([{ asset: feeAsset, amount: 1, updated: new Date() } as any]);
+    const loggerLog = jest.spyOn(DfxLogger.prototype, 'log').mockImplementation();
+
+    await feeService.updateBlockchainFees();
+
+    expect(loggerLog).toHaveBeenCalledWith(
+      LogLevel.WARN,
+      expect.stringContaining(String(feeAsset.id)),
+      expect.any(PriceUnavailableException),
+    );
+    expect(loggerLog).not.toHaveBeenCalledWith(LogLevel.ERROR, expect.anything(), expect.anything());
+    expect(blockchainFeeRepo.save).not.toHaveBeenCalled();
+  });
 });

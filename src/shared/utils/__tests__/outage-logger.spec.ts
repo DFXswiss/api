@@ -23,4 +23,24 @@ describe('isConnectionFailure', () => {
     expect(isConnectionFailure(new Error('query timeout exceeded'))).toBe(false);
     expect(isConnectionFailure(new AggregateError([new Error('some failure')], 'all fail'))).toBe(false);
   });
+
+  it('matches a wrapping error whose cause is a connection-class AggregateError', () => {
+    const member = Object.assign(new Error(''), { code: 'ETIMEDOUT' });
+    const wrapped = Object.assign(new Error(''), {
+      cause: new AggregateError([member], ''),
+    });
+
+    expect(isConnectionFailure(wrapped)).toBe(true);
+  });
+
+  it('does not match a wrapping error whose cause chain has only non-connection errors', () => {
+    const wrapped = Object.assign(new Error(''), {
+      cause: new AggregateError([new Error('some failure')], 'all fail'),
+    });
+
+    expect(isConnectionFailure(wrapped)).toBe(false);
+    expect(isConnectionFailure(Object.assign(new Error('wrapper'), { cause: new Error('Price not found') }))).toBe(
+      false,
+    );
+  });
 });
