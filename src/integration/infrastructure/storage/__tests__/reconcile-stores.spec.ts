@@ -1312,9 +1312,7 @@ describe('copyAzureToS3 / copyS3ToAzure preconditions', () => {
     } as never;
 
     for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
-      const err = await rejectedError(
-        copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, invalid),
-      );
+      const err = await rejectedError(copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, invalid));
       expect(err.message).toMatch(/Invalid expectedSourceSize for azure->s3/);
       expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_A));
       assertNoSentinelLeak(err.message);
@@ -1331,9 +1329,7 @@ describe('copyAzureToS3 / copyS3ToAzure preconditions', () => {
     } as never;
 
     for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
-      const err = await rejectedError(
-        copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, invalid),
-      );
+      const err = await rejectedError(copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, invalid));
       expect(err.message).toMatch(/Invalid expectedSourceSize for s3->azure/);
       expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_B));
       assertNoSentinelLeak(err.message);
