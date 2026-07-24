@@ -109,6 +109,7 @@ export class BuyCryptoPreparationService {
   }
 
   async doAmlCheck(): Promise<void> {
+    // selection mirrored by BuyCrypto.isAmlPricingPending (ledger gate-block) — keep in sync
     const request: FindOptionsWhere<BuyCrypto> = {
       inputAmount: Not(IsNull()),
       inputAsset: Not(IsNull()),
