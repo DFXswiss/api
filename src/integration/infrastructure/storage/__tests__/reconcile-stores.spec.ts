@@ -426,7 +426,12 @@ describe('additive summary and candidateSetSha256', () => {
   it('is stable and order-independent over the same candidate multiset', () => {
     const candidatesForward = [
       { container: 'kyc', direction: 'azureToS3' as const, keySha256: hashObjectKeySha256(SENTINEL_KEY_A), size: 10 },
-      { container: 'support', direction: 's3ToAzure' as const, keySha256: hashObjectKeySha256(SENTINEL_KEY_B), size: 20 },
+      {
+        container: 'support',
+        direction: 's3ToAzure' as const,
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_B),
+        size: 20,
+      },
       { container: 'kyc', direction: 's3ToAzure' as const, keySha256: hashObjectKeySha256(SENTINEL_KEY_C), size: 30 },
     ];
     const candidatesReversed = [...candidatesForward].reverse();
@@ -453,9 +458,9 @@ describe('additive summary and candidateSetSha256', () => {
 
     expect(computeCandidateSetSha256([{ ...base, container: 'support' }])).not.toBe(baseDigest);
     expect(computeCandidateSetSha256([{ ...base, direction: 's3ToAzure' }])).not.toBe(baseDigest);
-    expect(
-      computeCandidateSetSha256([{ ...base, keySha256: hashObjectKeySha256(SENTINEL_KEY_B) }]),
-    ).not.toBe(baseDigest);
+    expect(computeCandidateSetSha256([{ ...base, keySha256: hashObjectKeySha256(SENTINEL_KEY_B) }])).not.toBe(
+      baseDigest,
+    );
     expect(computeCandidateSetSha256([{ ...base, size: 11 }])).not.toBe(baseDigest);
   });
 
@@ -593,9 +598,7 @@ describe('privacy-safe detail mode', () => {
     });
     const output = consoleSpy.mock.calls.flat().join('\n');
     expect(output).toContain('... and 5 more');
-    const detailLines = consoleSpy.mock.calls
-      .map((c) => String(c[0]))
-      .filter((line) => line.includes('key-sha256='));
+    const detailLines = consoleSpy.mock.calls.map((c) => String(c[0])).filter((line) => line.includes('key-sha256='));
     expect(detailLines).toHaveLength(20);
   });
 });
@@ -1253,11 +1256,7 @@ describe('runAdditiveHealOrchestration (production HEAL path)', () => {
     jest.restoreAllMocks();
   });
 
-  function makeAzureClient(opts?: {
-    download?: jest.Mock;
-    uploadData?: jest.Mock;
-    getContainerClient?: jest.Mock;
-  }): {
+  function makeAzureClient(opts?: { download?: jest.Mock; uploadData?: jest.Mock; getContainerClient?: jest.Mock }): {
     getContainerClient: jest.Mock;
     download: jest.Mock;
     uploadData: jest.Mock;
