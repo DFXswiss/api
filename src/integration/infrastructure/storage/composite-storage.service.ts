@@ -1,4 +1,5 @@
 import { Config, StorageReadSource, StorageWriteMode } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AzureStorageService } from './azure-storage.service';
 import { S3StorageService } from './s3-storage.service';
 import { Blob, BlobContent, StorageService } from './storage.service';
@@ -21,6 +22,7 @@ import { Blob, BlobContent, StorageService } from './storage.service';
  * from StorageService for the same reason.
  */
 export class CompositeStorageService extends StorageService {
+  private readonly logger = new DfxLogger(CompositeStorageService);
   private readonly s3: S3StorageService;
   private readonly azure: AzureStorageService;
 
@@ -93,17 +95,29 @@ export class CompositeStorageService extends StorageService {
     if (mode === 's3') return this.s3.copyBlobs(sourcePrefix, targetPrefix);
 
     // dual: same order rule as upload (read-source first). An empty source prefix on one side
-    // is a legitimate no-op (returns []) — not an error. The Azure/S3 asymmetry when one side
-    // was pre-backfill is expected and gets healed by a later reconcile service (out of scope).
+    // is a legitimate no-op (returns []) — not an error. Azure/S3 length asymmetry (e.g. source
+    // exists only on one side before backfill) must not fail closed (account merges during the
+    // migration window); log loudly and rely on the mandatory reconciler gate to heal the
+    // divergence before the read flip.
     const readSource = this.getReadSource();
     let s3Result: string[];
+    let azureResult: string[];
     if (readSource === 'azure') {
-      await this.azure.copyBlobs(sourcePrefix, targetPrefix);
+      azureResult = await this.azure.copyBlobs(sourcePrefix, targetPrefix);
       s3Result = await this.s3.copyBlobs(sourcePrefix, targetPrefix);
     } else {
       s3Result = await this.s3.copyBlobs(sourcePrefix, targetPrefix);
-      await this.azure.copyBlobs(sourcePrefix, targetPrefix);
+      azureResult = await this.azure.copyBlobs(sourcePrefix, targetPrefix);
     }
+
+    if (azureResult.length !== s3Result.length) {
+      this.logger.warn(
+        `copyBlobs dual-write asymmetry: sourcePrefix=${sourcePrefix} targetPrefix=${targetPrefix} ` +
+          `azureCount=${azureResult.length} s3Count=${s3Result.length}; ` +
+          `the reconciler gate must heal this divergence before the read flip`,
+      );
+    }
+
     return s3Result;
   }
 }

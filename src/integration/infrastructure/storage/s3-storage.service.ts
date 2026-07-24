@@ -20,16 +20,20 @@ import { GEBUEV_RETENTION_FLOOR_YEARS } from './worm-retention.const';
  * Replaces AzureStorageService. The blob URL shape is kept identical so `blobName()`
  * stays reversible and URLs persisted in the DB remain consistent after migration.
  *
- * WORM / Object-Lock is expected to be enforced server-side via the bucket's default
- * retention (Compliance mode), provisioned externally at bucket setup. It is
- * intentionally not applied per request here.
+ * WORM writes (`uploadWormBlob`) attach per-object COMPLIANCE retention that mirrors
+ * the bucket's validated default retention years (floor-clamped to
+ * `GEBUEV_RETENTION_FLOOR_YEARS`). An explicit per-object retention overrides the
+ * bucket default, so it must never be shorter than that validated default.
+ * Bucket-level Object Lock is still verified as defense in depth.
  */
 export class S3StorageService extends StorageService {
-  // Containers verified to have Object Lock enabled, with timestamp of last successful probe.
-  // Static so the check is amortized across the short-lived per-container instances the EP2 sink
-  // creates (createStorageService per report). Re-verified after TTL so a later bucket-side
-  // retention weakening is not masked for the rest of the process lifetime.
-  private static readonly objectLockVerifiedAt = new Map<string, number>();
+  // Containers verified to have Object Lock enabled: last successful probe timestamp plus the
+  // validated DefaultRetention.Years from that probe. Static so the check is amortized across
+  // the short-lived per-container instances the EP2 sink creates (createStorageService per
+  // report). Re-verified after TTL so a later bucket-side retention weakening is not masked
+  // for the rest of the process lifetime. Years are cached with the timestamp so WORM PUTs
+  // can reuse them on a cache hit without re-probing.
+  private static readonly objectLockVerified = new Map<string, { verifiedAt: number; years: number }>();
   private static readonly OBJECT_LOCK_VERIFY_TTL_MS = 5 * 60 * 1000;
 
   private _client?: S3Client;
@@ -77,18 +81,47 @@ export class S3StorageService extends StorageService {
     return this.blobUrl(name);
   }
 
-  // WORM sink (GeBüV): fail closed unless the target bucket enforces Object Lock. Object Lock
-  // cannot be retro-fitted onto an existing bucket, so writing a compliance record into a
-  // non-locked (or unverifiable) bucket would leave it mutable/deletable forever — we refuse
-  // rather than under-protect. Verified per container with a short TTL; hot-path PUTs skip the probe.
+  // WORM sink (GeBüV): fail closed unless the target bucket enforces Object Lock (defense in
+  // depth). Object Lock cannot be retro-fitted onto an existing bucket, so writing a compliance
+  // record into a non-locked (or unverifiable) bucket would leave it mutable/deletable forever —
+  // we refuse rather than under-protect. Verified per container with a short TTL. Every WORM PUT
+  // also sets per-object COMPLIANCE retention mirroring the bucket's validated default years
+  // (floor-clamped): an explicit per-object retention overrides the bucket default, so it must
+  // never be shorter than that validated default.
   async uploadWormBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
-    await this.assertObjectLockEnabled();
-    return this.uploadBlob(name, data, type, metadata);
+    const validatedBucketYears = await this.assertObjectLockEnabled();
+    const retainYears = Math.max(validatedBucketYears, GEBUEV_RETENTION_FLOOR_YEARS);
+
+    const retainUntil = new Date();
+    retainUntil.setUTCFullYear(retainUntil.getUTCFullYear() + retainYears);
+
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.container,
+        Key: name,
+        Body: data,
+        ContentType: type,
+        Metadata: metadata,
+        ObjectLockMode: ObjectLockRetentionMode.COMPLIANCE,
+        ObjectLockRetainUntilDate: retainUntil,
+      }),
+    );
+
+    return this.blobUrl(name);
   }
 
-  private async assertObjectLockEnabled(): Promise<void> {
-    const verifiedAt = S3StorageService.objectLockVerifiedAt.get(this.container);
-    if (verifiedAt != null && Date.now() - verifiedAt < S3StorageService.OBJECT_LOCK_VERIFY_TTL_MS) return;
+  /** Verifies Object Lock + COMPLIANCE default retention; returns the validated default years. */
+  private async assertObjectLockEnabled(): Promise<number> {
+    const cached = S3StorageService.objectLockVerified.get(this.container);
+    if (cached != null && Date.now() - cached.verifiedAt < S3StorageService.OBJECT_LOCK_VERIFY_TTL_MS) {
+      if (cached.years == null || !(cached.years >= GEBUEV_RETENTION_FLOOR_YEARS))
+        throw new Error(
+          `Refusing WORM write into bucket "${this.container}": cached Object Lock retention years are unavailable ` +
+            `or below the floor (got Years=${cached.years}). GeBüV compliance records must not be written without a ` +
+            `validated retention period.`,
+        );
+      return cached.years;
+    }
 
     let cfg:
       | { ObjectLockEnabled?: string; Rule?: { DefaultRetention?: { Mode?: string; Years?: number } } }
@@ -107,22 +140,24 @@ export class S3StorageService extends StorageService {
     }
 
     const retention = cfg?.Rule?.DefaultRetention;
+    const years = retention?.Years;
     const isValid =
       cfg?.ObjectLockEnabled === 'Enabled' &&
       retention?.Mode === ObjectLockRetentionMode.COMPLIANCE &&
-      retention?.Years != null &&
-      retention.Years >= GEBUEV_RETENTION_FLOOR_YEARS;
+      years != null &&
+      years >= GEBUEV_RETENTION_FLOOR_YEARS;
 
-    if (!isValid)
+    if (!isValid || years == null)
       throw new Error(
         `Refusing WORM write into bucket "${this.container}": Object Lock is not enabled with a COMPLIANCE-mode ` +
           `default retention of at least ${GEBUEV_RETENTION_FLOOR_YEARS} year(s) (got ObjectLockEnabled=` +
-          `${cfg?.ObjectLockEnabled}, Mode=${retention?.Mode}, Years=${retention?.Years}). GeBüV compliance ` +
+          `${cfg?.ObjectLockEnabled}, Mode=${retention?.Mode}, Years=${years}). GeBüV compliance ` +
           `records must be WORM-protected and Object Lock cannot be retro-fitted onto an existing bucket. ` +
           `Provision it first (scripts/storage/provision-bucket.ts).`,
       );
 
-    S3StorageService.objectLockVerifiedAt.set(this.container, Date.now());
+    S3StorageService.objectLockVerified.set(this.container, { verifiedAt: Date.now(), years });
+    return years;
   }
 
   async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<string[]> {

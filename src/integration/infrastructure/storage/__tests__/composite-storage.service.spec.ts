@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { assertValidStorageCombo, Config, Environment, StorageReadSource, StorageWriteMode } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AzureStorageService } from '../azure-storage.service';
 import { CompositeStorageService } from '../composite-storage.service';
@@ -251,6 +252,36 @@ describe('CompositeStorageService', () => {
       expect(result).toEqual(['dst/a', 'dst/b']);
       expect(azureCopy).toHaveBeenCalledWith('src/', 'dst/');
       expect(s3Copy).toHaveBeenCalledWith('src/', 'dst/');
+    });
+
+    it('logs a warning on dual-write length asymmetry but still returns the S3 result (never throws)', async () => {
+      await provideConfig('dual', 'azure');
+      azureCopy.mockResolvedValue(['dst/from-azure-only']);
+      s3Copy.mockResolvedValue(['dst/a', 'dst/b']);
+      const warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
+
+      const result = await new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/');
+
+      expect(result).toEqual(['dst/a', 'dst/b']);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('copyBlobs dual-write asymmetry');
+      expect(warnSpy.mock.calls[0][0]).toContain('sourcePrefix=src/');
+      expect(warnSpy.mock.calls[0][0]).toContain('targetPrefix=dst/');
+      expect(warnSpy.mock.calls[0][0]).toContain('azureCount=1');
+      expect(warnSpy.mock.calls[0][0]).toContain('s3Count=2');
+      expect(warnSpy.mock.calls[0][0]).toContain('reconciler gate must heal this divergence before the read flip');
+    });
+
+    it('does not warn when both backends copy the same number of objects', async () => {
+      await provideConfig('dual', 'azure');
+      azureCopy.mockResolvedValue(['dst/a', 'dst/b']);
+      s3Copy.mockResolvedValue(['dst/a', 'dst/b']);
+      const warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
+
+      const result = await new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/');
+
+      expect(result).toEqual(['dst/a', 'dst/b']);
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it('copies S3 first when readSource=s3', async () => {
