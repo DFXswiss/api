@@ -9,6 +9,7 @@ function virtualIban(
     vban?: string;
     state?: FrickVirtualIbanState;
     referenceAccountIban?: string;
+    description?: string;
   } = {},
 ) {
   return {
@@ -19,6 +20,7 @@ function virtualIban(
     createdBy: 'synthetic',
     activationApprovals: [],
     deactivationApprovals: [],
+    ...(overrides.description && { description: overrides.description }),
   };
 }
 
@@ -27,6 +29,7 @@ describe('FrickVibanProvider', () => {
     isVibanAvailable: jest.Mock;
     createViban: jest.Mock;
     approveVibanActivation: jest.Mock;
+    listAllVibans: jest.Mock;
   };
   let provider: FrickVibanProvider;
 
@@ -35,6 +38,7 @@ describe('FrickVibanProvider', () => {
       isVibanAvailable: jest.fn(),
       createViban: jest.fn(),
       approveVibanActivation: jest.fn(),
+      listAllVibans: jest.fn(),
     };
     provider = new FrickVibanProvider(bankFrickService as unknown as BankFrickService);
   });
@@ -73,6 +77,16 @@ describe('FrickVibanProvider', () => {
     expect(bankFrickService.approveVibanActivation).not.toHaveBeenCalled();
   });
 
+  it('passes the non-PII issuance reference as the exact Frick description', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const created = virtualIban({ state: FrickVirtualIbanState.ACTIVE });
+    bankFrickService.createViban.mockResolvedValue(created);
+
+    await provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference');
+
+    expect(bankFrickService.createViban).toHaveBeenCalledWith('LI32088110105923K000C', 'dfx-viban-technical-reference');
+  });
+
   it('approves a PREPARED create and returns the activated vban', async () => {
     bankFrickService.isVibanAvailable.mockReturnValue(true);
     const created = virtualIban({ vban: 'LI22PREPARED00000001', state: FrickVirtualIbanState.PREPARED });
@@ -99,6 +113,35 @@ describe('FrickVibanProvider', () => {
 
     await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(
       /Bank Frick virtual IBAN LI33STUCK00000000001 could not be activated \(state: PREPARED\)/,
+    );
+  });
+
+  it('finds exactly one recoverable vIBAN by exact description across the full listing', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const exact = virtualIban({ description: 'dfx-viban-reference' });
+    bankFrickService.listAllVibans.mockResolvedValue([
+      virtualIban({ description: 'dfx-viban-reference-other' }),
+      exact,
+    ]);
+
+    await expect(provider.findRecoverableByDescription('dfx-viban-reference', 'LI32088110105923K000C')).resolves.toBe(
+      exact,
+    );
+    expect(bankFrickService.listAllVibans).toHaveBeenCalledWith('LI32088110105923K000C', [
+      FrickVirtualIbanState.PREPARED,
+      FrickVirtualIbanState.ACTIVE,
+    ]);
+  });
+
+  it('fails closed when the same recovery description has multiple matches', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    bankFrickService.listAllVibans.mockResolvedValue([
+      virtualIban({ description: 'dfx-viban-duplicate' }),
+      virtualIban({ vban: 'LI11ACTIVE00000000001', description: 'dfx-viban-duplicate' }),
+    ]);
+
+    await expect(provider.findRecoverableByDescription('dfx-viban-duplicate', 'LI32088110105923K000C')).rejects.toThrow(
+      ServiceUnavailableException,
     );
   });
 });

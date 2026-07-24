@@ -946,6 +946,20 @@ describe('BankFrickService', () => {
     expect(createRequest.headers.algorithm).toBe('rsa-sha512');
   });
 
+  it('includes the technical issuance reference as description in the signed create request', async () => {
+    const response = virtualIbanResponse();
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await service.createViban(debtorIban, 'dfx-viban-technical-reference');
+
+    const createRequest = http.request.mock.calls[1][0];
+    expect(JSON.parse(createRequest.data)).toEqual({
+      referenceAccountIban: debtorIban,
+      description: 'dfx-viban-technical-reference',
+    });
+    expectSignature(createRequest.data, createRequest.headers.Signature);
+  });
+
   it('canonicalizes a non-canonical response vban on create and approve', async () => {
     const nonCanonical = `${debtorIban.slice(0, 6).toLowerCase()} ${debtorIban.slice(6).toLowerCase()}`;
     const createResponse = { ...virtualIbanResponse(), vban: nonCanonical };
@@ -1082,7 +1096,9 @@ describe('BankFrickService', () => {
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(listResponse);
 
     await expect(service.listVibans()).resolves.toEqual(listResponse);
-    expect(http.request.mock.calls[1][0].url).toBe('https://vban.bank.invalid/vban/virtual-ibans');
+    expect(http.request.mock.calls[1][0].url).toBe(
+      'https://vban.bank.invalid/vban/virtual-ibans?pageIndex=0&pageSize=50',
+    );
 
     http.request.mockResolvedValueOnce(listResponse);
     await service.listVibans(debtorIban, [FrickVirtualIbanState.ACTIVE, FrickVirtualIbanState.PREPARED]);
@@ -1103,6 +1119,37 @@ describe('BankFrickService', () => {
       virtualIbans: [{ ...item, vban: '' }],
     });
     await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+  });
+
+  it('traverses every virtual-IBAN page and rejects pagination that does not advance', async () => {
+    const first = virtualIbanResponse({ state: FrickVirtualIbanState.PREPARED });
+    const second = virtualIbanResponse({
+      state: FrickVirtualIbanState.ACTIVE,
+      vban: createSyntheticIban('LI', '00000VBANACCOUNT2'),
+    });
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce({
+        pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 2 },
+        virtualIbans: [first],
+      })
+      .mockResolvedValueOnce({
+        pagination: { hasMore: false, pageIndex: 1, pageSize: 1, totalCount: 2 },
+        virtualIbans: [second],
+      });
+
+    await expect(
+      service.listAllVibans(debtorIban, [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE], 1),
+    ).resolves.toEqual([first, second]);
+    expect(new URL(http.request.mock.calls[2][0].url).searchParams.get('pageIndex')).toBe('1');
+
+    http = { request: jest.fn() };
+    service = new BankFrickService(http as unknown as HttpService);
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({
+      pagination: { hasMore: true, pageIndex: 1, pageSize: 1, totalCount: 2 },
+      virtualIbans: [first],
+    });
+    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow('unexpected pageIndex');
   });
 
   it('refreshes once after a 401 on the VBAN path and retries the original request once', async () => {

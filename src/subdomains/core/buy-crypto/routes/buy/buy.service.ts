@@ -25,6 +25,7 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -37,7 +38,7 @@ import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { GetBuyPaymentInfoDto, PersonalIbanProvider } from './dto/get-buy-payment-info.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
@@ -264,6 +265,21 @@ export class BuyService {
       wallet: true,
     });
 
+    // Resolve the deposit destination exactly once, before fee calculation. An explicitly requested
+    // Frick vIBAN is fail-closed and therefore must never be replaced by the default-bank path.
+    const resolvedBank = await this.resolveBankInfo(
+      {
+        amount: dto.amount,
+        currency: dto.currency.name,
+        paymentMethod: dto.paymentMethod,
+        userData: user.userData,
+      },
+      buy,
+      dto.asset,
+      user.wallet,
+      dto.personalIbanProvider,
+    );
+
     const {
       timestamp,
       minVolume,
@@ -289,19 +305,14 @@ export class BuyService {
       CryptoPaymentMethod.CRYPTO,
       dto.exactPrice,
       user,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      dto.paymentMethod === FiatPaymentMethod.CARD ? undefined : resolvedBank.bankName,
     );
 
-    const bankInfo = await this.getBankInfo(
-      {
-        amount: amount,
-        currency: dto.currency.name,
-        paymentMethod: dto.paymentMethod,
-        userData: user.userData,
-      },
-      buy,
-      dto.asset,
-      user.wallet,
-    );
+    const bankInfo = resolvedBank.bankInfo;
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
@@ -346,7 +357,10 @@ export class BuyService {
           : undefined,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id);
+    await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id, {
+      bankId: resolvedBank.bankId,
+      virtualIbanId: resolvedBank.virtualIbanId,
+    });
 
     return buyDto;
   }
@@ -357,6 +371,74 @@ export class BuyService {
     asset?: Asset,
     wallet?: Wallet,
   ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
+    return this.resolveBankInfo(selector, buy, asset, wallet).then((resolved) => resolved.bankInfo);
+  }
+
+  /**
+   * Rebuilds invoice bank data from the exact IDs persisted with a new transaction request.
+   * Dynamic legacy selection is permitted only when both IDs are absent.
+   */
+  async getBankInfoForRequest(
+    selector: BankSelectorInput,
+    buy: Buy,
+    bankId?: number,
+    virtualIbanId?: number,
+    asset?: Asset,
+    wallet?: Wallet,
+  ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
+    if (bankId == null && virtualIbanId == null) return this.getBankInfo(selector, buy, asset, wallet);
+    if (bankId == null) throw new BadRequestException('Stored transaction request bank selection is incomplete');
+
+    const bank = await this.bankService.getBankById(bankId);
+    if (!bank) throw new BadRequestException('Stored transaction request bank no longer exists');
+
+    if (virtualIbanId != null) {
+      const virtualIban = await this.virtualIbanService.getByIdForUser(virtualIbanId, selector.userData.id);
+      if (!virtualIban) throw new BadRequestException('Stored personal IBAN does not belong to this user');
+      if (
+        virtualIban.bank.id !== bankId ||
+        virtualIban.currency.name !== selector.currency ||
+        (virtualIban.buy && virtualIban.buy.id !== buy.id)
+      )
+        throw new BadRequestException('Stored personal IBAN does not match this transaction request');
+
+      return this.buildVirtualIbanResponse(virtualIban, selector.userData, virtualIban.buy ? undefined : buy.bankUsage);
+    }
+
+    return this.buildBankResponse(bank, buy.bankUsage);
+  }
+
+  private async resolveBankInfo(
+    selector: BankSelectorInput,
+    buy?: Buy,
+    asset?: Asset,
+    wallet?: Wallet,
+    personalIbanProvider?: PersonalIbanProvider,
+  ): Promise<{
+    bankInfo: BankInfoDto & { isPersonalIban: boolean; reference?: string };
+    bankId: number;
+    virtualIbanId?: number;
+    bankName: IbanBankName;
+  }> {
+    if (personalIbanProvider === PersonalIbanProvider.FRICK) {
+      if (selector.currency !== 'EUR')
+        throw new BadRequestException('Bank Frick personal IBAN is only available for EUR');
+      if (selector.paymentMethod !== FiatPaymentMethod.BANK)
+        throw new BadRequestException('Bank Frick personal IBAN requires bank payment');
+      if (selector.userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('KycRequired');
+
+      const virtualIban = await this.virtualIbanService.getOrCreateFrickForUser(selector.userData, selector.currency);
+      if (!virtualIban.bank.receive || virtualIban.bank.name !== IbanBankName.FRICK)
+        throw new BadRequestException('Bank Frick personal IBAN is not available');
+
+      return {
+        bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
+        bankId: virtualIban.bank.id,
+        virtualIbanId: virtualIban.id,
+        bankName: virtualIban.bank.name,
+      };
+    }
+
     // asset-specific personal IBAN
     if (
       buy &&
@@ -377,7 +459,12 @@ export class BuyService {
       }
 
       if (virtualIban?.bank.receive) {
-        return this.buildVirtualIbanResponse(virtualIban, selector.userData);
+        return {
+          bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData),
+          bankId: virtualIban.bank.id,
+          virtualIbanId: virtualIban.id,
+          bankName: virtualIban.bank.name,
+        };
       }
     }
 
@@ -390,7 +477,12 @@ export class BuyService {
     }
 
     if (virtualIban?.bank.receive) {
-      return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
+      return {
+        bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
+        bankId: virtualIban.bank.id,
+        virtualIbanId: virtualIban.id,
+        bankName: virtualIban.bank.name,
+      };
     }
 
     // normal bank selection
@@ -399,13 +491,24 @@ export class BuyService {
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
     return {
+      bankInfo: this.buildBankResponse(bank, buy?.bankUsage),
+      bankId: bank.id,
+      bankName: bank.name,
+    };
+  }
+
+  private buildBankResponse(
+    bank: Awaited<ReturnType<BankService['getBank']>>,
+    reference?: string,
+  ): BankInfoDto & { isPersonalIban: boolean; reference?: string } {
+    return {
       ...Config.bank.dfxAddress,
       bank: bank.name,
       iban: bank.iban,
       bic: bank.bic,
       sepaInstant: bank.sctInst,
       isPersonalIban: false,
-      reference: buy?.bankUsage,
+      reference,
     };
   }
 

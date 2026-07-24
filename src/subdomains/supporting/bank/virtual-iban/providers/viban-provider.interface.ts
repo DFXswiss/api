@@ -10,5 +10,6 @@ export interface VibanProvider {
   readonly bankName: IbanBankName;
   readonly currencies: string[];
   isAvailable(): boolean;
-  reserveViban(baseAccountIban: string): Promise<ReservedViban>;
+  /** Optional non-PII description is provider-specific (Bank Frick uses it for crash recovery). */
+  reserveViban(baseAccountIban: string, description?: string): Promise<ReservedViban>;
 }

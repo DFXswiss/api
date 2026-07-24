@@ -110,6 +110,7 @@ export class TransactionRequestService {
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
     userId: number,
+    bankSelection?: { bankId: number; virtualIbanId?: number },
   ): Promise<TransactionRequest | undefined> {
     try {
       const uid = Util.createUid(Config.prefixes.quoteUidPrefix);
@@ -151,6 +152,8 @@ export class TransactionRequestService {
           transactionRequest.sourceId = buyResponse.currency.id;
           transactionRequest.targetId = buyResponse.asset.id;
           transactionRequest.paymentLink = buyResponse.paymentLink;
+          transactionRequest.bankId = bankSelection?.bankId;
+          transactionRequest.virtualIbanId = bankSelection?.virtualIbanId;
           sourceCurrencyName = buyResponse.currency.name;
           targetCurrencyName = buyResponse.asset.name;
           blockchain = buyResponse.asset.blockchain;

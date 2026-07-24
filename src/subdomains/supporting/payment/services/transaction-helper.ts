@@ -264,6 +264,7 @@ export class TransactionHelper implements OnModuleInit {
     specialCodes: string[] = [],
     ibanCountry?: string,
     country?: string,
+    bankInOverride?: CardBankName | IbanBankName,
   ): Promise<TransactionDetails> {
     const priceValidity = exactPrice ? PriceValidity.PREFER_VALID : PriceValidity.ANY;
 
@@ -273,7 +274,7 @@ export class TransactionHelper implements OnModuleInit {
     const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, PriceValidity.ANY);
     const txAmountChf = chfPrice.convert(txAmount);
 
-    const bankIn = await this.getBankIn(from, paymentMethodIn, user?.userData);
+    const bankIn = bankInOverride ?? (await this.getBankIn(from, paymentMethodIn, user?.userData));
     const bankOut = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodOut);
 
     const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
@@ -627,7 +628,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const currency = await this.fiatService.getFiat(request.sourceId);
     const buy = await this.buyService.get(transaction.userData.id, request.routeId);
-    const bankInfo = await this.buyService.getBankInfo(
+    const bankInfo = await this.buyService.getBankInfoForRequest(
       {
         amount: request.amount,
         currency: currency.name,
@@ -635,6 +636,8 @@ export class TransactionHelper implements OnModuleInit {
         userData: transaction.userData,
       },
       buy,
+      request.bankId,
+      request.virtualIbanId,
       buy?.asset,
       buy?.user?.wallet,
     );

@@ -165,10 +165,14 @@ export class BankFrickService {
     return this.isAvailable() && !!Config.bank.frick.vbanBaseUrl;
   }
 
-  async createViban(referenceAccountIban: string): Promise<FrickVirtualIban> {
+  async createViban(referenceAccountIban: string, description?: string): Promise<FrickVirtualIban> {
     this.assertVibanAvailable();
     const iban = this.normalizeAndValidateIban(referenceAccountIban, 'reference account IBAN');
-    const request: FrickCreateVirtualIbanRequest = { referenceAccountIban: iban };
+    if (description !== undefined) this.validateString(description, 'description', 140, true);
+    const request: FrickCreateVirtualIbanRequest = {
+      referenceAccountIban: iban,
+      ...(description !== undefined && { description }),
+    };
     const response = await this.callVbanApi<FrickVirtualIban>('virtual-ibans', 'POST', request);
     this.validateVirtualIbanResponse(response);
     return response;
@@ -194,17 +198,78 @@ export class BankFrickService {
   async listVibans(
     referenceAccountIban?: string,
     states?: FrickVirtualIbanState[],
+    pageIndex = 0,
+    pageSize = 50,
   ): Promise<FrickVirtualIbansResponse> {
     this.assertVibanAvailable();
+    if (!Number.isInteger(pageIndex) || pageIndex < 0) throw new Error('Invalid Bank Frick virtual IBAN pageIndex');
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200)
+      throw new Error('Invalid Bank Frick virtual IBAN pageSize');
+
     const params = new URLSearchParams();
     if (referenceAccountIban)
       params.append('account', this.normalizeAndValidateIban(referenceAccountIban, 'reference account IBAN filter'));
     if (states) for (const state of states) params.append('state', state);
+    params.append('pageIndex', String(pageIndex));
+    params.append('pageSize', String(pageSize));
     const query = params.toString();
 
-    const response = await this.callVbanApi<FrickVirtualIbansResponse>(`virtual-ibans${query ? `?${query}` : ''}`);
+    const response = await this.callVbanApi<FrickVirtualIbansResponse>(`virtual-ibans?${query}`);
     this.validateVirtualIbansResponse(response);
     return response;
+  }
+
+  /**
+   * Deterministically traverses every page of the virtual-IBAN list. Fails closed when pagination
+   * does not advance (stale pageIndex / empty page with hasMore), so recovery never silently skips
+   * an already-issued PREPARED/ACTIVE vIBAN.
+   */
+  async listAllVibans(
+    referenceAccountIban?: string,
+    states?: FrickVirtualIbanState[],
+    pageSize = 50,
+  ): Promise<FrickVirtualIban[]> {
+    this.assertVibanAvailable();
+    const all: FrickVirtualIban[] = [];
+    const seenVibans = new Set<string>();
+    const seenPageIndices = new Set<number>();
+    let expectedTotalCount: number | undefined;
+    let pageIndex = 0;
+    const maxPages = 10_000;
+
+    while (pageIndex < maxPages) {
+      const page = await this.listVibans(referenceAccountIban, states, pageIndex, pageSize);
+      if (page.pagination.pageIndex !== pageIndex)
+        throw new Error(
+          `Bank Frick virtual IBAN listing returned unexpected pageIndex ${page.pagination.pageIndex} (expected ${pageIndex})`,
+        );
+      if (seenPageIndices.has(page.pagination.pageIndex))
+        throw new Error('Bank Frick virtual IBAN listing pagination did not advance');
+      seenPageIndices.add(page.pagination.pageIndex);
+
+      expectedTotalCount ??= page.pagination.totalCount;
+      if (page.pagination.totalCount !== expectedTotalCount)
+        throw new Error('Bank Frick virtual IBAN listing changed totalCount during pagination');
+
+      if (page.pagination.hasMore && page.virtualIbans.length === 0)
+        throw new Error('Bank Frick virtual IBAN listing reported more pages but returned no items');
+
+      for (const virtualIban of page.virtualIbans) {
+        if (seenVibans.has(virtualIban.vban))
+          throw new Error('Bank Frick virtual IBAN listing returned a duplicate item across pages');
+        seenVibans.add(virtualIban.vban);
+        all.push(virtualIban);
+      }
+
+      if (!page.pagination.hasMore) {
+        if (all.length !== expectedTotalCount)
+          throw new Error(`Bank Frick virtual IBAN listing returned ${all.length} of ${expectedTotalCount} items`);
+        return all;
+      }
+      pageIndex += 1;
+    }
+
+    throw new Error('Bank Frick virtual IBAN listing exceeded maximum page count');
   }
 
   getSafeOrderId(payment: FrickPaymentOrder): string | undefined {
@@ -818,6 +883,8 @@ export class BankFrickService {
       throw new Error('Invalid Bank Frick virtual IBAN response');
 
     r.vban = this.normalizeAndValidateIban(r.vban, 'virtual IBAN');
+    r.referenceAccountIban = this.normalizeAndValidateIban(r.referenceAccountIban, 'reference account IBAN');
+    if (r.description !== undefined) this.validateString(r.description, 'description', 140);
   }
 
   private validateVirtualIbansResponse(r: FrickVirtualIbansResponse): void {
@@ -827,8 +894,11 @@ export class BankFrickService {
       !r.pagination ||
       typeof r.pagination.hasMore !== 'boolean' ||
       !Number.isInteger(r.pagination.pageIndex) ||
+      r.pagination.pageIndex < 0 ||
       !Number.isInteger(r.pagination.pageSize) ||
+      r.pagination.pageSize < 1 ||
       !Number.isInteger(r.pagination.totalCount) ||
+      r.pagination.totalCount < 0 ||
       !Array.isArray(r.virtualIbans)
     )
       throw new Error('Invalid Bank Frick virtual IBANs response');

@@ -15,13 +15,15 @@ import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
 import { FrickVibanProvider } from './virtual-iban/providers/frick-viban.provider';
 import { YapealVibanProvider } from './virtual-iban/providers/yapeal-viban.provider';
+import { VirtualIbanIssuanceIntent } from './virtual-iban/virtual-iban-issuance-intent.entity';
+import { VirtualIbanIssuanceIntentRepository } from './virtual-iban/virtual-iban-issuance-intent.repository';
 import { VirtualIban } from './virtual-iban/virtual-iban.entity';
 import { VirtualIbanRepository } from './virtual-iban/virtual-iban.repository';
 import { VirtualIbanService } from './virtual-iban/virtual-iban.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BankAccount, Bank, VirtualIban]),
+    TypeOrmModule.forFeature([BankAccount, Bank, VirtualIban, VirtualIbanIssuanceIntent]),
     SharedModule,
     BankIntegrationModule,
     forwardRef(() => UserModule),
@@ -33,6 +35,7 @@ import { VirtualIbanService } from './virtual-iban/virtual-iban.service';
     BankAccountRepository,
     BankRepository,
     VirtualIbanRepository,
+    VirtualIbanIssuanceIntentRepository,
     BankAccountService,
     BankService,
     FrickVibanProvider,

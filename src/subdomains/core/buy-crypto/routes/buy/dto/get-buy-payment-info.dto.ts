@@ -21,6 +21,10 @@ import { XOR } from 'src/shared/validators/xor.validator';
 import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
+export enum PersonalIbanProvider {
+  FRICK = 'frick',
+}
+
 export class GetBuyPaymentInfoDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -58,6 +62,14 @@ export class GetBuyPaymentInfoDto {
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
+
+  @ApiPropertyOptional({
+    enum: PersonalIbanProvider,
+    description: 'Explicit personal IBAN provider (e.g. frick). Fail-closed; no fallback to default bank.',
+  })
+  @IsOptional()
+  @IsEnum(PersonalIbanProvider)
+  personalIbanProvider?: PersonalIbanProvider;
 
   @ApiPropertyOptional({ description: 'Custom transaction id' })
   @IsOptional()

@@ -299,4 +299,42 @@ describe('TransactionHelper', () => {
       await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, undefined)).resolves.toBe(IbanBankName.YAPEAL);
     });
   });
+
+  it('uses an explicit bankIn override for fee lookup without re-resolving the bank', async () => {
+    const from = createCustomFiat({ name: 'EUR' });
+    const to = createCustomFiat({ name: 'CHF' });
+    jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: () => 100 } as any);
+    const getBankIn = jest.spyOn(txHelper as any, 'getBankIn');
+    const getAllFees = jest
+      .spyOn(txHelper as any, 'getAllFees')
+      .mockResolvedValue([
+        { network: 0, dfx: { rate: 0, fixed: 0 }, bank: { rate: 0, fixed: 0 }, partner: { rate: 0, fixed: 0 } },
+        0,
+      ]);
+    jest.spyOn(txHelper as any, 'getMinSpecs').mockReturnValue({ minFee: 0, minVolume: 0 });
+    jest.spyOn(txHelper as any, 'getLimits').mockResolvedValue({ kycLimit: 1000, defaultLimit: 1000 });
+    jest.spyOn(txHelper as any, 'getTxErrors').mockReturnValue([]);
+    jest.spyOn(txHelper as any, 'getSourceSpecs').mockResolvedValue({ volume: { min: 0, max: 1000 } });
+    jest.spyOn(txHelper as any, 'getTargetSpecs').mockResolvedValue({ volume: { min: 0, max: 1000 } });
+    jest.spyOn(txHelper as any, 'getTargetEstimation').mockResolvedValue({ sourceAmount: 100 });
+
+    await txHelper.getTxDetails(
+      100,
+      undefined,
+      from,
+      to,
+      FiatPaymentMethod.BANK,
+      FiatPaymentMethod.BANK,
+      false,
+      undefined,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      IbanBankName.FRICK,
+    );
+
+    expect(getBankIn).not.toHaveBeenCalled();
+    expect(getAllFees.mock.calls[0][4]).toBe(IbanBankName.FRICK);
+  });
 });
