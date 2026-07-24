@@ -443,7 +443,7 @@ export class KycService {
             order: { sequenceNumber: 'DESC' },
           });
           if (winner?.isOnHold) return winner;
-          if (winner?.isInReview) return undefined; // winner already advanced → nothing left to do
+          if (winner?.isInReview || winner?.isCompleted) return undefined; // winner already advanced → nothing left to do
           throw e; // 23505 on the right constraint but no provable winner → surface the original error
         });
 

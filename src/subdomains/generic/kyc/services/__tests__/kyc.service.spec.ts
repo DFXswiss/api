@@ -552,6 +552,16 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
     expect(kycStepRepo.update).not.toHaveBeenCalled();
   });
 
+  it('treats a winner auto-completed via LEVEL_50 as success, without promoting again', async () => {
+    jest.spyOn(service as any, 'initiateStep').mockRejectedValue(pgDuplicateKeyError);
+    kycStepRepo.findOne.mockResolvedValue(
+      createMock<KycStep>({ isOnHold: false, isInReview: false, isCompleted: true }),
+    );
+
+    await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+
   it('rethrows the original error when no winner step is found (fail-closed)', async () => {
     jest.spyOn(service as any, 'initiateStep').mockRejectedValue(pgDuplicateKeyError);
     kycStepRepo.findOne.mockResolvedValue(null);
