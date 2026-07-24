@@ -1,4 +1,4 @@
-import { GetObjectLockConfigurationCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectLockConfigurationCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
   assertBucketWorm,
@@ -10,14 +10,22 @@ import {
   assertUndeclaredBucketHasNoWorm,
   assertWithinHealCap,
   assertWormContainersConfig,
+  copyAzureToS3,
+  copyS3ToAzure,
   DEFAULT_HEAL_CAP,
   diffStores,
   DiffResult,
   isAzurePreconditionFailed,
   isGateBlocking,
   isS3PreconditionFailed,
+  listAzureObjects,
+  listS3Objects,
+  logObjectAction,
   OVERWRITE_SKEW_TOLERANCE_MS,
   parseConfig,
+  printCategory,
+  RECONCILER_PRIVACY_LOG_VERSION,
+  safeObjectReference,
   StoredObject,
 } from '../../../../../scripts/storage/reconcile-stores';
 import { GEBUEV_RETENTION_FLOOR_DAYS, GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
@@ -36,8 +44,84 @@ function storedObject(key: string, size: number, lastModified: Date): StoredObje
   return { key, size, lastModified };
 }
 
+async function rejectedError(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise;
+  } catch (error) {
+    if (error instanceof Error) return error;
+    throw new Error('Expected rejection to contain an Error instance');
+  }
+  throw new Error('Expected promise to reject');
+}
+
 const t0 = new Date('2024-01-01T00:00:00.000Z');
 const skewMs = 60 * 60 * 1000; // 1 hour — matches OVERWRITE_SKEW_TOLERANCE_MS
+
+describe('safeObjectReference', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('uses a stable SHA-256 digest without exposing the raw key', () => {
+    const rawKey = 'user/123/private-document.pdf';
+    const reference = safeObjectReference('kyc', rawKey);
+
+    expect(reference).toMatch(/^kyc\/key-sha256:[a-f0-9]{64}$/);
+    expect(reference).toBe(safeObjectReference('kyc', rawKey));
+    expect(reference).not.toContain(rawKey);
+    expect(reference).not.toContain('private-document');
+  });
+
+  it('keeps verbose, heal, skip, and object-specific errors free of raw keys', async () => {
+    const rawKey = 'user/123/private-document.pdf';
+    const expectedReference = safeObjectReference('kyc', rawKey);
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    printCategory('kyc', 'onlyOnAzure', [rawKey], true);
+    logObjectAction('HEALED', 'azure->s3', 'kyc', rawKey);
+    logObjectAction('SKIPPED (appeared concurrently)', 's3->azure', 'kyc', rawKey);
+
+    const azureDownloadFailure = {
+      getBlockBlobClient: () => ({ download: jest.fn().mockRejectedValue(new Error(`failed ${rawKey}`)) }),
+    } as never;
+    await expect(copyAzureToS3(azureDownloadFailure, makeS3Client(), 'kyc', rawKey)).rejects.toThrow(expectedReference);
+
+    const s3DownloadFailure = {
+      send: jest.fn().mockRejectedValue(new Error(`failed ${rawKey}`)),
+    } as never;
+    await expect(copyS3ToAzure(s3DownloadFailure, 'kyc', {} as never, rawKey)).rejects.toThrow(expectedReference);
+
+    const output = consoleSpy.mock.calls.flat().join('\n');
+    expect(output).toContain(expectedReference);
+    expect(output).not.toContain(rawKey);
+    expect(output).not.toContain('private-document');
+    expect(RECONCILER_PRIVACY_LOG_VERSION).toBe('storage-reconciler-private-logs-v1');
+  });
+
+  it('redacts raw keys in incomplete S3 and Azure listing errors', async () => {
+    const rawKey = 'user/456/incomplete-private-document.pdf';
+    const expectedReference = safeObjectReference('kyc', rawKey);
+
+    s3Mock.reset();
+    s3Mock.on(ListObjectsV2Command).resolves({
+      IsTruncated: false,
+      Contents: [{ Key: rawKey, Size: undefined, LastModified: t0 }],
+    });
+    const s3Error = await rejectedError(listS3Objects(makeS3Client(), 'kyc'));
+    expect(s3Error.message).toContain(expectedReference);
+    expect(s3Error.message).not.toContain(rawKey);
+    expect(s3Error.message).not.toContain('incomplete-private-document');
+
+    const azureContainer = {
+      containerName: 'kyc',
+      async *listBlobsFlat() {
+        yield { name: rawKey, properties: { contentLength: undefined, lastModified: t0 } };
+      },
+    } as never;
+    const azureError = await rejectedError(listAzureObjects(azureContainer));
+    expect(azureError.message).toContain(expectedReference);
+    expect(azureError.message).not.toContain(rawKey);
+    expect(azureError.message).not.toContain('incomplete-private-document');
+  });
+});
 
 describe('diffStores', () => {
   it('returns empty lists when inventories are identical', () => {
