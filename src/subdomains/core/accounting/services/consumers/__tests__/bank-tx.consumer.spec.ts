@@ -4,6 +4,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -15,6 +18,7 @@ import { createCustomLedgerAccount } from '../../../entities/__mocks__/ledger-ac
 import { LedgerAccountService } from '../../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../../ledger-mark.service';
+import { LedgerGateBlockedException } from '../ledger-gate-blocked.exception';
 import { BankTxConsumer } from '../bank-tx.consumer';
 
 const eurAsset = { id: 269 } as any;
@@ -29,6 +33,20 @@ function bankTx(values: Partial<BankTx>): BankTx {
     accountIban: 'CHF-IBAN',
     amount: 1000,
     ...values,
+  });
+}
+
+// a doAmlCheck-eligible unpriced buy_crypto (the BuyCrypto.isAmlPricingPending base); overrides flip single dimensions
+function pendingBuyCrypto(overrides: Partial<BuyCrypto> = {}): BuyCrypto {
+  return Object.assign(new BuyCrypto(), {
+    amountInChf: null,
+    amlCheck: null,
+    amlReason: null,
+    inputAmount: 1000,
+    inputAsset: 'EUR',
+    chargebackAllowedDateUser: null,
+    isComplete: false,
+    ...overrides,
   });
 }
 
@@ -882,24 +900,148 @@ describe('BankTxConsumer', () => {
     expect(cents(booked[0].legs)).toBe(0);
   });
 
-  // §4.2 buyCryptoLegs guard: BUY_CRYPTO without buyCrypto.amountInChf throws → failure-isolation
-  it('throws (failure-isolation) on BUY_CRYPTO without buyCrypto.amountInChf', async () => {
+  // §4.2 buyCryptoLegs guard: BUY_CRYPTO whose linked buy_crypto doAmlCheck will still price (isAmlPricingPending)
+  // → gate-blocked at verbose, failure-isolation retries the row next run (pricing lands on buy_crypto and does not
+  // bump bank_tx.updated, so the head-of-line retry is the only path that books the row)
+  it('gate-blocks (verbose, failure-isolation) on BUY_CRYPTO whose linked buy_crypto is doAmlCheck-eligible', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    const verboseSpy = jest.spyOn(consumer['logger'], 'verbose');
     mockBatch([
-      bankTx({ id: 7, type: BankTxType.BUY_CRYPTO, accountIban: 'CHF-IBAN', amount: 1000, buyCrypto: undefined }),
+      bankTx({
+        id: 7,
+        type: BankTxType.BUY_CRYPTO,
+        accountIban: 'CHF-IBAN',
+        amount: 1000,
+        buyCrypto: pendingBuyCrypto(), // linked, AML pricing pending
+      }),
+    ]);
+    await consumer.process();
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // gate-block → watermark not advanced (head-of-line retry)
+    expect(errSpy).not.toHaveBeenCalled(); // designed transient → NOT an error
+    expect(verboseSpy).toHaveBeenCalledWith(
+      'Booking gate-blocked on bank_tx 7:',
+      expect.any(LedgerGateBlockedException),
+    );
+  });
+
+  // a linked buy_crypto WITH an amlCheck result but no CHF (e.g. FAIL set by chargebackFillUp on a not-yet-priced
+  // row) is not re-priced by the cron (only a manual FAIL→PENDING re-trigger) → NOT transient → fail loud at error,
+  // watermark held
+  it('fails loud (error) on BUY_CRYPTO whose linked buy_crypto has an amlCheck result but no amountInChf', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    const verboseSpy = jest.spyOn(consumer['logger'], 'verbose');
+    mockBatch([
+      bankTx({
+        id: 12,
+        type: BankTxType.BUY_CRYPTO,
+        accountIban: 'CHF-IBAN',
+        amount: 1000,
+        buyCrypto: pendingBuyCrypto({ amlCheck: CheckStatus.FAIL }), // AML ran, not cron-re-priced
+      }),
     ]);
     await consumer.process();
     expect(booked).toHaveLength(0);
     expect(setSpy).not.toHaveBeenCalled(); // throw → watermark not advanced
+    expect(errSpy).toHaveBeenCalledWith('Failed to book bank_tx 12:', expect.any(Error));
+    expect(verboseSpy).not.toHaveBeenCalled(); // NOT a gate-block
   });
 
-  // §4.2 defensive default: an unmapped bank_tx type (bad DB data) → buildLegs default → undefined → skipped
-  it('skips an unmapped bank_tx type (defensive default branch)', async () => {
+  // every other unpriced state outside doAmlCheck's eligibility is never cron-re-priced → NOT transient → fail loud
+  // at error, watermark held (a verbose gate-block here would wedge the forward watermark silently)
+  it.each([
+    ['amlReason set', { amlReason: AmlReason.NO_COMMUNICATION }],
+    ['chargebackAllowedDateUser set', { chargebackAllowedDateUser: new Date() }],
+    ['isComplete true', { isComplete: true }],
+    ['inputAmount null', { inputAmount: null }],
+  ])('fails loud (error) on an unpriced BUY_CRYPTO outside doAmlCheck eligibility: %s', async (_, overrides) => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    const verboseSpy = jest.spyOn(consumer['logger'], 'verbose');
+    mockBatch([
+      bankTx({
+        id: 14,
+        type: BankTxType.BUY_CRYPTO,
+        accountIban: 'CHF-IBAN',
+        amount: 1000,
+        buyCrypto: pendingBuyCrypto(overrides as Partial<BuyCrypto>),
+      }),
+    ]);
+    await consumer.process();
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark not advanced
+    expect(errSpy).toHaveBeenCalledWith('Failed to book bank_tx 14:', expect.any(Error));
+    expect(verboseSpy).not.toHaveBeenCalled(); // NOT a gate-block
+  });
+
+  // pins the gate invariant: isAmlPricingPending mirrors doAmlCheck's amlCheck-null selection branch
+  it('BuyCrypto.isAmlPricingPending: true on the eligible base, false on every single-dimension flip', () => {
+    expect(pendingBuyCrypto().isAmlPricingPending).toBe(true);
+    expect(pendingBuyCrypto({ amlCheck: CheckStatus.PENDING }).isAmlPricingPending).toBe(false);
+    expect(pendingBuyCrypto({ amlReason: AmlReason.NO_COMMUNICATION }).isAmlPricingPending).toBe(false);
+    expect(pendingBuyCrypto({ inputAmount: null }).isAmlPricingPending).toBe(false);
+    expect(pendingBuyCrypto({ inputAsset: null }).isAmlPricingPending).toBe(false);
+    expect(pendingBuyCrypto({ chargebackAllowedDateUser: new Date() }).isAmlPricingPending).toBe(false);
+    expect(pendingBuyCrypto({ isComplete: true }).isAmlPricingPending).toBe(false);
+  });
+
+  // an UNLINKED BUY_CRYPTO (no buyCrypto relation at all) is not the pricing race → fail loud at error
+  it('fails loud (error) on BUY_CRYPTO without a linked buyCrypto row', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    mockBatch([
+      bankTx({ id: 13, type: BankTxType.BUY_CRYPTO, accountIban: 'CHF-IBAN', amount: 1000, buyCrypto: undefined }),
+    ]);
+    await consumer.process();
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark not advanced
+    expect(errSpy).toHaveBeenCalledWith('Failed to book bank_tx 13:', expect.any(Error));
+  });
+
+  // head-of-line-retry recovery the gate-block leans on: run 1 holds the watermark on the unpriced row; once pricing
+  // lands on the buy_crypto row (bank_tx.updated untouched), run 2 re-selects the same head-of-line row and books it
+  it('recovers a gate-blocked BUY_CRYPTO via head-of-line retry once pricing lands (two-run recovery)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const buyCrypto = pendingBuyCrypto();
+    mockBatch([bankTx({ id: 11, type: BankTxType.BUY_CRYPTO, accountIban: 'CHF-IBAN', amount: 1000, buyCrypto })]);
+
+    await consumer.process(); // run 1: AML pricing pending → gate-blocked
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // watermark held → the row stays head-of-line
+
+    buyCrypto.amountInChf = 1000; // pricing lands on the buy_crypto row
+    await consumer.process(); // run 2: the same head-of-line row books
+
+    expect(booked).toHaveLength(1);
+    expect(booked[0].sourceId).toBe('11');
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(11); // watermark advances past the row
+  });
+
+  // §4.2 defensive default: an unmapped NON-null bank_tx type (bad DB data) → buildLegs default → ERROR (genuine
+  // enum gap, fail-loud) → undefined → skipped
+  it('skips an unmapped bank_tx type at error (defensive default branch)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
     mockBatch([bankTx({ id: 8, type: 'WeirdType' as BankTxType, accountIban: 'CHF-IBAN', amount: 100 })]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+    expect(errSpy).toHaveBeenCalledWith('Unhandled bank_tx type WeirdType on bank_tx 8'); // non-null type stays ERROR
     expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(8); // skip (not error) → watermark advances
+  });
+
+  // an unclassified bank_tx (type null) hits the defensive default too: ERROR + skip-and-advance — the row is never
+  // booked later (the watermark passed it and the content-change scan's reconcileBooking no-ops on never-booked rows),
+  // so the gap must stay visible
+  it('logs an unclassified bank_tx (type null) at error and advances the watermark (default branch)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    mockBatch([bankTx({ id: 10, type: null, accountIban: 'CHF-IBAN', amount: 100 })]);
+    await consumer.process();
+    expect(booked).toHaveLength(0);
+    expect(errSpy).toHaveBeenCalledWith('Unhandled bank_tx type null on bank_tx 10');
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(10); // skip → watermark advances past the row
   });
 
   // §4.2 bankContext no-bank-match fallback: no accountIban → untracked, currency from the tx → SUSPENSE/untracked
@@ -1109,11 +1251,14 @@ describe('BankTxConsumer', () => {
     expect(booked[0].valueDate).toBe(created);
   });
 
-  // §4.2a buyCryptoOwedChf guard: a BUY_CRYPTO_RETURN whose buyCryptoChargeback.amountInChf is null AND no cutover →
-  // throws (source line 279) → failure-isolation, nothing booked, watermark not advanced.
-  it('throws (failure-isolation) on BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf and no cutover (line 279)', async () => {
+  // §4.2a buyCryptoOwedChf guard: a LINKED chargeback with amountInChf null AND no cutover is not re-priced by the
+  // cron (the linking cron completes the row, freezing amlCheck) → fail loud at error, failure-isolation, nothing
+  // booked, watermark not advanced.
+  it('fails loud (error) on a LINKED BUY_CRYPTO_RETURN without buyCryptoChargeback.amountInChf and no cutover', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
-    const buyCrypto = { id: 91, amountInChf: null } as any; // no completion anchor; default mocks → no cutover opening
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    const verboseSpy = jest.spyOn(consumer['logger'], 'verbose');
+    const buyCrypto = { id: 91, amountInChf: null } as any; // linked, no completion anchor; default mocks → no cutover opening
     mockBatch([
       bankTx({
         id: 92,
@@ -1128,6 +1273,33 @@ describe('BankTxConsumer', () => {
 
     expect(booked).toHaveLength(0);
     expect(setSpy).not.toHaveBeenCalled(); // throw → watermark stays put
+    expect(errSpy).toHaveBeenCalledWith('Failed to book bank_tx 92:', expect.any(Error));
+    expect(verboseSpy).not.toHaveBeenCalled(); // NOT a gate-block
+  });
+
+  // unlinked is NOT provably transient: a bank_tx can be classified BUY_CRYPTO_RETURN without any chargeback ever
+  // linking (generic updateInternal branch), and chargebackFillUp only links FAIL/incomplete orders with an executed
+  // chargebackOutput → fail loud at error, watermark held
+  it('fails loud (error) on an UNLINKED BUY_CRYPTO_RETURN (no buyCryptoChargeback)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    const verboseSpy = jest.spyOn(consumer['logger'], 'verbose');
+    mockBatch([
+      bankTx({
+        id: 93,
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 1000,
+        buyCryptoChargeback: undefined,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark stays put
+    expect(errSpy).toHaveBeenCalledWith('Failed to book bank_tx 93:', expect.any(Error));
+    expect(verboseSpy).not.toHaveBeenCalled(); // NOT a gate-block
   });
 
   // §4.2a buyCryptoOwedChf `totalFeeAmountChf ?? 0` null side (source line 280): a return whose charged-back buy_crypto has

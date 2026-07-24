@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -16,6 +16,7 @@ import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { LedgerGateBlockedException } from './ledger-gate-blocked.exception';
 import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
@@ -122,7 +123,14 @@ export class BankTxConsumer {
         await this.book(tx, marks);
         lastProcessedId = tx.id;
       } catch (e) {
-        this.logger.error(`Failed to book bank_tx ${tx.id}:`, e);
+        // a gate-block (AML pricing pending) is the designed self-healing retry signal — verbose, not error
+        // (§4.12 pattern)
+        const gateBlocked = e instanceof LedgerGateBlockedException;
+        this.logger.log(
+          gateBlocked ? LogLevel.VERBOSE : LogLevel.ERROR,
+          `${gateBlocked ? 'Booking gate-blocked on' : 'Failed to book'} bank_tx ${tx.id}:`,
+          e,
+        );
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -246,7 +254,15 @@ export class BankTxConsumer {
     marks: LedgerMarkCache,
   ): Promise<LedgerLegInput[]> {
     const amountInChf = tx.buyCrypto?.amountInChf; // received-Cr base anchor (Major R4-4)
-    if (amountInChf == null) throw new Error(`bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf`);
+    if (amountInChf == null) {
+      // gate-block only rows doAmlCheck will still price (isAmlPricingPending mirrors its eligibility); every other
+      // unpriced state (amlCheck set, amlReason set, chargeback allowed, completed, unlinked) stays fail-loud
+      if (tx.buyCrypto?.isAmlPricingPending)
+        throw new LedgerGateBlockedException(
+          `bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf (AML pricing pending) — retry next run`,
+        );
+      throw new Error(`bank_tx ${tx.id} BUY_CRYPTO without buyCrypto.amountInChf`);
+    }
 
     const bank = this.bankAssetLeg(ctx, +tx.amount, bookingDate, marks, await this.bankAccount(ctx)); // mark-consistent
     const received = this.namedLeg(await this.liability('buyCrypto-received'), -amountInChf);
