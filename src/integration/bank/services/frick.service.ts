@@ -34,6 +34,9 @@ import { CamtTransaction, Iso20022Service } from './iso20022.service';
 
 type FrickResponseType = 'json' | 'text';
 
+/** A vIBAN create failure for which no Bank Frick object can have been created. */
+export class FrickVibanNotCreatedError extends Error {}
+
 export interface FrickTransactionsFetchResult {
   transactions: Partial<BankTx>[];
   // False when at least one CAMT entry in this fetch failed strict validation (bad money-critical
@@ -174,7 +177,15 @@ export class BankFrickService {
 
   async createViban(referenceAccountIban: string, description?: string): Promise<FrickVirtualIban> {
     const request = this.buildCreateVibanRequest(referenceAccountIban, description);
-    const response = await this.callVbanApi<FrickVirtualIban>('virtual-ibans', 'POST', request);
+    const response = await this.callVbanApi<FrickVirtualIban>(
+      'virtual-ibans',
+      'POST',
+      request,
+      'application/json',
+      'json',
+      true,
+      true,
+    );
     this.validateVirtualIbanResponse(response);
     return response;
   }
@@ -652,6 +663,7 @@ export class BankFrickService {
     accept: string,
     responseType: FrickResponseType,
     allowUnauthorizedRetry: boolean,
+    classifyVibanCreateFailure = false,
   ): Promise<T> {
     this.assertAvailable();
     const token = await this.getAccessToken();
@@ -680,10 +692,13 @@ export class BankFrickService {
 
       if (allowUnauthorizedRetry && error?.response?.status === 401) {
         await this.refreshAfterUnauthorized(token);
-        return this.requestSigned(url, path, method, body, accept, responseType, false);
+        return this.requestSigned(url, path, method, body, accept, responseType, false, classifyVibanCreateFailure);
       }
 
-      throw new Error(`Bank Frick API request failed (${method} ${path}): ${this.getHttpFailureReason(error)}`);
+      const message = `Bank Frick API request failed (${method} ${path}): ${this.getHttpFailureReason(error)}`;
+      if (classifyVibanCreateFailure && this.isDefinitelyNotProcessed(error))
+        throw new FrickVibanNotCreatedError(message);
+      throw new Error(message);
     }
   }
 
@@ -714,6 +729,7 @@ export class BankFrickService {
     accept = 'application/json',
     responseType: FrickResponseType = 'json',
     allowUnauthorizedRetry = true,
+    classifyVibanCreateFailure = false,
   ): Promise<T> {
     this.assertVibanAvailable();
     return this.requestSigned<T>(
@@ -724,6 +740,7 @@ export class BankFrickService {
       accept,
       responseType,
       allowUnauthorizedRetry,
+      classifyVibanCreateFailure,
     );
   }
 
@@ -843,6 +860,21 @@ export class BankFrickService {
     // the API key used by /authorize. Axios transport codes are bounded and contain no request payload.
     const code = error?.code;
     return typeof code === 'string' && /^[A-Z0-9_]{1,64}$/.test(code) ? code : 'request failed';
+  }
+
+  private isDefinitelyNotProcessed(error: any): boolean {
+    const status = error?.response?.status;
+    // A concrete client-error response rejects the create operation. HTTP 408 remains ambiguous:
+    // the upstream may have completed the operation while the request timed out.
+    if (Number.isInteger(status) && status >= 400 && status < 500 && status !== 408) return true;
+
+    // These transport outcomes happen before an HTTP request can reach Bank Frick. Timeouts and
+    // connection resets are intentionally excluded because their wire outcome is ambiguous.
+    if (['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ERR_INVALID_URL'].includes(error?.code)) return true;
+
+    // Axios setup failures without a request object are also provably pre-send. Requiring the Axios
+    // marker avoids misclassifying post-response parsing/verifier errors that have no request field.
+    return error?.isAxiosError === true && error?.request == null && error?.response == null;
   }
 
   private validateCustomer(): string {

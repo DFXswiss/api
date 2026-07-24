@@ -10,7 +10,7 @@ import { Bank } from '../bank/bank.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
 import { FrickVibanProvider } from './providers/frick-viban.provider';
-import { ReservedViban, VibanProvider } from './providers/viban-provider.interface';
+import { ReservedViban, VibanNotCreatedError, VibanProvider } from './providers/viban-provider.interface';
 import { YapealVibanProvider } from './providers/yapeal-viban.provider';
 import { VirtualIbanIssuanceEvent } from './virtual-iban-issuance-event.entity';
 import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent.entity';
@@ -56,31 +56,6 @@ export class VirtualIbanService {
     });
 
     return this.pickDeterministic(vibans);
-  }
-
-  /**
-   * Provider-specific active user-level lookup. Filters Bank Frick (or another bank) explicitly,
-   * requires buy IS NULL, and picks the smallest id.
-   */
-  async getActiveForUserCurrencyAndBank(
-    userData: UserData,
-    currencyName: string,
-    bankName: IbanBankName,
-  ): Promise<VirtualIban | null> {
-    const vibans = await this.virtualIbanRepo.find({
-      where: {
-        userData: { id: userData.id },
-        currency: { name: currencyName },
-        bank: { name: bankName },
-        buy: IsNull(),
-        active: true,
-        status: VirtualIbanStatus.ACTIVE,
-      },
-      relations: { bank: true },
-      order: { id: 'ASC' },
-    });
-
-    return vibans[0] ?? null;
   }
 
   async getByIdForUser(id: number, userDataId: number): Promise<VirtualIban | null> {
@@ -130,7 +105,11 @@ export class VirtualIbanService {
 
     // Authentication, validation, and signing are completed before the durable claim. A failure here
     // leaves the intent Pending and therefore safely retryable without any possibility of a sent POST.
-    await this.frickVibanProvider.prepareVibanReservation(bank.iban, initial.intent.requestReference);
+    try {
+      await this.frickVibanProvider.prepareVibanReservation(bank.iban, initial.intent.requestReference);
+    } catch {
+      throw new ServiceUnavailableException('Bank Frick personal IBAN preflight failed');
+    }
 
     const claim = await this.claimPendingFrickIntent(initial.intent.id);
     if (!claim.claimed) return this.resolveExistingFrickIntent(claim.intent, userData, bank, currency);
@@ -141,6 +120,11 @@ export class VirtualIbanService {
       const reserved = await this.frickVibanProvider.reserveViban(bank.iban, claim.intent.requestReference);
       return await this.finalizeFrickIssuance(claim.intent.id, userData, bank, currency, reserved);
     } catch (error) {
+      if (error instanceof VibanNotCreatedError) {
+        await this.resetFrickIntentToPending(claim.intent.id, error.message.slice(0, 2000));
+        throw new ServiceUnavailableException('Bank Frick rejected personal IBAN issuance before creation');
+      }
+
       let recoveryError: unknown;
       try {
         const recovered = await this.findAndFinalizeFrickIssuance(claim.intent, userData, bank, currency);
@@ -207,7 +191,7 @@ export class VirtualIbanService {
         intent,
         VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
         intent.externalIban,
-        intent.error,
+        null,
       );
       return { intent, claimed: true };
     });
@@ -260,7 +244,7 @@ export class VirtualIbanService {
     currency: Fiat,
     reserved: ReservedViban,
   ): Promise<VirtualIban> {
-    return this.dataSource.transaction(async (manager) => {
+    const virtualIban = await this.dataSource.transaction(async (manager) => {
       const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
       if (intent.externalIban && intent.externalIban !== reserved.iban)
         throw new ServiceUnavailableException('Bank Frick issuance intent conflicts with the recovered personal IBAN');
@@ -269,6 +253,8 @@ export class VirtualIbanService {
       await this.transitionFrickIntent(manager, intent, VirtualIbanIssuanceIntentStatus.COMPLETED, reserved.iban, null);
       return virtualIban;
     });
+    this.virtualIbanRepo.invalidateCache();
+    return virtualIban;
   }
 
   private async failFrickIntent(intentId: number, message: string): Promise<void> {
@@ -279,6 +265,20 @@ export class VirtualIbanService {
         manager,
         intent,
         VirtualIbanIssuanceIntentStatus.FAILED,
+        intent.externalIban,
+        message,
+      );
+    });
+  }
+
+  private async resetFrickIntentToPending(intentId: number, message: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
+      if (intent.status !== VirtualIbanIssuanceIntentStatus.IN_FLIGHT) return;
+      await this.transitionFrickIntent(
+        manager,
+        intent,
+        VirtualIbanIssuanceIntentStatus.PENDING,
         intent.externalIban,
         message,
       );
@@ -395,9 +395,7 @@ export class VirtualIbanService {
       buy: null,
     });
 
-    const saved = await manager.save(virtualIban);
-    this.virtualIbanRepo.invalidateCache();
-    return saved;
+    return manager.save(virtualIban);
   }
 
   private async findActiveForUserCurrencyAndBank(

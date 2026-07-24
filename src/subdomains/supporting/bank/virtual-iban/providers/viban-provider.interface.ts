@@ -6,6 +6,9 @@ export interface ReservedViban {
   providerAccountRef?: string;
 }
 
+/** The provider proved that the create operation had no external side effect. */
+export class VibanNotCreatedError extends Error {}
+
 export interface VibanProvider {
   readonly bankName: IbanBankName;
   readonly currencies: string[];

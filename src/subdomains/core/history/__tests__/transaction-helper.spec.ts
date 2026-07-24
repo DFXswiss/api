@@ -347,7 +347,7 @@ describe('TransactionHelper', () => {
       firstname: 'Test',
       surname: 'User',
     });
-    const buyCrypto = createCustomBuyCrypto({ isComplete: true });
+    const buyCrypto = createCustomBuyCrypto({ inputAmount: 125, isComplete: true, outputAmount: 0.005 });
     const request = createCustomTransactionRequest({
       amount: 100,
       bankId: 19,
@@ -372,21 +372,53 @@ describe('TransactionHelper', () => {
       zip: '9496',
     };
     jest.spyOn(transactionService, 'getTransactionById').mockResolvedValue(transaction);
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ id: request.sourceId, name: 'EUR' }));
-    jest.spyOn(buyService, 'get').mockResolvedValue(buyCrypto.buy);
+    jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ id: request.sourceId, name: 'EUR' }));
     jest.spyOn(buyService, 'getBankInfoForRequest').mockResolvedValue(bankInfo);
 
-    await expect(txHelper.getTxStatementDetails(userData.id, transaction.id, TxStatementType.INVOICE)).resolves.toEqual(
-      expect.objectContaining({ bankInfo, reference: buyCrypto.buy.bankUsage }),
-    );
+    const details = await txHelper.getTxStatementDetails(userData.id, transaction.id, TxStatementType.INVOICE);
+
+    expect(details).toEqual(expect.objectContaining({ bankInfo, reference: buyCrypto.buy.bankUsage }));
+    expect(details.request).toBeUndefined();
     expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: request.amount, currency: 'EUR', userData }),
+      expect.objectContaining({ amount: buyCrypto.inputAmount, currency: 'EUR', userData }),
       buyCrypto.buy,
       request.bankId,
       request.virtualIbanId,
       buyCrypto.buy.asset,
       buyCrypto.buy.user.wallet,
     );
+    expect(buyService.getBankInfo).not.toHaveBeenCalled();
+  });
+
+  it('keeps completed card invoices on settled values and does not resolve bank details', async () => {
+    const userData = createCustomUserData({
+      accountType: AccountType.PERSONAL,
+      firstname: 'Test',
+      surname: 'User',
+    });
+    const buyCrypto = createCustomBuyCrypto({
+      checkoutTx: createDefaultCheckoutTx(),
+      inputAmount: 125,
+      isComplete: true,
+      outputAmount: 0.005,
+    });
+    const request = createCustomTransactionRequest({
+      amount: 100,
+      estimatedAmount: 0.004,
+      isValid: true,
+      sourcePaymentMethod: FiatPaymentMethod.CARD,
+    });
+    const transaction = createCustomTransaction({ buyCrypto, request, userData });
+    jest.spyOn(transactionService, 'getTransactionById').mockResolvedValue(transaction);
+    jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'EUR' }));
+
+    const details = await txHelper.getTxStatementDetails(userData.id, transaction.id, TxStatementType.INVOICE);
+
+    expect(details.bankInfo).toBeUndefined();
+    expect(details.currency).toBe('EUR');
+    expect(details.transaction).toBe(transaction);
+    expect(details.request).toBeUndefined();
+    expect(buyService.getBankInfoForRequest).not.toHaveBeenCalled();
     expect(buyService.getBankInfo).not.toHaveBeenCalled();
   });
 });

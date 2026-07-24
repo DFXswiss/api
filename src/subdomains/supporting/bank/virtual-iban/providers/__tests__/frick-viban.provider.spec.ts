@@ -1,8 +1,9 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { FrickVirtualIbanState } from 'src/integration/bank/dto/frick-vban.dto';
-import { BankFrickService } from 'src/integration/bank/services/frick.service';
+import { BankFrickService, FrickVibanNotCreatedError } from 'src/integration/bank/services/frick.service';
 import { IbanBankName } from '../../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../frick-viban.provider';
+import { VibanNotCreatedError } from '../viban-provider.interface';
 
 function virtualIban(
   overrides: {
@@ -80,6 +81,15 @@ describe('FrickVibanProvider', () => {
     expect(bankFrickService.createViban).not.toHaveBeenCalled();
   });
 
+  it('maps a preflight integration error to service unavailable', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    bankFrickService.prepareVibanCreate.mockRejectedValue(new Error('authorization failed'));
+
+    await expect(provider.prepareVibanReservation('LI32088110105923K000C', 'reference')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+  });
+
   it('returns an already ACTIVE create result without calling approveVibanActivation', async () => {
     bankFrickService.isVibanAvailable.mockReturnValue(true);
     const created = virtualIban({ vban: 'LI11ACTIVE00000000001', state: FrickVirtualIbanState.ACTIVE });
@@ -100,6 +110,20 @@ describe('FrickVibanProvider', () => {
     await provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference');
 
     expect(bankFrickService.createViban).toHaveBeenCalledWith('LI32088110105923K000C', 'dfx-viban-technical-reference');
+  });
+
+  it('maps a definitely rejected Frick create to the provider-level retry signal', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    bankFrickService.createViban.mockRejectedValue(new FrickVibanNotCreatedError('HTTP 422'));
+
+    await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toBeInstanceOf(VibanNotCreatedError);
+  });
+
+  it('maps an ambiguous create integration error to service unavailable', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    bankFrickService.createViban.mockRejectedValue(new Error('socket closed'));
+
+    await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(ServiceUnavailableException);
   });
 
   it('approves a PREPARED create and returns the activated vban', async () => {
@@ -131,6 +155,14 @@ describe('FrickVibanProvider', () => {
     );
   });
 
+  it('maps an activation integration error to service unavailable', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    bankFrickService.createViban.mockResolvedValue(virtualIban({ state: FrickVirtualIbanState.PREPARED }));
+    bankFrickService.approveVibanActivation.mockRejectedValue(new Error('upstream unavailable'));
+
+    await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(ServiceUnavailableException);
+  });
+
   it('finds exactly one recoverable vIBAN by exact description across the full listing', async () => {
     bankFrickService.isVibanAvailable.mockReturnValue(true);
     const exact = virtualIban({ description: 'dfx-viban-reference' });
@@ -156,6 +188,15 @@ describe('FrickVibanProvider', () => {
     ]);
 
     await expect(provider.findRecoverableByDescription('dfx-viban-duplicate', 'LI32088110105923K000C')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('maps a recovery listing integration error to service unavailable', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    bankFrickService.listAllVibans.mockRejectedValue(new Error('upstream unavailable'));
+
+    await expect(provider.findRecoverableByDescription('dfx-viban-reference', 'LI32088110105923K000C')).rejects.toThrow(
       ServiceUnavailableException,
     );
   });

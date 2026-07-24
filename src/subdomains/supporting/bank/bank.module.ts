@@ -17,7 +17,6 @@ import { FrickVibanProvider } from './virtual-iban/providers/frick-viban.provide
 import { YapealVibanProvider } from './virtual-iban/providers/yapeal-viban.provider';
 import { VirtualIbanIssuanceEvent } from './virtual-iban/virtual-iban-issuance-event.entity';
 import { VirtualIbanIssuanceIntent } from './virtual-iban/virtual-iban-issuance-intent.entity';
-import { VirtualIbanIssuanceIntentRepository } from './virtual-iban/virtual-iban-issuance-intent.repository';
 import { VirtualIban } from './virtual-iban/virtual-iban.entity';
 import { VirtualIbanRepository } from './virtual-iban/virtual-iban.repository';
 import { VirtualIbanService } from './virtual-iban/virtual-iban.service';
@@ -36,7 +35,6 @@ import { VirtualIbanService } from './virtual-iban/virtual-iban.service';
     BankAccountRepository,
     BankRepository,
     VirtualIbanRepository,
-    VirtualIbanIssuanceIntentRepository,
     BankAccountService,
     BankService,
     FrickVibanProvider,

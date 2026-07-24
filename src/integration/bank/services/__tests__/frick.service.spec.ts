@@ -13,7 +13,7 @@ import {
   FrickSignatureVerificationError,
   FrickTransactionsResponse,
 } from '../../dto/frick.dto';
-import { BankFrickService } from '../frick.service';
+import { BankFrickService, FrickVibanNotCreatedError } from '../frick.service';
 
 describe('BankFrickService', () => {
   const keys = generateKeyPairSync('rsa', {
@@ -969,6 +969,30 @@ describe('BankFrickService', () => {
       description: 'dfx-viban-technical-reference',
     });
     expectSignature(createRequest.data, createRequest.headers.Signature);
+  });
+
+  it('classifies a concrete client rejection as definitely not created', async () => {
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockRejectedValueOnce({ response: { status: 422 } });
+
+    await expect(service.createViban(debtorIban)).rejects.toBeInstanceOf(FrickVibanNotCreatedError);
+  });
+
+  it.each([{ code: 'ECONNREFUSED', request: {} }, { isAxiosError: true }])(
+    'classifies a provably pre-send transport failure as definitely not created',
+    async (error) => {
+      http.request.mockResolvedValueOnce({ token: jwt() }).mockRejectedValueOnce(error);
+
+      await expect(service.createViban(debtorIban)).rejects.toBeInstanceOf(FrickVibanNotCreatedError);
+    },
+  );
+
+  it('keeps a timeout response ambiguous because the create may have reached Bank Frick', async () => {
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockRejectedValueOnce({
+      request: {},
+      response: { status: 408 },
+    });
+
+    await expect(service.createViban(debtorIban)).rejects.not.toBeInstanceOf(FrickVibanNotCreatedError);
   });
 
   it('canonicalizes a non-canonical response vban on create and approve', async () => {

@@ -1,8 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { FrickVirtualIban, FrickVirtualIbanState } from 'src/integration/bank/dto/frick-vban.dto';
-import { BankFrickService } from 'src/integration/bank/services/frick.service';
+import { BankFrickService, FrickVibanNotCreatedError } from 'src/integration/bank/services/frick.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
-import { ReservedViban, VibanProvider } from './viban-provider.interface';
+import { ReservedViban, VibanNotCreatedError, VibanProvider } from './viban-provider.interface';
 
 @Injectable()
 export class FrickVibanProvider implements VibanProvider {
@@ -17,13 +17,23 @@ export class FrickVibanProvider implements VibanProvider {
 
   async prepareVibanReservation(baseAccountIban: string, description: string): Promise<void> {
     if (!this.isAvailable()) throw new ServiceUnavailableException('Bank Frick virtual IBAN service is not available');
-    await this.bankFrickService.prepareVibanCreate(baseAccountIban, description);
+    try {
+      await this.bankFrickService.prepareVibanCreate(baseAccountIban, description);
+    } catch {
+      throw new ServiceUnavailableException('Bank Frick virtual IBAN preflight failed');
+    }
   }
 
   async reserveViban(baseAccountIban: string, description?: string): Promise<ReservedViban> {
     if (!this.isAvailable()) throw new ServiceUnavailableException('Bank Frick virtual IBAN service is not available');
 
-    const created = await this.bankFrickService.createViban(baseAccountIban, description);
+    let created: FrickVirtualIban;
+    try {
+      created = await this.bankFrickService.createViban(baseAccountIban, description);
+    } catch (error) {
+      if (error instanceof FrickVibanNotCreatedError) throw new VibanNotCreatedError(error.message);
+      throw new ServiceUnavailableException('Bank Frick virtual IBAN creation failed');
+    }
     return this.ensureActive(created);
   }
 
@@ -40,10 +50,15 @@ export class FrickVibanProvider implements VibanProvider {
     if (typeof description !== 'string' || !description.trim())
       throw new ServiceUnavailableException('Bank Frick virtual IBAN recovery reference is missing');
 
-    const all = await this.bankFrickService.listAllVibans(referenceAccountIban, [
-      FrickVirtualIbanState.PREPARED,
-      FrickVirtualIbanState.ACTIVE,
-    ]);
+    let all: FrickVirtualIban[];
+    try {
+      all = await this.bankFrickService.listAllVibans(referenceAccountIban, [
+        FrickVirtualIbanState.PREPARED,
+        FrickVirtualIbanState.ACTIVE,
+      ]);
+    } catch {
+      throw new ServiceUnavailableException('Bank Frick virtual IBAN recovery failed');
+    }
     const normalizedReferenceAccountIban = referenceAccountIban.replace(/\s/g, '').toUpperCase();
 
     const matches = all.filter(
@@ -64,13 +79,20 @@ export class FrickVibanProvider implements VibanProvider {
   }
 
   private async ensureActive(created: FrickVirtualIban): Promise<ReservedViban> {
-    const activated =
-      created.state === FrickVirtualIbanState.ACTIVE
-        ? created
-        : await this.bankFrickService.approveVibanActivation(created.vban);
+    let activated: FrickVirtualIban;
+    try {
+      activated =
+        created.state === FrickVirtualIbanState.ACTIVE
+          ? created
+          : await this.bankFrickService.approveVibanActivation(created.vban);
+    } catch {
+      throw new ServiceUnavailableException('Bank Frick virtual IBAN activation failed');
+    }
 
     if (activated.state !== FrickVirtualIbanState.ACTIVE)
-      throw new Error(`Bank Frick virtual IBAN ${created.vban} could not be activated (state: ${activated.state})`);
+      throw new ServiceUnavailableException(
+        `Bank Frick virtual IBAN ${created.vban} could not be activated (state: ${activated.state})`,
+      );
 
     return { iban: activated.vban, providerAccountRef: activated.vban };
   }

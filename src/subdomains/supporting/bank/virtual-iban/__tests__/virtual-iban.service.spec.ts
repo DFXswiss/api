@@ -10,6 +10,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { BankService } from '../../bank/bank.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../providers/frick-viban.provider';
+import { VibanNotCreatedError } from '../providers/viban-provider.interface';
 import { YapealVibanProvider } from '../providers/yapeal-viban.provider';
 import { VirtualIban, VirtualIbanStatus } from '../virtual-iban.entity';
 import { VirtualIbanIssuanceEvent } from '../virtual-iban-issuance-event.entity';
@@ -333,6 +334,9 @@ describe('VirtualIbanService', () => {
     });
 
     it('preflights before the claim, performs external I/O without a DB transaction, and audits every transition', async () => {
+      (virtualIbanRepo.invalidateCache as jest.Mock).mockImplementation(() => {
+        expect(transactionActive).toBe(false);
+      });
       jest.spyOn(frickVibanProvider, 'reserveViban').mockImplementation(async (_iban, description) => {
         expect(transactionActive).toBe(false);
         expect(description).toMatch(/^dfx-viban-[a-z0-9]{32}$/);
@@ -368,7 +372,9 @@ describe('VirtualIbanService', () => {
     it('leaves a Pending intent retryable when preflight fails before the claim', async () => {
       (frickVibanProvider.prepareVibanReservation as jest.Mock).mockRejectedValue(new Error('authorization failed'));
 
-      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow('authorization failed');
+      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
+        'Bank Frick personal IBAN preflight failed',
+      );
 
       expect(currentIntent.status).toBe(VirtualIbanIssuanceIntentStatus.PENDING);
       expect(auditEvents).toEqual([]);
@@ -478,6 +484,40 @@ describe('VirtualIbanService', () => {
         }),
       );
       expect(frickVibanProvider.reserveViban).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns a definitely rejected create to Pending and permits one fresh retry', async () => {
+      jest
+        .spyOn(frickVibanProvider, 'reserveViban')
+        .mockRejectedValueOnce(new VibanNotCreatedError('Bank Frick API request failed: HTTP 422'))
+        .mockResolvedValueOnce(reserved);
+
+      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
+        'Bank Frick rejected personal IBAN issuance before creation',
+      );
+
+      expect(currentIntent).toMatchObject({
+        status: VirtualIbanIssuanceIntentStatus.PENDING,
+        error: 'Bank Frick API request failed: HTTP 422',
+      });
+      expect(auditEvents.at(-1)).toEqual(
+        expect.objectContaining({
+          previousStatus: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+          nextStatus: VirtualIbanIssuanceIntentStatus.PENDING,
+          nextError: 'Bank Frick API request failed: HTTP 422',
+        }),
+      );
+
+      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).resolves.toMatchObject({ iban: reserved.iban });
+      expect(frickVibanProvider.reserveViban).toHaveBeenCalledTimes(2);
+      expect(auditEvents).toContainEqual(
+        expect.objectContaining({
+          previousStatus: VirtualIbanIssuanceIntentStatus.PENDING,
+          nextStatus: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+          previousError: 'Bank Frick API request failed: HTTP 422',
+          nextError: null,
+        }),
+      );
     });
 
     it('rejects reactivation of an inactive local vIBAN without overwriting its history', async () => {

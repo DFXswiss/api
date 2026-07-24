@@ -65,7 +65,7 @@ export class GetBuyPaymentInfoDto {
 
   @ApiPropertyOptional({
     enum: PersonalIbanProvider,
-    description: 'Explicit personal IBAN provider (e.g. frick). Fail-closed; no fallback to default bank.',
+    description: 'Explicit personal IBAN provider (e.g. Frick). Fail-closed; no fallback to default bank.',
   })
   @IsOptional()
   @IsEnum(PersonalIbanProvider)

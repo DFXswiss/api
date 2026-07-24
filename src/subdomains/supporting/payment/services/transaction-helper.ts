@@ -546,32 +546,29 @@ export class TransactionHelper implements OnModuleInit {
     if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
       throw new BadRequestException('Transaction not completed');
 
-    if (
-      statementType === TxStatementType.INVOICE &&
-      transaction.request &&
-      transaction.buyCrypto &&
-      !transaction.buyCrypto.isCryptoCryptoTransaction
-    )
-      return this.getTxStatementDetailsFromRequest(transaction, statementType);
-
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       const buy = transaction.buyCrypto.buy;
       const isCardPayment = transaction.buyCrypto.paymentMethodIn === FiatPaymentMethod.CARD;
+      const bankSelector = {
+        amount: transaction.buyCrypto.inputAmount,
+        currency: fiat.name,
+        paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+        userData: transaction.userData,
+      };
       const bankInfo =
-        statementType === TxStatementType.INVOICE &&
-        !isCardPayment &&
-        (await this.buyService.getBankInfo(
-          {
-            amount: transaction.buyCrypto.outputAmount,
-            currency: fiat.name,
-            paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-            userData: transaction.userData,
-          },
-          buy,
-          buy?.asset,
-          buy?.user?.wallet,
-        ));
+        statementType !== TxStatementType.INVOICE || isCardPayment
+          ? undefined
+          : transaction.request
+            ? await this.buyService.getBankInfoForRequest(
+                bankSelector,
+                buy,
+                transaction.request.bankId,
+                transaction.request.virtualIbanId,
+                buy?.asset,
+                buy?.user?.wallet,
+              )
+            : await this.buyService.getBankInfo(bankSelector, buy, buy?.asset, buy?.user?.wallet);
 
       return {
         statementType,
