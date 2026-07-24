@@ -1,9 +1,13 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import {
+  assertBucketWorm,
+  assertBucketWormIfDeclared,
   assertBucketsAccounted,
   assertNotOneSidedEmpty,
   assertPageComplete,
   assertRequestedContainersExist,
   assertWithinHealCap,
+  assertWormContainersConfig,
   DEFAULT_HEAL_CAP,
   diffStores,
   DiffResult,
@@ -14,6 +18,7 @@ import {
   parseConfig,
   StoredObject,
 } from '../../../../../scripts/storage/reconcile-stores';
+import { GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
 
 function storedObject(key: string, size: number, lastModified: Date): StoredObject {
   return { key, size, lastModified };
@@ -216,6 +221,7 @@ describe('parseConfig', () => {
   const ENV_KEYS = [
     'RECONCILE_CONTAINERS',
     'RECONCILE_IGNORE_BUCKETS',
+    'RECONCILE_WORM_CONTAINERS',
     'RECONCILE_HEAL',
     'RECONCILE_HEAL_CAP',
   ] as const;
@@ -227,6 +233,7 @@ describe('parseConfig', () => {
     savedEnv = {
       RECONCILE_CONTAINERS: process.env.RECONCILE_CONTAINERS,
       RECONCILE_IGNORE_BUCKETS: process.env.RECONCILE_IGNORE_BUCKETS,
+      RECONCILE_WORM_CONTAINERS: process.env.RECONCILE_WORM_CONTAINERS,
       RECONCILE_HEAL: process.env.RECONCILE_HEAL,
       RECONCILE_HEAL_CAP: process.env.RECONCILE_HEAL_CAP,
     };
@@ -270,6 +277,7 @@ describe('parseConfig', () => {
 
   it('sets heal true when --heal is present', () => {
     process.argv = ['node', 'script', 'kyc', '--heal'];
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc';
     const cfg = parseConfig();
     expect(cfg.heal).toBe(true);
   });
@@ -290,6 +298,7 @@ describe('parseConfig', () => {
   it('sets heal true from RECONCILE_HEAL=true without --heal flag', () => {
     process.argv = ['node', 'script', 'kyc'];
     process.env.RECONCILE_HEAL = 'true';
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc';
     const cfg = parseConfig();
     expect(cfg.heal).toBe(true);
   });
@@ -326,6 +335,137 @@ describe('parseConfig', () => {
     process.env.RECONCILE_IGNORE_BUCKETS = 'system, temp';
     const cfg = parseConfig();
     expect(cfg.ignoreBuckets).toEqual(['system', 'temp']);
+  });
+
+  it('REPORT mode does not require RECONCILE_WORM_CONTAINERS', () => {
+    process.argv = ['node', 'script', 'kyc', 'support'];
+    const cfg = parseConfig();
+    expect(cfg.heal).toBe(false);
+    expect(cfg.wormContainers).toEqual([]);
+  });
+
+  it('parses RECONCILE_WORM_CONTAINERS with space and comma separation', () => {
+    process.argv = ['node', 'script', 'kyc', 'support', 'ep2-example'];
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc, ep2-example';
+    const cfg = parseConfig();
+    expect(cfg.wormContainers).toEqual(['kyc', 'ep2-example']);
+  });
+
+  it('throws when --heal is set and RECONCILE_WORM_CONTAINERS is unset', () => {
+    process.argv = ['node', 'script', 'kyc', '--heal'];
+    expect(() => parseConfig()).toThrow(/RECONCILE_WORM_CONTAINERS is required/);
+    expect(() => parseConfig()).toThrow(/Guessing either blocks legitimate heals/);
+  });
+
+  it('throws when --heal is set and RECONCILE_WORM_CONTAINERS is empty', () => {
+    process.argv = ['node', 'script', 'kyc', '--heal'];
+    process.env.RECONCILE_WORM_CONTAINERS = '';
+    expect(() => parseConfig()).toThrow(/RECONCILE_WORM_CONTAINERS is required/);
+  });
+
+  it('throws when --heal is set and RECONCILE_WORM_CONTAINERS parses to empty', () => {
+    process.argv = ['node', 'script', 'kyc', '--heal'];
+    process.env.RECONCILE_WORM_CONTAINERS = '  ,  ';
+    expect(() => parseConfig()).toThrow(/RECONCILE_WORM_CONTAINERS is required/);
+  });
+
+  it('throws when a declared WORM container is not among the reconciled containers', () => {
+    process.argv = ['node', 'script', 'kyc', 'support'];
+    process.env.RECONCILE_WORM_CONTAINERS = 'kyc, typo-bucket';
+    expect(() => parseConfig()).toThrow(/not among the reconciled containers/);
+    expect(() => parseConfig()).toThrow(/typo-bucket/);
+  });
+});
+
+describe('assertWormContainersConfig', () => {
+  it('throws when heal is true and wormContainers is empty', () => {
+    expect(() => assertWormContainersConfig(true, [], ['kyc', 'support'])).toThrow(
+      /RECONCILE_WORM_CONTAINERS is required/,
+    );
+    expect(() => assertWormContainersConfig(true, [], ['kyc', 'support'])).toThrow(
+      /Guessing either blocks legitimate heals/,
+    );
+  });
+
+  it('does not throw when heal is false and wormContainers is empty', () => {
+    expect(() => assertWormContainersConfig(false, [], ['kyc', 'support'])).not.toThrow();
+  });
+
+  it('throws when a declared WORM container is missing from the reconciled list', () => {
+    expect(() => assertWormContainersConfig(true, ['kyc', 'missing'], ['kyc', 'support'])).toThrow(
+      /not among the reconciled containers/,
+    );
+    expect(() => assertWormContainersConfig(true, ['kyc', 'missing'], ['kyc', 'support'])).toThrow(
+      /missing/,
+    );
+  });
+
+  it('does not throw when every declared WORM container is reconciled', () => {
+    expect(() => assertWormContainersConfig(true, ['kyc'], ['kyc', 'support'])).not.toThrow();
+  });
+});
+
+describe('assertBucketWorm / assertBucketWormIfDeclared', () => {
+  function mockS3Client(sendImpl: jest.Mock): S3Client {
+    return { send: sendImpl } as unknown as S3Client;
+  }
+
+  function noObjectLockConfigResult() {
+    return {
+      ObjectLockConfiguration: undefined,
+    };
+  }
+
+  function complianceLockConfigResult(years: number = GEBUEV_RETENTION_FLOOR_YEARS) {
+    return {
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: years } },
+      },
+    };
+  }
+
+  it('assertBucketWorm throws when Object Lock configuration is missing (fail-closed)', async () => {
+    const send = jest.fn().mockResolvedValue(noObjectLockConfigResult());
+    const client = mockS3Client(send);
+    const verified = new Map<string, boolean>();
+    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(
+      /Refusing azure→s3 heal into bucket "kyc"/,
+    );
+    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(/Object Lock is not Enabled/);
+    expect(verified.get('kyc')).toBeUndefined();
+  });
+
+  it('assertBucketWormIfDeclared throws for a declared WORM container without Object Lock', async () => {
+    const send = jest.fn().mockResolvedValue(noObjectLockConfigResult());
+    const client = mockS3Client(send);
+    const verified = new Map<string, boolean>();
+    const worm = new Set(['kyc']);
+    await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified)).rejects.toThrow(
+      /Refusing azure→s3 heal into bucket "kyc"/,
+    );
+    expect(send).toHaveBeenCalled();
+  });
+
+  it('assertBucketWormIfDeclared skips WORM assert for a container not declared WORM', async () => {
+    const send = jest.fn().mockResolvedValue(noObjectLockConfigResult());
+    const client = mockS3Client(send);
+    const verified = new Map<string, boolean>();
+    // support is reconciled but deliberately not WORM — heal must proceed without Object Lock
+    const worm = new Set(['kyc']);
+    await expect(assertBucketWormIfDeclared(client, 'support', worm, verified)).resolves.toBeUndefined();
+    expect(send).not.toHaveBeenCalled();
+    expect(verified.size).toBe(0);
+  });
+
+  it('assertBucketWormIfDeclared accepts a declared WORM container with COMPLIANCE lock', async () => {
+    const send = jest.fn().mockResolvedValue(complianceLockConfigResult());
+    const client = mockS3Client(send);
+    const verified = new Map<string, boolean>();
+    const worm = new Set(['kyc']);
+    await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified)).resolves.toBeUndefined();
+    expect(verified.get('kyc')).toBe(true);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });
 

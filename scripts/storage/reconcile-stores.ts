@@ -25,6 +25,15 @@
  * tolerance is flagged. The reverse (s3 newer than azure) is the normal backfill / dual-write
  * ordering case and must not be treated as an overwrite — Azure is the authoritative source.
  *
+ * Heal semantics (additive only): missing objects are copied azure→s3 or s3→azure; never
+ * delete; never overwrite content divergence. Before every azure→s3 heal copy, containers
+ * explicitly declared in RECONCILE_WORM_CONTAINERS are fail-closed checked for Object Lock
+ * COMPLIANCE (assertBucketWorm). Containers not on that list skip the WORM assert so
+ * legitimate heals into normal (non-Object-Lock) buckets are not blocked. The WORM set is
+ * never guessed: --heal with RECONCILE_WORM_CONTAINERS unset or empty aborts, because guessing
+ * either blocks heals into normal buckets or silently writes compliance records into an
+ * unprotected bucket. REPORT mode does not require this variable.
+ *
  * Very large buckets may need extra heap because all objects are held in memory, e.g.:
  *   node --max-old-space-size=4096 ./node_modules/.bin/ts-node scripts/storage/reconcile-stores.ts
  *
@@ -33,12 +42,16 @@
  *   - Azure: AZURE_STORAGE_CONNECTION_STRING
  *   - Containers: CLI positional args or RECONCILE_CONTAINERS (space- and/or comma-separated)
  *   - Ignore buckets: RECONCILE_IGNORE_BUCKETS (space- and/or comma-separated; optional)
+ *   - WORM containers: RECONCILE_WORM_CONTAINERS (space- and/or comma-separated; required for
+ *     --heal / RECONCILE_HEAL=true, ignored by REPORT). Must list every Object-Lock COMPLIANCE
+ *     container among the reconciled set; must not list containers outside that set (typo gate).
  *   - Heal: --heal or RECONCILE_HEAL=true
  *   - Heal cap: RECONCILE_HEAL_CAP (positive integer) or DEFAULT_HEAL_CAP
  *
  * Run examples:
  *   RECONCILE_CONTAINERS="kyc support ep2-example" npx ts-node scripts/storage/reconcile-stores.ts
- *   RECONCILE_CONTAINERS="kyc support ep2-example" npx ts-node scripts/storage/reconcile-stores.ts --heal
+ *   RECONCILE_CONTAINERS="kyc support ep2-example" RECONCILE_WORM_CONTAINERS="kyc ep2-example" \
+ *     npx ts-node scripts/storage/reconcile-stores.ts --heal
  *   npx ts-node scripts/storage/reconcile-stores.ts kyc support --verbose
  *
  * Scope boundary: Azure SAS connection strings cannot list containers, so the requested
@@ -210,7 +223,9 @@ export function assertPageComplete(isTruncated: boolean, nextToken: string | und
 
 /**
  * Verify the target S3 bucket enforces Object Lock COMPLIANCE with GeBüV floor retention
- * before any azure→s3 heal copy. Memoized per bucket name in `verified` (only successes).
+ * before an azure→s3 heal copy into a declared WORM container. Memoized per bucket name in
+ * `verified` (only successes). Call only for containers listed in RECONCILE_WORM_CONTAINERS —
+ * non-WORM targets must skip this check (see assertBucketWormIfDeclared).
  */
 export async function assertBucketWorm(
   client: S3Client,
@@ -239,6 +254,51 @@ export async function assertBucketWorm(
   }
 
   verified.set(bucket, true);
+}
+
+/**
+ * Heal-path WORM gate for azure→s3 copies: run assertBucketWorm only when `bucket` is in the
+ * explicit RECONCILE_WORM_CONTAINERS set. Non-declared containers skip the check so additive
+ * heals into normal buckets are not blocked by a missing Object Lock configuration.
+ */
+export async function assertBucketWormIfDeclared(
+  client: S3Client,
+  bucket: string,
+  wormContainers: ReadonlySet<string>,
+  verified: Map<string, boolean>,
+): Promise<void> {
+  if (!wormContainers.has(bucket)) return;
+  await assertBucketWorm(client, bucket, verified);
+}
+
+/**
+ * Fail-loud config gate for RECONCILE_WORM_CONTAINERS.
+ * - Heal mode requires an explicit non-empty declaration (no silent default / empty-list default).
+ * - Any declared name must appear among the reconciled containers (typo gate).
+ * REPORT mode may leave the list empty; a non-empty list is still typo-checked.
+ */
+export function assertWormContainersConfig(
+  heal: boolean,
+  wormContainers: string[],
+  reconciledContainers: string[],
+): void {
+  if (heal && wormContainers.length === 0) {
+    throw new Error(
+      'RECONCILE_WORM_CONTAINERS is required when --heal (or RECONCILE_HEAL=true) is requested and must not be empty. ' +
+        'Declare which containers enforce Object Lock COMPLIANCE (space- and/or comma-separated). ' +
+        'Guessing either blocks legitimate heals into normal buckets or silently writes ' +
+        'compliance records into an unprotected bucket.',
+    );
+  }
+
+  const reconciled = new Set(reconciledContainers);
+  const unknown = wormContainers.filter((name) => !reconciled.has(name));
+  if (unknown.length > 0) {
+    throw new Error(
+      `RECONCILE_WORM_CONTAINERS declares container(s) not among the reconciled containers: ${unknown.join(', ')}. ` +
+        `Likely a typo in the declaration — every WORM container must also be reconciled.`,
+    );
+  }
 }
 
 // size/lastModified from list pages only — no HeadObject per key.
@@ -344,6 +404,7 @@ function dedupePreserveOrder(items: string[]): string[] {
 export function parseConfig(): {
   containers: string[];
   ignoreBuckets: string[];
+  wormContainers: string[];
   heal: boolean;
   healCap: number;
   verbose: boolean;
@@ -375,6 +436,10 @@ export function parseConfig(): {
   const ignoreRaw = process.env.RECONCILE_IGNORE_BUCKETS;
   const ignoreBuckets = ignoreRaw ? parseContainerList(ignoreRaw) : [];
 
+  const wormRaw = process.env.RECONCILE_WORM_CONTAINERS;
+  const wormContainers = wormRaw ? dedupePreserveOrder(parseContainerList(wormRaw)) : [];
+  assertWormContainersConfig(heal, wormContainers, containers);
+
   const rawCap = process.env.RECONCILE_HEAL_CAP;
   let healCap = DEFAULT_HEAL_CAP;
   if (rawCap !== undefined) {
@@ -385,7 +450,7 @@ export function parseConfig(): {
     healCap = n;
   }
 
-  return { containers, ignoreBuckets, heal, healCap, verbose };
+  return { containers, ignoreBuckets, wormContainers, heal, healCap, verbose };
 }
 
 function isEmptyDiff(diff: DiffResult): boolean {
@@ -506,13 +571,15 @@ async function copyS3ToAzure(
 // --- MAIN --- //
 
 async function main(): Promise<number> {
-  const { containers, ignoreBuckets, heal, healCap, verbose } = parseConfig();
+  const { containers, ignoreBuckets, wormContainers, heal, healCap, verbose } = parseConfig();
   const s3 = buildS3Client();
   const azure = buildAzureClient();
+  const wormSet = new Set(wormContainers);
 
   console.log(
     `Store reconcile: containers=[${containers.join(', ')}] ` +
-      `ignoreBuckets=[${ignoreBuckets.join(', ')}] mode=${heal ? 'HEAL' : 'REPORT'} ` +
+      `ignoreBuckets=[${ignoreBuckets.join(', ')}] ` +
+      `wormContainers=[${wormContainers.join(', ')}] mode=${heal ? 'HEAL' : 'REPORT'} ` +
       `healCap=${healCap}${process.env.RECONCILE_HEAL_CAP === undefined ? ` (DEFAULT_HEAL_CAP)` : ''} ` +
       `skewToleranceMs=${OVERWRITE_SKEW_TOLERANCE_MS}`,
   );
@@ -626,7 +693,7 @@ async function main(): Promise<number> {
       const azureContainer = azure.getContainerClient(r.container);
 
       for (const key of r.diff.onlyOnAzure) {
-        await assertBucketWorm(s3, r.container, wormVerified);
+        await assertBucketWormIfDeclared(s3, r.container, wormSet, wormVerified);
         const result = await copyAzureToS3(azureContainer, s3, r.container, key);
         if (result === 'healed') {
           healedCount++;
