@@ -10,7 +10,6 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import * as ConfigModule from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { SupportClerkAccountDto } from 'src/shared/models/setting/dto/support-clerk-account.dto';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
@@ -1863,7 +1862,11 @@ describe('SupportIssueService.getIssueFile', () => {
       issue: Object.assign(new SupportIssue(), { id: 7, userData: { id: 42 } as UserData }),
     });
     ctx.messageRepo.findOneBy.mockResolvedValue(message);
-    const blob = { contentType: 'image/png', buffer: Buffer.from('x') } as unknown as BlobContent;
+    // type derived from the service method to avoid a direct import of the storage module (its path
+    // differs across branches); structurally this is the BlobContent the download returns
+    const blob = { contentType: 'image/png', buffer: Buffer.from('x') } as unknown as Awaited<
+      ReturnType<SupportDocumentService['downloadFile']>
+    >;
     ctx.documentService.downloadFile.mockResolvedValue(blob);
 
     const result = await ctx.service.getIssueFile('I123', 5, 42);
