@@ -1,11 +1,12 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { In, IsNull, Not } from 'typeorm';
+import { In, IsNull, Like, Not } from 'typeorm';
 import { FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { IbanService } from 'src/integration/bank/services/iban.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
+import { ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -39,7 +40,7 @@ import { createCustomCryptoInput } from '../../payin/entities/__mocks__/crypto-i
 import { createCustomFiatOutput } from '../__mocks__/fiat-output.entity.mock';
 import { Ep2ReportService } from '../ep2-report.service';
 import { FiatOutputFrickService } from '../fiat-output-frick.service';
-import { FiatOutputJobService } from '../fiat-output-job.service';
+import { FiatOutputJobService, SCRYPT_DEPOSIT_NAME_MARKER } from '../fiat-output-job.service';
 import { FiatOutputType } from '../fiat-output.entity';
 import { FiatOutputRepository } from '../fiat-output.repository';
 
@@ -1005,6 +1006,239 @@ describe('FiatOutputJobService', () => {
       await service['setReadyDate']();
 
       expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(6, { isReadyDate: expect.any(Date) });
+    });
+  });
+
+  describe('notifyScryptDeposits', () => {
+    function createScryptDepositEntity(overrides: Parameters<typeof createCustomFiatOutput>[0] = {}) {
+      return createCustomFiatOutput({
+        id: 10,
+        type: FiatOutputType.LIQ_MANAGEMENT,
+        name: `Payout ${SCRYPT_DEPOSIT_NAME_MARKER}`,
+        isComplete: true,
+        currency: 'CHF',
+        amount: 1500,
+        endToEndId: 'E2E-SCRYPT-10',
+        scryptDepositNotifiedDate: null,
+        ...overrides,
+      });
+    }
+
+    it('does not query when the Scrypt deposit notify process is disabled', async () => {
+      jest
+        .spyOn(processServiceModule, 'DisabledProcess')
+        .mockImplementation((process) => process === processServiceModule.Process.FIAT_OUTPUT_SCRYPT_DEPOSIT_NOTIFY);
+
+      await service['notifyScryptDeposits']();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('loads completed LiqManagement Scrypt deposits that are not yet notified', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([]);
+
+      await service['notifyScryptDeposits']();
+
+      expect(fiatOutputRepo.find).toHaveBeenCalledWith({
+        where: {
+          type: FiatOutputType.LIQ_MANAGEMENT,
+          name: Like(`%${SCRYPT_DEPOSIT_NAME_MARKER}%`),
+          isComplete: true,
+          scryptDepositNotifiedDate: IsNull(),
+        },
+      });
+    });
+
+    it('marks a COMPLETED deposit as notified without re-sending the deposit request', async () => {
+      const entity = createScryptDepositEntity();
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue({
+        id: 'tx-completed',
+        status: ScryptTransactionStatus.COMPLETED,
+      });
+
+      await service['notifyScryptDeposits']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(entity.id, {
+        scryptDepositNotifiedDate: expect.any(Date),
+      });
+      expect(scryptService.sendDepositRequest).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      {
+        status: ScryptTransactionStatus.REJECTED,
+        depositStatus: {
+          id: 'tx-rejected',
+          status: ScryptTransactionStatus.REJECTED,
+          rejectText: 'Broker rejected deposit',
+        },
+        expectedReason: 'Broker rejected deposit',
+      },
+      {
+        status: ScryptTransactionStatus.FAILED,
+        depositStatus: {
+          id: 'tx-failed',
+          status: ScryptTransactionStatus.FAILED,
+          rejectReason: 'Insufficient details',
+        },
+        expectedReason: 'Insufficient details',
+      },
+      {
+        status: ScryptTransactionStatus.REJECTED,
+        depositStatus: {
+          id: 'tx-unknown',
+          status: ScryptTransactionStatus.REJECTED,
+        },
+        expectedReason: 'unknown reason',
+      },
+    ])(
+      'logs $status deposits with reason "$expectedReason" and does not update or re-send',
+      async ({ depositStatus, expectedReason }) => {
+        const entity = createScryptDepositEntity();
+        jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+        jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue(depositStatus);
+        const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+        await service['notifyScryptDeposits']();
+
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `Scrypt deposit request for fiat output ${entity.id} was ${depositStatus.status}: ${expectedReason}`,
+          ),
+        );
+        expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+        expect(scryptService.sendDepositRequest).not.toHaveBeenCalled();
+      },
+    );
+
+    it('sends a deposit request using endToEndId as reqId when no status is known yet', async () => {
+      const entity = createScryptDepositEntity({ endToEndId: 'E2E-CUSTOM-42', id: 42 });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue(null);
+
+      await service['notifyScryptDeposits']();
+
+      expect(scryptService.sendDepositRequest).toHaveBeenCalledWith({
+        currency: entity.currency,
+        amount: entity.amount,
+        reqId: 'E2E-CUSTOM-42',
+        timeStamp: expect.any(Date),
+      });
+    });
+
+    it('sends a deposit request using DEPOSIT-{id} when endToEndId is missing', async () => {
+      const entity = createScryptDepositEntity({ endToEndId: undefined, id: 77 });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue(null);
+
+      await service['notifyScryptDeposits']();
+
+      expect(scryptService.sendDepositRequest).toHaveBeenCalledWith({
+        currency: entity.currency,
+        amount: entity.amount,
+        reqId: 'DEPOSIT-77',
+        timeStamp: expect.any(Date),
+      });
+    });
+
+    it('deduplicates send attempts within the retry interval and re-sends after it elapses', async () => {
+      const entity = createScryptDepositEntity({ id: 55 });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue(null);
+
+      await service['notifyScryptDeposits']();
+      await service['notifyScryptDeposits']();
+
+      expect(scryptService.sendDepositRequest).toHaveBeenCalledTimes(1);
+
+      (service as any).scryptDepositAttempts.set(entity.id, new Date(Date.now() - 61 * 60 * 1000));
+
+      await service['notifyScryptDeposits']();
+
+      expect(scryptService.sendDepositRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('clears the local attempt entry after a successful COMPLETED status update', async () => {
+      const entity = createScryptDepositEntity({ id: 88 });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue(null);
+
+      await service['notifyScryptDeposits']();
+      expect((service as any).scryptDepositAttempts.has(entity.id)).toBe(true);
+
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue({
+        id: 'tx-done',
+        status: ScryptTransactionStatus.COMPLETED,
+      });
+
+      await service['notifyScryptDeposits']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(entity.id, {
+        scryptDepositNotifiedDate: expect.any(Date),
+      });
+      expect((service as any).scryptDepositAttempts.has(entity.id)).toBe(false);
+    });
+
+    it('isolates errors so a failure on one entity does not block the rest of the sweep', async () => {
+      const entity1 = createScryptDepositEntity({ id: 1, endToEndId: 'E2E-1' });
+      const entity2 = createScryptDepositEntity({ id: 2, endToEndId: 'E2E-2' });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity1, entity2]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockImplementation((reqId: string) => {
+        if (reqId === 'E2E-1') throw new Error('status lookup failed');
+        return null;
+      });
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      await service['notifyScryptDeposits']();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        `Failed to process Scrypt deposit notification for fiat output ${entity1.id}:`,
+        expect.any(Error),
+      );
+      expect(scryptService.sendDepositRequest).toHaveBeenCalledWith(expect.objectContaining({ reqId: 'E2E-2' }));
+    });
+
+    it.each([
+      {
+        label: 'wrong type',
+        entity: createCustomFiatOutput({
+          id: 1,
+          type: FiatOutputType.BUY_FIAT,
+          name: `Payout ${SCRYPT_DEPOSIT_NAME_MARKER}`,
+          isComplete: true,
+          currency: 'CHF',
+          amount: 100,
+        }),
+      },
+      {
+        label: 'name without marker',
+        entity: createCustomFiatOutput({
+          id: 2,
+          type: FiatOutputType.LIQ_MANAGEMENT,
+          name: 'Unrelated counterparty',
+          isComplete: true,
+          currency: 'CHF',
+          amount: 100,
+        }),
+      },
+      {
+        label: 'undefined name',
+        entity: createCustomFiatOutput({
+          id: 3,
+          type: FiatOutputType.LIQ_MANAGEMENT,
+          name: undefined,
+          isComplete: true,
+          currency: 'CHF',
+          amount: 100,
+        }),
+      },
+    ])('fail-closed: skips notifyScryptDeposit when $label', async ({ entity }) => {
+      await service['notifyScryptDeposit'](entity);
+
+      expect(scryptService.getDepositStatus).not.toHaveBeenCalled();
+      expect(scryptService.sendDepositRequest).not.toHaveBeenCalled();
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
     });
   });
 });

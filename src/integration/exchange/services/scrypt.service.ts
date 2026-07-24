@@ -9,6 +9,7 @@ import { PricingProvider } from 'src/subdomains/supporting/pricing/services/inte
 import {
   ScryptBalance,
   ScryptBalanceTransaction,
+  ScryptDepositStatus,
   ScryptExecutionReport,
   ScryptMarketDataSnapshot,
   ScryptOrderBook,
@@ -267,6 +268,19 @@ export class ScryptService extends PricingProvider {
   }
 
   // --- DEPOSITS --- //
+
+  getDepositStatus(clReqId: string): ScryptDepositStatus | null {
+    const transaction = this.balanceTransactions.get(clReqId);
+
+    if (!transaction || transaction.TransactionType !== ScryptTransactionType.DEPOSIT) return null;
+
+    return {
+      id: transaction.TransactionID,
+      status: transaction.Status,
+      rejectReason: transaction.RejectReason,
+      rejectText: transaction.RejectText,
+    };
+  }
 
   async sendDepositRequest(params: {
     currency: string;
