@@ -36,6 +36,7 @@ import { BankService } from '../../bank/bank/bank.service';
 import { frickCHF, frickEUR, olkyEUR, yapealCHF, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
+import { createCustomCryptoInput } from '../../payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
 import { PayoutService } from '../../payout/services/payout.service';
 import { LogJobService } from '../log-job.service';
@@ -1968,6 +1969,169 @@ describe('LogJobService', () => {
       // Load-bearing: negative leg must be present and signed (getJsonValue returnNegativeValue=true).
       expect(assetLog[yapealEurAsset.id].plusBalance.pending.toKraken).toBe(-100000);
       expect(assetLog[yapealEurAsset.id].plusBalance.pending.fromKraken).toBe(900000);
+    });
+
+    it('does not report fromKraken !== fromKrakenUnfiltered for a residue below BALANCE_TOLERANCE (prod float-summation artifact)', async () => {
+      const yapealEurAsset = createCustomAsset({
+        id: 8006,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'EUR',
+        financialType: 'EUR',
+        sellable: true,
+      });
+
+      // No `created` date is set, so filterSenderPendingList excludes this leg from the filtered
+      // sender list entirely (see setupUnfilteredKrakenNetting) — fromKraken (filtered) stays 0.
+      // The unfiltered raw sender list has no such recency filter, so fromKrakenUnfiltered picks up
+      // this leg at the exact production residue magnitude — a difference below BALANCE_TOLERANCE.
+      const residueTx = createCustomExchangeTx({
+        id: 6001,
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: 'YAPEAL AG',
+        amount: 1.1641532182693481e-10,
+      });
+      setupUnfilteredKrakenNetting([residueTx]);
+
+      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
+
+      await service['getAssetLog']([yapealEurAsset]);
+
+      expect(
+        verboseSpy.mock.calls.some((call) =>
+          String(call[0]).includes('fromKraken balance !== fromKrakenUnfiltered balance'),
+        ),
+      ).toBe(false);
+    });
+
+    it('still reports fromKraken !== fromKrakenUnfiltered for a deviation above BALANCE_TOLERANCE (regression against over-wide masking), and stays silent for a deviation within the tolerance band (pins the 0.01 boundary for a fiat asset)', async () => {
+      const yapealEurAsset = createCustomAsset({
+        id: 8007,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'EUR',
+        financialType: 'EUR',
+        sellable: true,
+      });
+
+      // Same mechanism as above, but the leg amount is well above BALANCE_TOLERANCE — the guard must
+      // still fire so a genuine reconciliation gap is never masked by the tolerance.
+      const materialTx = createCustomExchangeTx({
+        id: 6002,
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: 'YAPEAL AG',
+        amount: 1,
+      });
+      setupUnfilteredKrakenNetting([materialTx]);
+
+      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
+
+      await service['getAssetLog']([yapealEurAsset]);
+
+      expect(
+        verboseSpy.mock.calls.some((call) =>
+          String(call[0]).includes('fromKraken balance !== fromKrakenUnfiltered balance'),
+        ),
+      ).toBe(true);
+
+      // Boundary check: a deviation clearly inside the fiat tolerance band (below BALANCE_TOLERANCE =
+      // 0.01, but well above ASSET_BALANCE_TOLERANCE = 1e-8) must stay unreported for the same fiat
+      // asset — this pins the 0.01 boundary itself, not just an extreme value far outside it.
+      verboseSpy.mockClear();
+
+      const boundaryTx = createCustomExchangeTx({
+        id: 6004,
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: 'YAPEAL AG',
+        amount: 0.005,
+      });
+      setupUnfilteredKrakenNetting([boundaryTx]);
+
+      await service['getAssetLog']([yapealEurAsset]);
+
+      expect(
+        verboseSpy.mock.calls.some((call) =>
+          String(call[0]).includes('fromKraken balance !== fromKrakenUnfiltered balance'),
+        ),
+      ).toBe(false);
+    });
+
+    it('does not report totalPlusPending < 0 for a residue below BALANCE_TOLERANCE, but still clamps it to 0', async () => {
+      const yapealEurAsset = createCustomAsset({
+        id: 8008,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'EUR',
+        financialType: 'EUR',
+        sellable: true,
+      });
+
+      // Unmatched Kraken deposit (Yapeal -> Kraken direction) at the exact production residue
+      // magnitude: toKrakenUnfiltered becomes minimally negative, making totalPlusPending minimally
+      // negative (useUnfilteredTx is true in setupUnfilteredKrakenNetting). Below BALANCE_TOLERANCE,
+      // this must not be reported, but the aggregate clamp to 0 must still run.
+      const residueDepositTx = createCustomExchangeTx({
+        id: 6003,
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: yapealEUR.bic.padEnd(11, 'XXX'),
+        amount: 1.1641532182693481e-10,
+      });
+      setupUnfilteredKrakenNetting([residueDepositTx]);
+
+      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
+
+      const assetLog = await service['getAssetLog']([yapealEurAsset]);
+
+      expect(verboseSpy.mock.calls.some((call) => String(call[0]).includes('totalPlusPending < 0'))).toBe(false);
+      expect(assetLog[yapealEurAsset.id].plusBalance.pending).toBeUndefined();
+      expect(assetLog[yapealEurAsset.id].plusBalance.total).toBe(0);
+    });
+
+    it('reports totalPlusPending < 0 for the same deviation on a non-fiat asset but not on a fiat (EUR) bank asset processed in the same call, both still clamped to 0', async () => {
+      // Same negative deviation (-0.001) on two assets processed in one getAssetLog call, differing
+      // only in amount type: this pins down the branch the asset-dependent tolerance introduces —
+      // whether a deviation is reported depends on financialTypeAmountType(curr.financialType), not on
+      // a flat tolerance shared by every asset.
+      // Non-fiat: default createCustomAsset() fixture (dexName 'USDT', Blockchain.ETHEREUM).
+      const cryptoAsset = createCustomAsset({ id: 8009, sellable: true });
+      // Fiat: financialType 'EUR' is what financialTypeAmountType() keys off. Blockchain stays the
+      // (non-Monero/Lightning/Zano) default so cryptoInput is not forced to 0.
+      const fiatAsset = createCustomAsset({ id: 8010, dexName: 'EUR', financialType: 'EUR', sellable: true });
+
+      // No Kraken legs at all — isolates the effect to cryptoInput.
+      setupUnfilteredKrakenNetting([]);
+
+      // Identical -0.001 pending payIn on each asset: above ASSET_BALANCE_TOLERANCE (1e-8) but below
+      // BALANCE_TOLERANCE (0.01) — reported for the non-fiat asset, not for the fiat asset.
+      jest
+        .spyOn(payInService, 'getPendingPayIns')
+        .mockResolvedValue([
+          createCustomCryptoInput({ asset: cryptoAsset, amount: -0.001 }),
+          createCustomCryptoInput({ asset: fiatAsset, amount: -0.001 }),
+        ]);
+
+      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
+
+      const assetLog = await service['getAssetLog']([cryptoAsset, fiatAsset]);
+
+      expect(
+        verboseSpy.mock.calls.some((call) =>
+          String(call[0]).includes(`Error in financial log, totalPlusPending < 0 for asset: ${cryptoAsset.id},`),
+        ),
+      ).toBe(true);
+      expect(
+        verboseSpy.mock.calls.some((call) =>
+          String(call[0]).includes(`Error in financial log, totalPlusPending < 0 for asset: ${fiatAsset.id},`),
+        ),
+      ).toBe(false);
+      expect(assetLog[cryptoAsset.id].plusBalance.total).toBe(0);
+      expect(assetLog[fiatAsset.id].plusBalance.total).toBe(0);
     });
   });
 });
