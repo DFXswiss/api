@@ -37,6 +37,12 @@
  * heals into normal buckets or silently writes compliance records into an unprotected bucket.
  * REPORT mode does not require this variable and is unaffected by its value (no-op).
  *
+ * Exact-cap heal (`--exact-cap` with `--heal`): production path that binds the heal to both
+ * the exact additive candidate count (must equal RECONCILE_HEAL_CAP) and a previously
+ * approved candidate-set digest (RECONCILE_EXPECTED_CANDIDATE_SET_SHA256). Both checks run
+ * before any WORM probe, download, or PUT. Normal `--heal` keeps max-cap semantics
+ * (candidate count ≤ RECONCILE_HEAL_CAP / DEFAULT_HEAL_CAP).
+ *
  * Very large buckets may need extra heap because all objects are held in memory, e.g.:
  *   node --max-old-space-size=4096 ./node_modules/.bin/ts-node scripts/storage/reconcile-stores.ts
  *
@@ -49,7 +55,10 @@
  *     --heal / RECONCILE_HEAL=true, ignored by REPORT). Must list every Object-Lock COMPLIANCE
  *     container among the reconciled set; must not list containers outside that set (typo gate).
  *   - Heal: --heal or RECONCILE_HEAL=true
- *   - Heal cap: RECONCILE_HEAL_CAP (positive integer) or DEFAULT_HEAL_CAP
+ *   - Heal cap: RECONCILE_HEAL_CAP (positive integer) or DEFAULT_HEAL_CAP (normal heal only)
+ *   - Exact-cap heal: --exact-cap (requires --heal / RECONCILE_HEAL=true), plus explicit
+ *     RECONCILE_HEAL_CAP and RECONCILE_EXPECTED_CANDIDATE_SET_SHA256 (64 lowercase hex)
+ *   - Optional report provenance: RECONCILE_API_IMAGE_DIGEST, RECONCILE_OPERATOR_COMMIT_SHA
  *
  * Run examples:
  *   RECONCILE_CONTAINERS="kyc support ep2-example" npx ts-node scripts/storage/reconcile-stores.ts
@@ -64,7 +73,8 @@
  *
  * Privacy boundary: raw object keys are held in memory for comparison and passed to the
  * storage SDKs, but are never printed. Verbose diagnostics and heal progress identify an
- * object only as a stable SHA-256 key digest.
+ * object only as a stable SHA-256 key digest. Machine-readable Gate-1 summary lines never
+ * include raw keys or user metadata.
  */
 
 import {
@@ -90,7 +100,10 @@ import {
 export const DEFAULT_HEAL_CAP = 1000;
 
 /** Runtime marker required by the production operator wrapper before credentials are passed. */
-export const RECONCILER_PRIVACY_LOG_VERSION = 'storage-reconciler-private-logs-v1';
+export const RECONCILER_PRIVACY_LOG_VERSION = 'storage-reconciler-private-logs-v2';
+
+/** Schema version for the machine-readable Gate-1 `RECONCILE_REPORT_JSON` line. */
+export const RECONCILE_REPORT_SCHEMA_VERSION = 1;
 
 /**
  * Azure lastModified may legitimately lag S3 (or vice versa) by clock skew / write ordering.
@@ -118,6 +131,90 @@ export interface DiffResult {
    * advisory lastModified hint (not gate-blocking; unreliable after heals), not auto-healable
    */
   suspectedOverwrite: string[];
+}
+
+export type HealDirection = 'azureToS3' | 's3ToAzure';
+
+export interface DirectionSummary {
+  count: number;
+  bytes: number;
+}
+
+export interface ContainerAdditiveSummary {
+  container: string;
+  azureToS3: DirectionSummary;
+  s3ToAzure: DirectionSummary;
+}
+
+/** Privacy-safe additive candidate (no raw key). */
+export interface AdditiveCandidate {
+  container: string;
+  direction: HealDirection;
+  keySha256: string;
+  size: number;
+}
+
+export interface AdditiveReportTotals {
+  onlyOnAzure: number;
+  onlyOnS3: number;
+  sizeMismatch: number;
+  suspectedOverwrite: number;
+  azureToS3: DirectionSummary;
+  s3ToAzure: DirectionSummary;
+  additiveCandidates: number;
+}
+
+/** Canonical additive Gate-1 summary over all containers (privacy-safe). */
+export interface AdditiveReconcileSummary {
+  containers: ContainerAdditiveSummary[];
+  totals: AdditiveReportTotals;
+  candidateSetSha256: string;
+}
+
+/** Machine-readable Gate-1 report payload (no raw keys / user metadata). */
+export interface MachineReadableReconcileReport {
+  schemaVersion: number;
+  privacyLogVersion: string;
+  mode: 'REPORT' | 'HEAL';
+  generatedAtUtc: string;
+  apiImageDigest?: string;
+  operatorCommitSha?: string;
+  containers: ContainerAdditiveSummary[];
+  totals: AdditiveReportTotals;
+  candidateSetSha256: string;
+}
+
+export interface DirectionHealStats {
+  healedCount: number;
+  healedBytes: number;
+  skippedCount: number;
+  skippedBytes: number;
+}
+
+/** Per-container inventory + diff inputs for additive HEAL orchestration (privacy-safe). */
+export interface HealContainerReport {
+  container: string;
+  diff: DiffResult;
+  azureByKey: ReadonlyMap<string, StoredObject>;
+  s3ByKey: ReadonlyMap<string, StoredObject>;
+}
+
+/** Inputs for the production additive HEAL path (authorization + sequential copies). */
+export interface AdditiveHealOrchestrationParams {
+  reports: ReadonlyArray<HealContainerReport>;
+  s3: S3Client;
+  azure: Pick<BlobServiceClient, 'getContainerClient'>;
+  wormContainers: ReadonlySet<string>;
+  healCap: number;
+  exactCap: boolean;
+  actualCandidateSetSha256: string;
+  expectedCandidateSetSha256?: string;
+}
+
+/** Directional heal stats returned by runAdditiveHealOrchestration for summary/verification. */
+export interface AdditiveHealOrchestrationStats {
+  azureToS3: DirectionHealStats;
+  s3ToAzure: DirectionHealStats;
 }
 
 // Unit-testable pure helpers — no I/O.
@@ -190,6 +287,31 @@ export function assertWithinHealCap(candidateCount: number, cap: number): void {
     throw new Error(
       `Heal candidate count ${candidateCount} exceeds heal cap ${cap}. ` +
         `Raise RECONCILE_HEAL_CAP only after reviewing the report, or heal in smaller batches.`,
+    );
+  }
+}
+
+/**
+ * Exact-cap production binding: additive candidate count must equal RECONCILE_HEAL_CAP and the
+ * computed candidate-set digest must equal the previously approved digest. Fail-closed before
+ * any heal I/O (WORM probe, download, PUT).
+ */
+export function assertExactHealBinding(
+  additiveCandidateCount: number,
+  healCap: number,
+  actualCandidateSetSha256: string,
+  expectedCandidateSetSha256: string,
+): void {
+  if (additiveCandidateCount !== healCap) {
+    throw new Error(
+      `Exact-cap heal binding failed: additive candidate count ${additiveCandidateCount} ` +
+        `!== RECONCILE_HEAL_CAP ${healCap}. Refusing heal before any WORM probe, download, or PUT.`,
+    );
+  }
+  if (actualCandidateSetSha256 !== expectedCandidateSetSha256) {
+    throw new Error(
+      `Exact-cap heal binding failed: candidateSetSha256 ${actualCandidateSetSha256} ` +
+        `!== expected ${expectedCandidateSetSha256}. Refusing heal before any WORM probe, download, or PUT.`,
     );
   }
 }
@@ -379,6 +501,198 @@ export function assertWormContainersConfig(
   }
 }
 
+// --- ADDITIVE SUMMARY / DIGEST (privacy-safe, pure) --- //
+
+export function hashObjectKeySha256(key: string): string {
+  return crypto.createHash('sha256').update(key, 'utf8').digest('hex');
+}
+
+export function indexStoredObjectsByKey(objects: readonly StoredObject[]): Map<string, StoredObject> {
+  const map = new Map<string, StoredObject>();
+  for (const obj of objects) {
+    map.set(obj.key, obj);
+  }
+  return map;
+}
+
+export function sumBytesForKeys(keys: readonly string[], byKey: ReadonlyMap<string, StoredObject>): number {
+  let bytes = 0;
+  for (const key of keys) {
+    const obj = byKey.get(key);
+    if (!obj) {
+      throw new Error(
+        `Missing inventory object for key-sha256=${hashObjectKeySha256(key)} while summing candidate bytes`,
+      );
+    }
+    bytes += obj.size;
+  }
+  return bytes;
+}
+
+export function buildDirectionSummary(
+  keys: readonly string[],
+  byKey: ReadonlyMap<string, StoredObject>,
+): DirectionSummary {
+  return { count: keys.length, bytes: sumBytesForKeys(keys, byKey) };
+}
+
+/**
+ * Collect privacy-safe additive candidates for one container. Only onlyOnAzure / onlyOnS3
+ * contribute; sizeMismatch and suspectedOverwrite are never additive heal candidates.
+ */
+export function collectAdditiveCandidatesForContainer(
+  container: string,
+  diff: DiffResult,
+  azureByKey: ReadonlyMap<string, StoredObject>,
+  s3ByKey: ReadonlyMap<string, StoredObject>,
+): AdditiveCandidate[] {
+  const candidates: AdditiveCandidate[] = [];
+
+  for (const key of diff.onlyOnAzure) {
+    const obj = azureByKey.get(key);
+    if (!obj) {
+      throw new Error(`Missing Azure inventory object for ${safeObjectReference(container, key)}`);
+    }
+    candidates.push({
+      container,
+      direction: 'azureToS3',
+      keySha256: hashObjectKeySha256(key),
+      size: obj.size,
+    });
+  }
+
+  for (const key of diff.onlyOnS3) {
+    const obj = s3ByKey.get(key);
+    if (!obj) {
+      throw new Error(`Missing S3 inventory object for ${safeObjectReference(container, key)}`);
+    }
+    candidates.push({
+      container,
+      direction: 's3ToAzure',
+      keySha256: hashObjectKeySha256(key),
+      size: obj.size,
+    });
+  }
+
+  return candidates;
+}
+
+/** Canonical sort for candidate-set digest (order-independent over the multiset). */
+export function compareAdditiveCandidates(a: AdditiveCandidate, b: AdditiveCandidate): number {
+  if (a.container !== b.container) return a.container < b.container ? -1 : 1;
+  if (a.direction !== b.direction) return a.direction < b.direction ? -1 : 1;
+  if (a.keySha256 !== b.keySha256) return a.keySha256 < b.keySha256 ? -1 : 1;
+  if (a.size !== b.size) return a.size < b.size ? -1 : 1;
+  return 0;
+}
+
+/**
+ * Deterministic, order-independent digest of the exact additive candidate set.
+ * Each entry is container, direction, sha256(key), size — never a raw key.
+ */
+export function computeCandidateSetSha256(candidates: readonly AdditiveCandidate[]): string {
+  const sorted = [...candidates].sort(compareAdditiveCandidates);
+  // Fixed field order; array form avoids object key-order ambiguity.
+  const canonical = JSON.stringify(sorted.map((c) => [c.container, c.direction, c.keySha256, c.size]));
+  return crypto.createHash('sha256').update(canonical, 'utf8').digest('hex');
+}
+
+export function buildContainerAdditiveSummary(
+  container: string,
+  diff: DiffResult,
+  azureByKey: ReadonlyMap<string, StoredObject>,
+  s3ByKey: ReadonlyMap<string, StoredObject>,
+): ContainerAdditiveSummary {
+  return {
+    container,
+    azureToS3: buildDirectionSummary(diff.onlyOnAzure, azureByKey),
+    s3ToAzure: buildDirectionSummary(diff.onlyOnS3, s3ByKey),
+  };
+}
+
+export function buildAdditiveReconcileSummary(
+  containerReports: ReadonlyArray<{
+    container: string;
+    diff: DiffResult;
+    azureObjs: readonly StoredObject[];
+    s3Objs: readonly StoredObject[];
+  }>,
+): AdditiveReconcileSummary {
+  const containers: ContainerAdditiveSummary[] = [];
+  const allCandidates: AdditiveCandidate[] = [];
+  let onlyOnAzure = 0;
+  let onlyOnS3 = 0;
+  let sizeMismatch = 0;
+  let suspectedOverwrite = 0;
+  let azureToS3Count = 0;
+  let azureToS3Bytes = 0;
+  let s3ToAzureCount = 0;
+  let s3ToAzureBytes = 0;
+
+  for (const report of containerReports) {
+    const azureByKey = indexStoredObjectsByKey(report.azureObjs);
+    const s3ByKey = indexStoredObjectsByKey(report.s3Objs);
+    const summary = buildContainerAdditiveSummary(report.container, report.diff, azureByKey, s3ByKey);
+    containers.push(summary);
+    allCandidates.push(...collectAdditiveCandidatesForContainer(report.container, report.diff, azureByKey, s3ByKey));
+
+    onlyOnAzure += report.diff.onlyOnAzure.length;
+    onlyOnS3 += report.diff.onlyOnS3.length;
+    sizeMismatch += report.diff.sizeMismatch.length;
+    suspectedOverwrite += report.diff.suspectedOverwrite.length;
+    azureToS3Count += summary.azureToS3.count;
+    azureToS3Bytes += summary.azureToS3.bytes;
+    s3ToAzureCount += summary.s3ToAzure.count;
+    s3ToAzureBytes += summary.s3ToAzure.bytes;
+  }
+
+  const additiveCandidates = azureToS3Count + s3ToAzureCount;
+  return {
+    containers,
+    totals: {
+      onlyOnAzure,
+      onlyOnS3,
+      sizeMismatch,
+      suspectedOverwrite,
+      azureToS3: { count: azureToS3Count, bytes: azureToS3Bytes },
+      s3ToAzure: { count: s3ToAzureCount, bytes: s3ToAzureBytes },
+      additiveCandidates,
+    },
+    candidateSetSha256: computeCandidateSetSha256(allCandidates),
+  };
+}
+
+export function buildMachineReadableReconcileReport(
+  summary: AdditiveReconcileSummary,
+  mode: 'REPORT' | 'HEAL',
+  generatedAtUtc: string,
+  provenance?: { apiImageDigest?: string; operatorCommitSha?: string },
+): MachineReadableReconcileReport {
+  const report: MachineReadableReconcileReport = {
+    schemaVersion: RECONCILE_REPORT_SCHEMA_VERSION,
+    privacyLogVersion: RECONCILER_PRIVACY_LOG_VERSION,
+    mode,
+    generatedAtUtc,
+    containers: summary.containers,
+    totals: summary.totals,
+    candidateSetSha256: summary.candidateSetSha256,
+  };
+
+  if (provenance?.apiImageDigest !== undefined) {
+    report.apiImageDigest = provenance.apiImageDigest;
+  }
+  if (provenance?.operatorCommitSha !== undefined) {
+    report.operatorCommitSha = provenance.operatorCommitSha;
+  }
+
+  return report;
+}
+
+/** Exactly one machine-readable line for operator / Gate-1 automation. */
+export function formatReconcileReportJsonLine(report: MachineReadableReconcileReport): string {
+  return `RECONCILE_REPORT_JSON=${JSON.stringify(report)}`;
+}
+
 // size/lastModified from list pages only — no HeadObject per key.
 // --- LISTING --- //
 
@@ -479,6 +793,8 @@ function dedupePreserveOrder(items: string[]): string[] {
   return out;
 }
 
+const EXPECTED_CANDIDATE_SET_SHA256_RE = /^[a-f0-9]{64}$/;
+
 export function parseConfig(): {
   containers: string[];
   ignoreBuckets: string[];
@@ -486,17 +802,26 @@ export function parseConfig(): {
   heal: boolean;
   healCap: number;
   verbose: boolean;
+  exactCap: boolean;
+  expectedCandidateSetSha256?: string;
+  apiImageDigest?: string;
+  operatorCommitSha?: string;
 } {
   const args = process.argv.slice(2);
 
   for (const a of args) {
-    if (a.startsWith('--') && a !== '--heal' && a !== '--verbose') {
+    if (a.startsWith('--') && a !== '--heal' && a !== '--verbose' && a !== '--exact-cap') {
       throw new Error(`Unknown flag: ${a}`);
     }
   }
 
   const heal = args.includes('--heal') || process.env.RECONCILE_HEAL === 'true';
   const verbose = args.includes('--verbose');
+  const exactCap = args.includes('--exact-cap');
+
+  if (exactCap && !heal) {
+    throw new Error('--exact-cap is only allowed together with --heal (or RECONCILE_HEAL=true)');
+  }
 
   let containers = args.filter((a) => !a.startsWith('--'));
   if (containers.length === 0) {
@@ -526,9 +851,43 @@ export function parseConfig(): {
       throw new Error(`Invalid RECONCILE_HEAL_CAP: ${rawCap} (expected positive integer)`);
     }
     healCap = n;
+  } else if (exactCap) {
+    throw new Error(
+      'RECONCILE_HEAL_CAP is required when --exact-cap is set (exact additive candidate count binding; no silent default)',
+    );
   }
 
-  return { containers, ignoreBuckets, wormContainers, heal, healCap, verbose };
+  let expectedCandidateSetSha256: string | undefined;
+  if (exactCap) {
+    const expected = process.env.RECONCILE_EXPECTED_CANDIDATE_SET_SHA256;
+    if (expected === undefined || expected === '') {
+      throw new Error(
+        'RECONCILE_EXPECTED_CANDIDATE_SET_SHA256 is required when --exact-cap is set and must be exactly 64 lowercase hex characters',
+      );
+    }
+    if (!EXPECTED_CANDIDATE_SET_SHA256_RE.test(expected)) {
+      throw new Error(
+        'RECONCILE_EXPECTED_CANDIDATE_SET_SHA256 must be exactly 64 lowercase hex characters when --exact-cap is set',
+      );
+    }
+    expectedCandidateSetSha256 = expected;
+  }
+
+  const apiImageDigest = process.env.RECONCILE_API_IMAGE_DIGEST;
+  const operatorCommitSha = process.env.RECONCILE_OPERATOR_COMMIT_SHA;
+
+  return {
+    containers,
+    ignoreBuckets,
+    wormContainers,
+    heal,
+    healCap,
+    verbose,
+    exactCap,
+    ...(expectedCandidateSetSha256 !== undefined ? { expectedCandidateSetSha256 } : {}),
+    ...(apiImageDigest !== undefined && apiImageDigest !== '' ? { apiImageDigest } : {}),
+    ...(operatorCommitSha !== undefined && operatorCommitSha !== '' ? { operatorCommitSha } : {}),
+  };
 }
 
 function isEmptyDiff(diff: DiffResult): boolean {
@@ -545,15 +904,66 @@ function countAdditive(diff: DiffResult): number {
 }
 
 export function safeObjectReference(container: string, key: string): string {
-  const keyDigest = crypto.createHash('sha256').update(key).digest('hex');
+  const keyDigest = hashObjectKeySha256(key);
   return `${container}/key-sha256:${keyDigest}`;
 }
 
-export function printCategory(container: string, label: string, keys: string[], verbose: boolean): void {
-  console.log(`    ${label}: ${keys.length}`);
+/**
+ * Privacy-safe detail line for --verbose: fixed technical allowlist only — container,
+ * sha256(key), source, size, UTC lastModified. Never ETag, content hashes, raw keys,
+ * content-type, or user metadata.
+ */
+export function formatDetailObjectLine(
+  container: string,
+  key: string,
+  source: 'azure' | 's3',
+  obj: StoredObject,
+): string {
+  const keySha256 = hashObjectKeySha256(key);
+  const lastModifiedUtc = obj.lastModified.toISOString();
+  return `      - container=${container} key-sha256=${keySha256} source=${source} size=${obj.size} lastModified=${lastModifiedUtc}`;
+}
+
+export function printCategory(
+  container: string,
+  label: string,
+  keys: string[],
+  verbose: boolean,
+  options?: {
+    bytes?: number;
+    azureByKey?: ReadonlyMap<string, StoredObject>;
+    s3ByKey?: ReadonlyMap<string, StoredObject>;
+    dualSide?: boolean;
+    singleSource?: 'azure' | 's3';
+  },
+): void {
+  const bytesSuffix = options?.bytes !== undefined ? ` (bytes=${options.bytes})` : '';
+  console.log(`    ${label}: ${keys.length}${bytesSuffix}`);
   if (!verbose || keys.length === 0) return;
+
   const samples = keys.slice(0, 20);
-  for (const key of samples) console.log(`      - ${safeObjectReference(container, key)}`);
+  for (const key of samples) {
+    if (options?.dualSide) {
+      const azureObj = options.azureByKey?.get(key);
+      const s3Obj = options.s3ByKey?.get(key);
+      if (!azureObj || !s3Obj) {
+        throw new Error(`Missing dual-side inventory for ${safeObjectReference(container, key)} in detail mode`);
+      }
+      console.log(formatDetailObjectLine(container, key, 'azure', azureObj));
+      console.log(formatDetailObjectLine(container, key, 's3', s3Obj));
+    } else {
+      const source = options?.singleSource;
+      if (source === undefined) {
+        throw new Error(`Detail mode requires singleSource or dualSide for category ${label}`);
+      }
+      const byKey = source === 'azure' ? options.azureByKey : options.s3ByKey;
+      const obj = byKey?.get(key);
+      if (!obj) {
+        throw new Error(`Missing ${source} inventory for ${safeObjectReference(container, key)} in detail mode`);
+      }
+      console.log(formatDetailObjectLine(container, key, source, obj));
+    }
+  }
   if (keys.length > 20) console.log(`      ... and ${keys.length - 20} more`);
 }
 
@@ -593,14 +1003,53 @@ export function isAzurePreconditionFailed(err: unknown): boolean {
   return e?.statusCode === 412 || e?.details?.errorCode === 'BlobAlreadyExists';
 }
 
+/**
+ * Fail-closed gate for the digest-bound inventory size passed into heal copies.
+ * Rejects non-integers, negatives, and non-safe integers before any target write.
+ */
+export function assertExpectedSourceSize(
+  expectedSourceSize: number,
+  direction: 'azure->s3' | 's3->azure',
+  objectRef: string,
+): void {
+  if (!Number.isSafeInteger(expectedSourceSize) || expectedSourceSize < 0) {
+    throw new Error(
+      `Invalid expectedSourceSize for ${direction} copy of ${objectRef}: ` +
+        `expected non-negative safe integer, got ${String(expectedSourceSize)}`,
+    );
+  }
+}
+
+/**
+ * After a full source download, refuse to write if the loaded buffer length differs from the
+ * inventory size that was bound into the candidate set (container + direction + sha256(key) + size).
+ * Closes the race where the source object changes size between inventory and download.
+ */
+export function assertDownloadedSourceSize(
+  actualSize: number,
+  expectedSourceSize: number,
+  direction: 'azure->s3' | 's3->azure',
+  objectRef: string,
+): void {
+  if (actualSize !== expectedSourceSize) {
+    throw new Error(
+      `Source size race for ${direction}: expected ${expectedSourceSize} bytes, ` +
+        `got ${actualSize} bytes for ${objectRef}`,
+    );
+  }
+}
+
 export async function copyAzureToS3(
   azureContainer: ContainerClient,
   s3: S3Client,
   bucket: string,
   key: string,
+  expectedSourceSize: number,
 ): Promise<'healed' | 'skipped'> {
   const blobClient = azureContainer.getBlockBlobClient(key);
   const objectRef = safeObjectReference(bucket, key);
+  assertExpectedSourceSize(expectedSourceSize, 'azure->s3', objectRef);
+
   const download = await blobClient.download().catch((err) => {
     throw new Error(`Azure download failed for ${objectRef}`, { cause: err });
   });
@@ -613,6 +1062,9 @@ export async function copyAzureToS3(
   } catch (err) {
     throw new Error(`Azure download stream failed for ${objectRef}`, { cause: err });
   }
+
+  // Inventory size is digest-bound; refuse any source that changed size before the conditional PUT.
+  assertDownloadedSourceSize(data.length, expectedSourceSize, 'azure->s3', objectRef);
 
   try {
     await s3.send(
@@ -641,8 +1093,11 @@ export async function copyS3ToAzure(
   bucket: string,
   azureContainer: ContainerClient,
   key: string,
+  expectedSourceSize: number,
 ): Promise<'healed' | 'skipped'> {
   const objectRef = safeObjectReference(bucket, key);
+  assertExpectedSourceSize(expectedSourceSize, 's3->azure', objectRef);
+
   const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key })).catch((err) => {
     throw new Error(`S3 download failed for ${objectRef}`, { cause: err });
   });
@@ -654,6 +1109,10 @@ export async function copyS3ToAzure(
   } catch (err) {
     throw new Error(`S3 download stream failed for ${objectRef}`, { cause: err });
   }
+
+  // Inventory size is digest-bound; refuse any source that changed size before the conditional upload.
+  assertDownloadedSourceSize(data.length, expectedSourceSize, 's3->azure', objectRef);
+
   try {
     await azureContainer.getBlockBlobClient(key).uploadData(data, {
       blobHTTPHeaders: { blobContentType: res.ContentType },
@@ -671,10 +1130,114 @@ export async function copyS3ToAzure(
   return 'healed';
 }
 
+/**
+ * Production additive HEAL orchestration: authorize exact-cap / max-cap binding first, then
+ * run sequential azure→s3 / s3→azure copies with conditional target writes and WORM
+ * fail-closed checks. No deletes or overwrites. Authorization runs before any WORM probe,
+ * download, PUT/upload, or per-container copy loop — including when the live candidate set
+ * is empty (exact-cap must not short-circuit to a misleading clean success).
+ */
+export async function runAdditiveHealOrchestration(
+  params: AdditiveHealOrchestrationParams,
+): Promise<AdditiveHealOrchestrationStats> {
+  const {
+    reports,
+    s3,
+    azure,
+    wormContainers,
+    healCap,
+    exactCap,
+    actualCandidateSetSha256,
+    expectedCandidateSetSha256,
+  } = params;
+
+  const totalAdditive = reports.reduce((sum, r) => sum + countAdditive(r.diff), 0);
+
+  if (exactCap) {
+    if (expectedCandidateSetSha256 === undefined) {
+      throw new Error('Internal error: exactCap set without expectedCandidateSetSha256');
+    }
+    assertExactHealBinding(totalAdditive, healCap, actualCandidateSetSha256, expectedCandidateSetSha256);
+  } else {
+    assertWithinHealCap(totalAdditive, healCap);
+  }
+
+  const wormVerified = new Map<string, boolean>();
+  const noWormVerified = new Map<string, boolean>();
+  const azureToS3Stats: DirectionHealStats = {
+    healedCount: 0,
+    healedBytes: 0,
+    skippedCount: 0,
+    skippedBytes: 0,
+  };
+  const s3ToAzureStats: DirectionHealStats = {
+    healedCount: 0,
+    healedBytes: 0,
+    skippedCount: 0,
+    skippedBytes: 0,
+  };
+
+  for (const r of reports) {
+    try {
+      const azureContainer = azure.getContainerClient(r.container);
+
+      for (const key of r.diff.onlyOnAzure) {
+        const size = r.azureByKey.get(key)?.size;
+        if (size === undefined) {
+          throw new Error(`Missing Azure size for ${safeObjectReference(r.container, key)}`);
+        }
+        await assertBucketWormIfDeclared(s3, r.container, wormContainers, wormVerified, noWormVerified);
+        // Pass digest-bound inventory size so copy fails closed if the source changed after inventory.
+        const result = await copyAzureToS3(azureContainer, s3, r.container, key, size);
+        if (result === 'healed') {
+          azureToS3Stats.healedCount++;
+          azureToS3Stats.healedBytes += size;
+          logObjectAction('HEALED', 'azure->s3', r.container, key);
+        } else {
+          azureToS3Stats.skippedCount++;
+          azureToS3Stats.skippedBytes += size;
+        }
+      }
+
+      for (const key of r.diff.onlyOnS3) {
+        const size = r.s3ByKey.get(key)?.size;
+        if (size === undefined) {
+          throw new Error(`Missing S3 size for ${safeObjectReference(r.container, key)}`);
+        }
+        // Pass digest-bound inventory size so copy fails closed if the source changed after inventory.
+        const result = await copyS3ToAzure(s3, r.container, azureContainer, key, size);
+        if (result === 'healed') {
+          s3ToAzureStats.healedCount++;
+          s3ToAzureStats.healedBytes += size;
+          logObjectAction('HEALED', 's3->azure', r.container, key);
+        } else {
+          s3ToAzureStats.skippedCount++;
+          s3ToAzureStats.skippedBytes += size;
+        }
+      }
+    } catch (e) {
+      throw new Error(`[container="${r.container}"] ${e?.message ?? e}`, { cause: e });
+    }
+  }
+
+  return { azureToS3: azureToS3Stats, s3ToAzure: s3ToAzureStats };
+}
+
 // --- MAIN --- //
 
 async function main(): Promise<number> {
-  const { containers, ignoreBuckets, wormContainers, heal, healCap, verbose } = parseConfig();
+  const {
+    containers,
+    ignoreBuckets,
+    wormContainers,
+    heal,
+    healCap,
+    verbose,
+    exactCap,
+    expectedCandidateSetSha256,
+    apiImageDigest,
+    operatorCommitSha,
+  } = parseConfig();
   const s3 = buildS3Client();
   const azure = buildAzureClient();
   const wormSet = new Set(wormContainers);
@@ -684,6 +1247,7 @@ async function main(): Promise<number> {
       `ignoreBuckets=[${ignoreBuckets.join(', ')}] ` +
       `wormContainers=[${wormContainers.join(', ')}] mode=${heal ? 'HEAL' : 'REPORT'} ` +
       `healCap=${healCap}${process.env.RECONCILE_HEAL_CAP === undefined ? ` (DEFAULT_HEAL_CAP)` : ''} ` +
+      `exactCap=${exactCap} ` +
       `skewToleranceMs=${OVERWRITE_SKEW_TOLERANCE_MS}`,
   );
 
@@ -707,7 +1271,16 @@ async function main(): Promise<number> {
   assertRequestedContainersExist(existingS3Buckets, containers);
   assertBucketsAccounted(existingS3Buckets, containers, ignoreBuckets);
 
-  type ContainerReport = { container: string; diff: DiffResult; azureCount: number; s3Count: number };
+  type ContainerReport = {
+    container: string;
+    diff: DiffResult;
+    azureCount: number;
+    s3Count: number;
+    azureObjs: StoredObject[];
+    s3Objs: StoredObject[];
+    azureByKey: Map<string, StoredObject>;
+    s3ByKey: Map<string, StoredObject>;
+  };
   const reports: ContainerReport[] = [];
 
   for (const container of containers) {
@@ -719,109 +1292,138 @@ async function main(): Promise<number> {
       assertNotOneSidedEmpty(azureObjs.length, s3Objs.length, container);
 
       const diff = diffStores(azureObjs, s3Objs, OVERWRITE_SKEW_TOLERANCE_MS);
-      reports.push({ container, diff, azureCount: azureObjs.length, s3Count: s3Objs.length });
+      const azureByKey = indexStoredObjectsByKey(azureObjs);
+      const s3ByKey = indexStoredObjectsByKey(s3Objs);
+      reports.push({
+        container,
+        diff,
+        azureCount: azureObjs.length,
+        s3Count: s3Objs.length,
+        azureObjs,
+        s3Objs,
+        azureByKey,
+        s3ByKey,
+      });
+
+      const azureToS3 = buildDirectionSummary(diff.onlyOnAzure, azureByKey);
+      const s3ToAzure = buildDirectionSummary(diff.onlyOnS3, s3ByKey);
 
       console.log(`\n[${container}] azure=${azureObjs.length} s3=${s3Objs.length}`);
-      printCategory(container, 'onlyOnAzure', diff.onlyOnAzure, verbose);
-      printCategory(container, 'onlyOnS3', diff.onlyOnS3, verbose);
-      printCategory(container, 'sizeMismatch', diff.sizeMismatch, verbose);
-      printCategory(container, 'suspectedOverwrite', diff.suspectedOverwrite, verbose);
+      printCategory(container, 'onlyOnAzure', diff.onlyOnAzure, verbose, {
+        bytes: azureToS3.bytes,
+        azureByKey,
+        singleSource: 'azure',
+      });
+      printCategory(container, 'onlyOnS3', diff.onlyOnS3, verbose, {
+        bytes: s3ToAzure.bytes,
+        s3ByKey,
+        singleSource: 's3',
+      });
+      printCategory(container, 'sizeMismatch', diff.sizeMismatch, verbose, {
+        azureByKey,
+        s3ByKey,
+        dualSide: true,
+      });
+      printCategory(container, 'suspectedOverwrite', diff.suspectedOverwrite, verbose, {
+        azureByKey,
+        s3ByKey,
+        dualSide: true,
+      });
+      console.log(
+        `    candidateBytes: azureToS3=${azureToS3.bytes} s3ToAzure=${s3ToAzure.bytes} ` +
+          `(counts azureToS3=${azureToS3.count} s3ToAzure=${s3ToAzure.count})`,
+      );
       if (isEmptyDiff(diff)) console.log('    OK: no divergence');
     } catch (e) {
       throw new Error(`[container="${container}"] ${e?.message ?? e}`, { cause: e });
     }
   }
 
-  const totals = {
-    onlyOnAzure: 0,
-    onlyOnS3: 0,
-    sizeMismatch: 0,
-    suspectedOverwrite: 0,
-  };
-  for (const r of reports) {
-    totals.onlyOnAzure += r.diff.onlyOnAzure.length;
-    totals.onlyOnS3 += r.diff.onlyOnS3.length;
-    totals.sizeMismatch += r.diff.sizeMismatch.length;
-    totals.suspectedOverwrite += r.diff.suspectedOverwrite.length;
-  }
+  const additiveSummary = buildAdditiveReconcileSummary(reports);
+  const totals = additiveSummary.totals;
 
   console.log(
     `\nAGGREGATE across ${containers.length} container(s): ` +
       `onlyOnAzure=${totals.onlyOnAzure} onlyOnS3=${totals.onlyOnS3} ` +
-      `sizeMismatch=${totals.sizeMismatch} suspectedOverwrite=${totals.suspectedOverwrite}`,
+      `sizeMismatch=${totals.sizeMismatch} suspectedOverwrite=${totals.suspectedOverwrite} ` +
+      `azureToS3.count=${totals.azureToS3.count} azureToS3.bytes=${totals.azureToS3.bytes} ` +
+      `s3ToAzure.count=${totals.s3ToAzure.count} s3ToAzure.bytes=${totals.s3ToAzure.bytes} ` +
+      `additiveCandidates=${totals.additiveCandidates} ` +
+      `candidateSetSha256=${additiveSummary.candidateSetSha256}`,
   );
 
-  const anyGateBlocking = reports.some((r) => isGateBlocking(r.diff));
-  if (!anyGateBlocking) {
-    for (const r of reports) {
-      if (r.diff.suspectedOverwrite.length > 0) {
-        console.log(
-          `ADVISORY: suspectedOverwrite=${r.diff.suspectedOverwrite.length} in ${r.container} ` +
-            `(lastModified hint; unreliable after heals -- NOTE: (key,size) parity only; byte identity ` +
-            `is NOT verified here. Same-size content divergence is out of scope and requires a separate ` +
-            `byte-level Azure/S3 comparison (not part of this tool) before Azure teardown; does NOT block the gate)`,
-        );
-      }
-    }
-    console.log(
-      `RECONCILED: 0 (key,size) divergence across ${containers.length} containers ` +
-        `(hard gate is (key,size) parity; suspectedOverwrite is an advisory lastModified hint, ` +
-        `unreliable after heals) -- NOTE: (key,size) parity only; byte identity is NOT verified here. ` +
-        `Same-size content divergence is out of scope and requires a separate byte-level Azure/S3 ` +
-        `comparison (not part of this tool) before Azure teardown.`,
-    );
-    return 0;
-  }
+  const machineReport = buildMachineReadableReconcileReport(
+    additiveSummary,
+    heal ? 'HEAL' : 'REPORT',
+    new Date().toISOString(),
+    {
+      ...(apiImageDigest !== undefined ? { apiImageDigest } : {}),
+      ...(operatorCommitSha !== undefined ? { operatorCommitSha } : {}),
+    },
+  );
+  // Exactly one machine-readable line before REPORT / HEAL decision.
+  console.log(formatReconcileReportJsonLine(machineReport));
 
+  const anyGateBlocking = reports.some((r) => isGateBlocking(r.diff));
+
+  // REPORT: unchanged early clean success / divergence exit. HEAL always enters orchestration
+  // (including zero candidates) so exact-cap cannot bypass authorization via clean parity.
   if (!heal) {
+    if (!anyGateBlocking) {
+      for (const r of reports) {
+        if (r.diff.suspectedOverwrite.length > 0) {
+          console.log(
+            `ADVISORY: suspectedOverwrite=${r.diff.suspectedOverwrite.length} in ${r.container} ` +
+              `(lastModified hint; unreliable after heals -- NOTE: (key,size) parity only; byte identity ` +
+              `is NOT verified here. Same-size content divergence is out of scope and requires a separate ` +
+              `byte-level Azure/S3 comparison (not part of this tool) before Azure teardown; does NOT block the gate)`,
+          );
+        }
+      }
+      console.log(
+        `RECONCILED: 0 (key,size) divergence across ${containers.length} containers ` +
+          `(hard gate is (key,size) parity; suspectedOverwrite is an advisory lastModified hint, ` +
+          `unreliable after heals) -- NOTE: (key,size) parity only; byte identity is NOT verified here. ` +
+          `Same-size content divergence is out of scope and requires a separate byte-level Azure/S3 ` +
+          `comparison (not part of this tool) before Azure teardown.`,
+      );
+      return 0;
+    }
+
     console.error(
       `DIVERGENCE: not reconciled across ${containers.length} container(s) ` +
         `(onlyOnAzure=${totals.onlyOnAzure}, onlyOnS3=${totals.onlyOnS3}, ` +
-        `sizeMismatch=${totals.sizeMismatch}, suspectedOverwrite=${totals.suspectedOverwrite}). ` +
+        `sizeMismatch=${totals.sizeMismatch}, suspectedOverwrite=${totals.suspectedOverwrite}, ` +
+        `azureToS3.bytes=${totals.azureToS3.bytes}, s3ToAzure.bytes=${totals.s3ToAzure.bytes}, ` +
+        `candidateSetSha256=${additiveSummary.candidateSetSha256}). ` +
         `Re-run with --heal to copy missing objects only; sizeMismatch/suspectedOverwrite are never auto-healed.`,
     );
     return 1;
   }
 
-  // HEAL: additive copies only (never delete; never overwrite content divergence)
-  const totalAdditive = reports.reduce((sum, r) => sum + countAdditive(r.diff), 0);
-  assertWithinHealCap(totalAdditive, healCap);
+  // HEAL: production orchestration (auth first, then additive copies only)
+  const healStats = await runAdditiveHealOrchestration({
+    reports,
+    s3,
+    azure,
+    wormContainers: wormSet,
+    healCap,
+    exactCap,
+    actualCandidateSetSha256: additiveSummary.candidateSetSha256,
+    ...(expectedCandidateSetSha256 !== undefined ? { expectedCandidateSetSha256 } : {}),
+  });
+  const azureToS3Stats = healStats.azureToS3;
+  const s3ToAzureStats = healStats.s3ToAzure;
 
-  const wormVerified = new Map<string, boolean>();
-  const noWormVerified = new Map<string, boolean>();
-  let healedCount = 0;
-  let skippedCount = 0;
-
-  for (const r of reports) {
-    try {
-      const azureContainer = azure.getContainerClient(r.container);
-
-      for (const key of r.diff.onlyOnAzure) {
-        await assertBucketWormIfDeclared(s3, r.container, wormSet, wormVerified, noWormVerified);
-        const result = await copyAzureToS3(azureContainer, s3, r.container, key);
-        if (result === 'healed') {
-          healedCount++;
-          logObjectAction('HEALED', 'azure->s3', r.container, key);
-        } else {
-          skippedCount++;
-        }
-      }
-
-      for (const key of r.diff.onlyOnS3) {
-        const result = await copyS3ToAzure(s3, r.container, azureContainer, key);
-        if (result === 'healed') {
-          healedCount++;
-          logObjectAction('HEALED', 's3->azure', r.container, key);
-        } else {
-          skippedCount++;
-        }
-      }
-    } catch (e) {
-      throw new Error(`[container="${r.container}"] ${e?.message ?? e}`, { cause: e });
-    }
-  }
-
-  console.log(`Heal summary: healed=${healedCount} skipped=${skippedCount}`);
+  const healedCount = azureToS3Stats.healedCount + s3ToAzureStats.healedCount;
+  const skippedCount = azureToS3Stats.skippedCount + s3ToAzureStats.skippedCount;
+  console.log(
+    `Heal summary: healed=${healedCount} skipped=${skippedCount} ` +
+      `azureToS3.healed.count=${azureToS3Stats.healedCount} azureToS3.healed.bytes=${azureToS3Stats.healedBytes} ` +
+      `azureToS3.skipped.count=${azureToS3Stats.skippedCount} azureToS3.skipped.bytes=${azureToS3Stats.skippedBytes} ` +
+      `s3ToAzure.healed.count=${s3ToAzureStats.healedCount} s3ToAzure.healed.bytes=${s3ToAzureStats.healedBytes} ` +
+      `s3ToAzure.skipped.count=${s3ToAzureStats.skippedCount} s3ToAzure.skipped.bytes=${s3ToAzureStats.skippedBytes}`,
+  );
 
   // Verification re-diff: additive sides must now be empty; residual content divergence stays red.
   let residualMismatch = 0;
