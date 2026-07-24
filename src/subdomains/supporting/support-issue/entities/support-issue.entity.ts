@@ -16,9 +16,10 @@ import { SupportMessage } from './support-message.entity';
 // + top-N sort on every page load. This composite is state-leading, so Postgres serves each tab with
 // an index-scan-backward that stops after the requested page (verified ~98ms -> 0.06ms on a 1M-row
 // set via EXPLAIN); the (created, id) tail matches the exact sort + tiebreak, and deep pages stay
-// cheap. It also serves the open-ticket overview (state IN (...)) via a bitmap scan. Not used by the
-// RealUnit customerIds path (filters via the userData join). Note: the per-tab COUNT(*) badges from
-// getManyAndCount/getIssueCounts stay on a seq scan and are a separate concern. See
+// cheap. It also serves the open-ticket overview (state IN (...)) via a bitmap scan. The RealUnit
+// customerIds scope is applied through the userData join (not covered by this index), but a states
+// filter on that path still hits the leading column. Note: the per-tab COUNT(*) badges from
+// getManyAndCount / getSupportIssueCounts stay on a seq scan and are a separate concern. See
 // support-issue.service.ts getSupportIssueList.
 @Index((issue: SupportIssue) => [issue.state, issue.created, issue.id])
 @Entity()
