@@ -51,6 +51,13 @@ export interface ScryptWithdrawStatus {
   rejectText?: string;
 }
 
+export interface ScryptDepositStatus {
+  id: string;
+  status: ScryptTransactionStatus;
+  rejectReason?: string;
+  rejectText?: string;
+}
+
 // --- TRADE TYPES --- //
 
 export enum ScryptTradeSide {

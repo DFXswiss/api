@@ -133,6 +133,9 @@ export class FiatOutput extends IEntity {
   isConfirmedDate?: Date;
 
   @Column({ type: 'timestamp', nullable: true })
+  scryptDepositNotifiedDate?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
   isApprovedDate?: Date;
 
   @Column({ default: false })
