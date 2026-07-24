@@ -1127,11 +1127,32 @@ describe('FiatOutputJobService', () => {
 
       expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
 
-      (service as any).scryptDepositAttempts.set(entity.id, new Date(Date.now() - 61 * 60 * 1000));
+      (service as any).scryptDepositAlerts.set(entity.id, new Date(Date.now() - 61 * 60 * 1000));
 
       await service['notifyScryptDeposits']();
 
       expect(loggerErrorSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('alerts immediately when a rejection arrives right after a send attempt', async () => {
+      const entity = createScryptDepositEntity({ id: 99 });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue(null);
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      await service['notifyScryptDeposits']();
+      expect(scryptService.sendDepositRequest).toHaveBeenCalledTimes(1);
+      expect(loggerErrorSpy).not.toHaveBeenCalled();
+
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue({
+        id: 'tx-rejected-after-send',
+        status: ScryptTransactionStatus.REJECTED,
+        rejectText: 'Broker rejected deposit',
+      });
+
+      await service['notifyScryptDeposits']();
+
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
     });
 
     it('sends a deposit request using endToEndId as reqId when no status is known yet', async () => {
@@ -1174,20 +1195,21 @@ describe('FiatOutputJobService', () => {
 
       expect(scryptService.sendDepositRequest).toHaveBeenCalledTimes(1);
 
-      (service as any).scryptDepositAttempts.set(entity.id, new Date(Date.now() - 61 * 60 * 1000));
+      (service as any).scryptDepositSendAttempts.set(entity.id, new Date(Date.now() - 61 * 60 * 1000));
 
       await service['notifyScryptDeposits']();
 
       expect(scryptService.sendDepositRequest).toHaveBeenCalledTimes(2);
     });
 
-    it('clears the local attempt entry after a successful COMPLETED status update', async () => {
+    it('clears the local send and alert entries after a successful COMPLETED status update', async () => {
       const entity = createScryptDepositEntity({ id: 88 });
       jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
       jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue(null);
 
       await service['notifyScryptDeposits']();
-      expect((service as any).scryptDepositAttempts.has(entity.id)).toBe(true);
+      expect((service as any).scryptDepositSendAttempts.has(entity.id)).toBe(true);
+      (service as any).scryptDepositAlerts.set(entity.id, new Date());
 
       jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue({
         id: 'tx-done',
@@ -1199,7 +1221,8 @@ describe('FiatOutputJobService', () => {
       expect(fiatOutputRepo.update).toHaveBeenCalledWith(entity.id, {
         scryptDepositNotifiedDate: expect.any(Date),
       });
-      expect((service as any).scryptDepositAttempts.has(entity.id)).toBe(false);
+      expect((service as any).scryptDepositSendAttempts.has(entity.id)).toBe(false);
+      expect((service as any).scryptDepositAlerts.has(entity.id)).toBe(false);
     });
 
     it('isolates errors so a failure on one entity does not block the rest of the sweep', async () => {

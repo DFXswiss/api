@@ -38,7 +38,7 @@ import { FiatOutputRepository } from './fiat-output.repository';
 import { FiatOutputService } from './fiat-output.service';
 
 export const SCRYPT_DEPOSIT_NAME_MARKER = 'Scrypt Digital Trading';
-export const SCRYPT_DEPOSIT_RETRY_INTERVAL_MS = 60 * 60 * 1000; // re-send cadence while unconfirmed
+export const SCRYPT_DEPOSIT_RETRY_INTERVAL_MS = 60 * 60 * 1000; // send and alert cadence while a deposit stays unconfirmed
 
 @Injectable()
 export class FiatOutputJobService {
@@ -619,10 +619,12 @@ export class FiatOutputJobService {
     }
   }
 
-  // Last send/alert time per fiat output. In-memory only: a restart resets the pacing, which at
-  // worst causes one extra send — assumed safe because the ClReqID stays stable per entity, so
-  // repeated requests are deduplicatable on the receiving side.
-  private readonly scryptDepositAttempts = new Map<number, Date>();
+  // Last send / last alert time per fiat output, tracked separately so a fresh send never delays
+  // the first rejection alert. In-memory only: a restart resets the pacing, which at worst causes
+  // one extra send — assumed safe because the ClReqID stays stable per entity, so repeated
+  // requests are deduplicatable on the receiving side.
+  private readonly scryptDepositSendAttempts = new Map<number, Date>();
+  private readonly scryptDepositAlerts = new Map<number, Date>();
 
   private async notifyScryptDeposits(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_SCRYPT_DEPOSIT_NOTIFY)) return;
@@ -656,10 +658,10 @@ export class FiatOutputJobService {
       if (status.status === ScryptTransactionStatus.REJECTED || status.status === ScryptTransactionStatus.FAILED) {
         // Deliberately not terminalized: a rejected/failed deposit request needs manual intervention,
         // so the entity stays in the sweep and keeps alerting (throttled) until resolved.
-        const lastAlert = this.scryptDepositAttempts.get(entity.id);
+        const lastAlert = this.scryptDepositAlerts.get(entity.id);
         if (lastAlert && Date.now() - lastAlert.getTime() < SCRYPT_DEPOSIT_RETRY_INTERVAL_MS) return;
 
-        this.scryptDepositAttempts.set(entity.id, new Date());
+        this.scryptDepositAlerts.set(entity.id, new Date());
         this.logger.error(
           `Scrypt deposit request for fiat output ${entity.id} was ${status.status}: ${status.rejectText ?? status.rejectReason ?? 'unknown reason'}`,
         );
@@ -667,14 +669,15 @@ export class FiatOutputJobService {
       }
 
       await this.fiatOutputRepo.update(entity.id, { scryptDepositNotifiedDate: new Date() });
-      this.scryptDepositAttempts.delete(entity.id);
+      this.scryptDepositSendAttempts.delete(entity.id);
+      this.scryptDepositAlerts.delete(entity.id);
       return;
     }
 
-    const lastAttempt = this.scryptDepositAttempts.get(entity.id);
+    const lastAttempt = this.scryptDepositSendAttempts.get(entity.id);
     if (lastAttempt && Date.now() - lastAttempt.getTime() < SCRYPT_DEPOSIT_RETRY_INTERVAL_MS) return;
 
-    this.scryptDepositAttempts.set(entity.id, new Date());
+    this.scryptDepositSendAttempts.set(entity.id, new Date());
     await this.scryptService.sendDepositRequest({
       currency: entity.currency,
       amount: entity.amount,
