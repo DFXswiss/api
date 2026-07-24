@@ -1244,6 +1244,73 @@ describe('FiatOutputJobService', () => {
       expect(scryptService.sendDepositRequest).toHaveBeenCalledWith(expect.objectContaining({ reqId: 'E2E-2' }));
     });
 
+    it('waits on an intermediate status without marking or re-sending', async () => {
+      const entity = createScryptDepositEntity();
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue({
+        id: 'tx-pending',
+        status: 'PendingApproval' as ScryptTransactionStatus,
+      });
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      await service['notifyScryptDeposits']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+      expect(scryptService.sendDepositRequest).not.toHaveBeenCalled();
+      expect(loggerErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it('retries the send on the next sweep when sendDepositRequest fails', async () => {
+      const entity = createScryptDepositEntity();
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue(null);
+      jest
+        .spyOn(scryptService, 'sendDepositRequest')
+        .mockRejectedValueOnce(new Error('send failed'))
+        .mockResolvedValue(undefined as any);
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      await service['notifyScryptDeposits']();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        `Failed to process Scrypt deposit notification for fiat output ${entity.id}:`,
+        expect.any(Error),
+      );
+      expect((service as any).scryptDepositSendAttempts.has(entity.id)).toBe(false);
+
+      await service['notifyScryptDeposits']();
+
+      expect(scryptService.sendDepositRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('re-alerts a rejected deposit after the interval without ever re-sending', async () => {
+      const entity = createScryptDepositEntity();
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(scryptService, 'getDepositStatus').mockReturnValue({
+        id: 'tx-rejected',
+        status: ScryptTransactionStatus.REJECTED,
+        rejectText: 'Broker rejected deposit',
+      });
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      await service['notifyScryptDeposits']();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`Scrypt deposit request for fiat output ${entity.id} was Rejected`),
+      );
+
+      (service as any).scryptDepositAlerts.set(entity.id, new Date(Date.now() - 61 * 60 * 1000));
+
+      await service['notifyScryptDeposits']();
+
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(2);
+      expect(loggerErrorSpy).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining(`Scrypt deposit request for fiat output ${entity.id} was Rejected`),
+      );
+      expect(scryptService.sendDepositRequest).not.toHaveBeenCalled();
+    });
+
     it.each([
       {
         label: 'wrong type',
@@ -1277,6 +1344,14 @@ describe('FiatOutputJobService', () => {
           currency: 'CHF',
           amount: 100,
         }),
+      },
+      {
+        label: 'isComplete false',
+        entity: createScryptDepositEntity({ isComplete: false }),
+      },
+      {
+        label: 'already notified',
+        entity: createScryptDepositEntity({ scryptDepositNotifiedDate: new Date() }),
       },
     ])('fail-closed: skips notifyScryptDeposit when $label', async ({ entity }) => {
       await service['notifyScryptDeposit'](entity);

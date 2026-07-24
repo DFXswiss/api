@@ -649,7 +649,14 @@ export class FiatOutputJobService {
 
   private async notifyScryptDeposit(entity: FiatOutput): Promise<void> {
     // fail-closed guard against future query drift: conditions must mirror the sweep query
-    if (entity.type !== FiatOutputType.LIQ_MANAGEMENT || !entity.name?.includes(SCRYPT_DEPOSIT_NAME_MARKER)) return;
+    if (
+      entity.type !== FiatOutputType.LIQ_MANAGEMENT ||
+      !entity.name?.includes(SCRYPT_DEPOSIT_NAME_MARKER) ||
+      !entity.isComplete ||
+      entity.scryptDepositNotifiedDate
+    ) {
+      return;
+    }
 
     const reqId = entity.endToEndId ?? `DEPOSIT-${entity.id}`;
 
@@ -668,21 +675,27 @@ export class FiatOutputJobService {
         return;
       }
 
-      await this.fiatOutputRepo.update(entity.id, { scryptDepositNotifiedDate: new Date() });
-      this.scryptDepositSendAttempts.delete(entity.id);
-      this.scryptDepositAlerts.delete(entity.id);
+      if (status.status === ScryptTransactionStatus.COMPLETED) {
+        await this.fiatOutputRepo.update(entity.id, { scryptDepositNotifiedDate: new Date() });
+        this.scryptDepositSendAttempts.delete(entity.id);
+        this.scryptDepositAlerts.delete(entity.id);
+        return;
+      }
+
+      // Intermediate or unknown status (e.g. PendingApproval): the broker knows the request,
+      // so neither mark as notified nor re-send — wait for a terminal status.
       return;
     }
 
     const lastAttempt = this.scryptDepositSendAttempts.get(entity.id);
     if (lastAttempt && Date.now() - lastAttempt.getTime() < SCRYPT_DEPOSIT_RETRY_INTERVAL_MS) return;
 
-    this.scryptDepositSendAttempts.set(entity.id, new Date());
     await this.scryptService.sendDepositRequest({
       currency: entity.currency,
       amount: entity.amount,
       reqId,
       timeStamp: new Date(),
     });
+    this.scryptDepositSendAttempts.set(entity.id, new Date());
   }
 }
