@@ -54,6 +54,7 @@
  *   - S3: S3_ENDPOINT, S3_REGION, S3_ADMIN_ACCESS_KEY, S3_ADMIN_SECRET_KEY
  *   - Azure: AZURE_STORAGE_CONNECTION_STRING
  *   - Containers: CLI positional args or VERIFY_CONTAINERS (space- and/or comma-separated)
+ *   - Ignore buckets: VERIFY_IGNORE_BUCKETS (space- and/or comma-separated; optional)
  *   - Mode: --hash-delta or VERIFY_HASH_DELTA=true (default: REPORT)
  *   - BACKFILL_PROOF_CUTOFF: required UTC ISO-8601 date string (YYYY-MM-DDTHH:mm:ssZ)
  *   - BACKFILL_CONTENT_PROVEN: only exact 'true' enables backfill-covered (else false)
@@ -63,10 +64,16 @@
  * Run examples:
  *   VERIFY_CONTAINERS="kyc support ep2-example" BACKFILL_PROOF_CUTOFF=2026-07-14T00:00:00Z BACKFILL_CONTENT_PROVEN=true npx ts-node scripts/storage/verify-content.ts
  *   VERIFY_CONTAINERS="kyc support ep2-example" BACKFILL_PROOF_CUTOFF=2026-07-14T00:00:00Z BACKFILL_CONTENT_PROVEN=true npx ts-node scripts/storage/verify-content.ts --hash-delta
- *   npx ts-node scripts/storage/verify-content.ts kyc support --hash-delta
+ *   BACKFILL_PROOF_CUTOFF=2026-07-14T00:00:00Z BACKFILL_CONTENT_PROVEN=false \
+ *     npx ts-node scripts/storage/verify-content.ts kyc support --hash-delta
+ *
+ * Scope boundary: Azure SAS connection strings cannot list containers, so the requested
+ * list is intentionally Azure's authority for which stores are verified. Every existing
+ * S3 bucket must either be in the requested container list or explicitly declared via
+ * VERIFY_IGNORE_BUCKETS (non-document / system buckets) — unaccounted buckets fail hard.
  */
 
-import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, ListBucketsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
 import * as crypto from 'crypto';
 import * as dotenv from 'dotenv';
@@ -265,6 +272,40 @@ export function assertWithinHashCap(count: number, cap: number): void {
   }
 }
 
+/** Fail if any requested container name is missing from the S3 bucket inventory. */
+export function assertRequestedContainersExist(existingS3Buckets: string[], requested: string[]): void {
+  const existing = new Set(existingS3Buckets);
+  const missing = requested.filter((name) => !existing.has(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `Requested container(s) not found as S3 bucket(s): ${missing.join(', ')}. ` +
+        `Provision missing buckets before verifying content.`,
+    );
+  }
+}
+
+/**
+ * Fail if an S3 bucket is neither verified nor explicitly ignored. This prevents a
+ * partial container list from producing a false-green cutover result.
+ */
+export function assertBucketsAccounted(existingS3Buckets: string[], requested: string[], ignore: string[]): void {
+  const accounted = new Set([...requested, ...ignore]);
+  const unaccounted = existingS3Buckets.filter((name) => !accounted.has(name));
+  if (unaccounted.length > 0) {
+    throw new Error(
+      `Unaccounted S3 bucket(s): ${unaccounted.join(', ')}. ` +
+        `Each must either be content-verified (added to VERIFY_CONTAINERS) or explicitly ` +
+        `declared as a non-document-store via VERIFY_IGNORE_BUCKETS.`,
+    );
+  }
+}
+
+/** Stable, non-reversible object reference for logs; raw document keys may contain PII. */
+export function safeObjectReference(container: string, key: string): string {
+  const keyDigest = crypto.createHash('sha256').update(key).digest('hex');
+  return `${container}/key-sha256:${keyDigest}`;
+}
+
 // size/lastModified/etag/md5 from list pages only — no HeadObject per key.
 // --- LISTING --- //
 
@@ -290,7 +331,7 @@ export async function listS3(client: S3Client, bucket: string): Promise<ContentO
       ) {
         throw new Error(
           `Incomplete S3 list entry in bucket "${bucket}"` +
-            (o.Key != null && o.Key !== '' ? ` key="${o.Key}"` : '') +
+            (o.Key != null && o.Key !== '' ? ` object=${safeObjectReference(bucket, o.Key)}` : '') +
             `: Key, Size, LastModified and ETag are required from ListObjectsV2 (no HeadObject fallback)`,
         );
       }
@@ -308,6 +349,24 @@ export async function listS3(client: S3Client, bucket: string): Promise<ContentO
   return objects;
 }
 
+export async function listS3Buckets(client: S3Client): Promise<string[]> {
+  const buckets: string[] = [];
+  let token: string | undefined;
+
+  do {
+    const res = await client.send(new ListBucketsCommand({ ContinuationToken: token }));
+    for (const bucket of res.Buckets ?? []) {
+      if (bucket.Name == null || bucket.Name === '') {
+        throw new Error('Incomplete S3 ListBuckets entry: Name is required (refusing silent skip of unnamed bucket)');
+      }
+      buckets.push(bucket.Name);
+    }
+    token = res.ContinuationToken;
+  } while (token);
+
+  return buckets;
+}
+
 export async function listAzure(containerClient: ContainerClient): Promise<ContentObject[]> {
   const objects: ContentObject[] = [];
   const container = containerClient.containerName;
@@ -321,7 +380,7 @@ export async function listAzure(containerClient: ContainerClient): Promise<Conte
     if (name == null || name === '' || contentLength == null || lastModified == null || etag == null || etag === '') {
       throw new Error(
         `Incomplete Azure list entry in container "${container}"` +
-          (name != null && name !== '' ? ` name="${name}"` : '') +
+          (name != null && name !== '' ? ` object=${safeObjectReference(container, name)}` : '') +
           `: name, properties.contentLength, properties.lastModified and properties.etag are required from listBlobsFlat`,
       );
     }
@@ -391,6 +450,7 @@ function dedupePreserveOrder(items: string[]): string[] {
 
 export function parseConfig(): {
   containers: string[];
+  ignoreBuckets: string[];
   hashDelta: boolean;
   backfillCutoff: Date;
   backfillContentProven: boolean;
@@ -418,6 +478,9 @@ export function parseConfig(): {
     );
   }
   containers = dedupePreserveOrder(containers);
+
+  const ignoreRaw = process.env.VERIFY_IGNORE_BUCKETS;
+  const ignoreBuckets = ignoreRaw ? dedupePreserveOrder(parseContainerList(ignoreRaw)) : [];
 
   const cutoffRaw = process.env.BACKFILL_PROOF_CUTOFF;
   if (cutoffRaw === undefined || cutoffRaw === '') {
@@ -456,7 +519,7 @@ export function parseConfig(): {
     hashCap = n;
   }
 
-  return { containers, hashDelta, backfillCutoff, backfillContentProven, hashCap };
+  return { containers, ignoreBuckets, hashDelta, backfillCutoff, backfillContentProven, hashCap };
 }
 
 // --- HASHING --- //
@@ -505,10 +568,14 @@ async function hashAzureBlob(
 ): Promise<{ digest: string; etag: string }> {
   const download = await containerClient.getBlobClient(key).download();
   if (!download.readableStreamBody) {
-    throw new Error(`Empty readableStreamBody for Azure blob "${containerClient.containerName}/${key}"`);
+    throw new Error(
+      `Empty readableStreamBody for Azure blob ${safeObjectReference(containerClient.containerName, key)}`,
+    );
   }
   if (!download.etag) {
-    throw new Error(`Missing etag on Azure download response for "${containerClient.containerName}/${key}"`);
+    throw new Error(
+      `Missing etag on Azure download response for ${safeObjectReference(containerClient.containerName, key)}`,
+    );
   }
   const digest = await streamSha256(download.readableStreamBody, expectedSize);
   return { digest, etag: download.etag };
@@ -522,10 +589,10 @@ async function hashS3Object(
 ): Promise<{ digest: string; etag: string }> {
   const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   if (!res.Body) {
-    throw new Error(`Empty body for S3 object "${bucket}/${key}"`);
+    throw new Error(`Empty body for S3 object ${safeObjectReference(bucket, key)}`);
   }
   if (!res.ETag) {
-    throw new Error(`Missing ETag on S3 GetObject response for "${bucket}/${key}"`);
+    throw new Error(`Missing ETag on S3 GetObject response for ${safeObjectReference(bucket, key)}`);
   }
   const digest = await streamSha256(res.Body as NodeJS.ReadableStream, expectedSize);
   return { digest, etag: res.ETag };
@@ -642,12 +709,16 @@ function sumField(reports: ContainerClassification[], field: keyof ContainerClas
 
 async function main(): Promise<number> {
   const runStart = new Date();
-  const { containers, hashDelta, backfillCutoff, backfillContentProven, hashCap } = parseConfig();
+  const { containers, ignoreBuckets, hashDelta, backfillCutoff, backfillContentProven, hashCap } = parseConfig();
   const s3 = buildS3Client();
   const azure = buildAzureClient();
 
+  const existingS3Buckets = await listS3Buckets(s3);
+  assertRequestedContainersExist(existingS3Buckets, containers);
+  assertBucketsAccounted(existingS3Buckets, containers, ignoreBuckets);
+
   console.log(
-    `Content verify: containers=[${containers.join(', ')}] ` +
+    `Content verify: containers=[${containers.join(', ')}] ignoreBuckets=[${ignoreBuckets.join(', ')}] ` +
       `mode=${hashDelta ? 'HASH-DELTA' : 'REPORT'} ` +
       `backfillCutoff=${backfillCutoff.toISOString()} ` +
       `BACKFILL_CONTENT_PROVEN=${backfillContentProven} ` +
@@ -775,9 +846,10 @@ async function main(): Promise<number> {
           }
           const azureObj = report.azureMap.get(item.key);
           const s3Obj = report.s3Map.get(item.key);
+          const objectRef = safeObjectReference(item.container, item.key);
           if (!azureObj || !s3Obj) {
             throw new Error(
-              `Missing list metadata for "${item.container}/${item.key}" while hashing ` +
+              `Missing list metadata for ${objectRef} while hashing ` +
                 `(both sides required; size mismatch would not reach hashing)`,
             );
           }
@@ -791,30 +863,29 @@ async function main(): Promise<number> {
           ]);
 
           try {
-            assertHashVersionUnchanged(azureObj.etag, azureResult.etag, `azure ${item.container}/${item.key}`);
-            assertHashVersionUnchanged(s3Obj.etag, s3Result.etag, `s3 ${item.container}/${item.key}`);
+            assertHashVersionUnchanged(azureObj.etag, azureResult.etag, `azure ${objectRef}`);
+            assertHashVersionUnchanged(s3Obj.etag, s3Result.etag, `s3 ${objectRef}`);
           } catch (versionErr) {
-            console.log(
-              `SKIP (changed during hash, will re-list) ${item.container}/${item.key}: ` +
-                `${(versionErr as Error).message}`,
-            );
+            console.log(`SKIP (changed during hash, will re-list) ${objectRef}: ` + `${(versionErr as Error).message}`);
             return;
           }
 
           if (azureResult.digest === s3Result.digest) {
             provenByHash.set(scopedKey(item.container, item.key), objectSignature(azureObj, s3Obj));
-            console.log(`HASH MATCH ${item.container}/${item.key}`);
+            console.log(`HASH MATCH ${objectRef}`);
           } else {
             contentDivergence.push({ container: item.container, key: item.key });
             console.error(
-              `CONTENT DIVERGENCE ${item.container}/${item.key}: ` +
-                `azureSha256=${azureResult.digest} s3Sha256=${s3Result.digest}`,
+              `CONTENT DIVERGENCE ${objectRef}: ` + `azureSha256=${azureResult.digest} s3Sha256=${s3Result.digest}`,
             );
           }
         } catch (e) {
-          throw new Error(`[container="${item.container}" key="${item.key}"] hash failed: ${e?.message ?? e}`, {
-            cause: e,
-          });
+          throw new Error(
+            `[object="${safeObjectReference(item.container, item.key)}"] hash failed: ${e?.message ?? e}`,
+            {
+              cause: e,
+            },
+          );
         }
       },
       HASH_BATCH_PACING_MS,
@@ -962,7 +1033,7 @@ async function main(): Promise<number> {
   if (contentDivergence.length > 0) {
     console.error('CONTENT DIVERGENCE keys (same size, different bytes) — most severe finding:');
     for (const d of contentDivergence) {
-      console.error(`  - ${d.container}/${d.key}`);
+      console.error(`  - ${safeObjectReference(d.container, d.key)}`);
     }
   }
 

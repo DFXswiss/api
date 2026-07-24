@@ -1,6 +1,8 @@
 import {
   assertHashedSize,
   assertHashVersionUnchanged,
+  assertBucketsAccounted,
+  assertRequestedContainersExist,
   assertWithinHashCap,
   classifyKey,
   ContentObject,
@@ -10,6 +12,7 @@ import {
   normalizeEtag,
   objectSignature,
   parseConfig,
+  safeObjectReference,
 } from '../../../../../scripts/storage/verify-content';
 
 function contentObject(
@@ -172,6 +175,30 @@ describe('assertWithinHashCap', () => {
   });
 });
 
+describe('content verification scope guards', () => {
+  it('rejects a requested container that does not exist in S3', () => {
+    expect(() => assertRequestedContainersExist(['kyc'], ['kyc', 'support'])).toThrow(/support/);
+  });
+
+  it('rejects an existing bucket omitted from both verify and ignore lists', () => {
+    expect(() => assertBucketsAccounted(['kyc', 'support'], ['kyc'], [])).toThrow(/support/);
+  });
+
+  it('accepts an explicitly ignored non-document bucket', () => {
+    expect(() => assertBucketsAccounted(['kyc', 'system'], ['kyc'], ['system'])).not.toThrow();
+  });
+});
+
+describe('safeObjectReference', () => {
+  it('never includes the raw object key in default log references', () => {
+    const rawKey = 'user-123/private-passport.pdf';
+    const reference = safeObjectReference('kyc', rawKey);
+    expect(reference).toMatch(/^kyc\/key-sha256:[a-f0-9]{64}$/);
+    expect(reference).not.toContain(rawKey);
+    expect(reference).toBe(safeObjectReference('kyc', rawKey));
+  });
+});
+
 describe('objectSignature', () => {
   const azureBase = contentObject('k', 100, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
   const s3Base = contentObject('k', 100, beforeCutoff, { etag: S3_ETAG });
@@ -293,6 +320,7 @@ describe('parseConfig BACKFILL_PROOF_CUTOFF bounds', () => {
     'BACKFILL_PROOF_CUTOFF',
     'BACKFILL_CONTENT_PROVEN',
     'VERIFY_CONTAINERS',
+    'VERIFY_IGNORE_BUCKETS',
     'VERIFY_HASH_DELTA',
     'VERIFY_HASH_CAP',
   ] as const;
@@ -307,6 +335,7 @@ describe('parseConfig BACKFILL_PROOF_CUTOFF bounds', () => {
     savedArgv = process.argv;
     process.argv = ['node', 'verify-content.ts', 'test-container'];
     delete process.env.VERIFY_CONTAINERS;
+    delete process.env.VERIFY_IGNORE_BUCKETS;
     delete process.env.VERIFY_HASH_DELTA;
     delete process.env.VERIFY_HASH_CAP;
     process.env.BACKFILL_CONTENT_PROVEN = 'false';
