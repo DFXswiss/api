@@ -37,12 +37,9 @@ export class VirtualIbanService {
     return this.hasProviderForCurrency(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
   }
 
-  /**
-   * Deterministic implicit lookup over non-Frick providers, then smallest virtual_iban.id.
-   * Bank Frick is exclusively available through the explicit selector path.
-   */
+  /** Bank Frick is exclusively available through the explicit selector path. */
   async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
-    const vibans = await this.virtualIbanRepo.find({
+    return this.virtualIbanRepo.findOne({
       where: {
         userData: { id: userData.id },
         currency: { name: currencyName },
@@ -54,8 +51,6 @@ export class VirtualIbanService {
       relations: { bank: true },
       order: { id: 'ASC' },
     });
-
-    return this.pickDeterministic(vibans);
   }
 
   async getByIdForUser(id: number, userDataId: number): Promise<VirtualIban | null> {
@@ -114,8 +109,8 @@ export class VirtualIbanService {
     const claim = await this.claimPendingFrickIntent(initial.intent.id);
     if (!claim.claimed) return this.resolveExistingFrickIntent(claim.intent, userData, bank, currency);
 
-    // No database connection is held across Bank Frick I/O. Once InFlight is durable, no code path
-    // issues another POST; retries can only reconcile the exact technical description.
+    // No database connection is held across Bank Frick I/O. While an intent remains InFlight/Failed,
+    // retries can only reconcile the exact technical description and never issue another POST.
     try {
       const reserved = await this.frickVibanProvider.reserveViban(bank.iban, claim.intent.requestReference);
       return await this.finalizeFrickIssuance(claim.intent.id, userData, bank, currency, reserved);
@@ -500,21 +495,6 @@ export class VirtualIbanService {
 
   async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
     return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
-  }
-
-  private pickDeterministic(vibans: VirtualIban[]): VirtualIban | null {
-    const candidates = vibans.filter((viban) => viban.bank.name !== IbanBankName.FRICK);
-    if (!candidates.length) return null;
-
-    const providerRank = (name: IbanBankName): number => {
-      const idx = this.genericProviders.findIndex((p) => p.bankName === name);
-      return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
-    };
-
-    return candidates.sort((a, b) => {
-      const rankDiff = providerRank(a.bank.name) - providerRank(b.bank.name);
-      return rankDiff !== 0 ? rankDiff : a.id - b.id;
-    })[0];
   }
 
   private hasProviderForCurrency(currencyName: string): boolean {

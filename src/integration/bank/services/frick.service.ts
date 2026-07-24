@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AxiosResponse, Method } from 'axios';
+import { AxiosError, AxiosResponse, Method } from 'axios';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
@@ -666,8 +666,20 @@ export class BankFrickService {
     classifyVibanCreateFailure = false,
   ): Promise<T> {
     this.assertAvailable();
-    const token = await this.getAccessToken();
-    const bodyString = body === undefined ? '' : JSON.stringify(body);
+    let token: string;
+    let bodyString: string;
+    let signature: string;
+    try {
+      token = await this.getAccessToken();
+      bodyString = body === undefined ? '' : JSON.stringify(body);
+      signature = this.sign(bodyString);
+    } catch (error) {
+      if (classifyVibanCreateFailure)
+        throw new FrickVibanNotCreatedError(
+          `Bank Frick API request failed (${method} ${path}): pre-dispatch setup failed`,
+        );
+      throw error;
+    }
 
     try {
       return await this.http.request<T>({
@@ -681,7 +693,7 @@ export class BankFrickService {
           Accept: accept,
           'Content-Type': body === undefined ? '*/*' : 'application/json',
           Authorization: `Bearer ${token}`,
-          Signature: this.sign(bodyString),
+          Signature: signature,
           algorithm: 'rsa-sha512',
         },
         responseVerifier: (rawBody, headers) => this.verifyResponse(rawBody, headers),
@@ -691,7 +703,15 @@ export class BankFrickService {
         throw new Error(`Bank Frick response signature verification failed (${method} ${path}): ${error.message}`);
 
       if (allowUnauthorizedRetry && error?.response?.status === 401) {
-        await this.refreshAfterUnauthorized(token);
+        try {
+          await this.refreshAfterUnauthorized(token);
+        } catch (refreshError) {
+          if (classifyVibanCreateFailure)
+            throw new FrickVibanNotCreatedError(
+              `Bank Frick API request failed (${method} ${path}): authorization refresh failed before retry`,
+            );
+          throw refreshError;
+        }
         return this.requestSigned(url, path, method, body, accept, responseType, false, classifyVibanCreateFailure);
       }
 
@@ -862,19 +882,26 @@ export class BankFrickService {
     return typeof code === 'string' && /^[A-Z0-9_]{1,64}$/.test(code) ? code : 'request failed';
   }
 
-  private isDefinitelyNotProcessed(error: any): boolean {
-    const status = error?.response?.status;
+  private isDefinitelyNotProcessed(error: unknown): boolean {
+    const axiosError = error as Partial<AxiosError>;
+    const status = axiosError.response?.status;
     // A concrete client-error response rejects the create operation. HTTP 408 remains ambiguous:
     // the upstream may have completed the operation while the request timed out.
     if (Number.isInteger(status) && status >= 400 && status < 500 && status !== 408) return true;
 
     // These transport outcomes happen before an HTTP request can reach Bank Frick. Timeouts and
     // connection resets are intentionally excluded because their wire outcome is ambiguous.
-    if (['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ERR_INVALID_URL'].includes(error?.code)) return true;
+    if (
+      typeof axiosError.code === 'string' &&
+      ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ERR_INVALID_URL'].includes(axiosError.code)
+    )
+      return true;
 
     // Axios setup failures without a request object are also provably pre-send. Requiring the Axios
     // marker avoids misclassifying post-response parsing/verifier errors that have no request field.
-    return error?.isAxiosError === true && error?.request == null && error?.response == null;
+    const hasNoRequest = axiosError.request === undefined || axiosError.request === null;
+    const hasNoResponse = axiosError.response === undefined || axiosError.response === null;
+    return axiosError.isAxiosError === true && hasNoRequest && hasNoResponse;
   }
 
   private validateCustomer(): string {

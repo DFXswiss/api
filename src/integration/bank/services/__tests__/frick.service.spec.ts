@@ -136,6 +136,16 @@ describe('BankFrickService', () => {
     expect(accountCount).toBe(2);
   });
 
+  it('propagates a failed authorization refresh for a normal API request', async () => {
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockRejectedValueOnce({ response: { status: 401 } })
+      .mockRejectedValueOnce(new Error('refresh transport failed'));
+
+    await expect(service.getBalances()).rejects.toThrow('Bank Frick authorization failed: request failed');
+    expect(http.request).toHaveBeenCalledTimes(3);
+  });
+
   it('does not propagate arbitrary transport messages that could contain credentials', async () => {
     http.request.mockRejectedValueOnce(new Error('transport included synthetic-api-key'));
     const request = service.getBalances();
@@ -975,6 +985,35 @@ describe('BankFrickService', () => {
     http.request.mockResolvedValueOnce({ token: jwt() }).mockRejectedValueOnce({ response: { status: 422 } });
 
     await expect(service.createViban(debtorIban)).rejects.toBeInstanceOf(FrickVibanNotCreatedError);
+  });
+
+  it('classifies failed token acquisition before create dispatch as definitely not created', async () => {
+    http.request.mockRejectedValueOnce(new Error('authorization transport failed'));
+
+    await expect(service.createViban(debtorIban)).rejects.toBeInstanceOf(FrickVibanNotCreatedError);
+    expect(http.request).toHaveBeenCalledTimes(1);
+    expect(http.request.mock.calls[0][0].url).toContain('/authorize');
+  });
+
+  it('classifies failed authorization refresh after a rejected create as definitely not created', async () => {
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockRejectedValueOnce({ response: { status: 401 } })
+      .mockRejectedValueOnce(new Error('refresh transport failed'));
+
+    await expect(service.createViban(debtorIban)).rejects.toBeInstanceOf(FrickVibanNotCreatedError);
+    expect(http.request).toHaveBeenCalledTimes(3);
+  });
+
+  it('classifies local signing failure before create dispatch as definitely not created', async () => {
+    http.request.mockResolvedValueOnce({ token: jwt() });
+    await service.prepareVibanCreate(debtorIban, 'dfx-viban-reference');
+    Config.bank.frick.privateKey = 'invalid-private-key';
+
+    await expect(service.createViban(debtorIban, 'dfx-viban-reference')).rejects.toBeInstanceOf(
+      FrickVibanNotCreatedError,
+    );
+    expect(http.request).toHaveBeenCalledTimes(1);
   });
 
   it.each([{ code: 'ECONNREFUSED', request: {} }, { isAxiosError: true }])(

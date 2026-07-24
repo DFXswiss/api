@@ -112,7 +112,7 @@ describe('VirtualIbanService', () => {
 
   describe('createForUser', () => {
     beforeEach(() => {
-      jest.spyOn(virtualIbanRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
       jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(currency as any);
       jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(true);
       jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
@@ -128,7 +128,7 @@ describe('VirtualIbanService', () => {
     });
 
     it('throws ConflictException when an active vIBAN already exists and never calls a provider', async () => {
-      jest.spyOn(virtualIbanRepo, 'find').mockResolvedValue([{ id: 99, bank }] as VirtualIban[]);
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue({ id: 99, bank } as VirtualIban);
 
       await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(ConflictException);
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
@@ -559,30 +559,25 @@ describe('VirtualIbanService', () => {
   });
 
   describe('read helpers', () => {
-    it('prefers Yapeal over Frick and then the smallest id for generic user-level lookups', async () => {
-      jest.spyOn(virtualIbanRepo, 'find').mockResolvedValue([
-        { id: 1, bank: { name: IbanBankName.FRICK } },
-        { id: 9, bank: { name: IbanBankName.YAPEAL } },
-        { id: 3, bank: { name: IbanBankName.YAPEAL } },
-      ] as VirtualIban[]);
+    it('returns the first generic user-level vIBAN selected by the repository', async () => {
+      const selected = { id: 3, bank: { name: IbanBankName.YAPEAL } } as VirtualIban;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(selected);
 
-      await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toMatchObject({ id: 3 });
+      await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
     });
 
     it('never returns an existing Frick vIBAN from the generic user-level lookup', async () => {
-      jest
-        .spyOn(virtualIbanRepo, 'find')
-        .mockResolvedValue([{ id: 1, bank: { name: IbanBankName.FRICK } }] as VirtualIban[]);
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
 
       await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBeNull();
     });
 
-    it('getActiveForUserAndCurrency queries the repo with the expected filter', async () => {
-      jest.spyOn(virtualIbanRepo, 'find').mockResolvedValue([]);
+    it('getActiveForUserAndCurrency queries the repo with the expected filter and deterministic order', async () => {
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
 
       await service.getActiveForUserAndCurrency(userData, 'CHF');
 
-      expect(virtualIbanRepo.find).toHaveBeenCalledWith({
+      expect(virtualIbanRepo.findOne).toHaveBeenCalledWith({
         where: {
           userData: { id: 7 },
           currency: { name: 'CHF' },

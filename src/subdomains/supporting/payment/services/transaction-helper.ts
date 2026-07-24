@@ -50,7 +50,7 @@ import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
 import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/tx-statement-details.dto';
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
-import { Transaction } from '../entities/transaction.entity';
+import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 import { TransactionService } from './transaction.service';
 
@@ -549,7 +549,7 @@ export class TransactionHelper implements OnModuleInit {
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       const buy = transaction.buyCrypto.buy;
-      const isCardPayment = transaction.buyCrypto.paymentMethodIn === FiatPaymentMethod.CARD;
+      const isCardPayment = transaction.sourceType === TransactionSourceType.CHECKOUT_TX;
       const bankSelector = {
         amount: transaction.buyCrypto.inputAmount,
         currency: fiat.name,

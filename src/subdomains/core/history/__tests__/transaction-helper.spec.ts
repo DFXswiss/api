@@ -37,6 +37,7 @@ import { TransactionSpecificationRepository } from 'src/subdomains/supporting/pa
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
@@ -408,7 +409,12 @@ describe('TransactionHelper', () => {
       isValid: true,
       sourcePaymentMethod: FiatPaymentMethod.CARD,
     });
-    const transaction = createCustomTransaction({ buyCrypto, request, userData });
+    const transaction = createCustomTransaction({
+      buyCrypto,
+      request,
+      sourceType: TransactionSourceType.CHECKOUT_TX,
+      userData,
+    });
     jest.spyOn(transactionService, 'getTransactionById').mockResolvedValue(transaction);
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'EUR' }));
 
