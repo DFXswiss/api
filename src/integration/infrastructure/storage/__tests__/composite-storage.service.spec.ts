@@ -165,14 +165,41 @@ describe('CompositeStorageService', () => {
       ).rejects.toThrow('azure write failed');
     });
 
-    it('rejects the whole call when the second backend rejects after the first succeeded', async () => {
+    it('resolves with the Azure URL and logs DUAL_WRITE_SECONDARY_FAILURE when secondary (s3) rejects after azure succeeded (readSource=azure)', async () => {
       await provideConfig('dual', 'azure');
+      s3Upload.mockRejectedValue(new Error('s3 write failed'));
+      const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+      const url = await new CompositeStorageService(CONTAINER).uploadBlob('k', Buffer.from('x'), 'text/plain');
+
+      expect(url).toBe(`${AZURE_URL}${CONTAINER}/k`);
+      expect(azureUpload).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls[0][0]).toContain('DUAL_WRITE_SECONDARY_FAILURE');
+      expect(errorSpy.mock.calls[0][1]).toEqual(expect.any(Error));
+    });
+
+    it('rejects when read-source (s3) rejects under dual/s3', async () => {
+      await provideConfig('dual', 's3');
       s3Upload.mockRejectedValue(new Error('s3 write failed'));
 
       await expect(
         new CompositeStorageService(CONTAINER).uploadBlob('k', Buffer.from('x'), 'text/plain'),
       ).rejects.toThrow('s3 write failed');
-      expect(azureUpload).toHaveBeenCalled();
+    });
+
+    it('resolves with the S3 URL and logs DUAL_WRITE_SECONDARY_FAILURE when secondary (azure) rejects after s3 succeeded (readSource=s3)', async () => {
+      await provideConfig('dual', 's3');
+      azureUpload.mockRejectedValue(new Error('azure write failed'));
+      const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+      const url = await new CompositeStorageService(CONTAINER).uploadBlob('k', Buffer.from('x'), 'text/plain');
+
+      expect(url).toBe(`${S3_PUBLIC_URL}${CONTAINER}/k`);
+      expect(s3Upload).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls[0][0]).toContain('DUAL_WRITE_SECONDARY_FAILURE');
+      expect(errorSpy.mock.calls[0][1]).toEqual(expect.any(Error));
     });
   });
 
@@ -292,13 +319,31 @@ describe('CompositeStorageService', () => {
       expect(s3Copy.mock.invocationCallOrder[0]).toBeLessThan(azureCopy.mock.invocationCallOrder[0]);
     });
 
-    it('rejects the whole call when one backend copyBlobs rejects', async () => {
+    it('rejects the whole call when the read-source backend copyBlobs rejects', async () => {
       await provideConfig('dual', 'azure');
       azureCopy.mockRejectedValue(new Error('azure copy failed'));
 
       await expect(new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/')).rejects.toThrow(
         'azure copy failed',
       );
+    });
+
+    it('resolves with empty S3 result and logs DUAL_WRITE_SECONDARY_FAILURE when secondary (s3) copyBlobs rejects (readSource=azure)', async () => {
+      await provideConfig('dual', 'azure');
+      s3Copy.mockRejectedValue(new Error('s3 copy failed'));
+      const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+      const warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
+
+      const result = await new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/');
+
+      expect(result).toEqual([]);
+      expect(azureCopy).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls[0][0]).toContain('DUAL_WRITE_SECONDARY_FAILURE');
+      expect(errorSpy.mock.calls[0][1]).toEqual(expect.any(Error));
+      // empty secondary result vs non-empty azure triggers the existing asymmetry warning
+      expect(warnSpy).toHaveBeenCalled();
+      expect(warnSpy.mock.calls[0][0]).toContain('copyBlobs dual-write asymmetry');
     });
   });
 
@@ -322,14 +367,49 @@ describe('CompositeStorageService', () => {
       expect(azureUploadWorm).not.toHaveBeenCalled();
     });
 
-    it('rejects when first side (azure) succeeds and second side (s3) fails with readSource=azure', async () => {
+    it('resolves with the Azure URL and logs DUAL_WRITE_SECONDARY_FAILURE when secondary (s3) fails after azure succeeded (readSource=azure)', async () => {
       await provideConfig('dual', 'azure');
       s3UploadWorm.mockRejectedValue(new Error('Object Lock is not enabled'));
+      const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+      const url = await new CompositeStorageService(CONTAINER).uploadWormBlob(
+        'settlement.ep2',
+        Buffer.from('<ep2/>'),
+        'text/xml',
+      );
+
+      expect(url).toBe(`${AZURE_URL}${CONTAINER}/settlement.ep2`);
+      expect(azureUploadWorm).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls[0][0]).toContain('DUAL_WRITE_SECONDARY_FAILURE');
+      expect(errorSpy.mock.calls[0][1]).toEqual(expect.any(Error));
+    });
+
+    it('rejects when read-source (azure) rejects under dual/azure', async () => {
+      await provideConfig('dual', 'azure');
+      azureUploadWorm.mockRejectedValue(new Error('azure worm write failed'));
 
       await expect(
         new CompositeStorageService(CONTAINER).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
-      ).rejects.toThrow('Object Lock is not enabled');
-      expect(azureUploadWorm).toHaveBeenCalled();
+      ).rejects.toThrow('azure worm write failed');
+    });
+
+    it('resolves with the S3 URL and logs DUAL_WRITE_SECONDARY_FAILURE when secondary (azure) fails after s3 succeeded (readSource=s3)', async () => {
+      await provideConfig('dual', 's3');
+      azureUploadWorm.mockRejectedValue(new Error('azure worm write failed'));
+      const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+      const url = await new CompositeStorageService(CONTAINER).uploadWormBlob(
+        'settlement.ep2',
+        Buffer.from('<ep2/>'),
+        'text/xml',
+      );
+
+      expect(url).toBe(`${S3_PUBLIC_URL}${CONTAINER}/settlement.ep2`);
+      expect(s3UploadWorm).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls[0][0]).toContain('DUAL_WRITE_SECONDARY_FAILURE');
+      expect(errorSpy.mock.calls[0][1]).toEqual(expect.any(Error));
     });
 
     it('calls both uploadWormBlob paths in dual mode (never uploadBlob directly)', async () => {
