@@ -44,12 +44,12 @@ export class TransactionRequest extends IEntity {
   targetId: number;
 
   /** Resolved deposit bank id at quote time (scalar; no FK). */
-  @Index('IDX_transaction_request_bankId')
+  @Index()
   @Column({ type: 'integer', nullable: true })
   bankId?: number;
 
   /** Resolved personal virtual IBAN id at quote time (scalar; no FK). */
-  @Index('IDX_transaction_request_virtualIbanId')
+  @Index()
   @Column({ type: 'integer', nullable: true })
   virtualIbanId?: number;
 

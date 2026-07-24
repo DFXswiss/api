@@ -546,6 +546,14 @@ export class TransactionHelper implements OnModuleInit {
     if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
       throw new BadRequestException('Transaction not completed');
 
+    if (
+      statementType === TxStatementType.INVOICE &&
+      transaction.request &&
+      transaction.buyCrypto &&
+      !transaction.buyCrypto.isCryptoCryptoTransaction
+    )
+      return this.getTxStatementDetailsFromRequest(transaction, statementType);
+
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       const buy = transaction.buyCrypto.buy;

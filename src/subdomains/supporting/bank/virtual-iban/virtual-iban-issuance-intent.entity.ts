@@ -1,30 +1,29 @@
-import { Column, Entity, Index, Unique } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 import { IEntity } from '../../../../shared/models/entity';
 
 export enum VirtualIbanIssuanceIntentStatus {
   PENDING = 'Pending',
-  ISSUING = 'Issuing',
+  IN_FLIGHT = 'InFlight',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
 }
 
 @Entity()
-@Unique('UQ_virtual_iban_issuance_intent_user_currency_bank', ['userDataId', 'currencyId', 'bankId'])
+@Index((intent: VirtualIbanIssuanceIntent) => [intent.userDataId, intent.currencyId, intent.bankId], { unique: true })
 export class VirtualIbanIssuanceIntent extends IEntity {
   /** Non-PII technical reference used as Bank Frick `description` for crash recovery. */
-  @Index('UQ_virtual_iban_issuance_intent_requestReference', { unique: true })
-  @Column({ length: 64 })
+  @Column({ length: 64, unique: true })
   requestReference: string;
 
-  @Index('IDX_virtual_iban_issuance_intent_userDataId')
+  @Index()
   @Column({ type: 'integer' })
   userDataId: number;
 
-  @Index('IDX_virtual_iban_issuance_intent_currencyId')
+  @Index()
   @Column({ type: 'integer' })
   currencyId: number;
 
-  @Index('IDX_virtual_iban_issuance_intent_bankId')
+  @Index()
   @Column({ type: 'integer' })
   bankId: number;
 
@@ -32,8 +31,8 @@ export class VirtualIbanIssuanceIntent extends IEntity {
   status: VirtualIbanIssuanceIntentStatus;
 
   @Column({ length: 34, nullable: true })
-  externalIban?: string;
+  externalIban: string | null;
 
   @Column({ type: 'text', nullable: true })
-  error?: string;
+  error: string | null;
 }

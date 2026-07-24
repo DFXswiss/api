@@ -946,6 +946,17 @@ describe('BankFrickService', () => {
     expect(createRequest.headers.algorithm).toBe('rsa-sha512');
   });
 
+  it('preflights vIBAN validation, signing, and authorization without sending a create request', async () => {
+    http.request.mockResolvedValueOnce({ token: jwt() });
+
+    await expect(
+      service.prepareVibanCreate(` ${debtorIban.toLowerCase()} `, 'dfx-viban-technical-reference'),
+    ).resolves.toBeUndefined();
+
+    expect(http.request).toHaveBeenCalledTimes(1);
+    expect(http.request.mock.calls[0][0].url).toBe('https://bank.invalid/webapi/v2/authorize');
+  });
+
   it('includes the technical issuance reference as description in the signed create request', async () => {
     const response = virtualIbanResponse();
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);

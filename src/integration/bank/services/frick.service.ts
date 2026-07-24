@@ -165,14 +165,15 @@ export class BankFrickService {
     return this.isAvailable() && !!Config.bank.frick.vbanBaseUrl;
   }
 
+  /** Validates and authenticates a create request without sending it to the vIBAN endpoint. */
+  async prepareVibanCreate(referenceAccountIban: string, description?: string): Promise<void> {
+    const request = this.buildCreateVibanRequest(referenceAccountIban, description);
+    this.sign(JSON.stringify(request));
+    await this.getAccessToken();
+  }
+
   async createViban(referenceAccountIban: string, description?: string): Promise<FrickVirtualIban> {
-    this.assertVibanAvailable();
-    const iban = this.normalizeAndValidateIban(referenceAccountIban, 'reference account IBAN');
-    if (description !== undefined) this.validateString(description, 'description', 140, true);
-    const request: FrickCreateVirtualIbanRequest = {
-      referenceAccountIban: iban,
-      ...(description !== undefined && { description }),
-    };
+    const request = this.buildCreateVibanRequest(referenceAccountIban, description);
     const response = await this.callVbanApi<FrickVirtualIban>('virtual-ibans', 'POST', request);
     this.validateVirtualIbanResponse(response);
     return response;
@@ -860,6 +861,16 @@ export class BankFrickService {
 
   private assertVibanAvailable(): void {
     if (!this.isVibanAvailable()) throw new Error('Bank Frick virtual IBAN is not configured');
+  }
+
+  private buildCreateVibanRequest(referenceAccountIban: string, description?: string): FrickCreateVirtualIbanRequest {
+    this.assertVibanAvailable();
+    const iban = this.normalizeAndValidateIban(referenceAccountIban, 'reference account IBAN');
+    if (description !== undefined) this.validateString(description, 'description', 140, true);
+    return {
+      referenceAccountIban: iban,
+      ...(description !== undefined && { description }),
+    };
   }
 
   private validateVirtualIbanResponse(r: FrickVirtualIban): void {

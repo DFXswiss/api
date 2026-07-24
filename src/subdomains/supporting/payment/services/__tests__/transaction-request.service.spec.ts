@@ -18,7 +18,9 @@ describe('TransactionRequestService bank selection persistence', () => {
     const repo = createMock<TransactionRequestRepository>();
     const sift = createMock<SiftService>();
     jest.spyOn(repo, 'create').mockImplementation((value) => value as TransactionRequest);
-    jest.spyOn(repo, 'save').mockImplementation(async (value) => Object.assign(value, { id: 99 }));
+    jest
+      .spyOn(repo, 'save')
+      .mockImplementation(async (value) => Object.assign(value as TransactionRequest, { id: 99 }));
 
     const module = await Test.createTestingModule({
       imports: [TestSharedModule],

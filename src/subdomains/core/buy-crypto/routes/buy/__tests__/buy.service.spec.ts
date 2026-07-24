@@ -204,27 +204,35 @@ describe('BuyService', () => {
       expect(response).not.toHaveProperty('virtualIbanId');
     });
 
-    it.each([
-      [{ currency: { ...currency, name: 'CHF' } }, 'only available for EUR'],
-      [{ paymentMethod: FiatPaymentMethod.CARD }, 'requires bank payment'],
-    ])('rejects an incompatible explicit selector without provider fallback %#', async (overrides, message) => {
-      await expect(
-        service['resolveBankInfo'](
-          {
-            currency: (overrides.currency as Fiat | undefined)?.name ?? 'EUR',
-            paymentMethod: overrides.paymentMethod ?? FiatPaymentMethod.BANK,
-            userData,
-          },
-          buy,
-          asset,
-          undefined,
-          PersonalIbanProvider.FRICK,
-        ),
-      ).rejects.toThrow(message);
+    const incompatibleSelectors: {
+      overrides: { currency?: string; paymentMethod?: FiatPaymentMethod };
+      message: string;
+    }[] = [
+      { overrides: { currency: 'CHF' }, message: 'only available for EUR' },
+      { overrides: { paymentMethod: FiatPaymentMethod.CARD }, message: 'requires bank payment' },
+    ];
 
-      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
-      expect(bankService.getBank).not.toHaveBeenCalled();
-    });
+    it.each(incompatibleSelectors)(
+      'rejects an incompatible explicit selector without provider fallback %#',
+      async ({ overrides, message }) => {
+        await expect(
+          service['resolveBankInfo'](
+            {
+              currency: overrides.currency ?? 'EUR',
+              paymentMethod: overrides.paymentMethod ?? FiatPaymentMethod.BANK,
+              userData,
+            },
+            buy,
+            asset,
+            undefined,
+            PersonalIbanProvider.FRICK,
+          ),
+        ).rejects.toThrow(message);
+
+        expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+        expect(bankService.getBank).not.toHaveBeenCalled();
+      },
+    );
 
     it('rejects KYC below 50 with the established KycRequired error', async () => {
       await expect(

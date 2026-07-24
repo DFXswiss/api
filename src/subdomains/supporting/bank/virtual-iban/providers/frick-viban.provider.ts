@@ -15,6 +15,11 @@ export class FrickVibanProvider implements VibanProvider {
     return this.bankFrickService.isVibanAvailable();
   }
 
+  async prepareVibanReservation(baseAccountIban: string, description: string): Promise<void> {
+    if (!this.isAvailable()) throw new ServiceUnavailableException('Bank Frick virtual IBAN service is not available');
+    await this.bankFrickService.prepareVibanCreate(baseAccountIban, description);
+  }
+
   async reserveViban(baseAccountIban: string, description?: string): Promise<ReservedViban> {
     if (!this.isAvailable()) throw new ServiceUnavailableException('Bank Frick virtual IBAN service is not available');
 

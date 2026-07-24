@@ -22,7 +22,7 @@ import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export enum PersonalIbanProvider {
-  FRICK = 'frick',
+  FRICK = 'Frick',
 }
 
 export class GetBuyPaymentInfoDto {

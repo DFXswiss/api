@@ -12,6 +12,7 @@ import { IbanBankName } from '../bank/dto/bank.dto';
 import { FrickVibanProvider } from './providers/frick-viban.provider';
 import { ReservedViban, VibanProvider } from './providers/viban-provider.interface';
 import { YapealVibanProvider } from './providers/yapeal-viban.provider';
+import { VirtualIbanIssuanceEvent } from './virtual-iban-issuance-event.entity';
 import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent.entity';
 import { VirtualIban, VirtualIbanStatus } from './virtual-iban.entity';
 import { VirtualIbanRepository } from './virtual-iban.repository';
@@ -106,11 +107,7 @@ export class VirtualIbanService {
     return this.createVirtualIban(userData, currencyName, buy);
   }
 
-  /**
-   * Fail-closed get-or-create of a user-level Frick vIBAN for the explicit personalIbanProvider path.
-   * Cross-instance serialized via PostgreSQL advisory lock; crash-recoverable via issuance intent +
-   * Frick description matching. Never falls back to another bank/provider.
-   */
+  /** Fail-closed, cross-instance-safe Frick issuance for the explicit selector path. */
   async getOrCreateFrickForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
     if (currencyName !== 'EUR') throw new BadRequestException('Bank Frick personal IBAN is only available for EUR');
 
@@ -125,130 +122,220 @@ export class VirtualIbanService {
     const bank = await this.bankService.getBankInternal(IbanBankName.FRICK, currencyName);
     if (!bank?.receive) throw new BadRequestException('No bank available for this currency');
 
-    const lockKey = `viban-issuance:${userData.id}:${currency.id}:${bank.id}`;
-    const queryRunner = this.dataSource.createQueryRunner();
+    const initial = await this.initializeFrickIntent(userData, bank, currency);
+    if (initial.existing) return initial.existing;
 
+    if (initial.intent.status !== VirtualIbanIssuanceIntentStatus.PENDING)
+      return this.resolveExistingFrickIntent(initial.intent, userData, bank, currency);
+
+    // Authentication, validation, and signing are completed before the durable claim. A failure here
+    // leaves the intent Pending and therefore safely retryable without any possibility of a sent POST.
+    await this.frickVibanProvider.prepareVibanReservation(bank.iban, initial.intent.requestReference);
+
+    const claim = await this.claimPendingFrickIntent(initial.intent.id);
+    if (!claim.claimed) return this.resolveExistingFrickIntent(claim.intent, userData, bank, currency);
+
+    // No database connection is held across Bank Frick I/O. Once InFlight is durable, no code path
+    // issues another POST; retries can only reconcile the exact technical description.
     try {
-      await queryRunner.connect();
-      await queryRunner.query('SELECT pg_advisory_lock(hashtext($1))', [lockKey]);
+      const reserved = await this.frickVibanProvider.reserveViban(bank.iban, claim.intent.requestReference);
+      return await this.finalizeFrickIssuance(claim.intent.id, userData, bank, currency, reserved);
+    } catch (error) {
+      let recoveryError: unknown;
       try {
-        const existing = await this.findActiveForUserCurrencyAndBank(
-          queryRunner.manager,
-          userData.id,
-          currency.id,
-          bank.id,
-        );
-        let intent = await queryRunner.manager.findOne(VirtualIbanIssuanceIntent, {
-          where: { userDataId: userData.id, currencyId: currency.id, bankId: bank.id },
-        });
-
-        // A crash can occur after the local vIBAN commit but before the intent completion update.
-        // Reconcile that state while still holding the same session lock.
-        if (existing) {
-          if (intent && (intent.status !== VirtualIbanIssuanceIntentStatus.COMPLETED || !intent.externalIban)) {
-            intent.status = VirtualIbanIssuanceIntentStatus.COMPLETED;
-            intent.externalIban = existing.iban;
-            intent.error = undefined;
-            await queryRunner.manager.save(intent);
-          }
-          return existing;
-        }
-
-        if (!intent) {
-          intent = queryRunner.manager.create(VirtualIbanIssuanceIntent, {
-            userDataId: userData.id,
-            currencyId: currency.id,
-            bankId: bank.id,
-            // Non-PII technical reference only — never include user identity.
-            requestReference: `dfx-viban-${Util.randomString(32).toLowerCase()}`,
-            status: VirtualIbanIssuanceIntentStatus.PENDING,
-          });
-          intent = await queryRunner.manager.save(intent);
-        }
-
-        if (intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED && intent.externalIban) {
-          return await this.persistUserLevelIfMissing(queryRunner.manager, userData, bank, currency, {
-            iban: intent.externalIban,
-            providerAccountRef: intent.externalIban,
-          });
-        }
-
-        // Crash/error recovery: once an intent reached ISSUING (or FAILED), never POST again.
-        // Search every recoverable Frick page first and only adopt one exact description match.
-        if (
-          intent.status === VirtualIbanIssuanceIntentStatus.ISSUING ||
-          intent.status === VirtualIbanIssuanceIntentStatus.FAILED
-        ) {
-          const recovered = await this.recoverFrickIssuance(intent, userData, bank, currency, queryRunner.manager);
-          if (recovered) return recovered;
-          throw new ServiceUnavailableException(
-            'Bank Frick virtual IBAN issuance state could not be recovered; refusing a second create',
-          );
-        }
-
-        if (intent.status !== VirtualIbanIssuanceIntentStatus.PENDING) {
-          throw new ServiceUnavailableException(
-            `Bank Frick virtual IBAN issuance is in unexpected status ${intent.status}`,
-          );
-        }
-
-        // Commit ISSUING before the external POST so a crash mid-call can recover by description.
-        intent.status = VirtualIbanIssuanceIntentStatus.ISSUING;
-        intent = await queryRunner.manager.save(intent);
-
-        try {
-          const reserved = await this.frickVibanProvider.reserveViban(bank.iban, intent.requestReference);
-          const virtualIban = await this.persistUserLevelIfMissing(
-            queryRunner.manager,
-            userData,
-            bank,
-            currency,
-            reserved,
-          );
-          intent.status = VirtualIbanIssuanceIntentStatus.COMPLETED;
-          intent.externalIban = reserved.iban;
-          intent.error = undefined;
-          await queryRunner.manager.save(intent);
-          return virtualIban;
-        } catch (error) {
-          // Prefer adopting a Frick-side success that we failed to persist locally.
-          const recovered = await this.recoverFrickIssuance(intent, userData, bank, currency, queryRunner.manager);
-          if (recovered) return recovered;
-
-          const message = error instanceof Error ? error.message : 'Bank Frick virtual IBAN create failed';
-          intent.error = message.slice(0, 2000);
-          await queryRunner.manager.save(intent);
-
-          if (error instanceof ServiceUnavailableException || error instanceof BadRequestException) throw error;
-          throw new ServiceUnavailableException('Bank Frick personal IBAN issuance failed');
-        }
-      } finally {
-        await queryRunner.query('SELECT pg_advisory_unlock(hashtext($1))', [lockKey]);
+        const recovered = await this.findAndFinalizeFrickIssuance(claim.intent, userData, bank, currency);
+        if (recovered) return recovered;
+      } catch (caught) {
+        recoveryError = caught;
       }
-    } finally {
-      await queryRunner.release();
+
+      const createMessage = error instanceof Error ? error.message : 'Bank Frick virtual IBAN create failed';
+      const recoveryMessage = recoveryError instanceof Error ? `; recovery failed: ${recoveryError.message}` : '';
+      await this.failFrickIntent(claim.intent.id, `${createMessage}${recoveryMessage}`.slice(0, 2000));
+
+      if (error instanceof ServiceUnavailableException || error instanceof BadRequestException) throw error;
+      throw new ServiceUnavailableException('Bank Frick personal IBAN issuance failed');
     }
   }
 
-  private async recoverFrickIssuance(
+  private async initializeFrickIntent(
+    userData: UserData,
+    bank: Bank,
+    currency: Fiat,
+  ): Promise<{ intent: VirtualIbanIssuanceIntent; existing: VirtualIban | null }> {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.query(
+        `INSERT INTO "virtual_iban_issuance_intent"
+          ("requestReference", "userDataId", "currencyId", "bankId", "status", "externalIban", "error")
+         VALUES ($1, $2, $3, $4, $5, NULL, NULL)
+         ON CONFLICT ("userDataId", "currencyId", "bankId") DO NOTHING`,
+        [
+          `dfx-viban-${Util.randomString(32).toLowerCase()}`,
+          userData.id,
+          currency.id,
+          bank.id,
+          VirtualIbanIssuanceIntentStatus.PENDING,
+        ],
+      );
+
+      let intent = await this.getFrickIntentForUpdate(manager, userData.id, currency.id, bank.id);
+      const existing = await this.findActiveForUserCurrencyAndBank(manager, userData.id, currency.id, bank.id);
+      if (existing) {
+        if (intent.externalIban && intent.externalIban !== existing.iban)
+          throw new ServiceUnavailableException('Bank Frick issuance intent conflicts with the active personal IBAN');
+        intent = await this.transitionFrickIntent(
+          manager,
+          intent,
+          VirtualIbanIssuanceIntentStatus.COMPLETED,
+          existing.iban,
+          null,
+        );
+      }
+      return { intent, existing };
+    });
+  }
+
+  private async claimPendingFrickIntent(
+    intentId: number,
+  ): Promise<{ intent: VirtualIbanIssuanceIntent; claimed: boolean }> {
+    return this.dataSource.transaction(async (manager) => {
+      let intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
+      if (intent.status !== VirtualIbanIssuanceIntentStatus.PENDING) return { intent, claimed: false };
+
+      intent = await this.transitionFrickIntent(
+        manager,
+        intent,
+        VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+        intent.externalIban,
+        intent.error,
+      );
+      return { intent, claimed: true };
+    });
+  }
+
+  private async resolveExistingFrickIntent(
     intent: VirtualIbanIssuanceIntent,
     userData: UserData,
     bank: Bank,
     currency: Fiat,
-    manager: EntityManager,
+  ): Promise<VirtualIban> {
+    if (intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED && intent.externalIban)
+      return this.finalizeFrickIssuance(intent.id, userData, bank, currency, {
+        iban: intent.externalIban,
+        providerAccountRef: intent.externalIban,
+      });
+
+    if (
+      intent.status !== VirtualIbanIssuanceIntentStatus.IN_FLIGHT &&
+      intent.status !== VirtualIbanIssuanceIntentStatus.FAILED
+    )
+      throw new ServiceUnavailableException(
+        `Bank Frick virtual IBAN issuance is in unexpected status ${intent.status}`,
+      );
+
+    const recovered = await this.findAndFinalizeFrickIssuance(intent, userData, bank, currency);
+    if (recovered) return recovered;
+    throw new ServiceUnavailableException(
+      'Bank Frick virtual IBAN issuance state could not be recovered; refusing a second create',
+    );
+  }
+
+  private async findAndFinalizeFrickIssuance(
+    intent: VirtualIbanIssuanceIntent,
+    userData: UserData,
+    bank: Bank,
+    currency: Fiat,
   ): Promise<VirtualIban | null> {
     const match = await this.frickVibanProvider.findRecoverableByDescription(intent.requestReference, bank.iban);
     if (!match) return null;
 
     const reserved = await this.frickVibanProvider.adoptAndActivate(match);
-    const virtualIban = await this.persistUserLevelIfMissing(manager, userData, bank, currency, reserved);
+    return this.finalizeFrickIssuance(intent.id, userData, bank, currency, reserved);
+  }
 
-    intent.status = VirtualIbanIssuanceIntentStatus.COMPLETED;
-    intent.externalIban = reserved.iban;
-    intent.error = undefined;
-    await manager.save(intent);
+  private async finalizeFrickIssuance(
+    intentId: number,
+    userData: UserData,
+    bank: Bank,
+    currency: Fiat,
+    reserved: ReservedViban,
+  ): Promise<VirtualIban> {
+    return this.dataSource.transaction(async (manager) => {
+      const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
+      if (intent.externalIban && intent.externalIban !== reserved.iban)
+        throw new ServiceUnavailableException('Bank Frick issuance intent conflicts with the recovered personal IBAN');
 
-    return virtualIban;
+      const virtualIban = await this.persistUserLevelIfMissing(manager, userData, bank, currency, reserved);
+      await this.transitionFrickIntent(manager, intent, VirtualIbanIssuanceIntentStatus.COMPLETED, reserved.iban, null);
+      return virtualIban;
+    });
+  }
+
+  private async failFrickIntent(intentId: number, message: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
+      if (intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED) return;
+      await this.transitionFrickIntent(
+        manager,
+        intent,
+        VirtualIbanIssuanceIntentStatus.FAILED,
+        intent.externalIban,
+        message,
+      );
+    });
+  }
+
+  private async transitionFrickIntent(
+    manager: EntityManager,
+    intent: VirtualIbanIssuanceIntent,
+    nextStatus: VirtualIbanIssuanceIntentStatus,
+    nextExternalIban: string | null,
+    nextError: string | null,
+  ): Promise<VirtualIbanIssuanceIntent> {
+    if (intent.status === nextStatus && intent.externalIban === nextExternalIban && intent.error === nextError)
+      return intent;
+
+    const event = manager.create(VirtualIbanIssuanceEvent, {
+      intentId: intent.id,
+      userDataId: intent.userDataId,
+      currencyId: intent.currencyId,
+      bankId: intent.bankId,
+      previousStatus: intent.status,
+      nextStatus,
+      previousExternalIban: intent.externalIban,
+      nextExternalIban,
+      previousError: intent.error,
+      nextError,
+    });
+    await manager.save(event);
+
+    intent.status = nextStatus;
+    intent.externalIban = nextExternalIban;
+    intent.error = nextError;
+    return manager.save(intent);
+  }
+
+  private async getFrickIntentForUpdate(
+    manager: EntityManager,
+    userDataId: number,
+    currencyId: number,
+    bankId: number,
+  ): Promise<VirtualIbanIssuanceIntent> {
+    const intent = await manager.findOne(VirtualIbanIssuanceIntent, {
+      where: { userDataId, currencyId, bankId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!intent) throw new ServiceUnavailableException('Bank Frick virtual IBAN issuance intent could not be created');
+    return intent;
+  }
+
+  private async getFrickIntentByIdForUpdate(manager: EntityManager, id: number): Promise<VirtualIbanIssuanceIntent> {
+    const intent = await manager.findOne(VirtualIbanIssuanceIntent, {
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!intent) throw new ServiceUnavailableException('Bank Frick virtual IBAN issuance intent not found');
+    return intent;
   }
 
   private async persistUserLevelIfMissing(
@@ -270,16 +357,15 @@ export class VirtualIbanService {
         byIban.buy
       )
         throw new ServiceUnavailableException('Bank Frick virtual IBAN has an incompatible local binding');
-
-      byIban.bban = reserved.bban;
-      byIban.providerAccountRef = reserved.providerAccountRef;
-      byIban.status = VirtualIbanStatus.ACTIVE;
-      byIban.active = true;
-      byIban.activatedAt ??= new Date();
-      byIban.deactivatedAt = undefined;
-      const saved = await manager.save(byIban);
-      this.virtualIbanRepo.invalidateCache();
-      return saved;
+      if (!byIban.active || byIban.status !== VirtualIbanStatus.ACTIVE)
+        throw new ServiceUnavailableException('Bank Frick virtual IBAN is inactive and requires manual review');
+      if (reserved.bban != null && byIban.bban !== reserved.bban)
+        throw new ServiceUnavailableException('Bank Frick virtual IBAN BBAN conflicts with the local record');
+      if (reserved.providerAccountRef != null && byIban.providerAccountRef !== reserved.providerAccountRef)
+        throw new ServiceUnavailableException(
+          'Bank Frick virtual IBAN provider reference conflicts with the local record',
+        );
+      return byIban;
     }
 
     const existingActive = await this.findActiveForUserCurrencyAndBank(manager, userData.id, currency.id, bank.id);

@@ -27,6 +27,7 @@ function virtualIban(
 describe('FrickVibanProvider', () => {
   let bankFrickService: {
     isVibanAvailable: jest.Mock;
+    prepareVibanCreate: jest.Mock;
     createViban: jest.Mock;
     approveVibanActivation: jest.Mock;
     listAllVibans: jest.Mock;
@@ -36,6 +37,7 @@ describe('FrickVibanProvider', () => {
   beforeEach(() => {
     bankFrickService = {
       isVibanAvailable: jest.fn(),
+      prepareVibanCreate: jest.fn(),
       createViban: jest.fn(),
       approveVibanActivation: jest.fn(),
       listAllVibans: jest.fn(),
@@ -61,6 +63,19 @@ describe('FrickVibanProvider', () => {
 
     await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(
       new ServiceUnavailableException('Bank Frick virtual IBAN service is not available'),
+    );
+    expect(bankFrickService.createViban).not.toHaveBeenCalled();
+  });
+
+  it('preflights the exact base account and technical description without creating a vIBAN', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    bankFrickService.prepareVibanCreate.mockResolvedValue(undefined);
+
+    await provider.prepareVibanReservation('LI32088110105923K000C', 'dfx-viban-technical-reference');
+
+    expect(bankFrickService.prepareVibanCreate).toHaveBeenCalledWith(
+      'LI32088110105923K000C',
+      'dfx-viban-technical-reference',
     );
     expect(bankFrickService.createViban).not.toHaveBeenCalled();
   });
