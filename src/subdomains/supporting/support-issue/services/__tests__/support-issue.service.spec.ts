@@ -17,7 +17,10 @@ import {
   SupportIssueListOrderBy,
 } from 'src/subdomains/supporting/support-issue/dto/get-support-issue.dto';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { SupportMessage } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
+import {
+  CustomerAuthor,
+  SupportMessage,
+} from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
 import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
 import {
   SupportIssueInternalState,
@@ -51,6 +54,7 @@ describe('SupportIssueService.getSupportIssueList', () => {
       builder[method] = jest.fn(() => builder);
     }
     builder.getManyAndCount = jest.fn().mockResolvedValue([[], 0]);
+    builder.getMany = jest.fn().mockResolvedValue([]);
     return builder;
   }
 
@@ -143,6 +147,25 @@ describe('SupportIssueService.getSupportIssueList', () => {
       const dto = plainToInstance(GetSupportIssueListFilter, { orderBy: 'id); DROP TABLE support_issue; --' });
       const errors = await validate(dto);
       expect(errors.find((e) => e.property === 'orderBy')?.constraints).toHaveProperty('isEnum');
+    });
+  });
+
+  // The paged "all tickets" tabs re-run this query on every "load more"; filter.count === false lets the
+  // caller skip the expensive COUNT on subsequent pages while the default (count omitted/true) is unchanged.
+  describe('count skip', () => {
+    it('uses getManyAndCount and returns a total by default', async () => {
+      qb.getManyAndCount = jest.fn().mockResolvedValue([[], 3]);
+      const result = await run({});
+      expect(qb.getManyAndCount).toHaveBeenCalled();
+      expect(qb.getMany).not.toHaveBeenCalled();
+      expect(result.total).toBe(3);
+    });
+
+    it('skips getManyAndCount and uses getMany when count is explicitly false, leaving total undefined', async () => {
+      const result = await run({ count: false });
+      expect(qb.getMany).toHaveBeenCalled();
+      expect(qb.getManyAndCount).not.toHaveBeenCalled();
+      expect(result.total).toBeUndefined();
     });
   });
 
@@ -551,6 +574,116 @@ describe('SupportIssueService no-department-access guards', () => {
     const activity = await service.getSupportIssueActivity(undefined, UserRole.USER);
     expect(activity).toEqual({ count: 0, latestAt: undefined });
     expect(messageRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+});
+
+describe('SupportIssueService.getSupportOverview', () => {
+  let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
+  let messageRepo: DeepMocked<SupportMessageRepository>;
+  let settingService: DeepMocked<SettingService>;
+  let qb: Record<string, jest.Mock>;
+  let rawRows: { id: number; clerk: string | null; type: SupportIssueType }[];
+
+  // chainable raw-query recorder for the light open-issue rows query
+  function createOverviewQbMock(): Record<string, jest.Mock> {
+    const builder: Record<string, jest.Mock> = {};
+    for (const method of ['select', 'addSelect', 'where', 'innerJoin', 'andWhere']) {
+      builder[method] = jest.fn(() => builder);
+    }
+    builder.getRawMany = jest.fn(() => Promise.resolve(rawRows));
+    return builder;
+  }
+
+  beforeEach(() => {
+    rawRows = [];
+    supportIssueRepo = createMock<SupportIssueRepository>();
+    messageRepo = createMock<SupportMessageRepository>();
+    settingService = createMock<SettingService>();
+    qb = createOverviewQbMock();
+    (supportIssueRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      messageRepo,
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      settingService,
+      createMock<WalletService>(),
+    );
+  });
+
+  it('returns a zeroed, unqueried overview for a role with no department access', async () => {
+    const dto = await service.getSupportOverview(UserRole.USER, 1);
+    expect(dto).toEqual({ openTotal: 0, clerk: null, myTickets: 0, limitRequests: 0, waitingLongerThan: [0, 0, 0] });
+    expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('computes openTotal, clerk, myTickets, limitRequests and waiting tiers for a crafted dataset', async () => {
+    rawRows = [
+      { id: 1, clerk: 'Alice', type: SupportIssueType.LIMIT_REQUEST }, // customer waiting 2h
+      { id: 2, clerk: null, type: SupportIssueType.GENERIC_ISSUE }, // staff replied last, not waiting
+      { id: 3, clerk: 'Alice', type: SupportIssueType.GENERIC_ISSUE }, // customer waiting 25h
+    ];
+    settingService.getObj.mockImplementation(async (key: string) =>
+      key === 'supportClerkAccounts' ? [{ account: 99, name: 'Alice' }] : [],
+    );
+
+    const now = Date.now();
+    jest.spyOn(service as any, 'getMessageStats').mockResolvedValue(
+      new Map([
+        [1, { count: 2, lastAuthor: CustomerAuthor, lastDate: new Date(now - 2 * 3600000) }],
+        [2, { count: 1, lastAuthor: 'Support', lastDate: new Date(now - 100 * 3600000) }],
+        [3, { count: 5, lastAuthor: CustomerAuthor, lastDate: new Date(now - 25 * 3600000) }],
+      ]),
+    );
+
+    const dto = await service.getSupportOverview(UserRole.ADMIN, 99);
+
+    expect(dto.openTotal).toBe(3);
+    expect(dto.clerk).toBe('Alice');
+    expect(dto.myTickets).toBe(2); // tickets 1 + 3, both clerked to Alice
+    expect(dto.limitRequests).toBe(1); // ticket 1 only
+    // >=1h: tickets 1 (2h) + 3 (25h); >=12h and >=24h: ticket 3 only; ticket 2 excluded (staff replied last)
+    expect(dto.waitingLongerThan).toEqual([2, 1, 1]);
+  });
+
+  it('returns clerk null and myTickets 0 for an unmapped caller account', async () => {
+    rawRows = [{ id: 1, clerk: 'Bob', type: SupportIssueType.GENERIC_ISSUE }];
+    settingService.getObj.mockResolvedValue([]);
+    jest.spyOn(service as any, 'getMessageStats').mockResolvedValue(new Map());
+
+    const dto = await service.getSupportOverview(UserRole.ADMIN, 1);
+
+    expect(dto.clerk).toBeNull();
+    expect(dto.myTickets).toBe(0);
+  });
+
+  it('scopes the query to the departments a non-admin role may view', async () => {
+    settingService.getObj.mockResolvedValue([]);
+    jest.spyOn(service as any, 'getMessageStats').mockResolvedValue(new Map());
+
+    await service.getSupportOverview(UserRole.SUPPORT, 1);
+
+    expect(qb.andWhere).toHaveBeenCalledWith('issue.department IN (:...departments)', {
+      departments: [Department.SUPPORT],
+    });
+  });
+
+  it('scopes to a customer set (RealUnit) instead of departments when provided', async () => {
+    settingService.getObj.mockResolvedValue([]);
+    jest.spyOn(service as any, 'getMessageStats').mockResolvedValue(new Map());
+
+    await service.getSupportOverview(UserRole.REALUNIT, 1, [42]);
+
+    expect(qb.innerJoin).toHaveBeenCalledWith('issue.userData', 'scopeUd');
+    expect(qb.andWhere).toHaveBeenCalledWith('scopeUd.id IN (:...customerIds)', { customerIds: [42] });
   });
 });
 

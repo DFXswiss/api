@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { StringToArray } from 'src/shared/utils/dto-transforms';
 import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
@@ -100,4 +100,13 @@ export class GetSupportIssueListFilter {
   @IsOptional()
   @IsString()
   query?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Whether to also compute the total row count (default true). Pass false on subsequent pages to skip the expensive count.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'boolean' ? value : value === 'true'))
+  @IsBoolean()
+  count?: boolean;
 }

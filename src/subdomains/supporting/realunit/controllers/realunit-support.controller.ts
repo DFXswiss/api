@@ -40,7 +40,7 @@ export class RealUnitSupportController {
   async getSupportIssueList(
     @GetJwt() jwt: JwtPayload,
     @Query() filter: GetSupportIssueListFilter,
-  ): Promise<{ data: SupportIssueListDto[]; total: number }> {
+  ): Promise<{ data: SupportIssueListDto[]; total?: number }> {
     const customerIds = await this.scopeService.getCustomerIds();
     return this.supportIssueService.getSupportIssueList(filter, jwt.role, customerIds);
   }

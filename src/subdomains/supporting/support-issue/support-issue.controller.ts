@@ -23,6 +23,7 @@ import {
   SupportIssueStatisticsDto,
   SupportMessageDto,
 } from './dto/support-issue.dto';
+import { SupportOverviewDto } from './dto/support-overview.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
@@ -100,7 +101,7 @@ export class SupportIssueController {
   async getSupportIssueList(
     @GetJwt() jwt: JwtPayload,
     @Query() filter: GetSupportIssueListFilter,
-  ): Promise<{ data: SupportIssueListDto[]; total: number }> {
+  ): Promise<{ data: SupportIssueListDto[]; total?: number }> {
     return this.supportIssueService.getSupportIssueList(filter, jwt.role);
   }
 
@@ -172,6 +173,15 @@ export class SupportIssueController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueClerk(@GetJwt() jwt: JwtPayload): Promise<{ clerk: string | null }> {
     return { clerk: (await this.supportIssueService.getSupportIssueClerkForAccount(jwt.account)) ?? null };
+  }
+
+  // placed before the numeric-id-agnostic ':id' route so 'overview' is not captured as an id param
+  @Get('overview')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportOverview(@GetJwt() jwt: JwtPayload): Promise<SupportOverviewDto> {
+    return this.supportIssueService.getSupportOverview(jwt.role, jwt.account);
   }
 
   @Get(':id')

@@ -43,6 +43,7 @@ import {
   SupportIssueStatisticsDto,
   SupportMessageDto,
 } from '../dto/support-issue.dto';
+import { SupportOverviewDto } from '../dto/support-overview.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
@@ -278,6 +279,52 @@ export class SupportIssueService {
       trend,
       avgResolutionHours,
       resolutionByType,
+    };
+  }
+
+  // Server-side aggregate for the overview screen: replaces client-side aggregation over the full open-ticket
+  // set with a single light query plus per-issue message stats. Mirrors DFXswiss/services' support-stats.ts.
+  async getSupportOverview(role: UserRole, account: number, customerIds?: number[]): Promise<SupportOverviewDto> {
+    const departments = getVisibleDepartments(role);
+    // same fail-closed contract as getSupportIssueCounts / getSupportIssueStatistics
+    if ((!customerIds && departments?.length === 0) || (customerIds && !customerIds.length))
+      return { openTotal: 0, clerk: null, myTickets: 0, limitRequests: 0, waitingLongerThan: [0, 0, 0] };
+
+    // open = the non-terminal states, defined as the complement of terminal ones (mirrors the overview screen)
+    const TERMINAL = [
+      SupportIssueInternalState.COMPLETED,
+      SupportIssueInternalState.CANCELED,
+      SupportIssueInternalState.ON_HOLD,
+    ];
+    const openStates = Object.values(SupportIssueInternalState).filter((s) => !TERMINAL.includes(s));
+
+    const qb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('issue.id', 'id')
+      .addSelect('issue.clerk', 'clerk')
+      .addSelect('issue.type', 'type')
+      .where('issue.state IN (:...openStates)', { openStates });
+    if (customerIds)
+      qb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
+
+    const rows = await qb.getRawMany<{ id: number; clerk: string | null; type: SupportIssueType }>();
+
+    const clerk = await this.getSupportIssueClerkForAccount(account);
+    const stats = await this.getMessageStats(rows.map((r) => r.id));
+
+    const now = new Date();
+    const waitingHours = rows.map((r) => {
+      const s = stats.get(r.id);
+      return s?.lastAuthor === CustomerAuthor && s.lastDate ? (now.getTime() - s.lastDate.getTime()) / 3600000 : null;
+    });
+
+    return {
+      openTotal: rows.length,
+      clerk: clerk ?? null,
+      myTickets: clerk ? rows.filter((r) => r.clerk === clerk).length : 0,
+      limitRequests: rows.filter((r) => r.type === SupportIssueType.LIMIT_REQUEST).length,
+      waitingLongerThan: [1, 12, 24].map((h) => waitingHours.filter((wh) => wh != null && wh >= h).length),
     };
   }
 
@@ -524,7 +571,7 @@ export class SupportIssueService {
     filter: GetSupportIssueListFilter,
     role: UserRole,
     customerIds?: number[],
-  ): Promise<{ data: SupportIssueListDto[]; total: number }> {
+  ): Promise<{ data: SupportIssueListDto[]; total?: number }> {
     const where: FindOptionsWhere<SupportIssue> = {};
 
     // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
@@ -591,7 +638,15 @@ export class SupportIssueService {
       if (filter.skip != null) qb.skip(filter.skip);
     }
 
-    const [issues, total] = await qb.getManyAndCount();
+    // the paged "all tickets" tabs re-run this query on every "load more"; the COUNT over a large state
+    // partition is expensive and only needed for the first page, so callers may opt out via filter.count
+    let issues: SupportIssue[];
+    let total: number | undefined;
+    if (filter.count === false) {
+      issues = await qb.getMany();
+    } else {
+      [issues, total] = await qb.getManyAndCount();
+    }
 
     const stats = await this.getMessageStats(issues.map((i) => i.id));
 
