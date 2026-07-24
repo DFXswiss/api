@@ -53,7 +53,7 @@ async function main() {
   console.log('========================================');
   console.log('');
   console.log('In local development mode, KYC files are automatically');
-  console.log('loaded from scripts/kyc/dummy-files/ by the azure-storage');
+  console.log('loaded from scripts/kyc/dummy-files/ by the mock storage');
   console.log('service when the requested file is not in memory storage.');
   console.log('');
 

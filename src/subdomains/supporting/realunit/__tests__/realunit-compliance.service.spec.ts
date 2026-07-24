@@ -1,7 +1,7 @@
 import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { Configuration, ConfigService } from 'src/config/config';
-import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { BlobContent } from 'src/integration/infrastructure/storage/storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import JSZip from 'jszip';
 import { Asset } from 'src/shared/models/asset/asset.entity';

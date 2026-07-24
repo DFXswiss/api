@@ -1,3 +1,12 @@
+// generateReports resolves a per-merchant EP2 container at runtime via createStorageService();
+// mock the factory so the WORM sink (uploadWormBlob) is a spy and no real storage backend is touched.
+const ep2UploadBlobMock = jest.fn();
+jest.mock('src/integration/infrastructure/storage/storage.factory', () => ({
+  createStorageService: jest.fn(() => ({
+    uploadWormBlob: (...args: any[]) => ep2UploadBlobMock(...args),
+  })),
+}));
+
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { In, IsNull, Like, Not } from 'typeorm';
@@ -64,6 +73,7 @@ describe('FiatOutputJobService', () => {
   let frickPayoutService: FiatOutputFrickService;
 
   beforeEach(async () => {
+    ep2UploadBlobMock.mockReset();
     fiatOutputRepo = createMock<FiatOutputRepository>();
     bankTxService = createMock<BankTxService>();
     bankTxOutgoingMatchService = createMock<BankTxOutgoingMatchService>();
@@ -1359,6 +1369,72 @@ describe('FiatOutputJobService', () => {
       expect(scryptService.getDepositStatus).not.toHaveBeenCalled();
       expect(scryptService.sendDepositRequest).not.toHaveBeenCalled();
       expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('generateReports', () => {
+    // A FiatOutput whose buyFiat resolves the container, route id and userData the method needs.
+    // The getter chain (paymentLinkPayment.link.linkConfigObj, paymentLinksConfigObj) is stubbed
+    // directly on plain objects so we don't have to assemble the full entity graph.
+    function reportableEntity() {
+      const buyFiat: any = {
+        sell: { id: 555 },
+        userData: { paymentLinksConfigObj: { ep2ReportContainer: 'ep2-merchant-bucket' } },
+        paymentLinkPayment: { link: { linkConfigObj: { payoutRouteId: 777 } } },
+      };
+
+      return {
+        id: 1,
+        created: new Date('2024-03-01T10:00:00Z'),
+        buyFiats: [buyFiat],
+      } as any;
+    }
+
+    beforeEach(() => {
+      ep2UploadBlobMock.mockResolvedValue(undefined);
+      (ep2ReportService.generateReport as jest.Mock).mockReturnValue('<ep2/>');
+    });
+
+    it('uploads the report, then sets reportCreated', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([reportableEntity()]);
+
+      await service['generateReports']();
+
+      const fileName = ep2UploadBlobMock.mock.calls[0][0];
+      expect(ep2UploadBlobMock).toHaveBeenCalledTimes(1);
+      expect(fileName).toMatch(/^settlement_.*_777\.ep2$/);
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(1, { reportCreated: true });
+
+      // Load-bearing ordering: uploadBlob (WORM PUT) < update(reportCreated=true).
+      // reportCreated MUST be persisted after a successful upload, otherwise a later failure
+      // would leave reportCreated=false and the next run would re-PUT the same fileName
+      // into the immutable WORM bucket and deadlock.
+      const uploadOrder = ep2UploadBlobMock.mock.invocationCallOrder[0];
+      const updateOrder = (fiatOutputRepo.update as jest.Mock).mock.invocationCallOrder[0];
+      expect(uploadOrder).toBeLessThan(updateOrder);
+    });
+
+    it('does not set reportCreated when the upload itself fails', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([reportableEntity()]);
+      ep2UploadBlobMock.mockRejectedValue(new Error('WORM bucket unreachable'));
+
+      await service['generateReports']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the sell route id for the file name when no payoutRouteId is configured', async () => {
+      // linkConfigObj has no payoutRouteId => the `routeId ?? buyFiat.sell.id` fallback kicks in
+      // and the file name must carry the sell id (555) instead of a payout route id.
+      const entity = reportableEntity();
+      entity.buyFiats[0].paymentLinkPayment.link.linkConfigObj = {};
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+
+      await service['generateReports']();
+
+      const fileName = ep2UploadBlobMock.mock.calls[0][0];
+      expect(fileName).toMatch(/^settlement_.*_555\.ep2$/);
     });
   });
 });

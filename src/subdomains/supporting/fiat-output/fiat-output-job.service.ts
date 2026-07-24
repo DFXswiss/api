@@ -8,7 +8,7 @@ import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
-import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
+import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -119,10 +119,16 @@ export class FiatOutputJobService {
         const report = this.ep2ReportService.generateReport(entity);
         const container = buyFiat.userData.paymentLinksConfigObj.ep2ReportContainer;
         const routeId = buyFiat.paymentLinkPayment.link.linkConfigObj?.payoutRouteId ?? buyFiat.sell.id;
-        const fileName = `settlement_${Util.isoDateTime(entity.created)}_${routeId}.ep2`;
+        const fileName = `settlement_${Util.isoDateTime(entity.created)}_${entity.id}_${routeId}.ep2`;
+        const reportBuffer = Buffer.from(report);
 
-        await new AzureStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
+        // WORM sink: uploadWormBlob fails closed if the (runtime-resolved, per-merchant) EP2
+        // container is not Object-Lock protected, so a mis-provisioned bucket never silently
+        // accepts mutable GeBüV settlement records instead of throwing here.
+        await createStorageService(container).uploadWormBlob(fileName, reportBuffer, 'text/xml');
 
+        // Mark the report as created as soon as the WORM upload succeeded, so a re-run never
+        // re-PUTs the same fileName into the immutable WORM bucket.
         await this.fiatOutputRepo.update(entity.id, { reportCreated: true });
       } catch (e) {
         this.logger.error(`Failed to generate EP2 report for fiat output ${entity.id}:`, e);
