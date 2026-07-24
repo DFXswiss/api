@@ -233,23 +233,35 @@ describe('Bank (name, currency) collision tie-break', () => {
     (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
   });
 
-  it('resolves a (name, currency) collision by preferring the newest row (highest id)', async () => {
-    jest
-      .spyOn(bankRepo, 'findOneCached')
-      .mockResolvedValue(
-        Object.assign(new Bank(), { id: 99, name: IbanBankName.FRICK, currency: 'EUR', iban: 'NEW-ROW-IBAN' }),
-      );
+  it('resolves a (name, currency) collision without asset links by preferring the newest row (highest id)', async () => {
+    const legacyRow = Object.assign(new Bank(), {
+      id: 3,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'LEGACY-DEAD-ACCOUNT-IBAN',
+    });
+    const newRow = Object.assign(new Bank(), {
+      id: 99,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'NEW-ROW-IBAN',
+    });
+    // Returned newest-first, mirroring `order: { id: 'DESC' }`. Neither row is asset-linked, so the
+    // newest row must win (stale-legacy safeguard).
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue([newRow, legacyRow]);
 
     const result = await service.getBankInternal(IbanBankName.FRICK, 'EUR');
 
     expect(result.iban).toBe('NEW-ROW-IBAN');
-    expect(bankRepo.findOneCached).toHaveBeenCalledWith(`${IbanBankName.FRICK}-EUR`, {
+    expect(result.id).toBe(99);
+    expect(bankRepo.findCached).toHaveBeenCalledWith(`${IbanBankName.FRICK}-EUR`, {
       where: { name: IbanBankName.FRICK, currency: 'EUR' },
       order: { id: 'DESC' },
+      relations: { asset: true },
     });
   });
 
-  it('loads the iban cache ordered by id descending, so the newest row per (name, currency) wins', async () => {
+  it('loads the iban cache ordered by id descending, so without asset links the newest row per (name, currency) wins', async () => {
     const legacyRow = Object.assign(new Bank(), {
       id: 3,
       name: IbanBankName.FRICK,
@@ -263,16 +275,97 @@ describe('Bank (name, currency) collision tie-break', () => {
       iban: 'NEW-ROW-IBAN',
     });
     // Requested in descending order - the mock returns them already sorted, mirroring what an
-    // `order: { id: 'DESC' }` query would produce, so "first row per key wins" picks the newest.
+    // `order: { id: 'DESC' }` query would produce. No asset links → newest row wins.
     jest.spyOn(bankRepo, 'find').mockResolvedValue([newRow, legacyRow]);
 
     await service.onModuleInit();
     // onModuleInit fires the load without awaiting it; give the microtask queue a turn to settle.
     await new Promise(process.nextTick);
 
-    expect(bankRepo.find).toHaveBeenCalledWith({ order: { id: 'DESC' } });
+    expect(bankRepo.find).toHaveBeenCalledWith({ order: { id: 'DESC' }, relations: { asset: true } });
     expect((BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.get('Bank Frick-EUR')).toBe(
       'NEW-ROW-IBAN',
     );
+  });
+
+  it('prefers the older asset-linked Yapeal/EUR row when a newer unbound duplicate exists', async () => {
+    // Production shape: two Yapeal/EUR rows; the older one is bound to the custody asset (and its IBAN
+    // is on booked bank_tx), the newer one has no asset. Newest-only resolution would break isBankMatching.
+    const assetLinked = Object.assign(new Bank(), {
+      id: 10,
+      name: IbanBankName.YAPEAL,
+      currency: 'EUR',
+      iban: 'YAPEAL-ASSET-LINKED-IBAN',
+      asset: {},
+    });
+    const unboundNewer = Object.assign(new Bank(), {
+      id: 20,
+      name: IbanBankName.YAPEAL,
+      currency: 'EUR',
+      iban: 'YAPEAL-UNBOUND-NEWER-IBAN',
+    });
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue([unboundNewer, assetLinked]);
+
+    const result = await service.getBankInternal(IbanBankName.YAPEAL, 'EUR');
+
+    expect(result.id).toBe(10);
+    expect(result.iban).toBe('YAPEAL-ASSET-LINKED-IBAN');
+  });
+
+  it('prefers the newest asset-linked row when several rows are asset-linked', async () => {
+    const olderLinked = Object.assign(new Bank(), {
+      id: 10,
+      name: IbanBankName.YAPEAL,
+      currency: 'EUR',
+      iban: 'YAPEAL-OLDER-LINKED-IBAN',
+      asset: {},
+    });
+    const newerLinked = Object.assign(new Bank(), {
+      id: 20,
+      name: IbanBankName.YAPEAL,
+      currency: 'EUR',
+      iban: 'YAPEAL-NEWER-LINKED-IBAN',
+      asset: {},
+    });
+    const unboundNewest = Object.assign(new Bank(), {
+      id: 30,
+      name: IbanBankName.YAPEAL,
+      currency: 'EUR',
+      iban: 'YAPEAL-UNBOUND-NEWEST-IBAN',
+    });
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue([unboundNewest, newerLinked, olderLinked]);
+
+    const result = await service.getBankInternal(IbanBankName.YAPEAL, 'EUR');
+
+    expect(result.id).toBe(20);
+    expect(result.iban).toBe('YAPEAL-NEWER-LINKED-IBAN');
+  });
+
+  it('caches the asset-linked IBAN so isBankMatching matches booked bank_tx and rejects the unbound newer row', async () => {
+    const assetLinked = Object.assign(new Bank(), {
+      id: 10,
+      name: IbanBankName.YAPEAL,
+      currency: 'EUR',
+      iban: 'YAPEAL-ASSET-LINKED-IBAN',
+      asset: {},
+    });
+    const unboundNewer = Object.assign(new Bank(), {
+      id: 20,
+      name: IbanBankName.YAPEAL,
+      currency: 'EUR',
+      iban: 'YAPEAL-UNBOUND-NEWER-IBAN',
+    });
+    jest.spyOn(bankRepo, 'find').mockResolvedValue([unboundNewer, assetLinked]);
+
+    await service.onModuleInit();
+    await new Promise(process.nextTick);
+
+    expect((BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.get('Yapeal-EUR')).toBe(
+      'YAPEAL-ASSET-LINKED-IBAN',
+    );
+
+    const asset = createCustomAsset({ blockchain: Blockchain.YAPEAL, dexName: 'EUR' });
+    expect(BankService.isBankMatching(asset, 'YAPEAL-ASSET-LINKED-IBAN')).toBe(true);
+    expect(BankService.isBankMatching(asset, 'YAPEAL-UNBOUND-NEWER-IBAN')).toBe(false);
   });
 });

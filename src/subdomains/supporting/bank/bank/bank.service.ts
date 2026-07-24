@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
@@ -16,6 +17,7 @@ export interface BankSelectorInput {
 
 @Injectable()
 export class BankService implements OnModuleInit {
+  private readonly logger = new DfxLogger(BankService);
   private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
 
   constructor(private bankRepo: BankRepository) {}
@@ -37,10 +39,16 @@ export class BankService implements OnModuleInit {
   }
 
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
-    // A (name, currency) pair can match more than one row (e.g. a retired legacy Bank Frick account
-    // alongside its replacement). Ordering by id descending deterministically prefers the newest row
-    // instead of an arbitrary one, so a stale/legacy row can never silently win.
-    return this.bankRepo.findOneCached(`${name}-${currency}`, { where: { name, currency }, order: { id: 'DESC' } });
+    // A (name, currency) pair can match more than one row (e.g. a retired legacy account alongside its
+    // replacement, or a second account created for the same bank/currency without an asset link).
+    // Rows are ordered newest-first; selectAttributionBank then prefers the asset-linked identity so
+    // per-asset matching (isBankMatching) stays aligned with bank_tx history.
+    const banks = await this.bankRepo.findCached(`${name}-${currency}`, {
+      where: { name, currency },
+      order: { id: 'DESC' },
+      relations: { asset: true },
+    });
+    return BankService.selectAttributionBank(banks);
   }
 
   async getBankById(id: number): Promise<Bank> {
@@ -110,16 +118,48 @@ export class BankService implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private async loadIbanCache(): Promise<void> {
-    // Ordering by id descending makes the "first row per key wins" rule below deterministically prefer
-    // the newest row for a given (name, currency), instead of relying on implicit DB row order.
-    const banks = await this.bankRepo.find({ order: { id: 'DESC' } });
 
+  // Picks the bank row that owns attribution for a single (name, currency) key. `banks` must already
+  // be sorted by id descending (newest first). Prefer a row linked to an asset: that binding is the
+  // basis of every per-asset match (isBankMatching) and of the IBAN already present on booked
+  // bank_tx. If a newer unbound row won instead, asset-side amounts would drop to 0 while the
+  // exchange side still counted — permanent netting skew in the financial log. When no row is
+  // asset-linked, fall back to the newest row so stale legacy rows still cannot silently win.
+  private static selectAttributionBank(banks: Bank[]): Bank | undefined {
+    if (!banks.length) return undefined;
+    return banks.find((b) => b.asset != null) ?? banks[0];
+  }
+
+  private async loadIbanCache(): Promise<void> {
+    // Newest-first so that within each (name, currency) group the order handed to
+    // selectAttributionBank is deterministic; asset-linked rows still beat newer unbound ones.
+    const banks = await this.bankRepo.find({ order: { id: 'DESC' }, relations: { asset: true } });
+
+    const byKey = new Map<string, Bank[]>();
     for (const bank of banks) {
       const key = `${bank.name}-${bank.currency}`;
-      if (!BankService.ibanCache.has(key)) {
-        BankService.ibanCache.set(key, bank.iban);
+      const group = byKey.get(key);
+      if (group) {
+        group.push(bank);
+      } else {
+        byKey.set(key, [bank]);
       }
+    }
+
+    for (const [key, group] of byKey) {
+      const selected = BankService.selectAttributionBank(group);
+      if (!selected) continue;
+
+      const distinctIbans = new Set(group.map((b) => b.iban));
+      if (group.length > 1 && distinctIbans.size > 1) {
+        this.logger.warn(
+          `Multiple bank rows for key ${key} with different IBANs (count=${group.length}, ids=[${group
+            .map((b) => b.id)
+            .join(', ')}], selectedId=${selected.id})`,
+        );
+      }
+
+      BankService.ibanCache.set(key, selected.iban);
     }
   }
 
