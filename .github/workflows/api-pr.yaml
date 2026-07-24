@@ -13,14 +13,88 @@ permissions:
 env:
   NODE_VERSION: '20.x'
 
+# Three job groups run in parallel, so PR feedback is ~max(test-shard, checks, coverage)
+# instead of the sum of every step. `test` is additionally split into shards.
 jobs:
-  build:
-    name: Build and test
+  checks:
+    name: Build and checks
     if: github.head_ref != 'develop'
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install packages
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Build code
+        run: npm run build
+
+      # ts-jest runs transpile-only (isolatedModules), so it no longer type-checks specs, and
+      # nest build excludes *.spec.ts. This project-wide `tsc --noEmit` is the single place that
+      # type-checks the test files - one pass instead of the former per-suite type-check.
+      - name: Type-check (incl. tests)
+        run: npm run type-check
+
+      - name: Security audit
+        run: npm audit --audit-level=critical
+
+  coverage:
+    name: Bank Frick coverage
+    if: github.head_ref != 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install packages
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: npm ci
+
+      # Runs with full compilation (tsconfig.coverage.json, isolatedModules: false) so the strict
+      # 100% branch gate is not skewed by transpile-only decorator-metadata emit.
+      - name: Enforce Bank Frick coverage
+        run: npm run test:frick:cov
+
+  test:
+    name: Test (shard ${{ matrix.shard }}/3)
+    if: github.head_ref != 'develop'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       # Throwaway Postgres so the Aktionariat-registration backfill migration suite runs on every PR.
       # The suite is skipped when MIGRATION_TEST_PG is unset; all other tests use mocks and ignore it.
+      # Every shard keeps the service because Jest distributes the migration suites across shards.
       postgres:
         image: postgres:16
         env:
@@ -50,22 +124,7 @@ jobs:
           retry_on: error
           command: npm ci
 
-      - name: Run linter
-        run: npm run lint
-
-      - name: Format check
-        run: npm run format:check
-
-      - name: Build code
-        run: npm run build
-
-      - name: Run tests
-        run: npm run test
+      - name: Run tests (shard ${{ matrix.shard }}/3)
+        run: npm test -- --shard=${{ matrix.shard }}/3
         env:
           MIGRATION_TEST_PG: postgres://postgres:postgres@localhost:5432/postgres
-
-      - name: Enforce Bank Frick coverage
-        run: npm run test:frick:cov
-
-      - name: Security audit
-        run: npm audit --audit-level=critical

@@ -15,7 +15,8 @@ import { TradingOrderConsumer } from './consumers/trading-order.consumer';
 import { LedgerBootstrapService } from './ledger-bootstrap.service';
 
 // watermark helpers live in a consumer-free file to keep the job-service↔consumer import graph acyclic (§11.3)
-export { getLedgerWatermark, LedgerWatermark, setLedgerWatermark } from './consumers/ledger-watermark.helper';
+export { getLedgerWatermark, setLedgerWatermark } from './consumers/ledger-watermark.helper';
+export type { LedgerWatermark } from './consumers/ledger-watermark.helper';
 
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 

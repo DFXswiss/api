@@ -249,8 +249,8 @@ sandbox credentials:
 
 ## 7. Coverage gate on the shared `iso20022.service.ts`
 
-`package.json`'s `coverageThreshold` holds `src/integration/bank/services/iso20022.service.ts` to
-100% even though this file is shared with Yapeal/Raiffeisen parsing, not Frick-only. This is a
+`jest.frick.config.js`'s `coverageThreshold` holds `src/integration/bank/services/iso20022.service.ts`
+to 100% even though this file is shared with Yapeal/Raiffeisen parsing, not Frick-only. This is a
 deliberate trade-off, not an oversight: the money-critical fixes in this PR (malformed-entry
 rejection, the missing-bank-reference guard, and bank-charge parsing) live in exactly this file,
 and 100% branch coverage is the only mechanical guarantee that a future change cannot silently
@@ -258,3 +258,9 @@ regress them. The cost - a future, unrelated Yapeal/Raiffeisen-only change could
 uncovered branch it didn't intend to touch - is accepted deliberately in exchange for that
 protection. If this ever becomes a real blocker, the long-term fix is to split the Frick-specific
 strict-mode parsing into its own file with its own gate, not to lower this threshold.
+
+The `test:frick:cov` gate compiles with full type information (`tsconfig.coverage.json`, which sets
+`isolatedModules: false`), unlike the main test run. The main suite uses ts-jest transpile-only
+(`isolatedModules`) for speed, but transpile-only emits the `emitDecoratorMetadata` helpers
+differently and adds phantom uncovered branches on dependency-injected constructors, which would red
+this 100% gate. Compiling the coverage run the same way as the production build keeps the gate exact.
