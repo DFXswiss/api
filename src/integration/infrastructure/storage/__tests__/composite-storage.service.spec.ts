@@ -269,19 +269,20 @@ describe('CompositeStorageService', () => {
   });
 
   describe('copyBlobs dual mode', () => {
-    it('succeeds when one backend returns [] and returns the S3 target keys', async () => {
+    it('succeeds when one backend returns [] and returns the read-source target keys', async () => {
       await provideConfig('dual', 'azure');
       azureCopy.mockResolvedValue([]);
       s3Copy.mockResolvedValue(['dst/a', 'dst/b']);
 
       const result = await new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/');
 
-      expect(result).toEqual(['dst/a', 'dst/b']);
+      // readSource=azure → return Azure keys (empty is a legitimate no-op on that side)
+      expect(result).toEqual([]);
       expect(azureCopy).toHaveBeenCalledWith('src/', 'dst/');
       expect(s3Copy).toHaveBeenCalledWith('src/', 'dst/');
     });
 
-    it('logs a warning on dual-write length asymmetry but still returns the S3 result (never throws)', async () => {
+    it('logs a warning on dual-write length asymmetry but still returns the read-source result (never throws)', async () => {
       await provideConfig('dual', 'azure');
       azureCopy.mockResolvedValue(['dst/from-azure-only']);
       s3Copy.mockResolvedValue(['dst/a', 'dst/b']);
@@ -289,7 +290,7 @@ describe('CompositeStorageService', () => {
 
       const result = await new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/');
 
-      expect(result).toEqual(['dst/a', 'dst/b']);
+      expect(result).toEqual(['dst/from-azure-only']);
       expect(warnSpy).toHaveBeenCalledTimes(1);
       expect(warnSpy.mock.calls[0][0]).toContain('copyBlobs dual-write asymmetry');
       expect(warnSpy.mock.calls[0][0]).toContain('sourcePrefix=src/');
@@ -328,7 +329,7 @@ describe('CompositeStorageService', () => {
       );
     });
 
-    it('resolves with empty S3 result and logs DUAL_WRITE_SECONDARY_FAILURE when secondary (s3) copyBlobs rejects (readSource=azure)', async () => {
+    it('resolves with the Azure keys and logs DUAL_WRITE_SECONDARY_FAILURE when secondary (s3) copyBlobs rejects (readSource=azure)', async () => {
       await provideConfig('dual', 'azure');
       s3Copy.mockRejectedValue(new Error('s3 copy failed'));
       const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
@@ -336,12 +337,31 @@ describe('CompositeStorageService', () => {
 
       const result = await new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/');
 
-      expect(result).toEqual([]);
+      // readSource=azure → return the keys that were actually copied on Azure, not the empty secondary result
+      expect(result).toEqual(['dst/from-azure']);
       expect(azureCopy).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalled();
       expect(errorSpy.mock.calls[0][0]).toContain('DUAL_WRITE_SECONDARY_FAILURE');
       expect(errorSpy.mock.calls[0][1]).toEqual(expect.any(Error));
       // empty secondary result vs non-empty azure triggers the existing asymmetry warning
+      expect(warnSpy).toHaveBeenCalled();
+      expect(warnSpy.mock.calls[0][0]).toContain('copyBlobs dual-write asymmetry');
+    });
+
+    it('resolves with the S3 keys and logs DUAL_WRITE_SECONDARY_FAILURE when secondary (azure) copyBlobs rejects (readSource=s3)', async () => {
+      await provideConfig('dual', 's3');
+      azureCopy.mockRejectedValue(new Error('azure copy failed'));
+      const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+      const warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
+
+      const result = await new CompositeStorageService(CONTAINER).copyBlobs('src/', 'dst/');
+
+      expect(result).toEqual(['dst/from-s3']);
+      expect(s3Copy).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls[0][0]).toContain('DUAL_WRITE_SECONDARY_FAILURE');
+      expect(errorSpy.mock.calls[0][1]).toEqual(expect.any(Error));
+      // empty secondary result vs non-empty s3 triggers the existing asymmetry warning
       expect(warnSpy).toHaveBeenCalled();
       expect(warnSpy.mock.calls[0][0]).toContain('copyBlobs dual-write asymmetry');
     });
@@ -382,6 +402,9 @@ describe('CompositeStorageService', () => {
       expect(azureUploadWorm).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalled();
       expect(errorSpy.mock.calls[0][0]).toContain('DUAL_WRITE_SECONDARY_FAILURE');
+      // Secondary S3 is the Object-Lock store: log must call out temporary loss of lock protection
+      expect(errorSpy.mock.calls[0][0]).toMatch(/Object-Lock|Object Lock|object lock/i);
+      expect(errorSpy.mock.calls[0][0]).toMatch(/without Object-Lock protection|without lock protection|unlocked/i);
       expect(errorSpy.mock.calls[0][1]).toEqual(expect.any(Error));
     });
 

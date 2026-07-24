@@ -76,6 +76,8 @@ export class CompositeStorageService extends StorageService {
       try {
         return await this.s3.uploadBlob(name, data, type, metadata);
       } catch (e) {
+        // Deliberate: log the object key/name (needed for diagnosis and healing; may be a
+        // user-supplied filename for KYC uploads). Never log contents, metadata values, or credentials.
         this.logger.error(
           `DUAL_WRITE_SECONDARY_FAILURE: uploadBlob failed on secondary store s3 ` +
             `(container=${this.container}, name=${name}); read source is azure, ` +
@@ -107,18 +109,23 @@ export class CompositeStorageService extends StorageService {
     if (mode === 'azure') return this.azure.uploadWormBlob(name, data, type, metadata);
     if (mode === 's3') return this.s3.uploadWormBlob(name, data, type, metadata);
 
-    // dual: same asymmetric fail-closed/fail-open rules as uploadBlob.
+    // dual: same asymmetric fail-closed/fail-open rules as uploadBlob, with an extra WORM
+    // consequence under readSource=azure: S3 is the Object-Lock store and only the secondary
+    // write. If that secondary write fails, the compliance record is temporarily held without
+    // Object-Lock protection until the reconciler heals it into the locked bucket.
     const readSource = this.getReadSource();
     if (readSource === 'azure') {
       const azureUrl = await this.azure.uploadWormBlob(name, data, type, metadata);
       // Secondary write is fail-open: read source already holds the object, reconciler heals divergence.
+      // WORM: until healing completes the compliance record has no Object-Lock protection.
       try {
         return await this.s3.uploadWormBlob(name, data, type, metadata);
       } catch (e) {
         this.logger.error(
           `DUAL_WRITE_SECONDARY_FAILURE: uploadWormBlob failed on secondary store s3 ` +
             `(container=${this.container}, name=${name}); read source is azure, ` +
-            `continuing (reconciler gate will heal the divergence before the read flip)`,
+            `compliance record is temporarily without Object-Lock protection until the reconciler ` +
+            `heals it into the locked bucket; continuing (reconciler gate will heal the divergence before the read flip)`,
           e,
         );
         return azureUrl;
@@ -126,6 +133,7 @@ export class CompositeStorageService extends StorageService {
     }
     const s3Url = await this.s3.uploadWormBlob(name, data, type, metadata);
     // Secondary write is fail-open: read source already holds the object, reconciler heals divergence.
+    // Azure has no Object-Lock enforcement, so secondary azure failure is not a lock-protection loss.
     try {
       await this.azure.uploadWormBlob(name, data, type, metadata);
     } catch (e) {
@@ -149,6 +157,7 @@ export class CompositeStorageService extends StorageService {
     // an error. Azure/S3 length asymmetry (e.g. source exists only on one side before backfill,
     // or secondary copy failed outright) must not fail closed; log loudly and rely on the
     // mandatory reconciler gate to heal the divergence before the read flip.
+    // Returned key list must come from the read-source store that actually holds the copies.
     const readSource = this.getReadSource();
     let s3Result: string[];
     let azureResult: string[];
@@ -190,6 +199,6 @@ export class CompositeStorageService extends StorageService {
       );
     }
 
-    return s3Result;
+    return readSource === 'azure' ? azureResult : s3Result;
   }
 }
