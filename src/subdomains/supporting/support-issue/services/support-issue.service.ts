@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { BlobContent } from 'src/integration/infrastructure/storage/storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { SupportClerkAccountDto } from 'src/shared/models/setting/dto/support-clerk-account.dto';

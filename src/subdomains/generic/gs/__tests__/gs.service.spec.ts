@@ -28,8 +28,8 @@ import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.ser
 import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { Blob } from 'src/integration/infrastructure/azure-storage.service';
-import { ConfigService } from 'src/config/config';
+import { Blob } from 'src/integration/infrastructure/storage/storage.service';
+import { ConfigService, Environment } from 'src/config/config';
 import { DebugAggregate, DebugQueryDto, DebugWhereNode, DebugWhereOp } from '../dto/debug-query.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
@@ -44,7 +44,7 @@ function asKycFileBlobs(docs: KycFileDoc[]): KycFileBlob[] {
   return docs as unknown as KycFileBlob[];
 }
 
-// A storage blob as returned by AzureStorageService.listBlobs (fed into the real listFilesByPrefix).
+// A storage blob as returned by StorageService.listBlobs (fed into the real listFilesByPrefix).
 function storageBlob(name: string, created: Date): Blob {
   return {
     name,
@@ -2129,9 +2129,13 @@ describe('GsService', () => {
     const hostStableUrl = (path: string) => `${SERVICES_HOST}/kyc/${path}`;
 
     const previousServicesUrl = process.env.SERVICES_URL;
+    const previousEnvironment = process.env.ENVIRONMENT;
 
     beforeEach(() => {
       process.env.SERVICES_URL = SERVICES_HOST;
+      // Pin the environment to LOC so the real KycDocumentService constructed in the round-trip test
+      // builds a MockStorageService via the storage factory (no S3 config required at construction).
+      process.env.ENVIRONMENT = Environment.LOC;
       new ConfigService();
     });
 
@@ -2139,6 +2143,8 @@ describe('GsService', () => {
       // restore the env + Config singleton so the pinned host does not leak into other test blocks
       if (previousServicesUrl === undefined) delete process.env.SERVICES_URL;
       else process.env.SERVICES_URL = previousServicesUrl;
+      if (previousEnvironment === undefined) delete process.env.ENVIRONMENT;
+      else process.env.ENVIRONMENT = previousEnvironment;
       new ConfigService();
     });
 

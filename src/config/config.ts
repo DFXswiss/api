@@ -36,6 +36,24 @@ export enum Environment {
   PRD = 'prd',
 }
 
+export type StorageWriteMode = 'azure' | 'dual' | 's3';
+export type StorageReadSource = 'azure' | 's3';
+
+const STORAGE_WRITE_MODES: StorageWriteMode[] = ['azure', 'dual', 's3'];
+const STORAGE_READ_SOURCES: StorageReadSource[] = ['azure', 's3'];
+
+// Exported so both the Configuration getter below and CompositeStorageService's lazy re-check can
+// reuse the identical rule and error text — never duplicate the invalid-combination logic.
+export function assertValidStorageCombo(writeMode: StorageWriteMode, readSource: StorageReadSource): void {
+  if ((writeMode === 'azure' && readSource === 's3') || (writeMode === 's3' && readSource === 'azure'))
+    throw new Error(
+      `Invalid storage config: STORAGE_WRITE_MODE="${writeMode}" cannot be combined with ` +
+        `STORAGE_READ_SOURCE="${readSource}" (reading from a store that receives no writes / is not ` +
+        `kept in sync with the write side). Valid combinations: (azure,azure), (dual,azure), ` +
+        `(dual,s3), (s3,s3).`,
+    );
+}
+
 type Version = '1' | '2';
 
 export function GetConfig(): Configuration {
@@ -313,6 +331,31 @@ export class Configuration {
     kycStepExpiry: 90, // days
   };
 
+  // Host-independent comparison of a stored KYC step result URL against a live blob URL.
+  // kyc_step.result persists the full blob URL captured at upload time, while a live KycFileBlob.url
+  // is regenerated from the CURRENT storage backend. After the Azure Blob -> MinIO (S3) storage
+  // cutover the two hosts differ, so the previous full-URL string equality would silently drop every
+  // pre-cutover organization document (Handelsregisterauszug / Vollmacht) from the GwG compliance ZIP
+  // — no error, just missing files. Comparing the container-relative, decoded object key instead is
+  // stable across the host swap and matches BOTH legacy Azure-host and new MinIO-host values.
+  // Inlined here (rather than importing StorageService) to avoid a config <-> storage import cycle.
+  static isSameKycBlob(storedUrl: string | undefined, liveUrl: string | undefined): boolean {
+    if (storedUrl == null || liveUrl == null) return false;
+    return Configuration.kycBlobKey(storedUrl) === Configuration.kycBlobKey(liveUrl);
+  }
+
+  // Reduce a KYC blob URL to its container-relative, percent-decoded object key (drops scheme/host
+  // and the leading `<container>/` segment), mirroring StorageService.blobName's reversal.
+  // Fail loud on unexpected URL shapes: a silent full-URL fallback would reintroduce the pre-cutover
+  // host-equality bug for any URL missing the container marker (missing compliance docs, no error).
+  private static kycBlobKey(url: string): string {
+    const marker = 'kyc/';
+    const idx = url.indexOf(marker);
+    if (idx < 0) throw new Error(`Unexpected KYC blob URL format (missing 'kyc/' marker): ${url}`);
+    const rel = url.substring(idx + marker.length);
+    return rel.split('/').map(decodeURIComponent).join('/');
+  }
+
   fileDownloadConfig: {
     id: number;
     name: string;
@@ -500,11 +543,14 @@ export class Configuration {
             userData.kycSteps.some(
               (s) =>
                 s.isCompleted &&
-                ((s.name === KycStepName.COMMERCIAL_REGISTER && s.result === file.url) ||
+                ((s.name === KycStepName.COMMERCIAL_REGISTER && Configuration.isSameKycBlob(s.result, file.url)) ||
                   (s.name === KycStepName.LEGAL_ENTITY &&
-                    s.getResult<{ url: string; legalEntity: LegalEntity }>().url === file.url) ||
+                    Configuration.isSameKycBlob(
+                      s.getResult<{ url: string; legalEntity: LegalEntity }>().url,
+                      file.url,
+                    )) ||
                   (s.name === KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION &&
-                    s.getResult<{ url: string }>().url === file.url)),
+                    Configuration.isSameKycBlob(s.getResult<{ url: string }>().url, file.url))),
             ),
         },
       ],
@@ -517,7 +563,10 @@ export class Configuration {
         {
           prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],
           filter: (file: KycFileBlob, userData: UserData) =>
-            userData.kycSteps.some((s) => s.name === KycStepName.AUTHORITY && s.isCompleted && s.result === file.url),
+            userData.kycSteps.some(
+              (s) =>
+                s.name === KycStepName.AUTHORITY && s.isCompleted && Configuration.isSameKycBlob(s.result, file.url),
+            ),
         },
       ],
     },
@@ -1274,6 +1323,51 @@ export class Configuration {
       connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
     },
   };
+
+  // S3-compatible object storage (on-prem MinIO) — replacement for Azure Blob.
+  // Connection only; WORM/Object-Lock retention is provisioned on the bucket itself.
+  // secrets -> .env; per-env endpoint/url -> compose.
+  s3 = {
+    endpoint: process.env.S3_ENDPOINT,
+    region: process.env.S3_REGION,
+    accessKey: process.env.S3_ACCESS_KEY,
+    secretKey: process.env.S3_SECRET_KEY,
+    publicUrl: process.env.S3_PUBLIC_URL,
+  };
+
+  // Storage migration knobs (Azure -> MinIO dual-write cutover). Two independent switches so every
+  // step is individually reversible. Getter (not a plain field): only runs when Config.storage is
+  // accessed, so unrelated GetConfig() paths never crash on missing migration env vars. Full
+  // validation of both vars + the combo runs on every access (fail-loud on read).
+  get storage(): { writeMode: StorageWriteMode; readSource: StorageReadSource } {
+    if (this.environment === Environment.LOC) {
+      // Never actually consulted for LOC (the factory routes LOC to MockStorageService before ever
+      // touching this getter) — return the raw values uncast/unvalidated so a direct access in LOC
+      // (e.g. from a test) never throws.
+      return {
+        writeMode: process.env.STORAGE_WRITE_MODE as StorageWriteMode,
+        readSource: process.env.STORAGE_READ_SOURCE as StorageReadSource,
+      };
+    }
+
+    const writeMode = process.env.STORAGE_WRITE_MODE as StorageWriteMode;
+    if (!STORAGE_WRITE_MODES.includes(writeMode))
+      throw new Error(
+        `Missing/invalid STORAGE_WRITE_MODE: "${process.env.STORAGE_WRITE_MODE}" ` +
+          `(expected one of: ${STORAGE_WRITE_MODES.join(', ')})`,
+      );
+
+    const readSource = process.env.STORAGE_READ_SOURCE as StorageReadSource;
+    if (!STORAGE_READ_SOURCES.includes(readSource))
+      throw new Error(
+        `Missing/invalid STORAGE_READ_SOURCE: "${process.env.STORAGE_READ_SOURCE}" ` +
+          `(expected one of: ${STORAGE_READ_SOURCES.join(', ')})`,
+      );
+
+    assertValidStorageCombo(writeMode, readSource);
+
+    return { writeMode, readSource };
+  }
 
   alby = {
     clientId: process.env.ALBY_CLIENT_ID,

@@ -480,7 +480,20 @@ export class UserDataService {
           const files = allFiles
             .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
             .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
-            .filter((f) => !filter || filter(f, userData));
+            .filter((f) => {
+              if (!filter) return true;
+              try {
+                return filter(f, userData);
+              } catch (e) {
+                errors.push({
+                  userDataId,
+                  errorType: 'FilterError',
+                  folder: folderName,
+                  details: e?.message ?? String(e),
+                });
+                return false;
+              }
+            });
 
           if (!files.length) {
             if (handleFileNotFound) {
