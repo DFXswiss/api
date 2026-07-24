@@ -160,12 +160,28 @@ export function objectSignature(azure: ContentObject, s3: ContentObject): string
 }
 
 /**
+ * Normalize an ETag for version comparison across list vs download APIs.
+ * Strips optional weak-validator prefix `W/`, surrounding double quotes, and
+ * leading/trailing whitespace. Listing and download often disagree only on
+ * quoting (e.g. Azure list returns unquoted; download returns quoted).
+ */
+export function normalizeEtag(etag: string): string {
+  let normalized = etag.trim();
+  if (normalized.startsWith('W/')) {
+    normalized = normalized.slice(2);
+  }
+  if (normalized.startsWith('"')) normalized = normalized.slice(1);
+  if (normalized.endsWith('"')) normalized = normalized.slice(0, -1);
+  return normalized;
+}
+
+/**
  * Guards against TOCTOU/ABA: the object that was actually hashed (download-time ETag)
  * must be the exact same version that was listed (listing-time ETag) — otherwise the
  * proof we are about to store would vouch for bytes we never actually hashed.
  */
 export function assertHashVersionUnchanged(listedEtag: string, downloadedEtag: string, label: string): void {
-  if (listedEtag !== downloadedEtag) {
+  if (normalizeEtag(listedEtag) !== normalizeEtag(downloadedEtag)) {
     throw new Error(
       `object changed between listing and hash — ${label}: listedEtag=${listedEtag} downloadedEtag=${downloadedEtag}`,
     );

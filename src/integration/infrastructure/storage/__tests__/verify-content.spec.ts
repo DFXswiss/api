@@ -233,6 +233,24 @@ describe('assertHashVersionUnchanged', () => {
   it('throws when listed and downloaded ETag differ (message includes label)', () => {
     expect(() => assertHashVersionUnchanged('"etag-1"', '"etag-2"', 'azure test/key')).toThrow(/azure test\/key/);
   });
+
+  it('does not throw when one ETag is quoted and the other is unquoted', () => {
+    expect(() => assertHashVersionUnchanged('"abc"', 'abc', 'azure test/key')).not.toThrow();
+  });
+
+  it('does not throw when one ETag has a weak-validator prefix', () => {
+    expect(() => assertHashVersionUnchanged('W/"abc"', 'abc', 'azure test/key')).not.toThrow();
+  });
+
+  it('throws when ETags are genuinely different', () => {
+    expect(() => assertHashVersionUnchanged('"abc"', '"def"', 'azure test/key')).toThrow();
+  });
+
+  it('includes both raw ETag values in the error message', () => {
+    expect(() => assertHashVersionUnchanged('W/"abc"', '"def"', 'azure test/key')).toThrow(
+      /listedEtag=W\/"abc".*downloadedEtag="def"/,
+    );
+  });
 });
 
 describe('parseConfig BACKFILL_PROOF_CUTOFF bounds', () => {
