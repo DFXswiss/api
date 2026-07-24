@@ -141,10 +141,24 @@ export class BankTxConsumer {
   }
 
   private async book(tx: BankTx, marks: LedgerMarkCache): Promise<void> {
+    // crash-recovery, checked FIRST (mirrors the sibling consumers' alreadyBooked-before-build convention, e.g.
+    // crypto-input.consumer.ts/buy-crypto.consumer.ts): this cron re-bootstraps a fresh process every cycle, so a run
+    // whose bookTx transaction commits but is then killed before the batch's single end-of-loop watermark write
+    // persists leaves the watermark BEHIND an already-booked row. The next run re-selects it; without this guard, even
+    // re-deriving the legs (buildSeq0Input can itself throw, e.g. a gate-block or a missing CoA account) would re-wedge
+    // the watermark on a row that is, in fact, already correctly booked. Checking before any leg-rebuild closes that
+    // gap — an already-booked row is treated as done regardless of what its fresh re-derivation would do. The
+    // content-change scan (§4.12) is the correctness backstop if the already-committed legs ever need correcting.
+    if (await this.alreadyBooked(tx.id)) return;
+
     const input = await this.buildSeq0Input(tx, marks);
     if (!input) return; // skipped type (BUY_FIAT / TEST_FIAT_FIAT)
 
     await this.bookingService.bookTx(input);
+  }
+
+  private alreadyBooked(id: number): Promise<boolean> {
+    return this.bookingService.hasAnyTxAt(SOURCE_TYPE, `${id}`, 0); // forward bookings are always seq0 (buildSeq0Input)
   }
 
   // §4.12 — recompute the seq0 legs for an already-booked row; reverse + re-book only if a trigger field changed
