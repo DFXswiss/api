@@ -1,23 +1,42 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import * as ConfigModule from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { SupportClerkAccountDto } from 'src/shared/models/setting/dto/support-clerk-account.dto';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { PhoneCallStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { CreateSupportIssueBaseDto } from 'src/subdomains/supporting/support-issue/dto/create-support-issue.dto';
+import { CreateSupportMessageDto } from 'src/subdomains/supporting/support-issue/dto/create-support-message.dto';
 import {
+  GetSupportIssueFilter,
   GetSupportIssueListFilter,
   ListOrderDirection,
   SupportIssueListOrderBy,
 } from 'src/subdomains/supporting/support-issue/dto/get-support-issue.dto';
+import { UpdateSupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/update-support-issue.dto';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { SupportMessage } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
+import {
+  AutoResponder,
+  CustomerAuthor,
+  SupportMessage,
+} from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
 import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
 import {
   SupportIssueInternalState,
@@ -36,7 +55,56 @@ import { SupportLogService } from 'src/subdomains/supporting/support-issue/servi
 import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { CreateSupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/create-support-issue.dto';
-import { SupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/support-issue.dto';
+import { SupportIssueDto, SupportMessageDto } from 'src/subdomains/supporting/support-issue/dto/support-issue.dto';
+
+// Shared dependency bag + service factory for the describe blocks below that don't need a
+// hand-shaped query-builder mock: every collaborator is a fresh DeepMocked<T> per call, so tests
+// stay isolated without repeating the 12-arg constructor at every call site.
+function buildService() {
+  const supportIssueRepo = createMock<SupportIssueRepository>();
+  const transactionService = createMock<TransactionService>();
+  const documentService = createMock<SupportDocumentService>();
+  const userDataService = createMock<UserDataService>();
+  const messageRepo = createMock<SupportMessageRepository>();
+  const supportIssueNotificationService = createMock<SupportIssueNotificationService>();
+  const limitRequestService = createMock<LimitRequestService>();
+  const transactionRequestService = createMock<TransactionRequestService>();
+  const supportLogService = createMock<SupportLogService>();
+  const bankDataService = createMock<BankDataService>();
+  const settingService = createMock<SettingService>();
+  const walletService = createMock<WalletService>();
+
+  const service = new SupportIssueService(
+    supportIssueRepo,
+    transactionService,
+    documentService,
+    userDataService,
+    messageRepo,
+    supportIssueNotificationService,
+    limitRequestService,
+    transactionRequestService,
+    supportLogService,
+    bankDataService,
+    settingService,
+    walletService,
+  );
+
+  return {
+    service,
+    supportIssueRepo,
+    transactionService,
+    documentService,
+    userDataService,
+    messageRepo,
+    supportIssueNotificationService,
+    limitRequestService,
+    transactionRequestService,
+    supportLogService,
+    bankDataService,
+    settingService,
+    walletService,
+  };
+}
 
 describe('SupportIssueService.getSupportIssueList', () => {
   let service: SupportIssueService;
@@ -289,6 +357,18 @@ describe('SupportIssueService.getSupportIssueList', () => {
       expect(messageQb.where).toHaveBeenCalledWith('m."issueId" IN (:...ids)', { ids: [1] });
       expect(messageQb.groupBy).toHaveBeenCalledWith('m."issueId"');
     });
+
+    it('falls back to undefined lastDate/lastAuthor when the correlated sub-selects yield null (no messages yet)', async () => {
+      messageQb.getRawMany.mockResolvedValue([{ issueId: '1', count: '0', lastDate: null, lastAuthor: null }]);
+
+      const result = await localService.getSupportIssueList({} as GetSupportIssueListFilter, UserRole.ADMIN);
+
+      expect(result.data[0]).toMatchObject({
+        messageCount: 0,
+        lastMessageDate: undefined,
+        lastMessageAuthor: undefined,
+      });
+    });
   });
 
   // Guards the state predicate + department scope the list query relies on; the composite index
@@ -364,6 +444,35 @@ describe('SupportIssueService.getSupportIssueList', () => {
       expect(calls[1][1]).toEqual({ term1: '%12345%', term1Id: 12345 });
     });
   });
+
+  describe('type filter', () => {
+    it('filters by type when provided', async () => {
+      await run({ type: SupportIssueType.KYC_ISSUE });
+      expect(qb.andWhere).toHaveBeenCalledWith('issue.type = :type', { type: SupportIssueType.KYC_ISSUE });
+    });
+
+    it('does not add a type clause when absent', async () => {
+      await run({});
+      expect(andWhereClauses().some((c) => c.includes('issue.type ='))).toBe(false);
+    });
+  });
+
+  // customerIds (RealUnit tenant scope) replaces the department gate and joins through userData instead;
+  // covers both the empty-scope fail-close and the actual scoped query shape.
+  describe('customerIds scope (RealUnit tenant)', () => {
+    it('returns nothing for an empty customerIds scope, without querying (fail-closed)', async () => {
+      const result = await service.getSupportIssueList({} as GetSupportIssueListFilter, UserRole.REALUNIT, []);
+      expect(result).toEqual({ data: [], total: 0 });
+      expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('scopes to the customerIds via a userData join, in place of the department filter', async () => {
+      await service.getSupportIssueList({} as GetSupportIssueListFilter, UserRole.REALUNIT, [1, 2, 3]);
+      expect(qb.leftJoin).toHaveBeenCalledWith('issue.userData', 'userData');
+      expect(qb.andWhere).toHaveBeenCalledWith('"userData".id IN (:...customerIds)', { customerIds: [1, 2, 3] });
+      expect(andWhereClauses().some((c) => c.includes('issue.department IN'))).toBe(false);
+    });
+  });
 });
 
 describe('SupportIssueService.getSupportIssueCounts', () => {
@@ -426,6 +535,13 @@ describe('SupportIssueService.getSupportIssueCounts', () => {
     await service.getSupportIssueCounts(UserRole.SUPPORT, [1, 2, 3]);
     expect(qb.innerJoin).toHaveBeenCalledWith('issue.userData', 'scopeUd');
     expect(qb.andWhere).toHaveBeenCalledWith('scopeUd.id IN (:...customerIds)', { customerIds: [1, 2, 3] });
+  });
+
+  it('returns an all-zero record without querying for an empty customerIds scope (fail-closed)', async () => {
+    const counts = await service.getSupportIssueCounts(UserRole.REALUNIT, []);
+    const zero = Object.fromEntries(Object.values(SupportIssueInternalState).map((s) => [s, 0]));
+    expect(counts).toEqual(zero);
+    expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
 });
 
@@ -494,6 +610,22 @@ describe('SupportIssueService.closeIssue', () => {
     expect(supportIssueRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { uid: 'issue_abc' } }));
   });
 
+  it('resolves a quote-prefixed id to a transactionRequest uid lookup', async () => {
+    supportIssueRepo.findOne.mockResolvedValue(makeIssue(SupportIssueInternalState.PENDING));
+    await service.closeIssue('quote_xyz');
+    expect(supportIssueRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { transactionRequest: { uid: 'quote_xyz' } } }),
+    );
+  });
+
+  it('rejects a non-integer numeric id for an authenticated owner lookup', async () => {
+    await expect(service.closeIssue('7.5', 42)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('fails closed with Unauthorized for a non-prefixed id without an owner scope (no capability token, no session)', async () => {
+    await expect(service.closeIssue('42')).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it('completes an open issue and logs it as a customer action', async () => {
     const issue = makeIssue(SupportIssueInternalState.PENDING);
     supportIssueRepo.findOne.mockResolvedValue(issue);
@@ -533,6 +665,9 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
   let resolvedRows: { type: SupportIssueType; created: Date; updated: Date }[];
   let totalCount: number;
   let andWhereClauses: string[];
+  // when true, the total/message getRawOne resolves undefined instead of a count row, exercising the
+  // `?.count ?? 0` fallback on both the total and message sub-queries
+  let rawOneEmpty: boolean;
 
   const pad = (n: number): string => String(n).padStart(2, '0');
   const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -555,7 +690,7 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
       grouped = true;
       return qb;
     });
-    qb.getRawOne = jest.fn(() => Promise.resolve({ count: String(totalCount) }));
+    qb.getRawOne = jest.fn(() => Promise.resolve(rawOneEmpty ? undefined : { count: String(totalCount) }));
     qb.getRawMany = jest.fn(() => Promise.resolve(grouped ? trendRows : resolvedRows));
     return qb;
   }
@@ -565,6 +700,7 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
     resolvedRows = [];
     totalCount = 0;
     andWhereClauses = [];
+    rawOneEmpty = false;
     supportIssueRepo = createMock<SupportIssueRepository>();
     const messageRepo = createMock<SupportMessageRepository>();
     (supportIssueRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
@@ -650,6 +786,19 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
     expect(dto.granularity).toBe('month');
   });
 
+  it('defaults periodDays to 365 when the caller omits it entirely', async () => {
+    const dto = await service.getSupportIssueStatistics(UserRole.ADMIN);
+    expect(dto.periodDays).toBe(365);
+    expect(dto.granularity).toBe('month');
+  });
+
+  it('treats a missing total/message count row as zero (defensive `?.count ?? 0` fallback)', async () => {
+    rawOneEmpty = true;
+    const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
+    expect(dto.total).toBe(0);
+    expect(dto.avgMessages).toBe(0);
+  });
+
   it('averages resolution time per type for tickets completed in the period', async () => {
     resolvedRows = [
       {
@@ -690,6 +839,14 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
   it('does not department-scope for an all-access role', async () => {
     await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
     expect(andWhereClauses.some((c) => c.includes('issue.department'))).toBe(false);
+  });
+
+  // customerIds (RealUnit tenant scope) takes precedence over the department gate on every one of the
+  // four sub-queries (total / messages / trend / resolution) and joins through userData instead.
+  it('scopes every statistics sub-query to customerIds via innerJoin, bypassing the department gate', async () => {
+    await service.getSupportIssueStatistics(UserRole.SUPPORT, 7, [1, 2, 3]);
+    expect(andWhereClauses.filter((c) => c.includes('scopeUd.id IN (:...customerIds)')).length).toBe(4);
+    expect(andWhereClauses.some((c) => c.includes('issue.department IN'))).toBe(false);
   });
 
   it('returns an empty, unqueried statistic for a role with no department access', async () => {
@@ -802,6 +959,16 @@ describe('SupportIssueService.getIssueMessages', () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({ id: 11, author: 'Customer', message: 'msg 11' });
   });
+
+  it('defaults fromMessageId to 0 when omitted, returning the full thread', async () => {
+    supportIssueRepo.findOne.mockResolvedValue(issueOfCustomer(42));
+    messageRepo.findBy.mockResolvedValue([message(1)]);
+
+    await service.getIssueMessages(7, [42]);
+
+    const findByArg = messageRepo.findBy.mock.calls[0][0] as { id: { value: number } };
+    expect(findByArg.id.value).toBe(0);
+  });
 });
 
 describe('SupportIssueService.resolveSourceWallet (X-Client mail branding)', () => {
@@ -879,5 +1046,1002 @@ describe('SupportIssueService.resolveSourceWallet (X-Client mail branding)', () 
     // routed to creation with the DFX default wallet (not RealUnit, and never rejected)
     expect(createIssueInternal).toHaveBeenCalledWith(userData, dto, dfxDefault);
     expect(walletService.getByIdOrName).not.toHaveBeenCalled();
+  });
+});
+
+describe('SupportIssueService clerk settings', () => {
+  let ctx: ReturnType<typeof buildService>;
+
+  beforeEach(() => {
+    ctx = buildService();
+  });
+
+  it('getSupportIssueClerks returns the configured list when non-empty', async () => {
+    ctx.settingService.getObj.mockResolvedValue(['Alice', 'Bob']);
+    await expect(ctx.service.getSupportIssueClerks()).resolves.toEqual(['Alice', 'Bob']);
+    expect(ctx.settingService.getObj).toHaveBeenCalledWith('supportClerks', []);
+  });
+
+  it('getSupportIssueClerks falls back to ["Support"] when the setting is empty', async () => {
+    ctx.settingService.getObj.mockResolvedValue([]);
+    await expect(ctx.service.getSupportIssueClerks()).resolves.toEqual(['Support']);
+  });
+
+  it('getRealUnitSupportClerks returns the configured list when non-empty', async () => {
+    ctx.settingService.getObj.mockResolvedValue(['Carol']);
+    await expect(ctx.service.getRealUnitSupportClerks()).resolves.toEqual(['Carol']);
+    expect(ctx.settingService.getObj).toHaveBeenCalledWith('realUnitSupportClerks', []);
+  });
+
+  it('getRealUnitSupportClerks falls back to ["Support"] when the setting is empty', async () => {
+    ctx.settingService.getObj.mockResolvedValue([]);
+    await expect(ctx.service.getRealUnitSupportClerks()).resolves.toEqual(['Support']);
+  });
+
+  it('getSupportIssueClerkForAccount resolves the mapped clerk name', async () => {
+    ctx.settingService.getObj.mockResolvedValue([
+      { account: 42, name: 'Alice' },
+      { account: 7, name: 'Bob' },
+    ] as SupportClerkAccountDto[]);
+    await expect(ctx.service.getSupportIssueClerkForAccount(7)).resolves.toBe('Bob');
+  });
+
+  it('getSupportIssueClerkForAccount returns undefined for an unmapped account', async () => {
+    ctx.settingService.getObj.mockResolvedValue([{ account: 42, name: 'Alice' }] as SupportClerkAccountDto[]);
+    await expect(ctx.service.getSupportIssueClerkForAccount(99)).resolves.toBeUndefined();
+  });
+});
+
+describe('SupportIssueService.getSupportIssueActivity', () => {
+  let ctx: ReturnType<typeof buildService>;
+  let qb: Record<string, jest.Mock>;
+
+  function createActivityQbMock(): Record<string, jest.Mock> {
+    const builder: Record<string, jest.Mock> = {};
+    for (const method of ['innerJoin', 'select', 'addSelect', 'andWhere']) {
+      builder[method] = jest.fn(() => builder);
+    }
+    builder.getRawOne = jest.fn().mockResolvedValue(undefined);
+    return builder;
+  }
+
+  const andWhereClauses = (): string[] => qb.andWhere.mock.calls.map((c) => String(c[0]));
+
+  beforeEach(() => {
+    ctx = buildService();
+    qb = createActivityQbMock();
+    (ctx.messageRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+  });
+
+  it('returns empty activity without querying for an empty customerIds scope (fail-closed)', async () => {
+    const result = await ctx.service.getSupportIssueActivity(undefined, UserRole.ADMIN, []);
+    expect(result).toEqual({ count: 0, latestAt: undefined });
+    expect(ctx.messageRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('adds a since lower bound and reports the raw count/latestAt when provided', async () => {
+    const since = new Date('2026-01-01T00:00:00.000Z');
+    qb.getRawOne.mockResolvedValue({ count: '3', latestAt: new Date('2026-01-02T00:00:00.000Z') });
+
+    const result = await ctx.service.getSupportIssueActivity(since, UserRole.ADMIN);
+
+    expect(qb.andWhere).toHaveBeenCalledWith('m.created > :since', { since: since.toISOString() });
+    expect(result).toEqual({ count: 3, latestAt: new Date('2026-01-02T00:00:00.000Z') });
+  });
+
+  it('omits the since clause when absent', async () => {
+    await ctx.service.getSupportIssueActivity(undefined, UserRole.ADMIN);
+    expect(andWhereClauses().some((c) => c.includes('m.created >'))).toBe(false);
+  });
+
+  it('scopes to customerIds via innerJoin when provided (RealUnit tenant scope)', async () => {
+    await ctx.service.getSupportIssueActivity(undefined, UserRole.SUPPORT, [1, 2]);
+    expect(qb.innerJoin).toHaveBeenCalledWith('i.userData', 'scopeUd');
+    expect(qb.andWhere).toHaveBeenCalledWith('scopeUd.id IN (:...customerIds)', { customerIds: [1, 2] });
+  });
+
+  it('scopes to the allowed departments when no customerIds are given', async () => {
+    await ctx.service.getSupportIssueActivity(undefined, UserRole.SUPPORT);
+    expect(andWhereClauses().some((c) => c.includes('i.department IN'))).toBe(true);
+  });
+
+  it('defaults to count 0 / latestAt undefined when the raw query yields nothing', async () => {
+    qb.getRawOne.mockResolvedValue(undefined);
+    const result = await ctx.service.getSupportIssueActivity(undefined, UserRole.ADMIN);
+    expect(result).toEqual({ count: 0, latestAt: undefined });
+  });
+});
+
+describe('SupportIssueService.createTransactionRequestIssue', () => {
+  let ctx: ReturnType<typeof buildService>;
+
+  beforeEach(() => {
+    ctx = buildService();
+  });
+
+  it('throws BadRequest when the dto carries no orderUid', async () => {
+    await expect(ctx.service.createTransactionRequestIssue({} as CreateSupportIssueBaseDto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('throws NotFound when the transaction request does not exist', async () => {
+    ctx.transactionRequestService.getTransactionRequestByUid.mockResolvedValue(null);
+    const dto = { transaction: { orderUid: 'Q1' } } as CreateSupportIssueBaseDto;
+    await expect(ctx.service.createTransactionRequestIssue(dto)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('creates the issue for the transaction request owner, branded via the resolved source wallet', async () => {
+    const dfxDefault = { id: 1, name: 'DFX' } as Wallet;
+    ctx.walletService.getDefault.mockResolvedValue(dfxDefault);
+    const requestUserData = { id: 42 } as UserData;
+    ctx.transactionRequestService.getTransactionRequestByUid.mockResolvedValue({ userData: requestUserData } as any);
+    const created = { uid: 'i1' } as SupportIssueDto;
+    const createIssueInternal = jest.spyOn(ctx.service, 'createIssueInternal').mockResolvedValue(created);
+
+    const dto = { transaction: { orderUid: 'Q1' } } as CreateSupportIssueBaseDto;
+    const result = await ctx.service.createTransactionRequestIssue(dto, 'unknown-client');
+
+    expect(ctx.transactionRequestService.getTransactionRequestByUid).toHaveBeenCalledWith('Q1', {
+      user: { userData: true },
+    });
+    expect(createIssueInternal).toHaveBeenCalledWith(requestUserData, dto, dfxDefault);
+    expect(result).toBe(created);
+  });
+});
+
+describe('SupportIssueService.createIssueBySupport', () => {
+  let ctx: ReturnType<typeof buildService>;
+
+  beforeEach(() => {
+    ctx = buildService();
+  });
+
+  it('throws NotFound when the userData does not exist', async () => {
+    ctx.userDataService.getUserData.mockResolvedValue(null);
+    await expect(ctx.service.createIssueBySupport(42, {} as CreateSupportIssueDto)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('creates the issue for the given userData, always branded with the DFX default wallet (never the request client)', async () => {
+    const userData = { id: 42, mail: 'x@example.com' } as UserData;
+    ctx.userDataService.getUserData.mockResolvedValue(userData);
+    const dfxDefault = { id: 1, name: 'DFX' } as Wallet;
+    ctx.walletService.getDefault.mockResolvedValue(dfxDefault);
+    const created = { uid: 'i1' } as SupportIssueDto;
+    const createIssueInternal = jest.spyOn(ctx.service, 'createIssueInternal').mockResolvedValue(created);
+
+    const dto = { type: SupportIssueType.GENERIC_ISSUE, reason: SupportIssueReason.OTHER } as CreateSupportIssueDto;
+    const result = await ctx.service.createIssueBySupport(42, dto);
+
+    expect(ctx.userDataService.getUserData).toHaveBeenCalledWith(42, { wallet: true });
+    expect(createIssueInternal).toHaveBeenCalledWith(userData, dto, dfxDefault);
+    expect(ctx.walletService.getByIdOrName).not.toHaveBeenCalled();
+    expect(result).toBe(created);
+  });
+});
+
+describe('SupportIssueService.createIssueInternal', () => {
+  let ctx: ReturnType<typeof buildService>;
+  let createMessageInternalSpy: jest.SpyInstance;
+
+  const sourceWallet = { id: 1, name: 'DFX' } as Wallet;
+  const message = { id: 99, author: 'Customer', message: 'hi' } as SupportMessageDto;
+
+  const baseUserData = (overrides: Partial<UserData> = {}): UserData =>
+    ({ id: 42, mail: 'user@example.com', ...overrides }) as UserData;
+
+  const baseDto = (overrides: Partial<CreateSupportIssueDto> = {}): CreateSupportIssueDto =>
+    ({
+      type: SupportIssueType.GENERIC_ISSUE,
+      reason: SupportIssueReason.OTHER,
+      name: 'Help',
+      ...overrides,
+    }) as CreateSupportIssueDto;
+
+  beforeEach(() => {
+    ctx = buildService();
+    (ConfigModule as Record<string, unknown>).Config = {
+      prefixes: { issueUidPrefix: 'I', quoteUidPrefix: 'Q', transactionUidPrefix: 'T' },
+    };
+    ctx.supportIssueRepo.create.mockImplementation((obj: Partial<SupportIssue>) =>
+      Object.assign(new SupportIssue(), obj),
+    );
+    ctx.supportIssueRepo.save.mockImplementation(async (x: SupportIssue) => x);
+    ctx.supportIssueRepo.findOne.mockResolvedValue(null);
+    createMessageInternalSpy = jest.spyOn(ctx.service, 'createMessageInternal').mockResolvedValue(message);
+  });
+
+  it('throws BadRequest when the userData has no mail', async () => {
+    await expect(
+      ctx.service.createIssueInternal(baseUserData({ mail: undefined }), baseDto(), sourceWallet),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  describe('existing-issue lookup scope', () => {
+    it('scopes to open issues (state != Completed) when the dto carries a limitRequest', async () => {
+      const dto = baseDto({ type: SupportIssueType.LIMIT_REQUEST, limitRequest: { limit: 1000 } as any });
+      await ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet);
+      const where = ctx.supportIssueRepo.findOne.mock.calls[0][0].where as {
+        state: { type: string; value: unknown };
+      };
+      expect(where.state.type).toBe('not');
+      expect(where.state.value).toBe(SupportIssueInternalState.COMPLETED);
+    });
+
+    it('leaves state unrestricted when the dto carries no limitRequest', async () => {
+      await ctx.service.createIssueInternal(baseUserData(), baseDto(), sourceWallet);
+      const where = ctx.supportIssueRepo.findOne.mock.calls[0][0].where as { state: unknown };
+      expect(where.state).toBeUndefined();
+    });
+  });
+
+  describe('transaction / transactionRequest resolution (new issue)', () => {
+    it('matches an existing transaction by id, scopes the existing-issue lookup to it, and links it when owned by the same userData', async () => {
+      const userData = baseUserData();
+      const transaction = {
+        id: 5,
+        userData: { id: userData.id },
+        sourceType: TransactionSourceType.CRYPTO_INPUT,
+      } as any;
+      ctx.transactionService.getTransactionById.mockResolvedValue(transaction);
+      const dto = baseDto({ transaction: { id: 5 } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      const where = ctx.supportIssueRepo.findOne.mock.calls[0][0].where as { transaction: unknown };
+      expect(where.transaction).toEqual({ id: 5, uid: undefined });
+      expect(ctx.transactionService.getTransactionById).toHaveBeenCalledWith(5, { userData: true });
+      const saved = ctx.supportIssueRepo.save.mock.calls[0][0] as SupportIssue;
+      expect(saved.transaction).toBe(transaction);
+    });
+
+    it('matches an existing transaction by uid when it carries the transaction prefix (no id given)', async () => {
+      const userData = baseUserData();
+      ctx.transactionService.getTransactionByUid.mockResolvedValue({ id: 6, userData: { id: userData.id } } as any);
+      const dto = baseDto({ transaction: { uid: 'Tabc' } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      const where = ctx.supportIssueRepo.findOne.mock.calls[0][0].where as { transaction: unknown };
+      expect(where.transaction).toEqual({ id: undefined, uid: 'Tabc' });
+      expect(ctx.transactionService.getTransactionByUid).toHaveBeenCalledWith('Tabc', { userData: true });
+    });
+
+    it('throws NotFound when the referenced transaction does not exist', async () => {
+      ctx.transactionService.getTransactionById.mockResolvedValue(null);
+      const dto = baseDto({ transaction: { id: 5 } as any });
+      await expect(ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet)).rejects.toThrow(
+        'Transaction not found',
+      );
+    });
+
+    it('throws Forbidden when the referenced transaction belongs to another userData', async () => {
+      ctx.transactionService.getTransactionById.mockResolvedValue({ id: 5, userData: { id: 999 } } as any);
+      const dto = baseDto({ transaction: { id: 5 } as any });
+      await expect(ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet)).rejects.toThrow(
+        'You can only create support issue for your own transaction',
+      );
+    });
+
+    it('throws Forbidden when the referenced transaction has no userData at all', async () => {
+      ctx.transactionService.getTransactionById.mockResolvedValue({ id: 5, userData: undefined } as any);
+      const dto = baseDto({ transaction: { id: 5 } as any });
+      await expect(ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('matches an existing transactionRequest by orderUid, scopes the existing-issue lookup to it, and links its nested transaction', async () => {
+      const userData = baseUserData();
+      const nestedTransaction = { id: 8 } as any;
+      ctx.transactionRequestService.getTransactionRequestByUid.mockResolvedValue({
+        user: { userData: { id: userData.id } },
+        transaction: nestedTransaction,
+      } as any);
+      const dto = baseDto({ transaction: { orderUid: 'Qabc' } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      const where = ctx.supportIssueRepo.findOne.mock.calls[0][0].where as { transactionRequest: unknown };
+      expect(where.transactionRequest).toEqual({ uid: 'Qabc' });
+      expect(ctx.transactionRequestService.getTransactionRequestByUid).toHaveBeenCalledWith('Qabc', {
+        user: { userData: true },
+        transaction: true,
+      });
+      const saved = ctx.supportIssueRepo.save.mock.calls[0][0] as SupportIssue;
+      expect(saved.transaction).toBe(nestedTransaction);
+    });
+
+    // `newIssue` is seeded via `supportIssueRepo.create({ ...dto })`, which copies dto.transaction (the raw
+    // TransactionIssueDto) onto the entity's `transaction` field before any resolution runs; only a nested
+    // `transactionRequest.transaction` overwrites it with a real Transaction. Without one, that raw seed value
+    // is what ends up on the saved entity - pinning this (surprising but real) behavior rather than asserting
+    // the naively-expected `undefined`.
+    it('matches an existing transactionRequest by uid when it carries the quote prefix, without a nested transaction to link', async () => {
+      const userData = baseUserData();
+      ctx.transactionRequestService.getTransactionRequestByUid.mockResolvedValue({
+        user: { userData: { id: userData.id } },
+      } as any);
+      const dto = baseDto({ transaction: { uid: 'Qxyz' } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      const where = ctx.supportIssueRepo.findOne.mock.calls[0][0].where as { transactionRequest: unknown };
+      expect(where.transactionRequest).toEqual({ uid: 'Qxyz' });
+      const saved = ctx.supportIssueRepo.save.mock.calls[0][0] as SupportIssue;
+      expect(saved.transaction).toEqual({ uid: 'Qxyz' });
+    });
+
+    it('throws NotFound when the referenced quote does not exist', async () => {
+      ctx.transactionRequestService.getTransactionRequestByUid.mockResolvedValue(null);
+      const dto = baseDto({ transaction: { orderUid: 'Qabc' } as any });
+      await expect(ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet)).rejects.toThrow(
+        'Quote not found',
+      );
+    });
+
+    it('throws Forbidden when the referenced quote belongs to another userData', async () => {
+      ctx.transactionRequestService.getTransactionRequestByUid.mockResolvedValue({
+        user: { userData: { id: 999 } },
+      } as any);
+      const dto = baseDto({ transaction: { orderUid: 'Qabc' } as any });
+      await expect(ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet)).rejects.toThrow(
+        'You can only create support issue for your own quote',
+      );
+    });
+
+    it('throws Forbidden when the referenced quote has no user at all', async () => {
+      ctx.transactionRequestService.getTransactionRequestByUid.mockResolvedValue({ user: undefined } as any);
+      const dto = baseDto({ transaction: { orderUid: 'Qabc' } as any });
+      await expect(ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('skips transaction/request lookups and scopes to an "IsNull" existing-issue match when dto.transaction matches neither shape', async () => {
+      const dto = baseDto({ transaction: { senderIban: 'CH930076000000000000' } as any });
+
+      await ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet);
+
+      const where = ctx.supportIssueRepo.findOne.mock.calls[0][0].where as {
+        transaction: { id: { type: string } };
+        transactionRequest: { id: { type: string } };
+      };
+      expect(where.transaction.id.type).toBe('isNull');
+      expect(where.transactionRequest.id.type).toBe('isNull');
+      expect(ctx.transactionService.getTransactionById).not.toHaveBeenCalled();
+      expect(ctx.transactionRequestService.getTransactionRequestByUid).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('user bank data creation from a senderIban', () => {
+    it('creates the iban when the linked transaction is a bank transaction', async () => {
+      const userData = baseUserData();
+      ctx.transactionService.getTransactionById.mockResolvedValue({
+        id: 5,
+        userData: { id: userData.id },
+        sourceType: TransactionSourceType.BANK_TX,
+      } as any);
+      const dto = baseDto({ transaction: { id: 5, senderIban: 'CH930076000000000000' } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      expect(ctx.bankDataService.createIbanForUserInternal).toHaveBeenCalledWith(
+        userData,
+        { iban: 'CH930076000000000000' },
+        false,
+      );
+    });
+
+    it('creates the iban when the linked transactionRequest is a Buy quote', async () => {
+      const userData = baseUserData();
+      ctx.transactionRequestService.getTransactionRequestByUid.mockResolvedValue({
+        user: { userData: { id: userData.id } },
+        type: TransactionRequestType.BUY,
+      } as any);
+      const dto = baseDto({ transaction: { orderUid: 'Qabc', senderIban: 'CH930076000000000000' } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      expect(ctx.bankDataService.createIbanForUserInternal).toHaveBeenCalledWith(
+        userData,
+        { iban: 'CH930076000000000000' },
+        false,
+      );
+    });
+
+    it('does not create the iban when neither the transaction nor the quote condition applies', async () => {
+      const userData = baseUserData();
+      ctx.transactionService.getTransactionById.mockResolvedValue({
+        id: 5,
+        userData: { id: userData.id },
+        sourceType: TransactionSourceType.REF,
+      } as any);
+      const dto = baseDto({ transaction: { id: 5, senderIban: 'CH930076000000000000' } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      expect(ctx.bankDataService.createIbanForUserInternal).not.toHaveBeenCalled();
+    });
+
+    it('does not attempt an iban when senderIban is absent', async () => {
+      const userData = baseUserData();
+      ctx.transactionService.getTransactionById.mockResolvedValue({ id: 5, userData: { id: userData.id } } as any);
+      const dto = baseDto({ transaction: { id: 5 } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      expect(ctx.bankDataService.createIbanForUserInternal).not.toHaveBeenCalled();
+    });
+
+    it('swallows an error creating the bank data, without failing the issue creation', async () => {
+      const userData = baseUserData();
+      ctx.transactionService.getTransactionById.mockResolvedValue({
+        id: 5,
+        userData: { id: userData.id },
+        sourceType: TransactionSourceType.BANK_TX,
+      } as any);
+      ctx.bankDataService.createIbanForUserInternal.mockRejectedValue(new Error('boom'));
+      const dto = baseDto({ transaction: { id: 5, senderIban: 'CH930076000000000000' } as any });
+
+      await expect(ctx.service.createIssueInternal(userData, dto, sourceWallet)).resolves.toBeDefined();
+    });
+  });
+
+  describe('limit request creation', () => {
+    it('creates the limit request and links it to the new issue', async () => {
+      const limitRequest = { id: 3, limit: 5000 } as any;
+      ctx.limitRequestService.increaseLimitInternal.mockResolvedValue(limitRequest);
+      const userData = baseUserData();
+      const dto = baseDto({ type: SupportIssueType.LIMIT_REQUEST, limitRequest: { limit: 5000 } as any });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      expect(ctx.limitRequestService.increaseLimitInternal).toHaveBeenCalledWith(dto.limitRequest, userData);
+      const saved = ctx.supportIssueRepo.save.mock.calls[0][0] as SupportIssue;
+      expect(saved.limitRequest).toBe(limitRequest);
+    });
+
+    it('does not create a limit request when the dto carries none', async () => {
+      await ctx.service.createIssueInternal(baseUserData(), baseDto(), sourceWallet);
+      expect(ctx.limitRequestService.increaseLimitInternal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('phone call status update for a rejected/repeated verification call', () => {
+    it.each([
+      [SupportIssueReason.REJECT_CALL, PhoneCallStatus.USER_REJECTED],
+      [SupportIssueReason.REPEAT_CALL, PhoneCallStatus.REPEAT],
+    ])('maps reason %s to phoneCallStatus %s when the user has none yet', async (reason, expectedStatus) => {
+      const userData = baseUserData({ phoneCallStatus: undefined });
+      const dto = baseDto({ type: SupportIssueType.VERIFICATION_CALL, reason });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      expect(ctx.userDataService.updateUserDataInternal).toHaveBeenCalledWith(userData, {
+        phoneCallStatus: expectedStatus,
+      });
+    });
+
+    it('does not update when the user already has a phoneCallStatus', async () => {
+      const userData = baseUserData({ phoneCallStatus: PhoneCallStatus.COMPLETED });
+      const dto = baseDto({ type: SupportIssueType.VERIFICATION_CALL, reason: SupportIssueReason.REJECT_CALL });
+
+      await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+      expect(ctx.userDataService.updateUserDataInternal).not.toHaveBeenCalled();
+    });
+
+    it('does not update for a non-verification-call issue type', async () => {
+      const dto = baseDto({ type: SupportIssueType.GENERIC_ISSUE, reason: SupportIssueReason.REJECT_CALL });
+      await ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet);
+      expect(ctx.userDataService.updateUserDataInternal).not.toHaveBeenCalled();
+    });
+
+    it('does not update for a verification call with an unrelated reason', async () => {
+      const dto = baseDto({ type: SupportIssueType.VERIFICATION_CALL, reason: SupportIssueReason.OTHER });
+      await ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet);
+      expect(ctx.userDataService.updateUserDataInternal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('existing-issue reuse', () => {
+    it('reuses the existing issue without saving a new one or re-running transaction/limitRequest resolution', async () => {
+      const existing = Object.assign(new SupportIssue(), {
+        id: 9,
+        uid: 'Iexisting123',
+        wallet: sourceWallet,
+        userData: baseUserData(),
+      });
+      ctx.supportIssueRepo.findOne.mockResolvedValue(existing);
+      const dto = baseDto({
+        transaction: { id: 5 } as any,
+        limitRequest: { limit: 1 } as any,
+        type: SupportIssueType.LIMIT_REQUEST,
+      });
+
+      const issue = await ctx.service.createIssueInternal(baseUserData(), dto, sourceWallet);
+
+      expect(ctx.supportIssueRepo.save).not.toHaveBeenCalled();
+      expect(ctx.transactionService.getTransactionById).not.toHaveBeenCalled();
+      expect(ctx.limitRequestService.increaseLimitInternal).not.toHaveBeenCalled();
+      expect(issue.uid).toBe('Iexisting123');
+    });
+
+    it('backfills a missing wallet attribution on the existing issue, without rebranding an already-attributed one', async () => {
+      const existing = Object.assign(new SupportIssue(), { id: 9, wallet: undefined, userData: baseUserData() });
+      ctx.supportIssueRepo.findOne.mockResolvedValue(existing);
+
+      await ctx.service.createIssueInternal(baseUserData(), baseDto(), sourceWallet);
+
+      expect(existing.wallet).toBe(sourceWallet);
+      expect(ctx.supportIssueRepo.update).toHaveBeenCalledWith(9, { wallet: sourceWallet });
+    });
+
+    it('does not touch the wallet when the existing issue is already attributed', async () => {
+      const otherWallet = { id: 2, name: 'RealUnit' } as Wallet;
+      const existing = Object.assign(new SupportIssue(), { id: 9, wallet: otherWallet, userData: baseUserData() });
+      ctx.supportIssueRepo.findOne.mockResolvedValue(existing);
+
+      await ctx.service.createIssueInternal(baseUserData(), baseDto(), sourceWallet);
+
+      expect(existing.wallet).toBe(otherWallet);
+      expect(ctx.supportIssueRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  it('creates a UID-tagged new issue, delegates message creation to createMessageInternal, and returns it with the message attached', async () => {
+    const userData = baseUserData();
+    const dto = baseDto();
+
+    const issue = await ctx.service.createIssueInternal(userData, dto, sourceWallet);
+
+    const saved = ctx.supportIssueRepo.save.mock.calls[0][0] as SupportIssue;
+    expect(saved.uid).toMatch(/^I/);
+    expect(createMessageInternalSpy).toHaveBeenCalledWith(saved, dto);
+    expect(issue.messages).toContainEqual(expect.objectContaining({ id: 99, author: 'Customer' }));
+  });
+});
+
+describe('SupportIssueService.updateIssue / updateIssueInternal', () => {
+  let ctx: ReturnType<typeof buildService>;
+
+  beforeEach(() => {
+    ctx = buildService();
+  });
+
+  it('throws NotFound when the entity does not exist', async () => {
+    ctx.supportIssueRepo.findOneBy.mockResolvedValue(null);
+    await expect(ctx.service.updateIssue(1, {} as UpdateSupportIssueDto)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('logs the change as a SUPPORT support log, persists state/clerk/department, and returns the merged entity', async () => {
+    const entity = Object.assign(new SupportIssue(), {
+      id: 3,
+      userData: { id: 42 } as UserData,
+      clerk: 'Old',
+      state: SupportIssueInternalState.PENDING,
+    });
+    ctx.supportIssueRepo.findOneBy.mockResolvedValue(entity);
+
+    const dto = {
+      state: SupportIssueInternalState.IN_PROGRESS,
+      clerk: 'Alice',
+      department: Department.SUPPORT,
+      type: SupportIssueType.GENERIC_ISSUE,
+    } as UpdateSupportIssueDto;
+    const result = await ctx.service.updateIssue(3, dto);
+
+    expect(ctx.supportLogService.createSupportLog).toHaveBeenCalledWith(
+      entity.userData,
+      expect.objectContaining({
+        supportIssue: entity,
+        supportIssueType: dto.type,
+        type: SupportLogType.SUPPORT,
+        state: dto.state,
+        clerk: dto.clerk,
+      }),
+    );
+    expect(ctx.supportIssueRepo.update).toHaveBeenCalledWith(3, {
+      state: dto.state,
+      clerk: dto.clerk,
+      department: dto.department,
+    });
+    expect(result.clerk).toBe('Alice');
+    expect(result.state).toBe(SupportIssueInternalState.IN_PROGRESS);
+  });
+});
+
+describe('SupportIssueService.createMessage', () => {
+  let ctx: ReturnType<typeof buildService>;
+
+  beforeEach(() => {
+    ctx = buildService();
+    (ConfigModule as Record<string, unknown>).Config = {
+      prefixes: { issueUidPrefix: 'I', quoteUidPrefix: 'Q' },
+    };
+  });
+
+  it('throws NotFound when the issue does not exist', async () => {
+    ctx.supportIssueRepo.findOne.mockResolvedValue(null);
+    await expect(
+      ctx.service.createMessage('I123', { message: 'hi' } as CreateSupportMessageDto),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('tags the message with the fixed CustomerAuthor, overriding any caller-supplied author', async () => {
+    const issue = Object.assign(new SupportIssue(), { id: 7, uid: 'I123' });
+    ctx.supportIssueRepo.findOne.mockResolvedValue(issue);
+    const created = { id: 1, author: CustomerAuthor, message: 'hi' } as SupportMessageDto;
+    const createMessageInternal = jest.spyOn(ctx.service, 'createMessageInternal').mockResolvedValue(created);
+
+    const dto = { author: 'someone-else', message: 'hi' } as CreateSupportMessageDto;
+    const result = await ctx.service.createMessage('I123', dto, 42);
+
+    expect(createMessageInternal).toHaveBeenCalledWith(issue, { ...dto, author: CustomerAuthor });
+    expect(result).toBe(created);
+  });
+});
+
+describe('SupportIssueService.createMessageSupport', () => {
+  let ctx: ReturnType<typeof buildService>;
+
+  beforeEach(() => {
+    ctx = buildService();
+  });
+
+  it('throws NotFound when the issue does not exist', async () => {
+    ctx.supportIssueRepo.findOne.mockResolvedValue(null);
+    await expect(
+      ctx.service.createMessageSupport(7, { author: 'Alice', message: 'hi' } as CreateSupportMessageDto),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('creates the message by numeric issue id, preserving the caller-supplied (staff) author', async () => {
+    const issue = Object.assign(new SupportIssue(), { id: 7 });
+    ctx.supportIssueRepo.findOne.mockResolvedValue(issue);
+    const created = { id: 1, author: 'Alice', message: 'hi' } as SupportMessageDto;
+    const createMessageInternal = jest.spyOn(ctx.service, 'createMessageInternal').mockResolvedValue(created);
+
+    const dto = { author: 'Alice', message: 'hi' } as CreateSupportMessageDto;
+    const result = await ctx.service.createMessageSupport(7, dto);
+
+    expect(ctx.supportIssueRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 7 } }));
+    expect(createMessageInternal).toHaveBeenCalledWith(issue, dto);
+    expect(result).toBe(created);
+  });
+});
+
+describe('SupportIssueService.getIssueEntities', () => {
+  it('finds issues for the userData id, newest first, without eager relations', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.find.mockResolvedValue([]);
+
+    await ctx.service.getIssueEntities(42);
+
+    expect(ctx.supportIssueRepo.find).toHaveBeenCalledWith({
+      where: { userData: { id: 42 } },
+      relations: { transaction: true, limitRequest: true, messages: true },
+      loadEagerRelations: false,
+      order: { created: 'DESC' },
+    });
+  });
+});
+
+describe('SupportIssueService.getIssues', () => {
+  it('maps the found issues via SupportIssueDtoMapper', async () => {
+    const ctx = buildService();
+    const issue = Object.assign(new SupportIssue(), {
+      id: 1,
+      uid: 'I1',
+      type: SupportIssueType.GENERIC_ISSUE,
+      reason: SupportIssueReason.OTHER,
+      state: SupportIssueInternalState.PENDING,
+      name: 'Help',
+      created: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    ctx.supportIssueRepo.find.mockResolvedValue([issue]);
+
+    const result = await ctx.service.getIssues(42);
+
+    expect(ctx.supportIssueRepo.find).toHaveBeenCalledWith({
+      where: { userData: { id: 42 } },
+      relations: { transaction: true, limitRequest: true },
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ uid: 'I1', name: 'Help' });
+  });
+});
+
+describe('SupportIssueService.getIssue', () => {
+  beforeEach(() => {
+    (ConfigModule as Record<string, unknown>).Config = {
+      prefixes: { issueUidPrefix: 'I', quoteUidPrefix: 'Q' },
+    };
+  });
+
+  const makeIssue = (): SupportIssue =>
+    Object.assign(new SupportIssue(), {
+      id: 7,
+      uid: 'I123',
+      type: SupportIssueType.GENERIC_ISSUE,
+      reason: SupportIssueReason.OTHER,
+      name: 'Help',
+      created: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+  it('throws NotFound when the issue does not exist', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(null);
+    await expect(ctx.service.getIssue('I123', {} as GetSupportIssueFilter)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('loads only messages newer than fromMessageId and maps the issue', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(makeIssue());
+    ctx.messageRepo.findBy.mockResolvedValue([]);
+
+    await ctx.service.getIssue('I123', { fromMessageId: 10 } as GetSupportIssueFilter, 42);
+
+    const findByArg = ctx.messageRepo.findBy.mock.calls[0][0] as { issue: { id: number }; id: { value: number } };
+    expect(findByArg.issue).toEqual({ id: 7 });
+    expect(findByArg.id.value).toBe(10);
+  });
+
+  it('defaults fromMessageId to 0 when the filter omits it', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(makeIssue());
+    ctx.messageRepo.findBy.mockResolvedValue([]);
+
+    await ctx.service.getIssue('I123', {} as GetSupportIssueFilter, 42);
+
+    const findByArg = ctx.messageRepo.findBy.mock.calls[0][0] as { id: { value: number } };
+    expect(findByArg.id.value).toBe(0);
+  });
+});
+
+describe('SupportIssueService.getIssueData', () => {
+  const makeIssue = (overrides: Partial<SupportIssue> = {}): SupportIssue =>
+    Object.assign(new SupportIssue(), {
+      id: 5,
+      type: SupportIssueType.GENERIC_ISSUE,
+      userData: { id: 42, annualBuyVolume: 0, annualSellVolume: 0, annualCryptoVolume: 0 } as UserData,
+      limitRequest: { id: 9, limit: 1000 } as any,
+      ...overrides,
+    });
+
+  it('throws NotFound when the issue does not exist', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(null);
+    await expect(ctx.service.getIssueData(1, UserRole.ADMIN)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('fails closed (NotFound) when the customerIds scope excludes the issue owner, without an existence leak', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(makeIssue({ userData: { id: 99 } as UserData }));
+    await expect(ctx.service.getIssueData(5, UserRole.REALUNIT, [42])).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it.each([UserRole.SUPPORT, UserRole.REALUNIT])(
+    'hides the DFX AML-internal limit request for %s staff',
+    async (role) => {
+      const ctx = buildService();
+      ctx.supportIssueRepo.findOne.mockResolvedValue(makeIssue());
+      const dto = await ctx.service.getIssueData(5, role);
+      expect(dto.limitRequest).toBeUndefined();
+    },
+  );
+
+  it('shows the limit request for Compliance/Admin staff', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(makeIssue());
+    const dto = await ctx.service.getIssueData(5, UserRole.COMPLIANCE);
+    expect(dto.limitRequest).toEqual({ id: 9, limit: 1000 });
+  });
+});
+
+describe('SupportIssueService.getIssueFile', () => {
+  beforeEach(() => {
+    (ConfigModule as Record<string, unknown>).Config = {
+      prefixes: { issueUidPrefix: 'I', quoteUidPrefix: 'Q' },
+    };
+  });
+
+  it('throws NotFound when the message does not exist', async () => {
+    const ctx = buildService();
+    ctx.messageRepo.findOneBy.mockResolvedValue(null);
+    await expect(ctx.service.getIssueFile('I123', 5, 42)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('downloads the file scoped by message owner, issue id, and decoded file name', async () => {
+    const ctx = buildService();
+    const message = Object.assign(new SupportMessage(), {
+      id: 5,
+      fileUrl: 'https://blob/user/42/Issue/7/scan.png',
+      issue: Object.assign(new SupportIssue(), { id: 7, userData: { id: 42 } as UserData }),
+    });
+    ctx.messageRepo.findOneBy.mockResolvedValue(message);
+    const blob = { contentType: 'image/png', buffer: Buffer.from('x') } as unknown as BlobContent;
+    ctx.documentService.downloadFile.mockResolvedValue(blob);
+
+    const result = await ctx.service.getIssueFile('I123', 5, 42);
+
+    expect(ctx.messageRepo.findOneBy).toHaveBeenCalledWith({ id: 5, issue: { uid: 'I123' } });
+    expect(ctx.documentService.downloadFile).toHaveBeenCalledWith(42, 7, 'scan.png');
+    expect(result).toBe(blob);
+  });
+});
+
+describe('SupportIssueService.getUserIssues', () => {
+  it('returns the userData issues together with the full message set for those issues', async () => {
+    const ctx = buildService();
+    const issues = [Object.assign(new SupportIssue(), { id: 1 }), Object.assign(new SupportIssue(), { id: 2 })];
+    ctx.supportIssueRepo.find.mockResolvedValue(issues);
+    const messages = [Object.assign(new SupportMessage(), { id: 10 })];
+    ctx.messageRepo.findBy.mockResolvedValue(messages);
+
+    const result = await ctx.service.getUserIssues(42);
+
+    expect(ctx.supportIssueRepo.find).toHaveBeenCalledWith({
+      where: { userData: { id: 42 } },
+      relations: { transaction: true, limitRequest: true },
+    });
+    const findByArg = ctx.messageRepo.findBy.mock.calls[0][0] as unknown as { issue: { id: { value: number[] } } };
+    expect(findByArg.issue.id.value).toEqual([1, 2]);
+    expect(result).toEqual({ supportIssues: issues, supportMessages: messages });
+  });
+});
+
+describe('SupportIssueService.getIssueUserDataId', () => {
+  it('throws NotFound when the issue does not exist', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(null);
+    await expect(ctx.service.getIssueUserDataId(1)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('throws NotFound when the issue has no owning userData', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(Object.assign(new SupportIssue(), { id: 1, userData: undefined }));
+    await expect(ctx.service.getIssueUserDataId(1)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('resolves the owning userData id', async () => {
+    const ctx = buildService();
+    ctx.supportIssueRepo.findOne.mockResolvedValue(
+      Object.assign(new SupportIssue(), { id: 1, userData: { id: 77 } as UserData }),
+    );
+    await expect(ctx.service.getIssueUserDataId(1)).resolves.toBe(77);
+  });
+});
+
+describe('SupportIssueService.createMessageInternal', () => {
+  let ctx: ReturnType<typeof buildService>;
+
+  const makeIssue = (overrides: Partial<SupportIssue> = {}): SupportIssue =>
+    Object.assign(new SupportIssue(), {
+      id: 7,
+      state: SupportIssueInternalState.PENDING,
+      clerk: undefined,
+      userData: { id: 42 } as UserData,
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    ctx = buildService();
+    // Mirrors TypeORM's real `Repository.create()`, which copies only known @Column/relation fields from
+    // the plain object (author, message, issue) - NOT the DTO-only `file`/`fileName` fields, which would
+    // collide with SupportMessage's getter-only `fileName` accessor under a naive Object.assign.
+    ctx.messageRepo.create.mockImplementation((obj: { author?: string; message?: string; issue?: SupportIssue }) =>
+      Object.assign(new SupportMessage(), { author: obj.author, message: obj.message, issue: obj.issue }),
+    );
+  });
+
+  it('throws BadRequest when the author is missing', async () => {
+    await expect(
+      ctx.service.createMessageInternal(makeIssue(), { message: 'hi' } as CreateSupportMessageDto),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('throws BadRequest when neither message nor file is provided', async () => {
+    await expect(
+      ctx.service.createMessageInternal(makeIssue(), { author: 'Alice' } as CreateSupportMessageDto),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('throws BadRequest when the message exceeds 4000 characters', async () => {
+    const dto = { author: 'Alice', message: 'x'.repeat(4001) } as CreateSupportMessageDto;
+    await expect(ctx.service.createMessageInternal(makeIssue(), dto)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('uploads a base64 file, naming it with the timestamp, author, a random id, and the original file name', async () => {
+    ctx.documentService.uploadUserFile.mockResolvedValue('https://blob/url');
+    const dto = {
+      author: 'Alice',
+      file: 'data:image/png;base64,aGVsbG8=',
+      fileName: 'scan.png',
+    } as CreateSupportMessageDto;
+
+    await ctx.service.createMessageInternal(makeIssue(), dto);
+
+    expect(ctx.documentService.uploadUserFile).toHaveBeenCalledWith(
+      42,
+      7,
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_alice_\d+_scan\.png$/),
+      Buffer.from('aGVsbG8=', 'base64'),
+      'image/png',
+    );
+    expect(ctx.messageRepo.save).toHaveBeenCalledWith(expect.objectContaining({ fileUrl: 'https://blob/url' }));
+  });
+
+  it('skips the upload when dto.file is absent', async () => {
+    const dto = { author: 'Alice', message: 'hi' } as CreateSupportMessageDto;
+    await ctx.service.createMessageInternal(makeIssue(), dto);
+    expect(ctx.documentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('sets the clerk and notifies when the author is not the customer', async () => {
+    const issue = makeIssue({ clerk: undefined });
+    const dto = { author: 'Alice', message: 'hi' } as CreateSupportMessageDto;
+
+    await ctx.service.createMessageInternal(issue, dto);
+
+    expect(ctx.supportIssueRepo.update).toHaveBeenCalledWith(7, { clerk: 'Alice' });
+    expect(ctx.supportIssueNotificationService.newSupportMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ author: 'Alice', message: 'hi' }),
+    );
+  });
+
+  it('clears an AutoResponder clerk when the customer replies', async () => {
+    const issue = makeIssue({ clerk: AutoResponder });
+    const dto = { author: CustomerAuthor, message: 'thanks' } as CreateSupportMessageDto;
+
+    await ctx.service.createMessageInternal(issue, dto);
+
+    expect(ctx.supportIssueRepo.update).toHaveBeenCalledWith(7, { clerk: null });
+    expect(ctx.supportIssueNotificationService.newSupportMessage).not.toHaveBeenCalled();
+  });
+
+  it('leaves the clerk untouched (no update, no notification) for a customer reply on a non-autoresponder issue', async () => {
+    const issue = makeIssue({ clerk: 'Alice' });
+    const dto = { author: CustomerAuthor, message: 'thanks' } as CreateSupportMessageDto;
+
+    await ctx.service.createMessageInternal(issue, dto);
+
+    expect(ctx.supportIssueRepo.update).not.toHaveBeenCalled();
+    expect(ctx.supportIssueNotificationService.newSupportMessage).not.toHaveBeenCalled();
+  });
+
+  it.each([SupportIssueInternalState.COMPLETED, SupportIssueInternalState.ON_HOLD, SupportIssueInternalState.CANCELED])(
+    'reopens a %s issue to Pending on a new message',
+    async (state) => {
+      const issue = makeIssue({ state, clerk: 'Alice' });
+      const dto = { author: CustomerAuthor, message: 'reopening' } as CreateSupportMessageDto;
+
+      await ctx.service.createMessageInternal(issue, dto);
+
+      expect(ctx.supportIssueRepo.update).toHaveBeenCalledWith(7, { state: SupportIssueInternalState.PENDING });
+    },
+  );
+
+  it.each([
+    SupportIssueInternalState.PENDING,
+    SupportIssueInternalState.IN_PROGRESS,
+    SupportIssueInternalState.IN_CLARIFICATION,
+    SupportIssueInternalState.CREATED,
+  ])('does not reopen a %s issue', async (state) => {
+    const issue = makeIssue({ state, clerk: 'Alice' });
+    const dto = { author: CustomerAuthor, message: 'still going' } as CreateSupportMessageDto;
+
+    await ctx.service.createMessageInternal(issue, dto);
+
+    expect(ctx.supportIssueRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('returns the mapped message dto', async () => {
+    const dto = { author: 'Alice', message: 'hi there' } as CreateSupportMessageDto;
+    const result = await ctx.service.createMessageInternal(makeIssue(), dto);
+    expect(result).toMatchObject({ author: 'Alice', message: 'hi there' });
   });
 });
