@@ -1969,5 +1969,101 @@ describe('LogJobService', () => {
       expect(assetLog[yapealEurAsset.id].plusBalance.pending.toKraken).toBe(-100000);
       expect(assetLog[yapealEurAsset.id].plusBalance.pending.fromKraken).toBe(900000);
     });
+
+    it('does not report fromKraken !== fromKrakenUnfiltered for a residue below BALANCE_TOLERANCE (prod float-summation artifact)', async () => {
+      const yapealEurAsset = createCustomAsset({
+        id: 8006,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'EUR',
+        sellable: true,
+      });
+
+      // No `created` date is set, so filterSenderPendingList excludes this leg from the filtered
+      // sender list entirely (see setupUnfilteredKrakenNetting) — fromKraken (filtered) stays 0.
+      // The unfiltered raw sender list has no such recency filter, so fromKrakenUnfiltered picks up
+      // this leg at the exact production residue magnitude — a difference below BALANCE_TOLERANCE.
+      const residueTx = createCustomExchangeTx({
+        id: 6001,
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: 'YAPEAL AG',
+        amount: 1.1641532182693481e-10,
+      });
+      setupUnfilteredKrakenNetting([residueTx]);
+
+      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
+
+      await service['getAssetLog']([yapealEurAsset]);
+
+      expect(
+        verboseSpy.mock.calls.some((call) =>
+          String(call[0]).includes('fromKraken balance !== fromKrakenUnfiltered balance'),
+        ),
+      ).toBe(false);
+    });
+
+    it('still reports fromKraken !== fromKrakenUnfiltered for a deviation above BALANCE_TOLERANCE (regression against over-wide masking)', async () => {
+      const yapealEurAsset = createCustomAsset({
+        id: 8007,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'EUR',
+        sellable: true,
+      });
+
+      // Same mechanism as above, but the leg amount is well above BALANCE_TOLERANCE — the guard must
+      // still fire so a genuine reconciliation gap is never masked by the tolerance.
+      const materialTx = createCustomExchangeTx({
+        id: 6002,
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: 'YAPEAL AG',
+        amount: 1,
+      });
+      setupUnfilteredKrakenNetting([materialTx]);
+
+      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
+
+      await service['getAssetLog']([yapealEurAsset]);
+
+      expect(
+        verboseSpy.mock.calls.some((call) =>
+          String(call[0]).includes('fromKraken balance !== fromKrakenUnfiltered balance'),
+        ),
+      ).toBe(true);
+    });
+
+    it('does not report totalPlusPending < 0 for a residue below BALANCE_TOLERANCE, but still clamps it to 0', async () => {
+      const yapealEurAsset = createCustomAsset({
+        id: 8008,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'EUR',
+        sellable: true,
+      });
+
+      // Unmatched Kraken deposit (Yapeal -> Kraken direction) at the exact production residue
+      // magnitude: toKrakenUnfiltered becomes minimally negative, making totalPlusPending minimally
+      // negative (useUnfilteredTx is true in setupUnfilteredKrakenNetting). Below BALANCE_TOLERANCE,
+      // this must not be reported, but the aggregate clamp to 0 must still run.
+      const residueDepositTx = createCustomExchangeTx({
+        id: 6003,
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'EUR',
+        method: 'Bank Frick (SEPA) International',
+        address: yapealEUR.bic.padEnd(11, 'XXX'),
+        amount: 1.1641532182693481e-10,
+      });
+      setupUnfilteredKrakenNetting([residueDepositTx]);
+
+      const verboseSpy = jest.spyOn(service['logger'], 'verbose');
+
+      const assetLog = await service['getAssetLog']([yapealEurAsset]);
+
+      expect(verboseSpy.mock.calls.some((call) => String(call[0]).includes('totalPlusPending < 0'))).toBe(false);
+      expect(assetLog[yapealEurAsset.id].plusBalance.pending).toBeUndefined();
+      expect(assetLog[yapealEurAsset.id].plusBalance.total).toBe(0);
+    });
   });
 });

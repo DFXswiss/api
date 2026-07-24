@@ -836,28 +836,32 @@ export class LogJobService {
 
       const errors = [];
 
-      if (fromKraken !== fromKrakenUnfiltered) {
+      // Float-summation residues from aggregating large pending amounts (bank/exchange legs) can leave
+      // sub-cent differences between filtered and unfiltered sums, or nudge a balance minimally negative.
+      // Only material deviations (beyond BALANCE_TOLERANCE) indicate a real reconciliation anomaly; the
+      // clamp to 0 below still applies to every negative value, regardless of whether it gets reported.
+      if (Math.abs(fromKraken - fromKrakenUnfiltered) > BALANCE_TOLERANCE) {
         errors.push(`fromKraken !== fromKrakenUnfiltered`);
         this.logger
           .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount:
         ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
       }
 
-      if (toKraken !== toKrakenUnfiltered) {
+      if (Math.abs(toKraken - toKrakenUnfiltered) > BALANCE_TOLERANCE) {
         errors.push(`toKraken !== toKrakenUnfiltered`);
         this.logger
           .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount:
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
       }
 
-      if (fromScrypt !== fromScryptUnfiltered) {
+      if (Math.abs(fromScrypt - fromScryptUnfiltered) > BALANCE_TOLERANCE) {
         errors.push(`fromScrypt !== fromScryptUnfiltered`);
         this.logger.verbose(
           `Error in financial log, fromScrypt balance !== fromScryptUnfiltered balance for asset: ${curr.id}, fromScryptAmount: ${fromScrypt}, fromScryptUnfilteredAmount: ${fromScryptUnfiltered}`,
         );
       }
 
-      if (toScrypt !== toScryptUnfiltered) {
+      if (Math.abs(toScrypt - toScryptUnfiltered) > BALANCE_TOLERANCE) {
         errors.push(`toScrypt !== toScryptUnfiltered`);
         this.logger.verbose(
           `Error in financial log, toScrypt balance !== toScryptUnfiltered balance for asset: ${curr.id}, toScryptAmount: ${toScrypt}, toScryptUnfilteredAmount: ${toScryptUnfiltered}`,
@@ -865,39 +869,47 @@ export class LogJobService {
       }
 
       if (fromKraken < 0) {
-        errors.push(`fromKraken < 0`);
-        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+        if (fromKraken < -BALANCE_TOLERANCE) {
+          errors.push(`fromKraken < 0`);
+          this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
         ${pendingYapealKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealKrakenMinusAmount},
         pendingEurMinusAmount: ${pendingEurYapealKrakenMinusAmount}`);
+        }
         fromKraken = 0;
       }
       if (toKraken < 0) {
-        errors.push(`toKraken < 0`);
-        this.logger.verbose(
-          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+        if (toKraken < -BALANCE_TOLERANCE) {
+          errors.push(`toKraken < 0`);
+          this.logger.verbose(
+            `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
           ${pendingYapealKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealKrakenMinusAmount},
           pendingEurMinusAmount: ${pendingEurYapealKrakenMinusAmount}`,
-        );
+          );
+        }
         toKraken = 0;
       }
 
       if (toScrypt < 0) {
-        errors.push(`toScrypt < 0`);
-        this.logger.verbose(
-          `Error in financial log, toScrypt balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+        if (toScrypt < -BALANCE_TOLERANCE) {
+          errors.push(`toScrypt < 0`);
+          this.logger.verbose(
+            `Error in financial log, toScrypt balance < 0 for asset: ${curr.id}, pendingPlusAmount:
           ${pendingBankScryptPlusAmount}, pendingChfMinusAmount: ${pendingChfBankScryptMinusAmount},
           pendingEurMinusAmount: ${pendingEurBankScryptMinusAmount}`,
-        );
+          );
+        }
         toScrypt = 0;
       }
 
       if (fromScrypt < 0) {
-        errors.push(`fromScrypt < 0`);
-        this.logger.verbose(
-          `Error in financial log, fromScrypt balance < 0 for asset: ${curr.id}, pendingChfPlusAmount:
+        if (fromScrypt < -BALANCE_TOLERANCE) {
+          errors.push(`fromScrypt < 0`);
+          this.logger.verbose(
+            `Error in financial log, fromScrypt balance < 0 for asset: ${curr.id}, pendingChfPlusAmount:
           ${pendingChfScryptBankPlusAmount}, pendingEurPlusAmount: ${pendingEurScryptBankPlusAmount},
           pendingMinusAmount: ${pendingScryptBankMinusAmount}`,
-        );
+          );
+        }
         fromScrypt = 0;
       }
 
@@ -915,13 +927,15 @@ export class LogJobService {
       // Clamp totalPlusPending to prevent negative plus balances
       // This catches any negative values from unfiltered Kraken/Scrypt or other components
       if (totalPlusPending < 0) {
-        errors.push(`totalPlusPending < 0`);
-        this.logger.verbose(
-          `Error in financial log, totalPlusPending < 0 for asset: ${curr.id}, totalPlusPending: ${totalPlusPending}. ` +
-            `Components: cryptoInput=${cryptoInput}, exchangeOrder=${exchangeOrder}, bridgeOrder=${bridgeOrder}, ` +
-            `olky=${pendingOlkyYapealAmount}, kraken=${useUnfilteredTx ? fromKrakenUnfiltered : fromKraken}+${useUnfilteredTx ? toKrakenUnfiltered : toKraken}, ` +
-            `scrypt=${useUnfilteredTx ? fromScryptUnfiltered : fromScrypt}+${useUnfilteredTx ? toScryptUnfiltered : toScrypt}`,
-        );
+        if (totalPlusPending < -BALANCE_TOLERANCE) {
+          errors.push(`totalPlusPending < 0`);
+          this.logger.verbose(
+            `Error in financial log, totalPlusPending < 0 for asset: ${curr.id}, totalPlusPending: ${totalPlusPending}. ` +
+              `Components: cryptoInput=${cryptoInput}, exchangeOrder=${exchangeOrder}, bridgeOrder=${bridgeOrder}, ` +
+              `olky=${pendingOlkyYapealAmount}, kraken=${useUnfilteredTx ? fromKrakenUnfiltered : fromKraken}+${useUnfilteredTx ? toKrakenUnfiltered : toKraken}, ` +
+              `scrypt=${useUnfilteredTx ? fromScryptUnfiltered : fromScrypt}+${useUnfilteredTx ? toScryptUnfiltered : toScrypt}`,
+          );
+        }
         totalPlusPending = 0;
       }
 
