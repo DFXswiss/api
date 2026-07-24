@@ -116,14 +116,31 @@ export function assertPageComplete(isTruncated: boolean, nextToken: string | und
 }
 
 /**
- * True iff the ETag (quotes stripped) is exactly 32 hex chars — the shape of a single-part
- * upload MD5. Multipart ETags have the form `<32-hex>-<partCount>` and are never a
- * whole-object MD5. Shape alone does not prove the value is an MD5 (see md5Matches).
+ * Remove a matching pair of surrounding double quotes only.
+ * Leading-only or trailing-only quotes are left unchanged so malformed values
+ * do not collide after normalization (e.g. `"abc` vs `abc"`).
+ * A single-character `"` is not stripped (needs length >= 2 with both ends quoted).
+ */
+function stripPairedQuotes(value: string): string {
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+/** True when a trimmed ETag is a weak validator (RFC 7232 §2.1 `W/` prefix). */
+function isWeakValidator(etag: string): boolean {
+  return etag.trim().startsWith('W/');
+}
+
+/**
+ * True iff the ETag (paired surrounding quotes stripped) is exactly 32 hex chars — the
+ * shape of a single-part upload MD5. Multipart ETags have the form `<32-hex>-<partCount>`
+ * and are never a whole-object MD5. Shape alone does not prove the value is an MD5
+ * (see md5Matches).
  */
 export function isSinglePartEtag(etag: string): boolean {
-  let stripped = etag;
-  if (stripped.startsWith('"')) stripped = stripped.slice(1);
-  if (stripped.endsWith('"')) stripped = stripped.slice(0, -1);
+  const stripped = stripPairedQuotes(etag);
   return /^[0-9a-fA-F]{32}$/.test(stripped);
 }
 
@@ -139,10 +156,7 @@ export function md5Matches(azureContentMd5: string | undefined, s3Etag: string |
   if (azureContentMd5 === undefined || s3Etag === undefined) return null;
   if (!isSinglePartEtag(s3Etag)) return null;
 
-  let etagHex = s3Etag;
-  if (etagHex.startsWith('"')) etagHex = etagHex.slice(1);
-  if (etagHex.endsWith('"')) etagHex = etagHex.slice(0, -1);
-  etagHex = etagHex.toLowerCase();
+  const etagHex = stripPairedQuotes(s3Etag).toLowerCase();
 
   const azureHex = Buffer.from(azureContentMd5, 'base64').toString('hex').toLowerCase();
   return azureHex === etagHex;
@@ -161,26 +175,30 @@ export function objectSignature(azure: ContentObject, s3: ContentObject): string
 
 /**
  * Normalize an ETag for version comparison across list vs download APIs.
- * Strips optional weak-validator prefix `W/`, surrounding double quotes, and
- * leading/trailing whitespace. Listing and download often disagree only on
- * quoting (e.g. Azure list returns unquoted; download returns quoted).
+ * Trims leading/trailing whitespace and strips a matching pair of surrounding double
+ * quotes. Listing and download often disagree only on quoting (e.g. Azure list returns
+ * unquoted; download returns quoted). Does not strip a weak-validator `W/` prefix —
+ * weak validators are rejected by assertHashVersionUnchanged (RFC 7232 §2.1: a weak
+ * validator does not guarantee byte identity).
  */
 export function normalizeEtag(etag: string): string {
-  let normalized = etag.trim();
-  if (normalized.startsWith('W/')) {
-    normalized = normalized.slice(2);
-  }
-  if (normalized.startsWith('"')) normalized = normalized.slice(1);
-  if (normalized.endsWith('"')) normalized = normalized.slice(0, -1);
-  return normalized;
+  return stripPairedQuotes(etag.trim());
 }
 
 /**
  * Guards against TOCTOU/ABA: the object that was actually hashed (download-time ETag)
  * must be the exact same version that was listed (listing-time ETag) — otherwise the
  * proof we are about to store would vouch for bytes we never actually hashed.
+ * Weak validators (RFC 7232 §2.1) fail closed: they do not prove byte identity, so the
+ * hash proof cannot be bound to them even when both sides share the same trailing value.
  */
 export function assertHashVersionUnchanged(listedEtag: string, downloadedEtag: string, label: string): void {
+  if (isWeakValidator(listedEtag) || isWeakValidator(downloadedEtag)) {
+    throw new Error(
+      `weak validator does not guarantee byte identity; hash proof cannot be bound to it — ${label}: ` +
+        `listedEtag=${listedEtag} downloadedEtag=${downloadedEtag}`,
+    );
+  }
   if (normalizeEtag(listedEtag) !== normalizeEtag(downloadedEtag)) {
     throw new Error(
       `object changed between listing and hash — ${label}: listedEtag=${listedEtag} downloadedEtag=${downloadedEtag}`,

@@ -7,6 +7,7 @@ import {
   isSinglePartEtag,
   isStillProvenByHash,
   md5Matches,
+  normalizeEtag,
   objectSignature,
   parseConfig,
 } from '../../../../../scripts/storage/verify-content';
@@ -58,6 +59,14 @@ describe('isSinglePartEtag', () => {
   it('returns false for non-hex or wrong-length values', () => {
     expect(isSinglePartEtag('abc')).toBe(false);
     expect(isSinglePartEtag('g'.repeat(32))).toBe(false);
+  });
+
+  it('does not treat unpaired or empty quote forms as single-part', () => {
+    // Paired-quote strip only; lone/asymmetric quotes must not become a bare 32-hex value.
+    expect(isSinglePartEtag('')).toBe(false);
+    expect(isSinglePartEtag('"')).toBe(false);
+    expect(isSinglePartEtag(`"${EMPTY_MD5_HEX}`)).toBe(false);
+    expect(isSinglePartEtag(`${EMPTY_MD5_HEX}"`)).toBe(false);
   });
 });
 
@@ -238,8 +247,16 @@ describe('assertHashVersionUnchanged', () => {
     expect(() => assertHashVersionUnchanged('"abc"', 'abc', 'azure test/key')).not.toThrow();
   });
 
-  it('does not throw when one ETag has a weak-validator prefix', () => {
-    expect(() => assertHashVersionUnchanged('W/"abc"', 'abc', 'azure test/key')).not.toThrow();
+  it('throws when listed ETag has a weak-validator prefix', () => {
+    expect(() => assertHashVersionUnchanged('W/"abc"', 'abc', 'azure test/key')).toThrow(/weak/i);
+  });
+
+  it('throws when downloaded ETag has a weak-validator prefix', () => {
+    expect(() => assertHashVersionUnchanged('abc', 'W/"abc"', 'azure test/key')).toThrow(/weak/i);
+  });
+
+  it('throws when both ETags have a weak-validator prefix', () => {
+    expect(() => assertHashVersionUnchanged('W/"abc"', 'W/"abc"', 'azure test/key')).toThrow(/weak/i);
   });
 
   it('throws when ETags are genuinely different', () => {
@@ -250,6 +267,24 @@ describe('assertHashVersionUnchanged', () => {
     expect(() => assertHashVersionUnchanged('W/"abc"', '"def"', 'azure test/key')).toThrow(
       /listedEtag=W\/"abc".*downloadedEtag="def"/,
     );
+  });
+
+  it('throws for asymmetric quoting (leading-only vs trailing-only must not match)', () => {
+    expect(() => assertHashVersionUnchanged('"abc', 'abc"', 'azure test/key')).toThrow();
+  });
+
+  it('normalizeEtag only strips paired quotes; empty, lone, and asymmetric quotes stay distinct', () => {
+    expect(normalizeEtag('')).toBe('');
+    expect(normalizeEtag('"')).toBe('"');
+    expect(normalizeEtag('"abc')).toBe('"abc');
+    expect(normalizeEtag('abc"')).toBe('abc"');
+    expect(normalizeEtag('"abc"')).toBe('abc');
+    // Empty and lone quote must not collide with each other or with stripped values.
+    expect(normalizeEtag('')).not.toBe(normalizeEtag('"'));
+    expect(normalizeEtag('"')).not.toBe(normalizeEtag('""'));
+    expect(normalizeEtag('"abc')).not.toBe(normalizeEtag('abc"'));
+    expect(normalizeEtag('"abc')).not.toBe(normalizeEtag('abc'));
+    expect(normalizeEtag('abc"')).not.toBe(normalizeEtag('abc'));
   });
 });
 
