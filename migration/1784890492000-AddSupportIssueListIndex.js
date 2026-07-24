@@ -7,8 +7,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddSupportIssueListIndex1784700000001 {
-    name = 'AddSupportIssueListIndex1784700000001'
+module.exports = class AddSupportIssueListIndex1784890492000 {
+    name = 'AddSupportIssueListIndex1784890492000'
 
     /**
      * @param {QueryRunner} queryRunner
