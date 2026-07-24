@@ -419,9 +419,7 @@ describe('assertWormContainersConfig', () => {
     expect(() => assertWormContainersConfig(true, ['kyc', 'missing'], ['kyc', 'support'])).toThrow(
       /not among the reconciled containers/,
     );
-    expect(() => assertWormContainersConfig(true, ['kyc', 'missing'], ['kyc', 'support'])).toThrow(
-      /missing/,
-    );
+    expect(() => assertWormContainersConfig(true, ['kyc', 'missing'], ['kyc', 'support'])).toThrow(/missing/);
   });
 
   it('does not throw when every declared WORM container is reconciled', () => {
@@ -440,9 +438,7 @@ describe('assertBucketWorm / assertBucketWormIfDeclared / assertUndeclaredBucket
     });
     const client = makeS3Client();
     const verified = new Map<string, boolean>();
-    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(
-      /Refusing azure→s3 heal into bucket "kyc"/,
-    );
+    await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(/Refusing azure→s3 heal into bucket "kyc"/);
     await expect(assertBucketWorm(client, 'kyc', verified)).rejects.toThrow(/Object Lock is not Enabled/);
     expect(verified.get('kyc')).toBeUndefined();
   });
@@ -490,9 +486,7 @@ describe('assertBucketWorm / assertBucketWormIfDeclared / assertUndeclaredBucket
     const verified = new Map<string, boolean>();
     const noWormVerified = new Map<string, boolean>();
     const worm = new Set(['kyc']);
-    await expect(
-      assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified),
-    ).resolves.toBeUndefined();
+    await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified)).resolves.toBeUndefined();
     expect(verified.get('kyc')).toBe(true);
     expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
   });
@@ -509,12 +503,12 @@ describe('assertBucketWorm / assertBucketWormIfDeclared / assertUndeclaredBucket
     const noWormVerified = new Map<string, boolean>();
     // kyc has Object Lock but was forgotten from RECONCILE_WORM_CONTAINERS
     const worm = new Set(['ep2-example']);
-    await expect(
-      assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified),
-    ).rejects.toThrow(/not declared in RECONCILE_WORM_CONTAINERS/);
-    await expect(
-      assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified),
-    ).rejects.toThrow(/under-declaration/);
+    await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified)).rejects.toThrow(
+      /not declared in RECONCILE_WORM_CONTAINERS/,
+    );
+    await expect(assertBucketWormIfDeclared(client, 'kyc', worm, verified, noWormVerified)).rejects.toThrow(
+      /under-declaration/,
+    );
     expect(noWormVerified.get('kyc')).toBeUndefined();
   });
 
