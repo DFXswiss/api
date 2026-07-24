@@ -427,20 +427,29 @@ export class KycService {
       if (approvalStep?.isOnHold) {
         await this.kycStepRepo.update(...approvalStep.manualReview());
       } else if (!approvalStep && !userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isInReview)) {
-        const newStep = await this.initiateStep(userData, KycStepName.DFX_APPROVAL).catch((e) => {
-          if (e.message.includes('Cannot insert duplicate key'))
-            return this.kycStepRepo.findOneBy({
-              name: KycStepName.DFX_APPROVAL,
-              status: ReviewStatus.ON_HOLD,
-              userData: { id: userData.id },
-            });
+        const newStep = await this.initiateStep(userData, KycStepName.DFX_APPROVAL).catch(async (e) => {
+          if (!this.isKycStepUniqueViolation(e)) throw e;
 
-          throw e;
+          // a concurrent caller won the create race → adopt the winner's step
+          const winner = await this.kycStepRepo.findOne({
+            where: { name: KycStepName.DFX_APPROVAL, userData: { id: userData.id } },
+            order: { sequenceNumber: 'DESC' },
+          });
+          if (winner?.isOnHold) return winner;
+          if (winner?.isInReview) return undefined; // winner already advanced → nothing left to do
+          throw e; // 23505 on the right constraint but no provable winner → surface the original error
         });
 
         if (newStep) await this.kycStepRepo.update(...newStep.manualReview());
       }
     }
+  }
+
+  // Postgres unique_violation (SQLSTATE 23505) on the kyc_step composite unique index (userData, name, type, sequenceNumber)
+  private isKycStepUniqueViolation(error: unknown): boolean {
+    const e = error as { code?: string; constraint?: string };
+    const kycStepUniqueIndex = this.kycStepRepo.metadata.indices.find((i) => i.isUnique)?.name;
+    return e?.code === '23505' && e?.constraint != null && e.constraint === kycStepUniqueIndex;
   }
 
   async getInfo(kycHash: string, context?: KycContext): Promise<KycLevelDto> {

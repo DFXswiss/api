@@ -4,6 +4,8 @@ import { Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { isConnectionFailure } from 'src/shared/utils/outage-logger';
+import { Util } from 'src/shared/utils/util';
 import { Price } from '../../domain/entities/price';
 import { PricingProvider } from './pricing-provider';
 
@@ -89,26 +91,46 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
+  // Connect-level failures to CoinGecko typically last seconds; one bounded retry absorbs
+  // them, while non-network errors (rate limit, bad request) still surface immediately.
+  private retryOnConnectionFailure<T>(call: () => Promise<T>): Promise<T> {
+    return Util.retry(call, 2, 500, undefined, isConnectionFailure);
+  }
+
   private async fetchPriceFromToken(token: string, currency: string): Promise<Price> {
     try {
-      const data = await this.client.simplePrice({ ids: token, vs_currencies: currency });
+      const data = await this.retryOnConnectionFailure(() =>
+        this.client.simplePrice({ ids: token, vs_currencies: currency }),
+      );
       const price = data[token]?.[currency];
       if (!price) throw new Error('Price not found');
 
       return Price.create(token, currency, 1 / price);
     } catch (e) {
       this.logger.error(`Failed to get price for token ${token} -> ${currency}:`, e);
-      throw new ServiceUnavailableException(`Failed to get price`);
+      // Preserve the real underlying error (message/code/cause) instead of throwing a causeless,
+      // generic exception — downstream classification (PricingService.getPriceFrom) needs it to
+      // tell a genuine connection-class outage apart from other failures.
+      throw Object.assign(
+        new ServiceUnavailableException((e instanceof Error ? e.message : String(e)) ?? 'Failed to get price', {
+          cause: e,
+        }),
+        {
+          ...(e instanceof Error && 'code' in e ? { code: (e as any).code } : {}),
+        },
+      );
     }
   }
 
   private async fetchPriceFromContract(contractAddress: string, currency: string): Promise<Price> {
     try {
-      const data = await this.client.simpleTokenPrice({
-        id: 'ethereum',
-        contract_addresses: contractAddress,
-        vs_currencies: currency,
-      });
+      const data = await this.retryOnConnectionFailure(() =>
+        this.client.simpleTokenPrice({
+          id: 'ethereum',
+          contract_addresses: contractAddress,
+          vs_currencies: currency,
+        }),
+      );
       const price = data[contractAddress]?.[currency];
       if (!price) {
         this.logger.info(`No price for contract ${contractAddress} -> ${currency}`);
@@ -118,7 +140,14 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
       return Price.create(contractAddress, currency, 1 / price);
     } catch (e) {
       this.logger.error(`Failed to get price for contract ${contractAddress} -> ${currency}:`, e);
-      throw new ServiceUnavailableException(`Failed to get price`);
+      throw Object.assign(
+        new ServiceUnavailableException((e instanceof Error ? e.message : String(e)) ?? 'Failed to get price', {
+          cause: e,
+        }),
+        {
+          ...(e instanceof Error && 'code' in e ? { code: (e as any).code } : {}),
+        },
+      );
     }
   }
 
