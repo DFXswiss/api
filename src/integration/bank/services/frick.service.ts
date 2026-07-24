@@ -232,7 +232,6 @@ export class BankFrickService {
     this.assertVibanAvailable();
     const all: FrickVirtualIban[] = [];
     const seenVibans = new Set<string>();
-    const seenPageIndices = new Set<number>();
     let expectedTotalCount: number | undefined;
     let pageIndex = 0;
     const maxPages = 10_000;
@@ -243,10 +242,6 @@ export class BankFrickService {
         throw new Error(
           `Bank Frick virtual IBAN listing returned unexpected pageIndex ${page.pagination.pageIndex} (expected ${pageIndex})`,
         );
-      if (seenPageIndices.has(page.pagination.pageIndex))
-        throw new Error('Bank Frick virtual IBAN listing pagination did not advance');
-      seenPageIndices.add(page.pagination.pageIndex);
-
       expectedTotalCount ??= page.pagination.totalCount;
       if (page.pagination.totalCount !== expectedTotalCount)
         throw new Error('Bank Frick virtual IBAN listing changed totalCount during pagination');

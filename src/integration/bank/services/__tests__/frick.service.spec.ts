@@ -1152,6 +1152,92 @@ describe('BankFrickService', () => {
     await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow('unexpected pageIndex');
   });
 
+  it('rejects invalid virtual-IBAN page sizes and inconsistent pagination envelopes', async () => {
+    await expect(service.listVibans(undefined, undefined, -1)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBAN pageIndex',
+    );
+    await expect(service.listVibans(undefined, undefined, 0.5)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBAN pageIndex',
+    );
+    await expect(service.listVibans(undefined, undefined, 0, 0)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBAN pageSize',
+    );
+    await expect(service.listVibans(undefined, undefined, 0, 1.5)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBAN pageSize',
+    );
+    await expect(service.listVibans(undefined, undefined, 0, 201)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBAN pageSize',
+    );
+
+    const first = virtualIbanResponse({ state: FrickVirtualIbanState.PREPARED });
+    const second = virtualIbanResponse({
+      state: FrickVirtualIbanState.ACTIVE,
+      vban: createSyntheticIban('LI', '00000VBANACCOUNT2'),
+    });
+    const listSpy = jest.spyOn(service, 'listVibans');
+
+    listSpy.mockResolvedValueOnce({
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 0 },
+      virtualIbans: [],
+    });
+    await expect(service.listAllVibans()).resolves.toEqual([]);
+
+    listSpy
+      .mockResolvedValueOnce({
+        pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 2 },
+        virtualIbans: [first],
+      })
+      .mockResolvedValueOnce({
+        pagination: { hasMore: false, pageIndex: 1, pageSize: 1, totalCount: 3 },
+        virtualIbans: [second],
+      });
+    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow(
+      'changed totalCount during pagination',
+    );
+
+    listSpy.mockReset().mockResolvedValueOnce({
+      pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 1 },
+      virtualIbans: [],
+    });
+    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow(
+      'reported more pages but returned no items',
+    );
+
+    listSpy
+      .mockReset()
+      .mockResolvedValueOnce({
+        pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 2 },
+        virtualIbans: [first],
+      })
+      .mockResolvedValueOnce({
+        pagination: { hasMore: false, pageIndex: 1, pageSize: 1, totalCount: 2 },
+        virtualIbans: [first],
+      });
+    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow('duplicate item across pages');
+
+    listSpy.mockReset().mockResolvedValueOnce({
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 1, totalCount: 2 },
+      virtualIbans: [first],
+    });
+    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow('returned 1 of 2 items');
+  });
+
+  it('fails closed when virtual-IBAN pagination exceeds the safety limit', async () => {
+    jest.spyOn(service, 'listVibans').mockImplementation(async (_account, _states, pageIndex = 0) => ({
+      pagination: { hasMore: true, pageIndex, pageSize: 1, totalCount: 10_001 },
+      virtualIbans: [{ ...virtualIbanResponse(), vban: `synthetic-vban-${pageIndex}` }],
+    }));
+
+    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow('exceeded maximum page count');
+  });
+
+  it('validates an optional virtual-IBAN description returned by Bank Frick', async () => {
+    const response = { ...virtualIbanResponse(), description: 'dfx-viban-reference' };
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await expect(service.createViban(debtorIban)).resolves.toEqual(response);
+  });
+
   it('refreshes once after a 401 on the VBAN path and retries the original request once', async () => {
     let authorizationCount = 0;
     let createCount = 0;
