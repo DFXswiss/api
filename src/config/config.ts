@@ -783,6 +783,9 @@ export class Configuration {
       Denario: {
         displayName: 'Denario',
         template: 'denario',
+        // Only English copy exists (mail-denario.json); force it regardless of the user's account language
+        // so Denario's branded shell never wraps DFX's default-language text for non-English users.
+        forcedLang: 'en',
         centralizedWelcome: true,
         isPreferred: true,
       },

@@ -2,13 +2,13 @@
   "verification_code": {
     "default": {
       "title": "Your Denario Verification Code",
-      "salutation": "Enter this verification code to continue with your registration:"
+      "salutation": "You have requested a verification code. Enter it below to continue:"
     },
     "email": {
       "title": "Your Denario Verification Code",
-      "salutation": "Enter this verification code to continue with your registration:"
+      "salutation": "Enter the verification code below to confirm your new email address:"
     },
-    "message": "<div style=\"background:#f8f9fa;border:2px dashed #dee2e6;border-radius:8px;padding:24px;text-align:center;margin:20px 0 0 0;\"><div style=\"font-size:32px;font-weight:bold;color:#495057;letter-spacing:8px;font-family:'Courier New',monospace;\">{code}</div></div>",
+    "message": "<span style=\"display:inline-block;background:#f8f9fa;border:2px dashed #dee2e6;border-radius:8px;padding:24px 32px;text-align:center;margin:20px 0 0 0;\"><span style=\"font-size:32px;font-weight:bold;color:#495057;letter-spacing:8px;font-family:'Courier New',monospace;\">{code}</span></span>",
     "closing": "This code will expire in {expiration} minutes. If you didn't request this code, please ignore this email."
   }
 }

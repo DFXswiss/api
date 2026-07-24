@@ -122,12 +122,16 @@ export class NotificationService {
       .filter(([, config]) => config.isPreferred)
       .map(([name]) => name);
 
+    // Account merges are not wallet-restricted (UserData.checkIfMergePossibleWith has no wallet check), so a single
+    // UserData can end up with Users on more than one branded/preferred wallet (e.g. RealUnit + Denario). Order
+    // deterministically (most recently linked wins) instead of leaving it to unspecified row order.
     const mailWallet = brandedWalletNames.length
       ? await this.dataSource
           .getRepository(User)
           .findOne({
             where: { userData: { id: input.userData.id }, wallet: { name: In(brandedWalletNames) } },
             relations: { wallet: true },
+            order: { id: 'DESC' },
           })
           .then((u) => u?.wallet)
       : undefined;

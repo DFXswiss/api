@@ -67,13 +67,15 @@ describe('NotificationService', () => {
     expect(userRepo.findOne).not.toHaveBeenCalled();
   });
 
-  it('falls back to the account wallet when none is set and no preferred wallet is configured', async () => {
+  it('falls back to the account wallet when none is set and the user has no branded/preferred wallet', async () => {
+    userRepo.findOne.mockResolvedValue(undefined);
     const accountWallet = createCustomWallet({ name: 'DFX' });
     const request = userMailRequest({ userData: createCustomUserData({ id: 7, wallet: accountWallet }) });
 
     await service.sendMail(request);
 
     expect((request.input as any).wallet).toBe(accountWallet);
-    expect(userRepo.findOne).not.toHaveBeenCalled();
+    // A preferred/branded wallet (e.g. Denario) is configured, so the lookup runs but finds no match for this user.
+    expect(userRepo.findOne).toHaveBeenCalled();
   });
 });
