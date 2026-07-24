@@ -1,4 +1,9 @@
-import { ScryptOrderStatus, ScryptTransactionStatus } from '../../dto/scrypt.dto';
+import {
+  ScryptBalanceTransaction,
+  ScryptOrderStatus,
+  ScryptTransactionStatus,
+  ScryptTransactionType,
+} from '../../dto/scrypt.dto';
 import { ScryptMessageType, ScryptWebSocketConnection } from '../scrypt-websocket-connection';
 import { ScryptService } from '../scrypt.service';
 
@@ -43,6 +48,7 @@ describe('ScryptService', () => {
     fetchAll: jest.Mock;
     onReconnect: jest.Mock;
     subscribeToStream: jest.Mock;
+    send: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -455,5 +461,89 @@ describe('ScryptService', () => {
     );
     expect(executionReportCalls).toHaveLength(2);
     expect(balanceTransactionCalls).toHaveLength(2);
+  });
+
+  describe('getDepositStatus', () => {
+    it('returns null on cache miss', () => {
+      expect(service.getDepositStatus('missing-req-id')).toBeNull();
+    });
+
+    it('returns null when the cached transaction is a withdrawal', () => {
+      const clReqId = 'withdraw-req';
+      (service as any).balanceTransactions.set(clReqId, {
+        TransactionID: 'tx-w-1',
+        ClReqID: clReqId,
+        Currency: 'CHF',
+        TransactionType: ScryptTransactionType.WITHDRAWAL,
+        Status: ScryptTransactionStatus.COMPLETED,
+        Quantity: '100',
+      } satisfies ScryptBalanceTransaction);
+
+      expect(service.getDepositStatus(clReqId)).toBeNull();
+    });
+
+    it('returns the mapped deposit status for a cached deposit transaction', () => {
+      const clReqId = 'deposit-req';
+      (service as any).balanceTransactions.set(clReqId, {
+        TransactionID: 'tx-d-1',
+        ClReqID: clReqId,
+        Currency: 'CHF',
+        TransactionType: ScryptTransactionType.DEPOSIT,
+        Status: ScryptTransactionStatus.COMPLETED,
+        Quantity: '250.5',
+        RejectReason: 'reason-code',
+        RejectText: 'human readable',
+      } satisfies ScryptBalanceTransaction);
+
+      expect(service.getDepositStatus(clReqId)).toEqual({
+        id: 'tx-d-1',
+        status: ScryptTransactionStatus.COMPLETED,
+        rejectReason: 'reason-code',
+        rejectText: 'human readable',
+      });
+    });
+  });
+
+  describe('sendDepositRequest', () => {
+    it('sends a NewDepositRequest with TxHashes derived from reqId when txHashes is omitted', async () => {
+      const timeStamp = new Date('2026-07-23T12:00:00.000Z');
+      await service.sendDepositRequest({
+        currency: 'CHF',
+        amount: 123.45,
+        reqId: 'DEPOSIT-99',
+        timeStamp,
+      });
+
+      expect(instance.send).toHaveBeenCalledWith(ScryptMessageType.NEW_DEPOSIT_REQUEST, [
+        {
+          Currency: 'CHF',
+          ClReqID: 'DEPOSIT-99',
+          Quantity: '123.45',
+          TransactTime: '2026-07-23T12:00:00.000Z',
+          TxHashes: [{ TxHash: 'DEPOSIT-99' }],
+        },
+      ]);
+    });
+
+    it('sends a NewDepositRequest with the provided txHashes array', async () => {
+      const timeStamp = new Date('2026-07-23T13:30:00.000Z');
+      await service.sendDepositRequest({
+        currency: 'EUR',
+        amount: 50,
+        reqId: 'E2E-1',
+        timeStamp,
+        txHashes: ['0xabc', '0xdef'],
+      });
+
+      expect(instance.send).toHaveBeenCalledWith(ScryptMessageType.NEW_DEPOSIT_REQUEST, [
+        {
+          Currency: 'EUR',
+          ClReqID: 'E2E-1',
+          Quantity: '50',
+          TransactTime: '2026-07-23T13:30:00.000Z',
+          TxHashes: [{ TxHash: '0xabc' }, { TxHash: '0xdef' }],
+        },
+      ]);
+    });
   });
 });
