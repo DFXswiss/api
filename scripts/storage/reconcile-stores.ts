@@ -76,7 +76,10 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-import { GEBUEV_RETENTION_FLOOR_YEARS } from '../../src/integration/infrastructure/storage/worm-retention.const';
+import {
+  GEBUEV_RETENTION_FLOOR_DAYS,
+  GEBUEV_RETENTION_FLOOR_YEARS,
+} from '../../src/integration/infrastructure/storage/worm-retention.const';
 
 /** Max additive heal copies per run when RECONCILE_HEAL_CAP is unset. Logged at runtime. */
 export const DEFAULT_HEAL_CAP = 1000;
@@ -240,18 +243,30 @@ export async function assertBucketWorm(
   const result = await client.send(new GetObjectLockConfigurationCommand({ Bucket: bucket }));
   const cfg = result.ObjectLockConfiguration;
   const retention = cfg?.Rule?.DefaultRetention;
+  const years = retention?.Years;
+  const days = retention?.Days;
+  const yearsOk =
+    years != null &&
+    days == null &&
+    Number.isFinite(years) &&
+    Number.isInteger(years) &&
+    years > 0 &&
+    years >= GEBUEV_RETENTION_FLOOR_YEARS;
+  const daysOk =
+    days != null &&
+    years == null &&
+    Number.isFinite(days) &&
+    Number.isInteger(days) &&
+    days > 0 &&
+    days >= GEBUEV_RETENTION_FLOOR_DAYS;
 
-  const ok =
-    cfg?.ObjectLockEnabled === 'Enabled' &&
-    retention?.Mode === 'COMPLIANCE' &&
-    retention?.Years != null &&
-    retention.Years >= GEBUEV_RETENTION_FLOOR_YEARS;
+  const ok = cfg?.ObjectLockEnabled === 'Enabled' && retention?.Mode === 'COMPLIANCE' && (yearsOk || daysOk);
 
   if (!ok) {
     throw new Error(
       `Refusing azure→s3 heal into bucket "${bucket}": Object Lock is not Enabled with COMPLIANCE-mode ` +
-        `default retention of at least ${GEBUEV_RETENTION_FLOOR_YEARS} year(s) ` +
-        `(got ObjectLockEnabled=${cfg?.ObjectLockEnabled}, Mode=${retention?.Mode}, Years=${retention?.Years}). ` +
+        `default retention of at least ${GEBUEV_RETENTION_FLOOR_YEARS} year(s) or ${GEBUEV_RETENTION_FLOOR_DAYS} day(s) ` +
+        `(got ObjectLockEnabled=${cfg?.ObjectLockEnabled}, Mode=${retention?.Mode}, Years=${years}, Days=${days}). ` +
         `Provision the bucket first (scripts/storage/provision-bucket.ts).`,
     );
   }
