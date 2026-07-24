@@ -21,9 +21,12 @@ export class BlockchainConfigCheckService {
 
     const unconfigured = Object.values(Blockchain).filter((chain) => {
       try {
-        return !this.registryService.getClient(chain).isConfigured;
-      } catch {
-        return false;
+        const client = this.registryService.getClient(chain);
+        if (!client) return true;
+        return !client.isConfigured;
+      } catch (e) {
+        if (e instanceof Error && e.message.startsWith('No service found for blockchain')) return false;
+        throw e;
       }
     });
 

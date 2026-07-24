@@ -75,4 +75,18 @@ describe('BlockchainConfigCheckService', () => {
     expect(warnSpy).not.toHaveBeenCalled();
     expect(blockchainRegistryService.getClient).not.toHaveBeenCalled();
   });
+
+  it('warns when getClient returns null for a chain with a registered service', async () => {
+    await setup(Environment.PRD);
+    const warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(blockchainRegistryService, 'getClient').mockImplementation((chain: Blockchain) => {
+      if (chain === Blockchain.BITCOIN) return null as any;
+      throw new Error(`No service found for blockchain ${chain}`);
+    });
+
+    service.logUnconfiguredClients();
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith('Blockchain clients not configured: Bitcoin');
+  });
 });
