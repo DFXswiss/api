@@ -108,7 +108,17 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
       return Price.create(token, currency, 1 / price);
     } catch (e) {
       this.logger.error(`Failed to get price for token ${token} -> ${currency}:`, e);
-      throw new ServiceUnavailableException(`Failed to get price`);
+      // Preserve the real underlying error (message/code/cause) instead of throwing a causeless,
+      // generic exception — downstream classification (PricingService.getPriceFrom) needs it to
+      // tell a genuine connection-class outage apart from other failures.
+      throw Object.assign(
+        new ServiceUnavailableException((e instanceof Error ? e.message : String(e)) ?? 'Failed to get price', {
+          cause: e,
+        }),
+        {
+          ...(e instanceof Error && 'code' in e ? { code: (e as any).code } : {}),
+        },
+      );
     }
   }
 
@@ -130,7 +140,14 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
       return Price.create(contractAddress, currency, 1 / price);
     } catch (e) {
       this.logger.error(`Failed to get price for contract ${contractAddress} -> ${currency}:`, e);
-      throw new ServiceUnavailableException(`Failed to get price`);
+      throw Object.assign(
+        new ServiceUnavailableException((e instanceof Error ? e.message : String(e)) ?? 'Failed to get price', {
+          cause: e,
+        }),
+        {
+          ...(e instanceof Error && 'code' in e ? { code: (e as any).code } : {}),
+        },
+      );
     }
   }
 

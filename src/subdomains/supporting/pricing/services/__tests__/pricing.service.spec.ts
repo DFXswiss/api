@@ -11,6 +11,7 @@ import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.m
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { PriceRule, PriceSource } from '../../domain/entities/price-rule.entity';
 import { PriceInvalidException } from '../../domain/exceptions/price-invalid.exception';
 import { PriceUnavailableException } from '../../domain/exceptions/price-unavailable.exception';
 import { PriceRuleRepository } from '../../repositories/price-rule.repository';
@@ -30,9 +31,31 @@ import { PricingService, PriceValidity } from '../pricing.service';
 describe('PricingService', () => {
   let service: PricingService;
   let priceRuleRepo: PriceRuleRepository;
+  let coinGeckoService: CoinGeckoService;
 
   const from = createCustomAsset({ id: 7, name: 'ETH' });
   const to = createCustomFiat({ id: 3, name: 'CHF' });
+
+  const connectionError = () =>
+    Object.assign(new Error('connect ETIMEDOUT 203.0.113.10:443'), { code: 'ETIMEDOUT' });
+
+  const createCoinGeckoRule = (id: number): PriceRule =>
+    Object.assign(new PriceRule(), {
+      id,
+      priceSource: PriceSource.COIN_GECKO,
+      priceAsset: 'ethereum',
+      priceReference: 'chf',
+      priceValiditySeconds: 300,
+      // leave currentPrice/priceTimestamp unset so shouldUpdate is true and the provider is called
+    });
+
+  const mockQueryBuilder = (rule: PriceRule) =>
+    ({
+      innerJoin: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(rule),
+    }) as any;
 
   beforeAll(() => {
     new ConfigService(new Configuration());
@@ -42,6 +65,7 @@ describe('PricingService', () => {
     jest.spyOn(DfxLogger.prototype, 'info').mockImplementation();
 
     priceRuleRepo = createMock<PriceRuleRepository>();
+    coinGeckoService = createMock<CoinGeckoService>();
 
     // constructed directly: the module graph has an import cycle that breaks Nest DI metadata in specs
     service = new PricingService(
@@ -55,7 +79,7 @@ describe('PricingService', () => {
       createMock<MexcService>(),
       createMock<XtService>(),
       createMock<ScryptService>(),
-      createMock<CoinGeckoService>(),
+      coinGeckoService,
       createMock<PricingDexService>(),
       createMock<FixerService>(),
       createMock<CurrencyService>(),
@@ -71,10 +95,10 @@ describe('PricingService', () => {
   afterEach(() => jest.restoreAllMocks());
 
   describe('#getPrice', () => {
-    it('wraps a connection-class failure of the price path in PriceUnavailableException with the cause attached', async () => {
-      const connectionError = Object.assign(new Error('connect ETIMEDOUT 203.0.113.10:443'), { code: 'ETIMEDOUT' });
+    it('does not classify a DB/repository connection-class failure as a price outage', async () => {
+      const dbConnectionError = connectionError();
       jest.spyOn(priceRuleRepo, 'createQueryBuilder').mockImplementation(() => {
-        throw connectionError;
+        throw dbConnectionError;
       });
 
       const error = await service.getPrice(from, to, PriceValidity.ANY).then(
@@ -82,9 +106,8 @@ describe('PricingService', () => {
         (e) => e,
       );
 
-      expect(error).toBeInstanceOf(PriceUnavailableException);
       expect(error).toBeInstanceOf(PriceInvalidException);
-      expect(error.cause).toBe(connectionError);
+      expect(error).not.toBeInstanceOf(PriceUnavailableException);
     });
 
     it('wraps a non-connection failure in plain PriceInvalidException', async () => {
@@ -99,6 +122,31 @@ describe('PricingService', () => {
 
       expect(error).toBeInstanceOf(PriceInvalidException);
       expect(error).not.toBeInstanceOf(PriceUnavailableException);
+    });
+
+    it('classifies a connection-class provider failure as PriceUnavailableException with the cause preserved', async () => {
+      const providerError = connectionError();
+      jest.spyOn(coinGeckoService, 'getPrice').mockRejectedValue(providerError);
+      jest.spyOn(priceRuleRepo, 'createQueryBuilder').mockImplementation(() => mockQueryBuilder(createCoinGeckoRule(1)));
+
+      const error = await service.getPrice(from, to, PriceValidity.ANY).then(
+        () => fail('expected getPrice to reject'),
+        (e) => e,
+      );
+
+      expect(error).toBeInstanceOf(PriceUnavailableException);
+      expect(error).toBeInstanceOf(PriceInvalidException);
+
+      // Walk the cause chain: getAssetPrice wraps getRulePrice wraps getPriceFrom's PriceUnavailableException
+      // which carries the original provider error.
+      let foundProviderError = false;
+      for (let cur: unknown = error; cur instanceof Error; cur = cur.cause) {
+        if (cur === providerError || ((cur as NodeJS.ErrnoException).code === 'ETIMEDOUT' && cur.message.includes('ETIMEDOUT'))) {
+          foundProviderError = true;
+          break;
+        }
+      }
+      expect(foundProviderError).toBe(true);
     });
   });
 });

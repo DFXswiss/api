@@ -146,7 +146,17 @@ export class PricingService implements OnModuleInit {
   }
 
   async getPriceFrom(source: PriceSource, from: string, to: string, param?: string): Promise<Price> {
-    return this.providerMap[source].getPrice(from, to, param);
+    try {
+      return await this.providerMap[source].getPrice(from, to, param);
+    } catch (e) {
+      // The only place a price-provider failure is classified as a transient outage: narrowly
+      // scoped to the actual provider call, so DB/repository failures elsewhere are never
+      // mistaken for a price outage (see getAssetPrice below).
+      if (e instanceof Error && isConnectionFailure(e))
+        throw new PriceUnavailableException(`Failed to get price from ${source}: ${e.message}`, e);
+
+      throw e;
+    }
   }
 
   async updatePrices(): Promise<void> {
@@ -222,11 +232,25 @@ export class PricingService implements OnModuleInit {
     } catch (e) {
       this.logger.info(`Failed to get price for ${this.itemString(from)} -> ${this.itemString(to)}:`, e);
 
-      if (e instanceof Error && isConnectionFailure(e))
+      // Only a connection-class failure of the external price provider is a transient outage. It is
+      // classified exclusively at the provider call site (getPriceFrom) and marked with
+      // PriceUnavailableException; DB/repository errors (priceRuleCache / getRuleFor /
+      // createQueryBuilder / repo saves) never carry that marker anywhere in their cause chain and
+      // therefore always fall through to the generic, error-visible branch below — exactly as before
+      // PriceUnavailableException existed.
+      if (this.isPriceUnavailable(e))
         throw new PriceUnavailableException(`No valid price found for ${from.name} -> ${to.name}`, e);
 
       throw new PriceInvalidException(`No valid price found for ${from.name} -> ${to.name}`);
     }
+  }
+
+  // Walks the Error#cause chain looking for the PriceUnavailableException marker set exclusively at
+  // the provider call site (getPriceFrom) — never present for DB/repository failures.
+  private isPriceUnavailable(e: unknown): boolean {
+    if (e instanceof PriceUnavailableException) return true;
+    if (e instanceof Error && e.cause instanceof Error) return this.isPriceUnavailable(e.cause);
+    return false;
   }
 
   private async getPriceRules(item: Active, waitForUpdate: boolean): Promise<PriceRule[]> {
@@ -347,7 +371,9 @@ export class PricingService implements OnModuleInit {
         this.getPriceFrom(rule.source, rule.asset, rule.reference, rule.param),
       )
       .catch((e) => {
-        throw new Error(`Failed to get price ${rule.asset} -> ${rule.reference} on ${rule.source}: ${e.message}`);
+        throw new Error(`Failed to get price ${rule.asset} -> ${rule.reference} on ${rule.source}: ${e.message}`, {
+          cause: e,
+        });
       });
   }
 }

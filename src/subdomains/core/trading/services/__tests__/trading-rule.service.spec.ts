@@ -1,7 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
-import { ServiceUnavailableException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { PriceUnavailableException } from '../../../../supporting/pricing/domain/exceptions/price-unavailable.exception';
 import { TradingRule } from '../../entities/trading-rule.entity';
 import { TradingRuleStatus } from '../../enums';
 import { TradingRuleService } from '../trading-rule.service';
@@ -31,14 +31,19 @@ describe('TradingRuleService', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('logs a price-source outage at warn', async () => {
-    tradingService.createTradingInfo.mockRejectedValue(new ServiceUnavailableException('Failed to get price'));
+    tradingService.createTradingInfo.mockRejectedValue(
+      new PriceUnavailableException(
+        'Failed to get price',
+        new Error('connect ETIMEDOUT 203.0.113.10:443'),
+      ),
+    );
 
     await service.processRules();
 
     expect(loggerLog).toHaveBeenCalledWith(
       LogLevel.WARN,
       expect.stringContaining('trading rule 7'),
-      expect.any(ServiceUnavailableException),
+      expect.any(PriceUnavailableException),
     );
   });
 

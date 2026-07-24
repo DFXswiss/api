@@ -1,6 +1,7 @@
-import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { In, IsNull, Not } from 'typeorm';
+import { PriceUnavailableException } from '../../../supporting/pricing/domain/exceptions/price-unavailable.exception';
 import { UpdateTradingRuleDto } from '../dto/update-trading-rule.dto';
 import { TradingOrder } from '../entities/trading-order.entity';
 import { TradingRule } from '../entities/trading-rule.entity';
@@ -94,7 +95,10 @@ export class TradingRuleService {
     } catch (e) {
       // Price-source unavailability is already logged at the provider and heals on a later
       // cycle - only unexpected failures stay at error.
-      const logLevel = e instanceof ServiceUnavailableException ? LogLevel.WARN : LogLevel.ERROR;
+      // Specific PriceUnavailableException classification only — a blanket isConnectionFailure(e)
+      // check here would risk downgrading a genuine DB/repository failure (e.g. ruleRepo.save /
+      // orderRepo.save) to warn, the same bug class this fix removes from the pricing layer.
+      const logLevel = e instanceof PriceUnavailableException ? LogLevel.WARN : LogLevel.ERROR;
 
       this.logger.log(logLevel, `Error processing trading rule ${rule.id}:`, e);
     }
