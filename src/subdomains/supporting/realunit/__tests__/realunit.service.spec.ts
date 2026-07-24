@@ -3098,6 +3098,40 @@ describe('RealUnitService', () => {
       expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
 
+    // The BitBox02 firmware refuses to sign typed data whose domain has no
+    // chainId ("typed data has no chain ID" on the device), so the current app
+    // signs hardware-wallet registrations over the chainId-extended domain.
+    // chainId 1 = PRD REALU chain (Ethereum); this block runs with env 'prd'.
+    const domainWithChainId = { ...domain, chainId: 1 };
+
+    it('accepts a BitBox signature over the chainId-extended domain and forwards the signed ASCII fields', async () => {
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData(domainWithChainId, types, asciiFields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const payload = forwardedPayload();
+      expect(payload.name).toBe('Erika Mueller');
+      // The signature recovers only under the chainId-extended domain. A
+      // re-verification with the legacy domain does NOT match — Aktionariat
+      // must verify chainId-signed registrations with the extended domain
+      // (open coordination point, see PR description).
+      expect(verifyTypedData(domainWithChainId, types, asciiFields(wallet), payload.signature).toLowerCase()).toBe(
+        wallet.toLowerCase(),
+      );
+      expect(recoverFromForwarded(payload).toLowerCase()).not.toBe(wallet.toLowerCase());
+    });
+
+    it('rejects a signature over a foreign chainId (domain must match the REALU token chain)', async () => {
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData({ ...domain, chainId: 5 }, types, asciiFields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
+    });
+
     it('resolveSignedRegistrationMessage returns undefined when a valid signature does not belong to the claimed wallet', async () => {
       // Valid signature from the software wallet, but the dto claims a different wallet address.
       const signature = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));

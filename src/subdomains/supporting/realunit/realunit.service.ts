@@ -1198,11 +1198,26 @@ export class RealUnitService {
 
     for (const transliterate of [false, true]) {
       const message = this.buildRegistrationMessage(data, transliterate);
-      const recovered = verifyTypedData(REGISTRATION_EIP712_DOMAIN, REGISTRATION_EIP712_TYPES, message, signature);
-      if (Util.equalsIgnoreCase(recovered, data.walletAddress)) return message;
+      for (const domain of this.registrationEip712Domains) {
+        const recovered = verifyTypedData(domain, REGISTRATION_EIP712_TYPES, message, signature);
+        if (Util.equalsIgnoreCase(recovered, data.walletAddress)) return message;
+      }
     }
 
     return undefined;
+  }
+
+  // The BitBox02 firmware refuses to sign typed data whose EIP712Domain has no
+  // chainId ("typed data has no chain ID" on the device), so the app signs with
+  // the chainId-extended domain on hardware wallets. Software wallets and all
+  // existing registrations signed the chainId-less legacy domain — both stay
+  // valid. The chainId must equal what the app receives as apiConfig.asset
+  // .chainId (REALU token chain: Ethereum on PRD, Sepolia on DEV/LOC).
+  private get registrationEip712Domains(): (typeof REGISTRATION_EIP712_DOMAIN & { chainId?: number })[] {
+    const chainId = EvmUtil.getChainId(this.tokenBlockchain);
+    return chainId
+      ? [REGISTRATION_EIP712_DOMAIN, { ...REGISTRATION_EIP712_DOMAIN, chainId }]
+      : [REGISTRATION_EIP712_DOMAIN];
   }
 
   async forwardRegistrationToAktionariat(id: number): Promise<void> {
