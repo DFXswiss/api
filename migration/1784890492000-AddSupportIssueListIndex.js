@@ -14,13 +14,13 @@ module.exports = class AddSupportIssueListIndex1784890492000 {
      * @param {QueryRunner} queryRunner
      */
     async up(queryRunner) {
-        await queryRunner.query(`CREATE INDEX "IDX_76abcde0ea067ebe7d01b6b285" ON "support_issue" ("department", "state", "created") `);
+        await queryRunner.query(`CREATE INDEX "IDX_9712fb0027d5adb1d54c87c7bb" ON "support_issue" ("state", "created", "id") `);
     }
 
     /**
      * @param {QueryRunner} queryRunner
      */
     async down(queryRunner) {
-        await queryRunner.query(`DROP INDEX "public"."IDX_76abcde0ea067ebe7d01b6b285"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_9712fb0027d5adb1d54c87c7bb"`);
     }
 }

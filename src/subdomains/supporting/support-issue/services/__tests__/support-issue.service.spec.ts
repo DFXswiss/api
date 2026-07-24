@@ -291,9 +291,9 @@ describe('SupportIssueService.getSupportIssueList', () => {
     });
   });
 
-  // Guards the department + state predicates that back the composite index
-  // on support_issue (department, state, created) — a future refactor that drops either predicate
-  // would make the index useless for the overview/list query.
+  // Guards the state predicate + department scope the list query relies on; the composite index
+  // on support_issue (state, created, id) is state-leading, so a refactor that drops the state
+  // filter would make the paged-tab index-scan-backward degrade to a full seq scan.
   describe('department + state filter (composite index guard)', () => {
     it('emits both the department scope and the state filter when the filter provides states', async () => {
       await run(
@@ -405,9 +405,9 @@ describe('SupportIssueService.getSupportIssueCounts', () => {
     );
   });
 
-  // Guards the department scope + state group-by that back the composite index
-  // on support_issue (department, state, created) — a future refactor that drops either would
-  // make the index useless for the counts query.
+  // Guards the department scope + state group-by of the counts query. Note: the composite index
+  // on support_issue (state, created, id) does not accelerate this group-by (it stays a seq scan);
+  // this guard just pins the query shape the tab badges depend on.
   it('groups by state and scopes to the department IN predicate for a department-restricted role', async () => {
     await service.getSupportIssueCounts(UserRole.SUPPORT);
     expect(qb.groupBy).toHaveBeenCalledWith('issue.state');

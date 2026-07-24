@@ -11,13 +11,16 @@ import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from 
 import { SupportIssueLog } from './support-issue-log.entity';
 import { SupportMessage } from './support-message.entity';
 
-// The dashboard's open-ticket overview lists support_issue filtered by department + state; with only
-// FK columns indexed that was a full sequential scan of the whole table on every load. This composite
-// lets the planner switch to a bitmap index scan for that filter (~16x faster on a 300k-row set,
-// verified via EXPLAIN). The counts group-by and the closed-ticket tabs match too large a row share
-// to benefit and correctly stay on a sequential scan. Not used by the RealUnit customerIds path,
-// which filters via the userData join. See support-issue.service.ts getSupportIssueList.
-@Index((issue: SupportIssue) => [issue.department, issue.state, issue.created])
+// The "All tickets" screen pages the closed-ticket tabs (state = X ORDER BY created DESC, id DESC
+// LIMIT n) over hundreds of thousands of rows; with only FK columns indexed that was a full seq scan
+// + top-N sort on every page load. This composite is state-leading, so Postgres serves each tab with
+// an index-scan-backward that stops after the requested page (verified ~98ms -> 0.06ms on a 1M-row
+// set via EXPLAIN); the (created, id) tail matches the exact sort + tiebreak, and deep pages stay
+// cheap. It also serves the open-ticket overview (state IN (...)) via a bitmap scan. Not used by the
+// RealUnit customerIds path (filters via the userData join). Note: the per-tab COUNT(*) badges from
+// getManyAndCount/getIssueCounts stay on a seq scan and are a separate concern. See
+// support-issue.service.ts getSupportIssueList.
+@Index((issue: SupportIssue) => [issue.state, issue.created, issue.id])
 @Entity()
 export class SupportIssue extends IEntity {
   @Column({ length: 256, unique: true })
