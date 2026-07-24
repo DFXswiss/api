@@ -778,6 +778,14 @@ export class Configuration {
           isPreferred: true,
         },
       }),
+      // No dedicated mailbox provided by Denario (unlike RealUnit) - falls back to the default DFX transport,
+      // only sender display name and template/branding are overridden.
+      Denario: {
+        displayName: 'Denario',
+        template: 'denario',
+        centralizedWelcome: true,
+        isPreferred: true,
+      },
     },
   };
 

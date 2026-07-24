@@ -1,0 +1,14 @@
+{
+  "verification_code": {
+    "default": {
+      "title": "Your Denario Verification Code",
+      "salutation": "Enter this verification code to continue with your registration:"
+    },
+    "email": {
+      "title": "Your Denario Verification Code",
+      "salutation": "Enter this verification code to continue with your registration:"
+    },
+    "message": "<div style=\"background:#f8f9fa;border:2px dashed #dee2e6;border-radius:8px;padding:24px;text-align:center;margin:20px 0 0 0;\"><div style=\"font-size:32px;font-weight:bold;color:#495057;letter-spacing:8px;font-family:'Courier New',monospace;\">{code}</div></div>",
+    "closing": "This code will expire in {expiration} minutes. If you didn't request this code, please ignore this email."
+  }
+}
