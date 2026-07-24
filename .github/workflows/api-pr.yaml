@@ -18,7 +18,6 @@ env:
 jobs:
   checks:
     name: Build and checks
-    if: github.head_ref != 'develop'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -57,8 +56,7 @@ jobs:
         run: npm audit --audit-level=critical
 
   coverage:
-    name: Bank Frick coverage
-    if: github.head_ref != 'develop'
+    name: Coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -80,12 +78,11 @@ jobs:
 
       # Runs with full compilation (tsconfig.coverage.json, isolatedModules: false) so the strict
       # 100% branch gate is not skewed by transpile-only decorator-metadata emit.
-      - name: Enforce Bank Frick coverage
+      - name: Run coverage
         run: npm run test:frick:cov
 
   test:
     name: Test (shard ${{ matrix.shard }}/3)
-    if: github.head_ref != 'develop'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
