@@ -132,12 +132,14 @@ describe('safeObjectReference', () => {
     const azureDownloadFailure = {
       getBlockBlobClient: () => ({ download: jest.fn().mockRejectedValue(new Error(`failed ${rawKey}`)) }),
     } as never;
-    await expect(copyAzureToS3(azureDownloadFailure, makeS3Client(), 'kyc', rawKey)).rejects.toThrow(expectedReference);
+    await expect(copyAzureToS3(azureDownloadFailure, makeS3Client(), 'kyc', rawKey, 42)).rejects.toThrow(
+      expectedReference,
+    );
 
     const s3DownloadFailure = {
       send: jest.fn().mockRejectedValue(new Error(`failed ${rawKey}`)),
     } as never;
-    await expect(copyS3ToAzure(s3DownloadFailure, 'kyc', {} as never, rawKey)).rejects.toThrow(expectedReference);
+    await expect(copyS3ToAzure(s3DownloadFailure, 'kyc', {} as never, rawKey, 42)).rejects.toThrow(expectedReference);
 
     const output = consoleSpy.mock.calls.flat().join('\n');
     expect(output).toContain(expectedReference);
@@ -1162,7 +1164,7 @@ describe('copyAzureToS3 / copyS3ToAzure preconditions', () => {
     } as never;
 
     s3Mock.on(PutObjectCommand).resolves({});
-    const result = await copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A);
+    const result = await copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, body.length);
     expect(result).toBe('healed');
 
     const putCalls = s3Mock.commandCalls(PutObjectCommand);
@@ -1192,7 +1194,7 @@ describe('copyAzureToS3 / copyS3ToAzure preconditions', () => {
       }),
     );
 
-    const result = await copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A);
+    const result = await copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, body.length);
     expect(result).toBe('skipped');
   });
 
@@ -1211,7 +1213,7 @@ describe('copyAzureToS3 / copyS3ToAzure preconditions', () => {
       getBlockBlobClient: () => ({ uploadData }),
     } as never;
 
-    const result = await copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B);
+    const result = await copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, bodyBytes.length);
     expect(result).toBe('healed');
     expect(uploadData).toHaveBeenCalledTimes(1);
     const uploadOpts = uploadData.mock.calls[0][1] as {
@@ -1242,8 +1244,103 @@ describe('copyAzureToS3 / copyS3ToAzure preconditions', () => {
       getBlockBlobClient: () => ({ uploadData }),
     } as never;
 
-    const result = await copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B);
+    const result = await copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, bodyBytes.length);
     expect(result).toBe('skipped');
+  });
+
+  it('Azure→S3 rejects when downloaded size differs from inventory size (no PutObject)', async () => {
+    // Inventory bound 3 bytes; source grew to 4 between list and download.
+    const inventorySize = 3;
+    const downloaded = Buffer.from([1, 2, 3, 4]);
+    const azureContainer = {
+      getBlockBlobClient: () => ({
+        download: jest.fn().mockResolvedValue({
+          readableStreamBody: Readable.from([downloaded]),
+          contentType: 'application/octet-stream',
+          metadata: { owner: 'should-not-be-logged' },
+        }),
+      }),
+    } as never;
+
+    const err = await rejectedError(
+      copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, inventorySize),
+    );
+
+    expect(err.message).toMatch(/Source size race for azure->s3/);
+    expect(err.message).toContain('expected 3 bytes');
+    expect(err.message).toContain('got 4 bytes');
+    expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_A));
+    assertNoSentinelLeak(err.message);
+    assertNoEtagSentinelLeak(err.message);
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  });
+
+  it('S3→Azure rejects when downloaded size differs from inventory size (no uploadData)', async () => {
+    // Inventory bound 3 bytes; source grew to 4 between list and download.
+    const inventorySize = 3;
+    const downloaded = new Uint8Array([1, 2, 3, 4]);
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: {
+        transformToByteArray: async () => downloaded,
+      } as never,
+      ContentType: 'text/plain',
+      Metadata: { note: 'should-not-be-logged' },
+    });
+
+    const uploadData = jest.fn().mockResolvedValue(undefined);
+    const azureContainer = {
+      getBlockBlobClient: () => ({ uploadData }),
+    } as never;
+
+    const err = await rejectedError(
+      copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, inventorySize),
+    );
+
+    expect(err.message).toMatch(/Source size race for s3->azure/);
+    expect(err.message).toContain('expected 3 bytes');
+    expect(err.message).toContain('got 4 bytes');
+    expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_B));
+    assertNoSentinelLeak(err.message);
+    assertNoEtagSentinelLeak(err.message);
+    expect(uploadData).not.toHaveBeenCalled();
+  });
+
+  it('Azure→S3 rejects invalid expectedSourceSize before download or PutObject', async () => {
+    const download = jest.fn();
+    const azureContainer = {
+      getBlockBlobClient: () => ({ download }),
+    } as never;
+
+    for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      const err = await rejectedError(
+        copyAzureToS3(azureContainer, makeS3Client(), 'kyc', SENTINEL_KEY_A, invalid),
+      );
+      expect(err.message).toMatch(/Invalid expectedSourceSize for azure->s3/);
+      expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_A));
+      assertNoSentinelLeak(err.message);
+    }
+
+    expect(download).not.toHaveBeenCalled();
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  });
+
+  it('S3→Azure rejects invalid expectedSourceSize before GetObject or uploadData', async () => {
+    const uploadData = jest.fn();
+    const azureContainer = {
+      getBlockBlobClient: () => ({ uploadData }),
+    } as never;
+
+    for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      const err = await rejectedError(
+        copyS3ToAzure(makeS3Client(), 'kyc', azureContainer, SENTINEL_KEY_B, invalid),
+      );
+      expect(err.message).toMatch(/Invalid expectedSourceSize for s3->azure/);
+      expect(err.message).toContain(safeObjectReference('kyc', SENTINEL_KEY_B));
+      assertNoSentinelLeak(err.message);
+    }
+
+    expect(uploadData).not.toHaveBeenCalled();
+    expect(s3Mock.commandCalls(GetObjectCommand)).toHaveLength(0);
   });
 });
 
@@ -1495,10 +1592,11 @@ describe('runAdditiveHealOrchestration (production HEAL path)', () => {
     const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
     const callOrder: string[] = [];
 
-    const azureToS3Size = 100;
-    const s3ToAzureSize = 40;
+    // Inventory sizes must equal the buffers that will be downloaded (digest-bound (key,size) gate).
     const azurePayload = Buffer.from('azure-source-payload');
     const s3Payload = new Uint8Array([9, 8, 7, 6]);
+    const azureToS3Size = azurePayload.length;
+    const s3ToAzureSize = s3Payload.length;
     const contentTypeSentinel = 'application/pdf-NEVER-LOG-CONTENT-TYPE';
     const reverseContentTypeSentinel = 'text/plain-NEVER-LOG-CONTENT-TYPE';
     const userMetaSentinel = 'user-meta-NEVER-LOG-OWNER';
@@ -1614,6 +1712,10 @@ describe('runAdditiveHealOrchestration (production HEAL path)', () => {
     expect(putCalls[0].args[0].input.Bucket).toBe('kyc');
     expect(putCalls[0].args[0].input.Key).toBe(SENTINEL_KEY_A);
     expect(putCalls[0].args[0].input.IfNoneMatch).toBe('*');
+    // Proves orchestration passed the digest-bound inventory size into azure→s3 copy:
+    // only matching expectedSourceSize allows PutObject with this Body length.
+    const putBody = putCalls[0].args[0].input.Body as Buffer;
+    expect(Buffer.isBuffer(putBody) ? putBody.length : 0).toBe(azureToS3Size);
 
     const getCalls = s3Mock.commandCalls(GetObjectCommand);
     expect(getCalls).toHaveLength(1);
@@ -1621,6 +1723,9 @@ describe('runAdditiveHealOrchestration (production HEAL path)', () => {
     expect(getCalls[0].args[0].input.Key).toBe(SENTINEL_KEY_B);
 
     expect(uploadData).toHaveBeenCalledTimes(1);
+    const uploadBody = uploadData.mock.calls[0][0] as Buffer;
+    // Proves orchestration passed the digest-bound inventory size into s3→azure copy.
+    expect(Buffer.isBuffer(uploadBody) ? uploadBody.length : 0).toBe(s3ToAzureSize);
     const uploadOpts = uploadData.mock.calls[0][1] as {
       conditions: { ifNoneMatch: string };
       metadata?: Record<string, string>;
@@ -1658,5 +1763,105 @@ describe('runAdditiveHealOrchestration (production HEAL path)', () => {
     expect(output).not.toContain('content-type');
     expect(output).not.toContain('metadata');
     expect(output).not.toContain('user-meta');
+  });
+
+  it('orchestration azure→s3 fails closed when download size differs from inventory size', async () => {
+    // Inventory bound size=3; download returns 4 bytes — proves size is passed into copyAzureToS3.
+    const inventorySize = 3;
+    s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: 'kyc' }).resolves({
+      ObjectLockConfiguration: {
+        ObjectLockEnabled: 'Enabled',
+        Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: GEBUEV_RETENTION_FLOOR_YEARS } },
+      },
+    });
+
+    const download = jest.fn().mockResolvedValue({
+      readableStreamBody: Readable.from([Buffer.from([1, 2, 3, 4])]),
+      contentType: 'application/octet-stream',
+      metadata: {},
+    });
+    const uploadData = jest.fn();
+    const azure = makeAzureClient({ download, uploadData });
+    const report = azureOnlyHealReport('kyc', SENTINEL_KEY_A, inventorySize);
+    const actualDigest = computeCandidateSetSha256([
+      {
+        container: 'kyc',
+        direction: 'azureToS3',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_A),
+        size: inventorySize,
+      },
+    ]);
+
+    const err = await rejectedError(
+      runAdditiveHealOrchestration({
+        reports: [report],
+        s3: makeS3Client(),
+        azure,
+        wormContainers: new Set(['kyc']),
+        healCap: 1,
+        exactCap: false,
+        actualCandidateSetSha256: actualDigest,
+      }),
+    );
+
+    expect(err.message).toMatch(/Source size race for azure->s3/);
+    expect(err.message).toContain('expected 3 bytes');
+    expect(err.message).toContain('got 4 bytes');
+    assertNoSentinelLeak(err.message);
+    expect(download).toHaveBeenCalled();
+    expect(uploadData).not.toHaveBeenCalled();
+    expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+  });
+
+  it('orchestration s3→azure fails closed when download size differs from inventory size', async () => {
+    // Inventory bound size=3; download returns 4 bytes — proves size is passed into copyS3ToAzure.
+    const inventorySize = 3;
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: {
+        transformToByteArray: async () => new Uint8Array([1, 2, 3, 4]),
+      } as never,
+      ContentType: 'text/plain',
+      Metadata: {},
+    });
+
+    const uploadData = jest.fn();
+    const azure = makeAzureClient({ uploadData });
+    const report: HealContainerReport = {
+      container: 'support',
+      diff: {
+        onlyOnAzure: [],
+        onlyOnS3: [SENTINEL_KEY_B],
+        sizeMismatch: [],
+        suspectedOverwrite: [],
+      },
+      azureByKey: new Map(),
+      s3ByKey: indexStoredObjectsByKey([storedObject(SENTINEL_KEY_B, inventorySize, t0)]),
+    };
+    const actualDigest = computeCandidateSetSha256([
+      {
+        container: 'support',
+        direction: 's3ToAzure',
+        keySha256: hashObjectKeySha256(SENTINEL_KEY_B),
+        size: inventorySize,
+      },
+    ]);
+
+    const err = await rejectedError(
+      runAdditiveHealOrchestration({
+        reports: [report],
+        s3: makeS3Client(),
+        azure,
+        wormContainers: new Set(['kyc']),
+        healCap: 1,
+        exactCap: false,
+        actualCandidateSetSha256: actualDigest,
+      }),
+    );
+
+    expect(err.message).toMatch(/Source size race for s3->azure/);
+    expect(err.message).toContain('expected 3 bytes');
+    expect(err.message).toContain('got 4 bytes');
+    assertNoSentinelLeak(err.message);
+    expect(uploadData).not.toHaveBeenCalled();
   });
 });

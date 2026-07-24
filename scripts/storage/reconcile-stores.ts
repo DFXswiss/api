@@ -1003,14 +1003,53 @@ export function isAzurePreconditionFailed(err: unknown): boolean {
   return e?.statusCode === 412 || e?.details?.errorCode === 'BlobAlreadyExists';
 }
 
+/**
+ * Fail-closed gate for the digest-bound inventory size passed into heal copies.
+ * Rejects non-integers, negatives, and non-safe integers before any target write.
+ */
+export function assertExpectedSourceSize(
+  expectedSourceSize: number,
+  direction: 'azure->s3' | 's3->azure',
+  objectRef: string,
+): void {
+  if (!Number.isSafeInteger(expectedSourceSize) || expectedSourceSize < 0) {
+    throw new Error(
+      `Invalid expectedSourceSize for ${direction} copy of ${objectRef}: ` +
+        `expected non-negative safe integer, got ${String(expectedSourceSize)}`,
+    );
+  }
+}
+
+/**
+ * After a full source download, refuse to write if the loaded buffer length differs from the
+ * inventory size that was bound into the candidate set (container + direction + sha256(key) + size).
+ * Closes the race where the source object changes size between inventory and download.
+ */
+export function assertDownloadedSourceSize(
+  actualSize: number,
+  expectedSourceSize: number,
+  direction: 'azure->s3' | 's3->azure',
+  objectRef: string,
+): void {
+  if (actualSize !== expectedSourceSize) {
+    throw new Error(
+      `Source size race for ${direction}: expected ${expectedSourceSize} bytes, ` +
+        `got ${actualSize} bytes for ${objectRef}`,
+    );
+  }
+}
+
 export async function copyAzureToS3(
   azureContainer: ContainerClient,
   s3: S3Client,
   bucket: string,
   key: string,
+  expectedSourceSize: number,
 ): Promise<'healed' | 'skipped'> {
   const blobClient = azureContainer.getBlockBlobClient(key);
   const objectRef = safeObjectReference(bucket, key);
+  assertExpectedSourceSize(expectedSourceSize, 'azure->s3', objectRef);
+
   const download = await blobClient.download().catch((err) => {
     throw new Error(`Azure download failed for ${objectRef}`, { cause: err });
   });
@@ -1023,6 +1062,9 @@ export async function copyAzureToS3(
   } catch (err) {
     throw new Error(`Azure download stream failed for ${objectRef}`, { cause: err });
   }
+
+  // Inventory size is digest-bound; refuse any source that changed size before the conditional PUT.
+  assertDownloadedSourceSize(data.length, expectedSourceSize, 'azure->s3', objectRef);
 
   try {
     await s3.send(
@@ -1051,8 +1093,11 @@ export async function copyS3ToAzure(
   bucket: string,
   azureContainer: ContainerClient,
   key: string,
+  expectedSourceSize: number,
 ): Promise<'healed' | 'skipped'> {
   const objectRef = safeObjectReference(bucket, key);
+  assertExpectedSourceSize(expectedSourceSize, 's3->azure', objectRef);
+
   const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key })).catch((err) => {
     throw new Error(`S3 download failed for ${objectRef}`, { cause: err });
   });
@@ -1064,6 +1109,10 @@ export async function copyS3ToAzure(
   } catch (err) {
     throw new Error(`S3 download stream failed for ${objectRef}`, { cause: err });
   }
+
+  // Inventory size is digest-bound; refuse any source that changed size before the conditional upload.
+  assertDownloadedSourceSize(data.length, expectedSourceSize, 's3->azure', objectRef);
+
   try {
     await azureContainer.getBlockBlobClient(key).uploadData(data, {
       blobHTTPHeaders: { blobContentType: res.ContentType },
@@ -1138,7 +1187,8 @@ export async function runAdditiveHealOrchestration(
           throw new Error(`Missing Azure size for ${safeObjectReference(r.container, key)}`);
         }
         await assertBucketWormIfDeclared(s3, r.container, wormContainers, wormVerified, noWormVerified);
-        const result = await copyAzureToS3(azureContainer, s3, r.container, key);
+        // Pass digest-bound inventory size so copy fails closed if the source changed after inventory.
+        const result = await copyAzureToS3(azureContainer, s3, r.container, key, size);
         if (result === 'healed') {
           azureToS3Stats.healedCount++;
           azureToS3Stats.healedBytes += size;
@@ -1154,7 +1204,8 @@ export async function runAdditiveHealOrchestration(
         if (size === undefined) {
           throw new Error(`Missing S3 size for ${safeObjectReference(r.container, key)}`);
         }
-        const result = await copyS3ToAzure(s3, r.container, azureContainer, key);
+        // Pass digest-bound inventory size so copy fails closed if the source changed after inventory.
+        const result = await copyS3ToAzure(s3, r.container, azureContainer, key, size);
         if (result === 'healed') {
           s3ToAzureStats.healedCount++;
           s3ToAzureStats.healedBytes += size;
