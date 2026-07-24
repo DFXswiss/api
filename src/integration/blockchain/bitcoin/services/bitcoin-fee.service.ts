@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { BitcoinBasedFeeService, FeeConfig } from './bitcoin-based-fee.service';
 import { BitcoinNodeType, BitcoinService } from './bitcoin.service';
 
-export { TxFeeRateResult, TxFeeRateStatus } from './bitcoin-based-fee.service';
+export type { TxFeeRateResult, TxFeeRateStatus } from './bitcoin-based-fee.service';
 
 @Injectable()
 export class BitcoinFeeService extends BitcoinBasedFeeService {
