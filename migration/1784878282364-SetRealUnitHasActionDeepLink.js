@@ -22,6 +22,8 @@ module.exports = class SetRealUnitHasActionDeepLink1784878282364 {
   }
 
   async down(queryRunner) {
-    await queryRunner.query(`UPDATE "wallet_app" SET "hasActionDeepLink" = NULL WHERE "name" = 'RealUnit'`);
+    await queryRunner.query(
+      `UPDATE "wallet_app" SET "hasActionDeepLink" = NULL WHERE "name" = 'RealUnit' AND "hasActionDeepLink" = true`,
+    );
   }
 };
