@@ -106,9 +106,9 @@ jobs:
 
       # Repo-wide ratchet: every file already at 100% is pinned, so coverage cannot regress.
       # Runs the whole suite (a file is often covered by specs other than its own) with the same
-      # full compilation as the Frick gate. Deliberately without the Postgres service, matching
-      # the measurement the pinned list was derived from - the migration suites that need it are
-      # not part of that list, and running them can only raise coverage, never lower it.
+      # full compilation as the Frick gate. Deliberately without the Postgres service: no pinned
+      # file belongs to the migration suites that need it, and enabling those suites can only
+      # raise coverage, never lower it.
       - name: Run coverage ratchet
         run: npm run test:cov:gate
 
