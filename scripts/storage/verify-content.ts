@@ -80,6 +80,9 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+/** Marker checked by the production wrapper before storage credentials reach this script. */
+export const CONTENT_VERIFY_PRIVACY_LOG_VERSION = 'storage-content-verify-private-logs-v1';
+
 /** Max needs-hash keys hashed per run when VERIFY_HASH_CAP is unset. Logged at runtime. */
 export const DEFAULT_HASH_CAP = 5000;
 
@@ -632,11 +635,12 @@ export interface ContainerClassification {
   backfillCovered: string[];
   sizeMismatch: string[];
   needsHash: string[];
+  needsHashBytes: number;
   azureMap: Map<string, ContentObject>;
   s3Map: Map<string, ContentObject>;
 }
 
-function classifyContainer(
+export function classifyContainer(
   container: string,
   azureObjs: ContentObject[],
   s3Objs: ContentObject[],
@@ -654,6 +658,7 @@ function classifyContainer(
   const backfillCovered: string[] = [];
   const sizeMismatch: string[] = [];
   const needsHash: string[] = [];
+  let needsHashBytes = 0;
 
   for (const key of azureMap.keys()) {
     if (!s3Map.has(key)) missingKeys.push(key);
@@ -678,6 +683,7 @@ function classifyContainer(
         break;
       case 'needs-hash':
         needsHash.push(key);
+        needsHashBytes += azureObj.size;
         break;
     }
   }
@@ -689,6 +695,7 @@ function classifyContainer(
     backfillCovered,
     sizeMismatch,
     needsHash,
+    needsHashBytes,
     azureMap,
     s3Map,
   };
@@ -703,6 +710,10 @@ function sumField(reports: ContainerClassification[], field: keyof ContainerClas
     const v = r[field];
     return sum + (Array.isArray(v) ? v.length : 0);
   }, 0);
+}
+
+function sumNeedsHashBytes(reports: ContainerClassification[]): number {
+  return reports.reduce((sum, report) => sum + report.needsHashBytes, 0);
 }
 
 // --- MAIN --- //
@@ -720,6 +731,7 @@ async function main(): Promise<number> {
   console.log(
     `Content verify: containers=[${containers.join(', ')}] ignoreBuckets=[${ignoreBuckets.join(', ')}] ` +
       `mode=${hashDelta ? 'HASH-DELTA' : 'REPORT'} ` +
+      `privacyLogVersion=${CONTENT_VERIFY_PRIVACY_LOG_VERSION} ` +
       `backfillCutoff=${backfillCutoff.toISOString()} ` +
       `BACKFILL_CONTENT_PROVEN=${backfillContentProven} ` +
       `hashCap=${hashCap}${process.env.VERIFY_HASH_CAP === undefined ? ` (DEFAULT_HASH_CAP)` : ''} ` +
@@ -755,6 +767,7 @@ async function main(): Promise<number> {
       printCategory('backfill-covered', report.backfillCovered);
       printCategory('size-mismatch', report.sizeMismatch);
       printCategory('needs-hash', report.needsHash);
+      console.log(`    needs-hash-bytes: ${report.needsHashBytes}`);
       printCategory('missingKeys', report.missingKeys);
     } catch (e) {
       throw new Error(`[container="${container}"] ${e?.message ?? e}`, { cause: e });
@@ -766,6 +779,7 @@ async function main(): Promise<number> {
     backfillCovered: sumField(reports, 'backfillCovered'),
     sizeMismatch: sumField(reports, 'sizeMismatch'),
     needsHash: sumField(reports, 'needsHash'),
+    needsHashBytes: sumNeedsHashBytes(reports),
     missingKeys: sumField(reports, 'missingKeys'),
   };
 
@@ -773,6 +787,7 @@ async function main(): Promise<number> {
     `\nAGGREGATE across ${containers.length} container(s): ` +
       `metadata-match=${totals.metadataMatch} backfill-covered=${totals.backfillCovered} ` +
       `size-mismatch=${totals.sizeMismatch} needs-hash=${totals.needsHash} ` +
+      `needs-hash-bytes=${totals.needsHashBytes} ` +
       `missingKeys=${totals.missingKeys}`,
   );
 
