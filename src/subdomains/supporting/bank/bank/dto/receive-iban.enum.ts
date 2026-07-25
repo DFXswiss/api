@@ -1,7 +1,7 @@
 export enum ReceiveIbanStatus {
-  // An IBAN DFX receives customer money on: either a collective account from the bank table, or a personal
-  // deposit IBAN of the requesting account. Lifecycle state is irrelevant - a retired collective account and
-  // an expired personal IBAN both received real customer money.
+  // An IBAN that belongs to DFX: either a collective account from the bank table, or a personal deposit IBAN
+  // of the requesting account. It does not say the account still accepts money - most bank rows are retired,
+  // and an expired personal IBAN matches too. Phrase the hint as "belongs to us", never as "pay in here".
   DFX_IBAN = 'DfxIban',
 
   // The IBAN could not be attributed for this caller. This does NOT claim that the IBAN does not belong to
@@ -14,5 +14,7 @@ export enum ReceiveIbanStatus {
 
   // No collective account matched, and personal IBANs are only ever checked for the authenticated account, so
   // without a login the check stays incomplete. Never answered as NOT_MATCHED, which would overstate it.
+  // Tokens that carry no `account` claim get this too even though they are authenticated - company tokens
+  // (generateCompanyToken) are wallet-scoped, not account-scoped. Not a case the support form produces.
   LOGIN_REQUIRED = 'LoginRequired',
 }

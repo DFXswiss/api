@@ -162,12 +162,17 @@ export class BankService implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
-  // An IBAN is alphanumeric only, so everything else is separator noise: grouping spaces of any kind,
+  // An IBAN is ASCII alphanumeric only, so everything else is separator noise: grouping spaces of any kind,
   // hyphens, dots, slashes, quotes, and the invisible formatting characters that come along when a value
-  // is pasted out of a statement PDF or an HTML mail. Stripping by an allow-list of what an IBAN may
-  // contain is complete by construction, where chasing a deny-list of separators was not - ibantools'
-  // own electronicFormatIBAN only removes ASCII spaces and hyphens, and \s misses the zero-width family.
-  private static normalizeIban(iban: string): string | null {
+  // is pasted out of a statement PDF or an HTML mail. Removing everything that is not ASCII alphanumeric
+  // covers every separator by construction, where chasing a deny-list did not - ibantools' own
+  // electronicFormatIBAN only removes ASCII spaces and hyphens, and \s misses the zero-width family.
+  // Note this also drops non-ASCII letters and digits, so a label in a non-Latin script is silently
+  // stripped rather than making the value invalid. Harmless (it can never produce a *different* valid
+  // IBAN), but it means only ASCII surroundings are reliably rejected.
+  // The parameter is widened past the callers' types on purpose: this sits on the trust boundary between a
+  // request body and the comparison, so it answers for anything the type system cannot actually guarantee.
+  private static normalizeIban(iban: string | null | undefined): string | null {
     if (typeof iban !== 'string') return null;
 
     return iban.replace(/[^A-Za-z0-9]/g, '').toUpperCase() || null;

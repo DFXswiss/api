@@ -504,9 +504,11 @@ describe('BankService.getReceiveIbanStatus', () => {
       // Defensive only: @IsString/@IsNotEmpty reject undefined, null and '' with a 400 before the service is
       // reached, so of these only '   ' can actually arrive. The typeof guard in normalizeIban short-circuits
       // the non-string cases, and an all-separator string normalizes to '' and is returned as null.
+      // The cast stays because getReceiveIbanStatus itself declares `iban: string`; it is what lets the test
+      // reach the guard from outside the type system, which is exactly the situation the guard exists for.
       setup(createDefaultBanks());
 
-      await expect(service.getReceiveIbanStatus(input as unknown as string, accountId)).resolves.toBe(
+      await expect(service.getReceiveIbanStatus(input as string, accountId)).resolves.toBe(
         ReceiveIbanStatus.INVALID_IBAN,
       );
     },
@@ -572,9 +574,11 @@ describe('BankService.getReceiveIbanStatus', () => {
     );
   });
 
-  it('does not extract an IBAN out of surrounding words', async () => {
-    // The allow-list strips separators, it does not salvage an IBAN from a labelled value - and it must not,
-    // because a prefix is indistinguishable from extra characters that make the IBAN wrong.
+  it('does not extract an IBAN out of surrounding ASCII words', async () => {
+    // Separators are stripped, an ASCII label is not: it survives normalization and makes the value invalid,
+    // which is what we want - a prefix is indistinguishable from extra characters that corrupt the IBAN.
+    // The guarantee is ASCII-only by construction: a label in a non-Latin script is stripped like a
+    // separator and the IBAN is accepted. Harmless, but the reason this test says "ASCII".
     setup([frickEUR]);
 
     await expect(service.getReceiveIbanStatus('IBAN: LI75 0881 1010 5923 K000E', accountId)).resolves.toBe(
