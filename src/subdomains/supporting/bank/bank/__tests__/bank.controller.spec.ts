@@ -51,9 +51,9 @@ describe('BankController.checkReceiveIban', () => {
 describe('BankController.checkReceiveIban routing & security metadata', () => {
   const handler = BankController.prototype.checkReceiveIban;
 
-  it('is mounted as PUT bank/receive-iban', () => {
+  it('is mounted as PUT bank/receiveIban', () => {
     expect(Reflect.getMetadata(PATH_METADATA, BankController)).toBe('bank');
-    expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe('receive-iban');
+    expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe('receiveIban');
     expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(RequestMethod.PUT);
   });
 
@@ -73,10 +73,11 @@ describe('BankController.checkReceiveIban routing & security metadata', () => {
   });
 });
 
-// CheckReceiveIbanDto deliberately carries no @Transform. Every other IBAN DTO in the project uses
-// @Transform(Util.trimAll), so "aligning" this one is a natural-looking edit - and it would turn the clean
-// 400 below into a 500 on a route reachable without a JWT, because the Util transforms call string methods
-// on the raw value. These cases pin the boundary behaviour, not the absence of a decorator.
+// CheckReceiveIbanDto deliberately carries no @Transform. Every other customer-facing IBAN input DTO uses
+// @Transform(Util.trimAll) - the admin-side ones (update-bank-tx, create/update-fiat-output) do not - so
+// "aligning" this one is a natural-looking edit, and it would turn the clean 400 below into a 500 on a route
+// reachable without a JWT, because the Util transforms call string methods on the raw value. These cases pin
+// the boundary behaviour, not the absence of a decorator.
 describe('CheckReceiveIbanDto validation boundary', () => {
   // Same configuration as the global pipe in main.ts.
   const pipe = new ValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });

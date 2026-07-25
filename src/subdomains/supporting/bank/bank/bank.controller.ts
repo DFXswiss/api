@@ -24,7 +24,7 @@ export class BankController {
   }
 
   // PUT because the IBAN to check belongs in the body, never in the URL - this is a read, it changes nothing.
-  @Put('receive-iban')
+  @Put('receiveIban')
   @ApiBearerAuth()
   // Rate limit first, matching the guard order of the existing public endpoints. The route-level @Throttle is
   // what actually sets the limit. Deliberately more generous than the 10/60 of the one-shot endpoints (2FA
