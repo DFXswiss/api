@@ -70,6 +70,35 @@ The gate runs the whole suite under full compilation, unlike the sharded `test` 
 the suite three ways and the Frick gate that runs seven specs. Exact per-file numbers are what
 that costs in run time.
 
+## Where the gate runs
+
+On a **self-hosted runner** (`runs-on: [self-hosted, dfx-api]`), unlike every other job in the
+workflow. The gate is CPU-bound, and a hosted runner gives a public repository four vCPUs — Jest
+then defaults to three workers. Measured there, the gate took 13.8 min and single-handedly pushed
+a PR run from 4.8 to 15.7 min. On the self-hosted pool the same work takes **3.8 min**, and the
+whole PR run lands at **4.9 min**.
+
+Sharding the gate across hosted runners was considered and rejected. At 11–12 jobs per push the
+repository already reaches the account's 20-concurrent-job limit whenever two runs overlap
+(measured: 37–52 s of queueing against 2–3 s otherwise), so more jobs there buy queueing, not
+speed. Self-hosted jobs do not count against that limit.
+
+Three things about that job are measured rather than assumed, and re-measuring beats reasoning
+about them:
+
+- **`--maxWorkers=16`.** Raising it backfires: at 20 the gate took 8.4 min against 4.8, while host
+  CPU stayed flat at ~53 % mean either way. The workers contend instead of parallelising — under
+  full compilation each holds its own TypeScript program.
+- **No `cache: 'npm'` on that job**, unlike the hosted ones. A persistent runner keeps `~/.npm`
+  between jobs, so restoring gains nothing while saving uploads a cache nobody reads — it cost
+  5.3 min per run, more than the move to self-hosted saved.
+- **A warm Jest cache is worth roughly half the runtime.** The first run on a fresh runner took
+  6.8 min for the same work that later took 3.8. A gate timing measured on a cold runner is not
+  the steady state.
+
+The margin against the 5-minute ceiling is thin, and the sharded `test` job at ~4.4 min is close
+behind — the gate is only just the slowest job. Treat a slower run as a signal, not as noise.
+
 ## What happens when a pinned file changes
 
 Both failure modes are loud, verified against jest 29.7 rather than assumed:
@@ -87,7 +116,8 @@ map.
 The run also writes an `lcov` report under `coverage-gate/`. On failure the CI job uploads that
 directory as the `coverage-gate` artifact (7-day retention, via `actions/upload-artifact@v7`,
 step "Upload coverage report" on the "Coverage ratchet" job). That shows which lines are missing
-without re-running the ~15-minute gate locally.
+without re-running the whole gate locally — which on a developer machine, without the CI runner's
+warm caches, is a good deal slower than the 3.8 min it takes in CI.
 
 ## Current state
 
