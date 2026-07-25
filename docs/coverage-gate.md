@@ -59,9 +59,16 @@ The gate job deliberately runs **without** the Postgres service that the sharded
 The pinned list was derived from a run without it, and the migration suites it enables are not
 part of that list — running them can only raise coverage, never lower it.
 
-Parallelism does not affect the result: a `--runInBand` reference run produced byte-identical
-totals, which is why the CI script does not serialise. The job takes about 16 minutes, the longest
-of the four in `api-pr.yaml`, because full compilation is the price of exact per-file numbers.
+Parallelism does not affect the result, and the reason is structural rather than empirical:
+istanbul merges per-worker counters additively, so a statement executed by a suite counts as
+executed no matter which worker ran it. Worker scheduling therefore cannot turn a covered file
+into an uncovered one. (A serial `--runInBand` run during development produced identical totals,
+which is consistent with this, but the guarantee comes from the merge semantics.) That is why the
+CI script does not serialise.
+
+The gate runs the whole suite under full compilation and is consequently the slowest of the four
+job groups in `api-pr.yaml` — on the order of a quarter hour on GitHub-hosted runners as of
+July 2026. Exact per-file numbers are what that time buys.
 
 ## What happens when a pinned file changes
 
@@ -80,8 +87,11 @@ map.
 ## Current state
 
 The collection glob matches 1,643 files under `src/`. 1,591 of them contain instrumentable code
-and appear in the report; the remaining 52 are type-only files (interfaces, type aliases, response
-shapes) that compile to no executable statements and therefore cannot be measured or pinned.
+and appear in the report. The remaining 52 compile to no executable statements and therefore
+cannot be measured or pinned: 50 are type-only (interfaces, type aliases, response shapes) and 2
+consist entirely of commented-out code (`integration/exchange/services/p2b.service.ts`,
+`subdomains/supporting/payin/enums/index.ts`). Those two are pre-existing and untouched here;
+deleting them would be a separate cleanup.
 
 | Class    | Files | Meaning                                         |
 | -------- | ----- | ----------------------------------------------- |
