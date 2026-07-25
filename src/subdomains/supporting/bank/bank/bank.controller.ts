@@ -26,10 +26,10 @@ export class BankController {
   // PUT because the IBAN to check belongs in the body, never in the URL - this is a read, it changes nothing.
   @Put('receiveIban')
   @ApiBearerAuth()
-  // Rate limit first, matching the guard order of the existing public endpoints. The route-level @Throttle is
-  // what actually sets the limit. Deliberately more generous than the 10/60 of the one-shot endpoints (2FA
-  // verify, mail login): RateLimitGuard buckets IPv4 callers by /24, so everyone behind one company NAT
-  // shares this counter, and an IBAN field is re-checked several times while a customer corrects a typo.
+  // RateLimitGuard first; the route-level @Throttle below is what sets the limit. Deliberately more generous
+  // than the 10/60 on the one-shot endpoints (kyc 2fa/verify, auth mail login): RateLimitGuard buckets IPv4
+  // callers by /24, so everyone behind one company NAT shares this counter, and an IBAN field is re-checked
+  // several times while a customer corrects a typo.
   @UseGuards(RateLimitGuard, OptionalJwtAuthGuard)
   @Throttle(60, 60)
   @ApiOkResponse({ type: ReceiveIbanDto })

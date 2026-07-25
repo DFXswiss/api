@@ -128,8 +128,9 @@ export class BankService implements OnModuleInit {
 
   // --- RECEIVE IBAN CHECK --- //
 
-  // Tells the client whether an IBAN typed in by a customer is one DFX receives customer money on. Pure
-  // input aid for the support form: it enforces nothing, it only lets the frontend phrase a helpful hint.
+  // Tells the client whether an IBAN typed in by a customer is one that belongs to DFX - not whether it still
+  // accepts money. Pure input aid for the support form: it enforces nothing, it only lets the frontend phrase
+  // a helpful hint.
   async getReceiveIbanStatus(iban: string, userDataId?: number): Promise<ReceiveIbanStatus> {
     // normalizeIban strips separator characters and yields null for input that cannot hold an IBAN at all;
     // it does not rescue every conceivable input (a `IBAN:` prefix stays invalid, correctly). Both sides of

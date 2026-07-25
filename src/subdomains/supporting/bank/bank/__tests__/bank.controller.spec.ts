@@ -13,7 +13,7 @@ import { BankService } from '../bank.service';
 import { CheckReceiveIbanDto } from '../dto/receive-iban.dto';
 import { ReceiveIbanStatus } from '../dto/receive-iban.enum';
 
-// The receive-iban check runs behind an optional guard, so the controller must forward the account of a
+// The receiveIban check runs behind an optional guard, so the controller must forward the account of a
 // present JWT and undefined otherwise - that distinction is what makes the service answer LoginRequired.
 describe('BankController.checkReceiveIban', () => {
   let controller: BankController;
@@ -76,9 +76,8 @@ describe('BankController.checkReceiveIban routing & security metadata', () => {
 // CheckReceiveIbanDto deliberately carries no @Transform. The Util transform helpers call string methods on
 // the raw value - sanitizeString does value.trim() behind a bare truthiness check, trimAll does
 // value?.replace(...) - and @Transform runs before @IsString, so a non-string body throws a TypeError that
-// the exception filter turns into a 500 on a route reachable without a login. Transforms do sit on other
-// IBAN fields, so adding one here would look like tidying up; these cases pin the boundary behaviour rather
-// than the absence of a decorator.
+// the exception filter turns into a 500 on a route reachable without a login. Adding a transform here would
+// look like tidying up; these cases pin the boundary behaviour rather than the absence of a decorator.
 describe('CheckReceiveIbanDto validation boundary', () => {
   // Same configuration as the global pipe in main.ts.
   const pipe = new ValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });
