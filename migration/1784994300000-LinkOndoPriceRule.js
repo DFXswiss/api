@@ -4,7 +4,7 @@
  */
 
 const ONDO_UNIQUE_NAME = 'Ethereum/ONDO';
-const AUDIT_MIGRATION = 'LinkOndoPriceRule1784039000000';
+const AUDIT_MIGRATION = 'LinkOndoPriceRule1784994300000';
 const APPLY_ACTION = 'applyOndoPriceRule';
 const ROLLBACK_ACTION = 'rollbackOndoPriceRule';
 
@@ -135,8 +135,8 @@ async function resolveOndoPriceRuleId(queryRunner) {
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class LinkOndoPriceRule1784039000000 {
-  name = 'LinkOndoPriceRule1784039000000';
+module.exports = class LinkOndoPriceRule1784994300000 {
+  name = 'LinkOndoPriceRule1784994300000';
 
   /**
    * @param {QueryRunner} queryRunner

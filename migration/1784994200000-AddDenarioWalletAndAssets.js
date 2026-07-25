@@ -25,7 +25,7 @@
 
 const { isDeepStrictEqual } = require('node:util');
 
-const AUDIT_MIGRATION = 'AddDenarioWalletAndAssets1784038000000';
+const AUDIT_MIGRATION = 'AddDenarioWalletAndAssets1784994200000';
 const APPLY_ACTION = 'applyDenarioWalletAndAssets';
 const ROLLBACK_ACTION = 'rollbackDenarioWalletAndAssets';
 const DENARIO_WALLET_NAME_INDEX = 'IDX_8f34480ca127806f8393bd56fb';
@@ -273,8 +273,8 @@ async function assertOwnedRowIsUnchanged(queryRunner, table, snapshot) {
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddDenarioWalletAndAssets1784038000000 {
-  name = 'AddDenarioWalletAndAssets1784038000000';
+module.exports = class AddDenarioWalletAndAssets1784994200000 {
+  name = 'AddDenarioWalletAndAssets1784994200000';
 
   /**
    * @param {QueryRunner} queryRunner

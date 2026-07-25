@@ -24,7 +24,7 @@ describe('LinkOndoPriceRule migration (postgres semantics)', () => {
 
   beforeAll(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    LinkOndoPriceRule = require('../../../../../migration/1784039000000-LinkOndoPriceRule');
+    LinkOndoPriceRule = require('../../../../../migration/1784994300000-LinkOndoPriceRule');
   });
 
   beforeEach(async () => {
@@ -234,7 +234,7 @@ describe('LinkOndoPriceRule migration (postgres semantics)', () => {
   it('never treats a forged runtime log message as rollback authority', async () => {
     await queryRunner.query(`UPDATE "asset" SET "priceRuleId" = 60 WHERE "id" = 398`);
     await queryRunner.query(
-      `INSERT INTO "log" ("system", "subsystem", "message") VALUES ('Migration', 'LinkOndoPriceRule1784039000000', $1)`,
+      `INSERT INTO "log" ("system", "subsystem", "message") VALUES ('Migration', 'LinkOndoPriceRule1784994300000', $1)`,
       [
         JSON.stringify({
           action: 'applyOndoPriceRule',

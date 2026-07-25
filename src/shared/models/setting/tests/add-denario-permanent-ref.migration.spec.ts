@@ -90,7 +90,7 @@ afterEach(() => {
 describe('AddDenarioPermanentRef migration', () => {
   beforeAll(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    AddDenarioPermanentRef = require('../../../../../migration/1784037000000-AddDenarioPermanentRef');
+    AddDenarioPermanentRef = require('../../../../../migration/1784994100000-AddDenarioPermanentRef');
   });
 
   it('adds the environment-specific Denario ref while preserving existing aliases', async () => {
