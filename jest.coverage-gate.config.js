@@ -29,6 +29,11 @@ module.exports = {
     '!**/*.mock.ts',
     '!**/*.d.ts',
     '!jest-env.setup.ts',
+    // Test scaffolding that lives outside a __tests__ directory: imported only by specs
+    // (60 and 28 importers respectively, all of them *.spec.ts). Pinning them would make an
+    // untested change to a test helper fail the production gate.
+    '!shared/utils/test.util.ts',
+    '!shared/utils/test.shared.module.ts',
   ],
   // json-summary is what docs/coverage-gate.md tells you to read when extending the pinned list.
   coverageReporters: ['text-summary', 'json-summary'],
@@ -145,7 +150,6 @@ module.exports = {
     'src/shared/utils/cron.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/shared/utils/custom-cron-expression.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/shared/utils/request-client.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
-    'src/shared/utils/test.util.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/shared/validators/is-ssrf-safe-url.validator.ts': {
       branches: 100,
       functions: 100,
@@ -1431,7 +1435,6 @@ module.exports = {
     'src/shared/shared.module.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/shared/utils/logos/dfx-logo.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/shared/utils/logos/realunit-logo-full.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
-    'src/shared/utils/test.shared.module.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/subdomains/core/accounting/accounting.module.ts': {
       branches: 100,
       functions: 100,

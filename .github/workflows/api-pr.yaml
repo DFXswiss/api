@@ -13,8 +13,10 @@ permissions:
 env:
   NODE_VERSION: '20.x'
 
-# Three job groups run in parallel, so PR feedback is ~max(test-shard, checks, coverage)
-# instead of the sum of every step. `test` is additionally split into shards.
+# Four job groups run in parallel, so PR feedback is ~max(test-shard, checks, coverage,
+# coverage-gate) instead of the sum of every step. `test` is additionally split into shards.
+# The ratchet is the slowest of the four (~16 min): it runs the whole suite under full
+# TypeScript compilation, which is what makes its per-file numbers exact.
 jobs:
   checks:
     name: Build and checks
