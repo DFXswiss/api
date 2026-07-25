@@ -21,6 +21,9 @@ It is a **regression gate**, not a statement about test quality:
 - It does not verify that a file's _own_ spec covers it. Under a whole-suite run, coverage may
   come from any spec. The Frick gate is the one that makes the stronger per-spec claim, which is
   why it stays separate.
+- A newly added production file with no coverage at all passes this gate without complaint. The
+  ratchet only protects files already on the list, and that list grows by hand (see "How the list
+  grows"). That is the price of the threshold approach.
 
 Of the 399 pinned files, **217 carry real logic** (they have functions and/or branches) and
 **182 are purely declarative today** (NestJS modules, constant files with neither). The two groups
@@ -81,6 +84,11 @@ keys are resolved with `path.resolve` against the working directory, and both `n
 test:cov:gate` and the workflow run from the repo root, so the `src/...` keys match the coverage
 map.
 
+The run also writes an `lcov` report under `coverage-gate/`. On failure the CI job uploads that
+directory as the `coverage-gate` artifact (7-day retention, via `actions/upload-artifact@v7`,
+step "Upload coverage report" on the "Coverage ratchet" job). That shows which lines are missing
+without re-running the ~15-minute gate locally.
+
 ## Current state
 
 The collection glob matches 1,643 files under `src/`. 1,591 of them contain instrumentable code
@@ -105,9 +113,14 @@ six under `subdomains/generic/admin` have no coverage at all.
 
 ## How the list grows
 
-Any PR may add files to `coverageThreshold` once they reach 100%. The intended next step is the
-set already within reach: **29 files sit at ≥90% on all four metrics**, several of them one or two
-uncovered branches away. Examples:
+Any PR may add files to `coverageThreshold` once they reach 100%.
+`jest.coverage-gate.config.js` holds the 399 paths in two arrays, `PINNED_LOGIC` (logic-carrying
+files) and `PINNED_DECLARATIVE` (purely declarative files), from which `coverageThreshold` is
+generated. Adding a file means appending its path to the matching array, not writing out a
+`coverageThreshold` object entry by hand.
+
+The intended next step is the set already within reach: **29 files sit at ≥90% on all four
+metrics**, several of them one or two uncovered branches away. Examples:
 
 | File                                                                        | branches | functions | lines | statements |
 | --------------------------------------------------------------------------- | -------- | --------- | ----- | ---------- |
@@ -121,3 +134,10 @@ To regenerate the full picture, run the gate and read `coverage-gate/coverage-su
 **Removing a file from the list is not a normal fix.** If a change makes a pinned file drop
 below 100, the expected response is to extend the tests. Unpinning is an explicit decision that
 belongs in the PR description, not a silent edit.
+
+That rule stays hard for the 217 logic-carrying files. A foreseeable friction case is different:
+when one of the 182 purely declarative files (a NestJS module, a constants file) first gains
+executable logic — for example a `useFactory` on a module — the function metric jumps from 0/0 to
+0/N and the gate turns red. Tests remain the preferred fix, but unpinning that one file is an
+allowed outcome if the PR description names and justifies it (not as a silent edit). For
+logic-carrying files the rule is unchanged: extend the tests.
