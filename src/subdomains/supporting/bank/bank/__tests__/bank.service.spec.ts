@@ -509,6 +509,29 @@ describe('BankService.getReceiveIbanStatus', () => {
     );
   });
 
+  // Separators written as escape sequences on purpose: as literal characters they are invisible and an editor
+  // or a copy-paste would silently turn them back into ordinary spaces, which would void these cases.
+  it.each([
+    ['a non-breaking space', '\u00a0'],
+    ['a narrow non-breaking space', '\u202f'],
+    ['a tab', '\t'],
+    ['a line break', '\n'],
+  ])(
+    'recognizes an IBAN grouped with %s, which the ibantools formatter alone does not strip',
+    async (_name, separator) => {
+      setup([frickEUR], new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
+
+      const group = (iban: string) => (iban.match(/.{1,4}/g) ?? []).join(separator);
+
+      await expect(service.getReceiveIbanStatus(group(frickEUR.iban), accountId)).resolves.toBe(
+        ReceiveIbanStatus.DFX_IBAN,
+      );
+      await expect(service.getReceiveIbanStatus(group(personalIban), accountId)).resolves.toBe(
+        ReceiveIbanStatus.DFX_IBAN,
+      );
+    },
+  );
+
   it('never reports a personal IBAN of another account as a DFX IBAN', async () => {
     setup(
       createDefaultBanks(),
