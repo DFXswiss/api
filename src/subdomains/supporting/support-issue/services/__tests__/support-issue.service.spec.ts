@@ -2,6 +2,7 @@ import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { MoreThan } from 'typeorm';
 import * as ConfigModule from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -268,7 +269,7 @@ describe('SupportIssueService.closeIssue', () => {
     supportIssueRepo = createMock<SupportIssueRepository>();
     messageRepo = createMock<SupportMessageRepository>();
     supportLogService = createMock<SupportLogService>();
-    messageRepo.findBy.mockResolvedValue([]);
+    messageRepo.find.mockResolvedValue([]);
 
     service = new SupportIssueService(
       supportIssueRepo,
@@ -332,7 +333,13 @@ describe('SupportIssueService.closeIssue', () => {
   it('loads messages so the response matches GET /:id instead of an empty thread', async () => {
     supportIssueRepo.findOne.mockResolvedValue(makeIssue(SupportIssueInternalState.PENDING));
     await service.closeIssue('7', 42);
-    expect(messageRepo.findBy).toHaveBeenCalledWith({ issue: { id: 7 } });
+    expect(messageRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ issue: { id: 7 } }),
+        order: { id: 'ASC' },
+        loadEagerRelations: false,
+      }),
+    );
   });
 });
 
@@ -598,18 +605,20 @@ describe('SupportIssueService.getIssueMessages', () => {
   it('throws NotFound (fail-closed) when the issue owner is outside the customer scope, without reading messages', async () => {
     supportIssueRepo.findOne.mockResolvedValue(issueOfCustomer(99));
     await expect(service.getIssueMessages(7, [42])).rejects.toBeInstanceOf(NotFoundException);
-    expect(messageRepo.findBy).not.toHaveBeenCalled();
+    expect(messageRepo.find).not.toHaveBeenCalled();
   });
 
   it('returns the mapped thread for an in-scope customer, honoring fromMessageId', async () => {
     supportIssueRepo.findOne.mockResolvedValue(issueOfCustomer(42));
-    messageRepo.findBy.mockResolvedValue([message(11), message(12)]);
+    messageRepo.find.mockResolvedValue([message(11), message(12)]);
 
     const result = await service.getIssueMessages(7, [42], 10);
 
-    const findByArg = messageRepo.findBy.mock.calls[0][0] as { issue: { id: number }; id: { value: number } };
-    expect(findByArg.issue).toEqual({ id: 7 });
-    expect(findByArg.id.value).toBe(10); // MoreThan(10)
+    const findArg = messageRepo.find.mock.calls[0][0] as {
+      where: { issue: { id: number }; id: { value: number } };
+    };
+    expect(findArg.where.issue).toEqual({ id: 7 });
+    expect(findArg.where.id.value).toBe(10); // MoreThan(10)
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({ id: 11, author: 'Customer', message: 'msg 11' });
   });
@@ -690,5 +699,72 @@ describe('SupportIssueService.resolveSourceWallet (X-Client mail branding)', () 
     // routed to creation with the DFX default wallet (not RealUnit, and never rejected)
     expect(createIssueInternal).toHaveBeenCalledWith(userData, dto, dfxDefault);
     expect(walletService.getByIdOrName).not.toHaveBeenCalled();
+  });
+});
+
+// SupportMessage.issue is eager, so an unscoped message read pulls the whole SupportIssue graph
+// (15 joins / 425 columns) into every message row - on the thread the dashboard polls every 15s.
+// The thread is also a transcript, and consumers index into it positionally, so the order must be
+// deterministic rather than whatever Postgres happens to return.
+describe('SupportIssueService message thread reads', () => {
+  let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
+  let messageRepo: DeepMocked<SupportMessageRepository>;
+
+  const issue = { id: 42, uid: 'SI0000000000TEST', state: SupportIssueInternalState.PENDING } as SupportIssue;
+
+  beforeEach(() => {
+    supportIssueRepo = createMock<SupportIssueRepository>();
+    messageRepo = createMock<SupportMessageRepository>();
+    messageRepo.find.mockResolvedValue([]);
+    supportIssueRepo.findOne.mockResolvedValue({ ...issue, userData: { id: 7 } } as SupportIssue);
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      messageRepo,
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+      createMock<WalletService>(),
+    );
+  });
+
+  const expectedOptions = expect.objectContaining({
+    where: expect.objectContaining({ issue: { id: 42 } }),
+    order: { id: 'ASC' },
+    loadEagerRelations: false,
+  });
+
+  it('reads the thread scoped and ordered for getIssueMessages', async () => {
+    await service.getIssueMessages(42);
+
+    expect(messageRepo.find).toHaveBeenCalledWith(expectedOptions);
+    // findBy cannot express either option, so it must not be the entry point any more
+    expect(messageRepo.findBy).not.toHaveBeenCalled();
+  });
+
+  it('honors fromMessageId while staying scoped and ordered', async () => {
+    await service.getIssueMessages(42, undefined, 11);
+
+    expect(messageRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ issue: { id: 42 }, id: MoreThan(11) }),
+        order: { id: 'ASC' },
+        loadEagerRelations: false,
+      }),
+    );
+  });
+
+  it('reads the thread scoped and ordered for getIssue', async () => {
+    await service.getIssue('42', {}, 7);
+
+    expect(messageRepo.find).toHaveBeenCalledWith(expectedOptions);
+    expect(messageRepo.findBy).not.toHaveBeenCalled();
   });
 });

@@ -33,14 +33,16 @@ export class SupportIssueJobService {
   ) {}
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.SUPPORT_BOT, timeout: 1800 })
-  async autoOnHold() {
+  async autoOnHold(): Promise<void> {
     const entities = await this.supportIssueRepo.find({
       where: {
         state: In([SupportIssueInternalState.CREATED, SupportIssueInternalState.PENDING]),
         messages: { id: Not(IsNull()) },
       },
       relations: { messages: true },
-      order: { messages: { created: 'ASC' } },
+      // id as tie-break for the same reason as in getAutoResponseIssues below: messages.at(-1) must
+      // be deterministic even when two messages share a created timestamp
+      order: { messages: { created: 'ASC', id: 'ASC' } },
     });
 
     for (const entity of entities) {
@@ -53,7 +55,7 @@ export class SupportIssueJobService {
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
-  async sendAutoResponses() {
+  async sendAutoResponses(): Promise<void> {
     const disabledTemplates = await this.settingsService
       .get('supportBot')
       .then((s) => (s?.split(',') ?? []) as AutoResponse[]);
@@ -120,10 +122,25 @@ export class SupportIssueJobService {
           { ...request, clerk: Not(AutoResponder) },
         ],
         relations: { messages: true },
+        // the filter below reads messages.at(-1), so the thread has to come back in order -
+        // without this the bot decides "the customer wrote last" off an arbitrary row and both
+        // mails the wrong tickets and skips the right ones (autoOnHold above already orders)
+        // id as tie-break: two messages sharing a created timestamp would otherwise leave
+        // messages.at(-1) non-deterministic again, which is the whole point of ordering here
+        order: { messages: { created: 'ASC', id: 'ASC' } },
       })
       .then((issues) =>
         issues.filter(
-          (i) => i.messages.at(-1).author === CustomerAuthor && i.messages.every((m) => m.author !== AutoResponder),
+          // length guard: `relations: { messages: true }` is a LEFT JOIN, so an issue whose first
+          // message never got written (createIssueInternal commits the issue and the message in
+          // separate transactions) comes back with an empty array and at(-1) would throw. The thrown
+          // error is caught and logged as an ERROR by the cron lock, which then aborts the rest of
+          // the run - so a single such row stops every auto-response, every minute, until someone
+          // reads the log. The sibling autoOnHold guards this via its where clause; this one did not.
+          (i) =>
+            i.messages.length > 0 &&
+            i.messages.at(-1).author === CustomerAuthor &&
+            i.messages.every((m) => m.author !== AutoResponder),
         ),
       );
   }
