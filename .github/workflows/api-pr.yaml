@@ -81,6 +81,35 @@ jobs:
       - name: Run coverage
         run: npm run test:frick:cov
 
+  coverage-gate:
+    name: Coverage ratchet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install packages
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: npm ci
+
+      # Repo-wide ratchet: every file already at 100% is pinned, so coverage cannot regress.
+      # Runs the whole suite (a file is often covered by specs other than its own) with the same
+      # full compilation as the Frick gate. Deliberately without the Postgres service, matching
+      # the measurement the pinned list was derived from - the migration suites that need it are
+      # not part of that list, and running them can only raise coverage, never lower it.
+      - name: Run coverage ratchet
+        run: npm run test:cov:gate
+
   test:
     name: Test (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
