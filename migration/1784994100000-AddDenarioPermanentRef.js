@@ -140,8 +140,17 @@ async function writeAuditEvent(queryRunner, event) {
  *
  * The account is pinned by its immutable prod `user_data.id` (this migration is prd-only, see up()).
  * The referral CODE itself is still read live from that account rather than hardcoded, so a code
- * rotation needs no source change. The `accountType`/`status` filters are defense-in-depth: if the
- * pinned id is not an active organization, the migration fails loud instead of routing to a wrong ref.
+ * rotation needs no source change. The `accountType` filter is defense-in-depth: if the pinned id is
+ * not an organization, the migration fails loud instead of routing to a wrong ref.
+ *
+ * The status filters intentionally do NOT require 'Active'. The referral system itself (see
+ * UserService.checkRef/getRefUser) only requires that a user with the given ref exists and is not a
+ * self-ref — it never checks user_data.status or user.status. Requiring 'Active' here would be
+ * stricter than that semantics and would exclude the account's normal post-onboarding state: a
+ * KycOnly user_data is flipped to 'NA' on the first wallet login (user creation), and the ref is
+ * granted right away once kycLevel >= 50 — so a freshly onboarded partner sits at
+ * user_data.status = 'NA', not 'Active'. Excluding only the terminal/unusable states (Blocked, Merged,
+ * Deactivated for user_data; Blocked, Deleted for user) mirrors what the ref system actually accepts.
  *
  * @param {QueryRunner} queryRunner
  * @returns {Promise<string>}
@@ -154,8 +163,8 @@ async function resolveDenarioRef(queryRunner) {
       INNER JOIN "user_data" ud ON ud."id" = u."userDataId"
       WHERE ud."id" = $1
         AND ud."accountType" = 'Organization'
-        AND ud."status" = 'Active'
-        AND u."status" = 'Active'
+        AND ud."status" NOT IN ('Blocked', 'Merged', 'Deactivated')
+        AND u."status" NOT IN ('Blocked', 'Deleted')
         AND u."ref" IS NOT NULL
       ORDER BY u."ref"
     `,
@@ -165,12 +174,12 @@ async function resolveDenarioRef(queryRunner) {
   const refs = rows.map((row) => row.ref);
   if (refs.length === 0) {
     throw new Error(
-      `No active referral code found for the Denario organization account (user_data.id ${DENARIO_USER_DATA_ID}). ` +
-        'Confirm the account is active with a referral code before running the migration.',
+      `No usable referral code found for the Denario organization account (user_data.id ${DENARIO_USER_DATA_ID}). ` +
+        'Confirm the account has a non-blocked/non-deleted user with a referral code before running the migration.',
     );
   }
   if (refs.length > 1) {
-    throw new Error(`Denario referral target is ambiguous: found ${refs.length} active referral codes`);
+    throw new Error(`Denario referral target is ambiguous: found ${refs.length} usable referral codes`);
   }
   const denarioRef = refs.at(0);
   if (!REF_CODE_FORMAT.test(denarioRef)) {
@@ -193,8 +202,8 @@ module.exports = class AddDenarioPermanentRef1784994100000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
-    // Partner-onboarding migration: NEVER run on dev/loc/CI — there no active Denario organization
-    // account exists, so resolveDenarioRef() below would throw and block boot. Returning early still
+    // Partner-onboarding migration: NEVER run on dev/loc/CI — no Denario organization account exists
+    // there at all, so resolveDenarioRef() below would throw and block boot. Returning early still
     // records the migration as executed, the intended no-op on lower environments (same rationale as
     // AddBankFrickCustodyAssets / ActivateBankFrick).
     if (process.env.ENVIRONMENT !== 'prd') return;

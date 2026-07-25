@@ -191,7 +191,7 @@ describe('AddDenarioPermanentRef migration', () => {
   });
 
   it.each([
-    { refs: [], error: 'No active referral code found for the Denario organization account' },
+    { refs: [], error: 'No usable referral code found for the Denario organization account' },
     { refs: ['123-456', '234-567'], error: 'ambiguous' },
     { refs: ['1234-56'], error: 'invalid referral code' },
   ])('rejects an unusable target: $error', async ({ refs, error }) => {
@@ -377,7 +377,12 @@ describe('AddDenarioPermanentRef migration', () => {
 describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
   let dataSource: DataSource;
 
-  beforeAll(async () => {
+  beforeAll(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    AddDenarioPermanentRef = require('../../../../../migration/1784994100000-AddDenarioPermanentRef');
+  });
+
+  beforeEach(async () => {
     const db = newDb();
     db.public.registerFunction({ name: 'version', returns: DataType.text, implementation: () => 'PostgreSQL 15.0' });
     db.public.registerFunction({ name: 'current_database', returns: DataType.text, implementation: () => 'test' });
@@ -387,18 +392,6 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
       entities: [],
     })) as DataSource;
     await dataSource.initialize();
-  });
-
-  afterAll(async () => {
-    if (dataSource?.isInitialized) await dataSource.destroy();
-  });
-
-  beforeEach(async () => {
-    await dataSource.query(`DROP TABLE IF EXISTS "setting"`);
-    await dataSource.query(`DROP TABLE IF EXISTS "migration_audit_event"`);
-    await dataSource.query(`DROP TABLE IF EXISTS "migration_audit_lock"`);
-    await dataSource.query(`DROP TABLE IF EXISTS "user"`);
-    await dataSource.query(`DROP TABLE IF EXISTS "user_data"`);
     await dataSource.query(`
       CREATE TABLE "user_data" (
         "id" integer PRIMARY KEY,
@@ -439,7 +432,11 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
     `);
   });
 
-  it('resolves the active organization ref and applies a reversible, auditable setting update', async () => {
+  afterEach(async () => {
+    if (dataSource?.isInitialized) await dataSource.destroy();
+  });
+
+  it('resolves the organization ref for an Active pinned account and applies a reversible, auditable setting update', async () => {
     // 408808 is the pinned Denario account. Rows 2 and 3 are same-named impostors ("Denario AG") that the
     // old organizationName match would have hit — the id pin must ignore them.
     await dataSource.query(
@@ -484,6 +481,94 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
         action: ROLLBACK_ACTION,
         outcome: 'reverted',
       });
+    } finally {
+      await queryRunner.release();
+    }
+  });
+
+  it('resolves the ref for the normal post-first-login state (user_data NA, user NA)', async () => {
+    // Mirrors UserService: a KycOnly user_data flips to 'NA' on first wallet login and the ref is
+    // granted immediately at kycLevel >= 50, so the pinned account regularly sits at NA, not Active.
+    await dataSource.query(
+      `INSERT INTO "user_data" ("id", "organizationName", "accountType", "status") VALUES
+        (408808, 'Denario AG', 'Organization', 'NA')`,
+    );
+    await dataSource.query(
+      `INSERT INTO "user" ("id", "userDataId", "status", "ref") VALUES
+        (1, 408808, 'NA', '123-456')`,
+    );
+    await dataSource.query(`INSERT INTO "setting" ("key", "value") VALUES ($1, $2)`, [
+      'ref-keys',
+      JSON.stringify({ cakewallet: '111-222' }),
+    ]);
+
+    const migration = new AddDenarioPermanentRef();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+
+    try {
+      await migration.up(queryRunner);
+      const afterUp = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'ref-keys'`);
+      expect(JSON.parse(afterUp.at(0).value)).toEqual({ cakewallet: '111-222', denario: '123-456' });
+    } finally {
+      await queryRunner.release();
+    }
+  });
+
+  it('throws when the pinned account is KycOnly and has no user with a referral code', async () => {
+    await dataSource.query(
+      `INSERT INTO "user_data" ("id", "organizationName", "accountType", "status") VALUES
+        (408808, 'Denario AG', 'Organization', 'KycOnly')`,
+    );
+
+    const migration = new AddDenarioPermanentRef();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+
+    try {
+      await expect(migration.up(queryRunner)).rejects.toThrow('No usable referral code found');
+    } finally {
+      await queryRunner.release();
+    }
+  });
+
+  it('ignores Blocked and Deleted users and throws when they are the only ones with a referral code', async () => {
+    await dataSource.query(
+      `INSERT INTO "user_data" ("id", "organizationName", "accountType", "status") VALUES
+        (408808, 'Denario AG', 'Organization', 'Active')`,
+    );
+    await dataSource.query(
+      `INSERT INTO "user" ("id", "userDataId", "status", "ref") VALUES
+        (1, 408808, 'Blocked', '123-456'),
+        (2, 408808, 'Deleted', '234-567')`,
+    );
+
+    const migration = new AddDenarioPermanentRef();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+
+    try {
+      await expect(migration.up(queryRunner)).rejects.toThrow('No usable referral code found');
+    } finally {
+      await queryRunner.release();
+    }
+  });
+
+  it.each(['Blocked', 'Merged', 'Deactivated'])('throws when the pinned account status is %s', async (status) => {
+    await dataSource.query(
+      `INSERT INTO "user_data" ("id", "organizationName", "accountType", "status") VALUES (408808, 'Denario AG', 'Organization', $1)`,
+      [status],
+    );
+    await dataSource.query(
+      `INSERT INTO "user" ("id", "userDataId", "status", "ref") VALUES (1, 408808, 'Active', '123-456')`,
+    );
+
+    const migration = new AddDenarioPermanentRef();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+
+    try {
+      await expect(migration.up(queryRunner)).rejects.toThrow('No usable referral code found');
     } finally {
       await queryRunner.release();
     }
