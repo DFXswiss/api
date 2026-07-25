@@ -73,11 +73,12 @@ describe('BankController.checkReceiveIban routing & security metadata', () => {
   });
 });
 
-// CheckReceiveIbanDto deliberately carries no @Transform. Every other customer-facing IBAN input DTO uses
-// @Transform(Util.trimAll) - the admin-side ones (update-bank-tx, create/update-fiat-output) do not - so
-// "aligning" this one is a natural-looking edit, and it would turn the clean 400 below into a 500 on a route
-// reachable without a JWT, because the Util transforms call string methods on the raw value. These cases pin
-// the boundary behaviour, not the absence of a decorator.
+// CheckReceiveIbanDto deliberately carries no @Transform. The Util transform helpers call string methods on
+// the raw value - sanitizeString does value.trim() behind a bare truthiness check, trimAll does
+// value?.replace(...) - and @Transform runs before @IsString, so a non-string body throws a TypeError that
+// the exception filter turns into a 500 on a route reachable without a login. Transforms do sit on other
+// IBAN fields, so adding one here would look like tidying up; these cases pin the boundary behaviour rather
+// than the absence of a decorator.
 describe('CheckReceiveIbanDto validation boundary', () => {
   // Same configuration as the global pipe in main.ts.
   const pipe = new ValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });

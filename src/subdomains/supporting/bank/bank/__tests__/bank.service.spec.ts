@@ -431,8 +431,8 @@ describe('BankService.getReceiveIbanStatus', () => {
   });
 
   it('reports a collective account IBAN stored in paper format as a DFX IBAN', async () => {
-    // The stored side is normalized too. No service writes bank.iban - rows arrive via migrations or by hand
-    // - and nothing normalizes the column on write, so a row can carry a grouped value at any time.
+    // The stored side is normalized too. No service writes bank.iban - rows arrive via migrations, the seed
+    // CSV or by hand - and nothing normalizes the column on write, so a row can carry a grouped value.
     setup([createCustomBank({ iban: 'LU11 6060 0020 0000 5040' })]);
 
     await expect(service.getReceiveIbanStatus('LU116060002000005040', accountId)).resolves.toBe(
