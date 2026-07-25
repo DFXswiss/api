@@ -95,11 +95,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # No `cache: 'npm'` here, unlike the hosted jobs. The runner's ~/.npm survives between jobs,
+      # so the cache would only be redundant - and its post-run upload cost 5.3 min, more than the
+      # gate itself saves by running here.
       - name: Use Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
       - name: Install packages
         uses: nick-fields/retry@v4
