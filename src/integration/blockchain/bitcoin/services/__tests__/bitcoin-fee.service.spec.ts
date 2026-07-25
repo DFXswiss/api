@@ -311,9 +311,14 @@ describe('BitcoinFeeService', () => {
       await new Promise((resolve) => setImmediate(resolve));
 
       // Sequential awaits would keep maxInFlight at 1; concurrent calls reach txids.length
-      expect(maxInFlight).toBe(txids.length);
+      try {
+        expect(maxInFlight).toBe(txids.length);
+      } finally {
+        // Release the mocked calls even when the assertion fails, so the pending
+        // getTxFeeRates promise cannot outlive the test.
+        resolvers.forEach((resolve) => resolve());
+      }
 
-      resolvers.forEach((resolve) => resolve());
       const result = await resultPromise;
 
       expect(result.size).toBe(5);
