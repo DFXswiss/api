@@ -4,9 +4,12 @@
  */
 
 /**
- * Creates the internal append-only authority used by data migrations that must later prove ownership
- * before reverting a row. It deliberately has no TypeORM entity or API surface: operational logs are
+ * Creates "migration_audit_lock" and "migration_audit_event": an append-only record of which migration
+ * inserted or mutated which row, so a later rollback can prove exactly what it owns before deleting or
+ * reverting it. The tables deliberately have no TypeORM entity or API surface: operational logs are
  * observable and mutable, whereas migration ownership must not be writable through runtime endpoints.
+ * Inserts into "migration_audit_event" are validated and the rows are immutable and append-only,
+ * enforced by triggers, not application code.
  *
  * The tables survive down(). Removing them would destroy the exact evidence required by older migration
  * rollbacks and would recreate the audit-loss defect this store exists to prevent.

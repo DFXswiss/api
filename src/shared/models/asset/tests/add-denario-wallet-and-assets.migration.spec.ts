@@ -191,13 +191,15 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     await queryRunner.query(`INSERT INTO "wallet" ("name", "displayName") VALUES ('Other', 'First')`);
     await queryRunner.query(`INSERT INTO "wallet" ("name", "displayName") VALUES ('Other', 'Second')`);
 
-    // pg-mem incorrectly answers a WHERE name='Other' lookup from this partial index, so inspect
-    // the full table here. Real PostgreSQL coverage separately verifies the predicate semantics.
+    // pg-mem does not enforce this partial index the way real PostgreSQL does — its query planner
+    // ignores the predicate and answers a WHERE name='Other' lookup as if the index covered every row.
+    // This test only demonstrates that the migration issues no index DDL scoped to non-Denario names;
+    // it is not a substitute for exercising the predicate semantics against real PostgreSQL.
     const wallets = await queryRunner.query(`SELECT "id", "name" FROM "wallet"`);
     expect(wallets.filter((wallet) => wallet.name === 'Other')).toHaveLength(2);
   });
 
-  it('down() removes the inert assets and the unused wallet it created', async () => {
+  it('down() removes the inert assets and the unused wallet it created, but keeps the index', async () => {
     const migration = new AddDenarioWalletAndAssets();
     await migration.up(queryRunner);
 
@@ -223,10 +225,8 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
       'rollbackDenarioWalletAndAssets',
     ]);
 
-    const dropIndexAt = statements.findIndex((sql) => sql.includes('DROP INDEX'));
-    const walletRowLockAt = statements.findIndex((sql) => sql.includes('SELECT * FROM "wallet"'));
-    expect(dropIndexAt).toBeGreaterThanOrEqual(0);
-    expect(walletRowLockAt).toBeGreaterThan(dropIndexAt);
+    // The partial unique index is declared entity schema, not data owned by this migration's rollback.
+    expect(statements.some((sql) => sql.includes('DROP INDEX'))).toBe(false);
   });
 
   it('up() -> down() preserves pre-existing rows by exact ownership', async () => {
@@ -339,14 +339,28 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     ]);
   });
 
-  it('removes the Denario-only uniqueness guard when the migration is reverted', async () => {
+  it('keeps the Denario-only uniqueness guard after the migration is reverted', async () => {
     const migration = new AddDenarioWalletAndAssets();
     await migration.up(queryRunner);
     await migration.down(queryRunner);
 
     await queryRunner.query(`INSERT INTO "wallet" ("name", "displayName") VALUES ('Denario', 'Denario')`);
-    await queryRunner.query(`INSERT INTO "wallet" ("name", "displayName") VALUES ('Denario', 'Denario')`);
 
-    expect(await countWallet(queryRunner)).toBe(2);
+    await expect(
+      queryRunner.query(`INSERT INTO "wallet" ("name", "displayName") VALUES ('Denario', 'Denario')`),
+    ).rejects.toThrow();
+    expect(await countWallet(queryRunner)).toBe(1);
+  });
+
+  it('creates the uniqueness guard even when the environment is not prd', async () => {
+    delete process.env.ENVIRONMENT;
+
+    await new AddDenarioWalletAndAssets().up(queryRunner);
+
+    expect(await countWallet(queryRunner)).toBe(0);
+    await queryRunner.query(`INSERT INTO "wallet" ("name", "displayName") VALUES ('Denario', 'Denario')`);
+    await expect(
+      queryRunner.query(`INSERT INTO "wallet" ("name", "displayName") VALUES ('Denario', 'Denario')`),
+    ).rejects.toThrow();
   });
 });

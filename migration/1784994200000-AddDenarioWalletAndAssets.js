@@ -280,6 +280,25 @@ module.exports = class AddDenarioWalletAndAssets1784994200000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
+    // Cheap, read-only precheck that runs in every environment before the index below: if duplicate
+    // 'Denario' rows already exist, this fails with a clear application error instead of the opaque
+    // constraint-violation error that CREATE UNIQUE INDEX would otherwise raise.
+    const preExistingWallets = await queryRunner.query(
+      `SELECT "id" FROM "wallet" WHERE "name" = 'Denario' ORDER BY "id"`,
+    );
+    if (preExistingWallets.length > 1) {
+      throw new Error(`Denario wallet is ambiguous: found ${preExistingWallets.length} matching rows`);
+    }
+
+    // wallet.name is intentionally not globally unique, but the Wallet entity declares a single stable
+    // Denario partner row via this partial unique index. It runs unconditionally in every environment
+    // because it is declared entity schema, not partner-onboarding data: guarding it behind the prd-only
+    // check below would leave it missing on every other environment, and the next `migration:generate`
+    // would then emit it again as an ungated pending migration.
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "${DENARIO_WALLET_NAME_INDEX}" ON "wallet" ("name") WHERE "name" = 'Denario'`,
+    );
+
     // Partner-onboarding migration: NEVER run on dev/loc/CI — there the Denario wallet/assets come from
     // migration/seed/asset.csv (unlinked). Returning early still records the migration as executed, the
     // intended no-op on lower environments (same rationale as AddBankFrickCustodyAssets).
@@ -289,21 +308,9 @@ module.exports = class AddDenarioWalletAndAssets1784994200000 {
     // event proves this migration already owns its exact inserts, so a repeated up() is a safe no-op.
     if (await getActiveApplyAudit(queryRunner)) return;
 
-    const preExistingWallets = await queryRunner.query(
-      `SELECT "id" FROM "wallet" WHERE "name" = 'Denario' ORDER BY "id"`,
-    );
-    if (preExistingWallets.length > 1) {
-      throw new Error(`Denario wallet is ambiguous: found ${preExistingWallets.length} matching rows`);
-    }
-
-    // wallet.name is intentionally not globally unique, but this integration requires one stable Denario
-    // partner row. The partial unique index is the database-level guard that also closes the empty-result
-    // SELECT/INSERT race against the admin wallet endpoint. Re-read after creating it because an external
-    // insert may have committed between the preflight query and the index lock.
-    await queryRunner.query(
-      `CREATE UNIQUE INDEX "${DENARIO_WALLET_NAME_INDEX}" ON "wallet" ("name") WHERE "name" = 'Denario'`,
-    );
-
+    // The partial unique index created above already closes the empty-result SELECT/INSERT race against
+    // the admin wallet endpoint. Re-read under a row lock because an external insert may still have
+    // committed between the preflight query and this point.
     const existingWallets = await queryRunner.query(
       `SELECT * FROM "wallet" WHERE "name" = 'Denario' ORDER BY "id" FOR UPDATE`,
     );
@@ -376,12 +383,9 @@ module.exports = class AddDenarioWalletAndAssets1784994200000 {
     const applyAudit = await getActiveApplyAudit(queryRunner);
     if (!applyAudit) return;
 
-    // Remove the table-level uniqueness guard before taking any wallet row lock. If an admin UPDATE
-    // already holds ROW EXCLUSIVE and then waits for the same wallet row, doing this after the ownership
-    // read creates a lock cycle (row -> table versus table -> row). TypeORM runs migrations in one
-    // transaction, so a later validation or delete failure restores the index automatically.
-    await queryRunner.query(`DROP INDEX "${DENARIO_WALLET_NAME_INDEX}"`);
-
+    // The partial unique index on "wallet" is declared entity schema (see up()), not data this migration
+    // owns — it carries no data of its own and stays in place across a revert, the same as any other
+    // structural index defined on the entity.
     const createdAssets = applyAudit.createdAssets;
     if (!Array.isArray(createdAssets)) {
       throw new Error(`Invalid asset ownership audit in ${AUDIT_MIGRATION}`);
