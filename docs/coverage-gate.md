@@ -59,16 +59,13 @@ The gate job deliberately runs **without** the Postgres service that the sharded
 The pinned list was derived from a run without it, and the migration suites it enables are not
 part of that list — running them can only raise coverage, never lower it.
 
-Parallelism does not affect the result, and the reason is structural rather than empirical:
-istanbul merges per-worker counters additively, so a statement executed by a suite counts as
-executed no matter which worker ran it. Worker scheduling therefore cannot turn a covered file
-into an uncovered one. (A serial `--runInBand` run during development produced identical totals,
-which is consistent with this, but the guarantee comes from the merge semantics.) That is why the
-CI script does not serialise.
+Parallelism does not affect the result: istanbul merges per-worker counters additively, so a
+statement executed by a suite counts as executed no matter which worker ran it. Worker scheduling
+cannot turn a covered file into an uncovered one, which is why the CI script does not serialise.
 
-The gate runs the whole suite under full compilation and is consequently the slowest of the four
-job groups in `api-pr.yaml` — on the order of a quarter hour on GitHub-hosted runners as of
-July 2026. Exact per-file numbers are what that time buys.
+The gate runs the whole suite under full compilation, unlike the sharded `test` job that splits
+the suite three ways and the Frick gate that runs seven specs. Exact per-file numbers are what
+that costs in run time.
 
 ## What happens when a pinned file changes
 

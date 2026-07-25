@@ -15,8 +15,8 @@ env:
 
 # Four job groups run in parallel, so PR feedback is ~max(test-shard, checks, coverage,
 # coverage-gate) instead of the sum of every step. `test` is additionally split into shards.
-# The ratchet is the slowest of the four: it runs the whole suite under full TypeScript
-# compilation, which is what makes its per-file numbers exact.
+# The ratchet runs the whole suite under full TypeScript compilation, which is what makes its
+# per-file numbers exact.
 jobs:
   checks:
     name: Build and checks
