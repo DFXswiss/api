@@ -118,10 +118,14 @@ jobs:
       # raise coverage, never lower it.
       #
       # maxWorkers is set here rather than in the npm script so the script stays machine-agnostic:
-      # a contributor running it locally keeps Jest's own default. The value tracks the runner's
-      # performance cores, leaving the rest for whatever else shares the host.
+      # a contributor running it locally keeps Jest's own default.
+      #
+      # 16 is measured, not guessed, and raising it makes things worse: at 20 the gate took 8.4 min
+      # against 4.8, while host CPU stayed flat (~53% mean either way). The workers contend rather
+      # than parallelise - under full compilation each holds its own TypeScript program. Re-measure
+      # before changing this.
       - name: Run coverage ratchet
-        run: npm run test:cov:gate -- --maxWorkers=20
+        run: npm run test:cov:gate -- --maxWorkers=16
 
       # A red gate names the file and the metric but not the uncovered lines. Uploading the lcov
       # report turns diagnosis into a download instead of a 15-minute local rerun.
