@@ -39,7 +39,7 @@ module.exports = {
   coverageReporters: ['text-summary', 'json-summary'],
   coverageDirectory: '../coverage-gate',
   coverageThreshold: {
-    // --- Files carrying real logic (functions and/or branches) ------------------
+    // --- FILES CARRYING REAL LOGIC --- //
     'src/config/frick.config.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/integration/bank/dto/frick-vban.dto.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/integration/bank/dto/frick.dto.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
@@ -1168,7 +1168,7 @@ module.exports = {
       statements: 100,
     },
 
-    // --- Files that are purely declarative today (no functions, no branches) ----
+    // --- PURELY DECLARATIVE FILES --- //
     // Pinned deliberately: the gate becomes a real guard the moment logic is added to
     // one of them - new code there has to arrive with tests or CI turns red.
     'src/config/chains.config.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },

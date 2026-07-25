@@ -56,8 +56,8 @@ Two properties of that run matter, and changing either invalidates the numbers:
    run would understate coverage and shrink the list for no reason.
 
 The gate job deliberately runs **without** the Postgres service that the sharded `test` job uses.
-The pinned list was derived from a run without it, and the migration suites it enables are not
-part of that list — running them can only raise coverage, never lower it.
+No pinned file belongs to the migration suites that `MIGRATION_TEST_PG` enables, and enabling
+further suites can only raise coverage, never lower it.
 
 Parallelism does not affect the result: istanbul merges per-worker counters additively, so a
 statement executed by a suite counts as executed no matter which worker ran it. Worker scheduling
