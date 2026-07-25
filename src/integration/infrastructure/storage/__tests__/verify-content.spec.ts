@@ -4,7 +4,9 @@ import {
   assertBucketsAccounted,
   assertRequestedContainersExist,
   assertWithinHashCap,
+  classifyContainer,
   classifyKey,
+  CONTENT_VERIFY_PRIVACY_LOG_VERSION,
   ContentObject,
   isSinglePartEtag,
   isStillProvenByHash,
@@ -40,6 +42,12 @@ const AZURE_ETAG_OTHER = '"azure-etag-2"';
 const S3_ETAG = `"${EMPTY_MD5_HEX}"`;
 const S3_ETAG_OTHER = `"${OTHER_MD5_HEX}"`;
 const PLACEHOLDER_ETAG = '"placeholder-etag"';
+
+describe('privacy-safe log contract', () => {
+  it('exposes the marker required by the production wrapper', () => {
+    expect(CONTENT_VERIFY_PRIVACY_LOG_VERSION).toBe('storage-content-verify-private-logs-v1');
+  });
+});
 
 describe('isSinglePartEtag', () => {
   it('returns true for 32 lowercase hex characters', () => {
@@ -157,6 +165,38 @@ describe('classifyKey', () => {
     const azure = contentObject('k', 50, beforeCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
     const s3 = contentObject('k', 50, beforeCutoff, { etag: S3_ETAG });
     expect(classifyKey(azure, s3, cutoff, true)).toBe('metadata-match');
+  });
+});
+
+describe('classifyContainer', () => {
+  it('reports the exact Azure byte total for needs-hash objects', () => {
+    const azure = [
+      contentObject('needs-hash-1', 3_000_000_000, afterCutoff, { etag: AZURE_ETAG }),
+      contentObject('needs-hash-2', 4_000_000_000, afterCutoff, { etag: AZURE_ETAG_OTHER }),
+      contentObject('metadata-match', 50, afterCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG }),
+    ];
+    const s3 = [
+      contentObject('needs-hash-1', 3_000_000_000, afterCutoff, { etag: PLACEHOLDER_ETAG }),
+      contentObject('needs-hash-2', 4_000_000_000, afterCutoff, { etag: PLACEHOLDER_ETAG }),
+      contentObject('metadata-match', 50, afterCutoff, { etag: S3_ETAG }),
+    ];
+
+    const report = classifyContainer('kyc', azure, s3, cutoff, false);
+
+    expect(report.needsHash).toEqual(['needs-hash-1', 'needs-hash-2']);
+    expect(report.needsHashBytes).toBe(7_000_000_000);
+  });
+
+  it('reports zero needs-hash bytes when metadata proves every shared object', () => {
+    const azure = [
+      contentObject('metadata-match', 50, afterCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG }),
+    ];
+    const s3 = [contentObject('metadata-match', 50, afterCutoff, { etag: S3_ETAG })];
+
+    const report = classifyContainer('support', azure, s3, cutoff, false);
+
+    expect(report.needsHash).toHaveLength(0);
+    expect(report.needsHashBytes).toBe(0);
   });
 });
 
