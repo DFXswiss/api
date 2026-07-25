@@ -25,7 +25,7 @@ export class BankController {
   // PUT because the IBAN to check belongs in the body, never in the URL - this is a read, it changes nothing.
   @Put('receive-iban')
   @ApiBearerAuth()
-  // RateLimitGuard first: the JWT is optional, so this endpoint is reachable unauthenticated.
+  // RateLimitGuard before the auth guard so it also sees requests that arrive without a JWT.
   @UseGuards(RateLimitGuard, OptionalJwtAuthGuard)
   @ApiOkResponse({ type: ReceiveIbanDto })
   async checkReceiveIban(

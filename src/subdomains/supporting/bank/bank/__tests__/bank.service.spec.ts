@@ -421,6 +421,34 @@ describe('BankService.getReceiveIbanStatus', () => {
     await expect(service.getReceiveIbanStatus(olkyEUR.iban, accountId)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
   });
 
+  it('reports a collective account IBAN as a DFX IBAN without a login, before ever asking for personal IBANs', async () => {
+    // The most common case by far: a logged-out customer types a collective account IBAN. The bank check must
+    // run before the login check, otherwise this answers LoginRequired for an IBAN we can already confirm.
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus(olkyEUR.iban)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+    expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
+  });
+
+  it('reports a collective account IBAN stored in paper format as a DFX IBAN', async () => {
+    // The stored side is normalized too - bank.iban is maintained by hand and holds grouped values.
+    setup([createCustomBank({ iban: 'LU11 6060 0020 0000 5040' })]);
+
+    await expect(service.getReceiveIbanStatus('LU116060002000005040', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
+  it('reports a personal IBAN stored in paper format as a DFX IBAN', async () => {
+    // virtual_iban values arrive unvalidated from provider.reserveViban(), so their format is not guaranteed.
+    setup(
+      createDefaultBanks(),
+      new Map([[accountId, [createCustomVirtualIban({ iban: 'de89 3704 0044 0532 0130 00' })]]]),
+    );
+
+    await expect(service.getReceiveIbanStatus(personalIban, accountId)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+  });
+
   it('reports a collective account IBAN with receive=false as a DFX IBAN', async () => {
     // The customer reports a missing, often old transfer - a retired or closed account still received DFX money.
     setup([retiredCollectiveAccount]);
@@ -460,10 +488,22 @@ describe('BankService.getReceiveIbanStatus', () => {
     expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
   });
 
+  it('reports a correctly shaped IBAN with a wrong checksum as invalid, not as unmatched', async () => {
+    // A transposed digit keeps the country and length intact, so only the checksum catches it. Answering
+    // NotMatched here would send a customer looking for a transfer that never left with a typo in the IBAN.
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus('DE89370400440532013001', accountId)).resolves.toBe(
+      ReceiveIbanStatus.INVALID_IBAN,
+    );
+  });
+
   it.each([undefined, null, '', '   '])(
     'reports an unusable input (%p) as invalid instead of throwing',
     async (input) => {
-      // electronicFormatIBAN returns null for a non-string and an empty string for blank input.
+      // Defensive only: @IsString/@IsNotEmpty reject undefined, null and '' with a 400 before the service is
+      // reached, so of these only '   ' can actually arrive. The typeof guard in normalizeIban short-circuits
+      // the non-string cases, and an all-separator string normalizes to '' and is returned as null.
       setup(createDefaultBanks());
 
       await expect(service.getReceiveIbanStatus(input as unknown as string, accountId)).resolves.toBe(
@@ -498,39 +538,49 @@ describe('BankService.getReceiveIbanStatus', () => {
     );
   });
 
-  it('recognizes the same IBAN written with hyphen grouping', async () => {
+  // The invisible separators are written as escape sequences on purpose: as literal characters an editor or a
+  // copy-paste would silently turn them back into ordinary spaces, which would void exactly those cases.
+  it.each([
+    ['an ASCII space', ' '],
+    ['a hyphen', '-'],
+    ['a dot', '.'],
+    ['a slash', '/'],
+    ['a non-breaking space', '\u00a0'],
+    ['a narrow non-breaking space', '\u202f'],
+    ['a zero-width space', '\u200b'],
+    ['a soft hyphen', '\u00ad'],
+    ['a tab', '\t'],
+    ['a line break', '\n'],
+  ])('recognizes an IBAN grouped with %s', async (_name, separator) => {
     setup([frickEUR], new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
 
-    await expect(service.getReceiveIbanStatus('LI75-0881-1010-5923-K000E', accountId)).resolves.toBe(
+    const group = (iban: string) => (iban.match(/.{1,4}/g) ?? []).join(separator);
+
+    await expect(service.getReceiveIbanStatus(group(frickEUR.iban), accountId)).resolves.toBe(
       ReceiveIbanStatus.DFX_IBAN,
     );
-    await expect(service.getReceiveIbanStatus('de89-3704-0044-0532-0130-00', accountId)).resolves.toBe(
+    await expect(service.getReceiveIbanStatus(group(personalIban), accountId)).resolves.toBe(
       ReceiveIbanStatus.DFX_IBAN,
     );
   });
 
-  // Separators written as escape sequences on purpose: as literal characters they are invisible and an editor
-  // or a copy-paste would silently turn them back into ordinary spaces, which would void these cases.
-  it.each([
-    ['a non-breaking space', '\u00a0'],
-    ['a narrow non-breaking space', '\u202f'],
-    ['a tab', '\t'],
-    ['a line break', '\n'],
-  ])(
-    'recognizes an IBAN grouped with %s, which the ibantools formatter alone does not strip',
-    async (_name, separator) => {
-      setup([frickEUR], new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
+  it('recognizes an IBAN pasted with surrounding quotes', async () => {
+    setup([frickEUR]);
 
-      const group = (iban: string) => (iban.match(/.{1,4}/g) ?? []).join(separator);
+    await expect(service.getReceiveIbanStatus('"LI75 0881 1010 5923 K000E"', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
 
-      await expect(service.getReceiveIbanStatus(group(frickEUR.iban), accountId)).resolves.toBe(
-        ReceiveIbanStatus.DFX_IBAN,
-      );
-      await expect(service.getReceiveIbanStatus(group(personalIban), accountId)).resolves.toBe(
-        ReceiveIbanStatus.DFX_IBAN,
-      );
-    },
-  );
+  it('does not extract an IBAN out of surrounding words', async () => {
+    // The allow-list strips separators, it does not salvage an IBAN from a labelled value - and it must not,
+    // because a prefix is indistinguishable from extra characters that make the IBAN wrong.
+    setup([frickEUR]);
+
+    await expect(service.getReceiveIbanStatus('IBAN: LI75 0881 1010 5923 K000E', accountId)).resolves.toBe(
+      ReceiveIbanStatus.INVALID_IBAN,
+    );
+  });
 
   it('never reports a personal IBAN of another account as a DFX IBAN', async () => {
     setup(

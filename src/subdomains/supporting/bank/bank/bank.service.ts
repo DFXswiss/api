@@ -27,7 +27,7 @@ export class BankService implements OnModuleInit {
   // The VirtualIbanRepository is injected instead of the VirtualIbanService: that service depends on this
   // one, and both live in BankModule, so the service-level dependency would close a provider cycle.
   constructor(
-    private bankRepo: BankRepository,
+    private readonly bankRepo: BankRepository,
     private readonly virtualIbanRepo: VirtualIbanRepository,
   ) {}
 
@@ -118,13 +118,22 @@ export class BankService implements OnModuleInit {
     );
   }
 
+  static isBankMatching(asset: Asset, accountIban: string): boolean {
+    const bankName = this.blockchainToBankName(asset.blockchain);
+    if (!bankName) return false;
+
+    const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
+    return expectedIban === accountIban;
+  }
+
   // --- RECEIVE IBAN CHECK --- //
 
   // Tells the client whether an IBAN typed in by a customer is one DFX receives customer money on. Pure
   // input aid for the support form: it enforces nothing, it only lets the frontend phrase a helpful hint.
   async getReceiveIbanStatus(iban: string, userDataId?: number): Promise<ReceiveIbanStatus> {
-    // normalizeIban absorbs every grouping style a customer may paste and yields null for unusable input;
-    // treat null and an empty result alike. Both sides of every comparison run through it.
+    // normalizeIban strips separator characters and yields null for input that cannot hold an IBAN at all;
+    // it does not rescue every conceivable input (a `IBAN:` prefix stays invalid, correctly). Both sides of
+    // every comparison run through it, so a stored value in paper format matches too.
     const normalizedIban = BankService.normalizeIban(iban);
     if (!normalizedIban || !IbanTools.validateIBAN(normalizedIban).valid) return ReceiveIbanStatus.INVALID_IBAN;
 
@@ -151,21 +160,17 @@ export class BankService implements OnModuleInit {
     return ReceiveIbanStatus.NOT_MATCHED;
   }
 
-  static isBankMatching(asset: Asset, accountIban: string): boolean {
-    const bankName = this.blockchainToBankName(asset.blockchain);
-    if (!bankName) return false;
-
-    const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
-    return expectedIban === accountIban;
-  }
-
   // --- HELPER METHODS --- //
 
-  // Strip every kind of whitespace ourselves - electronicFormatIBAN only removes ASCII spaces and hyphens,
-  // so a value pasted from a statement or a web page (NBSP, narrow NBSP, tab) would otherwise fail
-  // validation. The library call then handles hyphens, casing, and a non-string input by returning null.
+  // An IBAN is alphanumeric only, so everything else is separator noise: grouping spaces of any kind,
+  // hyphens, dots, slashes, quotes, and the invisible formatting characters that come along when a value
+  // is pasted out of a statement PDF or an HTML mail. Stripping by an allow-list of what an IBAN may
+  // contain is complete by construction, where chasing a deny-list of separators was not - ibantools'
+  // own electronicFormatIBAN only removes ASCII spaces and hyphens, and \s misses the zero-width family.
   private static normalizeIban(iban: string): string | null {
-    return typeof iban === 'string' ? IbanTools.electronicFormatIBAN(iban.replace(/\s/g, '')) : null;
+    if (typeof iban !== 'string') return null;
+
+    return iban.replace(/[^A-Za-z0-9]/g, '').toUpperCase() || null;
   }
 
   // Picks the bank row that owns attribution for a single (name, currency) key. `banks` must already
