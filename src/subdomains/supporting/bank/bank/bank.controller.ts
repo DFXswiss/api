@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { BankService } from './bank.service';
 import { BankDto } from './dto/bank.dto';
 import { BankMapper } from './dto/bank.mapper';
@@ -24,7 +25,8 @@ export class BankController {
   // PUT because the IBAN to check belongs in the body, never in the URL - this is a read, it changes nothing.
   @Put('receive-iban')
   @ApiBearerAuth()
-  @UseGuards(OptionalJwtAuthGuard)
+  // RateLimitGuard first: the JWT is optional, so this endpoint is reachable unauthenticated.
+  @UseGuards(RateLimitGuard, OptionalJwtAuthGuard)
   @ApiOkResponse({ type: ReceiveIbanDto })
   async checkReceiveIban(
     @GetJwt() jwt: JwtPayload | undefined,

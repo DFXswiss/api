@@ -460,15 +460,27 @@ describe('BankService.getReceiveIbanStatus', () => {
     expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
   });
 
-  it('reports a valid IBAN that belongs to neither list as unknown when the customer is logged in', async () => {
+  it.each([undefined, null, '', '   '])(
+    'reports an unusable input (%p) as invalid instead of throwing',
+    async (input) => {
+      // electronicFormatIBAN returns null for a non-string and an empty string for blank input.
+      setup(createDefaultBanks());
+
+      await expect(service.getReceiveIbanStatus(input as unknown as string, accountId)).resolves.toBe(
+        ReceiveIbanStatus.INVALID_IBAN,
+      );
+    },
+  );
+
+  it('reports a valid IBAN that matched neither list as not matched when the customer is logged in', async () => {
     setup(createDefaultBanks());
 
     await expect(service.getReceiveIbanStatus(foreignPersonalIban, accountId)).resolves.toBe(
-      ReceiveIbanStatus.UNKNOWN_IBAN,
+      ReceiveIbanStatus.NOT_MATCHED,
     );
   });
 
-  it('requires a login for a valid unknown IBAN, because personal IBANs stay unchecked without one', async () => {
+  it('requires a login for a valid unmatched IBAN, because personal IBANs stay unchecked without one', async () => {
     setup(createDefaultBanks());
 
     await expect(service.getReceiveIbanStatus(foreignPersonalIban)).resolves.toBe(ReceiveIbanStatus.LOGIN_REQUIRED);
@@ -486,6 +498,17 @@ describe('BankService.getReceiveIbanStatus', () => {
     );
   });
 
+  it('recognizes the same IBAN written with hyphen grouping', async () => {
+    setup([frickEUR], new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
+
+    await expect(service.getReceiveIbanStatus('LI75-0881-1010-5923-K000E', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+    await expect(service.getReceiveIbanStatus('de89-3704-0044-0532-0130-00', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
   it('never reports a personal IBAN of another account as a DFX IBAN', async () => {
     setup(
       createDefaultBanks(),
@@ -496,7 +519,7 @@ describe('BankService.getReceiveIbanStatus', () => {
     );
 
     await expect(service.getReceiveIbanStatus(foreignPersonalIban, accountId)).resolves.toBe(
-      ReceiveIbanStatus.UNKNOWN_IBAN,
+      ReceiveIbanStatus.NOT_MATCHED,
     );
   });
 });

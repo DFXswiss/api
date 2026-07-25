@@ -123,19 +123,21 @@ export class BankService implements OnModuleInit {
   // Tells the client whether an IBAN typed in by a customer is one DFX receives customer money on. Pure
   // input aid for the support form: it enforces nothing, it only lets the frontend phrase a helpful hint.
   async getReceiveIbanStatus(iban: string, userDataId?: number): Promise<ReceiveIbanStatus> {
-    const normalizedIban = BankService.normalizeIban(iban);
-
-    if (!IbanTools.validateIBAN(normalizedIban).valid) return ReceiveIbanStatus.INVALID_IBAN;
+    // electronicFormatIBAN strips grouping spaces *and* hyphens and uppercases, so a customer pasting
+    // `LI75-0881-1010-5923-K000E` is understood. It returns null for a non-string input; treat that and an
+    // empty result like any other unusable input. Both sides of every comparison run through it.
+    const normalizedIban = IbanTools.electronicFormatIBAN(iban);
+    if (!normalizedIban || !IbanTools.validateIBAN(normalizedIban).valid) return ReceiveIbanStatus.INVALID_IBAN;
 
     // Deliberately not filtered by `receive`: the customer is reporting a missing, often old transfer, so a
     // hit on a retired or closed account is still money that went to DFX. A receive=true filter would tell a
     // real customer that their IBAN does not belong to DFX.
     const banks = await this.getAllBanks();
-    if (banks.some((b) => BankService.normalizeIban(b.iban) === normalizedIban)) return ReceiveIbanStatus.DFX_IBAN;
+    if (banks.some((b) => IbanTools.electronicFormatIBAN(b.iban) === normalizedIban)) return ReceiveIbanStatus.DFX_IBAN;
 
     // Personal IBANs are only ever checked for the requesting account. The guard is optional, so a global
     // lookup would turn this endpoint into an unauthenticated oracle over customer-bound IBANs. Without a
-    // login the personal IBANs stay unchecked, hence the answer must never be UNKNOWN_IBAN here.
+    // login the personal IBANs stay unchecked, hence the answer must never be NOT_MATCHED here.
     if (!userDataId) return ReceiveIbanStatus.LOGIN_REQUIRED;
 
     // No lifecycle filter either (active=false, status Expired/Deactivated/Reserved all count): an expired
@@ -144,10 +146,10 @@ export class BankService implements OnModuleInit {
     const virtualIbans = await this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, {
       userData: { id: userDataId },
     });
-    if (virtualIbans.some((v) => BankService.normalizeIban(v.iban) === normalizedIban))
+    if (virtualIbans.some((v) => IbanTools.electronicFormatIBAN(v.iban) === normalizedIban))
       return ReceiveIbanStatus.DFX_IBAN;
 
-    return ReceiveIbanStatus.UNKNOWN_IBAN;
+    return ReceiveIbanStatus.NOT_MATCHED;
   }
 
   static isBankMatching(asset: Asset, accountIban: string): boolean {
@@ -159,12 +161,6 @@ export class BankService implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-
-  // IBANs are stored and typed in with arbitrary grouping spaces and casing (the bank table itself holds
-  // both formats), so every comparison runs on the electronic format.
-  private static normalizeIban(iban: string): string {
-    return iban.replace(/\s/g, '').toUpperCase();
-  }
 
   // Picks the bank row that owns attribution for a single (name, currency) key. `banks` must already
   // be sorted by id descending (newest first). Prefer a row linked to an asset: that binding is the

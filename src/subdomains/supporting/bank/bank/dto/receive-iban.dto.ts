@@ -1,14 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString } from 'class-validator';
-import { Util } from 'src/shared/utils/util';
 import { ReceiveIbanStatus } from './receive-iban.enum';
 
+// No @Transform(Util.sanitize) here: it would run before @IsString and throw on a non-string body, which the
+// exception filter turns into a 500 on this unauthenticated endpoint. HTML sanitizing is pointless for an IBAN
+// anyway - the service normalizes and structurally validates it.
 export class CheckReceiveIbanDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   iban: string;
 }
 
