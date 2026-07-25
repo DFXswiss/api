@@ -12,8 +12,12 @@ import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { createCustomVirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/__mocks__/virtual-iban.entity.mock';
+import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
+import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
+  createCustomBank,
   createDefaultBanks,
   createDefaultDisabledBanks,
   yapealCHF,
@@ -26,6 +30,7 @@ import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
 import { BankSelectorInput, BankService } from '../bank.service';
 import { IbanBankName } from '../dto/bank.dto';
+import { ReceiveIbanStatus } from '../dto/receive-iban.enum';
 
 function createBankSelectorInput(
   currency = 'EUR',
@@ -69,6 +74,7 @@ describe('BankService', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: CountryService, useValue: countryService },
         { provide: BankAccountService, useValue: bankAccountService },
+        { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -225,6 +231,7 @@ describe('Bank (name, currency) collision tie-break', () => {
         { provide: FiatService, useValue: createMock<FiatService>() },
         { provide: CountryService, useValue: createMock<CountryService>() },
         { provide: BankAccountService, useValue: createMock<BankAccountService>() },
+        { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -367,5 +374,129 @@ describe('Bank (name, currency) collision tie-break', () => {
     const asset = createCustomAsset({ blockchain: Blockchain.YAPEAL, dexName: 'EUR' });
     expect(BankService.isBankMatching(asset, 'YAPEAL-ASSET-LINKED-IBAN')).toBe(true);
     expect(BankService.isBankMatching(asset, 'YAPEAL-UNBOUND-NEWER-IBAN')).toBe(false);
+  });
+});
+
+describe('BankService.getReceiveIbanStatus', () => {
+  const accountId = 42;
+  const otherAccountId = 43;
+
+  // A retired collective account: same IBAN a customer may have transferred to years ago, but receive=false today.
+  const retiredCollectiveAccount = createCustomBank({ iban: 'CH5604835012345678009', receive: false, send: false });
+  const personalIban = 'DE89370400440532013000';
+  const expiredPersonalIban = 'AT483200000012345864';
+  const foreignPersonalIban = 'CH4431999123000889012';
+
+  let service: BankService;
+  let bankRepo: BankRepository;
+  let virtualIbanRepo: VirtualIbanRepository;
+
+  beforeEach(async () => {
+    bankRepo = createMock<BankRepository>();
+    virtualIbanRepo = createMock<VirtualIbanRepository>();
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        BankService,
+        { provide: BankRepository, useValue: bankRepo },
+        { provide: VirtualIbanRepository, useValue: virtualIbanRepo },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    service = module.get<BankService>(BankService);
+  });
+
+  function setup(banks: Bank[], virtualIbansByAccount: Map<number, VirtualIban[]> = new Map()) {
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue(banks);
+    jest
+      .spyOn(virtualIbanRepo, 'findCachedBy')
+      .mockImplementation(async (_key: string, where: any) => virtualIbansByAccount.get(where.userData.id) ?? []);
+  }
+
+  it('reports a collective account IBAN as a DFX IBAN', async () => {
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus(olkyEUR.iban, accountId)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+  });
+
+  it('reports a collective account IBAN with receive=false as a DFX IBAN', async () => {
+    // The customer reports a missing, often old transfer - a retired or closed account still received DFX money.
+    setup([retiredCollectiveAccount]);
+
+    await expect(service.getReceiveIbanStatus(retiredCollectiveAccount.iban, accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
+  it('reports a personal IBAN of the requesting account as a DFX IBAN', async () => {
+    setup(createDefaultBanks(), new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
+
+    await expect(service.getReceiveIbanStatus(personalIban, accountId)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+    expect(virtualIbanRepo.findCachedBy).toHaveBeenCalledWith(`user-${accountId}`, { userData: { id: accountId } });
+  });
+
+  it.each([VirtualIbanStatus.EXPIRED, VirtualIbanStatus.DEACTIVATED, VirtualIbanStatus.RESERVED])(
+    'reports a personal IBAN with status %s as a DFX IBAN',
+    async (status) => {
+      // An expired personal IBAN was still a real receiving IBAN, so no lifecycle state may be filtered out.
+      setup(
+        createDefaultBanks(),
+        new Map([[accountId, [createCustomVirtualIban({ iban: expiredPersonalIban, active: false, status })]]]),
+      );
+
+      await expect(service.getReceiveIbanStatus(expiredPersonalIban, accountId)).resolves.toBe(
+        ReceiveIbanStatus.DFX_IBAN,
+      );
+    },
+  );
+
+  it('reports a formally invalid IBAN as invalid, without querying any IBAN', async () => {
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus('DE123456', accountId)).resolves.toBe(ReceiveIbanStatus.INVALID_IBAN);
+    expect(bankRepo.findCached).not.toHaveBeenCalled();
+    expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
+  });
+
+  it('reports a valid IBAN that belongs to neither list as unknown when the customer is logged in', async () => {
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus(foreignPersonalIban, accountId)).resolves.toBe(
+      ReceiveIbanStatus.UNKNOWN_IBAN,
+    );
+  });
+
+  it('requires a login for a valid unknown IBAN, because personal IBANs stay unchecked without one', async () => {
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus(foreignPersonalIban)).resolves.toBe(ReceiveIbanStatus.LOGIN_REQUIRED);
+    expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
+  });
+
+  it('recognizes the same IBAN written with grouping spaces and in lower case', async () => {
+    setup(createDefaultBanks(), new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
+
+    await expect(service.getReceiveIbanStatus('lu11 6060 0020 0000 5040', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+    await expect(service.getReceiveIbanStatus('de89 3704 0044 0532 0130 00', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
+  it('never reports a personal IBAN of another account as a DFX IBAN', async () => {
+    setup(
+      createDefaultBanks(),
+      new Map([
+        [accountId, [createCustomVirtualIban({ iban: personalIban })]],
+        [otherAccountId, [createCustomVirtualIban({ iban: foreignPersonalIban })]],
+      ]),
+    );
+
+    await expect(service.getReceiveIbanStatus(foreignPersonalIban, accountId)).resolves.toBe(
+      ReceiveIbanStatus.UNKNOWN_IBAN,
+    );
   });
 });

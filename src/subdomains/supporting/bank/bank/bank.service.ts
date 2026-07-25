@@ -1,13 +1,16 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import * as IbanTools from 'ibantools';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
 import { BankRepository } from './bank.repository';
 import { IbanBankName } from './dto/bank.dto';
+import { ReceiveIbanStatus } from './dto/receive-iban.enum';
 
 export interface BankSelectorInput {
   amount?: number;
@@ -21,7 +24,12 @@ export class BankService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankService);
   private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
 
-  constructor(private bankRepo: BankRepository) {}
+  // The VirtualIbanRepository is injected instead of the VirtualIbanService: that service depends on this
+  // one, and both live in BankModule, so the service-level dependency would close a provider cycle.
+  constructor(
+    private bankRepo: BankRepository,
+    private readonly virtualIbanRepo: VirtualIbanRepository,
+  ) {}
 
   onModuleInit() {
     void this.loadIbanCache();
@@ -110,6 +118,38 @@ export class BankService implements OnModuleInit {
     );
   }
 
+  // --- RECEIVE IBAN CHECK --- //
+
+  // Tells the client whether an IBAN typed in by a customer is one DFX receives customer money on. Pure
+  // input aid for the support form: it enforces nothing, it only lets the frontend phrase a helpful hint.
+  async getReceiveIbanStatus(iban: string, userDataId?: number): Promise<ReceiveIbanStatus> {
+    const normalizedIban = BankService.normalizeIban(iban);
+
+    if (!IbanTools.validateIBAN(normalizedIban).valid) return ReceiveIbanStatus.INVALID_IBAN;
+
+    // Deliberately not filtered by `receive`: the customer is reporting a missing, often old transfer, so a
+    // hit on a retired or closed account is still money that went to DFX. A receive=true filter would tell a
+    // real customer that their IBAN does not belong to DFX.
+    const banks = await this.getAllBanks();
+    if (banks.some((b) => BankService.normalizeIban(b.iban) === normalizedIban)) return ReceiveIbanStatus.DFX_IBAN;
+
+    // Personal IBANs are only ever checked for the requesting account. The guard is optional, so a global
+    // lookup would turn this endpoint into an unauthenticated oracle over customer-bound IBANs. Without a
+    // login the personal IBANs stay unchecked, hence the answer must never be UNKNOWN_IBAN here.
+    if (!userDataId) return ReceiveIbanStatus.LOGIN_REQUIRED;
+
+    // No lifecycle filter either (active=false, status Expired/Deactivated/Reserved all count): an expired
+    // personal IBAN was still a real receiving IBAN. Same cache key and filter as
+    // VirtualIbanService.getVirtualIbansForAccount, so both paths share the cached list.
+    const virtualIbans = await this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, {
+      userData: { id: userDataId },
+    });
+    if (virtualIbans.some((v) => BankService.normalizeIban(v.iban) === normalizedIban))
+      return ReceiveIbanStatus.DFX_IBAN;
+
+    return ReceiveIbanStatus.UNKNOWN_IBAN;
+  }
+
   static isBankMatching(asset: Asset, accountIban: string): boolean {
     const bankName = this.blockchainToBankName(asset.blockchain);
     if (!bankName) return false;
@@ -119,6 +159,12 @@ export class BankService implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
+
+  // IBANs are stored and typed in with arbitrary grouping spaces and casing (the bank table itself holds
+  // both formats), so every comparison runs on the electronic format.
+  private static normalizeIban(iban: string): string {
+    return iban.replace(/\s/g, '').toUpperCase();
+  }
 
   // Picks the bank row that owns attribution for a single (name, currency) key. `banks` must already
   // be sorted by id descending (newest first). Prefer a row linked to an asset: that binding is the
