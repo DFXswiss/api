@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AxiosError, AxiosResponse, Method } from 'axios';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -46,8 +47,20 @@ export interface FrickTransactionsFetchResult {
   fullyParsed: boolean;
 }
 
+/** Result of a full virtual-IBAN list traversal (mirrors {@link FrickTransactionsFetchResult}). */
+export interface FrickVirtualIbansFetchResult {
+  virtualIbans: FrickVirtualIban[];
+  // False when at least one list entry failed per-entry validation and was dropped. Callers that
+  // treat "not listed" as proof of absence (reconciliation empty-listing resets, clean Phase-2
+  // checks) must treat fullyValidated=false as an incomplete check, not as a clean empty result.
+  // Well-formed entries are still returned and may be used for positive matches.
+  fullyValidated: boolean;
+}
+
 @Injectable()
 export class BankFrickService {
+  private readonly logger = new DfxLogger(BankFrickService);
+
   private static readonly TOKEN_REFRESH_SKEW_MS = 30_000;
   // Bank Frick's transaction search silently limits results to a short recent window unless a fromDate
   // is supplied. Every customId lookup must send this wide fromDate, not only the BOOKED fallback, so a
@@ -73,7 +86,14 @@ export class BankFrickService {
     this.assertAvailable();
 
     const customer = this.validateCustomer();
-    const response = await this.callApi<FrickAccountsResponse>(`accounts/${encodeURIComponent(customer)}`);
+    const response = await this.callApi<FrickAccountsResponse>(
+      `accounts/${encodeURIComponent(customer)}`,
+      'GET',
+      undefined,
+      'application/json',
+      'json',
+      true,
+    );
     this.validateAccountsResponse(response);
     // Pagination is deliberately not implemented yet. Returning only the first page would understate the customer's
     // balances, so this integration fails closed until every result page can be fetched deterministically.
@@ -109,6 +129,7 @@ export class BankFrickService {
       undefined,
       'application/xml',
       'text',
+      true,
     );
     if (typeof statement !== 'string') throw new Error('Invalid Bank Frick camt.053 response');
     if (!statement.trim()) return { transactions: [], fullyParsed: true };
@@ -133,7 +154,14 @@ export class BankFrickService {
     }
 
     const request: FrickCreateTransactionsRequest = { transactions: [transaction] };
-    const response = await this.callApi<FrickTransactionsResponse>('transactions', 'PUT', request);
+    const response = await this.callApi<FrickTransactionsResponse>(
+      'transactions',
+      'PUT',
+      request,
+      'application/json',
+      'json',
+      true,
+    );
     const created = this.getSinglePayment(response, transaction.customId);
     this.assertSamePayment(created, transaction);
     return created;
@@ -160,7 +188,14 @@ export class BankFrickService {
     const request: FrickApproveWithoutTanRequest = safeOrderId
       ? { orderIds: [Number(safeOrderId)] }
       : { customIds: [customId] };
-    const response = await this.callApi<FrickTransactionsResponse>('signTransactionWithoutTan', 'POST', request);
+    const response = await this.callApi<FrickTransactionsResponse>(
+      'signTransactionWithoutTan',
+      'POST',
+      request,
+      'application/json',
+      'json',
+      true,
+    );
     return this.getSinglePayment(response, customId);
   }
 
@@ -194,7 +229,15 @@ export class BankFrickService {
     this.assertVibanAvailable();
     this.validateString(vban, 'vban', 34, true);
     const request: FrickApproveVirtualIbanActivationRequest = { vban };
-    const response = await this.callVbanApi<FrickVirtualIban>('virtual-ibans/activations/approvals', 'PUT', request);
+    const response = await this.callVbanApi<FrickVirtualIban>(
+      'virtual-ibans/activations/approvals',
+      'PUT',
+      request,
+      'application/json',
+      'json',
+      true,
+      false,
+    );
     this.validateVirtualIbanResponse(response);
     return response;
   }
@@ -202,7 +245,15 @@ export class BankFrickService {
   async getViban(vban: string): Promise<FrickVirtualIban> {
     this.assertVibanAvailable();
     this.validateString(vban, 'vban', 34, true);
-    const response = await this.callVbanApi<FrickVirtualIban>(`virtual-ibans/${encodeURIComponent(vban)}`);
+    const response = await this.callVbanApi<FrickVirtualIban>(
+      `virtual-ibans/${encodeURIComponent(vban)}`,
+      'GET',
+      undefined,
+      'application/json',
+      'json',
+      true,
+      false,
+    );
     this.validateVirtualIbanResponse(response);
     return response;
   }
@@ -213,6 +264,93 @@ export class BankFrickService {
     pageIndex = 0,
     pageSize = 50,
   ): Promise<FrickVirtualIbansResponse> {
+    // Public contract stays a plain FrickVirtualIbansResponse; drop count is only consumed by listAllVibans.
+    const { response } = await this.listVibansPage(referenceAccountIban, states, pageIndex, pageSize);
+    return response;
+  }
+
+  /**
+   * Deterministically traverses every page of the virtual-IBAN list. Fails closed when pagination
+   * does not advance (stale pageIndex / empty raw page with hasMore), so recovery never silently
+   * skips an already-issued PREPARED/ACTIVE vIBAN.
+   *
+   * Returns well-formed entries plus {@link FrickVirtualIbansFetchResult.fullyValidated}: false when
+   * any entry was dropped by per-entry validation (foreign/malformed). Callers that treat absence
+   * as proof must treat that as an incomplete listing.
+   */
+  async listAllVibans(
+    referenceAccountIban?: string,
+    states?: FrickVirtualIbanState[],
+    pageSize = 50,
+  ): Promise<FrickVirtualIbansFetchResult> {
+    this.assertVibanAvailable();
+    const all: FrickVirtualIban[] = [];
+    const seenVibans = new Set<string>();
+    let expectedTotalCount: number | undefined;
+    // Entries dropped locally by per-entry validation (foreign/malformed). Server totalCount still
+    // includes them, so the completion invariant must discount these — otherwise one bad shared-
+    // account entry would make recovery throw for every customer.
+    let totalDropped = 0;
+    let pageIndex = 0;
+    const maxPages = 10_000;
+
+    while (pageIndex < maxPages) {
+      // Thread drop count via private page helper so listVibans's public return type stays unchanged.
+      const { response: page, droppedCount } = await this.listVibansPage(
+        referenceAccountIban,
+        states,
+        pageIndex,
+        pageSize,
+      );
+      totalDropped += droppedCount;
+      if (page.pagination.pageIndex !== pageIndex)
+        throw new Error(
+          `Bank Frick virtual IBAN listing returned unexpected pageIndex ${page.pagination.pageIndex} (expected ${pageIndex})`,
+        );
+      expectedTotalCount ??= page.pagination.totalCount;
+      if (page.pagination.totalCount !== expectedTotalCount)
+        throw new Error('Bank Frick virtual IBAN listing changed totalCount during pagination');
+
+      // page.virtualIbans is already post-filter (validateVirtualIbansResponse drops invalids in
+      // place). Reconstruct the server's raw entry count so an all-foreign page (every entry
+      // dropped while hasMore is still true) is not misread as a structural pagination gap.
+      const rawEntryCount = page.virtualIbans.length + droppedCount;
+      if (page.pagination.hasMore && rawEntryCount === 0)
+        throw new Error(
+          'Bank Frick virtual IBAN listing reported more pages but returned no raw items',
+        );
+
+      for (const virtualIban of page.virtualIbans) {
+        if (seenVibans.has(virtualIban.vban))
+          throw new Error('Bank Frick virtual IBAN listing returned a duplicate item across pages');
+        seenVibans.add(virtualIban.vban);
+        all.push(virtualIban);
+      }
+
+      if (!page.pagination.hasMore) {
+        if (all.length + totalDropped !== expectedTotalCount)
+          throw new Error(
+            `Bank Frick virtual IBAN listing returned ${all.length} of ${expectedTotalCount} items` +
+              ` (${totalDropped} dropped as invalid)`,
+          );
+        return { virtualIbans: all, fullyValidated: totalDropped === 0 };
+      }
+      pageIndex += 1;
+    }
+
+    throw new Error('Bank Frick virtual IBAN listing exceeded maximum page count');
+  }
+
+  /**
+   * Fetches one virtual-IBAN list page and applies envelope + per-entry validation.
+   * Returns how many entries were dropped locally so listAllVibans can reconcile server totalCount.
+   */
+  private async listVibansPage(
+    referenceAccountIban: string | undefined,
+    states: FrickVirtualIbanState[] | undefined,
+    pageIndex: number,
+    pageSize: number,
+  ): Promise<{ response: FrickVirtualIbansResponse; droppedCount: number }> {
     this.assertVibanAvailable();
     if (!Number.isInteger(pageIndex) || pageIndex < 0) throw new Error('Invalid Bank Frick virtual IBAN pageIndex');
     if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200)
@@ -226,57 +364,17 @@ export class BankFrickService {
     params.append('pageSize', String(pageSize));
     const query = params.toString();
 
-    const response = await this.callVbanApi<FrickVirtualIbansResponse>(`virtual-ibans?${query}`);
-    this.validateVirtualIbansResponse(response);
-    return response;
-  }
-
-  /**
-   * Deterministically traverses every page of the virtual-IBAN list. Fails closed when pagination
-   * does not advance (stale pageIndex / empty page with hasMore), so recovery never silently skips
-   * an already-issued PREPARED/ACTIVE vIBAN.
-   */
-  async listAllVibans(
-    referenceAccountIban?: string,
-    states?: FrickVirtualIbanState[],
-    pageSize = 50,
-  ): Promise<FrickVirtualIban[]> {
-    this.assertVibanAvailable();
-    const all: FrickVirtualIban[] = [];
-    const seenVibans = new Set<string>();
-    let expectedTotalCount: number | undefined;
-    let pageIndex = 0;
-    const maxPages = 10_000;
-
-    while (pageIndex < maxPages) {
-      const page = await this.listVibans(referenceAccountIban, states, pageIndex, pageSize);
-      if (page.pagination.pageIndex !== pageIndex)
-        throw new Error(
-          `Bank Frick virtual IBAN listing returned unexpected pageIndex ${page.pagination.pageIndex} (expected ${pageIndex})`,
-        );
-      expectedTotalCount ??= page.pagination.totalCount;
-      if (page.pagination.totalCount !== expectedTotalCount)
-        throw new Error('Bank Frick virtual IBAN listing changed totalCount during pagination');
-
-      if (page.pagination.hasMore && page.virtualIbans.length === 0)
-        throw new Error('Bank Frick virtual IBAN listing reported more pages but returned no items');
-
-      for (const virtualIban of page.virtualIbans) {
-        if (seenVibans.has(virtualIban.vban))
-          throw new Error('Bank Frick virtual IBAN listing returned a duplicate item across pages');
-        seenVibans.add(virtualIban.vban);
-        all.push(virtualIban);
-      }
-
-      if (!page.pagination.hasMore) {
-        if (all.length !== expectedTotalCount)
-          throw new Error(`Bank Frick virtual IBAN listing returned ${all.length} of ${expectedTotalCount} items`);
-        return all;
-      }
-      pageIndex += 1;
-    }
-
-    throw new Error('Bank Frick virtual IBAN listing exceeded maximum page count');
+    const response = await this.callVbanApi<FrickVirtualIbansResponse>(
+      `virtual-ibans?${query}`,
+      'GET',
+      undefined,
+      'application/json',
+      'json',
+      true,
+      false,
+    );
+    const droppedCount = this.validateVirtualIbansResponse(response);
+    return { response, droppedCount };
   }
 
   getSafeOrderId(payment: FrickPaymentOrder): string | undefined {
@@ -330,7 +428,7 @@ export class BankFrickService {
     const debtorIban = this.normalizeAndValidateIban(input.debtorIban, 'debtor IBAN');
     const creditor = this.validateCreditor(input.creditor);
     const reference = input.reference?.trim();
-    if (reference) this.validateString(reference, 'reference', 140);
+    if (reference) this.validateString(reference, 'reference', 140, false);
 
     if (input.currency === 'EUR') {
       if (!IbanTools.isSEPACountry(creditor.iban.substring(0, 2)))
@@ -381,12 +479,12 @@ export class BankFrickService {
     const bic = account.bic?.replace(/\s/g, '').toUpperCase();
     const creditInstitution = account.creditInstitution?.trim();
 
-    if (address) this.validateString(address, 'creditor address', 70);
-    if (postalcode) this.validateString(postalcode, 'creditor postal code', 11);
-    if (city) this.validateString(city, 'creditor city', 70);
-    if (country) this.validateString(country, 'creditor country', 70);
+    if (address) this.validateString(address, 'creditor address', 70, false);
+    if (postalcode) this.validateString(postalcode, 'creditor postal code', 11, false);
+    if (city) this.validateString(city, 'creditor city', 70, false);
+    if (country) this.validateString(country, 'creditor country', 70, false);
     if (bic && !/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic)) throw new Error('Invalid creditor BIC');
-    if (creditInstitution) this.validateString(creditInstitution, 'credit institution', 50);
+    if (creditInstitution) this.validateString(creditInstitution, 'credit institution', 50, false);
 
     return {
       name,
@@ -411,7 +509,7 @@ export class BankFrickService {
       throw new Error('Invalid Bank Frick payment amount');
   }
 
-  private validateString(value: unknown, field: string, maxLength: number, required = false): void {
+  private validateString(value: unknown, field: string, maxLength: number, required: boolean): void {
     if (typeof value !== 'string' || (required && !value.trim())) throw new Error(`Invalid Bank Frick ${field}`);
     if (value.length > maxLength) throw new Error(`Bank Frick ${field} exceeds ${maxLength} characters`);
   }
@@ -447,7 +545,14 @@ export class BankFrickService {
     params: URLSearchParams,
     customId: string,
   ): Promise<FrickPaymentOrder | undefined> {
-    const response = await this.callApi<FrickTransactionsResponse>(`transactions?${params.toString()}`);
+    const response = await this.callApi<FrickTransactionsResponse>(
+      `transactions?${params.toString()}`,
+      'GET',
+      undefined,
+      'application/json',
+      'json',
+      true,
+    );
     // This lookup is already scoped to customId by the request itself (the ?customId= query param).
     // Bank Frick's real BOOKED transaction objects carry neither customId nor type - requiring them
     // here would make every settled payout throw and never reach a terminal state. Trust the filter:
@@ -663,7 +768,7 @@ export class BankFrickService {
     accept: string,
     responseType: FrickResponseType,
     allowUnauthorizedRetry: boolean,
-    classifyVibanCreateFailure = false,
+    classifyVibanCreateFailure: boolean,
   ): Promise<T> {
     this.assertAvailable();
     let token: string;
@@ -676,7 +781,7 @@ export class BankFrickService {
     } catch (error) {
       if (classifyVibanCreateFailure)
         throw new FrickVibanNotCreatedError(
-          `Bank Frick API request failed (${method} ${path}): pre-dispatch setup failed`,
+          `Bank Frick API request failed (${method} ${this.sanitizeApiPathForError(path)}): pre-dispatch setup failed`,
         );
       throw error;
     }
@@ -700,7 +805,9 @@ export class BankFrickService {
       });
     } catch (error) {
       if (error instanceof FrickSignatureVerificationError)
-        throw new Error(`Bank Frick response signature verification failed (${method} ${path}): ${error.message}`);
+        throw new Error(
+          `Bank Frick response signature verification failed (${method} ${this.sanitizeApiPathForError(path)}): ${error.message}`,
+        );
 
       if (allowUnauthorizedRetry && error?.response?.status === 401) {
         try {
@@ -708,14 +815,14 @@ export class BankFrickService {
         } catch (refreshError) {
           if (classifyVibanCreateFailure)
             throw new FrickVibanNotCreatedError(
-              `Bank Frick API request failed (${method} ${path}): authorization refresh failed before retry`,
+              `Bank Frick API request failed (${method} ${this.sanitizeApiPathForError(path)}): authorization refresh failed before retry`,
             );
           throw refreshError;
         }
         return this.requestSigned(url, path, method, body, accept, responseType, false, classifyVibanCreateFailure);
       }
 
-      const message = `Bank Frick API request failed (${method} ${path}): ${this.getHttpFailureReason(error)}`;
+      const message = `Bank Frick API request failed (${method} ${this.sanitizeApiPathForError(path)}): ${this.getHttpFailureReason(error)}`;
       if (classifyVibanCreateFailure && this.isDefinitelyNotProcessed(error))
         throw new FrickVibanNotCreatedError(message);
       throw new Error(message);
@@ -724,11 +831,11 @@ export class BankFrickService {
 
   private async callApi<T>(
     path: string,
-    method: Method = 'GET',
-    body?: unknown,
-    accept = 'application/json',
-    responseType: FrickResponseType = 'json',
-    allowUnauthorizedRetry = true,
+    method: Method,
+    body: unknown,
+    accept: string,
+    responseType: FrickResponseType,
+    allowUnauthorizedRetry: boolean,
   ): Promise<T> {
     this.assertAvailable();
     return this.requestSigned<T>(
@@ -739,17 +846,18 @@ export class BankFrickService {
       accept,
       responseType,
       allowUnauthorizedRetry,
+      false,
     );
   }
 
   private async callVbanApi<T>(
     path: string,
-    method: Method = 'GET',
-    body?: unknown,
-    accept = 'application/json',
-    responseType: FrickResponseType = 'json',
-    allowUnauthorizedRetry = true,
-    classifyVibanCreateFailure = false,
+    method: Method,
+    body: unknown,
+    accept: string,
+    responseType: FrickResponseType,
+    allowUnauthorizedRetry: boolean,
+    classifyVibanCreateFailure: boolean,
   ): Promise<T> {
     this.assertVibanAvailable();
     return this.requestSigned<T>(
@@ -882,6 +990,36 @@ export class BankFrickService {
     return typeof code === 'string' && /^[A-Z0-9_]{1,64}$/.test(code) ? code : 'request failed';
   }
 
+  /**
+   * Strips account numbers / IBANs from API path strings before they enter thrown Error messages
+   * (which can reach server logs, alert mail, and persisted intent/event error fields).
+   * Keeps method-level diagnostic shape (endpoint + safe query keys) without the values.
+   */
+  private sanitizeApiPathForError(path: string): string {
+    const qIdx = path.indexOf('?');
+    const pathname = qIdx >= 0 ? path.slice(0, qIdx) : path;
+    const query = qIdx >= 0 ? path.slice(qIdx + 1) : undefined;
+
+    // Path segments that look like IBANs (country code + check digits + BBAN body, total 15–34).
+    const safePath = pathname.replace(/\/([A-Za-z]{2}\d{2}[A-Za-z0-9]{11,30})(?=\/|$)/g, '/[redacted]');
+
+    if (!query) return safePath;
+
+    const params = new URLSearchParams(query);
+    const parts: string[] = [];
+    for (const [key, value] of params.entries()) {
+      const lower = key.toLowerCase();
+      if (lower === 'account' || lower === 'iban') {
+        parts.push(`${key}=[redacted]`);
+      } else if (/^[A-Za-z]{2}\d{2}[A-Za-z0-9]{11,30}$/.test(value.replace(/\s/g, ''))) {
+        parts.push(`${key}=[redacted]`);
+      } else {
+        parts.push(`${key}=${value}`);
+      }
+    }
+    return `${safePath}?${parts.join('&')}`;
+  }
+
   private isDefinitelyNotProcessed(error: unknown): boolean {
     const axiosError = error as Partial<AxiosError>;
     const status = axiosError.response?.status;
@@ -949,10 +1087,13 @@ export class BankFrickService {
 
     r.vban = this.normalizeAndValidateIban(r.vban, 'virtual IBAN');
     r.referenceAccountIban = this.normalizeAndValidateIban(r.referenceAccountIban, 'reference account IBAN');
-    if (r.description !== undefined) this.validateString(r.description, 'description', 140);
+    // JSON null means "no description" (same as omitted). Only validate when a real value is present.
+    if (r.description !== undefined && r.description !== null)
+      this.validateString(r.description, 'description', 140, false);
   }
 
-  private validateVirtualIbansResponse(r: FrickVirtualIbansResponse): void {
+  /** @returns Number of entries dropped from `r.virtualIbans` in this call (never rejects the list for those). */
+  private validateVirtualIbansResponse(r: FrickVirtualIbansResponse): number {
     if (
       !r ||
       typeof r !== 'object' ||
@@ -968,7 +1109,28 @@ export class BankFrickService {
     )
       throw new Error('Invalid Bank Frick virtual IBANs response');
 
-    for (const virtualIban of r.virtualIbans) this.validateVirtualIbanResponse(virtualIban);
+    // Drop malformed individual entries rather than rejecting the whole list. Foreign vIBANs on the
+    // same reference account (not created by DFX) may fail strict validation; recovery only needs
+    // well-formed entries that can match our own description/referenceAccountIban filters.
+    // Count is logged (PII-free); listAllVibans surfaces fullyValidated=false so callers that treat
+    // absence as proof do not act on an incomplete listing.
+    const originalCount = r.virtualIbans.length;
+    r.virtualIbans = r.virtualIbans.filter((virtualIban) => {
+      try {
+        this.validateVirtualIbanResponse(virtualIban);
+        return true;
+      } catch {
+        // Intentional per-entry drop: list recovery must not fail closed on one foreign bad entry.
+        return false;
+      }
+    });
+    const droppedCount = originalCount - r.virtualIbans.length;
+    if (droppedCount > 0) {
+      this.logger.info(
+        `Bank Frick virtual IBAN list page dropped ${droppedCount} entr(ies) failing per-entry validation`,
+      );
+    }
+    return droppedCount;
   }
 
   private assertPayoutEnabled(): void {

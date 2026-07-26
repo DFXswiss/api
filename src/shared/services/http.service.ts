@@ -168,11 +168,21 @@ export class HttpService {
       axiosConfig.transformResponse = [(data) => data];
     }
 
-    const response = await Util.retry(
-      () => firstValueFrom(this.http.request<T>(axiosConfig)),
-      tryCount ?? 1,
-      retryDelay,
-    );
+    let response: AxiosResponse<T>;
+    try {
+      response = await Util.retry(
+        () => firstValueFrom(this.http.request<T>(axiosConfig)),
+        tryCount ?? 1,
+        retryDelay,
+      );
+    } catch (error) {
+      // Non-2xx responses reject before the success-path verifier below. Without verifying those
+      // error bodies too, a mid-flight spoofed HTTP error status (unsigned bytes) would skip crypto
+      // checks and still surface as a concrete status to callers that treat 4xx as definitive.
+      if (responseVerifier) this.verifySignedErrorResponse(error, responseVerifier);
+      throw error;
+    }
+
     if (!responseVerifier) return response.data;
     if (!Buffer.isBuffer(response.data)) throw new Error('Signed HTTP response body is not a raw byte buffer');
 
@@ -180,6 +190,27 @@ export class HttpService {
     const decoded = response.data.toString('utf8');
     if (requestedResponseType === 'text') return decoded as T;
     return JSON.parse(decoded) as T;
+  }
+
+  /**
+   * When a signed request fails with an actual HTTP response, verify the detached signature on the
+   * raw error body before the original axios error is allowed to propagate. Pure transport failures
+   * (no `error.response`) have nothing to verify and pass through unchanged.
+   */
+  private verifySignedErrorResponse(
+    error: unknown,
+    responseVerifier: NonNullable<HttpRequestConfig['responseVerifier']>,
+  ): void {
+    const httpResponse = (error as { response?: { data?: unknown; headers?: AxiosResponse['headers'] } })?.response;
+    if (!httpResponse) return;
+
+    if (!Buffer.isBuffer(httpResponse.data)) {
+      throw new Error('Signed HTTP error response body is not a raw byte buffer');
+    }
+
+    // Verifier throws on bad/missing signature → that error must replace the original axios error.
+    // On success, the caller re-throws the original so status classification stays intact.
+    responseVerifier(httpResponse.data, httpResponse.headers);
   }
 
   async downloadFile(fileUrl: string, filePath: string) {

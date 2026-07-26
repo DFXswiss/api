@@ -106,6 +106,7 @@ describe('BuyController', () => {
     expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
       expect.objectContaining({ userData, currency: 'EUR' }),
       buy,
+      true,
       19,
       501,
       buy.asset,

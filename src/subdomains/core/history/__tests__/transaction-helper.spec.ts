@@ -383,6 +383,7 @@ describe('TransactionHelper', () => {
     expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
       expect.objectContaining({ amount: buyCrypto.inputAmount, currency: 'EUR', userData }),
       buyCrypto.buy,
+      false,
       request.bankId,
       request.virtualIbanId,
       buyCrypto.buy.asset,

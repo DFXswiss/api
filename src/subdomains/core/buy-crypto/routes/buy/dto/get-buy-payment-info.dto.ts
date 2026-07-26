@@ -20,6 +20,7 @@ import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
 export enum PersonalIbanProvider {
   FRICK = 'Frick',
@@ -68,7 +69,7 @@ export class GetBuyPaymentInfoDto {
     description: 'Explicit personal IBAN provider (e.g. Frick). Fail-closed; no fallback to default bank.',
   })
   @IsOptional()
-  @IsEnum(PersonalIbanProvider)
+  @IsEnum(PersonalIbanProvider, { message: QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED })
   personalIbanProvider?: PersonalIbanProvider;
 
   @ApiPropertyOptional({ description: 'Custom transaction id' })

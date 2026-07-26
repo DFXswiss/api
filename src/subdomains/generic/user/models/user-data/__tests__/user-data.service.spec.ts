@@ -23,6 +23,15 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { OrganizationService } from 'src/subdomains/generic/user/models/organization/organization.service';
 import { TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
+import {
+  MERGE_SUPERSEDED_MARKER,
+  VirtualIbanService,
+} from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
+import {
+  VirtualIbanIssuanceIntent,
+  VirtualIbanIssuanceIntentStatus,
+} from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
@@ -46,6 +55,7 @@ describe('UserDataService', () => {
   let kycAdminService: jest.Mocked<KycAdminService>;
   let transactionService: jest.Mocked<TransactionService>;
   let bankDataService: jest.Mocked<BankDataService>;
+  let virtualIbanService: jest.Mocked<VirtualIbanService>;
   let documentService: jest.Mocked<KycDocumentService>;
 
   beforeEach(async () => {
@@ -74,6 +84,7 @@ describe('UserDataService', () => {
         { provide: TfaService, useValue: createMock<TfaService>() },
         { provide: TransactionService, useValue: createMock<TransactionService>() },
         { provide: BankDataService, useValue: createMock<BankDataService>() },
+        { provide: VirtualIbanService, useValue: createMock<VirtualIbanService>() },
         { provide: KycService, useValue: createMock<KycService>() },
         { provide: IpLogService, useValue: createMock<IpLogService>() },
         { provide: CustodyService, useValue: createMock<CustodyService>() },
@@ -85,6 +96,7 @@ describe('UserDataService', () => {
     kycAdminService = module.get(KycAdminService);
     transactionService = module.get(TransactionService);
     bankDataService = module.get(BankDataService);
+    virtualIbanService = module.get(VirtualIbanService);
     documentService = module.get(KycDocumentService);
   });
 
@@ -249,6 +261,7 @@ describe('UserDataService', () => {
       transactionService.getAllTransactionsForUserData.mockResolvedValue([]);
       userRepo.find.mockResolvedValue([]);
       bankDataService.getAllBankDatasForUser.mockResolvedValue([]);
+      virtualIbanService.getVirtualIbansForAccount.mockResolvedValue([]);
       kycAdminService.getKycSteps.mockResolvedValueOnce(masterSteps).mockResolvedValueOnce(slaveSteps);
       documentService.copyFiles.mockResolvedValue(undefined);
       jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
@@ -342,6 +355,420 @@ describe('UserDataService', () => {
       }
       expect(new Set(assigned.map(([, s]) => s)).size).toBe(assigned.length);
     });
+  });
+
+  describe('mergeUserData virtual IBAN reassignment', () => {
+    const eur = { id: 1, name: 'EUR' };
+    const chf = { id: 2, name: 'CHF' };
+    const frick = { id: 10, name: 'Frick' };
+    const yapeal = { id: 11, name: 'Yapeal' };
+
+    const buildAccount = (id: number, kycLevel: number): UserData =>
+      Object.assign(new UserData(), {
+        id,
+        kycLevel,
+        kycType: KycType.DFX,
+        status: UserDataStatus.ACTIVE,
+        accountRelations: [],
+        relatedAccountRelations: [],
+        supportIssues: [],
+      });
+
+    const buildActiveViban = (
+      id: number,
+      userData: UserData,
+      currency: { id: number; name: string },
+      bank: { id: number; name: string },
+      buy: { id: number } | null = null,
+      iban?: string,
+    ): VirtualIban =>
+      Object.assign(new VirtualIban(), {
+        id,
+        userData,
+        currency,
+        bank,
+        buy,
+        iban: iban ?? `LI21088110100111K${String(id).padStart(3, '0')}E`,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+
+    const prepareMerge = async (
+      master: UserData,
+      slave: UserData,
+      masterVibans: VirtualIban[],
+      slaveVibans: VirtualIban[],
+    ): Promise<void> => {
+      userDataRepo.findOne.mockResolvedValueOnce(master).mockResolvedValueOnce(slave);
+      transactionService.getAllTransactionsForUserData.mockResolvedValue([]);
+      userRepo.find.mockResolvedValue([]);
+      bankDataService.getAllBankDatasForUser.mockResolvedValue([]);
+      virtualIbanService.getVirtualIbansForAccount
+        .mockResolvedValueOnce(masterVibans)
+        .mockResolvedValueOnce(slaveVibans);
+      // Default mock: apply deactivations only. Tests that cover intent coordination install a
+      // richer mock that also resets matching Completed intents and fails non-terminal slave rows.
+      virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(
+        async (_masterId, _slaveId, deactivations) => {
+          for (const { virtualIban } of deactivations) {
+            virtualIban.active = false;
+            virtualIban.status = VirtualIbanStatus.DEACTIVATED;
+            virtualIban.deactivatedAt = new Date();
+          }
+        },
+      );
+      kycAdminService.getKycSteps.mockResolvedValue([]);
+      documentService.copyFiles.mockResolvedValue(undefined);
+      jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as unknown as { updateBankTxTime: () => Promise<void> }, 'updateBankTxTime')
+        .mockResolvedValue(undefined);
+    };
+
+    it('reassigns slave virtual IBANs onto master.virtualIbans', async () => {
+      const master = buildAccount(1000, 50);
+      const slave = buildAccount(2000, 20);
+      const masterViban = buildActiveViban(11, master, eur, frick);
+      const slaveViban = buildActiveViban(22, slave, chf, yapeal);
+
+      await prepareMerge(master, slave, [masterViban], [slaveViban]);
+
+      await service.mergeUserData(master.id, slave.id);
+
+      expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(master.id);
+      expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(slave.id);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(master.virtualIbans).toEqual([masterViban, slaveViban]);
+      const saved = userDataRepo.save.mock.calls[0][0] as UserData;
+      expect(saved.virtualIbans).toEqual([masterViban, slaveViban]);
+    });
+
+    it('deactivates the higher-id active vIBAN when master and slave share currency+bank', async () => {
+      const master = buildAccount(1000, 50);
+      const slave = buildAccount(2000, 20);
+      // lower id wins (matches getActiveForUserAndCurrency order: { id: 'ASC' })
+      const masterViban = buildActiveViban(11, master, eur, frick);
+      const slaveViban = buildActiveViban(22, slave, eur, frick);
+
+      await prepareMerge(master, slave, [masterViban], [slaveViban]);
+
+      await service.mergeUserData(master.id, slave.id);
+
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledTimes(1);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [
+        {
+          virtualIban: slaveViban,
+          reason: expect.stringContaining(`Merged into virtual IBAN ${masterViban.id}`),
+        },
+      ]);
+      const deactivations = virtualIbanService.mergeUserLevelVirtualIbans.mock.calls[0][2];
+      expect(deactivations[0].reason).toEqual(
+        expect.stringMatching(/master 1000.*slave 2000|slave 2000.*master 1000/),
+      );
+      expect(deactivations[0].reason).toContain(String(slaveViban.id));
+      expect(masterViban.active).toBe(true);
+      expect(masterViban.status).toBe(VirtualIbanStatus.ACTIVE);
+      expect(slaveViban.active).toBe(false);
+      expect(slaveViban.status).toBe(VirtualIbanStatus.DEACTIVATED);
+      expect(slaveViban.deactivatedAt).toBeInstanceOf(Date);
+
+      const saved = userDataRepo.save.mock.calls[0][0] as UserData;
+      const activeForPair = saved.virtualIbans.filter(
+        (v) => v.active && v.status === VirtualIbanStatus.ACTIVE && v.currency.id === eur.id && v.bank.id === frick.id,
+      );
+      expect(activeForPair).toEqual([masterViban]);
+    });
+
+    it('keeps both active when master and slave have different currency+bank pairs', async () => {
+      const master = buildAccount(1000, 50);
+      const slave = buildAccount(2000, 20);
+      const masterViban = buildActiveViban(11, master, eur, frick);
+      const slaveViban = buildActiveViban(22, slave, chf, yapeal);
+
+      await prepareMerge(master, slave, [masterViban], [slaveViban]);
+
+      await service.mergeUserData(master.id, slave.id);
+
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(masterViban.active).toBe(true);
+      expect(slaveViban.active).toBe(true);
+      expect(master.virtualIbans).toEqual([masterViban, slaveViban]);
+    });
+
+    it('reassigns slave issuance intent to master when master has none for that currency+bank', async () => {
+      const master = buildAccount(1000, 50);
+      const slave = buildAccount(2000, 20);
+      const slaveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 501,
+        userDataId: slave.id,
+        currencyId: eur.id,
+        bankId: frick.id,
+        status: VirtualIbanIssuanceIntentStatus.PENDING,
+      });
+
+      await prepareMerge(master, slave, [], []);
+      // Exercise the merge hook; production reassignment is implemented in VirtualIbanService
+      // (see resolveIssuanceIntentsForMerge unit tests). Mock applies the same ownership flip here.
+      virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(async (masterId, slaveId) => {
+        expect(slaveId).toBe(slave.id);
+        expect(masterId).toBe(master.id);
+        slaveIntent.userDataId = masterId;
+      });
+
+      await service.mergeUserData(master.id, slave.id);
+
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(slaveIntent.userDataId).toBe(master.id);
+    });
+
+    it('fails PENDING slave issuance intent when master already has the same currency+bank pair', async () => {
+      const master = buildAccount(1000, 50);
+      const slave = buildAccount(2000, 20);
+      const masterIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 500,
+        userDataId: master.id,
+        currencyId: eur.id,
+        bankId: frick.id,
+        status: VirtualIbanIssuanceIntentStatus.PENDING,
+      });
+      const slaveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 501,
+        userDataId: slave.id,
+        currencyId: eur.id,
+        bankId: frick.id,
+        status: VirtualIbanIssuanceIntentStatus.PENDING,
+      });
+
+      await prepareMerge(master, slave, [], []);
+      virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(async (masterId, slaveId) => {
+        // Unique index blocks reassignment — fail non-terminal slave intent, leave master's alone.
+        slaveIntent.status = VirtualIbanIssuanceIntentStatus.FAILED;
+        slaveIntent.error = `Superseded by account merge of userData ${slaveId} into ${masterId}; merge-superseded; previousRequestReference=dfx-viban-placeholder`;
+      });
+
+      await service.mergeUserData(master.id, slave.id);
+
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(masterIntent.status).toBe(VirtualIbanIssuanceIntentStatus.PENDING);
+      expect(masterIntent.userDataId).toBe(master.id);
+      expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.FAILED);
+      expect(slaveIntent.error).toContain('Superseded by account merge');
+      expect(slaveIntent.error).toContain(String(master.id));
+      expect(slaveIntent.error).toContain(String(slave.id));
+      expect(slaveIntent.userDataId).toBe(slave.id);
+    });
+
+    it('leaves COMPLETED slave issuance intent untouched during merge', async () => {
+      const master = buildAccount(1000, 50);
+      const slave = buildAccount(2000, 20);
+      const slaveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 501,
+        userDataId: slave.id,
+        currencyId: eur.id,
+        bankId: frick.id,
+        status: VirtualIbanIssuanceIntentStatus.COMPLETED,
+        externalIban: 'LI21088110100111K000E',
+      });
+
+      await prepareMerge(master, slave, [], []);
+      virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(async () => {
+        // COMPLETED is historical — no status change, no reassignment.
+      });
+
+      await service.mergeUserData(master.id, slave.id);
+
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.COMPLETED);
+      expect(slaveIntent.userDataId).toBe(slave.id);
+      expect(slaveIntent.externalIban).toBe('LI21088110100111K000E');
+    });
+
+    it('leaves buy-scoped vIBANs untouched even when they share currency+bank with another active vIBAN', async () => {
+      const master = buildAccount(1000, 50);
+      const slave = buildAccount(2000, 20);
+      const buyA = { id: 501 };
+      const buyB = { id: 502 };
+      // User-level conflict (buy null) between master/slave for EUR+Frick — only that is deduped.
+      const masterUserLevel = buildActiveViban(11, master, eur, frick, null, 'LI21088110100111K011E');
+      const slaveUserLevel = buildActiveViban(22, slave, eur, frick, null, 'LI21088110100111K022E');
+      // Buy-scoped rows share the same currency+bank but must survive (one personal IBAN per Buy route).
+      const masterBuyScoped = buildActiveViban(12, master, eur, frick, buyA, 'LI21088110100111K012E');
+      const slaveBuyScoped = buildActiveViban(13, slave, eur, frick, buyB, 'LI21088110100111K013E');
+
+      await prepareMerge(master, slave, [masterUserLevel, masterBuyScoped], [slaveUserLevel, slaveBuyScoped]);
+
+      await service.mergeUserData(master.id, slave.id);
+
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledTimes(1);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [
+        {
+          virtualIban: slaveUserLevel,
+          reason: expect.stringContaining(`Merged into virtual IBAN ${masterUserLevel.id}`),
+        },
+      ]);
+      expect(masterUserLevel.active).toBe(true);
+      expect(slaveUserLevel.active).toBe(false);
+      expect(masterBuyScoped.active).toBe(true);
+      expect(masterBuyScoped.status).toBe(VirtualIbanStatus.ACTIVE);
+      expect(slaveBuyScoped.active).toBe(true);
+      expect(slaveBuyScoped.status).toBe(VirtualIbanStatus.ACTIVE);
+      const deactivations = virtualIbanService.mergeUserLevelVirtualIbans.mock.calls[0][2];
+      expect(deactivations.map((d) => d.virtualIban)).not.toContain(masterBuyScoped);
+      expect(deactivations.map((d) => d.virtualIban)).not.toContain(slaveBuyScoped);
+    });
+
+    it.each([
+      {
+        label: 'master wins by lower id',
+        masterVibanId: 11,
+        slaveVibanId: 22,
+        winnerSide: 'master' as const,
+      },
+      {
+        label: 'slave wins by lower id',
+        masterVibanId: 30,
+        slaveVibanId: 20,
+        winnerSide: 'slave' as const,
+      },
+    ])(
+      'Frick user-level conflict ($label): one active vIBAN and no Completed intent points at a deactivated IBAN',
+      async ({ masterVibanId, slaveVibanId, winnerSide }) => {
+        const master = buildAccount(1000, 50);
+        const slave = buildAccount(2000, 20);
+        const masterViban = buildActiveViban(masterVibanId, master, eur, frick, null, 'LI21088110100111K0MAE');
+        const slaveViban = buildActiveViban(slaveVibanId, slave, eur, frick, null, 'LI21088110100111K0SLE');
+        const masterIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+          id: 500,
+          userDataId: master.id,
+          currencyId: eur.id,
+          bankId: frick.id,
+          status: VirtualIbanIssuanceIntentStatus.COMPLETED,
+          externalIban: masterViban.iban,
+          requestReference: 'dfx-viban-master-completed',
+          error: null,
+        });
+        const slaveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+          id: 501,
+          userDataId: slave.id,
+          currencyId: eur.id,
+          bankId: frick.id,
+          status: VirtualIbanIssuanceIntentStatus.COMPLETED,
+          externalIban: slaveViban.iban,
+          requestReference: 'dfx-viban-slave-completed',
+          error: null,
+        });
+
+        await prepareMerge(master, slave, [masterViban], [slaveViban]);
+
+        // Simulate fixed atomic mergeUserLevelVirtualIbans: deactivate loser (reset matching
+        // Completed intent to Pending), reassign winner ownership onto master, permanently
+        // merge-fail the loser-side intent (whichever account that is — never leave it Pending/
+        // reopenable), and reassign the winner-side Completed intent onto masterId. Unique index
+        // (userDataId, currencyId, bankId) forces a park-swap when the failed loser still occupies
+        // the master slot: the failed row relocates onto the winner's previous owner.
+        virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(
+          async (masterId, slaveId, deactivations) => {
+            for (const { virtualIban } of deactivations) {
+              virtualIban.active = false;
+              virtualIban.status = VirtualIbanStatus.DEACTIVATED;
+              virtualIban.deactivatedAt = new Date();
+              for (const intent of [masterIntent, slaveIntent]) {
+                if (
+                  intent.userDataId === virtualIban.userData.id &&
+                  intent.currencyId === virtualIban.currency.id &&
+                  intent.bankId === virtualIban.bank.id &&
+                  intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED &&
+                  intent.externalIban === virtualIban.iban
+                ) {
+                  intent.status = VirtualIbanIssuanceIntentStatus.PENDING;
+                  intent.externalIban = null;
+                  intent.requestReference = `dfx-viban-reset-${intent.id}`;
+                }
+              }
+            }
+
+            const winnerViban = winnerSide === 'master' ? masterViban : slaveViban;
+            const winnerIntent = winnerSide === 'master' ? masterIntent : slaveIntent;
+            const loserIntent = winnerSide === 'master' ? slaveIntent : masterIntent;
+
+            if (winnerViban.userData.id !== masterId) {
+              winnerViban.userData = { id: masterId } as UserData;
+            }
+
+            if (
+              loserIntent.status === VirtualIbanIssuanceIntentStatus.PENDING ||
+              loserIntent.status === VirtualIbanIssuanceIntentStatus.IN_FLIGHT
+            ) {
+              loserIntent.status = VirtualIbanIssuanceIntentStatus.FAILED;
+              loserIntent.error =
+                `Superseded by account merge of userData ${slaveId} into ${masterId}; ${MERGE_SUPERSEDED_MARKER}; ` +
+                `previousRequestReference=${loserIntent.requestReference}`;
+            }
+
+            if (winnerIntent.userDataId !== masterId) {
+              // Free masterId slot when the merge-failed loser still occupies it.
+              if (loserIntent.userDataId === masterId && loserIntent.id !== winnerIntent.id) {
+                loserIntent.userDataId = winnerIntent.userDataId;
+              }
+              winnerIntent.userDataId = masterId;
+            }
+          },
+        );
+
+        await service.mergeUserData(master.id, slave.id);
+
+        const winner = winnerSide === 'master' ? masterViban : slaveViban;
+        const loser = winnerSide === 'master' ? slaveViban : masterViban;
+        const winnerIntent = winnerSide === 'master' ? masterIntent : slaveIntent;
+        const loserIntent = winnerSide === 'master' ? slaveIntent : masterIntent;
+
+        expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledTimes(1);
+        expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [
+          {
+            virtualIban: loser,
+            reason: expect.stringContaining(`Merged into virtual IBAN ${winner.id}`),
+          },
+        ]);
+        expect(winner.active).toBe(true);
+        expect(winner.status).toBe(VirtualIbanStatus.ACTIVE);
+        expect(loser.active).toBe(false);
+        expect(loser.status).toBe(VirtualIbanStatus.DEACTIVATED);
+
+        // Loser's intent must not remain Completed pointing at the dead IBAN.
+        expect(loserIntent.externalIban).not.toBe(loser.iban);
+        expect(loserIntent.status).not.toBe(VirtualIbanIssuanceIntentStatus.COMPLETED);
+
+        // Loser-side intent is always permanently merge-terminated in the same transaction,
+        // never left Pending/reopenable. Winner-side stays Completed under masterId.
+        if (winnerSide === 'slave') {
+          expect(masterIntent.status).toBe(VirtualIbanIssuanceIntentStatus.FAILED);
+          expect(masterIntent.error).toContain(MERGE_SUPERSEDED_MARKER);
+          // Unique-index park-swap relocates the failed loser onto the retired slave id so the
+          // Completed winner can occupy masterId.
+          expect(masterIntent.userDataId).toBe(slave.id);
+          expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.COMPLETED);
+          expect(slaveIntent.userDataId).toBe(master.id);
+          expect(slaveIntent.externalIban).toBe(slaveViban.iban);
+        } else {
+          expect(masterIntent.status).toBe(VirtualIbanIssuanceIntentStatus.COMPLETED);
+          expect(masterIntent.externalIban).toBe(masterViban.iban);
+          expect(masterIntent.userDataId).toBe(master.id);
+          expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.FAILED);
+          expect(slaveIntent.error).toContain(MERGE_SUPERSEDED_MARKER);
+          expect(slaveIntent.userDataId).toBe(slave.id);
+        }
+
+        // No Completed intent still points at a deactivated IBAN.
+        for (const intent of [masterIntent, slaveIntent]) {
+          if (intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED) {
+            expect(intent.externalIban).not.toBe(loser.iban);
+            expect([winner.iban]).toContain(intent.externalIban);
+          }
+        }
+
+        expect(winnerIntent.userDataId).toBe(master.id);
+      },
+    );
   });
 
   describe('assignNextKycFileId', () => {

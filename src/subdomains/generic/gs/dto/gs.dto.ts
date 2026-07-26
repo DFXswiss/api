@@ -1365,6 +1365,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'created',
       'updated',
       'amount',
+      'bankId',
       'dfxFee',
       'error',
       'estimatedAmount',
@@ -1385,6 +1386,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'totalFee',
       'type',
       'userId',
+      'virtualIbanId',
     ],
   },
   transaction_aml_check: {
@@ -1529,7 +1531,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'accountId', 'relatedAccountId', 'relation', 'signatory'],
   },
   virtual_iban: {
-    // No `iban` / `bban` / `label` (PII / free-form). Lifecycle + external bank id are safe.
+    // No `iban` / `bban` / `label` (PII / free-form). No `providerAccountRef` either:
+    // that column is provider-dependent — opaque for Yapeal (`accountUid`), but identical
+    // to the customer IBAN for Frick (`providerAccountRef: activated.vban`) — so it is not
+    // blanket-safe to expose. Lifecycle + FK ids are safe.
     columns: [
       'id',
       'created',
@@ -1543,7 +1548,37 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'reservedUntil',
       'status',
       'userDataId',
-      'providerAccountRef',
+    ],
+  },
+  virtual_iban_issuance_event: {
+    // No `previousError` / `nextError` (free-form / PII markers). Lifecycle + numeric
+    // reference ids + status transitions are safe (`previousVirtualIbanId` /
+    // `nextVirtualIbanId` are plain VirtualIban.id scalars, not raw IBANs).
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'intentId',
+      'userDataId',
+      'currencyId',
+      'bankId',
+      'previousStatus',
+      'nextStatus',
+      'previousVirtualIbanId',
+      'nextVirtualIbanId',
+    ],
+  },
+  virtual_iban_issuance_intent: {
+    // No `externalIban` / `error` / `requestReference` (PII / free-form / technical
+    // capability-lookup token). Lifecycle + FK ids + status are safe.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'userDataId',
+      'currencyId',
+      'bankId',
+      'status',
     ],
   },
   wallet: {

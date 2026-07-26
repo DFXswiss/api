@@ -26,8 +26,9 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
-import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
+import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
@@ -265,20 +266,37 @@ export class BuyService {
       wallet: true,
     });
 
-    // Resolve the deposit destination exactly once, before fee calculation. An explicitly requested
-    // Frick vIBAN is fail-closed and therefore must never be replaced by the default-bank path.
-    const resolvedBank = await this.resolveBankInfo(
-      {
-        amount: dto.amount,
-        currency: dto.currency.name,
-        paymentMethod: dto.paymentMethod,
-        userData: user.userData,
-      },
-      buy,
-      dto.asset,
-      user.wallet,
-      dto.personalIbanProvider,
-    );
+    // Frick personal-IBAN selector: resolve deposit destination before fee calculation so bankInOverride
+    // can pass the Frick bank name (Frick is excluded from getBankIn()'s user-level pool). Fail-closed —
+    // never replaced by the default-bank path.
+    //
+    // Every other path: merge-base order — getTxDetails first (bankInOverride undefined so getBankIn()
+    // resolves fees itself), then resolveBankInfo with the amount from getTxDetails. That way a failed
+    // quote never creates an external account (createForUser / createForBuy) for non-selector customers.
+    // Assigned exactly once: FRICK path before getTxDetails, all other paths after.
+    let resolvedBank!: {
+      bankInfo: BankInfoDto & { isPersonalIban: boolean; reference?: string };
+      bankId: number;
+      virtualIbanId?: number;
+      bankName: IbanBankName;
+    };
+    let bankInOverride: IbanBankName | undefined;
+
+    if (dto.personalIbanProvider === PersonalIbanProvider.FRICK) {
+      resolvedBank = await this.resolveBankInfo(
+        {
+          amount: dto.amount,
+          currency: dto.currency.name,
+          paymentMethod: dto.paymentMethod,
+          userData: user.userData,
+        },
+        buy,
+        dto.asset,
+        user.wallet,
+        dto.personalIbanProvider,
+      );
+      bankInOverride = resolvedBank.bankName;
+    }
 
     const {
       timestamp,
@@ -309,8 +327,22 @@ export class BuyService {
       [],
       undefined,
       undefined,
-      dto.paymentMethod === FiatPaymentMethod.CARD ? undefined : resolvedBank.bankName,
+      bankInOverride,
     );
+
+    if (dto.personalIbanProvider !== PersonalIbanProvider.FRICK) {
+      resolvedBank = await this.resolveBankInfo(
+        {
+          amount: amount,
+          currency: dto.currency.name,
+          paymentMethod: dto.paymentMethod,
+          userData: user.userData,
+        },
+        buy,
+        dto.asset,
+        user.wallet,
+      );
+    }
 
     const bankInfo = resolvedBank.bankInfo;
 
@@ -377,33 +409,49 @@ export class BuyService {
   /**
    * Rebuilds invoice bank data from the exact IDs persisted with a new transaction request.
    * Dynamic legacy selection is permitted only when both IDs are absent.
+   *
+   * @param requireLiveVirtualIban When true (still-open / unpaid quote), also verify that the
+   * stored personal IBAN is active and the bank still accepts payments. When false (historical
+   * completed lookup / receipt), skip liveness and serve the stored data as-is.
    */
   async getBankInfoForRequest(
     selector: BankSelectorInput,
     buy: Buy,
+    requireLiveVirtualIban: boolean,
     bankId?: number,
     virtualIbanId?: number,
     asset?: Asset,
     wallet?: Wallet,
   ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
     if (bankId == null && virtualIbanId == null) return this.getBankInfo(selector, buy, asset, wallet);
-    if (bankId == null) throw new BadRequestException('Stored transaction request bank selection is incomplete');
+    if (bankId == null)
+      throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_SELECTION_INCOMPLETE);
 
     const bank = await this.bankService.getBankById(bankId);
-    if (!bank) throw new BadRequestException('Stored transaction request bank no longer exists');
+    if (!bank) throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_NO_LONGER_EXISTS);
 
     if (virtualIbanId != null) {
       const virtualIban = await this.virtualIbanService.getByIdForUser(virtualIbanId, selector.userData.id);
-      if (!virtualIban) throw new BadRequestException('Stored personal IBAN does not belong to this user');
+      if (!virtualIban)
+        throw new BadRequestException(QuoteError.STORED_PERSONAL_IBAN_USER_MISMATCH);
       if (
         virtualIban.bank.id !== bankId ||
         virtualIban.currency.name !== selector.currency ||
         (virtualIban.buy && virtualIban.buy.id !== buy.id)
       )
-        throw new BadRequestException('Stored personal IBAN does not match this transaction request');
+        throw new BadRequestException(QuoteError.STORED_PERSONAL_IBAN_TRANSACTION_REQUEST_MISMATCH);
+
+      if (requireLiveVirtualIban) {
+        if (!virtualIban.active || virtualIban.status !== VirtualIbanStatus.ACTIVE)
+          throw new BadRequestException(QuoteError.STORED_PERSONAL_IBAN_IS_NO_LONGER_ACTIVE);
+        if (!bank.receive) throw new BadRequestException(QuoteError.STORED_BANK_NO_LONGER_ACCEPTS_PAYMENTS);
+      }
 
       return this.buildVirtualIbanResponse(virtualIban, selector.userData, virtualIban.buy ? undefined : buy.bankUsage);
     }
+
+    if (requireLiveVirtualIban && !bank.receive)
+      throw new BadRequestException(QuoteError.STORED_BANK_NO_LONGER_ACCEPTS_PAYMENTS);
 
     return this.buildBankResponse(bank, buy.bankUsage);
   }
@@ -422,14 +470,14 @@ export class BuyService {
   }> {
     if (personalIbanProvider === PersonalIbanProvider.FRICK) {
       if (selector.currency !== 'EUR')
-        throw new BadRequestException('Bank Frick personal IBAN is only available for EUR');
+        throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
       if (selector.paymentMethod !== FiatPaymentMethod.BANK)
-        throw new BadRequestException('Bank Frick personal IBAN requires bank payment');
-      if (selector.userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('KycRequired');
+        throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
+      if (selector.userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException(QuoteError.KYC_REQUIRED);
 
       const virtualIban = await this.virtualIbanService.getOrCreateFrickForUser(selector.userData, selector.currency);
       if (!virtualIban.bank.receive || virtualIban.bank.name !== IbanBankName.FRICK)
-        throw new BadRequestException('Bank Frick personal IBAN is not available');
+        throw new BadRequestException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
 
       return {
         bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),

@@ -1,6 +1,8 @@
+import { HttpService as NestHttpService } from '@nestjs/axios';
 import { createSign, generateKeyPairSync, verify } from 'crypto';
 import * as IbanTools from 'ibantools';
-import { Config, ConfigService } from 'src/config/config';
+import { of, throwError } from 'rxjs';
+import { Config, ConfigService, Environment } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FrickVirtualIbanState } from '../../dto/frick-vban.dto';
@@ -859,6 +861,32 @@ describe('BankFrickService', () => {
     expect(service['getHttpFailureReason']({ response: { status: 99 }, code: 'unsafe-code' })).toBe('request failed');
   });
 
+  it('redacts account numbers and IBAN path segments from API failure path descriptions', () => {
+    const listed = service['sanitizeApiPathForError'](
+      `virtual-ibans?account=${debtorIban}&state=PREPARED&pageIndex=0&pageSize=50`,
+    );
+    expect(listed).toBe('virtual-ibans?account=[redacted]&state=PREPARED&pageIndex=0&pageSize=50');
+    expect(listed).not.toContain(debtorIban);
+
+    const withPathIban = service['sanitizeApiPathForError'](`virtual-ibans/${debtorIban}`);
+    expect(withPathIban).toBe('virtual-ibans/[redacted]');
+    expect(withPathIban).not.toContain(debtorIban);
+
+    const camt = service['sanitizeApiPathForError'](
+      `camt053?iban=${debtorIban}&fromDate=2026-07-01&toDate=2026-07-02`,
+    );
+    expect(camt).toBe('camt053?iban=[redacted]&fromDate=2026-07-01&toDate=2026-07-02');
+    expect(camt).not.toContain(debtorIban);
+
+    // Query value looks like an IBAN even though the key is not "account"/"iban" → still redacted.
+    // Non-IBAN query values (e.g. state=PREPARED above) already cover the complementary branch.
+    const ibanLikeValue = service['sanitizeApiPathForError'](
+      `virtual-ibans?ref=${debtorIban}&state=PREPARED`,
+    );
+    expect(ibanLikeValue).toBe('virtual-ibans?ref=[redacted]&state=PREPARED');
+    expect(ibanLikeValue).not.toContain(debtorIban);
+  });
+
   it('rejects an unsafe customer path segment', () => {
     Config.bank.frick.customer = '../customer';
 
@@ -985,6 +1013,42 @@ describe('BankFrickService', () => {
     http.request.mockResolvedValueOnce({ token: jwt() }).mockRejectedValueOnce({ response: { status: 422 } });
 
     await expect(service.createViban(debtorIban)).rejects.toBeInstanceOf(FrickVibanNotCreatedError);
+  });
+
+  it('keeps a Bank-Frick-signed 4xx create rejection as FrickVibanNotCreatedError (definitely not processed)', async () => {
+    // After HttpService verifies the detached signature on the error body, the original axios error
+    // (with response.status) propagates into requestSigned's classification path. HttpService is
+    // mocked at the boundary, so we simulate that verified re-throw with an axios-shaped 4xx.
+    const errorBody = Buffer.from('{"error":"validation failed"}');
+    const signer = createSign('sha512');
+    signer.update(errorBody);
+    const signature = signer.sign(keys.privateKey, 'base64');
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockRejectedValueOnce({
+      response: {
+        status: 422,
+        data: errorBody,
+        headers: { signature, algorithm: 'rsa-sha512' },
+      },
+      isAxiosError: true,
+    });
+
+    await expect(service.createViban(debtorIban)).rejects.toBeInstanceOf(FrickVibanNotCreatedError);
+  });
+
+  it('does not classify an unsigned or bad-signature 4xx create rejection as FrickVibanNotCreatedError', async () => {
+    // HttpService.request() throws FrickSignatureVerificationError when verifyResponse rejects the
+    // error body - simulated here because http.request is mocked at the HttpService boundary.
+    // That path is ambiguous (mid-flight injection possible) and must never drive an immediate
+    // intent reset via FrickVibanNotCreatedError.
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockRejectedValueOnce(new FrickSignatureVerificationError('Invalid Bank Frick response signature headers'));
+
+    const rejected = service.createViban(debtorIban);
+    await expect(rejected).rejects.toThrow(
+      'Bank Frick response signature verification failed (POST virtual-ibans): Invalid Bank Frick response signature headers',
+    );
+    await expect(rejected).rejects.not.toBeInstanceOf(FrickVibanNotCreatedError);
   });
 
   it('classifies failed token acquisition before create dispatch as definitely not created', async () => {
@@ -1187,12 +1251,77 @@ describe('BankFrickService', () => {
       pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 0 },
     });
     await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBANs response');
+  });
+
+  it('accepts a single virtual IBAN with description null (treated as absent)', async () => {
+    const response = { ...virtualIbanResponse(), description: null as unknown as string | undefined };
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await expect(service.createViban(debtorIban)).resolves.toEqual(response);
+  });
+
+  it('keeps a well-formed list entry whose description is null', async () => {
+    const item = { ...virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE }), description: null };
+    const listResponse = {
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 1 },
+      virtualIbans: [item],
+    };
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(listResponse);
+
+    await expect(service.listVibans()).resolves.toEqual(listResponse);
+    expect(listResponse.virtualIbans).toHaveLength(1);
+  });
+
+  it('drops structurally invalid list entries and returns the well-formed ones', async () => {
+    const valid = virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE });
+    const invalidMissingVban = { ...valid, vban: undefined };
+    const invalidEmptyVban = { ...valid, vban: '' };
+    const otherValid = virtualIbanResponse({
+      state: FrickVirtualIbanState.PREPARED,
+      vban: createSyntheticIban('LI', '00000VBANACCOUNT2'),
+    });
+    const listResponse = {
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 4 },
+      virtualIbans: [valid, invalidMissingVban, invalidEmptyVban, otherValid],
+    };
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(listResponse);
+
+    const result = await service.listVibans();
+    expect(result.virtualIbans).toEqual([valid, otherValid]);
+    expect(result.pagination).toEqual(listResponse.pagination);
+  });
+
+  it('still rejects list responses with invalid top-level pagination/structure', async () => {
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: -1 },
+      virtualIbans: [],
+    });
+    await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBANs response');
 
     http.request.mockResolvedValueOnce({
-      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 1 },
-      virtualIbans: [{ ...item, vban: '' }],
+      pagination: { hasMore: 'nope', pageIndex: 0, pageSize: 50, totalCount: 0 },
+      virtualIbans: [],
     });
-    await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+    await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBANs response');
+
+    http.request.mockResolvedValueOnce({
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 0 },
+      // virtualIbans missing
+    });
+    await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBANs response');
+  });
+
+  it('still rejects a malformed single-entity create response (fail-closed)', async () => {
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce({ ...virtualIbanResponse(), vban: '' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({
+      ...virtualIbanResponse(),
+      description: 123 as unknown as string,
+    });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick description');
   });
 
   it('traverses every virtual-IBAN page and rejects pagination that does not advance', async () => {
@@ -1214,7 +1343,7 @@ describe('BankFrickService', () => {
 
     await expect(
       service.listAllVibans(debtorIban, [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE], 1),
-    ).resolves.toEqual([first, second]);
+    ).resolves.toEqual({ virtualIbans: [first, second], fullyValidated: true });
     expect(new URL(http.request.mock.calls[2][0].url).searchParams.get('pageIndex')).toBe('1');
 
     http = { request: jest.fn() };
@@ -1248,58 +1377,155 @@ describe('BankFrickService', () => {
       state: FrickVirtualIbanState.ACTIVE,
       vban: createSyntheticIban('LI', '00000VBANACCOUNT2'),
     });
-    const listSpy = jest.spyOn(service, 'listVibans');
+    // listAllVibans consumes the private page helper (not public listVibans) so drop counts thread through.
+    const listSpy = jest.spyOn(service as any, 'listVibansPage');
 
     listSpy.mockResolvedValueOnce({
-      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 0 },
-      virtualIbans: [],
+      response: {
+        pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 0 },
+        virtualIbans: [],
+      },
+      droppedCount: 0,
     });
-    await expect(service.listAllVibans()).resolves.toEqual([]);
+    await expect(service.listAllVibans()).resolves.toEqual({ virtualIbans: [], fullyValidated: true });
 
     listSpy
       .mockResolvedValueOnce({
-        pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 2 },
-        virtualIbans: [first],
+        response: {
+          pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 2 },
+          virtualIbans: [first],
+        },
+        droppedCount: 0,
       })
       .mockResolvedValueOnce({
-        pagination: { hasMore: false, pageIndex: 1, pageSize: 1, totalCount: 3 },
-        virtualIbans: [second],
+        response: {
+          pagination: { hasMore: false, pageIndex: 1, pageSize: 1, totalCount: 3 },
+          virtualIbans: [second],
+        },
+        droppedCount: 0,
       });
     await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow(
       'changed totalCount during pagination',
     );
 
     listSpy.mockReset().mockResolvedValueOnce({
-      pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 1 },
-      virtualIbans: [],
+      response: {
+        pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 1 },
+        virtualIbans: [],
+      },
+      droppedCount: 0,
     });
     await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow(
-      'reported more pages but returned no items',
+      'reported more pages but returned no raw items',
     );
 
     listSpy
       .mockReset()
       .mockResolvedValueOnce({
-        pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 2 },
-        virtualIbans: [first],
+        response: {
+          pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 2 },
+          virtualIbans: [first],
+        },
+        droppedCount: 0,
       })
       .mockResolvedValueOnce({
-        pagination: { hasMore: false, pageIndex: 1, pageSize: 1, totalCount: 2 },
-        virtualIbans: [first],
+        response: {
+          pagination: { hasMore: false, pageIndex: 1, pageSize: 1, totalCount: 2 },
+          virtualIbans: [first],
+        },
+        droppedCount: 0,
       });
     await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow('duplicate item across pages');
 
+    // Genuine gap: server claims 2, only 1 valid item returned, nothing dropped locally.
     listSpy.mockReset().mockResolvedValueOnce({
-      pagination: { hasMore: false, pageIndex: 0, pageSize: 1, totalCount: 2 },
-      virtualIbans: [first],
+      response: {
+        pagination: { hasMore: false, pageIndex: 0, pageSize: 1, totalCount: 2 },
+        virtualIbans: [first],
+      },
+      droppedCount: 0,
     });
-    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow('returned 1 of 2 items');
+    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow(
+      'returned 1 of 2 items (0 dropped as invalid)',
+    );
+  });
+
+  it('listAllVibans succeeds when totalCount is explained by locally-dropped invalid entries', async () => {
+    const valid = virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE });
+    const otherValid = virtualIbanResponse({
+      state: FrickVirtualIbanState.PREPARED,
+      vban: createSyntheticIban('LI', '00000VBANACCOUNT2'),
+    });
+    // Server totalCount includes the malformed foreign entry; after local drop only the two valids remain.
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 3 },
+      virtualIbans: [valid, { ...valid, vban: undefined }, otherValid],
+    });
+
+    await expect(service.listAllVibans()).resolves.toEqual({
+      virtualIbans: [valid, otherValid],
+      fullyValidated: false,
+    });
+  });
+
+  it('listAllVibans continues past a page whose every entry was dropped as invalid', async () => {
+    // Shared reference account: page 0 is entirely foreign/malformed (post-filter length 0) but the
+    // server still reports hasMore. That is expected and must not be treated as a structural gap.
+    const valid = virtualIbanResponse({
+      state: FrickVirtualIbanState.ACTIVE,
+      vban: createSyntheticIban('LI', '00000VBANACCOUNT2'),
+    });
+    const allForeignPage0 = [
+      { ...virtualIbanResponse(), vban: undefined },
+      { ...virtualIbanResponse(), vban: '' },
+    ];
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce({
+        pagination: { hasMore: true, pageIndex: 0, pageSize: 2, totalCount: 3 },
+        virtualIbans: allForeignPage0,
+      })
+      .mockResolvedValueOnce({
+        pagination: { hasMore: false, pageIndex: 1, pageSize: 2, totalCount: 3 },
+        virtualIbans: [valid],
+      });
+
+    await expect(service.listAllVibans(undefined, undefined, 2)).resolves.toEqual({
+      virtualIbans: [valid],
+      fullyValidated: false,
+    });
+  });
+
+  it('listAllVibans still throws when a page has zero raw entries while hasMore is true', async () => {
+    // Genuine gap: the server itself returned an empty virtualIbans array (nothing to drop).
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({
+      pagination: { hasMore: true, pageIndex: 0, pageSize: 1, totalCount: 1 },
+      virtualIbans: [],
+    });
+
+    await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow(
+      'reported more pages but returned no raw items',
+    );
+  });
+
+  it('listAllVibans still throws when a genuine gap is not explained by dropped entries', async () => {
+    const valid = virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE });
+    // Server claims 5 items; only one well-formed + one dropped → 2 accounted for, still short by 3.
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 5 },
+      virtualIbans: [valid, { ...valid, vban: undefined }],
+    });
+
+    await expect(service.listAllVibans()).rejects.toThrow('returned 1 of 5 items (1 dropped as invalid)');
   });
 
   it('fails closed when virtual-IBAN pagination exceeds the safety limit', async () => {
-    jest.spyOn(service, 'listVibans').mockImplementation(async (_account, _states, pageIndex = 0) => ({
-      pagination: { hasMore: true, pageIndex, pageSize: 1, totalCount: 10_001 },
-      virtualIbans: [{ ...virtualIbanResponse(), vban: `synthetic-vban-${pageIndex}` }],
+    jest.spyOn(service as any, 'listVibansPage').mockImplementation(async (_account, _states, pageIndex = 0) => ({
+      response: {
+        pagination: { hasMore: true, pageIndex, pageSize: 1, totalCount: 10_001 },
+        virtualIbans: [{ ...virtualIbanResponse(), vban: `synthetic-vban-${pageIndex}` }],
+      },
+      droppedCount: 0,
     }));
 
     await expect(service.listAllVibans(undefined, undefined, 1)).rejects.toThrow('exceeded maximum page count');
@@ -1310,6 +1536,11 @@ describe('BankFrickService', () => {
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
 
     await expect(service.createViban(debtorIban)).resolves.toEqual(response);
+
+    // description omitted (undefined) remains valid
+    const withoutDescription = virtualIbanResponse();
+    http.request.mockResolvedValueOnce(withoutDescription);
+    await expect(service.createViban(debtorIban)).resolves.toEqual(withoutDescription);
   });
 
   it('refreshes once after a 401 on the VBAN path and retries the original request once', async () => {
@@ -1384,6 +1615,102 @@ describe('BankFrickService', () => {
 
     const url = new URL(http.request.mock.calls[1][0].url);
     expect(url.searchParams.get('account')).toBe(debtorIban);
+  });
+
+  /**
+   * End-to-end: real HttpService.verifySignedErrorResponse + real BankFrickService.verifyResponse
+   * (RSA) + real isDefinitelyNotProcessed / FrickVibanNotCreatedError classification in one flow.
+   *
+   * Unlike the rest of this file (http.request is a bare stub; signature/classification interplay is
+   * simulated by manually calling request.responseVerifier or pre-throwing FrickSignatureVerificationError),
+   * these tests wire BankFrickService to a real HttpService instance and only mock the underlying
+   * @nestjs/axios transport — so neither the crypto check nor the create-failure classification is a stand-in.
+   */
+  describe('real HttpService + Frick create-failure classification interplay', () => {
+    const previousEnvironment = process.env.ENVIRONMENT;
+    let nestHttp: { request: jest.Mock };
+    let realHttp: HttpService;
+    let frickWithRealHttp: BankFrickService;
+
+    beforeEach(() => {
+      // Parent beforeEach already sets Config.bank.frick with the shared RSA key pair.
+      // Force non-LOC so HttpService does not take its local mock path.
+      process.env.ENVIRONMENT = Environment.DEV;
+      nestHttp = { request: jest.fn() };
+      realHttp = new HttpService(nestHttp as unknown as NestHttpService);
+      frickWithRealHttp = new BankFrickService(realHttp);
+    });
+
+    afterAll(() => {
+      if (previousEnvironment === undefined) delete process.env.ENVIRONMENT;
+      else process.env.ENVIRONMENT = previousEnvironment;
+    });
+
+    function signResponseBody(rawBody: Buffer): string {
+      const signer = createSign('sha512');
+      signer.update(rawBody);
+      return signer.sign(keys.privateKey, 'base64');
+    }
+
+    function signedAuthorizeTransportResponse() {
+      const rawBody = Buffer.from(JSON.stringify({ token: jwt() }));
+      return {
+        data: rawBody,
+        headers: { signature: signResponseBody(rawBody), algorithm: 'rsa-sha512' },
+        status: 200,
+        statusText: 'OK',
+        config: {} as any,
+      };
+    }
+
+    it('classifies a real Bank-Frick-signed 4xx create error body as FrickVibanNotCreatedError', async () => {
+      // Proves: HttpService verifies the detached signature on the error Buffer, re-throws the
+      // original axios error, and requestSigned then classifies that verified 400 as not-created.
+      const errorBody = Buffer.from('{"error":"validation failed","message":"invalid virtual IBAN request"}');
+      const signature = signResponseBody(errorBody);
+      const axiosError = Object.assign(new Error('Request failed with status code 400'), {
+        response: {
+          status: 400,
+          data: errorBody,
+          headers: { signature, algorithm: 'rsa-sha512' },
+        },
+        isAxiosError: true,
+      });
+
+      nestHttp.request
+        .mockReturnValueOnce(of(signedAuthorizeTransportResponse()))
+        .mockReturnValueOnce(throwError(() => axiosError));
+
+      await expect(frickWithRealHttp.createViban(debtorIban, 'dfx-viban-e2e-real-http')).rejects.toBeInstanceOf(
+        FrickVibanNotCreatedError,
+      );
+    });
+
+    it('does not classify a 4xx create error with an invalid response signature as FrickVibanNotCreatedError', async () => {
+      // Proves: classification never fires on an unauthenticated error body — a spoofed 4xx without
+      // the real private key cannot drive FrickVibanNotCreatedError. HttpService throws first
+      // (signature mismatch); requestSigned maps FrickSignatureVerificationError to a generic Error.
+      const errorBody = Buffer.from('{"error":"validation failed","message":"invalid virtual IBAN request"}');
+      const tamperedSignature = signResponseBody(Buffer.from('{"error":"different bytes"}'));
+      const axiosError = Object.assign(new Error('Request failed with status code 400'), {
+        response: {
+          status: 400,
+          data: errorBody,
+          headers: { signature: tamperedSignature, algorithm: 'rsa-sha512' },
+        },
+        isAxiosError: true,
+      });
+
+      nestHttp.request
+        .mockReturnValueOnce(of(signedAuthorizeTransportResponse()))
+        .mockReturnValueOnce(throwError(() => axiosError));
+
+      const rejected = frickWithRealHttp.createViban(debtorIban, 'dfx-viban-e2e-real-http');
+      await expect(rejected).rejects.toThrow(
+        'Bank Frick response signature verification failed (POST virtual-ibans): Invalid Bank Frick response signature',
+      );
+      await expect(rejected).rejects.not.toBeInstanceOf(FrickVibanNotCreatedError);
+    });
   });
 
   function virtualIbanResponse(

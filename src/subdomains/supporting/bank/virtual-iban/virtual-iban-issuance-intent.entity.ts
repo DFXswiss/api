@@ -27,7 +27,9 @@ export class VirtualIbanIssuanceIntent extends IEntity {
   @Column({ type: 'integer' })
   bankId: number;
 
-  @Column({ length: 32 })
+  // Explicit type even though the enum is same-file today: keeps the column independent of
+  // emitDecoratorMetadata if the enum is ever moved (same trap as previousStatus/nextStatus).
+  @Column({ type: 'varchar', length: 32 })
   status: VirtualIbanIssuanceIntentStatus;
 
   @Column({ length: 34, nullable: true })

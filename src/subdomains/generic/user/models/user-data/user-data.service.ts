@@ -44,6 +44,8 @@ import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.servi
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
+import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -112,6 +114,7 @@ export class UserDataService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
+    private readonly virtualIbanService: VirtualIbanService,
     @Inject(forwardRef(() => KycService))
     private readonly kycService: KycService,
     private readonly ipLogService: IpLogService,
@@ -1259,6 +1262,7 @@ export class UserDataService {
       relations: { userData: true, wallet: true },
     });
     master.bankDatas = await this.bankDataService.getAllBankDatasForUser(masterId);
+    master.virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(masterId);
     master.kycSteps = await this.kycAdminService.getKycSteps(masterId);
 
     const slave = await this.userDataRepo.findOne({
@@ -1278,6 +1282,7 @@ export class UserDataService {
       relations: { userData: true, wallet: true },
     });
     slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
+    slave.virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(slaveId);
     slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId);
 
     master.checkIfMergePossibleWith(slave);
@@ -1286,6 +1291,7 @@ export class UserDataService {
 
     const mergedEntitiesString = [
       slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
+      slave.virtualIbans.length > 0 && `virtual ibans ${slave.virtualIbans.map((v) => v.id)}`,
       slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
       slave.relatedAccountRelations.length > 0 &&
@@ -1358,8 +1364,67 @@ export class UserDataService {
         await this.bankDataService.updateBankDataInternal(bankData, { status: ReviewStatus.FAILED, approved: false });
     }
 
-    // reassign bank datas, users and userDataRelations
+    // Active user-level vIBAN currency+bank conflicts: after reassignment the master would hold two
+    // simultaneously active personal IBANs for the same pair (no DB constraint; application rule only).
+    //
+    // Boundary: only the user-level pool (virtual_iban.buy IS NULL) is constrained to "at most one
+    // active per (userData, currency, bank)". Buy-scoped vIBANs (buy non-null) deliberately allow
+    // multiple simultaneously active rows sharing currency+bank — one dedicated personal IBAN per Buy
+    // route — so they must never be part of this dedup.
+    //
+    // Keep the lowest id among conflicting user-level actives — same ordering as
+    // getActiveForUserAndCurrency — so the surviving IBAN matches pre-merge lookup behaviour;
+    // deactivate losers (which also resets any matching Completed Frick issuance intent to Pending
+    // under the loser's pre-merge userDataId) and dissolve slave issuance intents atomically via
+    // mergeUserLevelVirtualIbans so a concurrent customer request cannot claim a just-reopened
+    // slave intent between separate deactivate/dissolve transactions.
+    //
+    // Deactivations run first inside that single transaction so intent ownership resolution sees
+    // the loser's intent already reopened to Pending rather than Completed-pointing-at-a-dead-IBAN.
+    const isActiveUserLevelVirtualIban = (v: VirtualIban): boolean =>
+      v.active === true && v.status === VirtualIbanStatus.ACTIVE && v.buy == null;
+    const virtualIbanPairKey = (v: VirtualIban): string => `${v.currency.id}:${v.bank.id}`;
+
+    const masterActiveByPair = new Map<string, VirtualIban[]>();
+    for (const v of master.virtualIbans.filter(isActiveUserLevelVirtualIban)) {
+      const key = virtualIbanPairKey(v);
+      const group = masterActiveByPair.get(key);
+      if (group) group.push(v);
+      else masterActiveByPair.set(key, [v]);
+    }
+
+    const slaveActiveByPair = new Map<string, VirtualIban[]>();
+    for (const v of slave.virtualIbans.filter(isActiveUserLevelVirtualIban)) {
+      const key = virtualIbanPairKey(v);
+      const group = slaveActiveByPair.get(key);
+      if (group) group.push(v);
+      else slaveActiveByPair.set(key, [v]);
+    }
+
+    const deactivations: { virtualIban: VirtualIban; reason: string }[] = [];
+    for (const [key, masterGroup] of masterActiveByPair) {
+      const slaveGroup = slaveActiveByPair.get(key);
+      if (!slaveGroup) continue;
+
+      const all = [...masterGroup, ...slaveGroup].sort((a, b) => a.id - b.id);
+      const winner = all[0];
+      for (const loser of all.slice(1)) {
+        deactivations.push({
+          virtualIban: loser,
+          reason: `Merged into virtual IBAN ${winner.id} during account merge (master ${masterId}, slave ${slaveId}; deactivated ${loser.id})`,
+        });
+      }
+    }
+
+    // Issuance intents are not on UserData's @OneToMany relations, so the generic reassignment
+    // below never touches them — resolve ownership / unique-index conflicts explicitly inside the
+    // same atomic call as the deactivations above. After dedup, any loser's Completed intent is
+    // reset to Pending first; then non-terminal slave rows are reassigned or failed.
+    await this.virtualIbanService.mergeUserLevelVirtualIbans(masterId, slaveId, deactivations);
+
+    // reassign bank datas, virtual ibans, users and userDataRelations
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
+    master.virtualIbans = master.virtualIbans.concat(slave.virtualIbans);
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);

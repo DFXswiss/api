@@ -534,6 +534,7 @@ export class TransactionController {
             userData: request.userData,
           },
           buy,
+          !request.isComplete,
           request.bankId,
           request.virtualIbanId,
           buy?.asset,

@@ -75,6 +75,7 @@ export enum Process {
   FIAT_OUTPUT_OLKYPAY_STATUS_CHECK = 'FiatOutputOlkypayStatusCheck',
   FIAT_OUTPUT_FRICK_TRANSMISSION = 'FiatOutputFrickTransmission',
   FIAT_OUTPUT_FRICK_STATUS_CHECK = 'FiatOutputFrickStatusCheck',
+  VIRTUAL_IBAN_FRICK_ISSUANCE_RECONCILIATION = 'VirtualIbanFrickIssuanceReconciliation',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST = 'TxRequest',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',

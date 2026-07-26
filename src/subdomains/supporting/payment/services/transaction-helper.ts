@@ -556,6 +556,10 @@ export class TransactionHelper implements OnModuleInit {
         paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
         userData: transaction.userData,
       };
+      // INVOICE with an existing targetEntity: payment was already registered/matched
+      // (BuyCryptoService.createEntity runs on payment match). Liveness of the personal IBAN is
+      // therefore not required — requireLiveVirtualIban=false even if payout is still pending.
+      // (Do not use targetEntity.isComplete here: that flag means payout completion, not receipt.)
       const bankInfo =
         statementType !== TxStatementType.INVOICE || isCardPayment
           ? undefined
@@ -563,6 +567,7 @@ export class TransactionHelper implements OnModuleInit {
             ? await this.buyService.getBankInfoForRequest(
                 bankSelector,
                 buy,
+                false,
                 transaction.request.bankId,
                 transaction.request.virtualIbanId,
                 buy?.asset,
@@ -633,6 +638,9 @@ export class TransactionHelper implements OnModuleInit {
 
     const currency = await this.fiatService.getFiat(request.sourceId);
     const buy = await this.buyService.get(transaction.userData.id, request.routeId);
+    // Still-open path (pending or refunded-after-payment): always require live bank/vIBAN.
+    // Refunded-after-payment is intentionally treated as "check liveness" here — this helper
+    // specifically serves the not-yet-fully-settled path.
     const bankInfo = await this.buyService.getBankInfoForRequest(
       {
         amount: request.amount,
@@ -641,6 +649,7 @@ export class TransactionHelper implements OnModuleInit {
         userData: transaction.userData,
       },
       buy,
+      true,
       request.bankId,
       request.virtualIbanId,
       buy?.asset,

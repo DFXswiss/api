@@ -181,6 +181,7 @@ export class BuyController {
         userData: request.userData,
       },
       buy,
+      true,
       request.bankId,
       request.virtualIbanId,
       buy.asset,
