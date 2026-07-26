@@ -1237,7 +1237,13 @@ export class UserDataService {
   }
 
   // --- MERGING --- //
-  async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
+  async mergeUserData(
+    masterId: number,
+    slaveId: number,
+    mail?: string,
+    notifyUser = false,
+    verifiedNameCheck = true,
+  ): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
     this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
@@ -1280,7 +1286,7 @@ export class UserDataService {
     slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
     slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId);
 
-    master.checkIfMergePossibleWith(slave);
+    master.checkIfMergePossibleWith(slave, verifiedNameCheck);
 
     if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
 
@@ -1299,7 +1305,7 @@ export class UserDataService {
       .filter((i) => i)
       .join(' and ');
 
-    const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with mail ${slave.mail} and firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
+    const log = `Merging ${verifiedNameCheck ? '' : 'manual without verifiedName check'} user ${master.id} (master with verifiedName ${master.verifiedName} and mail ${master.mail}) and ${slave.id} (slave with verifiedName ${slave.verifiedName} and mail ${slave.mail} and firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
     this.logger.info(log);
 
     await this.updateBankTxTime(slave.id);

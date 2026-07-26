@@ -104,7 +104,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async mergeUserData(@Param('id') masterId: string, @Query('id') slaveId: string): Promise<void> {
-    return this.userDataService.mergeUserData(+masterId, +slaveId, undefined, true);
+    return this.userDataService.mergeUserData(+masterId, +slaveId, undefined, true, false);
   }
 
   @Put(':id/volumes')
