@@ -4,8 +4,10 @@ export const GsRestrictedMarker = '[RESTRICTED]';
 export const GsRestrictedColumns: Record<string, string[]> = {
   asset: ['ikna'],
   // PII / free-form on the amlCheck audit trail: `amlResponsible` can name a real compliance officer
-  // and `comment` is the internal joined-AmlError / manual-note text. Neither is in the
-  // `transaction_aml_check` `DebugAllowedColumns` allowlist (the startup invariant below forbids overlap).
+  // and `comment` is the internal joined-AmlError / manual-note text. Both stay masked on `/gs/db`
+  // for every role below SUPER_ADMIN. `amlResponsible` is additionally reachable on `/gs/debug` —
+  // see `DebugRestrictedOverlapExceptions`; `comment` is not, and the startup invariant below still
+  // rejects it (and any other future overlap that is not listed as an explicit exception).
   transaction_aml_check: ['amlResponsible', 'comment'],
 };
 
@@ -1355,9 +1357,12 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   transaction_aml_check: {
-    // No `amlResponsible` (can name a real compliance officer) / `comment` (free-form internal
-    // AmlError names / manual note) — both are in `GsRestrictedColumns` and MUST NOT be allowlisted
-    // here, since /gs/debug applies no role masking. Lifecycle metadata + enum discriminators are safe.
+    // `amlResponsible` IS allowlisted here as a deliberate, documented exception — without it the
+    // audit trail answers "when was this amlCheck changed and by which code path", but never "who
+    // approved it", which is the question AML forensics actually needs. It is registered in
+    // `DebugRestrictedOverlapExceptions` so the startup invariant accepts the overlap knowingly.
+    // Still NO `comment` (free-form internal AmlError names / manual note): it is in
+    // `GsRestrictedColumns` without an exception, so the invariant keeps rejecting it.
     columns: [
       'id',
       'created',
@@ -1369,6 +1374,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'amlCheck',
       'previousAmlReason',
       'amlReason',
+      'amlResponsible',
       'priceDefinitionAllowedDate',
       'highRisk',
       'transactionId',
@@ -1564,23 +1570,78 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   },
 };
 
-// Invariant: `GsRestrictedColumns` is the per-role masking list that `/gs/db` applies (only
-// SUPER_ADMIN sees the real value). The structured `/gs/debug` endpoint does NOT apply any
-// such masking, so allowlisting any column also listed there would bypass the role
-// restriction. Fail at module load if the two sets overlap so a future addition can't slip
-// in silently.
-for (const [table, restricted] of Object.entries(GsRestrictedColumns)) {
-  const spec = DebugAllowedColumns[table];
-  if (!spec) continue;
-  for (const col of restricted) {
-    if (spec.columns.includes(col)) {
-      throw new Error(
-        `DebugAllowedColumns['${table}'] contains '${col}' which is in GsRestrictedColumns; ` +
-          `the /gs/debug endpoint does not apply role masking. Remove it from DebugAllowedColumns.`,
-      );
+// Columns that are deliberately reachable on `/gs/debug` even though `/gs/db` masks them for
+// every role below SUPER_ADMIN. Each entry is an explicit, reviewed decision to accept that a
+// DEBUG-role caller sees the real value on the structured endpoint — NOT a general relaxation:
+// `/gs/db` masking is unchanged, and every overlap that is not listed here still aborts module
+// load below.
+//
+// Add an entry ONLY when all of the following hold, and record the reasoning in the comment:
+//   - the value is needed to answer an operational/forensic question the endpoint exists for,
+//   - the `/gs/debug` role gate (`UserRole.DEBUG`) is an acceptable audience for it,
+//   - every call is attributable — `executeDebugQuery` audit-logs caller and query.
+export const DebugRestrictedOverlapExceptions: Record<string, string[]> = {
+  // `transaction_aml_check.amlResponsible` names the compliance staff member (or 'API') behind an
+  // amlCheck transition. Without it the trail shows the transition and its `AmlSourceType`, but the
+  // accountable actor is unreachable on /gs/debug, so "who approved this transaction" could not be
+  // answered from the audit trail at all. Exposed to the DEBUG role by operator decision; access
+  // stays attributable through the endpoint's audit log. `comment` on the same table is NOT
+  // excepted — it is free-form internal note text and remains rejected.
+  transaction_aml_check: ['amlResponsible'],
+};
+
+/**
+ * Invariant: `GsRestrictedColumns` is the per-role masking list that `/gs/db` applies (only
+ * SUPER_ADMIN sees the real value). The structured `/gs/debug` endpoint does NOT apply any
+ * such masking, so allowlisting any column also listed there would bypass the role
+ * restriction. Throw so a future addition can't slip in silently — unless the exact
+ * `(table, column)` pair is registered in the exceptions map, which makes the bypass an
+ * explicit, documented decision instead of an accident.
+ *
+ * The counter-check keeps the exceptions map honest: an exception only means anything for a
+ * pair that actually overlaps and is actually allowlisted. A stale entry (column dropped from
+ * either list) would silently keep a future re-add unguarded, so it fails loudly too.
+ *
+ * Kept as a pure function over its three inputs so the guard itself is testable with synthetic
+ * fixtures — asserting the real constants only proves today's data is consistent, not that the
+ * exception matches per column rather than per table.
+ */
+export function assertDebugAllowlistInvariants(
+  restrictedColumns: Record<string, string[]>,
+  allowedColumns: Record<string, DebugTableSpec>,
+  exceptions: Record<string, string[]>,
+): void {
+  for (const [table, restricted] of Object.entries(restrictedColumns)) {
+    if (!Object.hasOwn(allowedColumns, table)) continue;
+    const spec = allowedColumns[table];
+    const excepted = Object.hasOwn(exceptions, table) ? exceptions[table] : [];
+    for (const col of restricted) {
+      if (spec.columns.includes(col) && !excepted.includes(col))
+        throw new Error(
+          `DebugAllowedColumns['${table}'] contains '${col}' which is in GsRestrictedColumns; ` +
+            `the /gs/debug endpoint does not apply role masking. Remove it from DebugAllowedColumns ` +
+            `or register it in DebugRestrictedOverlapExceptions with a documented reason.`,
+        );
+    }
+  }
+
+  for (const [table, excepted] of Object.entries(exceptions)) {
+    for (const col of excepted) {
+      if (!(Object.hasOwn(restrictedColumns, table) && restrictedColumns[table].includes(col)))
+        throw new Error(
+          `DebugRestrictedOverlapExceptions['${table}'] lists '${col}', which is not in ` +
+            `GsRestrictedColumns['${table}']; the exception is stale — remove it.`,
+        );
+      if (!(Object.hasOwn(allowedColumns, table) && allowedColumns[table].columns.includes(col)))
+        throw new Error(
+          `DebugRestrictedOverlapExceptions['${table}'] lists '${col}', which is not in ` +
+            `DebugAllowedColumns['${table}']; the exception is stale — remove it.`,
+        );
     }
   }
 }
+
+assertDebugAllowlistInvariants(GsRestrictedColumns, DebugAllowedColumns, DebugRestrictedOverlapExceptions);
 
 // Support endpoint
 export enum SupportTable {

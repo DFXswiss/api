@@ -3,7 +3,12 @@ import { createMock } from '@golevelup/ts-jest';
 import { DataSource } from 'typeorm';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { GsService } from '../gs.service';
-import { DebugQueryAuditPrefix } from '../dto/gs.dto';
+import {
+  assertDebugAllowlistInvariants,
+  DebugQueryAuditPrefix,
+  DebugRestrictedOverlapExceptions,
+  GsRestrictedColumns,
+} from '../dto/gs.dto';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -331,8 +336,10 @@ describe('GsService', () => {
         ['transaction_risk_assessment', 'summary'],
         ['transaction_risk_assessment', 'result'],
         ['transaction_risk_assessment', 'pdf'],
-        // transaction_aml_check — amlResponsible can name a compliance officer; comment is free-form
-        ['transaction_aml_check', 'amlResponsible'],
+        // transaction_aml_check — `comment` is free-form internal note text and stays rejected.
+        // `amlResponsible` is deliberately NOT in this list any more: it is allowlisted via
+        // `DebugRestrictedOverlapExceptions` so the audit trail can answer who approved a
+        // transaction. See the dedicated tests below.
         ['transaction_aml_check', 'comment'],
         ['support_issue', 'name'],
         ['support_issue', 'information'],
@@ -427,6 +434,105 @@ describe('GsService', () => {
           limit: 10,
         };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Table 'mros' is not allowed/);
+      });
+
+      describe('transaction_aml_check.amlResponsible (deliberate GsRestrictedColumns overlap)', () => {
+        it('allows selecting and filtering on amlResponsible', async () => {
+          const q = spyQuery([{ id: 1, amlResponsible: 'API' }]);
+          const dto: DebugQueryDto = {
+            table: 'transaction_aml_check',
+            select: [
+              { kind: 'column', column: 'id' },
+              { kind: 'column', column: 'amlResponsible' },
+            ],
+            where: { kind: 'leaf', column: 'amlResponsible', op: DebugWhereOp.NE, value: 'API' },
+            limit: 10,
+          };
+
+          await service.executeDebugQuery(dto, 'tester');
+
+          const [sql, params] = q.mock.calls[0] as [string, unknown[]];
+          expect(sql).toContain('"transaction_aml_check"."amlResponsible"');
+          expect(params).toEqual(['API']);
+        });
+
+        it('is registered as an explicit exception, not a silent allowlist widening', () => {
+          expect(GsRestrictedColumns['transaction_aml_check']).toContain('amlResponsible');
+          expect(DebugRestrictedOverlapExceptions['transaction_aml_check']).toEqual(['amlResponsible']);
+        });
+
+        // The exception is scoped to /gs/debug. `/gs/db` masking is driven by GsRestrictedColumns
+        // and must stay untouched, so a non-SUPER_ADMIN caller there still sees [RESTRICTED].
+        it('leaves the /gs/db masking list unchanged', () => {
+          expect(GsRestrictedColumns['transaction_aml_check']).toEqual(['amlResponsible', 'comment']);
+        });
+
+        // Guard against the exception list growing by accident: every excepted pair must be a
+        // conscious decision, so pin the full contents of the map.
+        it('excepts nothing beyond transaction_aml_check.amlResponsible', () => {
+          expect(DebugRestrictedOverlapExceptions).toEqual({ transaction_aml_check: ['amlResponsible'] });
+        });
+      });
+
+      // The assertions above only prove today's constants are consistent with each other. They
+      // cannot show that the guard matches per (table, column) rather than per table — with the
+      // current data there is no second overlap left to expose such a bug. So drive the guard
+      // itself with synthetic fixtures.
+      describe('assertDebugAllowlistInvariants (guard behaviour, synthetic fixtures)', () => {
+        const spec = (...columns: string[]) => ({ columns });
+
+        it('throws on an overlap that is not registered as an exception', () => {
+          expect(() => assertDebugAllowlistInvariants({ t: ['secret'] }, { t: spec('id', 'secret') }, {})).toThrow(
+            /contains 'secret' which is in GsRestrictedColumns/,
+          );
+        });
+
+        // The core of the finding: excepting one column must not amnesty its table.
+        it('excepting one column does not amnesty a second overlap in the same table', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants({ t: ['ok', 'secret'] }, { t: spec('ok', 'secret') }, { t: ['ok'] }),
+          ).toThrow(/contains 'secret' which is in GsRestrictedColumns/);
+        });
+
+        it('passes for a registered overlap', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants({ t: ['ok'] }, { t: spec('id', 'ok') }, { t: ['ok'] }),
+          ).not.toThrow();
+        });
+
+        it('passes when a restricted column is simply absent from the allowlist', () => {
+          expect(() => assertDebugAllowlistInvariants({ t: ['secret'] }, { t: spec('id') }, {})).not.toThrow();
+        });
+
+        it('throws on a stale exception whose column left GsRestrictedColumns', () => {
+          expect(() => assertDebugAllowlistInvariants({ t: [] }, { t: spec('ok') }, { t: ['ok'] })).toThrow(
+            /not in GsRestrictedColumns/,
+          );
+        });
+
+        it('throws on a stale exception whose column left DebugAllowedColumns', () => {
+          expect(() => assertDebugAllowlistInvariants({ t: ['ok'] }, { t: spec('id') }, { t: ['ok'] })).toThrow(
+            /not in DebugAllowedColumns/,
+          );
+        });
+
+        it('throws on a stale exception for a table that is not debuggable at all', () => {
+          expect(() => assertDebugAllowlistInvariants({ t: ['ok'] }, {}, { t: ['ok'] })).toThrow(
+            /not in DebugAllowedColumns/,
+          );
+        });
+
+        // Same prototype-chain hardening as the runtime table lookup. Computed keys are used so
+        // these are real own properties (a plain `__proto__:` in a literal would set the
+        // prototype instead). Without the `Object.hasOwn` guards, `allowedColumns['__proto__']`
+        // resolves to `Object.prototype` and `.columns.includes` would TypeError into a 500.
+        it('does not resolve prototype-chain keys through Object.prototype', () => {
+          expect(() => assertDebugAllowlistInvariants({ ['__proto__']: ['ok'] }, {}, {})).not.toThrow();
+          expect(() => assertDebugAllowlistInvariants({ ['constructor']: ['ok'] }, {}, {})).not.toThrow();
+          expect(() => assertDebugAllowlistInvariants({}, {}, { ['constructor']: ['ok'] })).toThrow(
+            /not in GsRestrictedColumns/,
+          );
+        });
       });
 
       it('allows multiple safe columns in a single SELECT', async () => {
