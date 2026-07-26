@@ -29,10 +29,7 @@ export class FrickVibanProvider implements VibanProvider {
     } catch (error) {
       // Log only a classified reason; upstream Error.message can still carry request path shape after
       // frick.service sanitization, but never re-embed it into the thrown exception (persisted / alerted).
-      this.logger.error(
-        'Bank Frick virtual IBAN preflight failed',
-        error instanceof Error ? error : undefined,
-      );
+      this.logger.error('Bank Frick virtual IBAN preflight failed', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Bank Frick virtual IBAN preflight failed');
     }
   }
@@ -47,10 +44,7 @@ export class FrickVibanProvider implements VibanProvider {
       // Fixed classification only — never the upstream message (may include path/query metadata).
       if (error instanceof FrickVibanNotCreatedError)
         throw new VibanNotCreatedError('Bank Frick virtual IBAN create rejected');
-      this.logger.error(
-        'Bank Frick virtual IBAN creation failed',
-        error instanceof Error ? error : undefined,
-      );
+      this.logger.error('Bank Frick virtual IBAN creation failed', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Bank Frick virtual IBAN creation failed');
     }
     return this.ensureActive(created);
@@ -73,10 +67,7 @@ export class FrickVibanProvider implements VibanProvider {
         FrickVirtualIbanState.ACTIVE,
       ]);
     } catch (error) {
-      this.logger.error(
-        'Bank Frick virtual IBAN listing failed',
-        error instanceof Error ? error : undefined,
-      );
+      this.logger.error('Bank Frick virtual IBAN listing failed', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Bank Frick virtual IBAN listing failed');
     }
   }
@@ -107,10 +98,7 @@ export class FrickVibanProvider implements VibanProvider {
       ]);
       all = result.virtualIbans;
     } catch (error) {
-      this.logger.error(
-        'Bank Frick virtual IBAN recovery failed',
-        error instanceof Error ? error : undefined,
-      );
+      this.logger.error('Bank Frick virtual IBAN recovery failed', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Bank Frick virtual IBAN recovery failed');
     }
     const normalizedReferenceAccountIban = referenceAccountIban.replace(/\s/g, '').toUpperCase();
@@ -140,10 +128,7 @@ export class FrickVibanProvider implements VibanProvider {
           ? created
           : await this.bankFrickService.approveVibanActivation(created.vban);
     } catch (error) {
-      this.logger.error(
-        'Bank Frick virtual IBAN activation failed',
-        error instanceof Error ? error : undefined,
-      );
+      this.logger.error('Bank Frick virtual IBAN activation failed', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Bank Frick virtual IBAN activation failed');
     }
 

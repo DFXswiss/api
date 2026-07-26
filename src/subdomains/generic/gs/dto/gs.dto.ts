@@ -1571,15 +1571,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   virtual_iban_issuance_intent: {
     // No `externalIban` / `error` / `requestReference` (PII / free-form / technical
     // capability-lookup token). Lifecycle + FK ids + status are safe.
-    columns: [
-      'id',
-      'created',
-      'updated',
-      'userDataId',
-      'currencyId',
-      'bankId',
-      'status',
-    ],
+    columns: ['id', 'created', 'updated', 'userDataId', 'currencyId', 'bankId', 'status'],
   },
   wallet: {
     // No apiKey / apiUrl — old blocklist.

@@ -872,17 +872,13 @@ describe('BankFrickService', () => {
     expect(withPathIban).toBe('virtual-ibans/[redacted]');
     expect(withPathIban).not.toContain(debtorIban);
 
-    const camt = service['sanitizeApiPathForError'](
-      `camt053?iban=${debtorIban}&fromDate=2026-07-01&toDate=2026-07-02`,
-    );
+    const camt = service['sanitizeApiPathForError'](`camt053?iban=${debtorIban}&fromDate=2026-07-01&toDate=2026-07-02`);
     expect(camt).toBe('camt053?iban=[redacted]&fromDate=2026-07-01&toDate=2026-07-02');
     expect(camt).not.toContain(debtorIban);
 
     // Query value looks like an IBAN even though the key is not "account"/"iban" → still redacted.
     // Non-IBAN query values (e.g. state=PREPARED above) already cover the complementary branch.
-    const ibanLikeValue = service['sanitizeApiPathForError'](
-      `virtual-ibans?ref=${debtorIban}&state=PREPARED`,
-    );
+    const ibanLikeValue = service['sanitizeApiPathForError'](`virtual-ibans?ref=${debtorIban}&state=PREPARED`);
     expect(ibanLikeValue).toBe('virtual-ibans?ref=[redacted]&state=PREPARED');
     expect(ibanLikeValue).not.toContain(debtorIban);
   });
@@ -1312,9 +1308,7 @@ describe('BankFrickService', () => {
   });
 
   it('still rejects a malformed single-entity create response (fail-closed)', async () => {
-    http.request
-      .mockResolvedValueOnce({ token: jwt() })
-      .mockResolvedValueOnce({ ...virtualIbanResponse(), vban: '' });
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({ ...virtualIbanResponse(), vban: '' });
     await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
 
     http.request.mockResolvedValueOnce({

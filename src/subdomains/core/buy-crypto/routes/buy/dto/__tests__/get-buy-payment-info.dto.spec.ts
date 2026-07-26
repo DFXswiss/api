@@ -18,14 +18,11 @@ describe('GetBuyPaymentInfoDto.personalIbanProvider', () => {
   };
 
   it('accepts a known PersonalIbanProvider value', async () => {
-    const dto = await pipe.transform(
-      { ...validBody, personalIbanProvider: PersonalIbanProvider.FRICK },
-      metadata,
-    );
+    const dto = await pipe.transform({ ...validBody, personalIbanProvider: PersonalIbanProvider.FRICK }, metadata);
     expect(dto.personalIbanProvider).toBe(PersonalIbanProvider.FRICK);
   });
 
-  it('rejects a typo\'d provider with PersonalIbanProviderUnsupported (not generic isEnum text)', async () => {
+  it("rejects a typo'd provider with PersonalIbanProviderUnsupported (not generic isEnum text)", async () => {
     let caught: unknown;
     try {
       await pipe.transform({ ...validBody, personalIbanProvider: 'frikc' }, metadata);

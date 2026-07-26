@@ -113,9 +113,9 @@ describe('HttpService signed responses', () => {
     nestHttp.request.mockReturnValue(throwError(() => originalError));
     const responseVerifier = jest.fn();
 
-    await expect(
-      service.request({ url: 'https://synthetic.example/signed', responseVerifier }),
-    ).rejects.toBe(originalError);
+    await expect(service.request({ url: 'https://synthetic.example/signed', responseVerifier })).rejects.toBe(
+      originalError,
+    );
 
     expect(responseVerifier).toHaveBeenCalledWith(errorBody, headers);
     expect(originalError.response.status).toBe(401);
@@ -149,9 +149,9 @@ describe('HttpService signed responses', () => {
     nestHttp.request.mockReturnValue(throwError(() => transportError));
     const responseVerifier = jest.fn();
 
-    await expect(
-      service.request({ url: 'https://synthetic.example/signed', responseVerifier }),
-    ).rejects.toBe(transportError);
+    await expect(service.request({ url: 'https://synthetic.example/signed', responseVerifier })).rejects.toBe(
+      transportError,
+    );
 
     expect(responseVerifier).not.toHaveBeenCalled();
   });

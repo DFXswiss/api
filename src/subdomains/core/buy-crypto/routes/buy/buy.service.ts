@@ -424,16 +424,14 @@ export class BuyService {
     wallet?: Wallet,
   ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
     if (bankId == null && virtualIbanId == null) return this.getBankInfo(selector, buy, asset, wallet);
-    if (bankId == null)
-      throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_SELECTION_INCOMPLETE);
+    if (bankId == null) throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_SELECTION_INCOMPLETE);
 
     const bank = await this.bankService.getBankById(bankId);
     if (!bank) throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_NO_LONGER_EXISTS);
 
     if (virtualIbanId != null) {
       const virtualIban = await this.virtualIbanService.getByIdForUser(virtualIbanId, selector.userData.id);
-      if (!virtualIban)
-        throw new BadRequestException(QuoteError.STORED_PERSONAL_IBAN_USER_MISMATCH);
+      if (!virtualIban) throw new BadRequestException(QuoteError.STORED_PERSONAL_IBAN_USER_MISMATCH);
       if (
         virtualIban.bank.id !== bankId ||
         virtualIban.currency.name !== selector.currency ||
@@ -469,8 +467,7 @@ export class BuyService {
     bankName: IbanBankName;
   }> {
     if (personalIbanProvider === PersonalIbanProvider.FRICK) {
-      if (selector.currency !== 'EUR')
-        throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
+      if (selector.currency !== 'EUR') throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
       if (selector.paymentMethod !== FiatPaymentMethod.BANK)
         throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
       if (selector.userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException(QuoteError.KYC_REQUIRED);

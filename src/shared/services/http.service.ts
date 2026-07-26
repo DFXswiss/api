@@ -170,11 +170,7 @@ export class HttpService {
 
     let response: AxiosResponse<T>;
     try {
-      response = await Util.retry(
-        () => firstValueFrom(this.http.request<T>(axiosConfig)),
-        tryCount ?? 1,
-        retryDelay,
-      );
+      response = await Util.retry(() => firstValueFrom(this.http.request<T>(axiosConfig)), tryCount ?? 1, retryDelay);
     } catch (error) {
       // Non-2xx responses reject before the success-path verifier below. Without verifying those
       // error bodies too, a mid-flight spoofed HTTP error status (unsigned bytes) would skip crypto

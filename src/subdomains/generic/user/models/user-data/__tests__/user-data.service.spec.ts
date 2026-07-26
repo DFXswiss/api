@@ -408,15 +408,13 @@ describe('UserDataService', () => {
         .mockResolvedValueOnce(slaveVibans);
       // Default mock: apply deactivations only. Tests that cover intent coordination install a
       // richer mock that also resets matching Completed intents and fails non-terminal slave rows.
-      virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(
-        async (_masterId, _slaveId, deactivations) => {
-          for (const { virtualIban } of deactivations) {
-            virtualIban.active = false;
-            virtualIban.status = VirtualIbanStatus.DEACTIVATED;
-            virtualIban.deactivatedAt = new Date();
-          }
-        },
-      );
+      virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(async (_masterId, _slaveId, deactivations) => {
+        for (const { virtualIban } of deactivations) {
+          virtualIban.active = false;
+          virtualIban.status = VirtualIbanStatus.DEACTIVATED;
+          virtualIban.deactivatedAt = new Date();
+        }
+      });
       kycAdminService.getKycSteps.mockResolvedValue([]);
       documentService.copyFiles.mockResolvedValue(undefined);
       jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
@@ -462,9 +460,7 @@ describe('UserDataService', () => {
         },
       ]);
       const deactivations = virtualIbanService.mergeUserLevelVirtualIbans.mock.calls[0][2];
-      expect(deactivations[0].reason).toEqual(
-        expect.stringMatching(/master 1000.*slave 2000|slave 2000.*master 1000/),
-      );
+      expect(deactivations[0].reason).toEqual(expect.stringMatching(/master 1000.*slave 2000|slave 2000.*master 1000/));
       expect(deactivations[0].reason).toContain(String(slaveViban.id));
       expect(masterViban.active).toBe(true);
       expect(masterViban.status).toBe(VirtualIbanStatus.ACTIVE);
@@ -666,54 +662,52 @@ describe('UserDataService', () => {
         // reopenable), and reassign the winner-side Completed intent onto masterId. Unique index
         // (userDataId, currencyId, bankId) forces a park-swap when the failed loser still occupies
         // the master slot: the failed row relocates onto the winner's previous owner.
-        virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(
-          async (masterId, slaveId, deactivations) => {
-            for (const { virtualIban } of deactivations) {
-              virtualIban.active = false;
-              virtualIban.status = VirtualIbanStatus.DEACTIVATED;
-              virtualIban.deactivatedAt = new Date();
-              for (const intent of [masterIntent, slaveIntent]) {
-                if (
-                  intent.userDataId === virtualIban.userData.id &&
-                  intent.currencyId === virtualIban.currency.id &&
-                  intent.bankId === virtualIban.bank.id &&
-                  intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED &&
-                  intent.externalIban === virtualIban.iban
-                ) {
-                  intent.status = VirtualIbanIssuanceIntentStatus.PENDING;
-                  intent.externalIban = null;
-                  intent.requestReference = `dfx-viban-reset-${intent.id}`;
-                }
+        virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(async (masterId, slaveId, deactivations) => {
+          for (const { virtualIban } of deactivations) {
+            virtualIban.active = false;
+            virtualIban.status = VirtualIbanStatus.DEACTIVATED;
+            virtualIban.deactivatedAt = new Date();
+            for (const intent of [masterIntent, slaveIntent]) {
+              if (
+                intent.userDataId === virtualIban.userData.id &&
+                intent.currencyId === virtualIban.currency.id &&
+                intent.bankId === virtualIban.bank.id &&
+                intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED &&
+                intent.externalIban === virtualIban.iban
+              ) {
+                intent.status = VirtualIbanIssuanceIntentStatus.PENDING;
+                intent.externalIban = null;
+                intent.requestReference = `dfx-viban-reset-${intent.id}`;
               }
             }
+          }
 
-            const winnerViban = winnerSide === 'master' ? masterViban : slaveViban;
-            const winnerIntent = winnerSide === 'master' ? masterIntent : slaveIntent;
-            const loserIntent = winnerSide === 'master' ? slaveIntent : masterIntent;
+          const winnerViban = winnerSide === 'master' ? masterViban : slaveViban;
+          const winnerIntent = winnerSide === 'master' ? masterIntent : slaveIntent;
+          const loserIntent = winnerSide === 'master' ? slaveIntent : masterIntent;
 
-            if (winnerViban.userData.id !== masterId) {
-              winnerViban.userData = { id: masterId } as UserData;
+          if (winnerViban.userData.id !== masterId) {
+            winnerViban.userData = { id: masterId } as UserData;
+          }
+
+          if (
+            loserIntent.status === VirtualIbanIssuanceIntentStatus.PENDING ||
+            loserIntent.status === VirtualIbanIssuanceIntentStatus.IN_FLIGHT
+          ) {
+            loserIntent.status = VirtualIbanIssuanceIntentStatus.FAILED;
+            loserIntent.error =
+              `Superseded by account merge of userData ${slaveId} into ${masterId}; ${MERGE_SUPERSEDED_MARKER}; ` +
+              `previousRequestReference=${loserIntent.requestReference}`;
+          }
+
+          if (winnerIntent.userDataId !== masterId) {
+            // Free masterId slot when the merge-failed loser still occupies it.
+            if (loserIntent.userDataId === masterId && loserIntent.id !== winnerIntent.id) {
+              loserIntent.userDataId = winnerIntent.userDataId;
             }
-
-            if (
-              loserIntent.status === VirtualIbanIssuanceIntentStatus.PENDING ||
-              loserIntent.status === VirtualIbanIssuanceIntentStatus.IN_FLIGHT
-            ) {
-              loserIntent.status = VirtualIbanIssuanceIntentStatus.FAILED;
-              loserIntent.error =
-                `Superseded by account merge of userData ${slaveId} into ${masterId}; ${MERGE_SUPERSEDED_MARKER}; ` +
-                `previousRequestReference=${loserIntent.requestReference}`;
-            }
-
-            if (winnerIntent.userDataId !== masterId) {
-              // Free masterId slot when the merge-failed loser still occupies it.
-              if (loserIntent.userDataId === masterId && loserIntent.id !== winnerIntent.id) {
-                loserIntent.userDataId = winnerIntent.userDataId;
-              }
-              winnerIntent.userDataId = masterId;
-            }
-          },
-        );
+            winnerIntent.userDataId = masterId;
+          }
+        });
 
         await service.mergeUserData(master.id, slave.id);
 

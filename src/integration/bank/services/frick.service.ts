@@ -316,9 +316,7 @@ export class BankFrickService {
       // dropped while hasMore is still true) is not misread as a structural pagination gap.
       const rawEntryCount = page.virtualIbans.length + droppedCount;
       if (page.pagination.hasMore && rawEntryCount === 0)
-        throw new Error(
-          'Bank Frick virtual IBAN listing reported more pages but returned no raw items',
-        );
+        throw new Error('Bank Frick virtual IBAN listing reported more pages but returned no raw items');
 
       for (const virtualIban of page.virtualIbans) {
         if (seenVibans.has(virtualIban.vban))

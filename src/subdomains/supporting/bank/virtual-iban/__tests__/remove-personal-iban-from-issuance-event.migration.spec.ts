@@ -59,11 +59,7 @@ describe('RemovePersonalIbanFromIssuanceEvent migration', () => {
     migration = new RemovePersonalIbanFromIssuanceEvent();
   });
 
-  const insertEvent = (
-    id: number,
-    previousExternalIban: string | null,
-    nextExternalIban: string | null,
-  ): void => {
+  const insertEvent = (id: number, previousExternalIban: string | null, nextExternalIban: string | null): void => {
     db.public.none(
       `INSERT INTO "virtual_iban_issuance_event"
         ("id", "intentId", "userDataId", "currencyId", "bankId",

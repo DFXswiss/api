@@ -373,9 +373,9 @@ describe('FrickVibanProvider', () => {
   it('throws ServiceUnavailableException from findRecoverableByDescription when not available', async () => {
     bankFrickService.isVibanAvailable.mockReturnValue(false);
 
-    await expect(
-      provider.findRecoverableByDescription('dfx-viban-reference', 'LI32088110105923K000C'),
-    ).rejects.toThrow(new ServiceUnavailableException('Bank Frick virtual IBAN service is not available'));
+    await expect(provider.findRecoverableByDescription('dfx-viban-reference', 'LI32088110105923K000C')).rejects.toThrow(
+      new ServiceUnavailableException('Bank Frick virtual IBAN service is not available'),
+    );
     expect(bankFrickService.listAllVibans).not.toHaveBeenCalled();
   });
 
@@ -448,9 +448,9 @@ describe('FrickVibanProvider', () => {
     bankFrickService.isVibanAvailable.mockReturnValue(true);
     bankFrickService.listAllVibans.mockRejectedValue('raw-recovery-failure');
 
-    await expect(
-      provider.findRecoverableByDescription('dfx-viban-reference', 'LI32088110105923K000C'),
-    ).rejects.toThrow(new ServiceUnavailableException('Bank Frick virtual IBAN recovery failed'));
+    await expect(provider.findRecoverableByDescription('dfx-viban-reference', 'LI32088110105923K000C')).rejects.toThrow(
+      new ServiceUnavailableException('Bank Frick virtual IBAN recovery failed'),
+    );
     expect(loggerError).toHaveBeenCalledWith('Bank Frick virtual IBAN recovery failed', undefined);
   });
 

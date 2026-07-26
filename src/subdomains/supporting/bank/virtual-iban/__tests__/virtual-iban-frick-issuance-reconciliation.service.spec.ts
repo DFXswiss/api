@@ -10,15 +10,8 @@ import { BankService } from '../../bank/bank.service';
 import { FrickVibanProvider } from '../providers/frick-viban.provider';
 import { VirtualIbanFrickIssuanceReconciliationService } from '../virtual-iban-frick-issuance-reconciliation.service';
 import { VirtualIbanIssuanceEvent } from '../virtual-iban-issuance-event.entity';
-import {
-  VirtualIbanIssuanceIntent,
-  VirtualIbanIssuanceIntentStatus,
-} from '../virtual-iban-issuance-intent.entity';
-import {
-  CREATE_PATH_REFERENCE_MARKER,
-  MERGE_SUPERSEDED_MARKER,
-  VirtualIbanService,
-} from '../virtual-iban.service';
+import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from '../virtual-iban-issuance-intent.entity';
+import { CREATE_PATH_REFERENCE_MARKER, MERGE_SUPERSEDED_MARKER, VirtualIbanService } from '../virtual-iban.service';
 
 describe('VirtualIbanFrickIssuanceReconciliationService', () => {
   let service: VirtualIbanFrickIssuanceReconciliationService;
@@ -168,9 +161,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           id: 101,
           requestReference: stuckRequestReference,
           updated: new Date(
-            Date.now() -
-              VirtualIbanFrickIssuanceReconciliationService.FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS -
-              1_000,
+            Date.now() - VirtualIbanFrickIssuanceReconciliationService.FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS - 1_000,
           ),
         }),
       ]);
@@ -241,9 +232,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           requestReference: stuckRequestReference,
         }),
       ]);
-      jest
-        .spyOn(frickVibanProvider, 'listByReferenceAccount')
-        .mockResolvedValue(listingResult([], false));
+      jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([], false));
 
       await service.reconcileRetiredIssuanceReferences();
 
@@ -293,9 +282,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           bankId,
         }),
       ]);
-      jest
-        .spyOn(frickVibanProvider, 'listByReferenceAccount')
-        .mockResolvedValue(listingResult([], false));
+      jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([], false));
 
       await service.reconcileRetiredIssuanceReferences();
 
@@ -325,9 +312,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           updated: new Date(Date.now() - 60_000),
         }),
       ]);
-      jest
-        .spyOn(frickVibanProvider, 'listByReferenceAccount')
-        .mockResolvedValue(listingResult([], false));
+      jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([], false));
 
       await service.reconcileRetiredIssuanceReferences();
 
@@ -662,7 +647,10 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
        */
       function matchesLikePattern(fieldValue: unknown, likePattern: string): boolean {
         if (fieldValue == null) return false;
-        const escaped = likePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.');
+        const escaped = likePattern
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          .replace(/%/g, '.*')
+          .replace(/_/g, '.');
         return new RegExp(`^${escaped}$`, 's').test(String(fieldValue));
       }
 
@@ -702,9 +690,9 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
         return candidatePool.filter((candidate) => entityMatchesWhere(candidate, where));
       });
 
-      jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(
-        listingResult([listingEntry(mergeRetiredReference), listingEntry(phase1ReopenReference)]),
-      );
+      jest
+        .spyOn(frickVibanProvider, 'listByReferenceAccount')
+        .mockResolvedValue(listingResult([listingEntry(mergeRetiredReference), listingEntry(phase1ReopenReference)]));
 
       await service.reconcileRetiredIssuanceReferences();
 
@@ -755,8 +743,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
         type: MailType.ERROR_MONITORING,
         context: MailContext.MONITORING,
         input: {
-          subject:
-            'Frick vIBAN reconciliation Phase 2: abandoned-reference candidate(s) could not be resolved',
+          subject: 'Frick vIBAN reconciliation Phase 2: abandoned-reference candidate(s) could not be resolved',
           errors: expect.arrayContaining([expect.stringContaining('eventId=99')]),
         },
       });

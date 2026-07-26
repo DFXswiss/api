@@ -131,8 +131,7 @@ export class VirtualIbanService {
 
   /** Fail-closed, cross-instance-safe Frick issuance for the explicit selector path. */
   async getOrCreateFrickForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
-    if (currencyName !== 'EUR')
-      throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
+    if (currencyName !== 'EUR') throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
 
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException(QuoteError.KYC_REQUIRED);
 
@@ -203,14 +202,7 @@ export class VirtualIbanService {
   ): Promise<VirtualIban> {
     try {
       const reserved = await this.frickVibanProvider.reserveViban(bank.iban, intent.requestReference);
-      return await this.finalizeFrickIssuance(
-        intent.id,
-        intent.requestReference,
-        userData,
-        bank,
-        currency,
-        reserved,
-      );
+      return await this.finalizeFrickIssuance(intent.id, intent.requestReference, userData, bank, currency, reserved);
     } catch (error) {
       if (error instanceof VibanNotCreatedError) {
         // Provider-layer classification only — never raw upstream text (path/query can carry IBANs).
@@ -293,13 +285,7 @@ export class VirtualIbanService {
           ("requestReference", "userDataId", "currencyId", "bankId", "status", "externalIban", "error")
          VALUES ($1, $2, $3, $4, $5, NULL, NULL)
          ON CONFLICT ("userDataId", "currencyId", "bankId") DO NOTHING`,
-        [
-          this.newFrickRequestReference(),
-          userData.id,
-          currency.id,
-          bank.id,
-          VirtualIbanIssuanceIntentStatus.PENDING,
-        ],
+        [this.newFrickRequestReference(), userData.id, currency.id, bank.id, VirtualIbanIssuanceIntentStatus.PENDING],
       );
 
       let intent = await this.getFrickIntentForUpdate(manager, userData.id, currency.id, bank.id);
@@ -470,11 +456,7 @@ export class VirtualIbanService {
     await this.dataSource.transaction((manager) => this.failFrickIntentLocked(manager, intentId, message));
   }
 
-  private async failFrickIntentLocked(
-    manager: EntityManager,
-    intentId: number,
-    message: string,
-  ): Promise<void> {
+  private async failFrickIntentLocked(manager: EntityManager, intentId: number, message: string): Promise<void> {
     const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
     if (intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED) return;
     await this.transitionFrickIntent(
@@ -650,13 +632,7 @@ export class VirtualIbanService {
       );
     }
 
-    await this.transitionFrickIntent(
-      manager,
-      intent,
-      VirtualIbanIssuanceIntentStatus.PENDING,
-      null,
-      message,
-    );
+    await this.transitionFrickIntent(manager, intent, VirtualIbanIssuanceIntentStatus.PENDING, null, message);
     return true;
   }
 
@@ -668,8 +644,7 @@ export class VirtualIbanService {
     nextError: string | null,
     nextRequestReference?: string,
   ): Promise<VirtualIbanIssuanceIntent> {
-    const referenceUnchanged =
-      nextRequestReference === undefined || intent.requestReference === nextRequestReference;
+    const referenceUnchanged = nextRequestReference === undefined || intent.requestReference === nextRequestReference;
     if (
       intent.status === nextStatus &&
       intent.externalIban === nextExternalIban &&
@@ -969,10 +944,7 @@ export class VirtualIbanService {
     return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
   }
 
-  private async deactivateVirtualIbanLocked(
-    manager: EntityManager,
-    virtualIban: VirtualIban,
-  ): Promise<VirtualIban> {
+  private async deactivateVirtualIbanLocked(manager: EntityManager, virtualIban: VirtualIban): Promise<VirtualIban> {
     virtualIban.active = false;
     virtualIban.status = VirtualIbanStatus.DEACTIVATED;
     virtualIban.deactivatedAt = new Date();
@@ -1016,10 +988,7 @@ export class VirtualIbanService {
       return deactivated;
     }
 
-    if (
-      intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED &&
-      intent.externalIban === deactivatedIban
-    ) {
+    if (intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED && intent.externalIban === deactivatedIban) {
       // Matching Completed intent still points at this vIBAN — reopen with a fresh reference so
       // later requests cannot resolve to the dead IBAN forever.
       const newRequestReference = this.newFrickRequestReference();
@@ -1036,10 +1005,7 @@ export class VirtualIbanService {
         true,
         newRequestReference,
       );
-    } else if (
-      intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED &&
-      intent.externalIban !== deactivatedIban
-    ) {
+    } else if (intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED && intent.externalIban !== deactivatedIban) {
       // Historical Completed intent under the same (userData, currency, bank) triple already
       // reflects a different surviving vIBAN — leave it alone; deactivation of this row is fine.
       this.logger.info(

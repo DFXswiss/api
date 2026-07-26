@@ -10,10 +10,7 @@ import { DataSource, In, Like } from 'typeorm';
 import { BankService } from '../bank/bank.service';
 import { FrickVibanProvider } from './providers/frick-viban.provider';
 import { VirtualIbanIssuanceEvent } from './virtual-iban-issuance-event.entity';
-import {
-  VirtualIbanIssuanceIntent,
-  VirtualIbanIssuanceIntentStatus,
-} from './virtual-iban-issuance-intent.entity';
+import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent.entity';
 import {
   CREATE_PATH_REFERENCE_MARKER,
   MERGE_SUPERSEDED_MARKER,
@@ -270,9 +267,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
       `Frick vIBAN reconciliation Phase 1: checked ${intents.length} intent(s) across ${byBankId.size} bank(s); ` +
         `${listingMatches.length} listing match(es), ${resetCount} reset(s), ${skippedFreshCount} skipped (too fresh), ` +
         `${skippedIncompleteCount} skipped (incomplete listing across ${incompleteListingBankCount} bank(s))` +
-        (skippedMergeSupersededCount > 0
-          ? `, ${skippedMergeSupersededCount} skipped (merge-superseded)`
-          : ''),
+        (skippedMergeSupersededCount > 0 ? `, ${skippedMergeSupersededCount} skipped (merge-superseded)` : ''),
     );
   }
 
@@ -543,8 +538,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
       type: MailType.ERROR_MONITORING,
       context: MailContext.MONITORING,
       input: {
-        subject:
-          'Frick vIBAN reconciliation Phase 2: abandoned-reference candidate(s) could not be resolved',
+        subject: 'Frick vIBAN reconciliation Phase 2: abandoned-reference candidate(s) could not be resolved',
         errors,
       },
     });

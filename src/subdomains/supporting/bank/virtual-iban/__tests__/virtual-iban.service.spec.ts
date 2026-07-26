@@ -20,11 +20,7 @@ import { VirtualIban, VirtualIbanStatus } from '../virtual-iban.entity';
 import { VirtualIbanIssuanceEvent } from '../virtual-iban-issuance-event.entity';
 import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from '../virtual-iban-issuance-intent.entity';
 import { VirtualIbanRepository } from '../virtual-iban.repository';
-import {
-  CREATE_PATH_REFERENCE_MARKER,
-  MERGE_SUPERSEDED_MARKER,
-  VirtualIbanService,
-} from '../virtual-iban.service';
+import { CREATE_PATH_REFERENCE_MARKER, MERGE_SUPERSEDED_MARKER, VirtualIbanService } from '../virtual-iban.service';
 
 describe('VirtualIbanService', () => {
   let service: VirtualIbanService;
@@ -572,9 +568,7 @@ describe('VirtualIbanService', () => {
 
     it('fails the intent permanently with a classified error when create fails and recovery listing itself fails', async () => {
       jest.spyOn(frickVibanProvider, 'reserveViban').mockRejectedValue(new Error('socket closed'));
-      jest
-        .spyOn(frickVibanProvider, 'findRecoverableByDescription')
-        .mockRejectedValue(new Error('listing timeout'));
+      jest.spyOn(frickVibanProvider, 'findRecoverableByDescription').mockRejectedValue(new Error('listing timeout'));
 
       await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
         QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
@@ -627,14 +621,14 @@ describe('VirtualIbanService', () => {
 
     it('never surfaces or persists provider ServiceUnavailableException detail (e.g. raw vban)', async () => {
       const leakyVban = 'LI99SENSITIVE000000001';
-      jest.spyOn(frickVibanProvider, 'reserveViban').mockRejectedValue(
-        new ServiceUnavailableException(
-          `Bank Frick virtual IBAN ${leakyVban} could not be activated (state: PREPARED)`,
-        ),
-      );
       jest
-        .spyOn(frickVibanProvider, 'findRecoverableByDescription')
-        .mockRejectedValue(new Error('listing timeout'));
+        .spyOn(frickVibanProvider, 'reserveViban')
+        .mockRejectedValue(
+          new ServiceUnavailableException(
+            `Bank Frick virtual IBAN ${leakyVban} could not be activated (state: PREPARED)`,
+          ),
+        );
+      jest.spyOn(frickVibanProvider, 'findRecoverableByDescription').mockRejectedValue(new Error('listing timeout'));
 
       let caught: unknown;
       try {
@@ -693,9 +687,7 @@ describe('VirtualIbanService', () => {
         externalIban: null,
         error: 'previous ambiguous failure',
       });
-      jest
-        .spyOn(frickVibanProvider, 'findRecoverableByDescription')
-        .mockRejectedValue(new Error('Frick listing 5xx'));
+      jest.spyOn(frickVibanProvider, 'findRecoverableByDescription').mockRejectedValue(new Error('Frick listing 5xx'));
 
       await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
         QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
@@ -820,9 +812,7 @@ describe('VirtualIbanService', () => {
     it('rejects when EUR fiat is missing before any Frick I/O', async () => {
       jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(undefined);
 
-      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
-        QuoteError.CURRENCY_UNSUPPORTED,
-      );
+      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(QuoteError.CURRENCY_UNSUPPORTED);
       expect(bankService.getBankInternal).not.toHaveBeenCalled();
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
@@ -1169,7 +1159,6 @@ describe('VirtualIbanService', () => {
       await service.getVirtualIbanByKey('userData.id', 7);
       expect(qb.where).toHaveBeenCalledWith('userData.id = :param', { param: 7 });
     });
-
   });
 
   describe('deactivateVirtualIbanLocked', () => {
@@ -1287,9 +1276,7 @@ describe('VirtualIbanService', () => {
       // Only the vIBAN row is saved — no intent/event transition save for the intent entity itself
       // beyond the viban; event create/save would only run on transition.
       expect(manager.save).toHaveBeenCalledWith(viban);
-      expect(manager.save).not.toHaveBeenCalledWith(
-        expect.objectContaining({ intentId: intent.id }),
-      );
+      expect(manager.save).not.toHaveBeenCalledWith(expect.objectContaining({ intentId: intent.id }));
     });
 
     it.each([
@@ -1327,9 +1314,7 @@ describe('VirtualIbanService', () => {
       expect(intent.status).toBe(status);
       expect(intent.requestReference).toBe('dfx-viban-nonterminal-ref');
       expect(manager.save).toHaveBeenCalledWith(viban);
-      expect(manager.save).not.toHaveBeenCalledWith(
-        expect.objectContaining({ intentId: intent.id }),
-      );
+      expect(manager.save).not.toHaveBeenCalledWith(expect.objectContaining({ intentId: intent.id }));
     });
 
     it('is a no-op for issuance intent when none exists (e.g. Yapeal-issued vIBAN)', async () => {
@@ -1416,9 +1401,7 @@ describe('VirtualIbanService', () => {
       ).slice(0, 2000);
 
     const resolveLocked = (): Promise<void> =>
-      dataSource.transaction((m) =>
-        (service as any).resolveIssuanceIntentsForMergeLocked(m, masterId, slaveId),
-      );
+      dataSource.transaction((m) => (service as any).resolveIssuanceIntentsForMergeLocked(m, masterId, slaveId));
 
     it('reassigns slave intent to master when master has none for that currency+bank', async () => {
       const slaveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
@@ -1453,61 +1436,58 @@ describe('VirtualIbanService', () => {
       VirtualIbanIssuanceIntentStatus.PENDING,
       VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
       VirtualIbanIssuanceIntentStatus.FAILED,
-    ])(
-      'fails slave %s intent when master already has the same currency+bank pair',
-      async (slaveStatus) => {
-        const slaveRef = 'dfx-viban-slave-ref';
-        const slaveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
-          id: 501,
-          userDataId: slaveId,
-          currencyId,
-          bankId,
-          status: slaveStatus,
-          externalIban: null,
-          error: slaveStatus === VirtualIbanIssuanceIntentStatus.FAILED ? 'previous failure' : null,
-          requestReference: slaveRef,
-        });
-        const masterIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
-          id: 500,
-          userDataId: masterId,
-          currencyId,
-          bankId,
-          status: VirtualIbanIssuanceIntentStatus.PENDING,
-          externalIban: null,
-          error: null,
-          requestReference: 'dfx-viban-master-ref',
-        });
-        manager.find.mockResolvedValue([slaveIntent]);
-        manager.findOne.mockImplementation(async (entity, options: { where?: { id?: number; userDataId?: number } }) => {
-          if (entity !== VirtualIbanIssuanceIntent) return null;
-          if (options?.where?.id === slaveIntent.id) return slaveIntent;
-          if (options?.where?.userDataId === masterId) return masterIntent;
-          return null;
-        });
-        manager.create.mockImplementation((_entity, data) => Object.assign({}, data));
-        manager.save.mockImplementation(async (value) => value);
-        manager.update.mockResolvedValue({ affected: 0 });
+    ])('fails slave %s intent when master already has the same currency+bank pair', async (slaveStatus) => {
+      const slaveRef = 'dfx-viban-slave-ref';
+      const slaveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 501,
+        userDataId: slaveId,
+        currencyId,
+        bankId,
+        status: slaveStatus,
+        externalIban: null,
+        error: slaveStatus === VirtualIbanIssuanceIntentStatus.FAILED ? 'previous failure' : null,
+        requestReference: slaveRef,
+      });
+      const masterIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 500,
+        userDataId: masterId,
+        currencyId,
+        bankId,
+        status: VirtualIbanIssuanceIntentStatus.PENDING,
+        externalIban: null,
+        error: null,
+        requestReference: 'dfx-viban-master-ref',
+      });
+      manager.find.mockResolvedValue([slaveIntent]);
+      manager.findOne.mockImplementation(async (entity, options: { where?: { id?: number; userDataId?: number } }) => {
+        if (entity !== VirtualIbanIssuanceIntent) return null;
+        if (options?.where?.id === slaveIntent.id) return slaveIntent;
+        if (options?.where?.userDataId === masterId) return masterIntent;
+        return null;
+      });
+      manager.create.mockImplementation((_entity, data) => Object.assign({}, data));
+      manager.save.mockImplementation(async (value) => value);
+      manager.update.mockResolvedValue({ affected: 0 });
 
-        await resolveLocked();
+      await resolveLocked();
 
-        const expectedError = expectedMergeFailMessage(slaveRef);
-        expect(manager.update).not.toHaveBeenCalled();
-        expect(masterIntent.status).toBe(VirtualIbanIssuanceIntentStatus.PENDING);
-        expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.FAILED);
-        expect(slaveIntent.error).toBe(expectedError);
-        expect(slaveIntent.error).toContain(MERGE_SUPERSEDED_MARKER);
-        expect(slaveIntent.error).toContain(`${CREATE_PATH_REFERENCE_MARKER}${slaveRef}`);
-        expect(slaveIntent.userDataId).toBe(slaveId);
-        expect(manager.save).toHaveBeenCalledWith(
-          expect.objectContaining({
-            intentId: slaveIntent.id,
-            previousStatus: slaveStatus,
-            nextStatus: VirtualIbanIssuanceIntentStatus.FAILED,
-            nextError: expectedError,
-          }),
-        );
-      },
-    );
+      const expectedError = expectedMergeFailMessage(slaveRef);
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(masterIntent.status).toBe(VirtualIbanIssuanceIntentStatus.PENDING);
+      expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.FAILED);
+      expect(slaveIntent.error).toBe(expectedError);
+      expect(slaveIntent.error).toContain(MERGE_SUPERSEDED_MARKER);
+      expect(slaveIntent.error).toContain(`${CREATE_PATH_REFERENCE_MARKER}${slaveRef}`);
+      expect(slaveIntent.userDataId).toBe(slaveId);
+      expect(manager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          intentId: slaveIntent.id,
+          previousStatus: slaveStatus,
+          nextStatus: VirtualIbanIssuanceIntentStatus.FAILED,
+          nextError: expectedError,
+        }),
+      );
+    });
 
     it('leaves COMPLETED slave intent untouched even when master has the same pair', async () => {
       const slaveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
@@ -1761,9 +1741,7 @@ describe('VirtualIbanService', () => {
         if (entity === VirtualIbanIssuanceIntent) {
           // resolveIssuanceIntentsForMergeLocked slave scan — after pair resolve, winner is on master
           // and loser is Failed (possibly relocated onto slaveId by unique-index park-swap).
-          return [masterIntent, slaveIntent].filter(
-            (i) => i.userDataId === slaveId,
-          );
+          return [masterIntent, slaveIntent].filter((i) => i.userDataId === slaveId);
         }
         return [];
       });
@@ -1983,9 +1961,7 @@ describe('VirtualIbanService', () => {
       manager.find.mockResolvedValue([]); // no winner
 
       await expect(
-        service.mergeUserLevelVirtualIbans(masterId, slaveId, [
-          { virtualIban: loser, reason: 'merged' },
-        ]),
+        service.mergeUserLevelVirtualIbans(masterId, slaveId, [{ virtualIban: loser, reason: 'merged' }]),
       ).rejects.toThrow(
         `Account merge vIBAN dedup expected exactly one surviving winner ` +
           `(currencyId=${eur.id}, bankId=${frickBank.id}, masterId=${masterId}, slaveId=${slaveId}, found=0)`,
@@ -2008,9 +1984,7 @@ describe('VirtualIbanService', () => {
       ]);
 
       await expect(
-        service.mergeUserLevelVirtualIbans(masterId, slaveId, [
-          { virtualIban: loser, reason: 'merged' },
-        ]),
+        service.mergeUserLevelVirtualIbans(masterId, slaveId, [{ virtualIban: loser, reason: 'merged' }]),
       ).rejects.toThrow(
         `Account merge vIBAN dedup expected exactly one surviving winner ` +
           `(currencyId=${eur.id}, bankId=${frickBank.id}, masterId=${masterId}, slaveId=${slaveId}, found=2)`,
@@ -2051,9 +2025,7 @@ describe('VirtualIbanService', () => {
         return null;
       });
 
-      await service.mergeUserLevelVirtualIbans(masterId, slaveId, [
-        { virtualIban: loser, reason: 'merged' },
-      ]);
+      await service.mergeUserLevelVirtualIbans(masterId, slaveId, [{ virtualIban: loser, reason: 'merged' }]);
 
       expect(manager.findOne).toHaveBeenCalledWith(VirtualIban, {
         where: { id: 22 },
@@ -2074,9 +2046,7 @@ describe('VirtualIbanService', () => {
       manager.findOne.mockResolvedValue(null);
 
       await expect(
-        service.mergeUserLevelVirtualIbans(masterId, slaveId, [
-          { virtualIban: loser, reason: 'merged' },
-        ]),
+        service.mergeUserLevelVirtualIbans(masterId, slaveId, [{ virtualIban: loser, reason: 'merged' }]),
       ).rejects.toThrow(
         `Virtual IBAN currency/bank missing during merge dedup (virtualIbanId=22, masterId=${masterId}, slaveId=${slaveId})`,
       );
@@ -2107,16 +2077,10 @@ describe('VirtualIbanService', () => {
       });
       manager.findOne.mockResolvedValue(null);
 
-      await service.mergeUserLevelVirtualIbans(masterId, slaveId, [
-        { virtualIban: loser, reason: 'merged' },
-      ]);
+      await service.mergeUserLevelVirtualIbans(masterId, slaveId, [{ virtualIban: loser, reason: 'merged' }]);
 
       expect(loser.status).toBe(VirtualIbanStatus.DEACTIVATED);
-      expect(manager.update).not.toHaveBeenCalledWith(
-        VirtualIbanIssuanceIntent,
-        expect.anything(),
-        expect.anything(),
-      );
+      expect(manager.update).not.toHaveBeenCalledWith(VirtualIbanIssuanceIntent, expect.anything(), expect.anything());
     });
 
     it('leaves a non-winner COMPLETED historical intent untouched when it is not reopenable', async () => {
@@ -2176,10 +2140,7 @@ describe('VirtualIbanService', () => {
         return [];
       });
       manager.findOne.mockImplementation(
-        async (
-          entity,
-          options: { where?: { id?: number; userDataId?: number; iban?: string } },
-        ) => {
+        async (entity, options: { where?: { id?: number; userDataId?: number; iban?: string } }) => {
           if (entity === VirtualIbanIssuanceIntent) {
             if (options?.where?.id != null) return intentsById.get(options.where.id) ?? null;
             if (options?.where?.userDataId === masterId) {
@@ -2273,10 +2234,7 @@ describe('VirtualIbanService', () => {
         return [];
       });
       manager.findOne.mockImplementation(
-        async (
-          entity,
-          options: { where?: { id?: number; userDataId?: number; iban?: string } },
-        ) => {
+        async (entity, options: { where?: { id?: number; userDataId?: number; iban?: string } }) => {
           if (entity === VirtualIbanIssuanceIntent) {
             if (options?.where?.id != null) return intentsById.get(options.where.id) ?? null;
             if (options?.where?.userDataId === masterId) {
@@ -2300,9 +2258,7 @@ describe('VirtualIbanService', () => {
       expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.FAILED);
       expect(slaveIntent.error).toContain(MERGE_SUPERSEDED_MARKER);
       expect(slaveIntent.error).toContain(`${CREATE_PATH_REFERENCE_MARKER}${slaveRef}`);
-      expect(slaveIntent.error).toContain(
-        `Superseded by account merge of userData ${slaveId} into ${masterId}`,
-      );
+      expect(slaveIntent.error).toContain(`Superseded by account merge of userData ${slaveId} into ${masterId}`);
       expect(slaveIntent.userDataId).toBe(slaveId);
 
       // Winner-side Completed stays Completed under the surviving owner.
@@ -2351,10 +2307,7 @@ describe('VirtualIbanService', () => {
         return [];
       });
       manager.findOne.mockImplementation(
-        async (
-          entity,
-          options: { where?: { id?: number; userDataId?: number; iban?: string } },
-        ) => {
+        async (entity, options: { where?: { id?: number; userDataId?: number; iban?: string } }) => {
           if (entity === VirtualIbanIssuanceIntent) {
             if (options?.where?.id === slaveIntent.id) return slaveIntent;
             if (options?.where?.userDataId === masterId) return null;
@@ -2502,10 +2455,7 @@ describe('VirtualIbanService', () => {
         return [];
       });
       manager.findOne.mockImplementation(
-        async (
-          entity,
-          options: { where?: { id?: number; userDataId?: number; iban?: string } },
-        ) => {
+        async (entity, options: { where?: { id?: number; userDataId?: number; iban?: string } }) => {
           if (entity === VirtualIbanIssuanceIntent) {
             if (options?.where?.id != null) return intentsById.get(options.where.id) ?? null;
             if (options?.where?.userDataId === masterId) {
@@ -2561,18 +2511,8 @@ describe('VirtualIbanService', () => {
 
     // Private methods are exercised directly — practical given the multi-transaction claim path
     // and matching the task's allowance for direct testing when more practical.
-    const finalize = (
-      intentId: number,
-      expectedRequestReference: string,
-    ): Promise<VirtualIban> =>
-      (service as any).finalizeFrickIssuance(
-        intentId,
-        expectedRequestReference,
-        userData,
-        frickBank,
-        eur,
-        reserved,
-      );
+    const finalize = (intentId: number, expectedRequestReference: string): Promise<VirtualIban> =>
+      (service as any).finalizeFrickIssuance(intentId, expectedRequestReference, userData, frickBank, eur, reserved);
 
     const reset = (intentId: number, expectedRequestReference: string, message: string): Promise<void> =>
       (service as any).resetFrickIntentToPending(intentId, expectedRequestReference, message);
@@ -2597,9 +2537,7 @@ describe('VirtualIbanService', () => {
         }),
       );
 
-      await expect(finalize(301, callerReference)).rejects.toThrow(
-        QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
-      );
+      await expect(finalize(301, callerReference)).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
 
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
@@ -2638,18 +2576,14 @@ describe('VirtualIbanService', () => {
         }),
       );
 
-      await expect(finalize(301, requestReference)).rejects.toThrow(
-        QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
-      );
+      await expect(finalize(301, requestReference)).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
 
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
         context: MailContext.MONITORING,
         input: {
           subject: 'Frick vIBAN issuance: requestReference integrity check failed under lock',
-          errors: [
-            expect.stringContaining('reason=finalize: intent was terminated by an account merge'),
-          ],
+          errors: [expect.stringContaining('reason=finalize: intent was terminated by an account merge')],
         },
       });
       expect(manager.save).not.toHaveBeenCalled();
@@ -2669,9 +2603,9 @@ describe('VirtualIbanService', () => {
         }),
       );
 
-      await expect(
-        reset(301, callerReference, 'Bank Frick virtual IBAN create rejected'),
-      ).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+      await expect(reset(301, callerReference, 'Bank Frick virtual IBAN create rejected')).rejects.toThrow(
+        QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
+      );
 
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
@@ -2700,9 +2634,7 @@ describe('VirtualIbanService', () => {
       );
 
       await expect(finalize(301, callerReference)).rejects.toBeInstanceOf(ServiceUnavailableException);
-      await expect(finalize(301, callerReference)).rejects.toThrow(
-        QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
-      );
+      await expect(finalize(301, callerReference)).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
     });
 
     it('refuses finalize when intent.externalIban conflicts with the recovered IBAN', async () => {
@@ -3039,9 +2971,9 @@ describe('VirtualIbanService', () => {
       const intentIds = { intentId: 301, userDataId: userData.id, currencyId: 4, bankId: 19 };
       const loggerErrorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
 
-      await expect(
-        (service as any).resolveVirtualIbanId(manager, 'LI75088110105923K000E', intentIds),
-      ).resolves.toBe(99);
+      await expect((service as any).resolveVirtualIbanId(manager, 'LI75088110105923K000E', intentIds)).resolves.toBe(
+        99,
+      );
       expect(manager.findOne).toHaveBeenCalledWith(VirtualIban, {
         where: { iban: 'LI75088110105923K000E' },
         select: ['id'],
@@ -3056,9 +2988,7 @@ describe('VirtualIbanService', () => {
       const orphanIban = 'LI75088110105923K000E';
       const loggerErrorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
 
-      await expect(
-        (service as any).resolveVirtualIbanId(manager, orphanIban, intentIds),
-      ).resolves.toBeNull();
+      await expect((service as any).resolveVirtualIbanId(manager, orphanIban, intentIds)).resolves.toBeNull();
       expect(manager.findOne).toHaveBeenCalledWith(VirtualIban, {
         where: { iban: orphanIban },
         select: ['id'],
@@ -3074,9 +3004,7 @@ describe('VirtualIbanService', () => {
         input: {
           subject: 'Frick vIBAN issuance: requestReference integrity check failed under lock',
           errors: [
-            expect.stringContaining(
-              'reason=resolveVirtualIbanId: genuine miss — no VirtualIban row for stored IBAN',
-            ),
+            expect.stringContaining('reason=resolveVirtualIbanId: genuine miss — no VirtualIban row for stored IBAN'),
           ],
         },
       });
@@ -3256,8 +3184,7 @@ describe('VirtualIbanService', () => {
           // VirtualIban ownership move is out of scope — accept as no-op success.
           return { affected: 1, raw: [], generatedMaps: [] };
         },
-        create: (entity: unknown, plainObject?: unknown) =>
-          realManager.create(entity as never, plainObject as never),
+        create: (entity: unknown, plainObject?: unknown) => realManager.create(entity as never, plainObject as never),
         save: async (entityOrTarget: unknown, maybeEntity?: unknown) => {
           if (maybeEntity !== undefined) {
             return realManager.save(entityOrTarget as never, maybeEntity as never);
@@ -3268,13 +3195,7 @@ describe('VirtualIbanService', () => {
 
       // Call the REAL production method — do not reimplement park-swap in the test.
       await expect(
-        (service as any).resolveMergedVirtualIbanPairLocked(
-          proxyManager,
-          masterId,
-          slaveId,
-          currencyId,
-          bankId,
-        ),
+        (service as any).resolveMergedVirtualIbanPairLocked(proxyManager, masterId, slaveId, currencyId, bankId),
       ).resolves.toBeUndefined();
 
       // Assert end-state via real SQL against pg-mem (not in-memory object references).
