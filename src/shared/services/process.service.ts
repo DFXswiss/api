@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { Config } from 'src/config/config';
+import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { SettingService } from '../models/setting/setting.service';
 import { DfxCron } from '../utils/cron';
 

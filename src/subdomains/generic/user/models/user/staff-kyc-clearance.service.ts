@@ -4,7 +4,7 @@ import { rolesSatisfying } from 'src/shared/auth/role.guard';
 import { KycGatedRoles } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { In, MoreThanOrEqual } from 'typeorm';
+import { In, MoreThanOrEqual, Raw } from 'typeorm';
 import { KycLevel } from '../user-data/user-data.enum';
 import { UserRepository } from './user.repository';
 
@@ -34,19 +34,22 @@ export class StaffKycClearanceService {
   @DfxCron(CronExpression.EVERY_MINUTE, { timeout: 1800 })
   async syncStaffKycClearance(): Promise<void> {
     const staffUsers = await this.userRepo.find({
-      select: { id: true, userData: { id: true, verifiedName: true } },
+      select: { id: true, userData: { id: true } },
       where: {
         role: In(ClearanceRelevantRoles),
-        userData: { kycLevel: MoreThanOrEqual(KycLevel.LEVEL_50) },
+        userData: {
+          kycLevel: MoreThanOrEqual(KycLevel.LEVEL_50),
+          // `verifiedName IS NOT NULL` is the stated rule, but an empty or whitespace-only name carries
+          // no identification either — TRIM(...) <> '' covers both, and NULL drops out on its own since
+          // the comparison yields NULL. The alias TypeORM passes in is already quoted, which a raw
+          // camelCase identifier would have to be on Postgres.
+          verifiedName: Raw((alias) => `TRIM(${alias}) <> ''`),
+        },
       },
       relations: { userData: true },
     });
 
-    // `verifiedName IS NOT NULL` is the stated rule, but an empty or whitespace-only name carries no
-    // identification either — treat it as absent rather than as a cleared account.
-    const clearedAccounts = staffUsers
-      .filter((user) => user.userData?.verifiedName?.trim())
-      .map((user) => user.userData.id);
+    const clearedAccounts = staffUsers.map((user) => user.userData.id);
 
     await this.settingService.setObj('staffKycClearance', [...new Set(clearedAccounts)]);
   }

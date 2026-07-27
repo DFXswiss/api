@@ -12,8 +12,10 @@ describe('StaffKycClearanceService', () => {
     jest.spyOn(userRepo, 'find').mockResolvedValue(users as never);
   }
 
-  function staffUser(accountId: number, verifiedName?: string): unknown {
-    return { id: accountId * 10, userData: { id: accountId, verifiedName } };
+  // Rows as the DB returns them: the role / kycLevel / verifiedName filtering has already happened in
+  // SQL, so a returned row is by definition a cleared one.
+  function staffUser(accountId: number): unknown {
+    return { id: accountId * 10, userData: { id: accountId } };
   }
 
   beforeEach(async () => {
@@ -34,32 +36,31 @@ describe('StaffKycClearanceService', () => {
   afterEach(() => jest.resetAllMocks());
 
   it('writes the cleared account ids to the staffKycClearance setting', async () => {
-    setup([staffUser(11, 'Alice Example'), staffUser(12, 'Bob Example')]);
+    setup([staffUser(11), staffUser(12)]);
 
     await service.syncStaffKycClearance();
 
     expect(settingService.setObj).toHaveBeenCalledWith('staffKycClearance', [11, 12]);
   });
 
-  it('excludes accounts without a verified name', async () => {
-    setup([staffUser(11, 'Alice Example'), staffUser(12, undefined), staffUser(13, null as unknown as string)]);
+  // Accounts without a usable verifiedName (NULL, empty or whitespace-only) are excluded by the SQL
+  // predicate, not in JS — so the assertion has to be on the query. `TRIM(...) <> ''` also drops NULL,
+  // because the comparison yields NULL rather than true.
+  it('excludes names that are NULL, empty or whitespace-only via a SQL predicate', async () => {
+    setup([]);
 
     await service.syncStaffKycClearance();
 
-    expect(settingService.setObj).toHaveBeenCalledWith('staffKycClearance', [11]);
-  });
-
-  it('treats an empty or whitespace-only verified name as absent', async () => {
-    setup([staffUser(11, ''), staffUser(12, '   '), staffUser(13, 'Carol Example')]);
-
-    await service.syncStaffKycClearance();
-
-    expect(settingService.setObj).toHaveBeenCalledWith('staffKycClearance', [13]);
+    const verifiedName = (userRepo.find as jest.Mock).mock.calls[0][0].where.userData.verifiedName;
+    expect(verifiedName.type).toBe('raw');
+    // The alias must be interpolated verbatim: TypeORM passes it in already quoted, and on Postgres an
+    // unquoted camelCase identifier would be folded to lowercase and blow up at runtime.
+    expect(verifiedName.getSql('"UserData"."verifiedName"')).toBe(`TRIM("UserData"."verifiedName") <> ''`);
   });
 
   it('deduplicates accounts backing several staff users', async () => {
     // One person can hold multiple staff wallets pointing at the same user data.
-    setup([staffUser(11, 'Alice Example'), staffUser(11, 'Alice Example')]);
+    setup([staffUser(11), staffUser(11)]);
 
     await service.syncStaffKycClearance();
 
