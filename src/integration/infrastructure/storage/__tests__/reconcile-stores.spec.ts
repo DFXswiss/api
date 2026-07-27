@@ -1,6 +1,7 @@
 import {
   GetObjectCommand,
   GetObjectLockConfigurationCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -45,6 +46,7 @@ import {
   RECONCILER_PRIVACY_LOG_VERSION,
   runAdditiveHealOrchestration,
   safeObjectReference,
+  stabilizeAdditiveCandidates,
   StoredObject,
 } from '../../../../../scripts/storage/reconcile-stores';
 import { GEBUEV_RETENTION_FLOOR_DAYS, GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
@@ -299,6 +301,187 @@ describe('diffStores', () => {
     expect(diff.sizeMismatch).toEqual([]);
     expect(diff.onlyOnAzure).toEqual([]);
     expect(diff.onlyOnS3).toEqual([]);
+  });
+});
+
+describe('stabilizeAdditiveCandidates', () => {
+  beforeEach(() => {
+    s3Mock.reset();
+  });
+
+  it('removes an Azure-only candidate that appeared concurrently on S3 with the same size', async () => {
+    const key = SENTINEL_KEY_A;
+    const azureByKey = indexStoredObjectsByKey([storedObject(key, 42, t0)]);
+    s3Mock.on(HeadObjectCommand, { Bucket: 'kyc', Key: key }).resolves({ ContentLength: 42, LastModified: t0 });
+    const s3ByKey = new Map<string, StoredObject>();
+
+    const result = await stabilizeAdditiveCandidates(
+      { onlyOnAzure: [key], onlyOnS3: [], sizeMismatch: [], suspectedOverwrite: [] },
+      azureByKey,
+      s3ByKey,
+      {} as never,
+      makeS3Client(),
+      'kyc',
+    );
+
+    expect(result.diff.onlyOnAzure).toEqual([]);
+    expect(result.diff.sizeMismatch).toEqual([]);
+    expect(result.resolvedConcurrentCandidates).toBe(1);
+    expect(s3ByKey.get(key)).toEqual(storedObject(key, 42, t0));
+    expect(() => assertNotOneSidedEmpty(azureByKey.size, s3ByKey.size, 'kyc')).not.toThrow();
+  });
+
+  it('removes an S3-only candidate that appeared concurrently on Azure with the same size', async () => {
+    const key = SENTINEL_KEY_B;
+    const s3ByKey = indexStoredObjectsByKey([storedObject(key, 43, t0)]);
+    const getProperties = jest.fn().mockResolvedValue({ contentLength: 43, lastModified: t0 });
+    const azureContainer = { getBlockBlobClient: jest.fn().mockReturnValue({ getProperties }) } as never;
+    const azureByKey = new Map<string, StoredObject>();
+
+    const result = await stabilizeAdditiveCandidates(
+      { onlyOnAzure: [], onlyOnS3: [key], sizeMismatch: [], suspectedOverwrite: [] },
+      azureByKey,
+      s3ByKey,
+      azureContainer,
+      makeS3Client(),
+      'kyc',
+    );
+
+    expect(result.diff.onlyOnS3).toEqual([]);
+    expect(result.diff.sizeMismatch).toEqual([]);
+    expect(result.resolvedConcurrentCandidates).toBe(1);
+    expect(azureByKey.get(key)).toEqual(storedObject(key, 43, t0));
+    expect(() => assertNotOneSidedEmpty(azureByKey.size, s3ByKey.size, 'kyc')).not.toThrow();
+  });
+
+  it('preserves the overwrite timestamp heuristic for concurrently appeared targets', async () => {
+    const azureKey = SENTINEL_KEY_A;
+    const s3Key = SENTINEL_KEY_B;
+    const oldTime = t0;
+    const newTime = new Date(t0.getTime() + OVERWRITE_SKEW_TOLERANCE_MS);
+    const azureByKey = indexStoredObjectsByKey([storedObject(azureKey, 42, newTime)]);
+    const s3ByKey = indexStoredObjectsByKey([storedObject(s3Key, 43, oldTime)]);
+    s3Mock
+      .on(HeadObjectCommand, { Bucket: 'kyc', Key: azureKey })
+      .resolves({ ContentLength: 42, LastModified: oldTime });
+    const azureContainer = {
+      getBlockBlobClient: jest.fn().mockReturnValue({
+        getProperties: jest.fn().mockResolvedValue({ contentLength: 43, lastModified: newTime }),
+      }),
+    } as never;
+
+    const result = await stabilizeAdditiveCandidates(
+      { onlyOnAzure: [azureKey], onlyOnS3: [s3Key], sizeMismatch: [], suspectedOverwrite: ['existing'] },
+      azureByKey,
+      s3ByKey,
+      azureContainer,
+      makeS3Client(),
+      'kyc',
+    );
+
+    expect(result.diff.onlyOnAzure).toEqual([]);
+    expect(result.diff.onlyOnS3).toEqual([]);
+    expect(result.diff.suspectedOverwrite).toEqual(['existing', azureKey, s3Key]);
+    expect(result.resolvedConcurrentCandidates).toBe(2);
+  });
+
+  it('keeps candidates whose target is still absent', async () => {
+    const azureKey = SENTINEL_KEY_A;
+    const s3Key = SENTINEL_KEY_B;
+    const azureByKey = indexStoredObjectsByKey([storedObject(azureKey, 42, t0)]);
+    const s3ByKey = indexStoredObjectsByKey([storedObject(s3Key, 43, t0)]);
+    s3Mock.on(HeadObjectCommand).rejects(Object.assign(new Error('not found'), { name: 'NotFound' }));
+    const azureContainer = {
+      getBlockBlobClient: jest.fn().mockReturnValue({
+        getProperties: jest.fn().mockRejectedValue({ statusCode: 404, details: { errorCode: 'BlobNotFound' } }),
+      }),
+    } as never;
+
+    const result = await stabilizeAdditiveCandidates(
+      { onlyOnAzure: [azureKey], onlyOnS3: [s3Key], sizeMismatch: [], suspectedOverwrite: [] },
+      azureByKey,
+      s3ByKey,
+      azureContainer,
+      makeS3Client(),
+      'kyc',
+    );
+
+    expect(result.diff.onlyOnAzure).toEqual([azureKey]);
+    expect(result.diff.onlyOnS3).toEqual([s3Key]);
+    expect(result.resolvedConcurrentCandidates).toBe(0);
+  });
+
+  it('rejects a large one-sided-empty inventory before any target re-check request', async () => {
+    const azureKeys = [SENTINEL_KEY_A, SENTINEL_KEY_B];
+    const s3Keys = [SENTINEL_KEY_B, SENTINEL_KEY_C];
+    const getProperties = jest.fn();
+    const getBlockBlobClient = jest.fn().mockReturnValue({ getProperties });
+    const azureContainer = { getBlockBlobClient } as never;
+
+    await expect(
+      stabilizeAdditiveCandidates(
+        { onlyOnAzure: azureKeys, onlyOnS3: [], sizeMismatch: [], suspectedOverwrite: [] },
+        indexStoredObjectsByKey(azureKeys.map((key) => storedObject(key, 42, t0))),
+        new Map(),
+        azureContainer,
+        makeS3Client(),
+        'kyc',
+      ),
+    ).rejects.toThrow(/One-sided empty inventory/);
+    expect(s3Mock.commandCalls(HeadObjectCommand)).toHaveLength(0);
+
+    await expect(
+      stabilizeAdditiveCandidates(
+        { onlyOnAzure: [], onlyOnS3: s3Keys, sizeMismatch: [], suspectedOverwrite: [] },
+        new Map(),
+        indexStoredObjectsByKey(s3Keys.map((key) => storedObject(key, 43, t0))),
+        azureContainer,
+        makeS3Client(),
+        'kyc',
+      ),
+    ).rejects.toThrow(/One-sided empty inventory/);
+    expect(getBlockBlobClient).not.toHaveBeenCalled();
+    expect(getProperties).not.toHaveBeenCalled();
+  });
+
+  it('promotes a concurrently appeared target with a different size to sizeMismatch', async () => {
+    const azureKey = SENTINEL_KEY_A;
+    const s3Key = SENTINEL_KEY_B;
+    const azureByKey = indexStoredObjectsByKey([storedObject(azureKey, 42, t0)]);
+    const s3ByKey = indexStoredObjectsByKey([storedObject(s3Key, 43, t0)]);
+    s3Mock.on(HeadObjectCommand, { Bucket: 'kyc', Key: azureKey }).resolves({ ContentLength: 99, LastModified: t0 });
+    const azureContainer = {
+      getBlockBlobClient: jest
+        .fn()
+        .mockReturnValue({ getProperties: jest.fn().mockResolvedValue({ contentLength: 98, lastModified: t0 }) }),
+    } as never;
+
+    const result = await stabilizeAdditiveCandidates(
+      { onlyOnAzure: [azureKey], onlyOnS3: [s3Key], sizeMismatch: ['existing'], suspectedOverwrite: [] },
+      azureByKey,
+      s3ByKey,
+      azureContainer,
+      makeS3Client(),
+      'kyc',
+    );
+
+    expect(result.diff.onlyOnAzure).toEqual([]);
+    expect(result.diff.onlyOnS3).toEqual([]);
+    expect(result.diff.sizeMismatch).toEqual(['existing', azureKey, s3Key]);
+    expect(result.resolvedConcurrentCandidates).toBe(0);
+    expect(s3ByKey.get(azureKey)).toEqual(storedObject(azureKey, 99, t0));
+    expect(azureByKey.get(s3Key)).toEqual(storedObject(s3Key, 98, t0));
+
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    expect(() =>
+      printCategory('kyc', 'sizeMismatch', [azureKey, s3Key], true, {
+        azureByKey,
+        s3ByKey,
+        dualSide: true,
+      }),
+    ).not.toThrow();
+    const output = consoleSpy.mock.calls.flat().join('\n');
+    assertNoSentinelLeak(output);
   });
 });
 
