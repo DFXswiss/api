@@ -1,3 +1,5 @@
+import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { mockClient } from 'aws-sdk-client-mock';
 import {
   assertHashedSize,
   assertHashVersionUnchanged,
@@ -15,7 +17,17 @@ import {
   objectSignature,
   parseConfig,
   safeObjectReference,
+  stabilizeMissingKeys,
 } from '../../../../../scripts/storage/verify-content';
+
+const s3Mock = mockClient(S3Client);
+
+function makeS3Client(): S3Client {
+  return new S3Client({
+    region: 'us-east-1',
+    credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
+  });
+}
 
 function contentObject(
   key: string,
@@ -197,6 +209,91 @@ describe('classifyContainer', () => {
 
     expect(report.needsHash).toHaveLength(0);
     expect(report.needsHashBytes).toBe(0);
+  });
+});
+
+describe('stabilizeMissingKeys', () => {
+  beforeEach(() => {
+    s3Mock.reset();
+  });
+
+  it('reclassifies an Azure-only key that appeared concurrently on S3', async () => {
+    const azure = contentObject('k', 0, afterCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const initial = classifyContainer('support', [azure], [], cutoff, false);
+    s3Mock.on(HeadObjectCommand, { Bucket: 'support', Key: 'k' }).resolves({
+      ContentLength: 0,
+      LastModified: afterCutoff,
+      ETag: S3_ETAG,
+    });
+
+    const result = await stabilizeMissingKeys(initial, {} as never, makeS3Client(), cutoff, false);
+
+    expect(result.resolvedConcurrentMissingKeys).toBe(1);
+    expect(result.report.missingKeys).toEqual([]);
+    expect(result.report.metadataMatch).toEqual(['k']);
+    expect(result.report.s3Map.get('k')).toEqual(contentObject('k', 0, afterCutoff, { etag: S3_ETAG }));
+  });
+
+  it('reclassifies an S3-only key that appeared concurrently on Azure', async () => {
+    const s3 = contentObject('k', 0, afterCutoff, { etag: S3_ETAG });
+    const initial = classifyContainer('support', [], [s3], cutoff, false);
+    const getProperties = jest.fn().mockResolvedValue({
+      contentLength: 0,
+      lastModified: afterCutoff,
+      etag: AZURE_ETAG,
+      contentMD5: Buffer.from(EMPTY_MD5_BASE64, 'base64'),
+    });
+    const azureContainer = { getBlockBlobClient: jest.fn().mockReturnValue({ getProperties }) } as never;
+
+    const result = await stabilizeMissingKeys(initial, azureContainer, makeS3Client(), cutoff, false);
+
+    expect(result.resolvedConcurrentMissingKeys).toBe(1);
+    expect(result.report.missingKeys).toEqual([]);
+    expect(result.report.metadataMatch).toEqual(['k']);
+    expect(result.report.azureMap.get('k')).toEqual(
+      contentObject('k', 0, afterCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG }),
+    );
+  });
+
+  it('keeps a genuinely absent target missing and promotes a different-size target', async () => {
+    const absent = contentObject('absent', 1, afterCutoff, { contentMd5: EMPTY_MD5_BASE64, etag: AZURE_ETAG });
+    const mismatch = contentObject('mismatch', 2, afterCutoff, {
+      contentMd5: EMPTY_MD5_BASE64,
+      etag: AZURE_ETAG,
+    });
+    const sharedAzure = contentObject('shared', 0, afterCutoff, {
+      contentMd5: EMPTY_MD5_BASE64,
+      etag: AZURE_ETAG,
+    });
+    const sharedS3 = contentObject('shared', 0, afterCutoff, { etag: S3_ETAG });
+    const initial = classifyContainer('support', [absent, mismatch, sharedAzure], [sharedS3], cutoff, false);
+    s3Mock
+      .on(HeadObjectCommand, { Bucket: 'support', Key: 'absent' })
+      .rejects(Object.assign(new Error('not found'), { name: 'NotFound' }));
+    s3Mock.on(HeadObjectCommand, { Bucket: 'support', Key: 'mismatch' }).resolves({
+      ContentLength: 3,
+      LastModified: afterCutoff,
+      ETag: S3_ETAG,
+    });
+
+    const result = await stabilizeMissingKeys(initial, {} as never, makeS3Client(), cutoff, false);
+
+    expect(result.resolvedConcurrentMissingKeys).toBe(1);
+    expect(result.report.missingKeys).toEqual(['absent']);
+    expect(result.report.sizeMismatch).toEqual(['mismatch']);
+  });
+
+  it('rejects large one-sided-empty inventories before any target request', async () => {
+    const azure = [
+      contentObject('a', 1, afterCutoff, { etag: AZURE_ETAG }),
+      contentObject('b', 1, afterCutoff, { etag: AZURE_ETAG }),
+    ];
+    const initial = classifyContainer('kyc', azure, [], cutoff, false);
+
+    await expect(stabilizeMissingKeys(initial, {} as never, makeS3Client(), cutoff, false)).rejects.toThrow(
+      /One-sided empty content inventory/,
+    );
+    expect(s3Mock.commandCalls(HeadObjectCommand)).toHaveLength(0);
   });
 });
 
