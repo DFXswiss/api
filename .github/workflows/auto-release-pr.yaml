@@ -53,19 +53,18 @@ jobs:
           # access token would put a human's name on an automated PR and tie the automation to
           # one account's credential lifetime.
           #
-          # Trade-off, deliberately accepted: a PR opened with GITHUB_TOKEN does not start a
-          # `pull_request` workflow run for the `opened` activity. The release PR therefore opens
-          # without any of them — API PR CI, CodeQL Advanced, PR Review Bot, and API Migration
-          # Check when the release carries non-seed `migration/**` changes. Later pushes to
-          # `develop` do start `synchronize` runs, so a release PR merged before any such push
-          # gets no `pull_request` run at all, while one that stays open across further merges
-          # does. Observed on the bot-authored release PRs before this was switched to a PAT:
-          # one merged unchanged had no `pull_request` run, another got its runs only once a
-          # later merge moved the head.
+          # Cost, deliberately accepted: under this repository's Actions approval policy
+          # (`all_external_contributors`), the runs for the `opened` activity — the ones
+          # `github-actions[bot]` triggers by creating the PR — are held. Attempt 1 completes as
+          # `action_required` with zero jobs; a manual approval starts attempt 2, which is what
+          # actually executes. Only those are held: later `synchronize` runs from human pushes to
+          # `develop` execute on attempt 1, and so did the PAT-authored release PRs.
           #
-          # Consequence for reviewers: a green release PR does NOT imply CI ran with `main` as
-          # the target. The checks shown may come solely from the push runs on `develop` for the
-          # same head commit.
+          # Consequence for reviewers: a freshly opened release PR shows a mix. Its pending
+          # `pull_request` entries carry no jobs, while other green checks can be `develop` push
+          # runs for the same head commit — real results, but not PR CI against `main`. Approve
+          # the held runs, then check that what you read belongs to the `pull_request` runs for
+          # the current head.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMIT_COUNT: ${{ steps.check-diff.outputs.commit_count }}
         run: |
