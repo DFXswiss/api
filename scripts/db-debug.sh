@@ -30,8 +30,16 @@
 #     via dataSource.query. Writes / DDL are not expressible.
 #   - Request bodies are sent via curl stdin (`-d @-`), never as a curl argv value, so a
 #     payload cannot appear in `ps` / `/proc/*/cmdline` on a shared host.
-#   - --user-by-mail reads the address from stdin (not argv). The address is never placed
-#     in any process's argv, never echoed, and the payload echo redacts WHERE values.
+#   - --user-by-mail reads the address from stdin (not argv), so it does not appear in any
+#     process's argv. The script does not print the address; the payload echo redacts WHERE
+#     values the same way the server audit log does. At a TTY the terminal echoes typed
+#     input into scrollback — accepted: the operator is entering an address they already
+#     know; the guarantee is that the endpoint does not disclose unknown addresses and that
+#     the value does not reach process lists or logs that others read. Audit-log and
+#     error-path redaction hold under normal production config (SQL_LOGGING unset). Enabling
+#     SQL query logging (SQL_LOGGING) makes TypeORM print bound parameters — including the
+#     address — for successful queries, which defeats that redaction (see the comment in
+#     src/shared/services/typeorm-logger.ts).
 #
 # Structured /gs/debug endpoint:
 #   The endpoint no longer accepts raw SQL. The request body is a JSON description of
@@ -79,11 +87,15 @@
 #     stdin (one line; TTY → prompt on stderr; non-TTY → silent read). Empty/EOF fails loudly.
 #     Filters on the filter-only column user_data.mail (= only, case-insensitive, not under
 #     NOT); never selects mail. One address can match several rows. Limit defaults to 100
-#     (not 1). Returns id, created, kycLevel, status. The address is not placed in any
-#     process's argv and is not echoed; the payload echo redacts WHERE values.
-#       echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail
-#       echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50
+#     (not 1) and must be a positive integer; trailing args are rejected. Returns id,
+#     created, kycLevel, status. The address is not placed in any process's argv; the
+#     script does not print it; the payload echo redacts WHERE values. At a TTY the terminal
+#     may echo typed input into scrollback (accepted — operator already knows the address).
+#     Audit/error redaction holds when SQL query logging is off (production: SQL_LOGGING
+#     unset); enabling SQL_LOGGING would print bound parameters including the address.
 #       ./scripts/db-debug.sh --user-by-mail          # interactive: prompts "Mail address: "
+#       ./scripts/db-debug.sh --user-by-mail < address.txt
+#       ./scripts/db-debug.sh --user-by-mail 50 < address.txt
 #   --query '<json>' | --query @path/to/query.json | --query -
 #     Posts an arbitrary DebugQueryDto. Accepts inline JSON, @file, or - to read the DTO from stdin.
 #     The DTO is validated as well-formed JSON (jq) before the request; malformed JSON fails loudly.
@@ -133,11 +145,16 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  -T, --referral-tree <userDataId>"
   echo "                                Show complete referral tree (all branches)"
   echo "  -M, --user-by-mail [N]        Resolve user_data id(s) from a known mail on stdin"
-  echo "                                (default limit: 100). mail is filter-only: usable only"
-  echo "                                in WHERE with = (case-insensitive; not under NOT; no IN),"
-  echo "                                never returned by the endpoint. One mail can match"
-  echo "                                several rows. Address is never in process argv and never"
-  echo "                                echoed; payload echo redacts WHERE values."
+  echo "                                (default limit: 100, positive integer; no extra args)."
+  echo "                                mail is filter-only: usable only in WHERE with ="
+  echo "                                (case-insensitive; not under NOT; no IN), never returned."
+  echo "                                One mail can match several rows. Address is not in any"
+  echo "                                process argv; script does not print it; payload echo"
+  echo "                                redacts WHERE values. At a TTY the terminal may echo"
+  echo "                                typed input into scrollback (accepted — operator already"
+  echo "                                knows the address). Audit/error redaction holds when SQL"
+  echo "                                query logging is off (prod: SQL_LOGGING unset); enabling"
+  echo "                                SQL_LOGGING would print bound parameters incl. the address."
   echo "  -g, --get <table> [cols] [N]  Ad-hoc: fetch cols (default id,created,updated) from any"
   echo "                                allowlisted table (default limit: 100)"
   echo "  -q, --query <json|@file|->    Ad-hoc: POST an arbitrary structured DTO (inline JSON,"
@@ -151,9 +168,9 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
   echo "  ./scripts/db-debug.sh --referral-chain 370625"
   echo "  ./scripts/db-debug.sh --referral-tree 370625"
-  echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail"
-  echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50"
   echo "  ./scripts/db-debug.sh --user-by-mail   # interactive: prompts on stderr"
+  echo "  ./scripts/db-debug.sh --user-by-mail < address.txt"
+  echo "  ./scripts/db-debug.sh --user-by-mail 50 < address.txt"
   echo "  ./scripts/db-debug.sh --get user_data"
   echo "  ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50"
   echo "  ./scripts/db-debug.sh --query '{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"name\"}],\"limit\":5}'"
@@ -331,16 +348,33 @@ case "${1:-}" in
     TARGET_USER_ID="$2"
     ;;
   -M|--user-by-mail)
-    # Mail is read from stdin (not argv) so it never appears in process argv via ps/proc.
+    # Mail is read from stdin (not argv) so it does not appear in process argv via ps/proc.
     # Optional limit stays positional (matches other modes). Empty/EOF fails loudly — no
     # default filter. Address is bound into jq via stdin (not --arg); the shared payload
     # echo redacts WHERE values (see serializeDebugQueryForAudit); DESCRIPTION and this
     # branch's own messages must not reintroduce the address either.
-    USER_BY_MAIL_LIMIT="${2:-100}"
+    if [ -n "${2:-}" ]; then
+      if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Error: --user-by-mail limit must be a positive integer, got: $2"
+        echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
+        exit 1
+      fi
+      USER_BY_MAIL_LIMIT="$2"
+    else
+      USER_BY_MAIL_LIMIT="100"
+    fi
+    if [ -n "${3:-}" ]; then
+      echo "Error: unexpected argument: $3"
+      echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
+      exit 1
+    fi
     if [ -t 0 ]; then
       printf 'Mail address: ' >&2
     fi
-    if ! IFS= read -r USER_BY_MAIL; then
+    # Bash `read` returns non-zero at EOF even when it assigned a complete value (no
+    # trailing newline). Treat as success when the variable is non-empty; fail only when
+    # read fails AND nothing was read. Whitespace-only rejection follows below.
+    if ! IFS= read -r USER_BY_MAIL && [ -z "$USER_BY_MAIL" ]; then
       echo "Error: --user-by-mail requires a mail address on stdin"
       echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
       echo ""
@@ -348,9 +382,9 @@ case "${1:-}" in
       echo "pipes/scripts pass the line without a prompt. Empty input / EOF fails."
       echo ""
       echo "Examples:"
-      echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail"
-      echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50"
       echo "  ./scripts/db-debug.sh --user-by-mail   # interactive prompt"
+      echo "  ./scripts/db-debug.sh --user-by-mail < address.txt"
+      echo "  ./scripts/db-debug.sh --user-by-mail 50 < address.txt"
       echo ""
       echo "Resolves user_data id(s) from a mail you already know. mail is filter-only:"
       echo "usable only as a WHERE leaf with = (case-insensitive; not under NOT; no IN),"
@@ -369,9 +403,9 @@ case "${1:-}" in
       echo "pipes/scripts pass the line without a prompt. Empty input / EOF fails."
       echo ""
       echo "Examples:"
-      echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail"
-      echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50"
       echo "  ./scripts/db-debug.sh --user-by-mail   # interactive prompt"
+      echo "  ./scripts/db-debug.sh --user-by-mail < address.txt"
+      echo "  ./scripts/db-debug.sh --user-by-mail 50 < address.txt"
       exit 1
     fi
     # Pass the address via stdin into jq (same pattern as --query JSON validation), not

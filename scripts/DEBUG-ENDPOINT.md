@@ -87,10 +87,12 @@ with the wallet at `DEBUG_ADDRESS`.
 ./scripts/db-debug.sh --referral-tree  370625
 
 # Resolve user_data id(s) from a mail you already know (filter-only; mail is never returned).
-# Address on stdin — never in process argv; not echoed; payload echo redacts WHERE values.
-echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail
-echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50
+# Address on stdin — not in process argv; script does not print it; payload echo redacts
+# WHERE values. Prefer interactive entry or a protected file over piping via `echo` (which
+# would put the address in echo's argv).
 ./scripts/db-debug.sh --user-by-mail   # interactive: prompts "Mail address: " on stderr
+./scripts/db-debug.sh --user-by-mail < address.txt
+./scripts/db-debug.sh --user-by-mail 50 < address.txt
 ```
 
 For ad-hoc queries the endpoint expects a JSON DTO (no raw SQL). See the
@@ -123,9 +125,10 @@ they already have; the endpoint must not become a way to read addresses out. Sel
 Convenience mode and equivalent raw DTO:
 
 ```bash
-# Piped (non-interactive) or interactive (TTY prompts on stderr)
-echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail
+# Interactive (TTY prompts on stderr) or from a protected file — avoid `echo … |`
+# so the address never lands in an external process's argv.
 ./scripts/db-debug.sh --user-by-mail
+./scripts/db-debug.sh --user-by-mail < address.txt
 
 # Same query as an ad-hoc --query payload (mail bound as a JSON value; never returned).
 # Prefer a file or stdin for the DTO so the address is not in the shell's command line:
@@ -145,12 +148,19 @@ echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail
 EOF
 ```
 
-**Client argv guarantee (`scripts/db-debug.sh`):** `--user-by-mail` reads the address from
-stdin (not a positional argument). The address is passed into `jq` via stdin (not `--arg`)
-and every request body is sent with `curl … -d @-` (body on curl's stdin). The address is
-therefore not placed in any process's argv, is not echoed by the script, and the payload
-echo redacts WHERE leaf values (`<scalar>` / `<array:N>`, matching
-`serializeDebugQueryForAudit`).
+**Client argv and redaction guarantee (`scripts/db-debug.sh`):** `--user-by-mail` reads the
+address from stdin (not a positional argument). The address is passed into `jq` via stdin
+(not `--arg`) and every request body is sent with `curl … -d @-` (body on curl's stdin).
+The address is therefore not placed in any process's argv. The script does not print the
+address, and the payload echo redacts WHERE leaf values (`<scalar>` / `<array:N>`, matching
+`serializeDebugQueryForAudit`). At a TTY the terminal may echo typed input into scrollback —
+accepted: the operator is entering an address they already know; the guarantee is that the
+endpoint does not disclose unknown addresses and that the value does not reach process lists
+or logs that others read. Audit-log and error-path redaction hold under normal production
+config (`SQL_LOGGING` unset, so TypeORM query logging is off — see the comment in
+`src/shared/services/typeorm-logger.ts`). Enabling SQL query logging (`SQL_LOGGING`) makes
+TypeORM print bound parameters — including the address — for successful queries, which
+defeats that redaction.
 
 ## Security Notes
 

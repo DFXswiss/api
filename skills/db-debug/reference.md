@@ -101,10 +101,20 @@ Entity: `src/subdomains/core/liquidity-management/entities/liquidity-balance.ent
 - `user_data`: `id`, `status`, `kycStatus`, `kycLevel`, … (used by referral-tree status lookups).
   `mail` is **filter-only** (not in `columns`): WHERE `=` only (case-insensitive; not under
   `NOT`; no `IN`), never selected / ordered / grouped. CLI:
-  `echo '<mail>' | scripts/db-debug.sh --user-by-mail [N]` (default limit 100; interactive TTY
-  prompts on stderr). The address is read from stdin, passed into `jq` via stdin (not `--arg`),
-  and request bodies go to `curl` via `-d @-` — not in any process argv, not echoed; the
-  payload echo redacts WHERE values. Equivalent DTO:
+  `scripts/db-debug.sh --user-by-mail [N]` (default limit 100, positive integer; trailing args
+  rejected; interactive TTY prompts on stderr) or
+  `scripts/db-debug.sh --user-by-mail [N] < address.txt`. Prefer interactive entry or a
+  protected file — do not pipe via `echo` (that would put the address in echo's argv). The
+  address is read from stdin, passed into `jq` via stdin (not `--arg`), and request bodies go
+  to `curl` via `-d @-` — not in any process argv. The script does not print the address; the
+  payload echo redacts WHERE values. At a TTY the terminal may echo typed input into
+  scrollback — accepted: the operator already knows the address; the guarantee is that the
+  endpoint does not disclose unknown addresses and that the value does not reach process
+  lists or logs that others read. Audit-log and error-path redaction hold under normal
+  production config (`SQL_LOGGING` unset, so TypeORM query logging is off — see
+  `src/shared/services/typeorm-logger.ts`). Enabling SQL query logging (`SQL_LOGGING`) makes
+  TypeORM print bound parameters — including the address — for successful queries, which
+  defeats that redaction. Equivalent DTO:
   `{"table":"user_data","select":[{"kind":"column","column":"id"},{"kind":"column","column":"created"},{"kind":"column","column":"kycLevel"},{"kind":"column","column":"status"}],"where":{"kind":"leaf","column":"mail","op":"=","value":"<mail>"},"orderBy":[{"column":"id","direction":"ASC"}],"limit":100}`.
   Result is an array of rows — one mail can belong to several `user_data` records.
 - `asset`: `id`, `name`, `blockchain`, `type`, … — resolve one with a `where` and-tree on
