@@ -42,6 +42,7 @@ import {
 } from './dto/debug-query.dto';
 import {
   DebugAllowedColumns,
+  DebugFilterOnlyAllowedOps,
   DebugMaxResults,
   DebugQueryAuditPrefix,
   DebugTableSpec,
@@ -52,8 +53,9 @@ import {
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 // Mutable state carried through the /gs/debug SQL emitters. Holds the bound parameter
-// array, the alias set (for ORDER/GROUP BY resolution), and a predicate counter for the
-// WHERE-tree depth/size caps. Constructed once per query in executeDebugQuery.
+// array, the alias set (for ORDER/GROUP BY resolution), a predicate counter for the
+// WHERE-tree depth/size caps, and a filter-only leaf counter (at most one per query).
+// Constructed once per query in executeDebugQuery.
 interface DebugQueryEmitCtx {
   table: string;
   spec: DebugTableSpec;
@@ -65,6 +67,10 @@ interface DebugQueryEmitCtx {
   // declaring an alias whose text matches a physical-but-not-allowlisted column.
   aliases: Map<string, number>;
   predicateCount: number;
+  // Number of filter-only WHERE leaves seen so far in this query. At most one is allowed
+  // anywhere in the tree (including nested and/or branches) so OR/AND of several `=` leaves
+  // cannot re-enable multi-candidate batching after `IN` was removed for filter-only columns.
+  filterOnlyCount: number;
 }
 
 @Injectable()
@@ -235,6 +241,13 @@ export class GsService {
   //     explicit code changes.
   //   - LIMIT is a numeric DTO field, clamped at DebugMaxResults. No string substring scan.
   async executeDebugQuery(dto: DebugQueryDto, userIdentifier: string): Promise<DebugQueryResult> {
+    // Audit log emitted FIRST — before the table allowlist check or any emit/validate step
+    // can throw — so every accepted-shape request is attributable for forensics, including
+    // unknown-table probes. WHERE leaf values may carry PII (LIKE patterns over mail / IBAN);
+    // redact them. Bound parameters already protect the SQL string; we shouldn't undo that
+    // via the verbose log.
+    this.logger.verbose(`${DebugQueryAuditPrefix}${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
+
     // `Object.hasOwn` so prototype keys like `__proto__` / `constructor` / `toString` don't
     // pass the `if (!spec)` guard (they'd otherwise return `Object.prototype` and crash later
     // with a 500). Use the allowlist as a real lookup, not a `in`/index probe.
@@ -243,18 +256,13 @@ export class GsService {
     }
     const spec = DebugAllowedColumns[dto.table];
 
-    // Audit log emitted FIRST — before any emit/validate step can throw — so a malformed or
-    // probing request (bad column, oversized IN list, etc.) is still recorded for forensics.
-    // WHERE leaf values may carry PII (LIKE patterns over mail / IBAN); redact them. Bound
-    // parameters already protect the SQL string; we shouldn't undo that via the verbose log.
-    this.logger.verbose(`${DebugQueryAuditPrefix}${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
-
     const ctx: DebugQueryEmitCtx = {
       table: dto.table,
       spec,
       params: [],
       aliases: new Map<string, number>(),
       predicateCount: 0,
+      filterOnlyCount: 0,
     };
 
     // SELECT — emit fragments in the order they appear in the DTO. Aliases are collected
@@ -292,9 +300,32 @@ export class GsService {
       const keys = dto.select.map((item) => item.as ?? this.defaultDebugSelectAlias(item));
       return { keys, rows: rows.map((r) => keys.map((k) => r[k])) };
     } catch (e) {
-      this.logger.info(`${DebugQueryAuditPrefix}${userIdentifier} failed: ${e.message}`);
+      // Never log e.message or the bound parameter array. Postgres echoes offending
+      // parameter values in some messages (e.g. `invalid input syntax for type integer:
+      // "user@example.com"`), which would defeat the WHERE-value redaction on the audit
+      // line. SQLSTATE (`code`) identifies the failure class; severity/routine are
+      // value-free driver fields when present. Missing code → stable placeholder, not
+      // a fallback to the message.
+      this.logger.info(
+        `${DebugQueryAuditPrefix}${userIdentifier} failed: ${this.formatDebugQueryFailureDiagnostics(e)}`,
+      );
       throw new BadRequestException('Query execution failed');
     }
+  }
+
+  // Value-free failure diagnostics for the /gs/debug catch path. Only fields that cannot
+  // carry bound parameter values are included (SQLSTATE / severity / routine).
+  private formatDebugQueryFailureDiagnostics(e: unknown): string {
+    const err = e as { code?: unknown; severity?: unknown; routine?: unknown } | null | undefined;
+    const code = typeof err?.code === 'string' && err.code.length > 0 ? err.code : '<unknown>';
+    const parts = [`code=${code}`];
+    if (typeof err?.severity === 'string' && err.severity.length > 0) {
+      parts.push(`severity=${err.severity}`);
+    }
+    if (typeof err?.routine === 'string' && err.routine.length > 0) {
+      parts.push(`routine=${err.routine}`);
+    }
+    return parts.join(' ');
   }
 
   // --- Emitters for /gs/debug ---
@@ -328,12 +359,38 @@ export class GsService {
     return redacted.length > 500 ? `${redacted.substring(0, 500)}...` : redacted;
   }
 
-  // Asserts a column name is in the table allowlist; throws otherwise. Used everywhere a
-  // user-supplied identifier could reach SQL.
-  private assertDebugColumnAllowed(column: string, spec: DebugTableSpec): void {
+  // Asserts a column name is in the SELECT allowlist (`spec.columns` only). Filter-only
+  // columns are deliberately excluded so they can never appear in SELECT, aggregates, or
+  // jsonb path access (all three select kinds route through this helper).
+  private assertDebugSelectColumnAllowed(column: string, spec: DebugTableSpec): void {
     if (!spec.columns.includes(column)) {
       throw new BadRequestException(`Column '${column}' is not allowed on this table`);
     }
+  }
+
+  // Asserts a column may be used as a WHERE-leaf filter. Accepts `spec.columns` plus any
+  // `filterOnlyColumns`. Filter-only columns are further restricted to equality-style ops
+  // (`DebugFilterOnlyAllowedOps`) so range/pattern operators cannot oracle-reconstruct the value.
+  // A filter-only leaf under any `not` ancestor is also rejected (`negated`): `NOT (mail = x)`
+  // is equivalent to `mail != x`, which would bypass the operator gate. Any negation above a
+  // filter-only leaf is refused — double negation is NOT cancelled out.
+  private assertDebugFilterColumnAllowed(
+    column: string,
+    op: DebugWhereOp,
+    spec: DebugTableSpec,
+    negated: boolean,
+  ): void {
+    if (spec.columns.includes(column)) return;
+    if (spec.filterOnlyColumns?.includes(column)) {
+      if (negated) {
+        throw new BadRequestException(`Filter-only column '${column}' cannot be used inside a NOT`);
+      }
+      if (!DebugFilterOnlyAllowedOps.includes(op)) {
+        throw new BadRequestException(`Operator '${op}' is not allowed on filter-only column '${column}'`);
+      }
+      return;
+    }
+    throw new BadRequestException(`Column '${column}' is not allowed on this table`);
   }
 
   // Validates a jsonb path string: dot-separated, each segment matches the identifier regex,
@@ -371,7 +428,7 @@ export class GsService {
   // inputs. Otherwise a malformed `{kind: 'jsonb'}` (no jsonbPath) would TypeError when
   // synthesizing the alias and surface as 500 instead of a clean 400.
   private emitDebugSelectItem(item: DebugSelectItem, ctx: DebugQueryEmitCtx, position: number): string {
-    this.assertDebugColumnAllowed(item.column, ctx.spec);
+    this.assertDebugSelectColumnAllowed(item.column, ctx.spec);
 
     // Defense in depth: an explicit `as` is interpolated as `AS "${alias}"`. The DTO regex
     // already enforces this shape — re-check here so a future change that bypasses the DTO
@@ -426,27 +483,33 @@ export class GsService {
 
   // Recursive WHERE emitter. Caps depth and predicate count to prevent JSON-tree DoS. Returns
   // a parenthesized SQL fragment with parameter placeholders.
-  private emitDebugWhere(node: DebugWhereNode, ctx: DebugQueryEmitCtx, depth: number): string {
+  //
+  // `negated` is true under any `not` ancestor. Filter-only columns are rejected in a
+  // negated context (see `assertDebugFilterColumnAllowed`). Entering a `not` node sets the
+  // flag for the whole subtree — double negation is deliberately NOT cancelled out.
+  private emitDebugWhere(node: DebugWhereNode, ctx: DebugQueryEmitCtx, depth: number, negated = false): string {
     if (depth > DebugQueryMaxWhereDepth) {
       throw new BadRequestException(`WHERE tree exceeds max depth of ${DebugQueryMaxWhereDepth}`);
     }
 
     switch (node.kind) {
       case 'leaf':
-        return this.emitDebugWhereLeaf(node, ctx);
+        return this.emitDebugWhereLeaf(node, ctx, negated);
 
       case 'and':
       case 'or': {
         if (!node.children?.length) {
           throw new BadRequestException(`'${node.kind}' node requires at least one child`);
         }
-        const parts = node.children.map((c) => this.emitDebugWhere(c, ctx, depth + 1));
+        const parts = node.children.map((c) => this.emitDebugWhere(c, ctx, depth + 1, negated));
         return `(${parts.join(node.kind === 'and' ? ' AND ' : ' OR ')})`;
       }
 
       case 'not': {
         if (!node.child) throw new BadRequestException("'not' node requires `child`");
-        return `(NOT ${this.emitDebugWhere(node.child, ctx, depth + 1)})`;
+        // Set (not flip) negated for the subtree — any filter-only leaf below a NOT is refused,
+        // including under double negation. Ordinary allowlisted columns keep working inside NOT.
+        return `(NOT ${this.emitDebugWhere(node.child, ctx, depth + 1, true)})`;
       }
 
       default:
@@ -456,7 +519,7 @@ export class GsService {
 
   // Emits one leaf predicate. Validates column-in-allowlist and op-against-value-shape, then
   // binds the value(s) as parameters.
-  private emitDebugWhereLeaf(node: DebugWhereNode, ctx: DebugQueryEmitCtx): string {
+  private emitDebugWhereLeaf(node: DebugWhereNode, ctx: DebugQueryEmitCtx, negated: boolean): string {
     if (++ctx.predicateCount > DebugQueryMaxPredicates) {
       throw new BadRequestException(`WHERE tree exceeds max predicates of ${DebugQueryMaxPredicates}`);
     }
@@ -469,9 +532,18 @@ export class GsService {
     if (!Object.values(DebugWhereOp).includes(node.op)) {
       throw new BadRequestException(`Operator '${node.op}' is not allowed`);
     }
-    this.assertDebugColumnAllowed(node.column, ctx.spec);
+    this.assertDebugFilterColumnAllowed(node.column, node.op, ctx.spec, negated);
 
     const colSql = `"${ctx.table}"."${node.column}"`;
+    const isFilterOnly = !!ctx.spec.filterOnlyColumns?.includes(node.column);
+    // At most one filter-only predicate per query, anywhere in the WHERE tree (including
+    // nested and/or). Without this, OR/AND of several `=` leaves would batch candidates as
+    // effectively as the `IN` form that was deliberately disallowed for filter-only columns.
+    if (isFilterOnly) {
+      if (++ctx.filterOnlyCount > 1) {
+        throw new BadRequestException('Only one filter-only predicate is allowed per query');
+      }
+    }
 
     switch (node.op) {
       case DebugWhereOp.IS_NULL:
@@ -500,6 +572,19 @@ export class GsService {
           throw new BadRequestException(`op '${node.op}' requires a single scalar value`);
         }
         this.assertDebugScalarValue(node.value);
+        // Filter-only equality is case-insensitive so the debug lookup answers the same
+        // question the application asks (`getUsersByMail` resolves via `LOWER(mail)`) and so
+        // a support caller may type an address in a different case than stored. Equality
+        // stays equality — only letter case is forgiven; no additional information is granted.
+        // For `user_data.mail` the emission is index-supported by the functional index on
+        // `LOWER(mail)` (non-unique by design while case-collision duplicates remain pending
+        // merge). That index is specific to `user_data.mail`, not a general guarantee for
+        // every future filter-only column. Value stays bound.
+        // Precondition: filter-only columns must be text — `LOWER()` is unconditional here;
+        // a non-text column would fail at query time. Documented on `filterOnlyColumns`.
+        if (isFilterOnly && node.op === DebugWhereOp.EQ) {
+          return `LOWER(${colSql}) = LOWER($${this.bindDebugParam(node.value, ctx)})`;
+        }
         return `${colSql} ${node.op} $${this.bindDebugParam(node.value, ctx)}`;
       }
     }
@@ -530,6 +615,8 @@ export class GsService {
   // "ip"` would bind to a physical `ip` column (if one exists on the table but isn't in the
   // allowlist), bypassing the allowlist for grouping. Ordinals sidestep the ambiguity.
   private emitDebugGroupIdent(name: string, ctx: DebugQueryEmitCtx): string {
+    // Filter-only columns are deliberately excluded — validate against `columns` only so
+    // they stay ungroupable (and never surface as a grouping key).
     if (ctx.spec.columns.includes(name)) return `"${ctx.table}"."${name}"`;
     const position = ctx.aliases.get(name);
     if (position !== undefined) return String(position);
@@ -541,6 +628,8 @@ export class GsService {
   // quoted alias is safe. Kept separate from `emitDebugGroupIdent` so the GROUP BY ordinal
   // emission is explicit at the call site.
   private emitDebugOrderIdent(name: string, ctx: DebugQueryEmitCtx): string {
+    // Filter-only columns are deliberately excluded — validate against `columns` only so
+    // they stay unorderable (and never surface as a sort key).
     if (ctx.spec.columns.includes(name)) return `"${ctx.table}"."${name}"`;
     if (ctx.aliases.has(name)) return `"${name}"`;
     throw new BadRequestException(`'${name}' is neither an allowed column nor a select alias`);
