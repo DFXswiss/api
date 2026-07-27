@@ -24,4 +24,11 @@ export class CustodyAccountAccess extends IEntity {
 
   @Column({ type: 'timestamp', nullable: true })
   deactivatedAt?: Date;
+
+  /** Marks this grant as historical so a new active row can supersede it. */
+  deactivate(): this {
+    this.active = false;
+    this.deactivatedAt = new Date();
+    return this;
+  }
 }

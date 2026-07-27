@@ -36,7 +36,6 @@ export class CustodyAccountService {
     const account = await this.userDataService.getUserData(accountId, {
       users: true,
       custodyAccounts: true,
-      custodyAccountAccesses: { account: { owner: true } },
     });
     if (!account) throw new NotFoundException('User not found');
 
@@ -44,11 +43,16 @@ export class CustodyAccountService {
     const allOwnedAccounts = account.custodyAccounts ?? [];
     const ownedAccounts = allOwnedAccounts.filter((ca) => ca.status === CustodyAccountStatus.ACTIVE);
 
-    // shared accounts (via active access grants, excluding owned)
-    const sharedAccounts = (account.custodyAccountAccesses ?? [])
-      .filter((a) => a.active)
-      .filter((a) => a.account.status === CustodyAccountStatus.ACTIVE)
-      .filter((a) => a.account.owner.id !== accountId);
+    // shared accounts via active grants only (history filtered in SQL, not JS)
+    const activeSharedGrants = await this.custodyAccountAccessRepo.find({
+      where: {
+        userData: { id: accountId },
+        active: true,
+        account: { status: CustodyAccountStatus.ACTIVE },
+      },
+      relations: { account: { owner: true } },
+    });
+    const sharedAccounts = activeSharedGrants.filter((a) => a.account.owner.id !== accountId);
 
     const custodyAccounts: CustodyAccountDto[] = [
       ...ownedAccounts.map((ca) => CustodyAccountDtoMapper.toDto(ca, CustodyAccessLevel.WRITE)),
@@ -69,7 +73,7 @@ export class CustodyAccountService {
   async getCustodyAccountById(custodyAccountId: number): Promise<CustodyAccount> {
     const custodyAccount = await this.custodyAccountRepo.findOne({
       where: { id: custodyAccountId },
-      relations: { owner: true, accessGrants: { userData: true } },
+      relations: { owner: true },
     });
 
     if (!custodyAccount) throw new NotFoundException('Custody account not found');
@@ -98,8 +102,14 @@ export class CustodyAccountService {
       return { custodyAccount, isLegacy: false };
     }
 
-    // Check active access grants only
-    const access = custodyAccount.accessGrants.find((a) => a.active && a.userData.id === accountId);
+    // Active grant only — inactive history must not participate in authorisation
+    const access = await this.custodyAccountAccessRepo.findOne({
+      where: {
+        account: { id: custodyAccountId },
+        userData: { id: accountId },
+        active: true,
+      },
+    });
     if (!access) {
       throw new ForbiddenException('No access to this custody account');
     }
@@ -180,17 +190,17 @@ export class CustodyAccountService {
   ): Promise<CustodyAccountAccess> {
     const account = await this.requireOwner(custodyAccountId, ownerAccountId);
 
-    const access = await this.getAccessGrantForAccount(custodyAccountId, accessId);
-    this.rejectOwnerGrantMutation(access, account, 'modify');
-
-    if (access.accessLevel === accessLevel) {
-      return access;
-    }
-
-    // Supersede with history: deactivate old row, insert new active row (payload intact).
+    // Read + deactivate + insert under one transaction with a row lock so concurrent
+    // update/revoke cannot leave a superseded active grant behind a false revoke success.
     return this.custodyAccountAccessRepo.manager.transaction(async (manager) => {
-      access.active = false;
-      access.deactivatedAt = new Date();
+      const access = await this.lockActiveAccessGrant(manager, custodyAccountId, accessId);
+      this.rejectOwnerGrantMutation(access, account, 'modify');
+
+      if (access.accessLevel === accessLevel) {
+        return access;
+      }
+
+      access.deactivate();
       await manager.save(access);
 
       const grant = manager.create(CustodyAccountAccess, {
@@ -207,12 +217,13 @@ export class CustodyAccountService {
   async revokeAccess(custodyAccountId: number, accessId: number, ownerAccountId: number): Promise<void> {
     const account = await this.requireOwner(custodyAccountId, ownerAccountId);
 
-    const access = await this.getAccessGrantForAccount(custodyAccountId, accessId);
-    this.rejectOwnerGrantMutation(access, account, 'revoke');
+    await this.custodyAccountAccessRepo.manager.transaction(async (manager) => {
+      const access = await this.lockActiveAccessGrant(manager, custodyAccountId, accessId);
+      this.rejectOwnerGrantMutation(access, account, 'revoke');
 
-    access.active = false;
-    access.deactivatedAt = new Date();
-    await this.custodyAccountAccessRepo.save(access);
+      access.deactivate();
+      await manager.save(access);
+    });
   }
 
   // --- HELPER METHODS --- //
@@ -251,12 +262,27 @@ export class CustodyAccountService {
     }
   }
 
-  private async getAccessGrantForAccount(custodyAccountId: number, accessId: number): Promise<CustodyAccountAccess> {
-    const access = await this.custodyAccountAccessRepo.findOne({
-      where: { id: accessId, active: true },
-      relations: { userData: true, account: true },
-    });
-    if (!access || access.account.id !== custodyAccountId) {
+  /**
+   * Locks the active grant row (SELECT … FOR UPDATE OF access) so concurrent update/revoke
+   * serialise on the same row. A lost race (row already inactive / missing) yields NotFound —
+   * never a false success.
+   */
+  private async lockActiveAccessGrant(
+    manager: EntityManager,
+    custodyAccountId: number,
+    accessId: number,
+  ): Promise<CustodyAccountAccess> {
+    const access = await manager
+      .createQueryBuilder(CustodyAccountAccess, 'access')
+      .innerJoinAndSelect('access.userData', 'userData')
+      .innerJoinAndSelect('access.account', 'account')
+      .where('access.id = :accessId', { accessId })
+      .andWhere('access.active = :active', { active: true })
+      .andWhere('account.id = :custodyAccountId', { custodyAccountId })
+      .setLock('pessimistic_write', undefined, ['access'])
+      .getOne();
+
+    if (!access) {
       throw new NotFoundException('Access grant not found');
     }
 

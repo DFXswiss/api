@@ -27,12 +27,8 @@ module.exports = class AddCustodyAccountAccessHistory1785100000000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
-    await queryRunner.query(
-      `ALTER TABLE "custody_account_access" ADD "active" boolean NOT NULL DEFAULT true`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "custody_account_access" ADD "deactivatedAt" TIMESTAMP`,
-    );
+    await queryRunner.query(`ALTER TABLE "custody_account_access" ADD "active" boolean NOT NULL DEFAULT true`);
+    await queryRunner.query(`ALTER TABLE "custody_account_access" ADD "deactivatedAt" TIMESTAMP`);
     // Drop the full unique index so historical (inactive) rows may share (accountId, userDataId).
     await queryRunner.query(`DROP INDEX "public"."IDX_380e225bfd7707fff0e4f98035"`);
     // Partial unique: at most one active grant per (account, grantee).
@@ -46,8 +42,27 @@ module.exports = class AddCustodyAccountAccessHistory1785100000000 {
    */
   async down(queryRunner) {
     await queryRunner.query(`DROP INDEX "public"."IDX_aab22f509e4cf0a1856adefa45"`);
+
+    // Lossy rollback by nature: after level changes or revoke-and-regrant there are several rows
+    // per (accountId, userDataId), so the original full unique index cannot be recreated without
+    // first consolidating. Keep the currently active row for each pair; if none is active, keep
+    // the most recent row (highest id). Delete remaining history, then restore the old schema.
+    await queryRunner.query(`
+      DELETE FROM "custody_account_access" AS caa
+      WHERE caa."id" NOT IN (
+        SELECT kept."id"
+        FROM (
+          SELECT DISTINCT ON ("accountId", "userDataId") "id"
+          FROM "custody_account_access"
+          ORDER BY "accountId", "userDataId",
+            CASE WHEN "active" = true THEN 0 ELSE 1 END,
+            "id" DESC
+        ) AS kept
+      )
+    `);
+
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_380e225bfd7707fff0e4f98035" ON "custody_account_access" ("accountId", "userDataId") `,
+      `CREATE UNIQUE INDEX "IDX_380e225bfd7707fff0e4f98035" ON "custody_account_access" ("accountId", "userDataId")`,
     );
     await queryRunner.query(`ALTER TABLE "custody_account_access" DROP COLUMN "deactivatedAt"`);
     await queryRunner.query(`ALTER TABLE "custody_account_access" DROP COLUMN "active"`);
