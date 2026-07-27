@@ -65,6 +65,22 @@ export class KycStepBase {
   sequenceNumber: number;
 }
 
+export class KycStepSubmitDto extends KycStepBase {
+  @ApiProperty({
+    description:
+      'Whether the submission fulfills all required fields and advanced the step (e.g. completed or internal review). Draft data is still stored when false.',
+  })
+  complete: boolean;
+
+  @ApiProperty({
+    description:
+      'Keys of missing required fields when complete is false; empty when complete is true. Financial: unanswered applicable question keys; personal data: missing requiredKycFields names.',
+    type: String,
+    isArray: true,
+  })
+  missingFields: string[];
+}
+
 export class KycStepDto extends KycStepBase {
   @ApiProperty()
   isCurrent: boolean;

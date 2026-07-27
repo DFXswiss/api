@@ -10,6 +10,14 @@ export class KycFinancialOption {
   text: string;
 }
 
+export class KycFinancialCondition {
+  @ApiProperty({ description: 'Question key this condition depends on' })
+  question: string;
+
+  @ApiProperty({ description: 'Response value that makes the dependent question applicable' })
+  response: string;
+}
+
 export class KycFinancialQuestion {
   @ApiProperty({ description: 'Question key' })
   key: string;
@@ -25,6 +33,14 @@ export class KycFinancialQuestion {
 
   @ApiPropertyOptional({ description: 'Response options', type: KycFinancialOption, isArray: true })
   options?: KycFinancialOption[];
+
+  @ApiPropertyOptional({
+    description:
+      'Conditions under which this question applies. If set, the question is only required when at least one condition matches the given responses.',
+    type: KycFinancialCondition,
+    isArray: true,
+  })
+  conditions?: KycFinancialCondition[];
 }
 
 export class KycFinancialOutData extends KycFinancialInData {

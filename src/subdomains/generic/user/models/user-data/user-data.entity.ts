@@ -864,8 +864,12 @@ export class UserData extends IEntity {
     );
   }
 
+  get missingKycFields(): string[] {
+    return this.requiredKycFields.filter((f) => !this[f]);
+  }
+
   get isDataComplete(): boolean {
-    return this.requiredKycFields.every((f) => this[f]);
+    return this.missingKycFields.length === 0;
   }
 
   get requiredInvoiceFields(): string[] {

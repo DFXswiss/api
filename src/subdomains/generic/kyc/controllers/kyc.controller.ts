@@ -63,7 +63,7 @@ import { Start2faDto } from '../dto/input/start-2fa.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
 import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.dto';
+import { KycLevelDto, KycSessionDto, KycStepBase, KycStepSubmitDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
@@ -204,13 +204,13 @@ export class KycController {
   }
 
   @Put('data/personal/:id')
-  @ApiOkResponse({ type: KycStepBase })
+  @ApiOkResponse({ type: KycStepSubmitDto })
   @ApiUnauthorizedResponse(MergedResponse)
   async updatePersonalData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycPersonalData,
-  ): Promise<KycStepBase> {
+  ): Promise<KycStepSubmitDto> {
     return this.kycService.updatePersonalData(code, +id, data);
   }
 
@@ -438,7 +438,7 @@ export class KycController {
   }
 
   @Put('data/financial/:id')
-  @ApiOkResponse({ type: KycStepBase })
+  @ApiOkResponse({ type: KycStepSubmitDto })
   @ApiUnauthorizedResponse(MergedResponse)
   @ApiForbiddenResponse(TfaResponse)
   async updateFinancialData(
@@ -446,7 +446,7 @@ export class KycController {
     @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFinancialInData,
-  ): Promise<KycStepBase> {
+  ): Promise<KycStepSubmitDto> {
     return this.kycService.updateFinancialData(code, ip, +id, data);
   }
 

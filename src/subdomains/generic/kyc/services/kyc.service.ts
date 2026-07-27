@@ -72,7 +72,7 @@ import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.dto';
+import { KycLevelDto, KycSessionDto, KycStepBase, KycStepSubmitDto } from '../dto/output/kyc-info.dto';
 import {
   SumSubBlockLabels,
   SumSubRejectionLabels,
@@ -620,20 +620,22 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
-  async updatePersonalData(kycHash: string, stepId: number, data: KycPersonalData): Promise<KycStepBase> {
+  async updatePersonalData(kycHash: string, stepId: number, data: KycPersonalData): Promise<KycStepSubmitDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.PERSONAL_DATA);
 
     user = await this.userDataService.updatePersonalData(user, data);
 
-    if (user.isDataComplete) {
+    const missingFields = user.missingKycFields;
+    const complete = missingFields.length === 0;
+    if (complete) {
       await this.kycStepRepo.update(...kycStep.complete(data));
       await this.createStepLog(user, kycStep);
     }
 
     await this.updateProgress(user, false);
 
-    return KycStepMapper.toStepBase(kycStep);
+    return { ...KycStepMapper.toStepBase(kycStep), complete, missingFields };
   }
 
   async updateKycStep(
@@ -883,7 +885,7 @@ export class KycService {
     ip: string,
     stepId: number,
     data: KycFinancialInData,
-  ): Promise<KycStepBase> {
+  ): Promise<KycStepSubmitDto> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.FINANCIAL_DATA);
 
@@ -891,7 +893,8 @@ export class KycService {
 
     await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
 
-    const complete = FinancialService.isComplete(data.responses, user.accountType);
+    const missingFields = FinancialService.getMissingFields(data.responses, user.accountType);
+    const complete = missingFields.length === 0;
     if (complete) {
       await this.kycStepRepo.update(...kycStep.internalReview());
       await this.createStepLog(user, kycStep);
@@ -899,7 +902,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return KycStepMapper.toStepBase(kycStep);
+    return { ...KycStepMapper.toStepBase(kycStep), complete, missingFields };
   }
 
   async updatePaymentData(kycHash: string, stepId: number, data: PaymentDataDto): Promise<KycStepBase> {

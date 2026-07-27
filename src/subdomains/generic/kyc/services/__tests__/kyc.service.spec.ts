@@ -7,6 +7,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { Country } from 'src/shared/models/country/country.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
@@ -14,6 +15,7 @@ import { UserDataService } from '../../../user/models/user-data/user-data.servic
 import { UserStatus } from '../../../user/models/user/user.enum';
 import { IdentDocument } from '../../dto/ident.dto';
 import { FileType, KycFileBlob } from '../../dto/kyc-file.dto';
+import { KycStepStatus } from '../../dto/output/kyc-info.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
@@ -572,5 +574,214 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
     await expect(service.checkDfxApproval(approvalUser())).rejects.toThrow('connection refused');
     expect(kycStepRepo.findOne).not.toHaveBeenCalled();
     expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// updatePersonalData / updateFinancialData return completeness feedback so clients know when a
+// draft submit did not advance the step (and which required fields are still missing).
+describe('KycService submit completeness feedback', () => {
+  let service: KycService;
+  let userDataService: jest.Mocked<UserDataService>;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+
+  const personalFinancialComplete = [
+    { key: 'tnc', value: 'accept' },
+    { key: 'own_funds', value: 'accept' },
+    { key: 'source_of_funds', value: 'employment_income' },
+    { key: 'occupation', value: 'employed' },
+    { key: 'occupation_description', value: 'Software engineer' },
+    { key: 'sector', value: 'it' },
+    { key: 'risky_business', value: 'no_risky_business' },
+    { key: 'income', value: '50k' },
+    { key: 'assets', value: '50k' },
+    { key: 'notification_of_changes', value: 'accept' },
+  ];
+
+  beforeEach(() => {
+    userDataService = createMock<UserDataService>();
+    kycStepRepo = createMock<KycStepRepository>();
+    kycStepRepo.update.mockResolvedValue(undefined as never);
+
+    service = Object.create(KycService.prototype);
+    (service as any).userDataService = userDataService;
+    (service as any).kycStepRepo = kycStepRepo;
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockImplementation(async (user: UserData) => user);
+    jest.spyOn(service as any, 'verify2fa').mockResolvedValue(undefined);
+  });
+
+  function financialStep(): KycStep {
+    return Object.assign(new KycStep(), {
+      id: 11,
+      name: KycStepName.FINANCIAL_DATA,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 0,
+    });
+  }
+
+  function personalStep(): KycStep {
+    return Object.assign(new KycStep(), {
+      id: 12,
+      name: KycStepName.PERSONAL_DATA,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 0,
+    });
+  }
+
+  function userWithPendingStep(step: KycStep, overrides: Partial<UserData> = {}): UserData {
+    const user = createCustomUserData({
+      kycHash: 'hash',
+      accountType: AccountType.PERSONAL,
+      kycSteps: [step],
+      ...overrides,
+    });
+    return user;
+  }
+
+  describe('updateFinancialData', () => {
+    it('returns complete=true with empty missingFields and moves the step to internal review', async () => {
+      const kycStep = financialStep();
+      const user = userWithPendingStep(kycStep);
+      jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+
+      const result = await service.updateFinancialData('hash', '1.2.3.4', 11, { responses: personalFinancialComplete });
+
+      expect(result.complete).toBe(true);
+      expect(result.missingFields).toEqual([]);
+      expect(kycStep.status).toBe(ReviewStatus.INTERNAL_REVIEW);
+      expect(result.status).toBe(KycStepStatus.IN_REVIEW);
+      expect(kycStepRepo.update).toHaveBeenCalledTimes(2);
+      expect(service['createStepLog']).toHaveBeenCalled();
+    });
+
+    it('returns complete=false with missing keys, keeps step out of review, still saves responses', async () => {
+      const kycStep = financialStep();
+      const user = userWithPendingStep(kycStep);
+      jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+
+      const partialResponses = [
+        { key: 'tnc', value: 'accept' },
+        { key: 'own_funds', value: 'accept' },
+      ];
+
+      const result = await service.updateFinancialData('hash', '1.2.3.4', 11, { responses: partialResponses });
+
+      expect(result.complete).toBe(false);
+      expect(result.missingFields).toEqual(
+        expect.arrayContaining([
+          'source_of_funds',
+          'occupation',
+          'sector',
+          'risky_business',
+          'income',
+          'assets',
+          'notification_of_changes',
+        ]),
+      );
+      expect(result.missingFields).not.toContain('occupation_description');
+      expect(kycStep.status).not.toBe(ReviewStatus.INTERNAL_REVIEW);
+      expect(kycStep.status).not.toBe(ReviewStatus.COMPLETED);
+      expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+      expect(kycStep.getResult()).toEqual(partialResponses);
+      expect(service['createStepLog']).not.toHaveBeenCalled();
+    });
+
+    it('does not list conditional questions when their condition is not met', async () => {
+      const kycStep = financialStep();
+      const user = userWithPendingStep(kycStep);
+      jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+
+      // sector=it / risky_business=no → sector_description and risky_business_description not applicable
+      const result = await service.updateFinancialData('hash', '1.2.3.4', 11, {
+        responses: personalFinancialComplete,
+      });
+
+      expect(result.complete).toBe(true);
+      expect(result.missingFields).toEqual([]);
+      expect(result.missingFields).not.toContain('sector_description');
+      expect(result.missingFields).not.toContain('risky_business_description');
+    });
+
+    it('lists conditional questions when their condition is met and they are unanswered', async () => {
+      const kycStep = financialStep();
+      const user = userWithPendingStep(kycStep);
+      jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+
+      const responses = [
+        { key: 'tnc', value: 'accept' },
+        { key: 'own_funds', value: 'accept' },
+        { key: 'source_of_funds', value: 'employment_income' },
+        { key: 'occupation', value: 'self_employed' },
+        // occupation_description missing
+        { key: 'sector', value: 'other' },
+        // sector_description missing
+        { key: 'risky_business', value: 'yes_risky_business' },
+        // risky_business_description missing
+        { key: 'income', value: '50k' },
+        { key: 'assets', value: '50k' },
+        { key: 'notification_of_changes', value: 'accept' },
+      ];
+
+      const result = await service.updateFinancialData('hash', '1.2.3.4', 11, { responses });
+
+      expect(result.complete).toBe(false);
+      expect(result.missingFields).toEqual(
+        expect.arrayContaining(['occupation_description', 'sector_description', 'risky_business_description']),
+      );
+      expect(kycStep.status).not.toBe(ReviewStatus.INTERNAL_REVIEW);
+      expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('updatePersonalData', () => {
+    it('returns complete=false with missing required field names when data is incomplete', async () => {
+      const kycStep = personalStep();
+      const incompleteUser = userWithPendingStep(kycStep, {
+        firstname: undefined,
+        surname: undefined,
+        phone: undefined,
+        street: 'Street',
+        location: 'City',
+        zip: '8000',
+        mail: 'a@b.com',
+        accountType: AccountType.PERSONAL,
+      });
+      jest.spyOn(service as any, 'getUser').mockResolvedValue(incompleteUser);
+      userDataService.updatePersonalData.mockResolvedValue(incompleteUser);
+
+      const result = await service.updatePersonalData('hash', 12, {} as any);
+
+      expect(result.complete).toBe(false);
+      expect(result.missingFields).toEqual(expect.arrayContaining(['firstname', 'surname', 'phone']));
+      expect(kycStep.status).toBe(ReviewStatus.IN_PROGRESS);
+      expect(kycStepRepo.update).not.toHaveBeenCalled();
+      expect(service['createStepLog']).not.toHaveBeenCalled();
+    });
+
+    it('returns complete=true and completes the step when personal data is complete', async () => {
+      const kycStep = personalStep();
+      const completeUser = userWithPendingStep(kycStep, {
+        firstname: 'Ada',
+        surname: 'Lovelace',
+        phone: '+41 79 000 00 00',
+        street: 'Street',
+        location: 'City',
+        zip: '8000',
+        mail: 'a@b.com',
+        accountType: AccountType.PERSONAL,
+        country: createCustomCountry({ id: 1 }),
+      });
+      jest.spyOn(service as any, 'getUser').mockResolvedValue(completeUser);
+      userDataService.updatePersonalData.mockResolvedValue(completeUser);
+
+      const result = await service.updatePersonalData('hash', 12, {} as any);
+
+      expect(result.complete).toBe(true);
+      expect(result.missingFields).toEqual([]);
+      expect(kycStep.status).toBe(ReviewStatus.COMPLETED);
+      expect(result.status).toBe(KycStepStatus.COMPLETED);
+      expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+      expect(service['createStepLog']).toHaveBeenCalled();
+    });
   });
 });
