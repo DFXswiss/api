@@ -102,7 +102,7 @@ Entity: `src/subdomains/core/liquidity-management/entities/liquidity-balance.ent
   `mail` is **filter-only** (not in `columns`): WHERE `=` only (case-insensitive; not under
   `NOT`; no `IN`), never selected / ordered / grouped. CLI:
   `scripts/db-debug.sh --user-by-mail [N]` (default limit 100, integer 1..10000; trailing args
-  rejected; interactive TTY prompts on stderr) or
+  rejected by count; interactive TTY prompts on stderr with input hidden) or
   `scripts/db-debug.sh --user-by-mail [N] < address.txt`. Prefer interactive entry or a
   protected file — do not pipe via `echo` (that would put the address in echo's argv). The
   address is read from stdin, passed into `jq` via stdin (not `--arg`), and request bodies go
@@ -110,11 +110,11 @@ Entity: `src/subdomains/core/liquidity-management/entities/liquidity-balance.ent
   `--query '<json>'` is different: the complete DTO (including any mail value inside it) sits
   in the script's own argv and in shell history. For hand-built mail predicates, use
   `--query @file` or `--query -` (stdin / heredoc), not inline JSON. `--user-by-mail` is
-  unaffected (address always from stdin). The script does not print the address; the payload
-  echo redacts WHERE values. At a TTY the terminal may echo typed input into scrollback —
-  accepted: the operator already knows the address; the guarantee is that the endpoint does
-  not disclose unknown addresses and that the value does not reach process lists or logs that
-  others read. Audit-log and error-path redaction hold under normal production config
+  unaffected (address always from stdin). The script does not print the address; error
+  messages are value-free (no submitted limit, trailing arg, or address is echoed); the
+  payload echo redacts WHERE values. At a TTY the prompt states that input is hidden and
+  read uses echo-off, so the address does not enter terminal scrollback; pipes use plain
+  read. Audit-log and error-path redaction hold under normal production config
   (`SQL_LOGGING` unset, so TypeORM query logging is off — see
   `src/shared/services/typeorm-logger.ts`). Enabling SQL query logging (`SQL_LOGGING`) makes
   TypeORM print bound parameters — including the address — for successful queries, which

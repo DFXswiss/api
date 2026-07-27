@@ -40,7 +40,7 @@ request implies a write, refuse and explain why.
 | `--asset-history <id\|Blockchain/Name> [N]` | balance history for one asset (default 10) |
 | `--referral-chain <userDataId>` | referral chain upward |
 | `--referral-tree <userDataId>` | full referral tree with status |
-| `--user-by-mail [N]` | resolve `user_data` id(s) from a known mail on stdin (filter-only; mail never returned; not in process argv; script does not print it; payload echo redacts WHERE values; TTY may echo typed input into scrollback — accepted; audit/error redaction holds when SQL query logging is off / prod `SQL_LOGGING` unset; default limit 100, integer 1..10000, trailing args rejected; one mail can match several rows) |
+| `--user-by-mail [N]` | resolve `user_data` id(s) from a known mail on stdin (filter-only; mail never returned; not in process argv; script does not print it; errors never echo submitted values; payload echo redacts WHERE values; TTY prompt hides typed input; audit/error redaction holds when SQL query logging is off / prod `SQL_LOGGING` unset; default limit 100, integer 1..10000, trailing args rejected by count; one mail can match several rows) |
 | `--get <table> [col1,col2,...] [limit]` | ad-hoc: fetch columns (default `id,created,updated`) from any allowlisted table (default limit 100) |
 | `--query <json\|@file\|->` | ad-hoc: POST an arbitrary structured DTO (inline JSON, `@file`, or `-` to read the DTO from stdin). Inline puts the full DTO in the script's argv and shell history; for sensitive values (e.g. `user_data.mail`) use `@file` or `-` |
 | `--help` | full usage |
@@ -64,10 +64,11 @@ scripts/db-debug.sh --get user_data
 scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50
 
 # Resolve user_data id(s) from a known mail on stdin (filter-only; mail is never returned).
-# Address on stdin — not in process argv; script does not print it; payload echo redacts
-# WHERE values. Prefer interactive entry or a protected file over piping via `echo`
-# (which would put the address in echo's argv). Optional N is integer 1..10000 (default 100).
-scripts/db-debug.sh --user-by-mail   # interactive: prompts "Mail address: " on stderr
+# Address on stdin — not in process argv; script does not print it; errors never echo
+# submitted values; payload echo redacts WHERE values. Prefer interactive entry or a
+# protected file over piping via `echo` (which would put the address in echo's argv).
+# Optional N is integer 1..10000 (default 100); trailing args rejected by count.
+scripts/db-debug.sh --user-by-mail   # interactive: prompts "Mail address (input hidden): "
 scripts/db-debug.sh --user-by-mail < address.txt
 scripts/db-debug.sh --user-by-mail 50 < address.txt
 

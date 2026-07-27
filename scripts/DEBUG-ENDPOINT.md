@@ -87,10 +87,10 @@ with the wallet at `DEBUG_ADDRESS`.
 ./scripts/db-debug.sh --referral-tree  370625
 
 # Resolve user_data id(s) from a mail you already know (filter-only; mail is never returned).
-# Address on stdin — not in process argv; script does not print it; payload echo redacts
-# WHERE values. Prefer interactive entry or a protected file over piping via `echo` (which
-# would put the address in echo's argv).
-./scripts/db-debug.sh --user-by-mail   # interactive: prompts "Mail address: " on stderr
+# Address on stdin — not in process argv; script does not print it; errors never echo
+# submitted values; payload echo redacts WHERE values. Prefer interactive entry or a
+# protected file over piping via `echo` (which would put the address in echo's argv).
+./scripts/db-debug.sh --user-by-mail   # interactive: prompts "Mail address (input hidden): "
 ./scripts/db-debug.sh --user-by-mail < address.txt
 ./scripts/db-debug.sh --user-by-mail 50 < address.txt
 ```
@@ -125,8 +125,8 @@ they already have; the endpoint must not become a way to read addresses out. Sel
 Convenience mode and equivalent raw DTO:
 
 ```bash
-# Interactive (TTY prompts on stderr) or from a protected file — avoid `echo … |`
-# so the address never lands in an external process's argv.
+# Interactive (TTY prompts on stderr with input hidden) or from a protected file —
+# avoid `echo … |` so the address never lands in an external process's argv.
 ./scripts/db-debug.sh --user-by-mail
 ./scripts/db-debug.sh --user-by-mail < address.txt
 
@@ -161,16 +161,16 @@ filter-only column such as `user_data.mail` — use `--query @file` or `--query 
 instead. `--user-by-mail` reads the address from stdin (not a positional argument). The
 address is passed into `jq` via stdin (not `--arg`) and every request body is sent with
 `curl … -d @-`. Under that mode the address is not placed in any process's argv. The script
-does not print the address, and the payload echo redacts WHERE leaf values (`<scalar>` /
-`<array:N>`, matching `serializeDebugQueryForAudit`). At a TTY the terminal may echo typed
-input into scrollback — accepted: the operator is entering an address they already know; the
-guarantee is that the endpoint does not disclose unknown addresses and that the value does
-not reach process lists or logs that others read. Audit-log and error-path redaction hold
-under normal production config (`SQL_LOGGING` unset, so TypeORM query logging is off — see
-the comment in `src/shared/services/typeorm-logger.ts`). Enabling SQL query logging
-(`SQL_LOGGING`) makes TypeORM print bound parameters — including the address — for
-successful queries, which defeats that redaction. Optional `[N]` on `--user-by-mail` is an
-integer in `1..10000` (server DTO cap); default remains 100.
+does not print the address; error messages are value-free (no submitted limit, trailing arg,
+or address is echoed); and the payload echo redacts WHERE leaf values (`<scalar>` /
+`<array:N>`, matching `serializeDebugQueryForAudit`). At a TTY the prompt states that input
+is hidden and read uses echo-off, so the address does not enter terminal scrollback; pipes
+use plain read. Audit-log and error-path redaction hold under normal production config
+(`SQL_LOGGING` unset, so TypeORM query logging is off — see the comment in
+`src/shared/services/typeorm-logger.ts`). Enabling SQL query logging (`SQL_LOGGING`) makes
+TypeORM print bound parameters — including the address — for successful queries, which
+defeats that redaction. Optional `[N]` on `--user-by-mail` is an integer in `1..10000`
+(server DTO cap); default remains 100; extra arguments are rejected by count.
 
 ## Security Notes
 
