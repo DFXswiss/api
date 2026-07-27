@@ -34,6 +34,13 @@ const BLANK_NAMES = [
   '\u0020\u0009\u00a0\u3000\u0020', // mixed
 ];
 
+// Every character the JS runtime treats as blank, derived from the runtime rather than from BlankChars:
+// fixtures generated from the constant under test would shrink along with it and could never catch a
+// character dropped from it.
+const JS_BLANK_CHARS = Array.from({ length: 0x10000 }, (_, code) => String.fromCharCode(code)).filter(
+  (char) => char.trim() === '',
+);
+
 // Real identifications, including ones padded with the same characters — padding must never disqualify.
 const REAL_NAMES = [
   'Alice Example',
@@ -90,10 +97,18 @@ describeDb('staff KYC clearance verifiedName predicate (real Postgres)', () => {
     await expect(selectMatching([name])).resolves.toEqual([name]);
   });
 
+  // Guards the character set itself: drop a character from BlankChars and a name consisting of it starts
+  // clearing an account. The named cases above stay for readability — this one is the exhaustive check.
+  it('excludes every character the JS runtime treats as blank', async () => {
+    expect(JS_BLANK_CHARS.length).toBeGreaterThan(20); // sanity: the derivation actually found them
+
+    await expect(selectMatching(JS_BLANK_CHARS)).resolves.toEqual([]);
+  });
+
   // The property that matters: the SQL predicate and the JS check it replaced must agree on every input.
   // A disagreement here is either a locked-out staff member or a cleared account with no identification.
   it('agrees with String.prototype.trim() on every case', async () => {
-    const all = [null, ...BLANK_NAMES, ...REAL_NAMES];
+    const all = [null, ...BLANK_NAMES, ...JS_BLANK_CHARS, ...REAL_NAMES];
 
     const fromSql = await selectMatching(all);
     const fromJs = all.filter((name) => name?.trim());

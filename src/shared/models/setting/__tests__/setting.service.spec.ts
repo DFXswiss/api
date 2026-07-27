@@ -1,8 +1,9 @@
+import { ForbiddenException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Setting } from '../setting.entity';
 import { SettingRepository } from '../setting.repository';
-import { SettingService } from '../setting.service';
+import { SettingService, SystemManagedSettings } from '../setting.service';
 
 describe('SettingService', () => {
   let service: SettingService;
@@ -70,6 +71,38 @@ describe('SettingService', () => {
       mockSettings({ jwtAccountDenylistAuto: [5, 6] });
 
       await expect(service.getDeniedJwtAccounts()).resolves.toEqual([5, 6]);
+    });
+  });
+
+  describe('set', () => {
+    it('writes an ordinary setting', async () => {
+      await service.set('someOpsFlag', 'true');
+
+      expect(settingRepo.save).toHaveBeenCalled();
+    });
+
+    // `staffKycClearance` decides who reaches every elevated endpoint and is derived from KYC data by a
+    // sync job. A manual write through the generic setter would grant elevated access to accounts that
+    // never passed KYC, and would stay live until the next sync run overwrote it. The check sits here
+    // rather than in the controller so every caller of `set` is covered, not just the HTTP route.
+    describe.each(SystemManagedSettings)('system-managed setting %s', (key) => {
+      it('is rejected, without writing', async () => {
+        await expect(service.set(key, '[1,2,3]')).rejects.toBeInstanceOf(ForbiddenException);
+
+        expect(settingRepo.save).not.toHaveBeenCalled();
+      });
+    });
+
+    it('lists staffKycClearance as system-managed', () => {
+      expect(SystemManagedSettings).toContain('staffKycClearance');
+    });
+
+    // The sync path writes through `setObj`, which goes to the repository directly — blocking it would
+    // freeze the allowlist at whatever it happened to contain.
+    it('still allows the sync path to write the clearance through setObj', async () => {
+      await service.setObj('staffKycClearance', [1, 2]);
+
+      expect(settingRepo.save).toHaveBeenCalled();
     });
   });
 

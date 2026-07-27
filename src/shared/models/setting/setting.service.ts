@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { Process } from 'src/shared/services/process.service';
@@ -27,6 +27,11 @@ export class SettingService {
   }
 
   async set(key: string, value: string): Promise<void> {
+    // Sync-owned settings are not writable through the generic setter — see SystemManagedSettings.
+    // `setObj` (the sync path) writes to the repository directly and is deliberately unaffected.
+    if (SystemManagedSettings.includes(key))
+      throw new ForbiddenException(`Setting ${key} is maintained by the system and cannot be set manually`);
+
     await this.validateSettingValue(key, value);
 
     const entity = (await this.settingRepo.findOneBy({ key })) ?? this.settingRepo.create({ key });
@@ -135,7 +140,7 @@ export class SettingService {
   // No manual-override counterpart on purpose: the clearance is a KYC fact, not an ops decision — an
   // editable override would be a way to hand out admin access without the identification behind it.
   // The generic `PUT /setting/:key` route would be exactly such an override, which is why the key is
-  // listed in `SystemManagedSettings` below and rejected there.
+  // listed in `SystemManagedSettings` above and rejected by `set`.
   async getStaffKycClearance(): Promise<number[]> {
     return this.getObj<(string | number)[]>('staffKycClearance', []).then((list) => list.map(Number));
   }

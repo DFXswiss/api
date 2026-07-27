@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { getBankHolidayInfoBanner, isBankHoliday } from 'src/config/bank-holiday.config';
@@ -9,7 +9,7 @@ import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { InfoBannerDto, InfoBannerSetting } from './dto/info-banner.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
-import { SettingService, SystemManagedSettings } from './setting.service';
+import { SettingService } from './setting.service';
 
 @ApiTags('Setting')
 @Controller('setting')
@@ -56,11 +56,6 @@ export class SettingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateSetting(@Param('key') key: string, @Body() { value }: { value: string }): Promise<void> {
-    // Sync-owned settings are not operator-editable — see SystemManagedSettings. Without this, the
-    // generic setter is a way to grant elevated access to accounts that never passed KYC.
-    if (SystemManagedSettings.includes(key))
-      throw new ForbiddenException(`Setting ${key} is maintained by the system and cannot be set manually`);
-
     return this.settingService.set(key, value);
   }
 }
