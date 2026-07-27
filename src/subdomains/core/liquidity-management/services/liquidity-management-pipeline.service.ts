@@ -288,7 +288,7 @@ export class LiquidityManagementPipelineService {
 
         if (resolution === UncertainOrderResolution.SENT) {
           order.resolveAsSent();
-          if (await this.leaveQuarantine(order)) {
+          if ((await this.leaveQuarantine(order)) || (await this.reclaimFromNegativeResolution(order))) {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
           }
@@ -331,6 +331,48 @@ export class LiquidityManagementPipelineService {
       this.logger.info(`Uncertain liquidity order ${order.id} was already resolved elsewhere, skipping`);
       return false;
     }
+
+    return true;
+  }
+
+  /**
+   * Undo a negative resolution that beat a positive observation to the write.
+   *
+   * The compare-and-set only decides who writes first, and first is not the same as right. If somebody
+   * released this order as not executed while we were busy watching the venue confirm it, the order is now
+   * failed — which lets its rule plan again against a position that is still live. An observation outranks a
+   * judgement, so it is taken back, and loudly.
+   */
+  private async reclaimFromNegativeResolution(order: LiquidityManagementOrder): Promise<boolean> {
+    const result = await this.orderRepo.update(
+      { id: order.id, status: LiquidityManagementOrderStatus.FAILED },
+      {
+        status: LiquidityManagementOrderStatus.IN_PROGRESS,
+        errorMessage: `${order.errorMessage} (reinstated: the venue confirmed this request exists after it had been resolved as not executed)`,
+        correlationId: order.correlationId,
+        previousCorrelationIds: order.previousCorrelationIds,
+      },
+    );
+
+    if (!result.affected) return false;
+
+    this.logger.error(
+      `Liquidity order ${order.id} had been resolved as not executed, but the venue confirms it exists — reinstated as in progress`,
+    );
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.LIQUIDITY_MANAGEMENT,
+      correlationId: `lm-order-reinstated-${order.id}`,
+      options: { debounce: 3600000 },
+      input: {
+        subject: 'Liquidity management order REINSTATED',
+        errors: [
+          `Order ${order.id} was resolved as not executed, but the venue confirms reference ${order.correlationId} exists. ` +
+            `It has been put back to in progress. Whoever released it should be told that the check missed it.`,
+        ],
+      },
+    });
 
     return true;
   }

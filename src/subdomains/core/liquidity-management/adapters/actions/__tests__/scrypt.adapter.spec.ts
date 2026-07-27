@@ -232,6 +232,15 @@ describe('ScryptAdapter', () => {
       await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).resolves.toBe(false);
     });
 
+    it('also stops retrying when the error is a transient transport one', async () => {
+      jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new Error('Connection closed'));
+      const old = createUncertainSellOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
+
+      await expect(adapter['checkTradeCompletion'](old, 'EUR', 'USDT')).rejects.toBeInstanceOf(
+        OrderOutcomeUnknownException,
+      );
+    });
+
     it('stops retrying an order it has been unable to observe for too long, and quarantines it', async () => {
       // otherwise it polls for good: the manual path only accepts quarantined orders, so there would be no
       // way out at all
@@ -350,27 +359,43 @@ describe('ScryptAdapter', () => {
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
     });
 
-    it('finds a replacement the venue accepted but never confirmed, and tracks its reference', async () => {
-      // the amend boundary: the original is unknown to the venue, the replacement is live
+    it('finds a claimed replacement the venue accepted but never confirmed, and tracks its reference', async () => {
+      // the amend boundary: the original is unknown to the venue, the claimed replacement is live
       jest
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) => (id === 'dfx-lm-4711-1' ? ({ id } as any) : null));
       const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
       expect(order.correlationId).toBe('dfx-lm-4711-1');
     });
 
-    it('stays quarantined when the newest reference is not (yet) visible, even if the predecessor is', async () => {
+    it('checks the reference that was actually sent, never a synthesised future one', async () => {
+      // regression guard: reconciling a freshly quarantined order used to start at an unsent reference,
+      // stop on its meaningless absence, and never look at the one that had really gone out
+      const seen: string[] = [];
+      jest.spyOn(scryptService, 'getOrderStatus').mockImplementation(async (id: string) => {
+        seen.push(id);
+        return { id, status: ScryptOrderStatus.NEW } as any;
+      });
+
+      await expect(adapter.resolveUncertainOrder(createUncertainSellOrder())).resolves.toBe(
+        UncertainOrderResolution.SENT,
+      );
+      expect(seen).toEqual(['dfx-lm-4711']);
+    });
+
+    it('stays quarantined when a claimed replacement is not (yet) visible, even if the predecessor is', async () => {
       // an accepted replacement may lag in the venue's view; falling back to the order it replaced would
       // report SENT on a superseded reference and leave the live replacement untracked
       jest
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? ({ id } as any) : null));
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
 
-      await expect(adapter.resolveUncertainOrder(createUncertainSellOrder())).resolves.toBe(
-        UncertainOrderResolution.UNRESOLVED,
-      );
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
 
     it('falls back to the predecessor only after the replacement was explicitly rejected', async () => {
@@ -383,6 +408,7 @@ describe('ScryptAdapter', () => {
               : { id, status: ScryptOrderStatus.NEW }) as any,
         );
       const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
       expect(order.correlationId).toBe('dfx-lm-4711');
@@ -395,6 +421,7 @@ describe('ScryptAdapter', () => {
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) => ({ id, status: ScryptOrderStatus.NEW }) as any);
       const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
       expect(order.correlationId).toBe('dfx-lm-4711-1');

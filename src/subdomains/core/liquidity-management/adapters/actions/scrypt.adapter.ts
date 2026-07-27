@@ -8,7 +8,6 @@ import {
 } from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import {
-  isTransientWsError,
   isVenueRejection,
   ScryptAmendRejectedError,
   ScryptOrderNotFoundError,
@@ -303,11 +302,6 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         return false;
       }
 
-      if (isTransientWsError(e)) {
-        this.logger.warn(`Transient WS error checking order ${order.id}, will retry next tick: ${e.message}`);
-        return false;
-      }
-
       // The venue once acknowledged this order and now cannot find it. That is not a failure — it may have
       // filled or been cancelled outside our view — so it goes to a human instead of releasing the rule.
       if (e instanceof ScryptOrderNotFoundError) throw new OrderOutcomeUnknownException(e.message);
@@ -323,6 +317,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // accepts quarantined orders, so there would be no way out at all. Past the same age at which the venue
       // itself is considered to have lost an order, it is quarantined — still not declared failed, and now
       // reachable for a human.
+      // Applies to a transient transport error just as much as to any other failure to observe: a socket that
+      // keeps dropping is indistinguishable, from here, from one that will never answer again.
       if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
         throw new OrderOutcomeUnknownException(
           `Scrypt order ${order.id} has been unobservable for over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes: ${e.message}`,
@@ -331,6 +327,21 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       this.logger.warn(`Could not check Scrypt order ${order.id}, will look again next tick: ${e.message}`);
       return false;
     }
+  }
+
+  /**
+   * Every reference this order has actually put on the wire, newest first.
+   *
+   * Ordered by the attempt suffix rather than by storage order, so it does not depend on how the list was
+   * assembled. Deliberately does NOT include the next reference: that one has not been sent, and looking for
+   * it would stop the search on an absence that means nothing — leaving the reference that WAS sent unchecked
+   * and the order quarantined for good.
+   */
+  private attemptedReferencesNewestFirst(order: LiquidityManagementOrder): CorrelationId[] {
+    const attemptNumber = (reference: CorrelationId): number =>
+      Number(reference.slice(`${SCRYPT_CORRELATION_PREFIX}${order.id}-`.length)) || 0;
+
+    return [...order.allCorrelationIds].sort((a, b) => attemptNumber(b) - attemptNumber(a));
   }
 
   /**
@@ -513,7 +524,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // Newest first. A replacement supersedes the order it replaced, and the replaced one usually still
         // exists at the venue in a cancelled state — checking oldest first would match that, report SENT and
         // leave the live replacement untracked while the completion check polls a superseded reference.
-        const candidates = [this.nextCorrelationId(order), ...order.allCorrelationIds];
+        const candidates = this.attemptedReferencesNewestFirst(order);
 
         for (const candidate of candidates) {
           const info = await this.scryptService.getOrderStatus(candidate);
