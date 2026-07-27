@@ -58,25 +58,35 @@ export class CustodyService {
 
     const account = await this.userDataService.getActiveUserData(accountId, { users: true });
 
-    // Inherit via DB lookup of siblings — never from unloaded users.custodyAccount relations.
-    const materialisedAccount = await this.custodyAccountResolver.resolveAccountForNewCustodyUser(account.id);
+    // Resolve-and-insert under the same owner-scoped advisory lock as legacy materialisation
+    // so a concurrent materialise cannot leave this user permanently outside the Safe.
+    // Unrelated prep (wallet, signing, owner load) stays outside the lock.
+    const custodyUser = await this.custodyAccountResolver.withLegacyMaterializeLockForOwner(
+      account.id,
+      async (manager) => {
+        const materialisedAccount = await this.custodyAccountResolver.resolveAccountForNewCustodyUser(
+          account.id,
+          manager,
+        );
 
-    const custodyUser = await this.userService.createUser(
-      {
-        address: custodyWallet.address,
-        signature,
-        usedRef: dto.usedRef,
-        ip: userIp,
-        origin: ref?.origin,
-        wallet,
-        userData: account,
-        custodyAddressType: dto.addressType,
-        custodyAddressIndex: addressIndex,
-        role: UserRole.CUSTODY,
-        custodyAccount: materialisedAccount,
+        return this.userService.createUser(
+          {
+            address: custodyWallet.address,
+            signature,
+            usedRef: dto.usedRef,
+            ip: userIp,
+            origin: ref?.origin,
+            wallet,
+            userData: account,
+            custodyAddressType: dto.addressType,
+            custodyAddressIndex: addressIndex,
+            role: UserRole.CUSTODY,
+            custodyAccount: materialisedAccount,
+          },
+          dto.specialCode,
+          dto.moderator,
+        );
       },
-      dto.specialCode,
-      dto.moderator,
     );
 
     return { accessToken: this.authService.generateUserToken(custodyUser, userIp) };
@@ -106,11 +116,12 @@ export class CustodyService {
   }
 
   async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {
-    // Resolve from the user id in the DB — never from a possibly unloaded relation.
-    const account = await this.custodyAccountResolver.resolveAccountForUser(user.id);
-    const entity = this.custodyBalanceRepo.create({ user, asset, balance, account });
-
-    return this.custodyBalanceRepo.save(entity);
+    // Resolve-and-insert under the same owner-scoped advisory lock as legacy materialisation.
+    return this.custodyAccountResolver.withLegacyMaterializeLockForUser(user.id, async (manager) => {
+      const account = await this.custodyAccountResolver.resolveAccountForUser(user.id, manager);
+      const entity = manager.create(CustodyBalance, { user, asset, balance, account });
+      return manager.save(entity);
+    });
   }
 
   async updateCustodyBalanceForOrder(order: CustodyOrder): Promise<void> {

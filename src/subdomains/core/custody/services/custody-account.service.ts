@@ -19,6 +19,7 @@ import { CustodyAccessLevel, CustodyAccountStatus } from '../enums/custody';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
 import { CustodyAccountAccessRepository } from '../repositories/custody-account-access.repository';
 import { CustodyAccountRepository } from '../repositories/custody-account.repository';
+import { acquireCustodyLegacyMaterializeLock } from './custody-account-resolver.service';
 
 export const LegacyAccountId = 'legacy';
 export type CustodyAccountId = number | typeof LegacyAccountId;
@@ -375,10 +376,8 @@ export class CustodyAccountService {
     }
 
     return this.custodyAccountRepo.manager.transaction(async (manager) => {
-      // Serialize concurrent materialisations for the same owner
-      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        `custody-legacy-materialize:${ownerAccountId}`,
-      ]);
+      // Serialize concurrent materialisations and resolve-and-create paths for the same owner
+      await acquireCustodyLegacyMaterializeLock(manager, ownerAccountId);
 
       const existingAccounts = await manager.find(CustodyAccount, {
         where: { owner: { id: ownerAccountId } },
@@ -391,7 +390,7 @@ export class CustodyAccountService {
       }
 
       const account = await this.persistCustodyAccount(manager, owner, 'Custody');
-      await this.attachLegacyCustodyData(manager, account, owner);
+      await this.attachLegacyCustodyData(manager, account, ownerAccountId);
 
       return this.createGrant(manager, account, target, accessLevel);
     });
@@ -400,9 +399,16 @@ export class CustodyAccountService {
   private async attachLegacyCustodyData(
     manager: EntityManager,
     account: CustodyAccount,
-    owner: UserData,
+    ownerAccountId: number,
   ): Promise<void> {
-    const custodyUserIds = owner.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
+    // Select custody users inside the locked transaction so rows created just before we
+    // acquired the lock (and committed under that same lock) are part of the sweep.
+    // Do not use a preloaded `owner.users` collection loaded outside the transaction.
+    const custodyUsers = await manager.find(User, {
+      where: { userData: { id: ownerAccountId }, role: UserRole.CUSTODY },
+      select: { id: true },
+    });
+    const custodyUserIds = custodyUsers.map((u) => u.id);
     if (custodyUserIds.length === 0) return;
 
     // Set the `account` relation itself — there is no `accountId` property on the entities,
