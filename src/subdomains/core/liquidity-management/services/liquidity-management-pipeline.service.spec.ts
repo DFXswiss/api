@@ -170,10 +170,11 @@ describe('LiquidityManagementPipelineService', () => {
     }
 
     /** An order a not-sent resolution has already failed — what the reclaim has to be able to take back. */
-    function negativelyResolvedOrder(): LiquidityManagementOrder {
+    function negativelyResolvedOrder(recheckDue = new Date('2026-07-27T20:00:00Z')): LiquidityManagementOrder {
       return Object.assign(uncertainOrder(), {
         status: LiquidityManagementOrderStatus.FAILED,
         errorMessage: 'Scrypt did not answer (venue confirmed the request never arrived) [resolved-as-not-sent]',
+        notSentRecheckDue: recheckDue,
       });
     }
 
@@ -217,7 +218,7 @@ describe('LiquidityManagementPipelineService', () => {
       const [uncertain, reclaimable] = findBy.mock.calls[0][0] as FindOptionsWhere<LiquidityManagementOrder>[];
       expect(uncertain).toEqual({ status: LiquidityManagementOrderStatus.UNCERTAIN });
       expect(reclaimable.status).toBe(LiquidityManagementOrderStatus.FAILED);
-      expect(reclaimable.notSentResolvedAt).toBeDefined();
+      expect(reclaimable.notSentRecheckDue).toBeDefined();
       expect(reclaimable.errorMessage).toBeUndefined();
     });
 
@@ -230,9 +231,43 @@ describe('LiquidityManagementPipelineService', () => {
       await service['resolveUncertainOrders']();
 
       expect(update).toHaveBeenCalledWith(
-        { id: 9, status: LiquidityManagementOrderStatus.FAILED },
-        { notSentResolvedAt: null },
+        {
+          id: 9,
+          status: LiquidityManagementOrderStatus.FAILED,
+          notSentRecheckDue: new Date('2026-07-27T20:00:00Z'),
+        },
+        { notSentRecheckDue: null },
       );
+    });
+
+    it('cannot clear a newer resolution that was written while it was looking', async () => {
+      // the pass holds the marker it started from; a resolution written since owes a look of its own, and
+      // dropping ITS marker would discard exactly the obligation this mechanism exists to keep
+      const looked = negativelyResolvedOrder(new Date('2026-07-27T20:00:00Z'));
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([looked]);
+      const update = jest.spyOn(orderRepo, 'update');
+      stubIntegration(UncertainOrderResolution.UNRESOLVED);
+
+      await service['resolveUncertainOrders']();
+
+      const [where] = update.mock.calls[0];
+      expect(where).toMatchObject({ notSentRecheckDue: new Date('2026-07-27T20:00:00Z') });
+    });
+
+    it('releases a marked failure no integration can ever look up', async () => {
+      // otherwise every pass selects the row and skips it again, for as long as the row exists
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([negativelyResolvedOrder()]);
+      const update = jest.spyOn(orderRepo, 'update');
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+      });
+
+      await service['resolveUncertainOrders']();
+
+      expect(update).toHaveBeenCalledWith(expect.anything(), { notSentRecheckDue: null });
     });
 
     it('keeps a not-sent failure eligible when the venue confirms the order after all', async () => {
@@ -246,7 +281,7 @@ describe('LiquidityManagementPipelineService', () => {
 
       await service['resolveUncertainOrders']();
 
-      expect(update).not.toHaveBeenCalledWith(expect.anything(), { notSentResolvedAt: null });
+      expect(update).not.toHaveBeenCalledWith(expect.anything(), { notSentRecheckDue: null });
       expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
     });
 
@@ -366,8 +401,10 @@ describe('LiquidityManagementPipelineService', () => {
 
       await service['resolveUncertainOrders']();
 
-      expect(order.notSentResolvedAt).toBeInstanceOf(Date);
-      expect(update.mock.calls[0][1]).toMatchObject({ notSentResolvedAt: order.notSentResolvedAt });
+      expect(order.notSentRecheckDue).toBeInstanceOf(Date);
+      expect(update.mock.calls[0][1]).toMatchObject({ notSentRecheckDue: order.notSentRecheckDue });
+      // and the moment itself goes into the reason, which nothing clears
+      expect(order.errorMessage).toMatch(/never arrived, \d{4}-\d{2}-\d{2}T/);
     });
 
     it('keeps the order quarantined when the lookup itself throws', async () => {

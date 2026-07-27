@@ -286,18 +286,25 @@ export class LiquidityManagementPipelineService {
       { status: LiquidityManagementOrderStatus.UNCERTAIN },
       // Failed by a not-sent resolution and not looked at since. The pass that wrote it may have been racing
       // one that had just watched the venue confirm the same order, so an observation whose writes did not
-      // land is still applied here. Exactly one further look, marked and released by `notSentResolvedAt`:
+      // land is still applied here. Exactly one further look, marked and released by `notSentRecheckDue`:
       // an equality predicate on an indexed column, not a wildcard match over every failure ever recorded.
-      { status: LiquidityManagementOrderStatus.FAILED, notSentResolvedAt: Not(IsNull()) },
+      { status: LiquidityManagementOrderStatus.FAILED, notSentRecheckDue: Not(IsNull()) },
     ]);
     let anyChanged = false;
 
     for (const order of orders) {
+      const wasResolvedAsNotSent = order.status === LiquidityManagementOrderStatus.FAILED;
+
       try {
         const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
-        if (!actionIntegration.resolveUncertainOrder) continue;
 
-        const wasResolvedAsNotSent = order.status === LiquidityManagementOrderStatus.FAILED;
+        if (!actionIntegration.resolveUncertainOrder) {
+          // Nothing can look this order up, so the marked recheck can never happen. Left standing it would
+          // have every pass select the row and skip it again, for the rest of the row's life.
+          if (wasResolvedAsNotSent) await this.releaseNegativeResolution(order);
+          continue;
+        }
+
         const resolution = await actionIntegration.resolveUncertainOrder(order);
 
         // The look this row was kept for has now happened and found nothing to overrule the resolution
@@ -316,7 +323,8 @@ export class LiquidityManagementPipelineService {
           order.status === LiquidityManagementOrderStatus.UNCERTAIN
         ) {
           order.resolveAsNotSent(
-            `${order.errorMessage} (venue confirmed the request never arrived) ${UNSENT_RESOLUTION_MARKER}`,
+            `${order.errorMessage} (venue confirmed the request never arrived, ${new Date().toISOString()}) ` +
+              UNSENT_RESOLUTION_MARKER,
           );
           if (await this.leaveQuarantine(order)) {
             anyChanged = true;
@@ -335,8 +343,10 @@ export class LiquidityManagementPipelineService {
   /** Note that a not-sent resolution has had its one re-examination, so it stops being reconciled. */
   private async releaseNegativeResolution(order: LiquidityManagementOrder): Promise<void> {
     await this.orderRepo.update(
-      { id: order.id, status: LiquidityManagementOrderStatus.FAILED },
-      { notSentResolvedAt: null },
+      // Guarded on the exact marker this pass looked at. A newer resolution written in between owes a look
+      // of its own, and clearing ITS marker would drop the obligation this whole mechanism exists to keep.
+      { id: order.id, status: LiquidityManagementOrderStatus.FAILED, notSentRecheckDue: order.notSentRecheckDue },
+      { notSentRecheckDue: null },
     );
   }
 
@@ -408,7 +418,7 @@ export class LiquidityManagementPipelineService {
           ? {
               status: LiquidityManagementOrderStatus.UNCERTAIN,
               errorMessage: [current.errorMessage, message].filter((part) => part).join(' — '),
-              notSentResolvedAt: null,
+              notSentRecheckDue: null,
             }
           : { status: LiquidityManagementOrderStatus.UNCERTAIN },
       )
@@ -443,7 +453,7 @@ export class LiquidityManagementPipelineService {
         previousCorrelationIds: order.previousCorrelationIds,
         // carries the resolution's own marker: set by a not-sent resolution so reconciliation looks once
         // more, cleared by a positive one, and written here because this is where either becomes durable
-        notSentResolvedAt: order.notSentResolvedAt ?? null,
+        notSentRecheckDue: order.notSentRecheckDue ?? null,
       },
     );
 
@@ -488,7 +498,7 @@ export class LiquidityManagementPipelineService {
         errorMessage: `${current.errorMessage} (reinstated: the venue confirmed this request exists after it had been resolved as not executed)`,
         correlationId: order.correlationId,
         previousCorrelationIds: order.previousCorrelationIds,
-        notSentResolvedAt: null,
+        notSentRecheckDue: null,
       },
     );
 
@@ -596,7 +606,8 @@ export class LiquidityManagementPipelineService {
     }
 
     order.resolveAsNotSent(
-      `${order.errorMessage} (manually resolved by account ${resolvedBy}: venue checked, no execution found — ${verificationReference}) ${UNSENT_RESOLUTION_MARKER}`,
+      `${order.errorMessage} (manually resolved by account ${resolvedBy} at ${new Date().toISOString()}: ` +
+        `venue checked, no execution found — ${verificationReference}) ${UNSENT_RESOLUTION_MARKER}`,
     );
 
     if (!(await this.leaveQuarantine(order)))

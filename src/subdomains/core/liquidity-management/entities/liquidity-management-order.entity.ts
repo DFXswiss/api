@@ -58,8 +58,10 @@ export class LiquidityManagementOrder extends IEntity {
   previousOrderId?: number;
 
   /**
-   * Set when a not-sent resolution failed this order, and cleared by the first reconciliation pass that
-   * looks at it again.
+   * Set when a not-sent resolution failed this order, and cleared once reconciliation has looked at it again.
+   *
+   * A marker for work still owed, NOT a record of when the resolution happened — that belongs in the reason
+   * written onto the order, which is never cleared. Clearing this one only says the look has been taken.
    *
    * That one look is the whole purpose. The pass writing such a resolution may be racing another that has
    * just watched the venue confirm the very same order, and an observation that cannot be written would
@@ -68,7 +70,7 @@ export class LiquidityManagementOrder extends IEntity {
    */
   @Index()
   @Column({ type: 'timestamp', nullable: true })
-  notSentResolvedAt?: Date | null;
+  notSentRecheckDue?: Date | null;
 
   @Column({ type: 'text', nullable: true })
   correlationId?: string;
@@ -199,7 +201,7 @@ export class LiquidityManagementOrder extends IEntity {
   /** The venue confirmed it knows this order: leave quarantine and let the normal completion check take over. */
   resolveAsSent(): this {
     this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
-    this.notSentResolvedAt = null;
+    this.notSentRecheckDue = null;
 
     return this;
   }
@@ -208,7 +210,7 @@ export class LiquidityManagementOrder extends IEntity {
   resolveAsNotSent(reason: string): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
     this.errorMessage = reason;
-    this.notSentResolvedAt = new Date();
+    this.notSentRecheckDue = new Date();
 
     return this;
   }
