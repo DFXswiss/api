@@ -73,7 +73,13 @@
  * VERIFY_IGNORE_BUCKETS (non-document / system buckets) — unaccounted buckets fail hard.
  */
 
-import { GetObjectCommand, ListBucketsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  ListBucketsCommand,
+  ListObjectsV2Command,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
 import * as crypto from 'crypto';
 import * as dotenv from 'dotenv';
@@ -640,6 +646,11 @@ export interface ContainerClassification {
   s3Map: Map<string, ContentObject>;
 }
 
+export interface StabilizedContentClassification {
+  report: ContainerClassification;
+  resolvedConcurrentMissingKeys: number;
+}
+
 export function classifyContainer(
   container: string,
   azureObjs: ContentObject[],
@@ -701,6 +712,113 @@ export function classifyContainer(
   };
 }
 
+export function isS3NotFound(err: unknown): boolean {
+  const e = err as { $metadata?: { httpStatusCode?: number }; name?: string };
+  return e?.$metadata?.httpStatusCode === 404 || e?.name === 'NoSuchKey' || e?.name === 'NotFound';
+}
+
+export function isAzureNotFound(err: unknown): boolean {
+  const e = err as { statusCode?: number; details?: { errorCode?: string } };
+  return e?.statusCode === 404 || e?.details?.errorCode === 'BlobNotFound';
+}
+
+/**
+ * Close the non-atomic listing race without pausing uploads. Only keys classified as missing
+ * are re-checked on the allegedly absent target, then the complete container classification is
+ * rebuilt with the target metadata. No content is downloaded and no object is written or
+ * deleted. A large one-sided-empty inventory still fails before any per-key target request;
+ * only a new container's bounded first-object 0↔1 race is allowed through once.
+ */
+export async function stabilizeMissingKeys(
+  report: ContainerClassification,
+  azureContainer: ContainerClient,
+  s3: S3Client,
+  backfillCutoff: Date,
+  backfillContentProven: boolean,
+): Promise<StabilizedContentClassification> {
+  const oneSideEmpty = (report.azureMap.size === 0) !== (report.s3Map.size === 0);
+  if (oneSideEmpty && Math.max(report.azureMap.size, report.s3Map.size) > 1) {
+    throw new Error(
+      `One-sided empty content inventory for container "${report.container}": ` +
+        `azureCount=${report.azureMap.size}, s3Count=${report.s3Map.size}. ` +
+        `Refusing target re-check fan-out.`,
+    );
+  }
+
+  let resolvedConcurrentMissingKeys = 0;
+
+  for (const key of report.missingKeys) {
+    const azureObj = report.azureMap.get(key);
+    const s3Obj = report.s3Map.get(key);
+    if ((azureObj == null) === (s3Obj == null)) {
+      throw new Error(
+        `Invalid missing-key classification for ${safeObjectReference(report.container, key)}: ` +
+          `exactly one source object is required`,
+      );
+    }
+
+    if (azureObj) {
+      try {
+        const target = await s3.send(new HeadObjectCommand({ Bucket: report.container, Key: key }));
+        if (target.ContentLength == null || target.LastModified == null || target.ETag == null || target.ETag === '') {
+          throw new Error(
+            `Incomplete S3 HEAD response for ${safeObjectReference(report.container, key)}: ` +
+              `ContentLength, LastModified and ETag are required`,
+          );
+        }
+        report.s3Map.set(key, {
+          key,
+          size: target.ContentLength,
+          lastModified: target.LastModified,
+          etag: target.ETag,
+        });
+        resolvedConcurrentMissingKeys++;
+      } catch (err) {
+        if (!isS3NotFound(err)) {
+          throw new Error(`S3 missing-key re-check failed for ${safeObjectReference(report.container, key)}`, {
+            cause: err,
+          });
+        }
+      }
+    } else {
+      try {
+        const target = await azureContainer.getBlockBlobClient(key).getProperties();
+        if (target.contentLength == null || target.lastModified == null || target.etag == null || target.etag === '') {
+          throw new Error(
+            `Incomplete Azure properties response for ${safeObjectReference(report.container, key)}: ` +
+              `contentLength, lastModified and etag are required`,
+          );
+        }
+        report.azureMap.set(key, {
+          key,
+          size: target.contentLength,
+          lastModified: target.lastModified,
+          etag: target.etag,
+          ...(target.contentMD5 != null ? { contentMd5: Buffer.from(target.contentMD5).toString('base64') } : {}),
+        });
+        resolvedConcurrentMissingKeys++;
+      } catch (err) {
+        if (!isAzureNotFound(err)) {
+          throw new Error(`Azure missing-key re-check failed for ${safeObjectReference(report.container, key)}`, {
+            cause: err,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    report: classifyContainer(
+      report.container,
+      [...report.azureMap.values()],
+      [...report.s3Map.values()],
+      backfillCutoff,
+      backfillContentProven,
+    ),
+    resolvedConcurrentMissingKeys,
+  };
+}
+
 function printCategory(label: string, keys: string[]): void {
   console.log(`    ${label}: ${keys.length}`);
 }
@@ -759,10 +877,18 @@ async function main(): Promise<number> {
       const azureContainer = azure.getContainerClient(container);
       const azureObjs = await listAzure(azureContainer);
       const s3Objs = await listS3(s3, container);
-      const report = classifyContainer(container, azureObjs, s3Objs, backfillCutoff, backfillContentProven);
+      const initialReport = classifyContainer(container, azureObjs, s3Objs, backfillCutoff, backfillContentProven);
+      const { report, resolvedConcurrentMissingKeys } = await stabilizeMissingKeys(
+        initialReport,
+        azureContainer,
+        s3,
+        backfillCutoff,
+        backfillContentProven,
+      );
       reports.push(report);
 
       console.log(`\n[${container}] azure=${azureObjs.length} s3=${s3Objs.length}`);
+      console.log(`    missingKeyRecheckResolved: ${resolvedConcurrentMissingKeys}`);
       printCategory('metadata-match', report.metadataMatch);
       printCategory('backfill-covered', report.backfillCovered);
       printCategory('size-mismatch', report.sizeMismatch);
@@ -930,7 +1056,18 @@ async function main(): Promise<number> {
         const azureContainer = azure.getContainerClient(container);
         const azureObjs = await listAzure(azureContainer);
         const s3Objs = await listS3(s3, container);
-        const report = classifyContainer(container, azureObjs, s3Objs, backfillCutoff, backfillContentProven);
+        const initialReport = classifyContainer(container, azureObjs, s3Objs, backfillCutoff, backfillContentProven);
+        const { report, resolvedConcurrentMissingKeys } = await stabilizeMissingKeys(
+          initialReport,
+          azureContainer,
+          s3,
+          backfillCutoff,
+          backfillContentProven,
+        );
+        console.log(
+          `Fixpoint iteration ${iteration} [${container}] ` +
+            `missingKeyRecheckResolved=${resolvedConcurrentMissingKeys}`,
+        );
 
         // Replace report in place for intermediate logging / final path consistency.
         const idx = reports.findIndex((r) => r.container === container);
@@ -1001,7 +1138,16 @@ async function main(): Promise<number> {
       const azureContainer = azure.getContainerClient(container);
       const azureObjs = await listAzure(azureContainer);
       const s3Objs = await listS3(s3, container);
-      finalReports.push(classifyContainer(container, azureObjs, s3Objs, backfillCutoff, backfillContentProven));
+      const initialReport = classifyContainer(container, azureObjs, s3Objs, backfillCutoff, backfillContentProven);
+      const { report, resolvedConcurrentMissingKeys } = await stabilizeMissingKeys(
+        initialReport,
+        azureContainer,
+        s3,
+        backfillCutoff,
+        backfillContentProven,
+      );
+      console.log(`[final ${container}] missingKeyRecheckResolved=${resolvedConcurrentMissingKeys}`);
+      finalReports.push(report);
     } catch (e) {
       throw new Error(`[container="${container}"] final re-list failed: ${e?.message ?? e}`, { cause: e });
     }
