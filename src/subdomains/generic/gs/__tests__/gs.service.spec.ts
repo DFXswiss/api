@@ -7,6 +7,7 @@ import {
   assertDebugAllowlistInvariants,
   DebugAllowedColumns,
   DebugFilterOnlyAllowedOps,
+  DebugFilterOnlyRestrictedExceptions,
   DebugQueryAuditPrefix,
   DebugRestrictedOverlapExceptions,
   GsRestrictedColumns,
@@ -474,6 +475,12 @@ describe('GsService', () => {
         // conscious decision, so pin the full contents of the map.
         it('excepts nothing beyond transaction_aml_check.amlResponsible', () => {
           expect(DebugRestrictedOverlapExceptions).toEqual({ transaction_aml_check: ['amlResponsible'] });
+        });
+
+        // Filter-only restricted exceptions are a separate capacity: pin empty so a future
+        // filter-only overlap cannot slip in without updating this pin.
+        it('pins DebugFilterOnlyRestrictedExceptions empty (no restricted filter-only column today)', () => {
+          expect(DebugFilterOnlyRestrictedExceptions).toEqual({});
         });
       });
 
@@ -1064,7 +1071,7 @@ describe('GsService', () => {
         const spec = (...columns: string[]) => ({ columns });
 
         it('throws on an overlap that is not registered as an exception', () => {
-          expect(() => assertDebugAllowlistInvariants({ t: ['secret'] }, { t: spec('id', 'secret') }, {})).toThrow(
+          expect(() => assertDebugAllowlistInvariants({ t: ['secret'] }, { t: spec('id', 'secret') }, {}, {})).toThrow(
             /contains 'secret' which is in GsRestrictedColumns/,
           );
         });
@@ -1072,35 +1079,35 @@ describe('GsService', () => {
         // The core of the finding: excepting one column must not amnesty its table.
         it('excepting one column does not amnesty a second overlap in the same table', () => {
           expect(() =>
-            assertDebugAllowlistInvariants({ t: ['ok', 'secret'] }, { t: spec('ok', 'secret') }, { t: ['ok'] }),
+            assertDebugAllowlistInvariants({ t: ['ok', 'secret'] }, { t: spec('ok', 'secret') }, { t: ['ok'] }, {}),
           ).toThrow(/contains 'secret' which is in GsRestrictedColumns/);
         });
 
         it('passes for a registered overlap', () => {
           expect(() =>
-            assertDebugAllowlistInvariants({ t: ['ok'] }, { t: spec('id', 'ok') }, { t: ['ok'] }),
+            assertDebugAllowlistInvariants({ t: ['ok'] }, { t: spec('id', 'ok') }, { t: ['ok'] }, {}),
           ).not.toThrow();
         });
 
         it('passes when a restricted column is simply absent from the allowlist', () => {
-          expect(() => assertDebugAllowlistInvariants({ t: ['secret'] }, { t: spec('id') }, {})).not.toThrow();
+          expect(() => assertDebugAllowlistInvariants({ t: ['secret'] }, { t: spec('id') }, {}, {})).not.toThrow();
         });
 
         it('throws on a stale exception whose column left GsRestrictedColumns', () => {
-          expect(() => assertDebugAllowlistInvariants({ t: [] }, { t: spec('ok') }, { t: ['ok'] })).toThrow(
+          expect(() => assertDebugAllowlistInvariants({ t: [] }, { t: spec('ok') }, { t: ['ok'] }, {})).toThrow(
             /not in GsRestrictedColumns/,
           );
         });
 
         it('throws on a stale exception whose column left DebugAllowedColumns', () => {
-          expect(() => assertDebugAllowlistInvariants({ t: ['ok'] }, { t: spec('id') }, { t: ['ok'] })).toThrow(
-            /not in DebugAllowedColumns/,
+          expect(() => assertDebugAllowlistInvariants({ t: ['ok'] }, { t: spec('id') }, { t: ['ok'] }, {})).toThrow(
+            /not in DebugAllowedColumns\['t'\]\.columns/,
           );
         });
 
         it('throws on a stale exception for a table that is not debuggable at all', () => {
-          expect(() => assertDebugAllowlistInvariants({ t: ['ok'] }, {}, { t: ['ok'] })).toThrow(
-            /not in DebugAllowedColumns/,
+          expect(() => assertDebugAllowlistInvariants({ t: ['ok'] }, {}, { t: ['ok'] }, {})).toThrow(
+            /not in DebugAllowedColumns\['t'\]\.columns/,
           );
         });
 
@@ -1109,9 +1116,9 @@ describe('GsService', () => {
         // prototype instead). Without the `Object.hasOwn` guards, `allowedColumns['__proto__']`
         // resolves to `Object.prototype` and `.columns.includes` would TypeError into a 500.
         it('does not resolve prototype-chain keys through Object.prototype', () => {
-          expect(() => assertDebugAllowlistInvariants({ ['__proto__']: ['ok'] }, {}, {})).not.toThrow();
-          expect(() => assertDebugAllowlistInvariants({ ['constructor']: ['ok'] }, {}, {})).not.toThrow();
-          expect(() => assertDebugAllowlistInvariants({}, {}, { ['constructor']: ['ok'] })).toThrow(
+          expect(() => assertDebugAllowlistInvariants({ ['__proto__']: ['ok'] }, {}, {}, {})).not.toThrow();
+          expect(() => assertDebugAllowlistInvariants({ ['constructor']: ['ok'] }, {}, {}, {})).not.toThrow();
+          expect(() => assertDebugAllowlistInvariants({}, {}, { ['constructor']: ['ok'] }, {})).toThrow(
             /not in GsRestrictedColumns/,
           );
         });
@@ -1120,7 +1127,12 @@ describe('GsService', () => {
 
         it('throws when the same column appears in both columns and filterOnlyColumns', () => {
           expect(() =>
-            assertDebugAllowlistInvariants({}, { t: { columns: ['id', 'secret'], filterOnlyColumns: ['secret'] } }, {}),
+            assertDebugAllowlistInvariants(
+              {},
+              { t: { columns: ['id', 'secret'], filterOnlyColumns: ['secret'] } },
+              {},
+              {},
+            ),
           ).toThrow(/filterOnlyColumns contains 'secret' which is also in columns/);
         });
 
@@ -1130,13 +1142,14 @@ describe('GsService', () => {
               {},
               { t: { columns: ['id'], jsonbColumns: ['payload'], filterOnlyColumns: ['payload'] } },
               {},
+              {},
             ),
           ).toThrow(/filterOnlyColumns contains 'payload' which is also in jsonbColumns/);
         });
 
         it('throws on a duplicate entry inside filterOnlyColumns', () => {
           expect(() =>
-            assertDebugAllowlistInvariants({}, { t: { columns: ['id'], filterOnlyColumns: ['mail', 'mail'] } }, {}),
+            assertDebugAllowlistInvariants({}, { t: { columns: ['id'], filterOnlyColumns: ['mail', 'mail'] } }, {}, {}),
           ).toThrow(/filterOnlyColumns has duplicate entry 'mail'/);
         });
 
@@ -1146,16 +1159,126 @@ describe('GsService', () => {
               { t: ['secret'] },
               { t: { columns: ['id'], filterOnlyColumns: ['secret'] } },
               {},
+              {},
             ),
           ).toThrow(/filterOnlyColumns contains 'secret' which is in GsRestrictedColumns/);
 
+          // Filter-only capacity requires the filter-only exceptions map — not the selectable one.
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id'], filterOnlyColumns: ['secret'] } },
+              {},
+              { t: ['secret'] },
+            ),
+          ).not.toThrow();
+        });
+
+        // --- E. Capacity-specific exceptions (selectable vs filter-only) ---
+
+        // Core hole this pin closes: a filter-only exception must not authorise selectable
+        // access after someone moves the column into `columns`.
+        it('does not let a filter-only exception authorise selectable access (capacity upgrade)', () => {
+          // filter-only + matching filter-only exception: OK
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id'], filterOnlyColumns: ['secret'] } },
+              {},
+              { t: ['secret'] },
+            ),
+          ).not.toThrow();
+
+          // Same exception, column moved into `columns` → fails (selectable needs its own map;
+          // the leftover filter-only exception is also stale).
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id', 'secret'] } },
+              {},
+              { t: ['secret'] },
+            ),
+          ).toThrow(/contains 'secret' which is in GsRestrictedColumns/);
+        });
+
+        it('passes for a selectable exception when the column is in columns', () => {
+          // Mirrors transaction_aml_check.amlResponsible: restricted + columns + selectable map.
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id', 'secret'] } },
+              { t: ['secret'] },
+              {},
+            ),
+          ).not.toThrow();
+        });
+
+        it('throws when a selectable exception covers a column that is only filter-only', () => {
+          // Filter-only exception keeps the restricted filter-only column legal; the selectable
+          // exception for the same pair is stale because the column is not in `columns`.
           expect(() =>
             assertDebugAllowlistInvariants(
               { t: ['secret'] },
               { t: { columns: ['id'], filterOnlyColumns: ['secret'] } },
               { t: ['secret'] },
+              { t: ['secret'] },
             ),
-          ).not.toThrow();
+          ).toThrow(/not in DebugAllowedColumns\['t'\]\.columns/);
+        });
+
+        it('throws when a filter-only exception covers a column that is only in columns', () => {
+          // Selectable exception keeps the restricted selectable column legal; the filter-only
+          // exception for the same pair is then either dual-registered or stale for capacity.
+          // With only the filter-only map, the missing selectable approval fails first — either
+          // way the wrong-capacity configuration is rejected.
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id', 'secret'] } },
+              {},
+              { t: ['secret'] },
+            ),
+          ).toThrow(/contains 'secret' which is in GsRestrictedColumns/);
+
+          // Pure capacity-stale path: selectable approval is present so loop 1 passes; dual
+          // registration of the same pair is rejected (approval must be unambiguous).
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id', 'secret'] } },
+              { t: ['secret'] },
+              { t: ['secret'] },
+            ),
+          ).toThrow(/registered in both/);
+        });
+
+        it('throws when the same pair is registered in both exception maps', () => {
+          // Dual registration with a selectable column: selectable membership passes, dual fails.
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id', 'secret'] } },
+              { t: ['secret'] },
+              { t: ['secret'] },
+            ),
+          ).toThrow(/registered in both/);
+        });
+
+        it('throws on a stale filter-only exception whose column left filterOnlyColumns', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants({ t: ['secret'] }, { t: { columns: ['id'] } }, {}, { t: ['secret'] }),
+          ).toThrow(/not in DebugAllowedColumns\['t'\]\.filterOnlyColumns/);
+        });
+
+        it('throws on a stale filter-only exception whose column left GsRestrictedColumns', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: [] },
+              { t: { columns: ['id'], filterOnlyColumns: ['secret'] } },
+              {},
+              { t: ['secret'] },
+            ),
+          ).toThrow(/not in GsRestrictedColumns/);
         });
 
         it('does not resolve prototype-chain keys through Object.prototype (filter-only path)', () => {
@@ -1167,6 +1290,7 @@ describe('GsService', () => {
               { ['__proto__']: ['ok'] },
               { t: { columns: ['id'], filterOnlyColumns: ['mail'] } },
               {},
+              {},
             ),
           ).not.toThrow();
           expect(() =>
@@ -1174,15 +1298,25 @@ describe('GsService', () => {
               { ['constructor']: ['ok'] },
               { t: { columns: ['id'], filterOnlyColumns: ['mail'] } },
               {},
+              {},
             ),
           ).not.toThrow();
           expect(() =>
-            assertDebugAllowlistInvariants({}, { ['__proto__']: { columns: [], filterOnlyColumns: ['x'] } }, {}),
+            assertDebugAllowlistInvariants({}, { ['__proto__']: { columns: [], filterOnlyColumns: ['x'] } }, {}, {}),
           ).not.toThrow();
           expect(() =>
             assertDebugAllowlistInvariants(
               {},
               { t: { columns: ['id'], filterOnlyColumns: ['mail'] } },
+              { ['constructor']: ['ok'] },
+              {},
+            ),
+          ).toThrow(/not in GsRestrictedColumns/);
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              {},
+              { t: { columns: ['id'], filterOnlyColumns: ['mail'] } },
+              {},
               { ['constructor']: ['ok'] },
             ),
           ).toThrow(/not in GsRestrictedColumns/);
@@ -2732,6 +2866,13 @@ describe('GsService', () => {
           limit: 10,
         };
         await expect(service.executeDebugQuery(dto, '0xtester')).rejects.toThrow(/Query execution failed/);
+        const failCalls = infoSpy.mock.calls.filter((c) => String(c[0]).startsWith('Debug-query by 0xtester failed:'));
+        expect(failCalls.length).toBeGreaterThan(0);
+        // A regression to `logger.info(diagnostics, e)` would pass the error as a second
+        // argument whose stack embeds the address; assert arity so that stays red.
+        for (const call of failCalls) {
+          expect(call[1]).toBeUndefined();
+        }
         const lines = infoSpy.mock.calls.map((c) => String(c[0]));
         const failLine = lines.find((l) => l.startsWith('Debug-query by 0xtester failed:'));
         expect(failLine).toBeDefined();
