@@ -28,18 +28,23 @@
 #   - DEBUG_API_URL defaults to PRODUCTION. The endpoint is read-only by construction:
 #     it accepts a JSON query description and emits parameter-bound SELECT statements
 #     via dataSource.query. Writes / DDL are not expressible.
-#   - Request bodies are sent via curl stdin (`-d @-`), never as a curl argv value, so a
-#     payload cannot appear in `ps` / `/proc/*/cmdline` on a shared host.
-#   - --user-by-mail reads the address from stdin (not argv), so it does not appear in any
-#     process's argv. The script does not print the address; the payload echo redacts WHERE
-#     values the same way the server audit log does. At a TTY the terminal echoes typed
-#     input into scrollback — accepted: the operator is entering an address they already
-#     know; the guarantee is that the endpoint does not disclose unknown addresses and that
-#     the value does not reach process lists or logs that others read. Audit-log and
-#     error-path redaction hold under normal production config (SQL_LOGGING unset). Enabling
-#     SQL query logging (SQL_LOGGING) makes TypeORM print bound parameters — including the
-#     address — for successful queries, which defeats that redaction (see the comment in
-#     src/shared/services/typeorm-logger.ts).
+#   - Request bodies are sent to curl via stdin (`-d @-`), never as a curl argv value, so the
+#     body does not appear in curl's process arguments (`ps` / `/proc/*/cmdline`) on a shared
+#     host. That does not cover every way a payload can still sit in argv: an inline
+#     `--query '<json>'` places the complete DTO — including any value inside it — in this
+#     script's own argv and in shell history. Inline is fine for ordinary, non-sensitive
+#     queries; for any sensitive value (in particular a filter-only column such as
+#     user_data.mail) use `--query @file` or `--query -` (stdin) instead.
+#   - --user-by-mail is unaffected: it reads the address from stdin (not argv), so it does
+#     not appear in any process's argv. The script does not print the address; the payload
+#     echo redacts WHERE values the same way the server audit log does. At a TTY the
+#     terminal echoes typed input into scrollback — accepted: the operator is entering an
+#     address they already know; the guarantee is that the endpoint does not disclose
+#     unknown addresses and that the value does not reach process lists or logs that others
+#     read. Audit-log and error-path redaction hold under normal production config
+#     (SQL_LOGGING unset). Enabling SQL query logging (SQL_LOGGING) makes TypeORM print
+#     bound parameters — including the address — for successful queries, which defeats that
+#     redaction (see the comment in src/shared/services/typeorm-logger.ts).
 #
 # Structured /gs/debug endpoint:
 #   The endpoint no longer accepts raw SQL. The request body is a JSON description of
@@ -87,18 +92,23 @@
 #     stdin (one line; TTY → prompt on stderr; non-TTY → silent read). Empty/EOF fails loudly.
 #     Filters on the filter-only column user_data.mail (= only, case-insensitive, not under
 #     NOT); never selects mail. One address can match several rows. Limit defaults to 100
-#     (not 1) and must be a positive integer; trailing args are rejected. Returns id,
-#     created, kycLevel, status. The address is not placed in any process's argv; the
-#     script does not print it; the payload echo redacts WHERE values. At a TTY the terminal
-#     may echo typed input into scrollback (accepted — operator already knows the address).
-#     Audit/error redaction holds when SQL query logging is off (production: SQL_LOGGING
-#     unset); enabling SQL_LOGGING would print bound parameters including the address.
+#     (not 1) and must be an integer in 1..10000 (server DTO cap); trailing args are rejected.
+#     Returns id, created, kycLevel, status. The address is not placed in any process's argv;
+#     the script does not print it; the payload echo redacts WHERE values. At a TTY the
+#     terminal may echo typed input into scrollback (accepted — operator already knows the
+#     address). Audit/error redaction holds when SQL query logging is off (production:
+#     SQL_LOGGING unset); enabling SQL_LOGGING would print bound parameters including the
+#     address.
 #       ./scripts/db-debug.sh --user-by-mail          # interactive: prompts "Mail address: "
 #       ./scripts/db-debug.sh --user-by-mail < address.txt
 #       ./scripts/db-debug.sh --user-by-mail 50 < address.txt
 #   --query '<json>' | --query @path/to/query.json | --query -
 #     Posts an arbitrary DebugQueryDto. Accepts inline JSON, @file, or - to read the DTO from stdin.
 #     The DTO is validated as well-formed JSON (jq) before the request; malformed JSON fails loudly.
+#     Inline `--query '<json>'` is convenient for ordinary non-sensitive queries, but the full
+#     DTO (including any values) is visible in this script's argv and shell history. For any
+#     sensitive value — e.g. a filter-only column such as user_data.mail — use --query @file
+#     or --query - (stdin) instead. --user-by-mail already reads the address from stdin.
 #       ./scripts/db-debug.sh --query '{"table":"asset","select":[{"kind":"column","column":"name"}],"limit":5}'
 #       ./scripts/db-debug.sh --query @/tmp/query.json
 #       echo '{"table":"asset","select":[{"kind":"column","column":"id"}],"limit":1}' | ./scripts/db-debug.sh --query -
@@ -145,7 +155,7 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  -T, --referral-tree <userDataId>"
   echo "                                Show complete referral tree (all branches)"
   echo "  -M, --user-by-mail [N]        Resolve user_data id(s) from a known mail on stdin"
-  echo "                                (default limit: 100, positive integer; no extra args)."
+  echo "                                (default limit: 100, integer 1..10000; no extra args)."
   echo "                                mail is filter-only: usable only in WHERE with ="
   echo "                                (case-insensitive; not under NOT; no IN), never returned."
   echo "                                One mail can match several rows. Address is not in any"
@@ -158,7 +168,9 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  -g, --get <table> [cols] [N]  Ad-hoc: fetch cols (default id,created,updated) from any"
   echo "                                allowlisted table (default limit: 100)"
   echo "  -q, --query <json|@file|->    Ad-hoc: POST an arbitrary structured DTO (inline JSON,"
-  echo "                                @file, or - to read the DTO from stdin)"
+  echo "                                @file, or - to read the DTO from stdin). Inline puts the"
+  echo "                                full DTO in this script's argv and shell history; for"
+  echo "                                sensitive values (e.g. user_data.mail) use @file or -."
   echo ""
   echo "Examples:"
   echo "  ./scripts/db-debug.sh --anomalies 50"
@@ -182,8 +194,8 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "    -H 'Authorization: Bearer \$TOKEN' \\"
   echo "    -H 'Content-Type: application/json' \\"
   echo "    -d @- <<'EOF'"
-  echo "  {\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"id\"},{\"kind\":\"column\",\"column\":\"name\"}],\"orderBy\":[{\"column\":\"id\",\"direction\":\"DESC\"}],\"limit\":5}"
-  echo "  EOF"
+  echo "{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"id\"},{\"kind\":\"column\",\"column\":\"name\"}],\"orderBy\":[{\"column\":\"id\",\"direction\":\"DESC\"}],\"limit\":5}"
+  echo "EOF"
   exit 0
 fi
 
@@ -354,8 +366,10 @@ case "${1:-}" in
     # echo redacts WHERE values (see serializeDebugQueryForAudit); DESCRIPTION and this
     # branch's own messages must not reintroduce the address either.
     if [ -n "${2:-}" ]; then
-      if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
-        echo "Error: --user-by-mail limit must be a positive integer, got: $2"
+      # Server DebugQueryDto caps limit at 10000; reject out-of-range client-side so a large
+      # N fails before auth instead of after. Default remains 100.
+      if ! [[ "$2" =~ ^[1-9][0-9]*$ ]] || [ "$2" -gt 10000 ]; then
+        echo "Error: --user-by-mail limit must be an integer in 1..10000, got: $2"
         echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
         exit 1
       fi
@@ -388,7 +402,8 @@ case "${1:-}" in
       echo ""
       echo "Resolves user_data id(s) from a mail you already know. mail is filter-only:"
       echo "usable only as a WHERE leaf with = (case-insensitive; not under NOT; no IN),"
-      echo "never selectable. One mail can match several user_data rows; default limit is 100."
+      echo "never selectable. One mail can match several user_data rows; default limit is 100"
+      echo "(allowed range for N: 1..10000)."
       exit 1
     fi
     # Trim surrounding whitespace only (trailing newline already removed by read).

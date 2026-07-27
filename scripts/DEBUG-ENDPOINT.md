@@ -131,7 +131,11 @@ Convenience mode and equivalent raw DTO:
 ./scripts/db-debug.sh --user-by-mail < address.txt
 
 # Same query as an ad-hoc --query payload (mail bound as a JSON value; never returned).
-# Prefer a file or stdin for the DTO so the address is not in the shell's command line:
+# Prefer --query @file or --query - (stdin / heredoc) so the address is not in the shell's
+# command line. An inline `--query '<json>'` places the full DTO — including the mail value
+# — in the script's own argv and in shell history; do not use that form for sensitive values
+# such as filter-only columns (e.g. user_data.mail). --user-by-mail is unaffected: it always
+# reads the address from stdin.
 ./scripts/db-debug.sh --query - <<'EOF'
 {
   "table": "user_data",
@@ -148,19 +152,25 @@ Convenience mode and equivalent raw DTO:
 EOF
 ```
 
-**Client argv and redaction guarantee (`scripts/db-debug.sh`):** `--user-by-mail` reads the
-address from stdin (not a positional argument). The address is passed into `jq` via stdin
-(not `--arg`) and every request body is sent with `curl … -d @-` (body on curl's stdin).
-The address is therefore not placed in any process's argv. The script does not print the
-address, and the payload echo redacts WHERE leaf values (`<scalar>` / `<array:N>`, matching
-`serializeDebugQueryForAudit`). At a TTY the terminal may echo typed input into scrollback —
-accepted: the operator is entering an address they already know; the guarantee is that the
-endpoint does not disclose unknown addresses and that the value does not reach process lists
-or logs that others read. Audit-log and error-path redaction hold under normal production
-config (`SQL_LOGGING` unset, so TypeORM query logging is off — see the comment in
-`src/shared/services/typeorm-logger.ts`). Enabling SQL query logging (`SQL_LOGGING`) makes
-TypeORM print bound parameters — including the address — for successful queries, which
-defeats that redaction.
+**Client argv and redaction guarantee (`scripts/db-debug.sh`):** Request bodies are sent to
+`curl` via stdin (`-d @-`), so they never appear in curl's process arguments. That is not a
+blanket guarantee for every form of input: an inline `--query '<json>'` still places the
+complete DTO (including any value inside it) in the script's own argv and in shell history.
+For ordinary non-sensitive queries that is fine; for any sensitive value — in particular a
+filter-only column such as `user_data.mail` — use `--query @file` or `--query -` (stdin)
+instead. `--user-by-mail` reads the address from stdin (not a positional argument). The
+address is passed into `jq` via stdin (not `--arg`) and every request body is sent with
+`curl … -d @-`. Under that mode the address is not placed in any process's argv. The script
+does not print the address, and the payload echo redacts WHERE leaf values (`<scalar>` /
+`<array:N>`, matching `serializeDebugQueryForAudit`). At a TTY the terminal may echo typed
+input into scrollback — accepted: the operator is entering an address they already know; the
+guarantee is that the endpoint does not disclose unknown addresses and that the value does
+not reach process lists or logs that others read. Audit-log and error-path redaction hold
+under normal production config (`SQL_LOGGING` unset, so TypeORM query logging is off — see
+the comment in `src/shared/services/typeorm-logger.ts`). Enabling SQL query logging
+(`SQL_LOGGING`) makes TypeORM print bound parameters — including the address — for
+successful queries, which defeats that redaction. Optional `[N]` on `--user-by-mail` is an
+integer in `1..10000` (server DTO cap); default remains 100.
 
 ## Security Notes
 
