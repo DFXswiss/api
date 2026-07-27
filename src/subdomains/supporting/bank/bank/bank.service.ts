@@ -68,6 +68,10 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findOneCachedBy(`${id}`, { id });
   }
 
+  async getBankByIdUncached(id: number): Promise<Bank> {
+    return this.bankRepo.findOneBy({ id });
+  }
+
   async getBankByIban(iban: string): Promise<Bank> {
     return this.bankRepo.findOneCachedBy(iban, { iban });
   }

@@ -74,6 +74,7 @@ import { KycLevel, PhoneCallStatus, ServiceProvider, TradeApprovalReason, UserDa
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
+export const MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER = 'postCommitEffectsPending=';
 
 interface SecretCacheEntry {
   secret: string;
@@ -1255,8 +1256,7 @@ export class UserDataService {
     let mergeResult: {
       master: UserData;
       slave: UserData;
-      kycStepMerge: boolean;
-      changedMailNotificationMaster?: UserData;
+      effects: { name: string; run: () => Promise<void> }[];
     };
     try {
       mergeResult = await this.userDataRepo.manager.transaction(async (manager: EntityManager) => {
@@ -1543,61 +1543,66 @@ export class UserDataService {
           }
         }
 
-        await this.kycLogService.createMergeLog(master, log, manager);
-        await this.kycLogService.createMergeLog(slave, log, manager);
+        const effects: { name: string; run: () => Promise<void> }[] = [
+          ...(kycStepMerge
+            ? [
+                {
+                  name: 'KYC approval continuation',
+                  run: () => this.kycService.checkDfxApproval(master),
+                },
+              ]
+            : []),
+          ...(changedMailNotificationMaster
+            ? [
+                {
+                  name: 'changed-mail notification',
+                  run: () =>
+                    this.userDataNotificationService.userDataChangedMailInfoStrict(
+                      changedMailNotificationMaster,
+                      slave,
+                    ),
+                },
+              ]
+            : []),
+          {
+            name: 'document copy',
+            run: () => this.documentService.copyFiles(slave.id, master.id),
+          },
+          {
+            name: 'account-changed webhook',
+            run: () => this.webhookService.accountChanged(master, slave),
+          },
+          {
+            name: 'KYC-changed notification',
+            run: () => this.kycNotificationService.kycChangedStrict(master),
+          },
+          ...(notifyUser
+            ? [
+                {
+                  name: 'added-address notification',
+                  run: () => this.userDataNotificationService.userDataAddedAddressInfoStrict(master, slave),
+                },
+              ]
+            : []),
+        ];
+        const durableMergeLog = `${log}; ${MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER}${effects
+          .map((effect) => effect.name)
+          .join(',')}`;
+        await this.kycLogService.createMergeLog(master, durableMergeLog, manager);
+        await this.kycLogService.createMergeLog(slave, durableMergeLog, manager);
 
-        return { master, slave, kycStepMerge, changedMailNotificationMaster };
+        return { master, slave, effects };
       });
     } catch (error) {
       await this.virtualIbanService.reportIntegrityError(error);
       throw error;
     }
-    const { master, slave, kycStepMerge, changedMailNotificationMaster } = mergeResult;
+    const { master, slave, effects } = mergeResult;
 
     this.virtualIbanService.invalidateCacheAfterMerge();
 
-    const effects: { name: string; run: () => Promise<void> }[] = [
-      ...(kycStepMerge
-        ? [
-            {
-              name: 'KYC approval continuation',
-              run: () => this.kycService.checkDfxApproval(master),
-            },
-          ]
-        : []),
-      ...(changedMailNotificationMaster
-        ? [
-            {
-              name: 'changed-mail notification',
-              run: () =>
-                this.userDataNotificationService.userDataChangedMailInfoStrict(changedMailNotificationMaster, slave),
-            },
-          ]
-        : []),
-      {
-        name: 'document copy',
-        run: () => this.documentService.copyFiles(slave.id, master.id),
-      },
-      {
-        name: 'account-changed webhook',
-        run: () => this.webhookService.accountChanged(master, slave),
-      },
-      {
-        name: 'KYC-changed notification',
-        run: () => this.kycNotificationService.kycChangedStrict(master),
-      },
-      ...(notifyUser
-        ? [
-            {
-              name: 'added-address notification',
-              run: () => this.userDataNotificationService.userDataAddedAddressInfoStrict(master, slave),
-            },
-          ]
-        : []),
-    ];
-
-    // The committed marker plus per-effect completion markers make a process-death gap observable:
-    // an operator can identify exactly which effects did not finish and replay them manually.
+    // The start marker is already durable in both KYC merge-log rows because it was written inside
+    // the merge transaction. Per-effect application-log markers identify which work completed.
     this.logger.info(
       `UserData merge committed; starting post-commit effects ` +
         `(masterId=${master.id}, slaveId=${slave.id}, effects=${effects.map((effect) => effect.name).join(',')})`,

@@ -431,7 +431,9 @@ export class BuyService {
     if (bankId == null && virtualIbanId == null) return this.getBankInfo(selector, buy, asset, wallet);
     if (bankId == null) throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_SELECTION_INCOMPLETE);
 
-    const bank = await this.bankService.getBankById(bankId);
+    // Stored request liveness is a correctness boundary: receive/IBAN changes made by Operations
+    // must be visible immediately, so this deliberately reads through to the DB.
+    const bank = await this.bankService.getBankByIdUncached(bankId);
     if (!bank) throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_NO_LONGER_EXISTS);
 
     if (virtualIbanId != null) {

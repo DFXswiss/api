@@ -449,9 +449,14 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     const cached = listingCache.get(bankId);
     if (cached !== undefined) return cached;
 
-    const bank = await this.bankService.getBankById(bankId);
+    // Correctness read-through: a reference-account correction must take effect immediately and
+    // must never be hidden behind BankRepository's five-minute cache.
+    const bank = await this.bankService.getBankByIdUncached(bankId);
     if (!bank?.iban) {
       throw new Error(`Frick receive bank id=${bankId} (reference account IBAN) is not configured`);
+    }
+    if (bank.name !== IbanBankName.FRICK) {
+      throw new Error(`Frick reconciliation refused non-Frick bank id=${bankId}`);
     }
 
     const listing = await this.frickVibanProvider.listByReferenceAccount(bank.iban);
@@ -476,8 +481,14 @@ export class VirtualIbanFrickIssuanceReconciliationService {
   }> {
     const events = await this.dataSource.getRepository(VirtualIbanIssuanceEvent).find({
       where: [
-        { nextError: Like(`%${CREATE_PATH_REFERENCE_MARKER}%`) },
-        { nextError: Like(`%${RECOVERY_PATH_REFERENCE_MARKER}%`) },
+        {
+          provider: IbanBankName.FRICK,
+          nextError: Like(`%${CREATE_PATH_REFERENCE_MARKER}%`),
+        },
+        {
+          provider: IbanBankName.FRICK,
+          nextError: Like(`%${RECOVERY_PATH_REFERENCE_MARKER}%`),
+        },
       ],
       order: { created: 'DESC' },
     });

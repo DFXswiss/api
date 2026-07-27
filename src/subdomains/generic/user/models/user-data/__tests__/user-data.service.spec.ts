@@ -38,7 +38,7 @@ import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enu
 import { UserData } from '../user-data.entity';
 import { KycType, UserDataStatus } from '../user-data.enum';
 import { UserDataRepository } from '../user-data.repository';
-import { MergedPrefix, UserDataService } from '../user-data.service';
+import { MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER, MergedPrefix, UserDataService } from '../user-data.service';
 import { UpdateMailStatus } from '../../user/dto/verify-mail.dto';
 import { UserRepository } from '../../user/user.repository';
 
@@ -1020,6 +1020,22 @@ describe('UserDataService', () => {
       jest
         .spyOn(service as unknown as { updateBankTxTime: () => Promise<void> }, 'updateBankTxTime')
         .mockResolvedValue(undefined);
+      const executionOrder: string[] = [];
+      (mergeManager.transaction as jest.Mock).mockImplementation(
+        async (run: (manager: EntityManager) => Promise<unknown>) => {
+          const result = await run(mergeManager);
+          executionOrder.push('commit');
+          return result;
+        },
+      );
+      kycLogService.createMergeLog.mockImplementation(async (_user, log) => {
+        expect(log).toContain(MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER);
+        executionOrder.push('durable marker');
+      });
+      documentService.copyFiles.mockImplementation(async () => {
+        executionOrder.push('post-commit effect');
+        throw new Error('storage unavailable');
+      });
       const infoSpy = jest.spyOn((service as any).logger, 'info').mockImplementation(() => undefined);
       const criticalSpy = jest.spyOn((service as any).logger, 'critical').mockImplementation(() => undefined);
 
@@ -1046,6 +1062,16 @@ describe('UserDataService', () => {
         expect.stringContaining('UserData merge committed; starting post-commit effects'),
       );
       expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('effect=account-changed webhook'));
+      expect(kycLogService.createMergeLog).toHaveBeenCalledTimes(2);
+      expect(kycLogService.createMergeLog).toHaveBeenCalledWith(
+        master,
+        expect.stringContaining(
+          `${MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER}changed-mail notification,document copy,` +
+            'account-changed webhook,KYC-changed notification,added-address notification',
+        ),
+        mergeManager,
+      );
+      expect(executionOrder).toEqual(['durable marker', 'durable marker', 'commit', 'post-commit effect']);
     });
   });
 

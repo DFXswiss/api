@@ -11,6 +11,7 @@ import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { BankRepository } from 'src/subdomains/supporting/bank/bank/bank.repository';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VibanAccountHolder } from 'src/subdomains/supporting/bank/virtual-iban/providers/viban-account-holder.enum';
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
@@ -370,7 +371,7 @@ describe('BuyService', () => {
     });
 
     it('loads invoice data exclusively from persisted IDs and verifies personal-IBAN ownership', async () => {
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(frickBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
 
       const bankInfo = await service.getBankInfoForRequest(
@@ -388,7 +389,7 @@ describe('BuyService', () => {
 
     it('keeps buy-specific personal IBAN invoices reference-free', async () => {
       const buySpecific = { ...virtualIban, buy } as VirtualIban;
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(frickBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(buySpecific);
 
       const bankInfo = await service.getBankInfoForRequest(
@@ -404,7 +405,7 @@ describe('BuyService', () => {
     });
 
     it('fails closed when the persisted personal IBAN is not owned by the requesting user', async () => {
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(frickBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(null);
 
       await expect(
@@ -437,7 +438,7 @@ describe('BuyService', () => {
 
     it('rejects an open quote when the stored personal IBAN is inactive', async () => {
       const inactive = { ...virtualIban, active: false } as VirtualIban;
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(frickBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(inactive);
 
       await expect(
@@ -453,7 +454,7 @@ describe('BuyService', () => {
 
     it('rejects an open quote when the stored personal IBAN status is not ACTIVE', async () => {
       const deactivated = { ...virtualIban, status: VirtualIbanStatus.DEACTIVATED } as VirtualIban;
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(frickBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(deactivated);
 
       await expect(
@@ -467,9 +468,13 @@ describe('BuyService', () => {
       ).rejects.toThrow(QuoteError.STORED_PERSONAL_IBAN_IS_NO_LONGER_ACTIVE);
     });
 
-    it('rejects an open quote when the personal-IBAN bank no longer accepts payments', async () => {
+    it('rejects an open quote immediately when the DB disables a bank despite a stale cached row', async () => {
       const nonReceiveBank = { ...frickBank, receive: false };
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(nonReceiveBank as any);
+      const bankRepo = createMock<BankRepository>();
+      jest.spyOn(bankRepo, 'findOneCachedBy').mockResolvedValue(frickBank as any);
+      jest.spyOn(bankRepo, 'findOneBy').mockResolvedValue(nonReceiveBank as any);
+      const readThroughBankService = new BankService(bankRepo);
+      (service as unknown as { bankService: BankService }).bankService = readThroughBankService;
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
 
       await expect(
@@ -481,11 +486,13 @@ describe('BuyService', () => {
           501,
         ),
       ).rejects.toThrow(QuoteError.STORED_BANK_NO_LONGER_ACCEPTS_PAYMENTS);
+      expect(bankRepo.findOneBy).toHaveBeenCalledWith({ id: 19 });
+      expect(bankRepo.findOneCachedBy).not.toHaveBeenCalled();
     });
 
     it('rejects an open quote on the plain-bank path when the bank no longer accepts payments', async () => {
       const nonReceiveBank = { ...frickBank, receive: false };
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(nonReceiveBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(nonReceiveBank as any);
 
       await expect(
         service.getBankInfoForRequest(
@@ -500,7 +507,7 @@ describe('BuyService', () => {
     });
 
     it('serves a fully live personal IBAN for an open quote', async () => {
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(frickBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
 
       const bankInfo = await service.getBankInfoForRequest(
@@ -525,7 +532,7 @@ describe('BuyService', () => {
         status: VirtualIbanStatus.DEACTIVATED,
       } as VirtualIban;
       const nonReceiveBank = { ...frickBank, receive: false };
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(nonReceiveBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(nonReceiveBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(inactive);
 
       const bankInfo = await service.getBankInfoForRequest(
@@ -545,7 +552,7 @@ describe('BuyService', () => {
 
     it('shows DFX name/address as recipient for a Frick personal IBAN (account held by DFX)', async () => {
       jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.DFX);
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(frickBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
 
       const bankInfo = await service.getBankInfoForRequest(
@@ -593,7 +600,7 @@ describe('BuyService', () => {
       } as VirtualIban;
 
       jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue(yapealBank as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(yapealBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(yapealVirtualIban);
 
       const bankInfo = await service.getBankInfoForRequest(

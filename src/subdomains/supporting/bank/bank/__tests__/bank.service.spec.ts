@@ -100,6 +100,17 @@ describe('BankService', () => {
     expect(service).toBeDefined();
   });
 
+  it('provides an explicit bank-by-id database read when the repository cache is stale', async () => {
+    const staleCachedBank = Object.assign(new Bank(), { id: 19, receive: true });
+    const disabledDatabaseBank = Object.assign(new Bank(), { id: 19, receive: false });
+    jest.spyOn(bankRepo, 'findOneCachedBy').mockResolvedValue(staleCachedBank);
+    jest.spyOn(bankRepo, 'findOneBy').mockResolvedValue(disabledDatabaseBank);
+
+    await expect(service.getBankByIdUncached(19)).resolves.toBe(disabledDatabaseBank);
+    expect(bankRepo.findOneBy).toHaveBeenCalledWith({ id: 19 });
+    expect(bankRepo.findOneCachedBy).not.toHaveBeenCalled();
+  });
+
   it('should return first matching bank for CHF currency', async () => {
     defaultSetup();
     const result = await service.getBank(createBankSelectorInput('CHF', 10000));

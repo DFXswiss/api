@@ -6,7 +6,9 @@ import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { DataSource, FindOperator, FindOptionsWhere, Repository } from 'typeorm';
+import { BankRepository } from '../../bank/bank.repository';
 import { BankService } from '../../bank/bank.service';
+import { IbanBankName } from '../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../providers/frick-viban.provider';
 import { VirtualIbanFrickIssuanceReconciliationService } from '../virtual-iban-frick-issuance-reconciliation.service';
 import { VirtualIbanIssuanceEvent } from '../virtual-iban-issuance-event.entity';
@@ -35,6 +37,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       userDataId: 30,
       currencyId: 40,
       bankId,
+      provider: IbanBankName.FRICK,
       previousStatus: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
       nextStatus: VirtualIbanIssuanceIntentStatus.PENDING,
       previousVirtualIbanId: null,
@@ -91,7 +94,9 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
     virtualIbanService = createMock<VirtualIbanService>();
 
     jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
-    jest.spyOn(bankService, 'getBankById').mockResolvedValue({ id: bankId, iban: referenceAccountIban } as any);
+    jest
+      .spyOn(bankService, 'getBankByIdUncached')
+      .mockResolvedValue({ id: bankId, iban: referenceAccountIban, name: IbanBankName.FRICK } as any);
     jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined as any);
     jest.spyOn(virtualIbanService, 'resetStuckFrickIntentForReconciliationOnly').mockResolvedValue(true);
 
@@ -156,6 +161,74 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
   });
 
   describe('Phase 1 — stuck InFlight/Failed intents', () => {
+    it('filters historical Yapeal intents before any Bank Frick lookup or provider call', async () => {
+      const yapealIntent = intent({
+        id: 777,
+        bankId: 88,
+        provider: IbanBankName.YAPEAL,
+        requestReference: 'dfx-yapeal-stranded-intent',
+      });
+      intentRepo.find.mockImplementation(async (options?: { where?: FindOptionsWhere<VirtualIbanIssuanceIntent> }) =>
+        options?.where?.provider === IbanBankName.FRICK ? [] : [yapealIntent],
+      );
+
+      await service.reconcileRetiredIssuanceReferences();
+
+      expect(intentRepo.find).toHaveBeenCalledWith({
+        where: {
+          provider: IbanBankName.FRICK,
+          status: expect.any(FindOperator),
+        },
+      });
+      expect(bankService.getBankByIdUncached).not.toHaveBeenCalled();
+      expect(frickVibanProvider.listByReferenceAccount).not.toHaveBeenCalled();
+    });
+
+    it('lists the current DB reference account instead of a stale cached IBAN', async () => {
+      const staleIban = 'LI00STALE000000000000C';
+      const currentIban = 'LI00CURRENT00000000000C';
+      const bankRepo = createMock<BankRepository>();
+      jest.spyOn(bankRepo, 'findOneCachedBy').mockResolvedValue({
+        id: bankId,
+        iban: staleIban,
+        name: IbanBankName.FRICK,
+      } as any);
+      jest.spyOn(bankRepo, 'findOneBy').mockResolvedValue({
+        id: bankId,
+        iban: currentIban,
+        name: IbanBankName.FRICK,
+      } as any);
+      (service as unknown as { bankService: BankService }).bankService = new BankService(bankRepo);
+      intentRepo.find.mockResolvedValue([intent({ requestReference: stuckRequestReference })]);
+      jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([], true));
+
+      await service.reconcileRetiredIssuanceReferences();
+
+      expect(frickVibanProvider.listByReferenceAccount).toHaveBeenCalledWith(currentIban);
+      expect(bankRepo.findOneBy).toHaveBeenCalledWith({ id: bankId });
+      expect(bankRepo.findOneCachedBy).not.toHaveBeenCalled();
+    });
+
+    it('refuses to send a non-Frick bank reference account to Bank Frick', async () => {
+      intentRepo.find.mockResolvedValue([intent({ requestReference: stuckRequestReference })]);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue({
+        id: bankId,
+        iban: referenceAccountIban,
+        name: IbanBankName.YAPEAL,
+      } as any);
+
+      await service.reconcileRetiredIssuanceReferences();
+
+      expect(frickVibanProvider.listByReferenceAccount).not.toHaveBeenCalled();
+      expect(notificationService.sendMail).toHaveBeenCalledWith({
+        type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
+        input: expect.objectContaining({
+          subject: 'Frick vIBAN reconciliation Phase 1: processing failed for one or more banks',
+        }),
+      });
+    });
+
     it('alerts and does not reset when the Frick listing already contains the intent requestReference', async () => {
       intentRepo.find.mockResolvedValue([
         intent({
@@ -395,9 +468,10 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
         intent({ id: 110, requestReference: stuckRequestReference, bankId }),
         intent({ id: 111, requestReference: healthyRef, bankId: healthyBankId }),
       ]);
-      jest.spyOn(bankService, 'getBankById').mockImplementation(async (id: number) => {
+      jest.spyOn(bankService, 'getBankByIdUncached').mockImplementation(async (id: number) => {
         if (id === bankId) return { id: bankId, iban: null } as any;
-        if (id === healthyBankId) return { id: healthyBankId, iban: referenceAccountIban } as any;
+        if (id === healthyBankId)
+          return { id: healthyBankId, iban: referenceAccountIban, name: IbanBankName.FRICK } as any;
         throw new Error(`unexpected bank id ${id}`);
       });
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([], true));
@@ -499,7 +573,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(bankService.getBankById).toHaveBeenCalledWith(bankId);
+      expect(bankService.getBankByIdUncached).toHaveBeenCalledWith(bankId);
       expect(frickVibanProvider.listByReferenceAccount).toHaveBeenCalledWith(referenceAccountIban);
       expect(notificationService.sendMail).not.toHaveBeenCalled();
     });
@@ -535,7 +609,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(bankService.getBankById).toHaveBeenCalledWith(bankId);
+      expect(bankService.getBankByIdUncached).toHaveBeenCalledWith(bankId);
       expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
@@ -633,9 +707,10 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           nextError: `create failed; recovery listing found no match; previousRequestReference=${abandonedRecovery}; newRequestReference=dfx-viban-new`,
         }),
       ]);
-      jest.spyOn(bankService, 'getBankById').mockImplementation(async (id: number) => {
+      jest.spyOn(bankService, 'getBankByIdUncached').mockImplementation(async (id: number) => {
         if (id === bankId) throw new Error('Frick receive bank id=50 is not configured');
-        if (id === healthyBankId) return { id: healthyBankId, iban: referenceAccountIban } as any;
+        if (id === healthyBankId)
+          return { id: healthyBankId, iban: referenceAccountIban, name: IbanBankName.FRICK } as any;
         throw new Error(`unexpected bank id ${id}`);
       });
       jest
@@ -679,6 +754,30 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       // No created: MoreThan(...) time filter — structural markers only.
       expect(findArg.where[0]).not.toHaveProperty('created');
       expect(findArg.where[1]).not.toHaveProperty('created');
+    });
+
+    it('filters historical Yapeal retirement events before any Bank Frick lookup or provider call', async () => {
+      const yapealEvent = event({
+        intentId: 777,
+        bankId: 88,
+        provider: IbanBankName.YAPEAL,
+        nextError: `${CREATE_PATH_REFERENCE_MARKER}dfx-yapeal-retired-reference`,
+      });
+      eventRepo.find.mockImplementation(async (options?: { where?: FindOptionsWhere<VirtualIbanIssuanceEvent>[] }) => {
+        const clauses = options?.where ?? [];
+        const hasFrickProviderFilter = clauses.some((clause) => clause.provider === IbanBankName.FRICK);
+        return hasFrickProviderFilter ? [] : [yapealEvent];
+      });
+
+      await service.reconcileRetiredIssuanceReferences();
+
+      expect(eventRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.arrayContaining([expect.objectContaining({ provider: IbanBankName.FRICK })]),
+        }),
+      );
+      expect(bankService.getBankByIdUncached).not.toHaveBeenCalled();
+      expect(frickVibanProvider.listByReferenceAccount).not.toHaveBeenCalled();
     });
 
     it('finds merge-superseded FAILED events via the real where-clause path (not only extractAbandonedReference)', async () => {
@@ -830,7 +929,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
     it('sends per-bank failure alert when bank has no IBAN configured and does not abort the whole run', async () => {
       intentRepo.find.mockResolvedValue([intent({ id: 200, requestReference: stuckRequestReference })]);
-      jest.spyOn(bankService, 'getBankById').mockResolvedValue({ id: bankId, iban: null } as any);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue({ id: bankId, iban: null } as any);
 
       await expect(service.reconcileRetiredIssuanceReferences()).resolves.toBeUndefined();
 
@@ -952,7 +1051,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       await service.reconcileRetiredIssuanceReferences();
 
       expect(frickVibanProvider.listByReferenceAccount).toHaveBeenCalledTimes(1);
-      expect(bankService.getBankById).toHaveBeenCalledTimes(1);
+      expect(bankService.getBankByIdUncached).toHaveBeenCalledTimes(1);
     });
 
     it('does not count a concurrent no-op reset as a successful reset', async () => {

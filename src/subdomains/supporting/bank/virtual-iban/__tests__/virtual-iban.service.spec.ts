@@ -34,8 +34,6 @@ describe('VirtualIbanService', () => {
   let dataSource: DataSource;
   let notificationService: NotificationService;
   let issuanceUserDataFindOne: jest.Mock;
-  let genericIntent: VirtualIbanIssuanceIntent | null;
-  let persistedVirtualIban: VirtualIban | null;
   let manager: {
     exists: jest.Mock;
     find: jest.Mock;
@@ -69,41 +67,16 @@ describe('VirtualIbanService', () => {
     notificationService = createMock<NotificationService>();
     jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined as any);
     issuanceUserDataFindOne = jest.fn().mockResolvedValue(userData);
-    genericIntent = null;
-    persistedVirtualIban = null;
     manager = {
       exists: jest.fn(),
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockImplementation(async (entity) => {
         if (entity === UserData) return userData;
-        if (entity === VirtualIbanIssuanceIntent) return genericIntent;
-        if (entity === VirtualIban) return persistedVirtualIban;
         return null;
       }),
       create: jest.fn().mockImplementation((entity, value) => Object.assign(new entity(), value)),
-      save: jest.fn().mockImplementation(async (value) => {
-        if (value instanceof VirtualIban) {
-          value.id ??= 501;
-          persistedVirtualIban = value;
-        }
-        return value;
-      }),
-      query: jest.fn().mockImplementation(async (sql, parameters) => {
-        if (!String(sql).includes('INSERT INTO "virtual_iban_issuance_intent"')) return [];
-        genericIntent ??= Object.assign(new VirtualIbanIssuanceIntent(), {
-          id: 300,
-          requestReference: parameters[0],
-          userDataId: parameters[1],
-          currencyId: parameters[2],
-          bankId: parameters[3],
-          provider: parameters[4],
-          buyId: parameters[5],
-          status: parameters[6],
-          externalIban: null,
-          error: null,
-        });
-        return [];
-      }),
+      save: jest.fn().mockImplementation(async (value) => value),
+      query: jest.fn().mockResolvedValue([]),
       update: jest.fn(),
       getRepository: jest.fn().mockImplementation((entity) => {
         if (entity === UserData) return { findOne: issuanceUserDataFindOne };
@@ -156,7 +129,7 @@ describe('VirtualIbanService', () => {
   });
 
   describe('lockUserLevelIssuanceForMerge', () => {
-    it('locks every persisted issuance key for both accounts in deterministic order', async () => {
+    it('locks only Frick issuance keys for both accounts in deterministic order', async () => {
       const mergeManager = { query: jest.fn().mockResolvedValue([]) } as unknown as EntityManager;
 
       await service.lockUserLevelIssuanceForMerge(20, 10, mergeManager);
@@ -164,8 +137,6 @@ describe('VirtualIbanService', () => {
       expect((mergeManager.query as jest.Mock).mock.calls).toEqual([
         ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:EUR', '10']],
         ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:EUR', '20']],
-        ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Yapeal:CHF', '10']],
-        ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Yapeal:CHF', '20']],
       ]);
     });
   });
@@ -236,51 +207,13 @@ describe('VirtualIbanService', () => {
       expect(bankService.getBankInternal).not.toHaveBeenCalled();
     });
 
-    it('rechecks persisted ownership after taking the issuance lock and does not create beside a merge winner', async () => {
-      const mergeWinner = { id: 99, userData: { id: userData.id }, bank } as VirtualIban;
-      manager.findOne.mockImplementation(async (entity) => {
-        if (entity === VirtualIban) return mergeWinner;
-        return null;
-      });
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(ConflictException);
-
-      expect(manager.query).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [
-        'virtual-iban-issuance:Yapeal:CHF',
-        String(userData.id),
-      ]);
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-      expect(bankService.getBankInternal).not.toHaveBeenCalled();
-    });
-
-    it('takes the transaction lock on the same manager and propagates lock acquisition failure', async () => {
-      const lockFailure = new Error('lock acquisition failed');
-      manager.query.mockRejectedValueOnce(lockFailure);
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(lockFailure);
-
-      expect(manager.query).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [
-        'virtual-iban-issuance:Yapeal:CHF',
-        String(userData.id),
-      ]);
-      expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-    });
-
-    it('fails closed when the locked UserData row no longer exists', async () => {
-      issuanceUserDataFindOne.mockResolvedValue(null);
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow('User data not found');
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-    });
-
-    it('propagates the protected operation failure without any manual unlock path', async () => {
+    it('propagates a bank lookup failure before calling Yapeal', async () => {
       const operationFailure = new BadRequestException('No bank available for this currency');
       jest.spyOn(bankService, 'getBankInternal').mockRejectedValueOnce(operationFailure);
 
       await expect(service.createForUser(userData, 'CHF')).rejects.toBe(operationFailure);
-      expect(manager.query.mock.calls.some(([sql]) => String(sql).includes('pg_advisory_unlock'))).toBe(false);
-      expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
+      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException when currency is not found before any provider call', async () => {
@@ -315,15 +248,10 @@ describe('VirtualIbanService', () => {
     it('creates a CHF vIBAN via Yapeal and persists providerAccountRef', async () => {
       const saved = await service.createForUser(userData, 'CHF');
 
-      expect(bankService.getBankInternal).toHaveBeenCalledWith(
-        IbanBankName.YAPEAL,
-        'CHF',
-        manager as unknown as EntityManager,
-      );
+      expect(bankService.getBankInternal).toHaveBeenCalledWith(IbanBankName.YAPEAL, 'CHF');
       expect(yapealVibanProvider.reserveViban).toHaveBeenCalledWith(bank.iban);
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
-      expect(manager.create).toHaveBeenCalledWith(
-        VirtualIban,
+      expect(virtualIbanRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           userData,
           bank,
@@ -336,199 +264,31 @@ describe('VirtualIbanService', () => {
           activatedAt: expect.any(Date),
         }),
       );
-      const createArg = manager.create.mock.calls.find(([entity]) => entity === VirtualIban)?.[1];
+      const createArg = (virtualIbanRepo.create as jest.Mock).mock.calls[0][0];
       expect(createArg).not.toHaveProperty('yapealAccountUid');
-      expect(manager.save).toHaveBeenCalled();
+      expect(virtualIbanRepo.save).toHaveBeenCalled();
       expect(virtualIbanRepo.invalidateCache).toHaveBeenCalled();
       expect(saved.providerAccountRef).toBe('yapeal-uid-1');
+      expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
-    it('rejects a second generic claim while the durable intent is already in flight', async () => {
-      genericIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
-        id: 300,
-        requestReference: 'dfx-viban-existing-yapeal-claim',
-        userDataId: userData.id,
-        currencyId: currency.id,
-        bankId: bank.id,
-        provider: IbanBankName.YAPEAL,
-        buyId: null,
-        status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
-        externalIban: null,
-        error: null,
-      });
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        'Personal IBAN issuance is already in progress',
-      );
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-    });
-
-    it('fails closed when the claim insert cannot be read back', async () => {
-      manager.query.mockResolvedValue([]);
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        'Personal IBAN issuance intent not found after insert',
-      );
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-    });
-
-    it('marks a generic claim failed after provider rejection outside the transaction', async () => {
+    it('does not strand CHF issuance after a Yapeal failure and retries without a Frick intent', async () => {
       const providerError = new Error('Yapeal unavailable');
-      jest.spyOn(yapealVibanProvider, 'reserveViban').mockImplementation(async () => {
-        expect(transactionActive).toBe(false);
-        throw providerError;
+      jest.spyOn(yapealVibanProvider, 'reserveViban').mockRejectedValueOnce(providerError).mockResolvedValueOnce({
+        iban: 'CH4400762011623852958',
+        bban: '761623852958',
+        providerAccountRef: 'yapeal-uid-1',
       });
-
       await expect(service.createForUser(userData, 'CHF')).rejects.toBe(providerError);
-
-      expect(genericIntent).toMatchObject({
-        status: VirtualIbanIssuanceIntentStatus.FAILED,
-        error: 'Virtual IBAN provider request failed',
+      await expect(service.createForUser(userData, 'CHF')).resolves.toMatchObject({
+        iban: 'CH4400762011623852958',
+        providerAccountRef: 'yapeal-uid-1',
       });
-    });
-
-    it('does not overwrite a generic claim that completed while a provider failure was in flight', async () => {
-      const providerError = new Error('late Yapeal failure');
-      jest.spyOn(yapealVibanProvider, 'reserveViban').mockImplementation(async () => {
-        genericIntent.status = VirtualIbanIssuanceIntentStatus.COMPLETED;
-        throw providerError;
-      });
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(providerError);
-      expect(genericIntent.status).toBe(VirtualIbanIssuanceIntentStatus.COMPLETED);
-      expect(genericIntent.error).toBeNull();
-    });
-
-    it('fails closed when the durable generic claim changes before finalization', async () => {
-      jest.spyOn(yapealVibanProvider, 'reserveViban').mockImplementation(async () => {
-        genericIntent.currencyId = 999;
-        return {
-          iban: 'CH4400762011623852958',
-          bban: '761623852958',
-          providerAccountRef: 'yapeal-uid-1',
-        };
-      });
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        'Personal IBAN issuance claim changed before finalization',
+      expect(yapealVibanProvider.reserveViban).toHaveBeenCalledTimes(2);
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(manager.query.mock.calls.some(([sql]) => String(sql).includes('virtual_iban_issuance_intent'))).toBe(
+        false,
       );
-      expect(persistedVirtualIban).toBeNull();
-    });
-
-    it('fails closed when an active personal IBAN appears between claim and finalization', async () => {
-      jest.spyOn(yapealVibanProvider, 'reserveViban').mockImplementation(async () => {
-        persistedVirtualIban = Object.assign(new VirtualIban(), {
-          id: 999,
-          userData,
-          currency,
-          bank,
-          active: true,
-          status: VirtualIbanStatus.ACTIVE,
-        });
-        return {
-          iban: 'CH4400762011623852958',
-          bban: '761623852958',
-          providerAccountRef: 'yapeal-uid-1',
-        };
-      });
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        'Personal IBAN already exists at finalization',
-      );
-      expect(genericIntent.status).toBe(VirtualIbanIssuanceIntentStatus.IN_FLIGHT);
-    });
-
-    it('follows a merged owner after the lock and creates only for the surviving account', async () => {
-      const master = Object.assign(new UserData(), {
-        id: 8,
-        status: UserDataStatus.ACTIVE,
-        kycLevel: KycLevel.LEVEL_50,
-      });
-      issuanceUserDataFindOne
-        .mockResolvedValueOnce(
-          Object.assign(new UserData(), {
-            id: userData.id,
-            status: UserDataStatus.MERGED,
-            firstname: `Merged into ${master.id}`,
-          }),
-        )
-        .mockResolvedValue(master);
-
-      const result = await service.createForUser(userData, 'CHF');
-      expect(result.userData.id).toBe(master.id);
-
-      expect(manager.query.mock.calls.filter(([sql]) => String(sql).includes('pg_advisory_xact_lock'))).toEqual([
-        [
-          'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
-          ['virtual-iban-issuance:Yapeal:CHF', String(userData.id)],
-        ],
-        [
-          'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
-          ['virtual-iban-issuance:Yapeal:CHF', String(master.id)],
-        ],
-        [
-          'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
-          ['virtual-iban-issuance:Yapeal:CHF', String(master.id)],
-        ],
-      ]);
-      expect(manager.create).toHaveBeenCalledWith(VirtualIban, expect.objectContaining({ userData: master }));
-    });
-
-    it.each([undefined, 'retired account', 'Merged into not-a-number', 'Merged into 0'])(
-      'fails closed when a merged owner has invalid surviving-owner metadata (%p)',
-      async (firstname) => {
-        issuanceUserDataFindOne.mockResolvedValue(
-          Object.assign(new UserData(), {
-            id: userData.id,
-            status: UserDataStatus.MERGED,
-            firstname,
-          }),
-        );
-
-        await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-          `Merged UserData ${userData.id} has no valid surviving owner`,
-        );
-        expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-      },
-    );
-
-    it('fails closed on a cyclic merged-owner chain', async () => {
-      issuanceUserDataFindOne
-        .mockResolvedValueOnce(
-          Object.assign(new UserData(), {
-            id: userData.id,
-            status: UserDataStatus.MERGED,
-            firstname: 'Merged into 8',
-          }),
-        )
-        .mockResolvedValueOnce(
-          Object.assign(new UserData(), {
-            id: 8,
-            status: UserDataStatus.MERGED,
-            firstname: `Merged into ${userData.id}`,
-          }),
-        );
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        `Cyclic merged UserData ownership while issuing a virtual IBAN (${userData.id})`,
-      );
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-    });
-
-    it('bounds the persisted merged-owner walk before opening a 101st transaction', async () => {
-      issuanceUserDataFindOne.mockImplementation(async ({ where: { id } }) =>
-        Object.assign(new UserData(), {
-          id,
-          status: UserDataStatus.MERGED,
-          firstname: `Merged into ${Number(id) + 1}`,
-        }),
-      );
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        'Merged UserData ownership exceeds 100 transitions while issuing a virtual IBAN',
-      );
-      expect(dataSource.transaction).toHaveBeenCalledTimes(100);
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
     it('exposes post-commit merge cache invalidation without database work', () => {
@@ -585,14 +345,14 @@ describe('VirtualIbanService', () => {
           status: VirtualIbanStatus.ACTIVE,
         },
       });
-      expect(manager.create).toHaveBeenCalledWith(
-        VirtualIban,
+      expect(virtualIbanRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           buy,
           label: 'BTC',
           providerAccountRef: 'yapeal-uid-buy',
         }),
       );
+      expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
     it('throws ConflictException when buy already has an active personal IBAN', async () => {
@@ -601,56 +361,6 @@ describe('VirtualIbanService', () => {
 
       await expect(service.createForBuy(userData, buy, 'CHF')).rejects.toThrow(ConflictException);
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-    });
-
-    it('rechecks the buy binding after taking the issuance lock and does not create beside a merge winner', async () => {
-      const mergeWinner = { id: 99, userData: { id: userData.id }, bank, buy: { id: 12 } } as VirtualIban;
-      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValueOnce(null);
-      manager.findOne.mockImplementation(async (entity) => {
-        if (entity === VirtualIban) return mergeWinner;
-        return null;
-      });
-      jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(true);
-      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
-
-      await expect(service.createForBuy(userData, { id: 12 } as Buy, 'CHF')).rejects.toThrow(ConflictException);
-
-      expect(virtualIbanRepo.findOne).toHaveBeenCalledTimes(1);
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-      expect(bankService.getBankInternal).not.toHaveBeenCalled();
-    });
-
-    it('follows a merged owner after the lock for buy-bound issuance', async () => {
-      const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
-      const master = Object.assign(new UserData(), {
-        id: 8,
-        status: UserDataStatus.ACTIVE,
-        kycLevel: KycLevel.LEVEL_50,
-      });
-      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
-      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(currency as any);
-      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(bank as any);
-      jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(true);
-      jest.spyOn(yapealVibanProvider, 'reserveViban').mockResolvedValue({
-        iban: 'CH4400762011623852958',
-        bban: '761623852958',
-        providerAccountRef: 'yapeal-uid-buy',
-      });
-      issuanceUserDataFindOne
-        .mockResolvedValueOnce(
-          Object.assign(new UserData(), {
-            id: userData.id,
-            status: UserDataStatus.MERGED,
-            firstname: `Merged into ${master.id}`,
-          }),
-        )
-        .mockResolvedValue(master);
-
-      const result = await service.createForBuy(userData, buy, 'CHF');
-      expect(result.userData.id).toBe(master.id);
-      expect(result.buy.id).toBe(buy.id);
-
-      expect(manager.create).toHaveBeenCalledWith(VirtualIban, expect.objectContaining({ userData: master, buy }));
     });
 
     it('never uses Frick for generic EUR buy-specific creation', async () => {
@@ -801,6 +511,60 @@ describe('VirtualIbanService', () => {
       expect(currentIntent.userDataId).toBe(master.id);
       expect(manager.create).toHaveBeenCalledWith(VirtualIban, expect.objectContaining({ userData: master }));
       expect(manager.query.mock.calls.filter(([sql]) => String(sql).includes('pg_advisory_xact_lock'))).toHaveLength(3);
+    });
+
+    it('fails closed when a merged owner has no valid surviving-owner marker', async () => {
+      issuanceUserDataFindOne.mockResolvedValue(
+        Object.assign(new UserData(), {
+          id: userData.id,
+          status: UserDataStatus.MERGED,
+          firstname: 'Merged without an owner',
+        }),
+      );
+
+      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
+        `Merged UserData ${userData.id} has no valid surviving owner`,
+      );
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('fails closed on a cyclic merged-owner chain', async () => {
+      issuanceUserDataFindOne
+        .mockResolvedValueOnce(
+          Object.assign(new UserData(), {
+            id: userData.id,
+            status: UserDataStatus.MERGED,
+            firstname: 'Merged into 8',
+          }),
+        )
+        .mockResolvedValueOnce(
+          Object.assign(new UserData(), {
+            id: 8,
+            status: UserDataStatus.MERGED,
+            firstname: `Merged into ${userData.id}`,
+          }),
+        );
+
+      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
+        `Cyclic merged UserData ownership while issuing a virtual IBAN (${userData.id})`,
+      );
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('bounds merged-owner traversal before opening another transaction', async () => {
+      issuanceUserDataFindOne.mockImplementation(async () => {
+        const ownerId = issuanceUserDataFindOne.mock.calls.length + userData.id - 1;
+        return Object.assign(new UserData(), {
+          id: ownerId,
+          status: UserDataStatus.MERGED,
+          firstname: `Merged into ${ownerId + 1}`,
+        });
+      });
+
+      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
+        'Merged UserData ownership exceeds 100 transitions while issuing a virtual IBAN',
+      );
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
     it('rechecks KYC on the fresh locked owner before creating a Frick intent', async () => {
@@ -1668,7 +1432,7 @@ describe('VirtualIbanService', () => {
       expect(manager.save).not.toHaveBeenCalledWith(expect.objectContaining({ intentId: intent.id }));
     });
 
-    it('is a no-op for issuance intent when none exists (e.g. Yapeal-issued vIBAN)', async () => {
+    it('never queries or transitions Frick intent state for a Yapeal-issued vIBAN', async () => {
       const viban = Object.assign(new VirtualIban(), {
         id: 42,
         iban: 'CH4400762011623852958',
@@ -1683,10 +1447,7 @@ describe('VirtualIbanService', () => {
       await deactivateLocked(viban);
 
       expect(viban.status).toBe(VirtualIbanStatus.DEACTIVATED);
-      expect(manager.findOne).toHaveBeenCalledWith(VirtualIbanIssuanceIntent, {
-        where: { userDataId: 7, currencyId: 2, bankId: 11, buyId: IsNull() },
-        lock: { mode: 'pessimistic_write' },
-      });
+      expect(manager.findOne).not.toHaveBeenCalledWith(VirtualIbanIssuanceIntent, expect.anything());
       expect(manager.save).toHaveBeenCalledWith(viban);
       expect(manager.save).toHaveBeenCalledTimes(2);
     });
@@ -1719,7 +1480,13 @@ describe('VirtualIbanService', () => {
         relations: { userData: true, currency: true, bank: true },
       });
       expect(manager.findOne).toHaveBeenCalledWith(VirtualIbanIssuanceIntent, {
-        where: { userDataId: 7, currencyId: eur.id, bankId: frickBank.id, buyId: IsNull() },
+        where: {
+          userDataId: 7,
+          currencyId: eur.id,
+          bankId: frickBank.id,
+          provider: IbanBankName.FRICK,
+          buyId: IsNull(),
+        },
         lock: { mode: 'pessimistic_write' },
       });
     });
@@ -1776,10 +1543,16 @@ describe('VirtualIbanService', () => {
       await resolveLocked();
 
       expect(manager.find).toHaveBeenCalledWith(VirtualIbanIssuanceIntent, {
-        where: { userDataId: slaveId },
+        where: { userDataId: slaveId, provider: IbanBankName.FRICK },
       });
       expect(manager.findOne).toHaveBeenCalledWith(VirtualIbanIssuanceIntent, {
-        where: { userDataId: masterId, currencyId, bankId, buyId: IsNull() },
+        where: {
+          userDataId: masterId,
+          currencyId,
+          bankId,
+          provider: IbanBankName.FRICK,
+          buyId: IsNull(),
+        },
       });
       expect(manager.update).toHaveBeenCalledWith(VirtualIbanIssuanceIntent, slaveIntent.id, {
         userDataId: masterId,
@@ -2537,7 +2310,7 @@ describe('VirtualIbanService', () => {
       );
     });
 
-    it('is a no-op for Frick intents when none exist for the pair (e.g. Yapeal-issued winner)', async () => {
+    it('does not enter pair-level Frick intent reconciliation for a Yapeal-issued winner', async () => {
       const winner = Object.assign(new VirtualIban(), {
         id: 11,
         iban: 'CH4400762011623852958',
@@ -2570,6 +2343,7 @@ describe('VirtualIbanService', () => {
       );
 
       expect(loser.status).toBe(VirtualIbanStatus.DEACTIVATED);
+      expect(manager.findOne).not.toHaveBeenCalledWith(VirtualIbanIssuanceIntent, expect.anything());
       expect(manager.update).not.toHaveBeenCalledWith(VirtualIbanIssuanceIntent, expect.anything(), expect.anything());
     });
 
@@ -4203,7 +3977,7 @@ describe('VirtualIbanService', () => {
         status: VirtualIbanStatus.ACTIVE,
         userData: { id: slaveId },
         currency: { id: currencyId },
-        bank: { id: bankId },
+        bank: { id: bankId, name: IbanBankName.FRICK },
       });
 
       // Thin EntityManager surface used by resolveMergedVirtualIbanPairLocked: forward intent/event

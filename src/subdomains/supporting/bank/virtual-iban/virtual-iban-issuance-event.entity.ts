@@ -1,5 +1,6 @@
 import { Column, Entity, Index } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanIssuanceIntentStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent.entity';
 
 /**
@@ -27,6 +28,10 @@ export class VirtualIbanIssuanceEvent extends IEntity {
 
   @Column({ type: 'integer' })
   bankId: number;
+
+  @Index()
+  @Column({ type: 'varchar', length: 256 })
+  provider: IbanBankName;
 
   // Explicit type: Enum is imported cross-file; ts-jest transpile-only (isolatedModules) cannot
   // reliably emit design:type for that import and would otherwise leave Object → Postgres crash.

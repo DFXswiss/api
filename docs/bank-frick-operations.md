@@ -1,8 +1,9 @@
 # Bank Frick — Operations Runbook
 
 Operational notes for the Bank Frick statement import (`BankTxFrickService`), payout rail
-(`FiatOutputFrickService`), registry placeholders and cryptographic activation. Bank Frick must
-remain disabled until every activation check below has passed.
+(`FiatOutputFrickService`), registry placeholders and cryptographic activation. The production
+migration enables the rail; if the activation evidence below is incomplete, Operations must
+disable it immediately rather than treating the checklist as an automatic deployment gate.
 
 ## 1. Bank Frick watermark backfill
 
@@ -78,102 +79,56 @@ this fallback:
 
 No monitoring or manual cleanup pass is required for either bank as a result of this change.
 
-## 3. Registry and default-off activation
+## 3. Registry and production activation
 
-The migration never creates, updates or deletes a `bank` row. The only prior migration that ever
-inserted one (Yapeal EUR) was reverted (`f897b98a2 chore: remove migration (already inserted
-manually)`) because the row is a manual production step, not something a schema migration should
-own. The two new Bank Frick account rows are created the same way, manually, as part of this
-runbook. The local seed (`migration/seed/bank.csv`) keeps clearly synthetic, checksum-valid
-IBANs/ids for a fresh local database only - it is never applied to production (`migration/seed/
-seed.js` hard-blocks any non-local host/environment).
+Production activation is code-owned by
+`migration/1784400000000-ActivateBankFrick.js`. That migration is guarded by
+`ENVIRONMENT === 'prd'` and is a complete no-op in local, development and CI environments. Local
+databases continue to use the synthetic rows in `migration/seed/bank.csv`.
 
-### 3.1 Manually insert the two new Bank Frick accounts
+### 3.1 What the production migration does
 
-The real Bank Frick CT account IBANs for the new account:
+The migration:
 
-- **EUR: `LI75088110105923K000E`**
-- **CHF: `LI32088110105923K000C`**
+1. advances the named `bank_id_seq` beyond the current maximum `Bank.id`;
+2. upserts the EUR account `LI75088110105923K000E` and CHF account
+   `LI32088110105923K000C`, both with BIC `BFRILI22`;
+3. sets both rows to `receive=true`, `send=true`, `sctInst=false`, `amlEnabled=true`, and
+   `sendPriority=2000`;
+4. renames dormant legacy rows to `Bank Frick (legacy)`;
+5. seeds `lastBankFrickDate:<bankId>` to the current UTC time when the key is absent; and
+6. removes `FiatOutputFrickTransmission` and `FiatOutputFrickStatusCheck` from
+   `disabledProcess`.
 
-Run manually against production. BIC is `BFRILI22` for both rows (it identifies Bank Frick itself,
-not the individual account, so it is the same as the existing legacy rows' BIC):
+The upsert and watermark seed are idempotent. `sendPriority=2000` leaves the incumbent banks
+(backfilled to `1000`) ahead of Frick, so activation makes Frick an eligible fallback rather than
+the primary sender. The migration deliberately enables the two payout processes; this runbook must
+not describe them as default-off after that migration has run.
 
-```sql
--- Defensive: this INSERT relies on bank_id_seq via the identity column. Explicit-id inserts
--- elsewhere in this codebase (see migration/seed/seed.js) are a known source of a lagging
--- sequence; bump it first so this insert can never collide with a not-yet-advanced sequence.
-SELECT setval('bank_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM "bank"), (SELECT last_value FROM bank_id_seq)));
+### 3.2 Verification and rollback boundary
 
-INSERT INTO "bank"
-  ("updated", "created", "name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled", "sendPriority")
-VALUES
-  (NOW(), NOW(), 'Bank Frick', 'LI75088110105923K000E', 'BFRILI22', 'EUR', FALSE, FALSE, FALSE, TRUE, 2000),
-  (NOW(), NOW(), 'Bank Frick', 'LI32088110105923K000C', 'BFRILI22', 'CHF', FALSE, FALSE, FALSE, TRUE, 2000);
-```
+After deployment, verify both rows, their non-epoch watermark keys, and the two process settings
+before treating the rail as operational. A Frick row with `send=true` must also have
+`receive=true`; otherwise its booked debit cannot reconcile and release reserved liquidity.
+Instant routing remains unavailable while `sctInst=false`.
 
-`receive`, `send` and `sctInst` all start `FALSE` and `sendPriority` starts at `2000` (worse than
-every pre-existing row's backfilled `1000`), so inserting these rows changes nothing about current
-routing by itself - Ops must deliberately flip flags/lower the priority per the steps below.
+The migration's `down()` is suitable only before the new rows have been used. It re-adds both
+disabled-process sentinels, restores dormant legacy names, deletes the seeded watermarks, and
+deletes the two new bank rows. Existing foreign-key references make that final delete fail loudly.
+If an account has routed production traffic, rollback is an Operations reconciliation procedure,
+not a plain migration revert.
 
-### 3.2 Retire the legacy Bank Frick rows
+### 3.3 Sender cutover
 
-Bank Frick was integrated once before and removed; three legacy `Bank Frick` rows (the old
-account's IBANs, `receive=false`/`send=false`) were never cleaned up. Once the new rows above
-exist, `(name, currency)` would match two rows each for EUR/CHF unless the legacy rows are
-retired. **Decision: rename, not delete** (keeps history/audit trail intact). Run manually against
-production, immediately after 3.1:
+Lower `Bank.sendPriority` below the incumbent's `1000` only as a deliberate cutover. Two eligible
+sender banks with the same best priority are treated as a misconfiguration and the output remains
+unassigned until the tie is resolved. If new Frick payout creation is later stopped, keep status
+polling enabled until existing orders are terminal or reconciled.
 
-```sql
-UPDATE "bank"
-SET "name" = 'Bank Frick (legacy)'
-WHERE "name" = 'Bank Frick'
-  AND "receive" = FALSE AND "send" = FALSE
-  AND "iban" NOT IN ('LI75088110105923K000E', 'LI32088110105923K000C');
-```
-
-This is scoped so it can never match the two new rows inserted in 3.1 (excluded by IBAN) or any
-row that is actually live - `receive`/`send` both `FALSE` only matches the dormant legacy rows
-today. To roll back (rename the legacy rows back), reverse the `SET`:
-
-```sql
-UPDATE "bank" SET "name" = 'Bank Frick' WHERE "name" = 'Bank Frick (legacy)';
-```
-
-As defense in depth independent of this cleanup step, `BankService.getBankInternal`/
-`loadIbanCache` now deterministically prefer the highest `Bank.id` per `(name, currency)` - the
-newest row always wins a name/currency collision even before (or if ever again after) this cleanup
-runs.
-
-### 3.3 Activate
-
-1. Set `receive`, `send` and `sctInst` from the confirmed account-role matrix. Never infer these
-   flags from currency. **A Frick row used for `send=true` must also have `receive=true`** - a
-   send-only Frick row can never see its own booked debit come back on a statement, so it can never
-   reach `isComplete` and its reserved liquidity silently never releases. This combination is
-   checked and logged loudly on every `BankTxFrickService` poll cycle, but must not be relied upon
-   as the primary safeguard - set the flags correctly up front.
-   Before setting `send=true`, link the row to the correctly configured custody/liquidity asset and
-   verify that its balance is refreshed; payout readiness deliberately requires that balance.
-   Instant outputs additionally require `sctInst=true`; a row without that confirmed capability is
-   excluded from instant routing.
-2. Seed `lastBankFrickDate:<bankId>` before setting `receive=true`.
-3. Leave `FiatOutputFrickTransmission` and `FiatOutputFrickStatusCheck` in the `disabledProcess`
-   setting until the sandbox checklist below is complete. The migration adds both without
-   removing or duplicating existing process switches.
-4. Enable the status process before (or in the same controlled change as) transmission. If new
-   payout creation is later stopped, keep status polling enabled until all existing Frick orders
-   are terminal or reconciled.
-5. Set `Bank.sendPriority` deliberately before enabling a Frick `send` flag. Lower value is tried
-   first; every pre-existing row defaults to `1000` and the new Frick rows are inserted at `2000`
-   (3.1), so enabling Frick's `send` flag changes nothing by default - Frick coexists with, but
-   loses ties against, the incumbent (Olkypay/Yapeal) until Ops explicitly lowers its priority
-   below `1000` to cut traffic over. Two eligible banks sharing the exact same priority for a
-   currency is treated as a genuine misconfiguration and leaves the output unassigned until Ops
-   resolves the tie.
-
-The API also refuses to assign or ready a new Frick payout while creation is unavailable. If
-another eligible sender bank exists it is selected instead; otherwise the output remains
-unassigned, not stranded inside a disabled Frick rail.
+`BankService.getBankInternal` orders duplicate `(name, currency)` rows newest-first but prefers an
+asset-linked row because that link owns bank-transaction attribution. Only when no row is
+asset-linked does the newest row win. This is deterministic defense in depth; the production
+migration's legacy-row rename remains the primary collision removal.
 
 ## 4. Required cryptographic configuration
 
@@ -216,8 +171,9 @@ header, unsupported algorithm or signature mismatch fails closed.
 
 ## 6. Mandatory sandbox checklist
 
-Do not remove the default process switches until all items are evidenced with Bank Frick test or
-sandbox credentials:
+The production migration removes the two process switches; it does not verify external Bank Frick
+behaviour. Retain evidence for every item below. If any prerequisite is unverified or fails,
+restore the process switches immediately and keep the rail disabled until it is resolved:
 
 1. Verify authorize, accounts and camt.053 responses with the environment-specific server key.
 2. Import an official-shape camt.053 containing offset dates, `Pty` wrappers and entry-level bank
@@ -230,8 +186,9 @@ sandbox credentials:
    reconciliation query completes exactly one fiat output.
 6. Exercise 401 re-authorization, invalid response signature, ambiguous BIC, ambiguous bank match,
    empty statement and import-persistence failure; each must leave money/cursors unchanged.
-7. Enable `FiatOutputFrickStatusCheck`, observe clean polling, then enable
-   `FiatOutputFrickTransmission` in a separate controlled step.
+7. For a future reactivation, enable `FiatOutputFrickStatusCheck`, observe clean polling, then
+   enable `FiatOutputFrickTransmission` in a separate controlled step. The initial production
+   migration enables both together, so verify both processes immediately after deployment.
 8. Verify with a real camt.053 sample that Bank Frick books a charged debit **gross**
    (`Ntry/Amt` inclusive of `Chrgs`), matching what the #8 net-of-charge reconciliation fix
    (`bank-tx-outgoing-match.service.ts`) assumes. If Bank Frick ever books net instead while still
@@ -279,6 +236,20 @@ The `test:frick:cov` gate compiles with full type information (`tsconfig.coverag
 
 ## 8. Periodic Frick vIBAN issuance reconciliation
 
+### Provider boundary: this protocol is Frick-only
+
+The durable issuance intent, issuance-event retirement markers, merge-time intent reconciliation,
+and both hourly orphan-reconciliation phases apply only to `provider = 'Bank Frick'`. Implicit CHF
+issuance through Yapeal retains its pre-feature direct create/save flow: it does not acquire a
+Frick issuance lock, create an intent/event, write a retired-reference marker, or enter the Frick
+scanner. Phase 2 filters the provider snapshot stored on each issuance event before any `Bank`
+lookup or Frick API call, and `getListingForBank` independently refuses a bank row whose current
+name is not `Bank Frick`.
+
+Yapeal still has the pre-existing weakness that an external create cannot be undone and has no
+reference-based reconciliation protocol. This change intentionally does not introduce a second
+recovery design for that provider; restoring pre-feature customer behavior takes precedence.
+
 ### Request path is fail-closed (no self-heal)
 
 On the customer request path, an empty Frick recovery listing is **not** treated as proof of
@@ -319,9 +290,9 @@ processes setting.
 
 #### Phase 1 — reopen stuck InFlight/Failed intents (mutating, evidence gated)
 
-1. Load every issuance intent with status `InFlight` or `Failed`, then **exclude** permanently
-   merge-superseded intents (`error` contains `MERGE_SUPERSEDED_MARKER`) — those must never be
-   reopened.
+1. Load Bank Frick issuance intents (`provider = 'Bank Frick'`) with status `InFlight` or `Failed`,
+   then **exclude** permanently merge-superseded intents (`error` contains
+   `MERGE_SUPERSEDED_MARKER`) — those must never be reopened.
 2. Group remaining intents by `bankId` and list Frick vIBANs for that bank's reference IBAN
    (`FrickVibanProvider.listByReferenceAccount`).
 3. For each eligible intent, compare the listing's `description` set to the intent's current
@@ -382,8 +353,9 @@ exists to detect that case.
 
 #### Phase 2 — retired-reference orphan scan (alert-only)
 
-Phase 2 scans the event log for previously **retired** references and alerts when Bank Frick still
-shows an object under one. It is **alert-only**: it never mutates intents or Bank Frick state.
+Phase 2 scans only event rows whose durable provider snapshot is `Bank Frick`, then checks their
+previously **retired** references and alerts when Bank Frick still shows an object under one. It is
+**alert-only**: it never mutates intents or Bank Frick state.
 
 **Where retired references come from** (writers of the durable markers in `nextError`):
 
@@ -429,17 +401,21 @@ Frick or local state — **manual operator follow-through is required**.
 
 ### What the job looks for (Phase 2 SQL)
 
-It queries `virtual_iban_issuance_event` for any transition whose `nextError` text contains either
-marker — **no `nextStatus` gate and no time bound**. Marker presence alone identifies a reference-
-retirement event: Phase-1 / deactivation-reopen writers use `nextStatus = Pending`; merge-supersede
-uses `nextStatus = Failed` with the same `previousRequestReference=` marker so permanently retired
-references stay under scan.
+It queries `virtual_iban_issuance_event` for Bank Frick transitions whose `nextError` text contains
+either marker — **no `nextStatus` gate and no time bound**. Provider plus marker identifies a Frick
+reference-retirement event: Phase-1 / deactivation-reopen writers use `nextStatus = Pending`;
+merge-supersede uses `nextStatus = Failed` with the same `previousRequestReference=` marker so
+permanently retired references stay under scan.
 
 ```sql
-SELECT id, created, intentId, userDataId, currencyId, bankId, previousStatus, nextStatus, nextError
+SELECT id, created, intentId, userDataId, currencyId, bankId, provider,
+       previousStatus, nextStatus, nextError
 FROM virtual_iban_issuance_event
-WHERE nextError LIKE '%previousRequestReference=%'
-   OR nextError LIKE '%recovery listing found no match under requestReference=%'
+WHERE provider = 'Bank Frick'
+  AND (
+    nextError LIKE '%previousRequestReference=%'
+    OR nextError LIKE '%recovery listing found no match under requestReference=%'
+  )
 ORDER BY created DESC;
 ```
 
@@ -458,14 +434,16 @@ free-form columns, so the debug endpoint is not that fallback.
 ### What it reconciles against
 
 Both phases list Bank Frick virtual IBANs **per bank and across every lifecycle state**, not against
-one hardcoded EUR reference account. For each distinct `bankId` on the intents (Phase 1) or abandoned-reference events
-(Phase 2), the job resolves `Bank.iban` via `BankService.getBankById` and calls
-`FrickVibanProvider.listByReferenceAccount` (no lifecycle-state filter). Comparison is exact equality of
-listed `description` to the intent's current `requestReference` (Phase 1) or the extracted
-abandoned reference (Phase 2). A missing bank IBAN throws inside that bank's processing and is
-caught by the per-bank `try/catch` in both phases: only that one bank is skipped
-(`sendPerBankFailureAlert`); every other bank in the same run continues normally. Absence of a
-match alert for the skipped bank is **not** evidence of a clean state.
+one hardcoded EUR reference account. For each distinct `bankId` on the intents (Phase 1) or
+abandoned-reference events (Phase 2), the job resolves `Bank.iban` through the uncached
+`BankService.getBankByIdUncached` database read, verifies `Bank.name === 'Bank Frick'`, and calls
+`FrickVibanProvider.listByReferenceAccount` (no lifecycle-state filter). A reference-account IBAN
+correction is therefore visible on the next run rather than after the repository cache expires.
+Comparison is exact equality of listed `description` to the intent's current `requestReference`
+(Phase 1) or the extracted abandoned reference (Phase 2). A missing IBAN or non-Frick bank throws
+inside that bank's processing and is caught by the per-bank `try/catch` in both phases: only that
+one bank is skipped (`sendPerBankFailureAlert`); every other bank in the same run continues
+normally. Absence of a match alert for the skipped bank is **not** evidence of a clean state.
 
 ### What to do on a match (operator follow-up)
 
@@ -498,15 +476,23 @@ effects cannot roll the database merge back.
 
 There is no durable outbox in this change. A process death after commit but before an effect
 completes can therefore lose that effect permanently, and replaying the merge itself is not
-possible because the slave is already marked `Merged`. The service writes one contextual
-`UserData merge committed; starting post-commit effects` marker and a completion marker for every
-effect. An effect failure is logged at critical severity with `masterId`, `slaveId`, and the exact
-effect name; all remaining effects are still attempted. Failed effects do not receive a completion
-marker, and the final critical summary names every failed effect. The committed merge returns
-success so an `AccountMerge` request is completed rather than left open for an impossible retry.
-Operations must compare the committed marker with the completion markers and
-manually replay any missing effect after a crash. The same manual replay applies to every
-critically logged failure.
+possible because the slave is already marked `Merged`. Detection starts from the durable KYC merge
+log rows written for both accounts inside the merge transaction. Their `result` contains
+`postCommitEffectsPending=<comma-separated effect names>`; if the merge commits, both rows commit
+with it, including when the process dies before the first application log is emitted.
+
+After commit, the service writes `UserData merge committed; starting post-commit effects` and one
+completion marker per successful effect to the application log. An effect failure is logged at
+critical severity with `masterId`, `slaveId`, and the exact effect name; all remaining effects are
+still attempted. Failed effects do not receive a completion marker, and the final critical summary
+names every failed effect. The committed merge returns success so an `AccountMerge` request is
+completed rather than left open for an impossible retry.
+
+Operations must query the two durable `KycLog` rows for the master/slave merge, read the
+`postCommitEffectsPending=` list, and compare it with application-log completion markers for the
+same `masterId`/`slaveId`. Manually replay any missing effect after a crash. The same manual replay
+applies to every critically logged failure. The marker makes the loss detectable; it does not make
+the effects retryable automatically.
 
 This is a known, bounded gap accepted for this PR. Durable delivery requires an idempotent outbox or
 retry queue and is intentionally deferred.
