@@ -45,21 +45,11 @@ module.exports = class AddCustodyAccountAccessHistory1785100000000 {
 
     // Lossy rollback by nature: after level changes or revoke-and-regrant there are several rows
     // per (accountId, userDataId), so the original full unique index cannot be recreated without
-    // first consolidating. Keep the currently active row for each pair; if none is active, keep
-    // the most recent row (highest id). Delete remaining history, then restore the old schema.
-    await queryRunner.query(`
-      DELETE FROM "custody_account_access" AS caa
-      WHERE caa."id" NOT IN (
-        SELECT kept."id"
-        FROM (
-          SELECT DISTINCT ON ("accountId", "userDataId") "id"
-          FROM "custody_account_access"
-          ORDER BY "accountId", "userDataId",
-            CASE WHEN "active" = true THEN 0 ELSE 1 END,
-            "id" DESC
-        ) AS kept
-      )
-    `);
+    // first consolidating. Keep ONLY the active rows — the partial index guarantees at most one
+    // per pair. Every inactive row is history and must go: keeping the newest one for a pair that
+    // has no active row would resurrect a revoked grant, because the rolled-back application has
+    // no `active` column left to tell live from historical.
+    await queryRunner.query(`DELETE FROM "custody_account_access" WHERE "active" = false`);
 
     await queryRunner.query(
       `CREATE UNIQUE INDEX "IDX_380e225bfd7707fff0e4f98035" ON "custody_account_access" ("accountId", "userDataId")`,
