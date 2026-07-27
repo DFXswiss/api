@@ -39,6 +39,15 @@ export enum ScryptAdapterCommands {
 /** Marks a reference as ours when reading Scrypt's own order/transaction history. */
 const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
 
+/**
+ * How long an acknowledged order may stay unobservable before it is quarantined rather than polled again.
+ *
+ * Matches the age at which the venue lookup itself gives up on finding an order, so both routes out of a
+ * silent order agree. Quarantine is not a verdict — the order is still not declared failed — it only moves it
+ * somewhere a human can act on.
+ */
+const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 60;
+
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {
   private readonly logger = new DfxLogger(ScryptAdapter);
@@ -256,6 +265,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         to,
         order.created,
         replacementClOrdId,
+        async () => {
+          order.recordSpentCorrelationId(replacementClOrdId);
+          await this.orderRepo.save(order);
+        },
       );
 
       if (isComplete) {
@@ -303,8 +316,18 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       if (isVenueRejection(e)) throw new OrderFailedException(e.message);
 
       // Anything else is a failure to OBSERVE an order that the venue has acknowledged and may still be
-      // working. Failing it here would let the rule open a second position against the same funds, so keep
-      // the order and look again next tick; a check that never succeeds surfaces via the stuck-order metric.
+      // working. Failing it here would let the rule open a second position against the same funds, so the
+      // order is kept and looked at again next tick.
+      //
+      // But not forever: an order nobody can observe would otherwise poll for good, and the manual path only
+      // accepts quarantined orders, so there would be no way out at all. Past the same age at which the venue
+      // itself is considered to have lost an order, it is quarantined — still not declared failed, and now
+      // reachable for a human.
+      if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
+        throw new OrderOutcomeUnknownException(
+          `Scrypt order ${order.id} has been unobservable for over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes: ${e.message}`,
+        );
+
       this.logger.warn(`Could not check Scrypt order ${order.id}, will look again next tick: ${e.message}`);
       return false;
     }
@@ -494,10 +517,19 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
         for (const candidate of candidates) {
           const info = await this.scryptService.getOrderStatus(candidate);
-          if (!info) continue;
 
-          // A refused replacement never took effect and leaves its predecessor live. Adopting it would hand
-          // the order a dead reference, fail it, and release the rule while the original still stands.
+          // Absent, newest first: an accepted replacement may simply not be visible yet, while the order it
+          // replaced still is. Falling through to that predecessor would report SENT on a reference the venue
+          // has already superseded and leave the live replacement untracked, so stop here instead.
+          if (!info) {
+            this.logger.warn(
+              `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
+            );
+            return UncertainOrderResolution.UNRESOLVED;
+          }
+
+          // A refused replacement never took effect and leaves its predecessor live. This is the only case in
+          // which an older reference may be considered.
           if (info.status === ScryptOrderStatus.REJECTED) {
             order.recordSpentCorrelationId(candidate);
             continue;

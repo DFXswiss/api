@@ -240,8 +240,10 @@ describe('LiquidityManagementPipelineService', () => {
       await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(
         /the venue confirms the request exists/,
       );
-      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
-      expect(orderRepo.update).not.toHaveBeenCalled();
+      // and the observation is PERSISTED, not just refused — otherwise a later attempt made while the venue
+      // is unreachable could still release the order and undo what was seen here
+      expect(order.status).toBe(LiquidityManagementOrderStatus.IN_PROGRESS);
+      expect(orderRepo.update).toHaveBeenCalled();
     });
 
     it('skips an order another path resolved first, instead of overwriting it', async () => {

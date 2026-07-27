@@ -399,11 +399,18 @@ export class LiquidityManagementPipelineService {
     if (actionIntegration.resolveUncertainOrder) {
       const resolution = await actionIntegration.resolveUncertainOrder(order);
 
-      if (resolution === UncertainOrderResolution.SENT)
+      if (resolution === UncertainOrderResolution.SENT) {
+        // Record the observation before refusing. Merely throwing would leave the row quarantined, so a
+        // later attempt — made while the venue happens to be unreachable — could still release it and undo
+        // what we just saw. Once observed live, the order is no longer a candidate for manual release at all.
+        order.resolveAsSent();
+        await this.leaveQuarantine(order);
+
         throw new ConflictException(
           `Liquidity management order ${orderId} cannot be released: the venue confirms the request exists. ` +
-            `It will be picked up as in progress by the next reconciliation pass.`,
+            `It has been returned to in progress and the normal completion check now tracks it.`,
         );
+      }
     }
 
     order.resolveAsNotSent(

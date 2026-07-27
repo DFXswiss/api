@@ -477,6 +477,10 @@ export class ScryptService extends PricingProvider {
     to: string,
     orderCreated?: Date,
     replacementClOrdId?: string,
+    // Invoked immediately before a replacement is sent, so the caller can make the reference durable first.
+    // Without that, a replacement whose confirmation is lost is neither the current reference nor a spent
+    // one, and the next pass derives it a second time.
+    claimReplacement?: () => Promise<void>,
   ): Promise<boolean> {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
@@ -503,6 +507,8 @@ export class ScryptService extends PricingProvider {
           this.logger.verbose(`Order ${clOrdId}: price changed ${orderInfo.price} -> ${currentPrice}, updating order`);
 
           try {
+            await claimReplacement?.();
+
             const newId = await this.editOrder(
               clOrdId,
               from,
@@ -563,6 +569,8 @@ export class ScryptService extends PricingProvider {
         const price = await this.getOrderBookPrice(symbol, side);
 
         this.logger.verbose(`Order ${clOrdId} cancelled, restarting with remaining ${remaining} (base currency)`);
+
+        await claimReplacement?.();
 
         // Same write boundary as the amend above: an unconfirmed restart may have created a live order under
         // `replacementClOrdId`, so the caller has to quarantine rather than see a retryable transport error.
