@@ -42,6 +42,7 @@ import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
+import { CustodyAccountResolver } from './custody-account-resolver.service';
 import { CustodyService } from './custody.service';
 
 @Injectable()
@@ -53,6 +54,7 @@ export class CustodyOrderService {
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
     private readonly custodyService: CustodyService,
+    private readonly custodyAccountResolver: CustodyAccountResolver,
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     @Inject(forwardRef(() => BuyService))
@@ -232,8 +234,9 @@ export class CustodyOrderService {
   }
 
   async createOrderInternal(dto: CreateCustodyOrderInternalDto): Promise<CustodyOrder> {
-    // Row belongs to the same account as its user (null while still in legacy mode).
-    const order = this.custodyOrderRepo.create({ ...dto, account: dto.user.custodyAccount });
+    // Resolve from the user id in the DB — never from a possibly unloaded relation.
+    const account = await this.custodyAccountResolver.resolveAccountForUser(dto.user.id);
+    const order = this.custodyOrderRepo.create({ ...dto, account });
 
     if (dto.transactionRequestId) order.transactionRequest = { id: dto.transactionRequestId } as TransactionRequest;
 

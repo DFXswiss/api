@@ -22,6 +22,7 @@ import { CustodyOrderStatus } from '../enums/custody';
 import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
+import { CustodyAccountResolver } from './custody-account-resolver.service';
 
 interface CustodyOrderSingle {
   asset: Asset;
@@ -40,6 +41,7 @@ export class CustodyService {
     private readonly custodyBalanceRepo: CustodyBalanceRepository,
     private readonly assetPricesService: AssetPricesService,
     private readonly assetService: AssetService,
+    private readonly custodyAccountResolver: CustodyAccountResolver,
   ) {}
 
   // --- ACCOUNT --- //
@@ -56,11 +58,8 @@ export class CustodyService {
 
     const account = await this.userDataService.getActiveUserData(accountId, { users: true });
 
-    // Inherit the materialised Safe from an existing custody sibling (null while still legacy).
-    const materialisedAccount = account.users
-      .filter((u) => u.role === UserRole.CUSTODY)
-      .map((u) => u.custodyAccount)
-      .find((ca) => ca != null && ca.id != null);
+    // Inherit via DB lookup of siblings — never from unloaded users.custodyAccount relations.
+    const materialisedAccount = await this.custodyAccountResolver.resolveAccountForNewCustodyUser(account.id);
 
     const custodyUser = await this.userService.createUser(
       {
@@ -107,8 +106,9 @@ export class CustodyService {
   }
 
   async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {
-    // Row belongs to the same account as its user (null while still in legacy mode).
-    const entity = this.custodyBalanceRepo.create({ user, asset, balance, account: user.custodyAccount });
+    // Resolve from the user id in the DB — never from a possibly unloaded relation.
+    const account = await this.custodyAccountResolver.resolveAccountForUser(user.id);
+    const entity = this.custodyBalanceRepo.create({ user, asset, balance, account });
 
     return this.custodyBalanceRepo.save(entity);
   }
