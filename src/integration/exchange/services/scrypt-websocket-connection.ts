@@ -50,6 +50,17 @@ export function isTransientWsError(e: Error): boolean {
   return TRANSIENT_WS_ERROR_MARKERS.some((m) => e.message?.toLowerCase().includes(m.toLowerCase()));
 }
 
+/**
+ * A request was sent but no answer arrived within its deadline.
+ *
+ * Deliberately its own type rather than another entry in TRANSIENT_WS_ERROR_MARKERS: those markers describe
+ * a socket that demonstrably dropped the request, so retrying is safe for anything. A timeout describes
+ * silence — the venue may or may not have acted. Only idempotent reads may retry it; every write path must
+ * translate it into an unknown outcome. Matching on the message text instead would make that distinction
+ * impossible to enforce, because both kinds of timeout would read the same.
+ */
+export class ScryptRequestTimeoutError extends Error {}
+
 interface ScryptRequest {
   reqid?: number;
   type: ScryptRequestType | ScryptMessageType;
@@ -120,7 +131,7 @@ export class ScryptWebSocketConnection {
       }
     };
 
-    return this.retryOnTransientWsError(doFetch, `fetch ${streamName}`);
+    return this.retryIdempotentRead(doFetch, `fetch ${streamName}`);
   }
 
   async fetchAll<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
@@ -155,7 +166,7 @@ export class ScryptWebSocketConnection {
       }
     };
 
-    return this.retryOnTransientWsError(doFetch, `fetchAll ${streamName}`);
+    return this.retryIdempotentRead(doFetch, `fetchAll ${streamName}`);
   }
 
   // Register a callback fired after a successful RE-connect (not the first connect). Used to re-fetch state that
@@ -164,11 +175,19 @@ export class ScryptWebSocketConnection {
     this.reconnectCallbacks.push(callback);
   }
 
-  private async retryOnTransientWsError<T>(operation: () => Promise<T>, label: string): Promise<T> {
+  /**
+   * Retry wrapper for IDEMPOTENT READS ONLY — `fetch` and `fetchAll`. Never widen this to a call that can
+   * create, amend or cancel an order, or move funds: it retries on timeout, and a timed-out write may
+   * already have been executed by the venue. Write paths must surface the timeout so the caller can treat
+   * the outcome as unknown (see OrderOutcomeUnknownException in the liquidity-management subdomain).
+   */
+  private async retryIdempotentRead<T>(operation: () => Promise<T>, label: string): Promise<T> {
     try {
       return await operation();
     } catch (error) {
-      if (isTransientWsError(error)) {
+      // A read that went unanswered is safe to repeat: re-subscribing to a snapshot stream has no side
+      // effect at the venue. Without this, a single silent 30s window ends the whole liquidity order.
+      if (isTransientWsError(error) || error instanceof ScryptRequestTimeoutError) {
         this.logger.warn(`Retrying ${label} after transient error: ${error.message}`);
         return operation();
       }
@@ -186,7 +205,7 @@ export class ScryptWebSocketConnection {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         unsubscribe();
-        reject(new Error(`Timeout waiting for ${streamName} update after ${timeoutMs}ms`));
+        reject(new ScryptRequestTimeoutError(`Timeout waiting for ${streamName} update after ${timeoutMs}ms`));
       }, timeoutMs);
 
       const unsubscribe = this.subscribe(streamName, (data) => {
@@ -440,7 +459,7 @@ export class ScryptWebSocketConnection {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(reqId);
-        reject(new Error(`Request timeout after ${timeoutMs}ms`));
+        reject(new ScryptRequestTimeoutError(`Request timeout after ${timeoutMs}ms`));
       }, timeoutMs);
 
       this.pendingRequests.set(reqId, { resolve, reject, timeout });

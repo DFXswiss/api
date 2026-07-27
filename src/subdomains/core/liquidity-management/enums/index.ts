@@ -39,6 +39,20 @@ export enum LiquidityManagementOrderStatus {
   COMPLETE = 'Complete',
   NOT_PROCESSABLE = 'NotProcessable',
   FAILED = 'Failed',
+  // Quarantine for an order whose request left our side without an observed outcome. Terminal for the
+  // pipeline (it never resumes on its own) but not for the order: `resolveUncertainOrders` asks the venue
+  // what happened and moves it on to IN_PROGRESS or FAILED. See OrderOutcomeUnknownException.
+  UNCERTAIN = 'Uncertain',
+}
+
+/** Outcome of asking a venue what happened to an order that ended in {@link LiquidityManagementOrderStatus.UNCERTAIN}. */
+export enum UncertainOrderResolution {
+  /** The venue knows the order — it was sent. Hand it back to the normal completion check. */
+  SENT = 'Sent',
+  /** The venue demonstrably does not know the order — nothing was executed, the rule may plan anew. */
+  NOT_SENT = 'NotSent',
+  /** Still undecidable (venue unreachable, lookup inconclusive). Stay in quarantine and retry later. */
+  UNRESOLVED = 'Unresolved',
 }
 
 export enum LiquidityManagementPipelineStatus {

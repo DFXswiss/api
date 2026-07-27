@@ -9,10 +9,11 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { In } from 'typeorm';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
-import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
+import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, UncertainOrderResolution } from '../enums';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
 import { OrderNotNecessaryException } from '../exceptions/order-not-necessary.exception';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
+import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
@@ -38,12 +39,15 @@ export class LiquidityManagementPipelineService {
   async processPipelines(): Promise<void> {
     let hasChanges = true;
     while (hasChanges) {
+      // reconcile before issuing anything new: an order whose outcome we could not observe must be
+      // accounted for against the venue before the same rule is allowed to act again
+      const uncertainResolved = await this.resolveUncertainOrders();
       const newPipelinesStarted = await this.startNewPipelines();
       const ordersChanged = await this.checkRunningOrders();
       const pipelinesChanged = await this.checkRunningPipelines();
       const newOrdersStarted = await this.startNewOrders();
 
-      hasChanges = newPipelinesStarted || ordersChanged || pipelinesChanged || newOrdersStarted;
+      hasChanges = uncertainResolved || newPipelinesStarted || ordersChanged || pipelinesChanged || newOrdersStarted;
     }
   }
 
@@ -174,10 +178,12 @@ export class LiquidityManagementPipelineService {
 
   private async startNewOrders(): Promise<boolean> {
     const newOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.CREATED });
+    let anyChanged = false;
 
     for (const order of newOrders) {
       try {
         await this.executeOrder(order);
+        anyChanged = true;
       } catch (e) {
         if (e instanceof OrderNotNecessaryException) {
           order.complete();
@@ -188,22 +194,105 @@ export class LiquidityManagementPipelineService {
         } else if (e instanceof OrderFailedException) {
           order.fail(e);
           await this.orderRepo.save(order);
+        } else {
+          // Unknown outcome, either declared by the integration or because the error escaped classification
+          // altogether. Both mean the same thing: we cannot prove the request did not reach the venue, so the
+          // order is quarantined instead of failed — a failed order pauses its rule, and the rule
+          // auto-reactivates, which would repeat a request that may already have executed.
+          const cause = e instanceof OrderOutcomeUnknownException ? e : new OrderOutcomeUnknownException(e.message);
+          order.uncertain(cause);
+          await this.orderRepo.save(order);
+          await this.reportUncertainOrder(order);
         }
+
+        // every branch above persists a new status, so the order leaves the CREATED set either way — this is
+        // what keeps the caller's `while (hasChanges)` loop from spinning on an order it cannot advance
+        anyChanged = true;
 
         this.logger.info(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
 
-    return newOrders.length > 0;
+    return anyChanged;
   }
 
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
 
+    // Claim the venue-side reference before the request goes out. Integrations that can pin their own
+    // reference (Scrypt's ClOrdID) become traceable after an un-acknowledged send; the persisted id is also
+    // what makes a crash between send and save recoverable instead of orphaning a live venue order.
+    const reservedCorrelationId = actionIntegration.reserveCorrelationId?.(order);
+    if (reservedCorrelationId) {
+      order.reserveCorrelationId(reservedCorrelationId);
+      await this.orderRepo.save(order);
+    }
+
     const correlationId = await actionIntegration.executeOrder(order);
     order.inProgress(correlationId);
 
     await this.orderRepo.save(order);
+  }
+
+  /**
+   * Resolve orders quarantined as UNCERTAIN by asking the venue what actually happened.
+   *
+   * This only ever observes — it must not re-send anything. An order leaves quarantine when the venue
+   * either confirms it knows the reference (back to IN_PROGRESS, the normal completion check takes over) or
+   * demonstrably does not (FAILED, so the rule may plan anew from a fresh balance). Anything inconclusive
+   * stays put: an order nobody can account for is safer parked than retried.
+   */
+  private async resolveUncertainOrders(): Promise<boolean> {
+    const uncertainOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+    let anyChanged = false;
+
+    for (const order of uncertainOrders) {
+      try {
+        const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
+        if (!actionIntegration.resolveUncertainOrder) continue;
+
+        const resolution = await actionIntegration.resolveUncertainOrder(order);
+
+        if (resolution === UncertainOrderResolution.SENT) {
+          order.resolveAsSent();
+          await this.orderRepo.save(order);
+          anyChanged = true;
+          this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
+        } else if (resolution === UncertainOrderResolution.NOT_SENT) {
+          order.resolveAsNotSent(`${order.errorMessage} (venue confirmed the request never arrived)`);
+          await this.orderRepo.save(order);
+          anyChanged = true;
+          this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue never received it`);
+        }
+      } catch (e) {
+        // a failing lookup must never promote the order out of quarantine
+        this.logger.error(`Error in resolving uncertain liquidity order ${order.id}:`, e);
+      }
+    }
+
+    return anyChanged;
+  }
+
+  private async reportUncertainOrder(order: LiquidityManagementOrder): Promise<void> {
+    const message =
+      `Liquidity order ${order.id} (action ${order.action.id}, ${order.action.system}/${order.action.command}) ` +
+      `has an unknown outcome: ${order.errorMessage}. Reference: ${order.correlationId ?? 'none reserved'}. ` +
+      `The order is quarantined and will NOT be retried automatically — it is resolved against the venue.`;
+
+    this.logger.error(message);
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.LIQUIDITY_MANAGEMENT,
+      // pinned per order so repeated reports collapse instead of one mail per pass; debounce rather than
+      // suppressRecurring, so a still-unresolved order keeps reminding us once an hour
+      correlationId: `lm-order-uncertain-${order.id}`,
+      options: { debounce: 3600000 },
+      input: {
+        subject: 'Liquidity management order outcome UNKNOWN',
+        errors: [message],
+      },
+    });
   }
 
   private async checkRunningOrders(): Promise<boolean> {
@@ -253,11 +342,10 @@ export class LiquidityManagementPipelineService {
 
     await this.ruleRepo.save(rule);
 
-    const [successMessage, mailRequest] = this.generateSuccessMessage(pipeline);
-
-    if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
-
-    this.logger.verbose(successMessage);
+    // No mail on success. Over the week to 27.07.2026 this path produced 211 of 255 liquidity mails, none of
+    // which carried information or asked for an action — and that volume is what made the mails that DO
+    // matter (see reportUncertainOrder) unreadable. The completion stays in the log.
+    this.logger.verbose(this.generateSuccessMessage(pipeline));
   }
 
   private async handlePipelineFail(
@@ -278,20 +366,10 @@ export class LiquidityManagementPipelineService {
     if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
   }
 
-  private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
+  private generateSuccessMessage(pipeline: LiquidityManagementPipeline): string {
     const { id, type, maxAmount, rule } = pipeline;
-    const successMessage = `${type} pipeline for max. ${maxAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
 
-    const mailRequest: MailRequest = {
-      type: MailType.ERROR_MONITORING,
-      context: MailContext.LIQUIDITY_MANAGEMENT,
-      input: {
-        subject: 'Liquidity management pipeline SUCCESS',
-        errors: [successMessage],
-      },
-    };
-
-    return [successMessage, mailRequest];
+    return `${type} pipeline for max. ${maxAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
   }
 
   private generateFailMessage(
@@ -306,6 +384,12 @@ export class LiquidityManagementPipelineService {
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
       context: MailContext.LIQUIDITY_MANAGEMENT,
+      // Pinned per rule and debounced: a single incident retries every few minutes, and each attempt used to
+      // mail. On 20.07.2026 two rules produced 18 mails in two hours for one underlying problem. Debounce
+      // rather than suppressRecurring, so a rule that keeps failing keeps reminding us once an hour instead
+      // of going quiet forever after the first mail.
+      correlationId: `lm-pipeline-fail-${rule.id}`,
+      options: { debounce: 3600000 },
       input: {
         subject: 'Liquidity management pipeline FAIL',
         errors: [

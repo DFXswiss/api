@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
-import { isTransientWsError } from 'src/integration/exchange/services/scrypt-websocket-connection';
+import {
+  isTransientWsError,
+  ScryptRequestTimeoutError,
+} from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -11,9 +14,10 @@ import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
-import { LiquidityManagementSystem } from '../../enums';
+import { LiquidityManagementSystem, UncertainOrderResolution } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
+import { OrderOutcomeUnknownException } from '../../exceptions/order-outcome-unknown.exception';
 import { Command, CorrelationId } from '../../interfaces';
 import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
@@ -23,6 +27,16 @@ export enum ScryptAdapterCommands {
   SELL = 'sell',
   BUY = 'buy',
 }
+
+/** Marks a reference as ours when reading Scrypt's own order/transaction history. */
+const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
+
+/**
+ * How long a reference must be missing from Scrypt's history before absence counts as proof of
+ * non-arrival. Covers the venue's own registration delay: concluding "never arrived" too early is the one
+ * mistake that lets the rule re-issue a request the venue is still processing.
+ */
+const SCRYPT_UNCERTAIN_GRACE_MINUTES = 10;
 
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {
@@ -95,7 +109,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     order.outputAsset = token;
 
     try {
-      const response = await this.scryptService.withdrawFunds(token, amount, address);
+      const response = await this.scryptService.withdrawFunds(token, amount, address, undefined, order.correlationId);
 
       return response.id;
     } catch (e) {
@@ -105,7 +119,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         );
       }
 
-      throw e;
+      throw this.classifySendOutcome(e, `withdrawal of ${amount} ${token} to ${address}`);
     }
   }
 
@@ -175,7 +189,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     order.outputAsset = targetAssetEntity.dexName;
 
     try {
-      return await this.scryptService.sell(tradeAsset, targetAssetEntity.dexName, amount);
+      return await this.scryptService.sell(tradeAsset, targetAssetEntity.dexName, amount, order.correlationId);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(
@@ -183,7 +197,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         );
       }
 
-      throw e;
+      throw this.classifySendOutcome(e, `sell of ${amount} ${tradeAsset} to ${targetAssetEntity.dexName}`);
     }
   }
 
@@ -357,14 +371,74 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     order.outputAsset = toAsset;
 
     try {
-      return await this.scryptService.sell(fromAsset, toAsset, amount);
+      return await this.scryptService.sell(fromAsset, toAsset, amount, order.correlationId);
     } catch (e) {
       // No "(balance: ..., min. requested: ..., max. requested: ...)" suffix: balance/min/max are not in scope here.
       // The only production Scrypt 'sell' action has no onFail/onSuccess chain, so its error never reaches the liquidity-pipeline regex parser.
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
-      throw e;
+      throw this.classifySendOutcome(e, `sell of ${amount} ${fromAsset} to ${toAsset}`);
+    }
+  }
+
+  /**
+   * Venue reference claimed before the request goes out. Scrypt is the one integration that lets us choose
+   * it (`ClOrdID`/`ClReqID`), so it is the one integration that can be reconciled after silence.
+   *
+   * Derived from the order id, which never repeats — this satisfies the venue's "unique daily, below 36
+   * characters" requirement without a random component, so the reference is reproducible from the row alone.
+   */
+  reserveCorrelationId(order: LiquidityManagementOrder): CorrelationId {
+    return `${SCRYPT_CORRELATION_PREFIX}${order.id}`;
+  }
+
+  /**
+   * Decide whether a failed write demonstrably never reached the venue, or whether its outcome is unknown.
+   *
+   * Fail-closed, like `toBroadcastBoundaryError` in the payout subdomain: only silence-free evidence lets an
+   * error stay an ordinary failure. A timeout means the venue may already have executed, so it becomes an
+   * unknown outcome and the order is quarantined rather than repeated.
+   */
+  private classifySendOutcome(e: Error, description: string): Error {
+    if (e instanceof ScryptRequestTimeoutError)
+      return new OrderOutcomeUnknownException(`Scrypt did not answer the ${description}: ${e.message}`);
+
+    // A dropped socket proves the request never completed at the venue, so this stays an ordinary failure —
+    // the same evidence `isTransientWsError` already encodes for the completion-check path.
+    return e;
+  }
+
+  /**
+   * Ask Scrypt what happened to a quarantined order. Observes only — never re-sends.
+   *
+   * Absence is only treated as proof once the venue has had time to register the request; before that, a
+   * missing record is just as likely to be our own race as a genuine non-arrival.
+   */
+  async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
+    const { correlationId } = order;
+    if (!correlationId) return UncertainOrderResolution.UNRESOLVED;
+
+    if (Util.minutesDiff(order.updated) < SCRYPT_UNCERTAIN_GRACE_MINUTES) return UncertainOrderResolution.UNRESOLVED;
+
+    try {
+      const found =
+        order.action.command === ScryptAdapterCommands.WITHDRAW
+          ? await this.scryptService.findWithdrawal(correlationId)
+          : await this.scryptService.getOrderStatus(correlationId);
+
+      if (found) {
+        this.logger.info(`Scrypt confirmed reference ${correlationId} exists; order ${order.id} was sent`);
+        return UncertainOrderResolution.SENT;
+      }
+
+      this.logger.info(`Scrypt has no record of reference ${correlationId}; order ${order.id} never arrived`);
+      return UncertainOrderResolution.NOT_SENT;
+    } catch (e) {
+      // The lookup travels the same connection that just went silent. An unreachable venue is not evidence
+      // of anything — stay in quarantine rather than guess in either direction.
+      this.logger.warn(`Could not resolve uncertain Scrypt order ${order.id}: ${e.message}`);
+      return UncertainOrderResolution.UNRESOLVED;
     }
   }
 

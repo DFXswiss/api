@@ -3,7 +3,14 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
-import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
+import {
+  LiquidityManagementOrderStatus,
+  LiquidityManagementPipelineStatus,
+  LiquidityManagementRuleStatus,
+  LiquidityOptimizationType,
+  UncertainOrderResolution,
+} from '../enums';
+import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
@@ -36,6 +43,126 @@ describe('LiquidityManagementPipelineService', () => {
       notificationService,
       liquidityManagementService,
     );
+  });
+
+  describe('startNewOrders — unknown outcomes', () => {
+    function createdOrder(id = 7): LiquidityManagementOrder {
+      return Object.assign(new LiquidityManagementOrder(), {
+        id,
+        status: LiquidityManagementOrderStatus.CREATED,
+        action: { id: 233, system: 'Scrypt', command: 'sell' },
+      });
+    }
+
+    it('quarantines an order as UNCERTAIN instead of failing it when the outcome is unknown', async () => {
+      const order = createdOrder();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn().mockRejectedValue(new OrderOutcomeUnknownException('Scrypt did not answer')),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+      });
+
+      await service['startNewOrders']();
+
+      // FAILED would pause the rule, and the rule auto-reactivates — i.e. it would repeat a request that
+      // may already have executed. That is the exact path that mis-booked two live withdrawals.
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(order.status).not.toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(notificationService.sendMail).toHaveBeenCalled();
+    });
+
+    it('quarantines an order whose error escaped classification, so it cannot be re-executed', async () => {
+      const order = createdOrder();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        // not one of the four known exception types
+        executeOrder: jest.fn().mockRejectedValue(new Error('database connection lost')),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+      });
+
+      const anyChanged = await service['startNewOrders']();
+
+      // leaving it CREATED would spin the caller's `while (hasChanges)` loop on an order it cannot advance
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(anyChanged).toBe(true);
+    });
+
+    it('persists the reserved correlation id BEFORE the request is sent', async () => {
+      const order = createdOrder(4711);
+      const saveOrder: string[] = [];
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'save').mockImplementation(async (o: LiquidityManagementOrder) => {
+        saveOrder.push(`save:${o.status}:${o.correlationId}`);
+        return o;
+      });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        reserveCorrelationId: () => 'dfx-lm-4711',
+        executeOrder: jest.fn().mockImplementation(async () => {
+          saveOrder.push('send');
+          return 'dfx-lm-4711';
+        }),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+      });
+
+      await service['startNewOrders']();
+
+      // the reference must be durable before the request leaves — otherwise a timeout loses it for good
+      expect(saveOrder).toEqual(['save:Created:dfx-lm-4711', 'send', 'save:InProgress:dfx-lm-4711']);
+    });
+  });
+
+  describe('resolveUncertainOrders', () => {
+    function uncertainOrder(): LiquidityManagementOrder {
+      return Object.assign(new LiquidityManagementOrder(), {
+        id: 9,
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        correlationId: 'dfx-lm-9',
+        errorMessage: 'Scrypt did not answer',
+        action: { id: 233, system: 'Scrypt', command: 'sell' },
+      });
+    }
+
+    it.each([
+      [UncertainOrderResolution.SENT, LiquidityManagementOrderStatus.IN_PROGRESS],
+      [UncertainOrderResolution.NOT_SENT, LiquidityManagementOrderStatus.FAILED],
+      [UncertainOrderResolution.UNRESOLVED, LiquidityManagementOrderStatus.UNCERTAIN],
+    ])('moves an order to %s -> %s', async (resolution, expectedStatus) => {
+      const order = uncertainOrder();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder: jest.fn().mockResolvedValue(resolution),
+      });
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(expectedStatus);
+    });
+
+    it('keeps the order quarantined when the lookup itself throws', async () => {
+      const order = uncertainOrder();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder: jest.fn().mockRejectedValue(new Error('venue unreachable')),
+      });
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
   });
 
   describe('handlePipelineFail', () => {

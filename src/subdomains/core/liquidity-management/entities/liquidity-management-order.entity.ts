@@ -6,6 +6,7 @@ import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementOrderStatus } from '../enums';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
+import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
 
@@ -110,6 +111,20 @@ export class LiquidityManagementOrder extends IEntity {
     return [...new Set(ids)].filter((id) => id);
   }
 
+  /**
+   * Claim the venue-side reference BEFORE the request goes out, without advancing the status.
+   *
+   * The order stays CREATED — it has not been sent yet — but the reference is now durable, so an
+   * un-acknowledged request can still be looked up afterwards. Without this, an id generated inside the
+   * integration and only returned on success is lost exactly when it is needed. Mirrors the reservation
+   * that fiat-output performs against Bank Frick before transmitting a payment order.
+   */
+  reserveCorrelationId(correlationId: string): this {
+    this.correlationId = correlationId;
+
+    return this;
+  }
+
   inProgress(correlationId: string): this {
     this.correlationId = correlationId;
     this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
@@ -140,6 +155,29 @@ export class LiquidityManagementOrder extends IEntity {
   fail(error: OrderFailedException): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
     this.errorMessage = error.message;
+
+    return this;
+  }
+
+  /** Quarantine an order whose request left our side without an observed outcome. */
+  uncertain(error: OrderOutcomeUnknownException): this {
+    this.status = LiquidityManagementOrderStatus.UNCERTAIN;
+    this.errorMessage = error.message;
+
+    return this;
+  }
+
+  /** The venue confirmed it knows this order: leave quarantine and let the normal completion check take over. */
+  resolveAsSent(): this {
+    this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
+
+    return this;
+  }
+
+  /** The venue demonstrably never received this order: nothing was executed, so it is a plain failure. */
+  resolveAsNotSent(reason: string): this {
+    this.status = LiquidityManagementOrderStatus.FAILED;
+    this.errorMessage = reason;
 
     return this;
   }

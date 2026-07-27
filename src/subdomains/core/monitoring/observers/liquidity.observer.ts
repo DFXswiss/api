@@ -21,6 +21,9 @@ interface LiquidityData {
   stuckTradingRuleCount: number;
   stuckLmOrderCount: number;
   stuckLmRuleCount: number;
+  // Orders whose request left our side without an observed outcome. Unlike the stuck counters this has no
+  // age threshold: one such order is already worth surfacing, because money may have moved without a record.
+  uncertainLmOrderCount: number;
   safetyModeActive: boolean;
   krakenSyncDelay: number; // min
   binanceSyncDelay: number; // min
@@ -87,6 +90,9 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
       stuckLmRuleCount: await this.repos.lmRule.countBy({
         status: In([LiquidityManagementRuleStatus.PAUSED, LiquidityManagementRuleStatus.PROCESSING]),
         updated: LessThan(Util.minutesBefore(60)),
+      }),
+      uncertainLmOrderCount: await this.repos.lmOrder.countBy({
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
       }),
       safetyModeActive: this.processService.isSafetyModeActive(),
       binanceSyncDelay: Math.abs(Util.minutesDiff(lastBinanceTx?.externalCreated, binance?.updated)),

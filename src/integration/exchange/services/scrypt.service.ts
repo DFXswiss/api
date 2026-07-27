@@ -215,8 +215,12 @@ export class ScryptService extends PricingProvider {
     amount: number,
     address: string,
     memo?: string,
+    // See placeOrder: the caller persists this before calling, so a timed-out withdrawal stays traceable.
+    // Two withdrawals (205'589.77 USDT on 15.07.2026, 553'823.67 USDT on 20.07.2026) executed at the venue
+    // while being recorded as failed here, because the generated id never left this stack frame.
+    reservedClReqId?: string,
   ): Promise<ScryptWithdrawResponse> {
-    const clReqId = randomUUID();
+    const clReqId = reservedClReqId ?? randomUUID();
 
     const withdrawData = {
       Quantity: amount.toString(),
@@ -341,7 +345,7 @@ export class ScryptService extends PricingProvider {
     return side === ScryptOrderSide.BUY ? price : 1 / price;
   }
 
-  async sell(from: string, to: string, amount: number): Promise<string> {
+  async sell(from: string, to: string, amount: number, reservedClOrdId?: string): Promise<string> {
     const { symbol, side } = await this.getTradePair(from, to);
     const price = await this.getOrderBookPrice(symbol, side);
     const sizeIncrement = await this.getSizeIncrement(symbol);
@@ -352,10 +356,10 @@ export class ScryptService extends PricingProvider {
     const rawQty = side === ScryptOrderSide.SELL ? amount : amount / price;
     const orderQty = Util.floorToValue(rawQty, sizeIncrement);
 
-    return this.placeAndReturnId(symbol, side, orderQty, price);
+    return this.placeAndReturnId(symbol, side, orderQty, price, reservedClOrdId);
   }
 
-  async buy(from: string, to: string, amount: number): Promise<string> {
+  async buy(from: string, to: string, amount: number, reservedClOrdId?: string): Promise<string> {
     const { symbol, side } = await this.getTradePair(from, to);
     const price = await this.getOrderBookPrice(symbol, side);
     const sizeIncrement = await this.getSizeIncrement(symbol);
@@ -366,7 +370,7 @@ export class ScryptService extends PricingProvider {
     const rawQty = side === ScryptOrderSide.BUY ? amount : amount / price;
     const orderQty = Util.floorToValue(rawQty, sizeIncrement);
 
-    return this.placeAndReturnId(symbol, side, orderQty, price);
+    return this.placeAndReturnId(symbol, side, orderQty, price, reservedClOrdId);
   }
 
   private async getSizeIncrement(symbol: string): Promise<number> {
@@ -379,6 +383,7 @@ export class ScryptService extends PricingProvider {
     side: ScryptOrderSide,
     orderQty: number,
     price: number,
+    reservedClOrdId?: string,
   ): Promise<string> {
     const response = await this.placeOrder(
       symbol,
@@ -387,8 +392,27 @@ export class ScryptService extends PricingProvider {
       ScryptOrderType.LIMIT,
       ScryptTimeInForce.GOOD_TILL_CANCEL,
       price,
+      reservedClOrdId,
     );
     return response.id;
+  }
+
+  /**
+   * Reconciliation lookup: does the venue know this withdrawal reference at all?
+   *
+   * Distinct from `getWithdrawalStatus`, which answers from the live push cache only. After a timeout that
+   * cache is exactly what cannot be trusted — the push may be what went missing — so this falls back to the
+   * venue's own history. A `null` result therefore means "the venue has no record", not "we have not seen it".
+   */
+  async findWithdrawal(clReqId: string): Promise<ScryptBalanceTransaction | null> {
+    const cached = this.balanceTransactions.get(clReqId);
+    if (cached) return cached;
+
+    const transactions = await this.connection.fetchAll<ScryptBalanceTransaction>(
+      ScryptMessageType.BALANCE_TRANSACTION,
+    );
+
+    return transactions.find((t) => t.ClReqID === clReqId) ?? null;
   }
 
   async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
@@ -535,8 +559,12 @@ export class ScryptService extends PricingProvider {
     orderType: ScryptOrderType = ScryptOrderType.LIMIT,
     timeInForce: ScryptTimeInForce = ScryptTimeInForce.GOOD_TILL_CANCEL,
     price?: number,
+    // Caller-supplied reference, persisted by the caller BEFORE this call. Without it the id only exists on
+    // the stack and is lost on timeout — leaving a possibly live venue order nobody can look up. Falls back
+    // to a fresh id so ad-hoc callers keep working; the venue requires daily uniqueness and <36 chars.
+    reservedClOrdId?: string,
   ): Promise<ScryptOrderResponse> {
-    const clOrdId = randomUUID();
+    const clOrdId = reservedClOrdId ?? randomUUID();
 
     // Price is required for LIMIT orders
     if (orderType === ScryptOrderType.LIMIT && price === undefined) {
