@@ -220,6 +220,30 @@ describe('LiquidityManagementPipelineService', () => {
       ).rejects.toThrow(/must name where the venue was checked/);
     });
 
+    it('refuses to release an order the venue confirms is live, whoever would win the write', async () => {
+      // the race the compare-and-set alone cannot decide: writing first is not the same as being right
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        id: 9,
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        errorMessage: 'unknown',
+        action: { id: 233, system: 'Scrypt', command: 'sell' },
+      });
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder: jest.fn().mockResolvedValue(UncertainOrderResolution.SENT),
+      });
+
+      await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(
+        /the venue confirms the request exists/,
+      );
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(orderRepo.update).not.toHaveBeenCalled();
+    });
+
     it('skips an order another path resolved first, instead of overwriting it', async () => {
       const order = Object.assign(new LiquidityManagementOrder(), {
         id: 9,
@@ -228,6 +252,13 @@ describe('LiquidityManagementPipelineService', () => {
       });
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
       jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder: jest.fn().mockResolvedValue(UncertainOrderResolution.UNRESOLVED),
+      });
 
       await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(/resolved elsewhere/);
     });
@@ -240,6 +271,13 @@ describe('LiquidityManagementPipelineService', () => {
       });
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
       jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder: jest.fn().mockResolvedValue(UncertainOrderResolution.UNRESOLVED),
+      });
 
       await service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42);
 

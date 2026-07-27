@@ -387,6 +387,25 @@ export class LiquidityManagementPipelineService {
         `Liquidity management order ${orderId} is ${order.status}, only an uncertain order can be resolved manually`,
       );
 
+    // Ask the venue one more time, right here. A compare-and-set alone only decides who writes first, and
+    // "first" is not the same as "right": an operator releasing the order in the same moment reconciliation
+    // confirms it is live would win the write and release the rule against a live position. A positive
+    // observation therefore outranks the operator's judgement.
+    //
+    // A lookup that cannot be performed does not block the release. The operator has asserted an independent
+    // check, and a reference the venue can no longer be asked about must not become an order nobody can ever
+    // clear.
+    const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
+    if (actionIntegration.resolveUncertainOrder) {
+      const resolution = await actionIntegration.resolveUncertainOrder(order);
+
+      if (resolution === UncertainOrderResolution.SENT)
+        throw new ConflictException(
+          `Liquidity management order ${orderId} cannot be released: the venue confirms the request exists. ` +
+            `It will be picked up as in progress by the next reconciliation pass.`,
+        );
+    }
+
     order.resolveAsNotSent(
       `${order.errorMessage} (manually resolved by account ${resolvedBy}: venue checked, no execution found — ${verificationReference})`,
     );
