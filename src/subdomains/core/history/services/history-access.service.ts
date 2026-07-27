@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { hasRoleAccess } from 'src/shared/auth/role.guard';
+import { hasStaffAccess } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -55,7 +55,7 @@ export class HistoryAccessService {
    */
   canViewFullTransaction(jwt: JwtPayload | undefined, tx: Transaction | TransactionRequest | undefined): boolean {
     if (!jwt?.role) return false;
-    if (this.isStaffFullAccess(jwt.role)) return true;
+    if (this.isStaffFullAccess(jwt)) return true;
     return this.isOwner(jwt, tx);
   }
 
@@ -65,12 +65,16 @@ export class HistoryAccessService {
     return accountId != null && accountId === jwt.account;
   }
 
-  private isStaffFullAccess(role: UserRole): boolean {
-    // DFX staff only: the SUPPORT hierarchy (COMPLIANCE / ADMIN / SUPER_ADMIN via hasRoleAccess). REALUNIT is an
+  private isStaffFullAccess(jwt: JwtPayload): boolean {
+    // DFX staff only: the SUPPORT hierarchy (COMPLIANCE / ADMIN / SUPER_ADMIN via hasStaffAccess). REALUNIT is an
     // isolated external tenant, NOT DFX staff — granting it ownership-independent full access here would leak every
     // customer's private banking/compliance data across the tenant boundary that its own routes scope via
     // RealUnitScopeService. RealUnit access to a customer's transaction must stay customer-scoped, never blanket.
-    return hasRoleAccess(UserRole.SUPPORT, role);
+    //
+    // `hasStaffAccess`, not `hasRoleAccess`: these routes are OptionalJwtAuthGuard-only, so no RoleGuard has
+    // applied the staff KYC gate. Ownership-independent access to every customer's history is exactly the
+    // privilege the gate exists for.
+    return hasStaffAccess(UserRole.SUPPORT, jwt);
   }
 
   private accountIdOf(tx: Transaction | TransactionRequest): number | undefined {

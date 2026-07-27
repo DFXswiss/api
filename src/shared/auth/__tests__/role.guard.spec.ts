@@ -1,6 +1,16 @@
 import { ExecutionContext } from '@nestjs/common';
-import { hasRoleAccess, RoleGuard } from '../role.guard';
-import { UserRole } from '../user-role.enum';
+
+// The clearance Set is primed by cron; mocked here so the guard's gating logic is tested in isolation
+// from the cron/DB plumbing.
+jest.mock('src/shared/auth/staff-kyc-clearance', () => ({
+  HasStaffKycClearance: jest.fn(),
+}));
+
+import { HasStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
+import { hasRoleAccess, hasStaffAccess, RoleGuard, rolesSatisfying } from '../role.guard';
+import { KycGatedRoles, UserRole } from '../user-role.enum';
+
+const hasStaffKycClearanceMock = HasStaffKycClearance as jest.MockedFunction<typeof HasStaffKycClearance>;
 
 // Pins the hierarchy checks previously encoded in ad-hoc constants
 // (`ADMIN_ROLES.includes(role)`, `[UserRole.SUPPORT, UserRole.COMPLIANCE, ...ADMIN_ROLES].includes(role)`,
@@ -71,14 +81,90 @@ describe('hasRoleAccess', () => {
     expect(hasRoleAccess(UserRole.ADMIN, undefined)).toBe(false);
     expect(hasRoleAccess(UserRole.SUPPORT, undefined)).toBe(false);
   });
+
+  // Entry roles with no `additionalRoles` entry at all (no super-roles): only the role itself matches.
+  it('matches only the role itself for an entry role without super-roles', () => {
+    expect(hasRoleAccess(UserRole.SUPER_ADMIN, UserRole.SUPER_ADMIN)).toBe(true);
+    expect(hasRoleAccess(UserRole.SUPER_ADMIN, UserRole.ADMIN)).toBe(false);
+    expect(hasRoleAccess(UserRole.CUSTODY, UserRole.ADMIN)).toBe(false);
+  });
+});
+
+// The predicate used by the few privilege checks that live in business logic instead of a gate
+// (protected KYC files, ownership-independent history access, official support replies).
+describe('hasStaffAccess', () => {
+  afterEach(() => jest.resetAllMocks());
+
+  it('denies a caller whose role does not satisfy the entry role, without consulting the clearance', () => {
+    hasStaffKycClearanceMock.mockReturnValue(true);
+
+    expect(hasStaffAccess(UserRole.COMPLIANCE, { role: UserRole.USER, account: 1 })).toBe(false);
+    expect(hasStaffKycClearanceMock).not.toHaveBeenCalled();
+  });
+
+  it('denies an undefined jwt', () => {
+    expect(hasStaffAccess(UserRole.COMPLIANCE, undefined)).toBe(false);
+  });
+
+  describe.each(KycGatedRoles)('gated entry role: %s', (entryRole) => {
+    it('grants a cleared account', () => {
+      hasStaffKycClearanceMock.mockReturnValue(true);
+
+      expect(hasStaffAccess(entryRole, { role: entryRole, account: 1 })).toBe(true);
+      expect(hasStaffKycClearanceMock).toHaveBeenCalledWith(1);
+    });
+
+    it('denies an uncleared account despite the correct role', () => {
+      hasStaffKycClearanceMock.mockReturnValue(false);
+
+      expect(hasStaffAccess(entryRole, { role: entryRole, account: 1 })).toBe(false);
+    });
+  });
+
+  it('does not require clearance for an ungated entry role', () => {
+    hasStaffKycClearanceMock.mockReturnValue(false);
+
+    expect(hasStaffAccess(UserRole.USER, { role: UserRole.ADMIN, account: 1 })).toBe(true);
+    expect(hasStaffKycClearanceMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('rolesSatisfying', () => {
+  it('covers the gated entry roles plus their super-roles', () => {
+    const roles = rolesSatisfying(KycGatedRoles);
+
+    expect(roles).toEqual(expect.arrayContaining(KycGatedRoles));
+    // SUPER_ADMIN satisfies every gate via the hierarchy without being listed in KycGatedRoles —
+    // omitting it from the clearance sync would lock super admins out of every elevated endpoint.
+    expect(roles).toContain(UserRole.SUPER_ADMIN);
+    expect(roles).not.toContain(UserRole.USER);
+    expect(roles).not.toContain(UserRole.ACCOUNT);
+  });
+
+  it('deduplicates roles reachable through several entry roles', () => {
+    expect(rolesSatisfying(KycGatedRoles)).toHaveLength(new Set(rolesSatisfying(KycGatedRoles)).size);
+  });
+
+  it('returns just the entry role when it has no super-roles', () => {
+    expect(rolesSatisfying([UserRole.SUPER_ADMIN])).toEqual([UserRole.SUPER_ADMIN]);
+  });
+
+  it('returns an empty list for no entry roles', () => {
+    expect(rolesSatisfying([])).toEqual([]);
+  });
 });
 
 describe('RoleGuard (multi-role access)', () => {
-  function contextFor(role?: UserRole): ExecutionContext {
+  function contextFor(role?: UserRole, account = 1): ExecutionContext {
     return {
-      switchToHttp: () => ({ getRequest: () => ({ user: role ? { role } : undefined }) }),
+      switchToHttp: () => ({ getRequest: () => ({ user: role ? { role, account } : undefined }) }),
     } as unknown as ExecutionContext;
   }
+
+  // Default to a cleared account so the pre-existing role-hierarchy expectations below keep testing
+  // the hierarchy, not the KYC gate; the gate gets its own describe block.
+  beforeEach(() => hasStaffKycClearanceMock.mockReturnValue(true));
+  afterEach(() => jest.resetAllMocks());
 
   it('grants access to the single entry role and its super-roles, denies others', () => {
     expect(RoleGuard(UserRole.COMPLIANCE).canActivate(contextFor(UserRole.COMPLIANCE))).toBe(true);
@@ -96,5 +182,64 @@ describe('RoleGuard (multi-role access)', () => {
   it('denies a caller who satisfies none of the entry roles', () => {
     expect(RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG).canActivate(contextFor(UserRole.SUPPORT))).toBe(false);
     expect(RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG).canActivate(contextFor(undefined))).toBe(false);
+  });
+});
+
+describe('RoleGuard (staff KYC gate on elevated endpoints)', () => {
+  function contextFor(role?: UserRole, account?: number): ExecutionContext {
+    return {
+      switchToHttp: () => ({ getRequest: () => ({ user: role ? { role, account } : undefined }) }),
+    } as unknown as ExecutionContext;
+  }
+
+  afterEach(() => jest.resetAllMocks());
+
+  describe.each(KycGatedRoles)('entry role: %s', (entryRole) => {
+    it('denies the matching role when the account has no KYC clearance', () => {
+      hasStaffKycClearanceMock.mockReturnValue(false);
+
+      expect(RoleGuard(entryRole).canActivate(contextFor(entryRole, 42))).toBe(false);
+    });
+
+    it('grants the matching role when the account is cleared', () => {
+      hasStaffKycClearanceMock.mockReturnValue(true);
+
+      expect(RoleGuard(entryRole).canActivate(contextFor(entryRole, 42))).toBe(true);
+      expect(hasStaffKycClearanceMock).toHaveBeenCalledWith(42);
+    });
+  });
+
+  it('gates super-roles too — an uncleared ADMIN loses every elevated endpoint', () => {
+    hasStaffKycClearanceMock.mockReturnValue(false);
+
+    expect(RoleGuard(UserRole.SUPPORT).canActivate(contextFor(UserRole.ADMIN, 42))).toBe(false);
+    expect(RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG).canActivate(contextFor(UserRole.SUPER_ADMIN, 42))).toBe(
+      false,
+    );
+  });
+
+  it('does not gate ordinary endpoints, even for a staff caller without clearance', () => {
+    hasStaffKycClearanceMock.mockReturnValue(false);
+
+    // An admin using ordinary customer functionality is not touching an elevated endpoint.
+    expect(RoleGuard(UserRole.USER).canActivate(contextFor(UserRole.ADMIN, 42))).toBe(true);
+    expect(RoleGuard(UserRole.ACCOUNT).canActivate(contextFor(UserRole.ADMIN, 42))).toBe(true);
+    expect(hasStaffKycClearanceMock).not.toHaveBeenCalled();
+  });
+
+  it('treats a gate that also admits an ungated entry role as an ordinary endpoint', () => {
+    hasStaffKycClearanceMock.mockReturnValue(false);
+
+    // The gate is a property of the endpoint: one that is open to plain users is not elevated,
+    // regardless of which entry role the caller happens to come in through.
+    expect(RoleGuard(UserRole.ADMIN, UserRole.USER).canActivate(contextFor(UserRole.ADMIN, 42))).toBe(true);
+  });
+
+  it('denies an elevated endpoint when the token carries no account id', () => {
+    // Company tokens (and any future addressless token) have no `account` — fail closed rather than
+    // letting `undefined` slip through the clearance lookup.
+    hasStaffKycClearanceMock.mockImplementation((account) => account != null);
+
+    expect(RoleGuard(UserRole.ADMIN).canActivate(contextFor(UserRole.ADMIN, undefined))).toBe(false);
   });
 });

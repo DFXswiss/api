@@ -72,4 +72,25 @@ describe('SettingService', () => {
       await expect(service.getDeniedJwtAccounts()).resolves.toEqual([5, 6]);
     });
   });
+
+  describe('getStaffKycClearance', () => {
+    it('returns the cleared account ids', async () => {
+      mockSettings({ staffKycClearance: [1, 2] });
+
+      await expect(service.getStaffKycClearance()).resolves.toEqual([1, 2]);
+    });
+
+    it('coerces string ids to numbers', async () => {
+      mockSettings({ staffKycClearance: ['1', '2'] });
+
+      await expect(service.getStaffKycClearance()).resolves.toEqual([1, 2]);
+    });
+
+    // Fail-closed: a missing setting must read as "nobody is cleared", never as "no restriction".
+    it('returns an empty array when the setting is missing', async () => {
+      mockSettings({});
+
+      await expect(service.getStaffKycClearance()).resolves.toEqual([]);
+    });
+  });
 });

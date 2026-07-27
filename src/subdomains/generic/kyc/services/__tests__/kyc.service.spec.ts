@@ -3,6 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { Configuration, ConfigService } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/storage/storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -115,6 +116,10 @@ describe('KycService getFileByUid protected-file access', () => {
   });
 
   beforeEach(() => {
+    // Protected-file access now additionally requires staff KYC clearance for the calling account
+    // (account 1 in `jwtFor`); the uncleared case has its own test below.
+    SetStaffKycClearance([1]);
+
     kycFileService = createMock<KycFileService>();
     documentService = createMock<KycDocumentService>();
     tfaService = { check: jest.fn() };
@@ -157,6 +162,28 @@ describe('KycService getFileByUid protected-file access', () => {
 
     await expect(service.getFileByUid('FILE-UID', undefined, ip)).rejects.toBeInstanceOf(ForbiddenException);
     expect(documentService.downloadFile).not.toHaveBeenCalled();
+  });
+
+  // This route is OptionalJwtAuthGuard-only, so no RoleGuard has applied the staff KYC gate — the role
+  // check inside the service is the only thing standing between an uncleared admin and the most
+  // sensitive sink in the API.
+  describe.each([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.COMPLIANCE])('%s without KYC clearance', (role) => {
+    it('is forbidden from a protected file, without downloading', async () => {
+      SetStaffKycClearance([]);
+      kycFileService.getKycFile.mockResolvedValue(kycFile());
+
+      await expect(service.getFileByUid('FILE-UID', jwtFor(role), ip)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(documentService.downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('still serves a non-protected file', async () => {
+      SetStaffKycClearance([]);
+      kycFileService.getKycFile.mockResolvedValue(kycFile({ protected: false }));
+
+      const dto = await service.getFileByUid('FILE-UID', jwtFor(role), ip);
+
+      expect(dto.uid).toBe('FILE-UID');
+    });
   });
 
   // a blocked account keeps its JWT role until expiry, so the status check must still deny access

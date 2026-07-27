@@ -45,6 +45,7 @@ import { UserDataRelationController } from './models/user-data-relation/user-dat
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
 import { JwtRevocationSyncService } from './models/user-data/jwt-revocation-sync.service';
+import { StaffKycClearanceService } from './models/user/staff-kyc-clearance.service';
 import { UserDataJobService } from './models/user-data/user-data-job.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
@@ -126,6 +127,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     OrganizationRepository,
     UserDataJobService,
     JwtRevocationSyncService,
+    StaffKycClearanceService,
     UserJobService,
     RecommendationRepository,
     RecommendationService,
