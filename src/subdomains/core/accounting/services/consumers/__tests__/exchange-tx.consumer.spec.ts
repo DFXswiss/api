@@ -338,8 +338,10 @@ describe('ExchangeTxConsumer', () => {
   it('books an unattributable Trade THAT HAS an order at the per-row key, and guards it there too', async () => {
     // the load-bearing branch of bookingKey's `&& !!parseSymbol(tx)` conjunct: an unresolvable symbol returns early
     // through singleSpec, so even WITH an order the row books at (exchange_tx, `${id}`, 0) — never the composite
-    // trade key. Dropping that conjunct would book this row at (ExchangeTrade, `${exchange}:${order}`, rank) while
-    // the pre-book guard still queried the per-row key: guard and booking would disagree and the wedge reopens.
+    // trade key. Dropping that conjunct moves only the GUARD: singleSpec derives its identity from rowKey and is
+    // untouched, so the booking stays at the per-row key while alreadyBooked starts querying (ExchangeTrade,
+    // `${exchange}:${order}`, rank). The guard then never sees the row it books → re-book → UNIQUE → wedge reopens.
+    // Hence the call-args assertion below, not the booked-key ones, is what actually pins the conjunct.
     const hasAnyTxAtSpy = jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(false);
     mockBatch([
       exchangeTx({
