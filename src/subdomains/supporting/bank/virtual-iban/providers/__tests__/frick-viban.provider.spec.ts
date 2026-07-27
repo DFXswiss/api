@@ -223,7 +223,7 @@ describe('FrickVibanProvider', () => {
     expect(loggerError).toHaveBeenCalledWith('Bank Frick virtual IBAN activation failed', cause);
   });
 
-  it('lists PREPARED/ACTIVE vIBANs for a reference account and propagates fullyValidated', async () => {
+  it('requests every lifecycle state for the strongest available reference-account evidence', async () => {
     bankFrickService.isVibanAvailable.mockReturnValue(true);
     const listed = [virtualIban({ description: 'dfx-viban-a' }), virtualIban({ description: 'dfx-viban-b' })];
     const result = {
@@ -235,11 +235,7 @@ describe('FrickVibanProvider', () => {
     bankFrickService.listAllVibans.mockResolvedValue(result);
 
     await expect(provider.listByReferenceAccount('LI32088110105923K000C')).resolves.toBe(result);
-    expect(bankFrickService.listAllVibans).toHaveBeenCalledWith(
-      'LI32088110105923K000C',
-      [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE],
-      50,
-    );
+    expect(bankFrickService.listAllVibans).toHaveBeenCalledWith('LI32088110105923K000C', undefined, 50);
   });
 
   it('maps a listing integration error to a classified service unavailable without embedding the cause', async () => {

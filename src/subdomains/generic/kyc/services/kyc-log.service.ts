@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
+import { EntityManager } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
@@ -18,14 +19,15 @@ export class KycLogService {
     private readonly kycDocumentService: KycDocumentService,
   ) {}
 
-  async createMergeLog(user: UserData, log: string): Promise<void> {
-    const entity = this.kycLogRepo.create({
+  async createMergeLog(user: UserData, log: string, manager?: EntityManager): Promise<void> {
+    const repo = manager?.getRepository(KycLog) ?? this.kycLogRepo;
+    const entity = repo.create({
       type: KycLogType.MERGE,
       result: log,
       userData: user,
     });
 
-    await this.kycLogRepo.save(entity);
+    await repo.save(entity);
   }
 
   async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
@@ -58,10 +60,16 @@ export class KycLogService {
     await this.kycLogRepo.save(entity);
   }
 
-  async createLogInternal(userData: UserData, type: KycLogType, result: string): Promise<void> {
-    const entity = this.kycLogRepo.create({ type, result, userData: { id: userData.id } });
+  async createLogInternal(
+    userData: UserData,
+    type: KycLogType,
+    result: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager?.getRepository(KycLog) ?? this.kycLogRepo;
+    const entity = repo.create({ type, result, userData: { id: userData.id } });
 
-    await this.kycLogRepo.save(entity);
+    await repo.save(entity);
   }
 
   async updateLog(id: number, dto: UpdateKycLogDto): Promise<void> {

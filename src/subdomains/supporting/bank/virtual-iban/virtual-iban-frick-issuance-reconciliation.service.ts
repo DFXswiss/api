@@ -4,13 +4,16 @@ import { FrickVirtualIbansFetchResult } from 'src/integration/bank/services/fric
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { FrickVibanProvider } from 'src/subdomains/supporting/bank/virtual-iban/providers/frick-viban.provider';
+import { VirtualIbanIssuanceEvent } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-event.entity';
+import {
+  VirtualIbanIssuanceIntent,
+  VirtualIbanIssuanceIntentStatus,
+} from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent.entity';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { DataSource, In, Like } from 'typeorm';
-import { BankService } from '../bank/bank.service';
-import { FrickVibanProvider } from './providers/frick-viban.provider';
-import { VirtualIbanIssuanceEvent } from './virtual-iban-issuance-event.entity';
-import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent.entity';
 import {
   CREATE_PATH_REFERENCE_MARKER,
   MERGE_SUPERSEDED_MARKER,
@@ -67,10 +70,15 @@ interface UnprovenAbsenceIntent {
   latestPossibleCreateProcessedAt: Date;
 }
 
+interface AutomaticRetryRiskIntent extends UnprovenAbsenceIntent {
+  requestReference: string;
+}
+
 /**
  * Periodic Frick issuance reconciliation:
- * - Phase 1: reopen stuck InFlight/Failed intents only when a complete empty listing began after
- *   the intent-specific latest possible create-processing time
+ * - Phase 1: reopen stuck InFlight/Failed intents only on the strongest available bank evidence:
+ *   an all-state, fully validated empty listing begun after the latest possible create-processing
+ *   time. Listing absence is not authoritative, so every reset is preceded by an operator alert.
  *   (sole caller of {@link VirtualIbanService.resetStuckFrickIntentForReconciliationOnly}).
  * - Phase 2: alert-only check for delayed Frick vIBANs under retired issuance references.
  */
@@ -136,10 +144,10 @@ export class VirtualIbanFrickIssuanceReconciliationService {
   }
 
   /**
-   * Phase 1: for each InFlight/Failed intent, if Frick already has an object under the current
-   * requestReference → alert; if empty listing, fully validated, and intent is past the safety
-   * threshold → reopen via {@link VirtualIbanService.resetStuckFrickIntentForReconciliationOnly};
-   * if listing not fully validated → skip reset for that bank this run (incomplete check).
+   * Phase 1: for each InFlight/Failed intent, alert on a positive technical-description match.
+   * An all-state, fully validated, sufficiently late listing miss is the strongest evidence this
+   * bank exposes but is not authoritative proof of non-creation. Product retains the automatic
+   * retry; alert operators before arming it and keep Phase 2 scanning the retired reference.
    *
    * Merge-superseded intents (`error` contains {@link MERGE_SUPERSEDED_MARKER}) are permanently
    * retired and must never be reopened — exclude them before any listing/reset work.
@@ -270,6 +278,21 @@ export class VirtualIbanFrickIssuanceReconciliationService {
             });
             continue;
           }
+
+          const retryRisk: AutomaticRetryRiskIntent = {
+            intentId: intent.id,
+            requestReference: intent.requestReference,
+            userDataId: intent.userDataId,
+            currencyId: intent.currencyId,
+            bankId: intent.bankId,
+            status: intent.status,
+            updated: intent.updated,
+            listingStartedAt: listingResult.listingStartedAt,
+            latestPossibleCreateProcessedAt,
+          };
+          // Alert before reopening. If alert delivery fails, the surrounding per-bank catch leaves
+          // the intent unchanged, so an automatic retry is never armed silently.
+          await this.sendAutomaticRetryRiskAlert(retryRisk);
 
           const didReset = await this.virtualIbanService.resetStuckFrickIntentForReconciliationOnly(
             intent.id,
@@ -566,6 +589,29 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     this.logger.error(
       `Frick vIBAN reconciliation Phase 1: ${intents.length} intent(s) left non-retryable because ` +
         `listing timing did not prove absence after the last possible create-processing moment`,
+    );
+  }
+
+  private async sendAutomaticRetryRiskAlert(intent: AutomaticRetryRiskIntent): Promise<void> {
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.MONITORING,
+      input: {
+        subject: 'Frick vIBAN reconciliation Phase 1: non-authoritative listing miss will arm automatic retry',
+        errors: [
+          `intentId=${intent.intentId}; userDataId=${intent.userDataId}; currencyId=${intent.currencyId}; ` +
+            `bankId=${intent.bankId}; requestReference=${intent.requestReference}; status=${intent.status}; ` +
+            `updated=${intent.updated.toISOString()}; listingStartedAt=${intent.listingStartedAt.toISOString()}; ` +
+            `latestPossibleCreateProcessedAt=${intent.latestPossibleCreateProcessedAt.toISOString()}; ` +
+            'operatorAction=check the Bank Frick portal/API across every lifecycle state for this exact ' +
+            'requestReference and reference account; listing absence is not authoritative; ' +
+            'worstCase=a second non-revocable external account may be created on customer retry',
+        ],
+      },
+    });
+    this.logger.error(
+      `Frick vIBAN reconciliation Phase 1: intent ${intent.intentId} will be reopened on a ` +
+        'non-authoritative listing miss — operator verification required',
     );
   }
 

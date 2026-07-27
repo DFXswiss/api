@@ -224,7 +224,20 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
         stuckRequestReference,
         { listingStartedAt: expect.any(Date) },
       );
-      expect(notificationService.sendMail).not.toHaveBeenCalled();
+      expect(notificationService.sendMail).toHaveBeenCalledWith({
+        type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
+        input: {
+          subject: 'Frick vIBAN reconciliation Phase 1: non-authoritative listing miss will arm automatic retry',
+          errors: [
+            expect.stringContaining('operatorAction=check the Bank Frick portal/API across every lifecycle state'),
+          ],
+        },
+      });
+      const riskAlert = (notificationService.sendMail as jest.Mock).mock.calls[0][0].input.errors[0] as string;
+      expect(riskAlert).toContain(`requestReference=${stuckRequestReference}`);
+      expect(riskAlert).toContain('listing absence is not authoritative');
+      expect(riskAlert).toContain('worstCase=a second non-revocable external account');
     });
 
     it('leaves an old intent non-retryable and alerts when the listing began before create processing could end', async () => {
@@ -950,7 +963,13 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       await service.reconcileRetiredIssuanceReferences();
 
       expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).toHaveBeenCalled();
-      expect(notificationService.sendMail).not.toHaveBeenCalled();
+      expect(notificationService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            subject: 'Frick vIBAN reconciliation Phase 1: non-authoritative listing miss will arm automatic retry',
+          }),
+        }),
+      );
     });
 
     it('extracts marker value when there is no trailing semicolon', () => {

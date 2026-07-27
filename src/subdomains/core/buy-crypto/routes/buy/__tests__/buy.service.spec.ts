@@ -17,6 +17,7 @@ import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/v
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -721,6 +722,13 @@ describe('BuyService', () => {
         undefined,
         undefined,
       );
+      expect(transactionRequestService.create).toHaveBeenCalledWith(
+        TransactionRequestType.BUY,
+        dto,
+        response,
+        1,
+        undefined,
+      );
     });
 
     it('does not pass bankInOverride for a plain default-bank customer (no personal IBAN)', async () => {
@@ -764,6 +772,13 @@ describe('BuyService', () => {
         [],
         undefined,
         undefined,
+        undefined,
+      );
+      expect(transactionRequestService.create).toHaveBeenCalledWith(
+        TransactionRequestType.BUY,
+        dto,
+        response,
+        1,
         undefined,
       );
     });

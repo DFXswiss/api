@@ -14,7 +14,8 @@ export class UserDataRepository extends CachedRepository<UserData> {
     await this.update(userDataId, { updated: new Date() });
   }
 
-  async activateUserData(userData: UserData): Promise<void> {
-    if (userData.status === UserDataStatus.NA) await this.update(userData.id, { status: UserDataStatus.ACTIVE });
+  async activateUserData(userData: UserData, manager?: EntityManager): Promise<void> {
+    if (userData.status === UserDataStatus.NA)
+      await (manager?.getRepository(UserData) ?? this).update(userData.id, { status: UserDataStatus.ACTIVE });
   }
 }

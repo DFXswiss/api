@@ -140,14 +140,24 @@ export class VirtualIbanService {
     const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
 
-    return this.createVirtualIban(userData, currencyName);
+    const provider = this.getProvider(currencyName);
+    return this.withUserLevelIssuanceLock(userData.id, currencyName, provider.bankName, async () => {
+      const afterLock = await this.getActiveForUserAndCurrency(userData, currencyName);
+      if (afterLock) throw new ConflictException('User already has an active personal IBAN for this currency');
+      return this.createVirtualIban(userData, currencyName, undefined, provider);
+    });
   }
 
   async createForBuy(userData: UserData, buy: Buy, currencyName: string): Promise<VirtualIban> {
     const existingForBuy = await this.getActiveForBuyAndCurrency(buy.id, currencyName);
     if (existingForBuy) throw new ConflictException('Buy already has an active personal IBAN for this currency');
 
-    return this.createVirtualIban(userData, currencyName, buy);
+    const provider = this.getProvider(currencyName);
+    return this.withUserLevelIssuanceLock(userData.id, currencyName, provider.bankName, async () => {
+      const afterLock = await this.getActiveForBuyAndCurrency(buy.id, currencyName);
+      if (afterLock) throw new ConflictException('Buy already has an active personal IBAN for this currency');
+      return this.createVirtualIban(userData, currencyName, buy, provider);
+    });
   }
 
   /** Fail-closed, cross-instance-safe Frick issuance for the explicit selector path. */
@@ -161,6 +171,12 @@ export class VirtualIbanService {
       throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
     }
 
+    return this.withUserLevelIssuanceLock(userData.id, currencyName, this.frickVibanProvider.bankName, () =>
+      this.getOrCreateFrickForUserLocked(userData, currencyName),
+    );
+  }
+
+  private async getOrCreateFrickForUserLocked(userData: UserData, currencyName: string): Promise<VirtualIban> {
     const currency = await this.fiatService.getFiatByName(currencyName);
     if (!currency) throw new BadRequestException(QuoteError.CURRENCY_UNSUPPORTED);
 
@@ -174,6 +190,95 @@ export class VirtualIbanService {
       return this.resolveExistingFrickIntent(initial.intent, userData, bank, currency);
 
     return this.issueFrickFromPendingIntent(initial.intent, userData, bank, currency);
+  }
+
+  /**
+   * Cross-instance serialization shared by external issuance and account merge.
+   *
+   * A PostgreSQL session advisory lock is held across the provider call because the external side
+   * effect cannot participate in a database transaction. Merge acquires the matching transaction
+   * advisory locks before loading either account, so it observes the completed issuance or blocks
+   * issuance until the ownership move commits. The post-lock active-row recheck is mandatory.
+   */
+  private async withUserLevelIssuanceLock<T>(
+    userDataId: number,
+    currencyName: string,
+    bankName: IbanBankName,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    const namespace = `virtual-iban-issuance:${bankName}:${currencyName}`;
+    const owner = String(userDataId);
+    let lockAcquired = false;
+    let operationFailed = false;
+    let operationError: unknown;
+    let result: T;
+
+    await queryRunner.connect();
+    try {
+      await queryRunner.query('SELECT pg_advisory_lock(hashtext($1), hashtext($2))', [namespace, owner]);
+      lockAcquired = true;
+      result = await operation();
+    } catch (error) {
+      operationFailed = true;
+      operationError = error;
+    }
+
+    let cleanupError: unknown;
+    try {
+      if (lockAcquired) {
+        const [{ unlocked }] = (await queryRunner.query(
+          'SELECT pg_advisory_unlock(hashtext($1), hashtext($2)) AS unlocked',
+          [namespace, owner],
+        )) as [{ unlocked: boolean }];
+        if (!unlocked)
+          cleanupError = new Error(`Virtual IBAN issuance advisory lock was not held (${namespace}, ${owner})`);
+      }
+    } catch (error) {
+      cleanupError = error;
+    } finally {
+      try {
+        await queryRunner.release();
+      } catch (error) {
+        cleanupError ??= error;
+      }
+    }
+
+    if (operationFailed) {
+      if (cleanupError)
+        this.logger.error(
+          `Virtual IBAN issuance advisory lock cleanup failed (${namespace}, ${owner})`,
+          cleanupError instanceof Error ? cleanupError : undefined,
+        );
+      throw operationError;
+    }
+    if (cleanupError) throw cleanupError;
+    return result;
+  }
+
+  /**
+   * Acquires every provider/currency lock that can issue onto either side of an account merge.
+   * Keys are globally sorted to make concurrent/reversed merge attempts deadlock-safe.
+   */
+  async lockUserLevelIssuanceForMerge(masterId: number, slaveId: number, manager: EntityManager): Promise<void> {
+    const providers = [this.yapealVibanProvider, this.frickVibanProvider];
+    const keys = [
+      ...new Set(
+        providers.flatMap((provider) =>
+          provider.currencies.flatMap((currencyName) =>
+            [masterId, slaveId].map((userDataId) => ({
+              namespace: `virtual-iban-issuance:${provider.bankName}:${currencyName}`,
+              owner: String(userDataId),
+            })),
+          ),
+        ),
+      ),
+    ];
+    keys.sort((a, b) => `${a.namespace}:${a.owner}`.localeCompare(`${b.namespace}:${b.owner}`));
+
+    for (const { namespace, owner } of keys) {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [namespace, owner]);
+    }
   }
 
   /**
@@ -437,7 +542,7 @@ export class VirtualIbanService {
         throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
       }
 
-      if (intent.userDataId !== userData.id || intent.currencyId !== currency.id || intent.bankId !== bank.id) {
+      if (intent.currencyId !== currency.id || intent.bankId !== bank.id) {
         this.logger.error(
           `Bank Frick finalize refused: intent ownership changed under lock ` +
             `(intentId=${intent.id}, suppliedUserDataId=${userData.id}, suppliedCurrencyId=${currency.id}, ` +
@@ -451,6 +556,49 @@ export class VirtualIbanService {
           bankId: intent.bankId,
         });
         throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+      }
+
+      let currentOwner = userData;
+      if (intent.userDataId !== userData.id) {
+        const mergeOwnershipEventExists = await manager.exists(VirtualIbanIssuanceEvent, {
+          where: {
+            intentId: intent.id,
+            previousUserDataId: userData.id,
+            nextUserDataId: intent.userDataId,
+            currencyId: intent.currencyId,
+            bankId: intent.bankId,
+          },
+        });
+        if (!mergeOwnershipEventExists) {
+          this.logger.error(
+            `Bank Frick finalize refused: intent owner changed without a matching merge audit event ` +
+              `(intentId=${intent.id}, suppliedUserDataId=${userData.id}, intentUserDataId=${intent.userDataId}, ` +
+              `currencyId=${intent.currencyId}, bankId=${intent.bankId})`,
+          );
+          await this.sendReferenceIntegrityAlert('finalize: intent ownership changed without merge audit', {
+            intentId: intent.id,
+            userDataId: intent.userDataId,
+            currencyId: intent.currencyId,
+            bankId: intent.bankId,
+          });
+          throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+        }
+
+        currentOwner = await manager.findOne(UserData, { where: { id: intent.userDataId } });
+        if (!currentOwner) {
+          this.logger.error(
+            `Bank Frick finalize refused: audited merge owner is missing ` +
+              `(intentId=${intent.id}, userDataId=${intent.userDataId}, currencyId=${intent.currencyId}, ` +
+              `bankId=${intent.bankId})`,
+          );
+          await this.sendReferenceIntegrityAlert('finalize: audited merge owner is missing', {
+            intentId: intent.id,
+            userDataId: intent.userDataId,
+            currencyId: intent.currencyId,
+            bankId: intent.bankId,
+          });
+          throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+        }
       }
 
       // Merge-driven fail does not rotate requestReference, so the check above cannot catch it.
@@ -481,7 +629,7 @@ export class VirtualIbanService {
         throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
       }
 
-      const virtualIban = await this.persistUserLevelIfMissing(manager, userData, bank, currency, reserved);
+      const virtualIban = await this.persistUserLevelIfMissing(manager, currentOwner, bank, currency, reserved);
       await this.transitionFrickIntent(manager, intent, VirtualIbanIssuanceIntentStatus.COMPLETED, reserved.iban, null);
       return virtualIban;
     });
@@ -569,7 +717,9 @@ export class VirtualIbanService {
   }
 
   /**
-   * Sole legitimate reopener of stuck Frick issuance intents after an empty Bank Frick listing.
+   * Sole product-approved automatic reopener of stuck Frick issuance intents after the strongest
+   * available Bank Frick listing miss. Listing absence is not authoritative; the reconciliation
+   * caller alerts operators before invoking this method and Phase 2 scans the retired reference.
    *
    * ONLY {@link VirtualIbanFrickIssuanceReconciliationService} Phase 1 may call this — never the
    * request path. Rotates `requestReference` under a pessimistic row lock after re-checking that
@@ -581,7 +731,7 @@ export class VirtualIbanService {
   async resetStuckFrickIntentForReconciliationOnly(
     intentId: number,
     expectedRequestReference: string,
-    absenceEvidence: { listingStartedAt: Date },
+    bestAvailableAbsenceEvidence: { listingStartedAt: Date },
   ): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
       const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
@@ -599,7 +749,7 @@ export class VirtualIbanService {
         return false;
       }
 
-      const listingStartedAtMs = absenceEvidence.listingStartedAt.getTime();
+      const listingStartedAtMs = bestAvailableAbsenceEvidence.listingStartedAt.getTime();
       if (!Number.isFinite(listingStartedAtMs)) {
         throw new Error(`Invalid Frick absence-evidence timestamp (intentId=${intent.id})`);
       }
@@ -622,7 +772,7 @@ export class VirtualIbanService {
 
       const newRequestReference = this.newFrickRequestReference();
       const message = (
-        `reconciliation: post-create listing proved absence; ` +
+        `reconciliation: strongest available post-create listing found no match (non-authoritative); ` +
         `${CREATE_PATH_REFERENCE_MARKER}${intent.requestReference}; newRequestReference=${newRequestReference}`
       ).slice(0, 2000);
 
@@ -982,11 +1132,15 @@ export class VirtualIbanService {
     });
   }
 
-  private async createVirtualIban(userData: UserData, currencyName: string, buy?: Buy): Promise<VirtualIban> {
+  private async createVirtualIban(
+    userData: UserData,
+    currencyName: string,
+    buy: Buy | undefined,
+    provider: VibanProvider,
+  ): Promise<VirtualIban> {
     const currency = await this.fiatService.getFiatByName(currencyName);
     if (!currency) throw new BadRequestException('Currency not found');
 
-    const provider = this.getProvider(currencyName);
     const bank = await this.bankService.getBankInternal(provider.bankName, currencyName);
     if (!bank?.receive) throw new BadRequestException('No bank available for this currency');
 
@@ -1067,7 +1221,12 @@ export class VirtualIbanService {
       .getOne();
   }
 
-  async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
+  async getVirtualIbansForAccount(userDataId: number, manager?: EntityManager): Promise<VirtualIban[]> {
+    if (manager)
+      return manager.find(VirtualIban, {
+        where: { userData: { id: userDataId } },
+        relations: { userData: true, currency: true, bank: true, buy: true },
+      });
     return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
   }
 

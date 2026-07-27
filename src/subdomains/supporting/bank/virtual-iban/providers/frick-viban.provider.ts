@@ -53,10 +53,11 @@ export class FrickVibanProvider implements VibanProvider {
   }
 
   /**
-   * Lists PREPARED/ACTIVE Frick vIBANs for a reference account (same state filter as recovery).
-   * Intended for the retired-reference reconciliation job (full listing, not scoped to one description).
-   * Propagates {@link FrickVirtualIbansFetchResult.fullyValidated} so the job can refuse empty-listing
-   * resets / "clean" conclusions when validation drops made the listing incomplete.
+   * Lists Frick vIBANs in every lifecycle state for a reference account.
+   *
+   * Reconciliation needs the bank's broadest available evidence: an object under the technical
+   * description remains evidence of an earlier create even when it is already deactivated or has a
+   * deactivation pending. Listing absence is still not authoritative; callers retain that risk.
    */
   async listByReferenceAccount(referenceAccountIban: string): Promise<FrickVirtualIbansFetchResult> {
     if (!this.isAvailable()) throw new ServiceUnavailableException('Bank Frick virtual IBAN service is not available');
@@ -64,11 +65,7 @@ export class FrickVibanProvider implements VibanProvider {
       throw new ServiceUnavailableException('Bank Frick virtual IBAN reference account is missing');
 
     try {
-      return await this.bankFrickService.listAllVibans(
-        referenceAccountIban,
-        [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE],
-        50,
-      );
+      return await this.bankFrickService.listAllVibans(referenceAccountIban, undefined, 50);
     } catch (error) {
       this.logger.error('Bank Frick virtual IBAN listing failed', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Bank Frick virtual IBAN listing failed');

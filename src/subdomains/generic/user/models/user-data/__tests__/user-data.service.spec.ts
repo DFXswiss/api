@@ -57,12 +57,21 @@ describe('UserDataService', () => {
   let bankDataService: jest.Mocked<BankDataService>;
   let virtualIbanService: jest.Mocked<VirtualIbanService>;
   let documentService: jest.Mocked<KycDocumentService>;
+  let kycLogService: jest.Mocked<KycLogService>;
+  let kycNotificationService: jest.Mocked<KycNotificationService>;
+  let userDataNotificationService: jest.Mocked<UserDataNotificationService>;
+  let webhookService: jest.Mocked<WebhookService>;
   let mergeManager: EntityManager;
 
   beforeEach(async () => {
     userDataRepo = createMock<UserDataRepository>();
     mergeManager = createMock<EntityManager>();
     Object.defineProperty(userDataRepo, 'manager', { value: mergeManager });
+    userRepo = createMock<UserRepository>();
+    (mergeManager.getRepository as jest.Mock).mockImplementation((entity) => {
+      if (entity === UserData) return userDataRepo;
+      return userRepo;
+    });
     (mergeManager.transaction as jest.Mock).mockImplementation(async (run: (manager: EntityManager) => unknown) =>
       run(mergeManager),
     );
@@ -72,7 +81,7 @@ describe('UserDataService', () => {
         UserDataService,
         { provide: RepositoryFactory, useValue: createMock<RepositoryFactory>() },
         { provide: UserDataRepository, useValue: userDataRepo },
-        { provide: UserRepository, useValue: createMock<UserRepository>() },
+        { provide: UserRepository, useValue: userRepo },
         { provide: CountryService, useValue: createMock<CountryService>() },
         { provide: LanguageService, useValue: createMock<LanguageService>() },
         { provide: FiatService, useValue: createMock<FiatService>() },
@@ -104,6 +113,10 @@ describe('UserDataService', () => {
     bankDataService = module.get(BankDataService);
     virtualIbanService = module.get(VirtualIbanService);
     documentService = module.get(KycDocumentService);
+    kycLogService = module.get(KycLogService);
+    kycNotificationService = module.get(KycNotificationService);
+    userDataNotificationService = module.get(UserDataNotificationService);
+    webhookService = module.get(WebhookService);
   });
 
   describe('getUsersByMail', () => {
@@ -439,8 +452,8 @@ describe('UserDataService', () => {
 
       await service.mergeUserData(master.id, slave.id);
 
-      expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(master.id);
-      expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(slave.id);
+      expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(master.id, mergeManager);
+      expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(slave.id, mergeManager);
       expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [], mergeManager);
       expect(master.virtualIbans).toEqual([masterViban, slaveViban]);
       const saved = userDataRepo.save.mock.calls[0][0] as UserData;
@@ -784,6 +797,141 @@ describe('UserDataService', () => {
         expect(winnerIntent.userDataId).toBe(master.id);
       },
     );
+  });
+
+  describe('mergeUserData transaction boundary', () => {
+    it('rolls back persisted merge state after a late database failure and emits no post-commit effects', async () => {
+      const masterId = 1000;
+      const slaveId = 2000;
+      type PersistedMergeState = {
+        masterStatus: UserDataStatus;
+        slaveStatus: UserDataStatus;
+        virtualIbanOwnerId: number;
+        lifecycleEventCount: number;
+      };
+      const persisted: PersistedMergeState = {
+        masterStatus: UserDataStatus.ACTIVE,
+        slaveStatus: UserDataStatus.ACTIVE,
+        virtualIbanOwnerId: slaveId,
+        lifecycleEventCount: 0,
+      };
+      let working = { ...persisted };
+
+      const buildAccount = (id: number, status: UserDataStatus): UserData =>
+        Object.assign(new UserData(), {
+          id,
+          kycLevel: id === masterId ? 50 : 20,
+          kycType: KycType.DFX,
+          status,
+          mail: `${id}@example.com`,
+          users: [],
+          accountRelations: [],
+          relatedAccountRelations: [],
+          supportIssues: [],
+        });
+      const findAccount = (state: PersistedMergeState, id: number): UserData =>
+        buildAccount(id, id === masterId ? state.masterStatus : state.slaveStatus);
+
+      const txUserDataRepo = {
+        findOne: jest.fn().mockImplementation(async ({ where: { id } }) => findAccount(working, id)),
+        update: jest.fn().mockImplementation(async (id: number, update: Partial<UserData>) => {
+          if (id === slaveId && update.status) working.slaveStatus = update.status;
+        }),
+        save: jest.fn().mockImplementation(async (entity: UserData) => entity),
+      };
+      const txUserRepo = { find: jest.fn().mockResolvedValue([]), update: jest.fn() };
+      (mergeManager.getRepository as jest.Mock).mockImplementation((entity) => {
+        if (entity === UserData) return txUserDataRepo;
+        return txUserRepo;
+      });
+      (mergeManager.transaction as jest.Mock).mockImplementation(
+        async (run: (manager: EntityManager) => Promise<unknown>) => {
+          working = { ...persisted };
+          try {
+            const result = await run(mergeManager);
+            Object.assign(persisted, working);
+            return result;
+          } catch (error) {
+            working = { ...persisted };
+            throw error;
+          }
+        },
+      );
+
+      // These injected-repository implementations deliberately mutate committed state. If merge
+      // code escapes the transaction manager, the rollback assertion below exposes the leak.
+      userDataRepo.findOne.mockImplementation(async ({ where: { id } }) => findAccount(persisted, id));
+      userDataRepo.update.mockImplementation(async (id: number, update: Partial<UserData>) => {
+        if (id === slaveId && update.status) persisted.slaveStatus = update.status;
+      });
+      userDataRepo.save.mockImplementation(async (entity: UserData) => entity);
+
+      transactionService.getAllTransactionsForUserData.mockResolvedValue([]);
+      userRepo.find.mockResolvedValue([]);
+      bankDataService.getAllBankDatasForUser.mockResolvedValue([]);
+      kycAdminService.getKycSteps.mockResolvedValue([]);
+      virtualIbanService.getVirtualIbansForAccount.mockImplementation(async (id: number) =>
+        id === slaveId
+          ? [
+              Object.assign(new VirtualIban(), {
+                id: 77,
+                active: true,
+                status: VirtualIbanStatus.ACTIVE,
+                buy: null,
+                userData: { id: working.virtualIbanOwnerId },
+                currency: { id: 1 },
+                bank: { id: 10 },
+              }),
+            ]
+          : [],
+      );
+      virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(
+        async (_masterId, _slaveId, _deactivations, manager) => {
+          const target = manager === mergeManager ? working : persisted;
+          target.virtualIbanOwnerId = masterId;
+          target.lifecycleEventCount++;
+        },
+      );
+      virtualIbanService.lockUserLevelIssuanceForMerge.mockResolvedValue(undefined);
+      jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as unknown as { updateBankTxTime: () => Promise<void> }, 'updateBankTxTime')
+        .mockResolvedValue(undefined);
+      kycLogService.createMergeLog.mockRejectedValueOnce(new Error('late merge log write failed'));
+
+      await expect(service.mergeUserData(masterId, slaveId, undefined, true)).rejects.toThrow(
+        'late merge log write failed',
+      );
+
+      expect(persisted).toEqual({
+        masterStatus: UserDataStatus.ACTIVE,
+        slaveStatus: UserDataStatus.ACTIVE,
+        virtualIbanOwnerId: slaveId,
+        lifecycleEventCount: 0,
+      });
+      expect(userDataRepo.findOne).not.toHaveBeenCalled();
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+      expect(userDataRepo.save).not.toHaveBeenCalled();
+      expect(transactionService.getAllTransactionsForUserData).toHaveBeenCalledWith(masterId, {}, mergeManager);
+      expect(transactionService.getAllTransactionsForUserData).toHaveBeenCalledWith(slaveId, {}, mergeManager);
+      expect(bankDataService.getAllBankDatasForUser).toHaveBeenCalledWith(masterId, mergeManager);
+      expect(bankDataService.getAllBankDatasForUser).toHaveBeenCalledWith(slaveId, mergeManager);
+      expect(kycAdminService.getKycSteps).toHaveBeenCalledWith(masterId, {}, mergeManager);
+      expect(kycAdminService.getKycSteps).toHaveBeenCalledWith(slaveId, {}, mergeManager);
+      expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(masterId, mergeManager);
+      expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(slaveId, mergeManager);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(masterId, slaveId, [], mergeManager);
+      expect(kycLogService.createMergeLog).toHaveBeenCalledWith(
+        expect.objectContaining({ id: masterId }),
+        expect.any(String),
+        mergeManager,
+      );
+      expect(documentService.copyFiles).not.toHaveBeenCalled();
+      expect(webhookService.accountChanged).not.toHaveBeenCalled();
+      expect(kycNotificationService.kycChanged).not.toHaveBeenCalled();
+      expect(userDataNotificationService.userDataChangedMailInfo).not.toHaveBeenCalled();
+      expect(userDataNotificationService.userDataAddedAddressInfo).not.toHaveBeenCalled();
+    });
   });
 
   describe('assignNextKycFileId', () => {

@@ -390,10 +390,11 @@ export class BuyService {
           : undefined,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id, {
-      bankId: resolvedBank.bankId,
-      virtualIbanId: resolvedBank.virtualIbanId,
-    });
+    const bankSelection =
+      dto.personalIbanProvider === PersonalIbanProvider.FRICK
+        ? { bankId: resolvedBank.bankId, virtualIbanId: resolvedBank.virtualIbanId }
+        : undefined;
+    await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id, bankSelection);
 
     return buyDto;
   }

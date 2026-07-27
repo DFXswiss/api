@@ -33,7 +33,10 @@ describe('VirtualIbanService', () => {
   let frickVibanProvider: FrickVibanProvider;
   let dataSource: DataSource;
   let notificationService: NotificationService;
+  let issuanceLockQuery: jest.Mock;
+  let issuanceLockRelease: jest.Mock;
   let manager: {
+    exists: jest.Mock;
     find: jest.Mock;
     findOne: jest.Mock;
     create: jest.Mock;
@@ -64,6 +67,7 @@ describe('VirtualIbanService', () => {
     notificationService = createMock<NotificationService>();
     jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined as any);
     manager = {
+      exists: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
       create: jest.fn(),
@@ -73,6 +77,16 @@ describe('VirtualIbanService', () => {
     };
     transactionActive = false;
     dataSource = createMock<DataSource>();
+    issuanceLockQuery = jest.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('pg_advisory_unlock')) return [{ unlocked: true }];
+      return [];
+    });
+    issuanceLockRelease = jest.fn().mockResolvedValue(undefined);
+    (dataSource.createQueryRunner as jest.Mock).mockReturnValue({
+      connect: jest.fn().mockResolvedValue(undefined),
+      query: issuanceLockQuery,
+      release: issuanceLockRelease,
+    });
     (dataSource as unknown as { manager: typeof manager }).manager = manager;
     (dataSource.transaction as jest.Mock).mockImplementation(async (run: (manager: EntityManager) => unknown) => {
       transactionActive = true;
@@ -113,6 +127,21 @@ describe('VirtualIbanService', () => {
       expect(() => service.getAccountHolder(IbanBankName.OLKY)).toThrow(
         `No viban provider registered for bank ${IbanBankName.OLKY}`,
       );
+    });
+  });
+
+  describe('lockUserLevelIssuanceForMerge', () => {
+    it('locks every persisted issuance key for both accounts in deterministic order', async () => {
+      const mergeManager = { query: jest.fn().mockResolvedValue([]) } as unknown as EntityManager;
+
+      await service.lockUserLevelIssuanceForMerge(20, 10, mergeManager);
+
+      expect((mergeManager.query as jest.Mock).mock.calls).toEqual([
+        ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:EUR', '10']],
+        ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:EUR', '20']],
+        ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Yapeal:CHF', '10']],
+        ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Yapeal:CHF', '20']],
+      ]);
     });
   });
 
@@ -177,6 +206,84 @@ describe('VirtualIbanService', () => {
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
       expect(bankService.getBankInternal).not.toHaveBeenCalled();
+    });
+
+    it('rechecks persisted ownership after taking the issuance lock and does not create beside a merge winner', async () => {
+      const mergeWinner = { id: 99, userData: { id: userData.id }, bank } as VirtualIban;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValueOnce(null).mockResolvedValueOnce(mergeWinner);
+
+      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(ConflictException);
+
+      expect(virtualIbanRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(issuanceLockQuery).toHaveBeenNthCalledWith(1, 'SELECT pg_advisory_lock(hashtext($1), hashtext($2))', [
+        'virtual-iban-issuance:Yapeal:CHF',
+        String(userData.id),
+      ]);
+      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(bankService.getBankInternal).not.toHaveBeenCalled();
+    });
+
+    it('releases the query runner and propagates an advisory lock acquisition failure', async () => {
+      const lockFailure = new Error('lock acquisition failed');
+      issuanceLockQuery.mockRejectedValueOnce(lockFailure);
+
+      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(lockFailure);
+
+      expect(issuanceLockRelease).toHaveBeenCalled();
+      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the advisory lock reports that it was not held during cleanup', async () => {
+      issuanceLockQuery.mockImplementation(async (sql: string) =>
+        sql.includes('pg_advisory_unlock') ? [{ unlocked: false }] : [],
+      );
+
+      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
+        'Virtual IBAN issuance advisory lock was not held',
+      );
+    });
+
+    it('propagates an advisory unlock transport failure after a successful operation', async () => {
+      const unlockFailure = new Error('unlock transport failed');
+      issuanceLockQuery.mockImplementation(async (sql: string) => {
+        if (sql.includes('pg_advisory_unlock')) throw unlockFailure;
+        return [];
+      });
+
+      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(unlockFailure);
+    });
+
+    it('propagates a query-runner release failure after a successful operation', async () => {
+      const releaseFailure = new Error('query runner release failed');
+      issuanceLockRelease.mockRejectedValueOnce(releaseFailure);
+
+      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(releaseFailure);
+    });
+
+    it.each([
+      { cleanupFailure: new Error('unlock failed'), label: 'Error cleanup cause' },
+      { cleanupFailure: 'non-error unlock failure', label: 'non-Error cleanup cause' },
+    ])('preserves the operation failure when cleanup also fails ($label)', async ({ cleanupFailure }) => {
+      const operationFailure = new BadRequestException('No bank available for this currency');
+      jest.spyOn(bankService, 'getBankInternal').mockRejectedValueOnce(operationFailure);
+      issuanceLockQuery.mockImplementation(async (sql: string) => {
+        if (sql.includes('pg_advisory_unlock')) throw cleanupFailure;
+        return [];
+      });
+
+      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(operationFailure);
+      expect(issuanceLockRelease).toHaveBeenCalled();
+    });
+
+    it('keeps the unlock failure when releasing the query runner also fails', async () => {
+      const unlockFailure = new Error('unlock failed first');
+      issuanceLockQuery.mockImplementation(async (sql: string) => {
+        if (sql.includes('pg_advisory_unlock')) throw unlockFailure;
+        return [];
+      });
+      issuanceLockRelease.mockRejectedValueOnce(new Error('release failed second'));
+
+      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(unlockFailure);
     });
 
     it('throws BadRequestException when currency is not found before any provider call', async () => {
@@ -293,6 +400,19 @@ describe('VirtualIbanService', () => {
 
       await expect(service.createForBuy(userData, buy, 'CHF')).rejects.toThrow(ConflictException);
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('rechecks the buy binding after taking the issuance lock and does not create beside a merge winner', async () => {
+      const mergeWinner = { id: 99, userData: { id: userData.id }, bank, buy: { id: 12 } } as VirtualIban;
+      jest.spyOn(virtualIbanRepo, 'findOneCached').mockResolvedValueOnce(null).mockResolvedValueOnce(mergeWinner);
+      jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
+
+      await expect(service.createForBuy(userData, { id: 12 } as Buy, 'CHF')).rejects.toThrow(ConflictException);
+
+      expect(virtualIbanRepo.findOneCached).toHaveBeenCalledTimes(2);
+      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(bankService.getBankInternal).not.toHaveBeenCalled();
     });
 
     it('never uses Frick for generic EUR buy-specific creation', async () => {
@@ -1140,6 +1260,19 @@ describe('VirtualIbanService', () => {
       await service.getVirtualIbansForAccount(7);
 
       expect(virtualIbanRepo.findCachedBy).toHaveBeenCalledWith('user-7', { userData: { id: 7 } });
+    });
+
+    it('getVirtualIbansForAccount uses the supplied transaction manager', async () => {
+      const rows = [{ id: 9 }] as VirtualIban[];
+      manager.find.mockResolvedValue(rows);
+
+      await expect(service.getVirtualIbansForAccount(7, manager as unknown as EntityManager)).resolves.toBe(rows);
+
+      expect(manager.find).toHaveBeenCalledWith(VirtualIban, {
+        where: { userData: { id: 7 } },
+        relations: { userData: true, bank: true, currency: true, buy: true },
+      });
+      expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
     });
 
     it('getByIdForUser queries by id and userData id with full relations', async () => {
@@ -2745,7 +2878,93 @@ describe('VirtualIbanService', () => {
       expect(manager.save).not.toHaveBeenCalled();
     });
 
-    it('refuses stale-owner finalize without rotating the recoverable reference', async () => {
+    it.each([
+      { label: 'currency', currencyId: 999, bankId: frickBank.id },
+      { label: 'bank', currencyId: eur.id, bankId: 999 },
+    ])('refuses finalize when the persisted $label binding differs', async ({ currencyId, bankId }) => {
+      manager.findOne.mockResolvedValue(
+        Object.assign(new VirtualIbanIssuanceIntent(), {
+          id: 301,
+          requestReference: callerReference,
+          userDataId: userData.id,
+          currencyId,
+          bankId,
+          status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+          externalIban: null,
+          error: null,
+        }),
+      );
+
+      await expect(finalize(301, callerReference)).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+
+      expect(notificationService.sendMail).toHaveBeenCalledWith({
+        type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
+        input: {
+          subject: 'Frick vIBAN issuance: requestReference integrity check failed under lock',
+          errors: [expect.stringContaining('reason=finalize: intent ownership changed under lock')],
+        },
+      });
+      expect(manager.exists).not.toHaveBeenCalled();
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('finalizes for the persisted master when an issuance ownership event proves the merge reassignment', async () => {
+      const masterId = 1000;
+      const master = Object.assign(new UserData(), { id: masterId, kycLevel: KycLevel.LEVEL_50 });
+      const intent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 301,
+        requestReference: callerReference,
+        userDataId: masterId,
+        currencyId: eur.id,
+        bankId: frickBank.id,
+        status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+        externalIban: null,
+        error: null,
+      });
+      let persistedVirtualIban: VirtualIban | undefined;
+      manager.exists.mockResolvedValue(true);
+      manager.findOne.mockImplementation(async (entity, options) => {
+        if (entity === VirtualIbanIssuanceIntent) return intent;
+        if (entity === UserData) return master;
+        if (entity === VirtualIban && options.where.iban)
+          return persistedVirtualIban?.iban === options.where.iban ? persistedVirtualIban : null;
+        return null;
+      });
+      manager.save.mockImplementation(async (entity) => {
+        if (entity instanceof VirtualIban) {
+          persistedVirtualIban = Object.assign(new VirtualIban(), entity, { id: 901 });
+          return persistedVirtualIban;
+        }
+        return entity;
+      });
+
+      const finalized = await finalize(intent.id, callerReference);
+
+      expect(manager.exists).toHaveBeenCalledWith(VirtualIbanIssuanceEvent, {
+        where: {
+          intentId: intent.id,
+          previousUserDataId: userData.id,
+          nextUserDataId: masterId,
+          currencyId: eur.id,
+          bankId: frickBank.id,
+        },
+      });
+      expect(persistedVirtualIban).toMatchObject({
+        id: 901,
+        iban: reserved.iban,
+        userData: { id: masterId },
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+      expect(finalized.userData.id).toBe(masterId);
+      expect(intent.requestReference).toBe(callerReference);
+      expect(intent.status).toBe(VirtualIbanIssuanceIntentStatus.COMPLETED);
+      expect(intent.externalIban).toBe(reserved.iban);
+      expect(notificationService.sendMail).not.toHaveBeenCalled();
+    });
+
+    it('refuses stale-owner finalize when no merge ownership event proves the reassignment', async () => {
       const masterId = 1000;
       const intent = Object.assign(new VirtualIbanIssuanceIntent(), {
         id: 301,
@@ -2758,22 +2977,46 @@ describe('VirtualIbanService', () => {
         error: null,
       });
       manager.findOne.mockResolvedValue(intent);
+      manager.exists.mockResolvedValue(false);
 
       await expect(finalize(intent.id, callerReference)).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
 
-      expect(intent.requestReference).toBe(callerReference);
-      expect(intent.status).toBe(VirtualIbanIssuanceIntentStatus.IN_FLIGHT);
-      expect(intent.externalIban).toBeNull();
-      expect(manager.create).not.toHaveBeenCalled();
       expect(manager.save).not.toHaveBeenCalled();
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
         context: MailContext.MONITORING,
         input: {
           subject: 'Frick vIBAN issuance: requestReference integrity check failed under lock',
-          errors: [expect.stringContaining('reason=finalize: intent ownership changed under lock')],
+          errors: [expect.stringContaining('reason=finalize: intent ownership changed without merge audit')],
         },
       });
+    });
+
+    it('refuses an audited ownership reassignment when the persisted master row is missing', async () => {
+      const intent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 301,
+        requestReference: callerReference,
+        userDataId: 1000,
+        currencyId: eur.id,
+        bankId: frickBank.id,
+        status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+        externalIban: null,
+        error: null,
+      });
+      manager.exists.mockResolvedValue(true);
+      manager.findOne.mockImplementation(async (entity) => (entity === VirtualIbanIssuanceIntent ? intent : null));
+
+      await expect(finalize(intent.id, callerReference)).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+
+      expect(notificationService.sendMail).toHaveBeenCalledWith({
+        type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
+        input: {
+          subject: 'Frick vIBAN issuance: requestReference integrity check failed under lock',
+          errors: [expect.stringContaining('reason=finalize: audited merge owner is missing')],
+        },
+      });
+      expect(manager.save).not.toHaveBeenCalled();
     });
 
     it('refuses finalize and alerts when intent is FAILED with MERGE_SUPERSEDED_MARKER even if reference matches', async () => {

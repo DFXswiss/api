@@ -1,5 +1,5 @@
 import { Column, Entity, Index } from 'typeorm';
-import { IEntity } from '../../../../shared/models/entity';
+import { IEntity } from 'src/shared/models/entity';
 
 export enum VirtualIbanIssuanceIntentStatus {
   PENDING = 'Pending',

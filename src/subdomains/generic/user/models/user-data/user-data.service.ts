@@ -46,6 +46,7 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -61,6 +62,7 @@ import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
 import { UpdateMailStatus } from '../user/dto/verify-mail.dto';
+import { User } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -752,11 +754,13 @@ export class UserDataService {
     userData: UserData,
     reason: TradeApprovalReason,
     tradeApprovalDate?: Date,
+    manager?: EntityManager,
   ): Promise<void> {
     return this.kycLogService.createLogInternal(
       userData,
       KycLogType.KYC,
       `TradeApprovalDate set to ${(tradeApprovalDate ?? userData.tradeApprovalDate).toISOString()}, reason: ${reason}`,
+      manager,
     );
   }
 
@@ -1160,8 +1164,10 @@ export class UserDataService {
     );
   }
 
-  async updateVolumes(userDataId: number): Promise<void> {
-    const volumes = await this.userRepo
+  async updateVolumes(userDataId: number, manager?: EntityManager): Promise<void> {
+    const userRepo = manager?.getRepository(User) ?? this.userRepo;
+    const userDataRepo = manager?.getRepository(UserData) ?? this.userDataRepo;
+    const volumes = await userRepo
       .createQueryBuilder('user')
       .select('SUM(user.buyVolume)', 'buyVolume')
       .addSelect('SUM(user.annualBuyVolume)', 'annualBuyVolume')
@@ -1186,7 +1192,7 @@ export class UserDataService {
         monthlyCryptoVolume: number;
       }>();
 
-    await this.userDataRepo.update(userDataId, {
+    await userDataRepo.update(userDataId, {
       buyVolume: Util.round(volumes.buyVolume, Config.defaultVolumeDecimal),
       annualBuyVolume: Util.round(volumes.annualBuyVolume, Config.defaultVolumeDecimal),
       monthlyBuyVolume: Util.round(volumes.monthlyBuyVolume, Config.defaultVolumeDecimal),
@@ -1243,294 +1249,312 @@ export class UserDataService {
   async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
-    await this.userDataRepo.manager.transaction(async (manager: EntityManager) => {
-      this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
+    const { master, slave, kycStepMerge } = await this.userDataRepo.manager.transaction(
+      async (manager: EntityManager) => {
+        const userDataRepo = manager.getRepository(UserData);
+        const userRepo = manager.getRepository(User);
 
-      const master = await this.userDataRepo.findOne({
-        where: { id: masterId },
-        relations: {
-          accountRelations: true,
-          relatedAccountRelations: true,
-          supportIssues: true,
-          wallet: true,
-          language: true,
-        },
-        loadEagerRelations: false,
-      });
-      master.transactions = await this.transactionService.getAllTransactionsForUserData(masterId);
-      master.users = await this.userRepo.find({
-        where: { userData: { id: masterId } },
-        relations: { userData: true, wallet: true },
-      });
-      master.bankDatas = await this.bankDataService.getAllBankDatasForUser(masterId);
-      master.virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(masterId);
-      master.kycSteps = await this.kycAdminService.getKycSteps(masterId);
+        this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
+        await this.virtualIbanService.lockUserLevelIssuanceForMerge(masterId, slaveId, manager);
 
-      const slave = await this.userDataRepo.findOne({
-        where: { id: slaveId },
-        relations: {
-          accountRelations: true,
-          relatedAccountRelations: true,
-          supportIssues: true,
-          wallet: true,
-          language: true,
-        },
-        loadEagerRelations: false,
-      });
-      slave.transactions = await this.transactionService.getAllTransactionsForUserData(slaveId);
-      slave.users = await this.userRepo.find({
-        where: { userData: { id: slaveId } },
-        relations: { userData: true, wallet: true },
-      });
-      slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
-      slave.virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(slaveId);
-      slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId);
+        const master = await userDataRepo.findOne({
+          where: { id: masterId },
+          relations: {
+            accountRelations: true,
+            relatedAccountRelations: true,
+            supportIssues: true,
+            wallet: true,
+            language: true,
+          },
+          loadEagerRelations: false,
+        });
+        master.transactions = await this.transactionService.getAllTransactionsForUserData(masterId, {}, manager);
+        master.users = await userRepo.find({
+          where: { userData: { id: masterId } },
+          relations: { userData: true, wallet: true },
+        });
+        master.bankDatas = await this.bankDataService.getAllBankDatasForUser(masterId, manager);
+        master.virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(masterId, manager);
+        master.kycSteps = await this.kycAdminService.getKycSteps(masterId, {}, manager);
 
-      master.checkIfMergePossibleWith(slave);
+        const slave = await userDataRepo.findOne({
+          where: { id: slaveId },
+          relations: {
+            accountRelations: true,
+            relatedAccountRelations: true,
+            supportIssues: true,
+            wallet: true,
+            language: true,
+          },
+          loadEagerRelations: false,
+        });
+        slave.transactions = await this.transactionService.getAllTransactionsForUserData(slaveId, {}, manager);
+        slave.users = await userRepo.find({
+          where: { userData: { id: slaveId } },
+          relations: { userData: true, wallet: true },
+        });
+        slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId, manager);
+        slave.virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(slaveId, manager);
+        slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId, {}, manager);
 
-      if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
+        master.checkIfMergePossibleWith(slave);
 
-      const mergedEntitiesString = [
-        slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
-        slave.virtualIbans.length > 0 && `virtual ibans ${slave.virtualIbans.map((v) => v.id)}`,
-        slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
-        slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
-        slave.relatedAccountRelations.length > 0 &&
-          `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
-        slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
-        slave.individualFees && `individualFees ${slave.individualFees}`,
-        slave.kycClients && `kycClients ${slave.kycClients}`,
-        slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
-        slave.transactions.length > 0 && `transactions ${slave.transactions.map((s) => s.id)}`,
-      ]
-        .filter((i) => i)
-        .join(' and ');
+        if (slave.kycLevel > master.kycLevel)
+          throw new BadRequestException('Slave kycLevel can not be higher as master');
 
-      const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with mail ${slave.mail} and firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
-      this.logger.info(log);
+        const mergedEntitiesString = [
+          slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
+          slave.virtualIbans.length > 0 && `virtual ibans ${slave.virtualIbans.map((v) => v.id)}`,
+          slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
+          slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
+          slave.relatedAccountRelations.length > 0 &&
+            `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
+          slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
+          slave.individualFees && `individualFees ${slave.individualFees}`,
+          slave.kycClients && `kycClients ${slave.kycClients}`,
+          slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
+          slave.transactions.length > 0 && `transactions ${slave.transactions.map((s) => s.id)}`,
+        ]
+          .filter((i) => i)
+          .join(' and ');
 
-      await this.updateBankTxTime(slave.id);
+        const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with mail ${slave.mail} and firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
+        this.logger.info(log);
 
-      // Notify user about changed mail
-      if (notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail))
-        await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
+        await this.updateBankTxTime(slave.id, manager);
 
-      // Adapt slave kyc step sequenceNumber: absolute, strictly-decreasing numbers below BOTH sides' min, so a
-      // reassigned step can't collide on the userDataId+name+type+sequenceNumber unique index — neither against the
-      // master's rows (checked when userDataId flips on save) nor against the slave's own rows from earlier merges
-      // (checked at update time, before the flip) — and a re-run of a partially-applied merge can't compound.
-      const existingSteps = [...master.kycSteps, ...(slave.kycSteps ?? [])];
-      // Seeded 100 below the floor: the gap marks each merge batch as such in the raw data.
-      let nextSequenceNumber = (existingSteps.length ? Util.minObjValue(existingSteps, 'sequenceNumber') : 0) - 100;
-      const kycStepMerge = !!slave.kycSteps?.length;
-      // Descending by old sequenceNumber, so the newest attempt keeps the highest new number (order-preserving).
-      for (const kycStep of [...slave.kycSteps].sort((a, b) => b.sequenceNumber - a.sequenceNumber)) {
-        await this.kycAdminService.updateKycStepInternal(
-          kycStep.update(
-            [
-              ReviewStatus.IN_PROGRESS,
-              ReviewStatus.MANUAL_REVIEW,
-              ReviewStatus.INTERNAL_REVIEW,
-              ReviewStatus.EXTERNAL_REVIEW,
-              ReviewStatus.FINISHED,
-              ReviewStatus.PARTIALLY_APPROVED,
-              ReviewStatus.DATA_REQUESTED,
-              ReviewStatus.PAUSED,
-              ReviewStatus.ON_HOLD,
-            ].includes(kycStep.status)
-              ? ReviewStatus.CANCELED
-              : undefined,
-            undefined,
-            undefined,
-            nextSequenceNumber--,
-          ),
+        // Adapt slave kyc step sequenceNumber: absolute, strictly-decreasing numbers below BOTH sides' min, so a
+        // reassigned step can't collide on the userDataId+name+type+sequenceNumber unique index — neither against the
+        // master's rows (checked when userDataId flips on save) nor against the slave's own rows from earlier merges
+        // (checked at update time, before the flip) — and a re-run of a partially-applied merge can't compound.
+        const existingSteps = [...master.kycSteps, ...(slave.kycSteps ?? [])];
+        // Seeded 100 below the floor: the gap marks each merge batch as such in the raw data.
+        let nextSequenceNumber = (existingSteps.length ? Util.minObjValue(existingSteps, 'sequenceNumber') : 0) - 100;
+        const kycStepMerge = !!slave.kycSteps?.length;
+        // Descending by old sequenceNumber, so the newest attempt keeps the highest new number (order-preserving).
+        for (const kycStep of [...slave.kycSteps].sort((a, b) => b.sequenceNumber - a.sequenceNumber)) {
+          await this.kycAdminService.updateKycStepInternal(
+            kycStep.update(
+              [
+                ReviewStatus.IN_PROGRESS,
+                ReviewStatus.MANUAL_REVIEW,
+                ReviewStatus.INTERNAL_REVIEW,
+                ReviewStatus.EXTERNAL_REVIEW,
+                ReviewStatus.FINISHED,
+                ReviewStatus.PARTIALLY_APPROVED,
+                ReviewStatus.DATA_REQUESTED,
+                ReviewStatus.PAUSED,
+                ReviewStatus.ON_HOLD,
+              ].includes(kycStep.status)
+                ? ReviewStatus.CANCELED
+                : undefined,
+              undefined,
+              undefined,
+              nextSequenceNumber--,
+            ),
+            manager,
+          );
+        }
+
+        // Adapt slave bankData in review
+        for (const bankData of slave.bankDatas.filter((b) => b.isInReview)) {
+          if (
+            bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
+            master.bankDatas.some((b) => b.iban === bankData.iban && b.approved)
+          )
+            await this.bankDataService.updateBankDataInternal(
+              bankData,
+              { status: ReviewStatus.FAILED, approved: false },
+              manager,
+            );
+        }
+
+        // Adapt master bankData in review
+        for (const bankData of master.bankDatas.filter((b) => b.isInReview)) {
+          if (
+            bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
+            slave.bankDatas.some((b) => b.iban === bankData.iban && b.approved)
+          )
+            await this.bankDataService.updateBankDataInternal(
+              bankData,
+              { status: ReviewStatus.FAILED, approved: false },
+              manager,
+            );
+        }
+
+        // Active user-level vIBAN currency+bank conflicts: after reassignment the master would hold two
+        // simultaneously active personal IBANs for the same pair (no DB constraint; application rule only).
+        //
+        // Boundary: only the user-level pool (virtual_iban.buy IS NULL) is constrained to "at most one
+        // active per (userData, currency, bank)". Buy-scoped vIBANs (buy non-null) deliberately allow
+        // multiple simultaneously active rows sharing currency+bank — one dedicated personal IBAN per Buy
+        // route — so they must never be part of this dedup.
+        //
+        // Keep the lowest id among conflicting user-level actives — same ordering as
+        // getActiveForUserAndCurrency — so the surviving IBAN matches pre-merge lookup behaviour;
+        // deactivate losers (which also resets any matching Completed Frick issuance intent to Pending
+        // under the loser's pre-merge userDataId) and dissolve slave issuance intents atomically via
+        // mergeUserLevelVirtualIbans so a concurrent customer request cannot claim a just-reopened
+        // slave intent between separate deactivate/dissolve transactions.
+        //
+        // Deactivations run first inside that single transaction so intent ownership resolution sees
+        // the loser's intent already reopened to Pending rather than Completed-pointing-at-a-dead-IBAN.
+        const isActiveUserLevelVirtualIban = (v: VirtualIban): boolean =>
+          v.active === true && v.status === VirtualIbanStatus.ACTIVE && v.buy == null;
+        const virtualIbanPairKey = (v: VirtualIban): string => `${v.currency.id}:${v.bank.id}`;
+
+        const masterActiveByPair = new Map<string, VirtualIban[]>();
+        for (const v of master.virtualIbans.filter(isActiveUserLevelVirtualIban)) {
+          const key = virtualIbanPairKey(v);
+          const group = masterActiveByPair.get(key);
+          if (group) group.push(v);
+          else masterActiveByPair.set(key, [v]);
+        }
+
+        const slaveActiveByPair = new Map<string, VirtualIban[]>();
+        for (const v of slave.virtualIbans.filter(isActiveUserLevelVirtualIban)) {
+          const key = virtualIbanPairKey(v);
+          const group = slaveActiveByPair.get(key);
+          if (group) group.push(v);
+          else slaveActiveByPair.set(key, [v]);
+        }
+
+        const deactivations: { virtualIban: VirtualIban; reason: string }[] = [];
+        for (const [key, masterGroup] of masterActiveByPair) {
+          const slaveGroup = slaveActiveByPair.get(key);
+          if (!slaveGroup) continue;
+
+          const all = [...masterGroup, ...slaveGroup].sort((a, b) => a.id - b.id);
+          const winner = all[0];
+          for (const loser of all.slice(1)) {
+            deactivations.push({
+              virtualIban: loser,
+              reason: `Merged into virtual IBAN ${winner.id} during account merge (master ${masterId}, slave ${slaveId}; deactivated ${loser.id})`,
+            });
+          }
+        }
+
+        // Issuance intents are not on UserData's @OneToMany relations, so the generic reassignment
+        // below never touches them — resolve ownership / unique-index conflicts explicitly inside the
+        // same atomic call as the deactivations above. After dedup, any loser's Completed intent is
+        // reset to Pending first; then non-terminal slave rows are reassigned or failed.
+        await this.virtualIbanService.mergeUserLevelVirtualIbans(masterId, slaveId, deactivations, manager);
+
+        // reassign bank datas, virtual ibans, users and userDataRelations
+        master.bankDatas = master.bankDatas.concat(slave.bankDatas);
+        master.virtualIbans = master.virtualIbans.concat(slave.virtualIbans);
+        master.users = master.users.concat(slave.users);
+        master.accountRelations = master.accountRelations.concat(slave.accountRelations);
+        master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
+        master.kycSteps = master.kycSteps.concat(slave.kycSteps);
+        master.supportIssues = master.supportIssues.concat(slave.supportIssues);
+        master.transactions = master.transactions.concat(slave.transactions);
+        slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
+        slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
+        slave.serviceProviderList.forEach(
+          (sp) => !master.serviceProviderList.includes(sp) && master.addServiceProvider(sp),
         );
-      }
 
-      // Adapt slave bankData in review
-      for (const bankData of slave.bankDatas.filter((b) => b.isInReview)) {
+        // optional master updates
+        if (master.status === UserDataStatus.KYC_ONLY && slave.users.length && slave.wallet)
+          master.wallet = slave.wallet;
+        if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
+        if ((!master.wallet || master.wallet.id === Config.defaultWalletId) && slave.wallet)
+          master.wallet = slave.wallet;
+        if (!master.amlListAddedDate && slave.amlListAddedDate) {
+          master.amlListAddedDate = slave.amlListAddedDate;
+          master.amlListExpiredDate = slave.amlListExpiredDate;
+          master.amlListReactivatedDate = slave.amlListReactivatedDate;
+          master.kycFileId = slave.kycFileId;
+        }
         if (
-          bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
-          master.bankDatas.some((b) => b.iban === bankData.iban && b.approved)
-        )
-          await this.bankDataService.updateBankDataInternal(bankData, { status: ReviewStatus.FAILED, approved: false });
-      }
-
-      // Adapt master bankData in review
-      for (const bankData of master.bankDatas.filter((b) => b.isInReview)) {
-        if (
-          bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
-          slave.bankDatas.some((b) => b.iban === bankData.iban && b.approved)
-        )
-          await this.bankDataService.updateBankDataInternal(bankData, { status: ReviewStatus.FAILED, approved: false });
-      }
-
-      // Active user-level vIBAN currency+bank conflicts: after reassignment the master would hold two
-      // simultaneously active personal IBANs for the same pair (no DB constraint; application rule only).
-      //
-      // Boundary: only the user-level pool (virtual_iban.buy IS NULL) is constrained to "at most one
-      // active per (userData, currency, bank)". Buy-scoped vIBANs (buy non-null) deliberately allow
-      // multiple simultaneously active rows sharing currency+bank — one dedicated personal IBAN per Buy
-      // route — so they must never be part of this dedup.
-      //
-      // Keep the lowest id among conflicting user-level actives — same ordering as
-      // getActiveForUserAndCurrency — so the surviving IBAN matches pre-merge lookup behaviour;
-      // deactivate losers (which also resets any matching Completed Frick issuance intent to Pending
-      // under the loser's pre-merge userDataId) and dissolve slave issuance intents atomically via
-      // mergeUserLevelVirtualIbans so a concurrent customer request cannot claim a just-reopened
-      // slave intent between separate deactivate/dissolve transactions.
-      //
-      // Deactivations run first inside that single transaction so intent ownership resolution sees
-      // the loser's intent already reopened to Pending rather than Completed-pointing-at-a-dead-IBAN.
-      const isActiveUserLevelVirtualIban = (v: VirtualIban): boolean =>
-        v.active === true && v.status === VirtualIbanStatus.ACTIVE && v.buy == null;
-      const virtualIbanPairKey = (v: VirtualIban): string => `${v.currency.id}:${v.bank.id}`;
-
-      const masterActiveByPair = new Map<string, VirtualIban[]>();
-      for (const v of master.virtualIbans.filter(isActiveUserLevelVirtualIban)) {
-        const key = virtualIbanPairKey(v);
-        const group = masterActiveByPair.get(key);
-        if (group) group.push(v);
-        else masterActiveByPair.set(key, [v]);
-      }
-
-      const slaveActiveByPair = new Map<string, VirtualIban[]>();
-      for (const v of slave.virtualIbans.filter(isActiveUserLevelVirtualIban)) {
-        const key = virtualIbanPairKey(v);
-        const group = slaveActiveByPair.get(key);
-        if (group) group.push(v);
-        else slaveActiveByPair.set(key, [v]);
-      }
-
-      const deactivations: { virtualIban: VirtualIban; reason: string }[] = [];
-      for (const [key, masterGroup] of masterActiveByPair) {
-        const slaveGroup = slaveActiveByPair.get(key);
-        if (!slaveGroup) continue;
-
-        const all = [...masterGroup, ...slaveGroup].sort((a, b) => a.id - b.id);
-        const winner = all[0];
-        for (const loser of all.slice(1)) {
-          deactivations.push({
-            virtualIban: loser,
-            reason: `Merged into virtual IBAN ${winner.id} during account merge (master ${masterId}, slave ${slaveId}; deactivated ${loser.id})`,
-          });
+          slave.kycSteps.some(
+            (k) => (k.type === KycStepType.VIDEO || k.type === KycStepType.SUMSUB_VIDEO) && k.isCompleted,
+          )
+        ) {
+          master.identificationType = KycIdentificationType.VIDEO_ID;
+          master.bankTransactionVerification = CheckStatus.UNNECESSARY;
         }
-      }
+        if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
+        master.mail = mail ?? slave.mail ?? master.mail;
+        if (!master.tradeApprovalDate && slave.tradeApprovalDate) {
+          master.tradeApprovalDate = slave.tradeApprovalDate;
 
-      // Issuance intents are not on UserData's @OneToMany relations, so the generic reassignment
-      // below never touches them — resolve ownership / unique-index conflicts explicitly inside the
-      // same atomic call as the deactivations above. After dedup, any loser's Completed intent is
-      // reset to Pending first; then non-terminal slave rows are reassigned or failed.
-      await this.virtualIbanService.mergeUserLevelVirtualIbans(masterId, slaveId, deactivations, manager);
+          await this.createTradeApprovalLog(master, TradeApprovalReason.USER_DATA_MERGE, undefined, manager);
+        }
 
-      // reassign bank datas, virtual ibans, users and userDataRelations
-      master.bankDatas = master.bankDatas.concat(slave.bankDatas);
-      master.virtualIbans = master.virtualIbans.concat(slave.virtualIbans);
-      master.users = master.users.concat(slave.users);
-      master.accountRelations = master.accountRelations.concat(slave.accountRelations);
-      master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
-      master.kycSteps = master.kycSteps.concat(slave.kycSteps);
-      master.supportIssues = master.supportIssues.concat(slave.supportIssues);
-      master.transactions = master.transactions.concat(slave.transactions);
-      slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
-      slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
-      slave.serviceProviderList.forEach(
-        (sp) => !master.serviceProviderList.includes(sp) && master.addServiceProvider(sp),
-      );
+        const pendingRecommendation = master.kycSteps.find(
+          (k) => k.name === KycStepName.RECOMMENDATION && (k.isInProgress || k.isInReview),
+        );
+        if (master.tradeApprovalDate && pendingRecommendation)
+          await this.kycAdminService.updateKycStepInternal(
+            pendingRecommendation.update(ReviewStatus.COMPLETED),
+            manager,
+          );
 
-      // copy all documents
-      void this.documentService
-        .copyFiles(slave.id, master.id)
-        .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
-
-      // optional master updates
-      if (master.status === UserDataStatus.KYC_ONLY && slave.users.length && slave.wallet) master.wallet = slave.wallet;
-      if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
-      if ((!master.wallet || master.wallet.id === Config.defaultWalletId) && slave.wallet) master.wallet = slave.wallet;
-      if (!master.amlListAddedDate && slave.amlListAddedDate) {
-        master.amlListAddedDate = slave.amlListAddedDate;
-        master.amlListExpiredDate = slave.amlListExpiredDate;
-        master.amlListReactivatedDate = slave.amlListReactivatedDate;
-        master.kycFileId = slave.kycFileId;
-      }
-      if (
-        slave.kycSteps.some(
-          (k) => (k.type === KycStepType.VIDEO || k.type === KycStepType.SUMSUB_VIDEO) && k.isCompleted,
-        )
-      ) {
-        master.identificationType = KycIdentificationType.VIDEO_ID;
-        master.bankTransactionVerification = CheckStatus.UNNECESSARY;
-      }
-      if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
-      master.mail = mail ?? slave.mail ?? master.mail;
-      if (!master.tradeApprovalDate && slave.tradeApprovalDate) {
-        master.tradeApprovalDate = slave.tradeApprovalDate;
-
-        await this.createTradeApprovalLog(master, TradeApprovalReason.USER_DATA_MERGE);
-      }
-
-      const pendingRecommendation = master.kycSteps.find(
-        (k) => k.name === KycStepName.RECOMMENDATION && (k.isInProgress || k.isInReview),
-      );
-      if (master.tradeApprovalDate && pendingRecommendation)
-        await this.kycAdminService.updateKycStepInternal(pendingRecommendation.update(ReviewStatus.COMPLETED));
-
-      // Adapt user used refs
-      for (const user of master.users) {
-        if (master.users.some((u) => u.ref === user.usedRef))
-          await this.userRepo.update(user.id, { usedRef: Config.defaultRef });
-      }
-
-      // update slave status
-      await this.userDataRepo.update(slave.id, {
-        status: UserDataStatus.MERGED,
-        firstname: `${MergedPrefix}${master.id}`,
-        amlListAddedDate: null,
-        amlListExpiredDate: null,
-        amlListReactivatedDate: null,
-        kycFileId: null,
-      });
-
-      await this.userDataRepo.save(master);
-
-      // Merge Webhook
-      await this.webhookService.accountChanged(master, slave);
-
-      // KYC change Webhook
-      await this.kycNotificationService.kycChanged(master);
-
-      // update volumes
-      await this.updateVolumes(masterId);
-      await this.updateVolumes(slaveId);
-
-      // activate users
-      if (master.hasActiveUser || slave.status === UserDataStatus.ACTIVE) {
-        await this.userDataRepo.activateUserData(master);
-
+        // Adapt user used refs
         for (const user of master.users) {
-          if (user.isBlockedOrDeleted) continue;
-
-          await this.userRepo.update(...user.activateUser());
-          await this.userRepo.setUserRef(user, master.kycLevel);
+          if (master.users.some((u) => u.ref === user.usedRef))
+            await userRepo.update(user.id, { usedRef: Config.defaultRef });
         }
-      } else if (master.users?.some((u) => u.ref)) {
-        for (const user of master.users) {
-          await this.userRepo.setUserRef(user, master.kycLevel);
+
+        // update slave status
+        await userDataRepo.update(slave.id, {
+          status: UserDataStatus.MERGED,
+          firstname: `${MergedPrefix}${master.id}`,
+          amlListAddedDate: null,
+          amlListExpiredDate: null,
+          amlListReactivatedDate: null,
+          kycFileId: null,
+        });
+
+        await userDataRepo.save(master);
+
+        // update volumes
+        await this.updateVolumes(masterId, manager);
+        await this.updateVolumes(slaveId, manager);
+
+        // activate users
+        if (master.hasActiveUser || slave.status === UserDataStatus.ACTIVE) {
+          await this.userDataRepo.activateUserData(master, manager);
+
+          for (const user of master.users) {
+            if (user.isBlockedOrDeleted) continue;
+
+            await userRepo.update(...user.activateUser());
+            await this.userRepo.setUserRef(user, master.kycLevel, manager);
+          }
+        } else if (master.users?.some((u) => u.ref)) {
+          for (const user of master.users) {
+            await this.userRepo.setUserRef(user, master.kycLevel, manager);
+          }
         }
-      }
 
-      await this.kycLogService.createMergeLog(master, log);
-      await this.kycLogService.createMergeLog(slave, log);
+        await this.kycLogService.createMergeLog(master, log, manager);
+        await this.kycLogService.createMergeLog(slave, log, manager);
 
-      if (kycStepMerge) await this.kycService.checkDfxApproval(master);
+        return { master, slave, kycStepMerge };
+      },
+    );
 
-      // Notify user about added address
-      if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);
-    });
+    // External side effects start only after the transaction callback has returned and TypeORM has
+    // committed every merge mutation, including vIBAN ownership/lifecycle events.
+    if (notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail))
+      await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
+
+    void this.documentService
+      .copyFiles(slave.id, master.id)
+      .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
+
+    await this.webhookService.accountChanged(master, slave);
+    await this.kycNotificationService.kycChanged(master);
+    if (kycStepMerge) await this.kycService.checkDfxApproval(master);
+    if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);
   }
 
-  private async updateBankTxTime(userDataId: number): Promise<void> {
-    const txList = await this.repos.bankTx.find({
+  private async updateBankTxTime(userDataId: number, manager?: EntityManager): Promise<void> {
+    const repo = manager?.getRepository(BankTx) ?? this.repos.bankTx;
+    const txList = await repo.find({
       select: { id: true },
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
@@ -1540,7 +1564,7 @@ export class UserDataService {
     });
 
     if (txList.length != 0)
-      await this.repos.bankTx.update(
+      await repo.update(
         txList.map((tx) => tx.id),
         { updated: new Date() },
       );

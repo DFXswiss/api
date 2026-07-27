@@ -292,7 +292,10 @@ the hourly reconciliation job below.
 
 `VirtualIbanFrickIssuanceReconciliationService.reconcileRetiredIssuanceReferences`
 (`@DfxCron` process `VirtualIbanFrickIssuanceReconciliation`) is the sole place that reopens
-stuck intents after a fully validated empty listing whose timing proves post-create absence:
+stuck intents. It does so only on the strongest evidence Bank Frick exposes: a complete,
+fully validated, reference-account-scoped listing across **all lifecycle states** that starts after
+the maximum locally bounded create-processing window and contains no exact `description` match.
+This evidence is deliberately necessary, but it is **not authoritative proof of non-creation**:
 
 - **Schedule:** every hour (`CronExpression.EVERY_HOUR`)
 - **Rail guard:** silent no-op when `FrickVibanProvider.isAvailable()` is false (vIBAN rail not
@@ -326,13 +329,18 @@ processes setting.
    - **Listing match** (object already exists under the current reference) → collect for an
      `ERROR_MONITORING` alert; **change nothing** on the intent. Manual operator follow-through
      required (no auto-cleanup at Bank Frick).
-   - **Not found, listing fully validated, intent older than the safety threshold, and the listing
-     began after the intent-specific latest possible create-processing moment** → call
+   - **Not found across every Frick lifecycle state, listing fully validated, intent older than the
+     safety threshold, and the listing began after the intent-specific latest possible
+     create-processing moment** → first send
+     `Frick vIBAN reconciliation Phase 1: non-authoritative listing miss will arm automatic retry`
+     with the exact technical reference and operator check, then call
      `resetStuckFrickIntentForReconciliationOnly` (sole reopener):
      reset to `Pending` with a **fresh** `requestReference`, event-logged. The abandoned (old)
      reference remains only in the append-only `virtual_iban_issuance_event` log (`nextError` on
      the transition into `Pending`).
-   - **Not found, but listing timing does not prove post-create absence** → keep the intent
+     The alert is sent before the reset; if alert delivery fails, the reset does not run.
+   - **Not found, but listing timing is not later than the maximum create-processing window** →
+     keep the intent
      `InFlight`/`Failed`, keep the same reference, and send
      `Frick vIBAN reconciliation Phase 1: listing does not prove create absence`. Manual
      reconciliation is required; no automatic retry is enabled from that observation.
@@ -347,7 +355,9 @@ The listing result carries `listingStartedAt` (captured immediately before page 
 and `listingCompletedAt` (captured after the final page validates). Invalid/reversed timestamps fail
 the bank for that run. For each intent, the code computes
 `latestPossibleCreateProcessedAt = intent.updated + FRICK_CREATE_MAX_PROCESSING_MS`. The listing
-must start strictly after that instant; checking `Date.now()` against an age threshold is not proof.
+must start strictly after that instant; checking `Date.now()` against an age threshold is weaker
+and is not accepted. Even a correctly ordered listing miss remains non-authoritative because Bank
+Frick provides no authoritative “this create did not happen” operation.
 
 `FRICK_CREATE_MAX_PROCESSING_MS = 90_000` is derived from
 `BankFrickService.HTTP_TIMEOUT_MS = 30_000`:
@@ -358,11 +368,12 @@ must start strictly after that instant; checking `Date.now()` against an age thr
   used by the gate
 
 The separate 30-minute `FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS` remains as a conservative
-operational delay, but it never substitutes for the per-listing ordering proof.
+operational delay, but it never substitutes for the per-listing ordering requirement.
 
 Immediately before resetting, the service locks the intent row and repeats the ordering check
 against the locked row's current `updated` timestamp. If a concurrent attempt has moved that
-timestamp beyond the listing's proof window, it leaves the intent non-retryable and alerts instead.
+timestamp beyond the listing's observation window, it leaves the intent non-retryable and alerts
+instead.
 
 If Bank Frick later creates a vIBAN under a **retired** reference after Phase 1 rotated away from
 it (e.g. a delayed/queued create), that external account can sit active and unmonitored — Phase 2
@@ -376,7 +387,7 @@ shows an object under one. It is **alert-only**: it never mutates intents or Ban
 **Where retired references come from** (writers of the durable markers in `nextError`):
 
 1. **Phase 1 reset** (`resetStuckFrickIntentForReconciliationOnly`) — current writer format:
-   `reconciliation: post-create listing proved absence; previousRequestReference=<old>; newRequestReference=<new>`
+   `reconciliation: strongest available post-create listing found no match (non-authoritative); previousRequestReference=<old>; newRequestReference=<new>`
 2. **Deactivation-reopen** (`mergeUserLevelVirtualIbans` → private `deactivateVirtualIbanLocked`) —
    merge-conflict deactivation of a Frick-backed `virtual_iban` that still has a `Completed`
    intent pointing at it:
@@ -445,10 +456,10 @@ free-form columns, so the debug endpoint is not that fallback.
 
 ### What it reconciles against
 
-Both phases list Bank Frick virtual IBANs **per bank**, not against one hardcoded EUR reference
-account. For each distinct `bankId` on the intents (Phase 1) or abandoned-reference events
+Both phases list Bank Frick virtual IBANs **per bank and across every lifecycle state**, not against
+one hardcoded EUR reference account. For each distinct `bankId` on the intents (Phase 1) or abandoned-reference events
 (Phase 2), the job resolves `Bank.iban` via `BankService.getBankById` and calls
-`FrickVibanProvider.listByReferenceAccount` (PREPARED + ACTIVE). Comparison is exact equality of
+`FrickVibanProvider.listByReferenceAccount` (no lifecycle-state filter). Comparison is exact equality of
 listed `description` to the intent's current `requestReference` (Phase 1) or the extracted
 abandoned reference (Phase 2). A missing bank IBAN throws inside that bank's processing and is
 caught by the per-bank `try/catch` in both phases: only that one bank is skipped
@@ -482,31 +493,41 @@ customer must be able to proceed without waiting for manual intervention. That c
 genuine, narrow residual risk — not a defect, but a known and accepted trade-off.
 
 Despite the safeguards added for this feature (fail-closed request-path empty listing behaviour,
-requestReference/ownership lock-time checks on finalize, Phase 1 post-create listing-evidence gate,
+requestReference/ownership lock-time checks on finalize, Phase 1 complete all-state listing gate,
 atomic merge dissolution), a second
 real Bank Frick account can still be created for the same customer/currency/bank triple under a
 specific rare interleaving. Typical shape:
 
 1. Bank Frick **genuinely completes** a create that the calling process never learns the outcome of,
-   but its later fully validated listing still omits that object despite the listing request starting
-   after the locally derivable latest create-processing instant (for example, undocumented
-   bank-internal queueing or read-model lag beyond the request bound).
+   but its later fully validated, all-state listing still omits that object. Listing absence is not
+   authoritative, regardless of the listing request starting after the locally derivable latest
+   create-processing instant (for example, undocumented bank-internal queueing, filtering, or
+   read-model lag).
 2. Phase 1 accepts that ordered empty observation, rotates the stuck intent to a **fresh**
    `requestReference`, and a later customer retry issues a second, independent create.
 3. Locally only one of the two objects is bound (`virtual_iban` / completed intent). The other
    remains live at Bank Frick under the retired reference.
 
-If the listing starts too early, has invalid timing metadata, is incomplete, or cannot otherwise
-establish that ordering, the code does **not** reopen: it alerts and leaves the intent/reference for
-the manual reconciliation procedure above. The remaining risk therefore requires Bank Frick's
-observable listing semantics to violate the processing bound; it is accepted but not considered
-impossible.
+If the listing starts too early, has invalid timing metadata, is incomplete, or is not an all-state
+reference-account listing, the code does **not** reopen: it alerts and leaves the intent/reference
+for the manual reconciliation procedure above. When every gate passes, the code alerts **before**
+reopening because the remaining listing miss is still ambiguous. The accepted worst case is a
+second external account that cannot be revoked by rolling back local state.
 
 **How operations detects it:**
 
+- **Phase 1 automatic-retry risk alert**: subject
+  `Frick vIBAN reconciliation Phase 1: non-authoritative listing miss will arm automatic retry`.
+  The alert is sent before the reset call, but the reset follows immediately; this is an
+  observability signal, **not** a human approval gate. Check the Bank Frick portal/API promptly
+  across **every lifecycle state** for the exact `requestReference` and the referenced bank account
+  from the alert, ideally before a later customer request can issue again. If an object is present,
+  prevent another create and reconcile it manually. If the bank portal also shows no object, the
+  retry may still produce a second non-revocable external account; monitor the retired reference
+  through Phase 2.
 - **Phase 1 listing-match alert** (`sendStuckIntentMatchAlert`): subject
   `Frick vIBAN reconciliation Phase 1: stuck intent(s) already exist at Bank Frick`. A stuck
-  intent whose **current** `requestReference` is already on a live Frick listing — nothing was
+  intent whose **current** `requestReference` is already on a Frick listing — nothing was
   actually lost; a retry never got a chance to fire a second create. Manual follow-through only
   (the job changes nothing on the intent).
 - **Phase 2 orphan alert** (`sendMatchAlert`): subject

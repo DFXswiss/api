@@ -1,5 +1,5 @@
-import { IbanBankName } from '../../bank/dto/bank.dto';
-import { VibanAccountHolder } from './viban-account-holder.enum';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { VibanAccountHolder } from 'src/subdomains/supporting/bank/virtual-iban/providers/viban-account-holder.enum';
 
 export interface ReservedViban {
   iban: string;
