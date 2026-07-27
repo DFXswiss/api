@@ -268,6 +268,69 @@ describe('ScryptAdapter', () => {
       expect(order.correlationId).toBe('dfx-lm-4711');
     });
 
+    it('never walks back: after an amend this row recorded, the cancelled original is left alone', async () => {
+      // a predecessor is not a replacement. Adopting it would restart the very quantity the replacement the
+      // row already names is working, which is the double execution this whole path exists to prevent.
+      const getOrderStatus = jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) =>
+          venueOrder(id, id === 'dfx-lm-4711' ? ScryptOrderStatus.CANCELED : ScryptOrderStatus.NEW),
+        );
+      jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+      order.updateCorrelationId('dfx-lm-4711-1');
+
+      await adapter['checkTradeCompletion'](order, 'EUR', 'USDT');
+
+      expect(order.correlationId).toBe('dfx-lm-4711-1');
+      expect(getOrderStatus).not.toHaveBeenCalledWith('dfx-lm-4711');
+    });
+
+    it('writes nothing while a claimed replacement is absent, even with a cancelled predecessor in view', async () => {
+      // the reference is claimed BEFORE the request leaves, so one the venue does not show may be live there
+      // this second — and the cancelled predecessor is exactly the bait for sending a second one next to it
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) =>
+          id === 'dfx-lm-4711' ? venueOrder(id, ScryptOrderStatus.CANCELED) : null,
+        );
+      const checkTrade = jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter['checkTradeCompletion'](order, 'EUR', 'USDT')).resolves.toBe(false);
+
+      expect(checkTrade).not.toHaveBeenCalled();
+      expect(order.correlationId).toBe('dfx-lm-4711');
+    });
+
+    it('writes nothing when the venue cannot be asked about a claimed replacement at all', async () => {
+      // an unreadable lookup is not a reply either, and only a reply can rule a claimed reference out
+      jest.spyOn(scryptService, 'getOrderStatus').mockRejectedValue(new Error('connection closed'));
+      const checkTrade = jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter['checkTradeCompletion'](order, 'EUR', 'USDT')).resolves.toBe(false);
+
+      expect(checkTrade).not.toHaveBeenCalled();
+    });
+
+    it('quarantines an aged order whose claimed replacement nobody can account for', async () => {
+      // holding writes back is safe, but not for good — the manual path only accepts quarantined orders,
+      // so without this an order nobody can observe would have no way out at all
+      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
+      // a check that would otherwise report cleanly, so the quarantine can only come from the barrier itself
+      const checkTrade = jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
+      const old = createUncertainSellOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
+      old.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter['checkTradeCompletion'](old, 'EUR', 'USDT')).rejects.toThrow(OrderOutcomeUnknownException);
+
+      expect(checkTrade).not.toHaveBeenCalled();
+    });
+
     it('does not quarantine an aged order the venue can still show us, whatever failed downstream', async () => {
       // otherwise reconciliation hands it straight back and the next check quarantines it again
       jest.spyOn(scryptService, 'getOrderStatus').mockImplementation(async (id: string) => venueOrder(id));

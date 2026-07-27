@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, Like } from 'typeorm';
+import { In, Like, MoreThan } from 'typeorm';
 import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -27,6 +27,16 @@ import { LiquidityManagementService } from './liquidity-management.service';
  * venue actually ended. Only a failure carrying this can be taken back by a later positive observation.
  */
 const UNSENT_RESOLUTION_MARKER = '[resolved-as-not-sent]';
+
+/**
+ * How long a failure stamped with that marker stays eligible for a positive observation to overrule it.
+ *
+ * Applying such an observation takes two writes — release the quarantine, or take back a negative resolution
+ * that got there first — and a crash or a failing write in between would otherwise strand an order the venue
+ * has confirmed in a state nothing ever looks at again, leaving its rule free to plan a second request. Long
+ * enough to cover a restart, short enough that settled failures are not re-checked against the venue forever.
+ */
+const NEGATIVE_RESOLUTION_RECLAIM_MINUTES = 60;
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -282,10 +292,20 @@ export class LiquidityManagementPipelineService {
    * stays put: an order nobody can account for is safer parked than retried.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
-    const uncertainOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+    const orders = await this.orderRepo.findBy([
+      { status: LiquidityManagementOrderStatus.UNCERTAIN },
+      // Recently failed AS NOT SENT, so that a positive observation which lost the race — or whose second
+      // write never landed — still gets applied. These rows are terminal, so only that positive case does
+      // anything here; the negative branch below leaves them alone.
+      {
+        status: LiquidityManagementOrderStatus.FAILED,
+        errorMessage: Like(`%${UNSENT_RESOLUTION_MARKER}%`),
+        updated: MoreThan(Util.minutesBefore(NEGATIVE_RESOLUTION_RECLAIM_MINUTES)),
+      },
+    ]);
     let anyChanged = false;
 
-    for (const order of uncertainOrders) {
+    for (const order of orders) {
       try {
         const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
         if (!actionIntegration.resolveUncertainOrder) continue;
@@ -298,7 +318,10 @@ export class LiquidityManagementPipelineService {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
           }
-        } else if (resolution === UncertainOrderResolution.NOT_SENT) {
+        } else if (
+          resolution === UncertainOrderResolution.NOT_SENT &&
+          order.status === LiquidityManagementOrderStatus.UNCERTAIN
+        ) {
           order.resolveAsNotSent(
             `${order.errorMessage} (venue confirmed the request never arrived) ${UNSENT_RESOLUTION_MARKER}`,
           );

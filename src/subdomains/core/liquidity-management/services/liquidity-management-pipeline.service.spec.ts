@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { FindOptionsWhere } from 'typeorm';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -186,6 +187,67 @@ describe('LiquidityManagementPipelineService', () => {
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(expectedStatus);
+    });
+
+    it('also looks at recently failed not-sent resolutions, and only at recent ones', async () => {
+      // applying a positive observation takes two writes; without this second look, a crash between them
+      // would strand an order the venue has confirmed in a state nothing ever reads again
+      const findBy = jest.spyOn(orderRepo, 'findBy').mockResolvedValue([]);
+
+      await service['resolveUncertainOrders']();
+
+      const [uncertain, reclaimable] = findBy.mock.calls[0][0] as FindOptionsWhere<LiquidityManagementOrder>[];
+      expect(uncertain).toEqual({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      expect(reclaimable.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(reclaimable.errorMessage).toBeDefined();
+      expect(reclaimable.updated).toBeDefined();
+    });
+
+    it('takes back a not-sent failure once the venue turns out to know the order after all', async () => {
+      const order = Object.assign(uncertainOrder(), {
+        status: LiquidityManagementOrderStatus.FAILED,
+        errorMessage: 'Scrypt did not answer (venue confirmed the request never arrived) [resolved-as-not-sent]',
+      });
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      const update = jest
+        .spyOn(orderRepo, 'update')
+        // the release is skipped — this order is no longer quarantined — and the reclaim catches it instead
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder: jest.fn().mockResolvedValue(UncertainOrderResolution.SENT),
+      });
+
+      await service['resolveUncertainOrders']();
+
+      expect(update).toHaveBeenCalledTimes(2);
+      expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
+      expect(notificationService.sendMail).toHaveBeenCalled();
+    });
+
+    it('leaves a re-examined failure alone when the venue confirms it was never sent', async () => {
+      const order = Object.assign(uncertainOrder(), {
+        status: LiquidityManagementOrderStatus.FAILED,
+        errorMessage: 'Scrypt did not answer (venue confirmed the request never arrived) [resolved-as-not-sent]',
+      });
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      const update = jest.spyOn(orderRepo, 'update');
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder: jest.fn().mockResolvedValue(UncertainOrderResolution.NOT_SENT),
+      });
+
+      await service['resolveUncertainOrders']();
+
+      expect(update).not.toHaveBeenCalled();
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
     });
 
     it('keeps the order quarantined when the lookup itself throws', async () => {

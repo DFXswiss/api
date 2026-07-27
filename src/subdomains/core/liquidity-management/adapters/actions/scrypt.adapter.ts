@@ -264,7 +264,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     // Before anything may write again: a previous pass may have had its replacement accepted and then failed
     // to record it, leaving this row pointing at the predecessor the venue has already cancelled. Restarting
     // from that predecessor would place a second order alongside the live replacement.
-    await this.adoptLiveReplacement(order);
+    if (!(await this.adoptLiveReplacement(order)))
+      return this.waitOrQuarantine(order, 'has a claimed replacement that can be neither confirmed nor ruled out');
 
     // The check may amend or restart the order, which creates a NEW venue order. Hand it a reference derived
     // from the order row so that a replacement whose confirmation never arrives is still findable — without
@@ -327,19 +328,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // working. Failing it here would let the rule open a second position against the same funds, so the
       // order is kept and looked at again next tick.
       //
-      // But not forever: an order nobody can observe would otherwise poll for good, and the manual path only
-      // accepts quarantined orders, so there would be no way out at all. Past the same age at which the venue
-      // itself is considered to have lost an order, it is quarantined — still not declared failed, and now
-      // reachable for a human.
-      // Quarantine only for a genuine blind spot. The failure may just as well have come from pricing or from
-      // aggregating the result — on an order the venue can still show us, and quarantining THAT would have
-      // reconciliation hand it straight back, only for the next check to quarantine it again.
+      // Hold it back only for a genuine blind spot, though. The failure may just as well have come from
+      // pricing or from aggregating the result — on an order the venue can still show us, and parking THAT
+      // would have reconciliation hand it straight back, only for the next check to park it again.
       const stillObservable = await this.scryptService.getOrderStatus(order.correlationId).catch(() => null);
 
-      if (!stillObservable && Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
-        throw new OrderOutcomeUnknownException(
-          `Scrypt order ${order.id} has been unobservable for over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes: ${e.message}`,
-        );
+      if (!stillObservable) return this.waitOrQuarantine(order, `cannot be observed: ${e.message}`);
 
       this.logger.warn(`Could not check Scrypt order ${order.id}, will look again next tick: ${e.message}`);
       return false;
@@ -352,13 +346,39 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * The window is narrow — the venue accepted the replacement and the save that would have adopted it
    * failed — but its consequence is not: the row still names the predecessor, the venue has cancelled that
    * one, and the next check would happily restart from it while the replacement is live.
+   *
+   * Only references NEWER than the current one are candidates. A predecessor is not a replacement: after an
+   * amend that DID get recorded it sits in the list as cancelled, and adopting it would walk the row
+   * backwards and restart the very quantity the replacement is already working.
+   *
+   * Returns whether this order may be written to at all. A claim that can be neither confirmed nor ruled out
+   * is a barrier rather than something to step past — the reference is recorded BEFORE the request leaves,
+   * so one the venue does not show may still be live there, and carrying on with the predecessor would put a
+   * second request next to it.
    */
-  private async adoptLiveReplacement(order: LiquidityManagementOrder): Promise<void> {
-    const claimed = this.attemptedReferencesNewestFirst(order).filter((reference) => reference !== order.correlationId);
+  private async adoptLiveReplacement(order: LiquidityManagementOrder): Promise<boolean> {
+    const currentAttempt = this.attemptNumber(order, order.correlationId);
+    const claimed = this.attemptedReferencesNewestFirst(order).filter(
+      (reference) => this.attemptNumber(order, reference) > currentAttempt,
+    );
 
     for (const reference of claimed) {
-      const info = await this.scryptService.getOrderStatus(reference).catch(() => null);
-      if (!info || info.status === ScryptOrderStatus.REJECTED) continue;
+      // `null` means the venue does not show it, `undefined` that it could not be asked. Neither is a reply,
+      // and only a reply can establish that a claimed reference created nothing.
+      const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
+
+      if (info == null) {
+        this.logger.warn(
+          `Order ${order.id} claimed ${reference}, but the venue ${
+            info === null ? 'does not show it' : 'could not be asked about it'
+          } — holding back every write against ${order.correlationId}`,
+        );
+
+        return false;
+      }
+
+      // A rejection IS a reply: this claim created nothing, so an older one may still be the live order.
+      if (info.status === ScryptOrderStatus.REJECTED) continue;
 
       this.logger.warn(
         `Order ${order.id} still named ${order.correlationId}, but the venue is working ${reference} — adopting it`,
@@ -366,8 +386,30 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       order.updateCorrelationId(reference);
       await this.orderRepo.save(order);
 
-      return;
+      return true;
     }
+
+    return true;
+  }
+
+  /**
+   * Hold an order back because something about it cannot be observed right now.
+   *
+   * Waiting is the safe answer — writing against an order whose true state is unknown is how a second
+   * request against the same funds happens. But not forever: the manual path only accepts quarantined
+   * orders, so an order nobody can ever observe would poll for good with no way out at all. Past the same
+   * age at which the venue itself is considered to have lost an order, it goes to a human instead — still
+   * not declared failed.
+   */
+  private waitOrQuarantine(order: LiquidityManagementOrder, reason: string): boolean {
+    if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
+      throw new OrderOutcomeUnknownException(
+        `Scrypt order ${order.id} ${reason}, and is over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes old`,
+      );
+
+    this.logger.warn(`Scrypt order ${order.id} ${reason}, will look again next tick`);
+
+    return false;
   }
 
   /**
@@ -379,10 +421,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * and the order quarantined for good.
    */
   private attemptedReferencesNewestFirst(order: LiquidityManagementOrder): CorrelationId[] {
-    const attemptNumber = (reference: CorrelationId): number =>
-      Number(reference.slice(`${SCRYPT_CORRELATION_PREFIX}${order.id}-`.length)) || 0;
+    return [...order.allCorrelationIds].sort((a, b) => this.attemptNumber(order, b) - this.attemptNumber(order, a));
+  }
 
-    return [...order.allCorrelationIds].sort((a, b) => attemptNumber(b) - attemptNumber(a));
+  /** Which attempt a reference belongs to: the reserved one is 0, every replacement counts up from there. */
+  private attemptNumber(order: LiquidityManagementOrder, reference: CorrelationId | undefined): number {
+    return Number(reference?.slice(`${SCRYPT_CORRELATION_PREFIX}${order.id}-`.length)) || 0;
   }
 
   /**
