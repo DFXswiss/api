@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { CustodyAccessLevel } from '../enums/custody';
@@ -26,9 +26,14 @@ export class CustodyAccountAccess extends IEntity {
   deactivatedAt?: Date;
 
   /** Marks this grant as historical so a new active row can supersede it. */
-  deactivate(): this {
-    this.active = false;
-    this.deactivatedAt = new Date();
-    return this;
+  deactivate(): UpdateResult<CustodyAccountAccess> {
+    const update: Partial<CustodyAccountAccess> = {
+      active: false,
+      deactivatedAt: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 }

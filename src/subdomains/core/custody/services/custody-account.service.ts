@@ -217,8 +217,7 @@ export class CustodyAccountService {
         return access;
       }
 
-      access.deactivate();
-      await manager.save(access);
+      await manager.update(CustodyAccountAccess, ...access.deactivate());
 
       const grant = manager.create(CustodyAccountAccess, {
         account: access.account,
@@ -238,8 +237,7 @@ export class CustodyAccountService {
       const access = await this.lockActiveAccessGrant(manager, custodyAccountId, accessId);
       this.rejectOwnerGrantMutation(access, account, 'revoke');
 
-      access.deactivate();
-      await manager.save(access);
+      await manager.update(CustodyAccountAccess, ...access.deactivate());
     });
   }
 
