@@ -365,11 +365,12 @@ describe('ExchangeTxConsumer', () => {
   });
 
   // the watermark does not persist in this spec (getObj → undefined, set → no-op), so a naive second process()
-  // re-selects the same rows. The real backstop against double-booking is the DB UNIQUE(sourceType, sourceId, seq)
-  // constraint + the forward loop's failure-isolation: here bookTx enforces UNIQUE, and buildFillIndexMap re-derives
-  // the SAME 0-based ranks, so the re-run's identical keys collide and no second booking lands. If fill_index were NOT
-  // reproduced (e.g. run 2 produced seq 2,3) booked.length would be 4; the `=== 2` assertion is what discriminates.
-  it('is re-run idempotent: a second run reproduces the same fill_index and does not double-book (UNIQUE backstop)', async () => {
+  // re-selects the same rows. The primary guard against double-booking is the pre-book `alreadyBooked` check:
+  // buildFillIndexMap re-derives the SAME 0-based ranks, so the re-run recomputes identical keys, finds them booked
+  // and skips them — the DB UNIQUE(sourceType, sourceId, seq) constraint stays only as the residual backstop and is
+  // no longer reached on the re-run. If fill_index were NOT reproduced (e.g. run 2 produced seq 2,3) booked.length
+  // would be 4; the `=== 2` assertion is what discriminates that, the set-call count discriminates skip from wedge.
+  it('is re-run idempotent: a second run reproduces the same fill_index and does not double-book (alreadyBooked guard)', async () => {
     const keys = new Set<string>();
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       const key = `${input.sourceType}:${input.sourceId}:${input.seq}`;

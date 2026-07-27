@@ -448,13 +448,16 @@ export class ExchangeTxConsumer {
    * The (sourceType, sourceId, seq) a row books at, derived from immutable row fields ONLY — no leg build, no account
    * or mark lookup. A trade with BOTH an order and a resolvable symbol books under the composite trade key; every
    * other row — deposits, withdrawals, order-less trades and unattributable ones (parseSymbol undefined → the
-   * SUSPENSE `singleSpec` branch) — books at (exchange_tx, `${id}`, 0). Single source of truth: tradeSpec returns it
-   * verbatim, so the pre-book guard can never drift from the key the booking actually lands on.
+   * SUSPENSE `singleSpec` branch) — books at the per-row key.
+   *
+   * Single source of truth for BOTH spec builders: tradeSpec returns this verbatim and singleSpec derives its identity
+   * from `rowKey` (the same non-composite branch), so the pre-book guard can never drift from the key the booking
+   * actually lands on — a drift there would silently reopen the wedge this guard closes.
    *
    * Major B3: the composite trade sourceId MUST carry the exchange prefix `${exchange}:${order}`, matching the
    * `${exchange}|${order}` fill-ranking key (buildFillIndexMap). Without it, the SAME order string on two different
    * exchanges collapses to one sourceId → two distinct fills claim the same (sourceType, sourceId, seq) → UNIQUE
-   * collision on the second booker → permanent wedge. `${tx.id}` stays the fallback for an order-less trade.
+   * collision on the second booker → permanent wedge. The per-row key stays the fallback for an order-less trade.
    */
   private bookingKey(
     tx: ExchangeTx,
@@ -468,7 +471,13 @@ export class ExchangeTxConsumer {
           sourceId: `${tx.exchange}:${tx.order}`,
           seq: fillIndexMap.get(tx.id) ?? 0,
         }
-      : { sourceType: SOURCE_TYPE, sourceId: `${tx.id}`, seq: 0 };
+      : this.rowKey(tx);
+  }
+
+  // the non-composite booking identity: one exchange_tx row → one tx at seq0. Shared by bookingKey's fallback branch
+  // and singleSpec so the guard and the booking cannot diverge on the deposit/withdrawal/unattributable-trade paths.
+  private rowKey(tx: ExchangeTx): { sourceType: string; sourceId: string; seq: number } {
+    return { sourceType: SOURCE_TYPE, sourceId: `${tx.id}`, seq: 0 };
   }
 
   /**
@@ -493,15 +502,9 @@ export class ExchangeTxConsumer {
 
   // --- HELPERS --- //
 
+  // only ever reached on non-composite rows (deposit/withdrawal/unattributable trade) → rowKey is their identity
   private singleSpec(tx: ExchangeTx, bookingDate: Date, legs: LedgerLegInput[]): LedgerTxInput {
-    return {
-      sourceType: SOURCE_TYPE,
-      sourceId: `${tx.id}`,
-      seq: 0,
-      bookingDate,
-      valueDate: bookingDate,
-      legs,
-    };
+    return { ...this.rowKey(tx), bookingDate, valueDate: bookingDate, legs };
   }
 
   // §4.3 amountChf null fallback (Minor R9-4): persisted amountChf (stage 1) ?? mark × amount (stage 2) ?? needsMark
