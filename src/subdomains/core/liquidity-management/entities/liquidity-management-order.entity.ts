@@ -58,15 +58,17 @@ export class LiquidityManagementOrder extends IEntity {
   previousOrderId?: number;
 
   /**
-   * Set when a not-sent resolution failed this order, and cleared once reconciliation has looked at it again.
+   * Set when somebody has released this order as never sent, and cleared once the venue has been asked once
+   * more. While it stands, the order STAYS QUARANTINED — the release is accepted but not yet in effect.
    *
-   * A marker for work still owed, NOT a record of when the resolution happened — that belongs in the reason
-   * written onto the order, which is never cleared. Clearing this one only says the look has been taken.
+   * A judgement that a request never left is the one conclusion nothing here can verify from the outside,
+   * and it is made at the same moment reconciliation may be watching the venue confirm that very order. If
+   * the release took effect immediately, that order would be terminal — its rule free to plan against funds
+   * that are in fact committed — before anything could contradict it. So it waits for one machine answer,
+   * which normally arrives on the next pass, seconds later.
    *
-   * That one look is the whole purpose. The pass writing such a resolution may be racing another that has
-   * just watched the venue confirm the very same order, and an observation that cannot be written would
-   * otherwise simply be gone. Kept on the row rather than in memory, so a restart in between does not lose
-   * it, and indexed, so finding the few rows still awaiting that look never walks the failure history.
+   * A marker for work outstanding, NOT a record of when the release was asked for: that goes into the
+   * order's reason, which nothing clears. Indexed so that finding these few rows is never a scan.
    */
   @Index()
   @Column({ type: 'timestamp', nullable: true })
@@ -209,6 +211,19 @@ export class LiquidityManagementOrder extends IEntity {
   /** The venue demonstrably never received this order: nothing was executed, so it is a plain failure. */
   resolveAsNotSent(reason: string): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
+    this.errorMessage = reason;
+    this.notSentRecheckDue = null;
+
+    return this;
+  }
+
+  /**
+   * Accept somebody's judgement that this order never left — without acting on it yet.
+   *
+   * The order stays quarantined until the venue has been asked one more time, so a release can never make an
+   * order terminal while a confirmation of it is still in flight.
+   */
+  requestNotSentRelease(reason: string): this {
     this.errorMessage = reason;
     this.notSentRecheckDue = new Date();
 

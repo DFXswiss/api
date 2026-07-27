@@ -6,6 +6,10 @@ import { Util } from 'src/shared/utils/util';
 /**
  * Manual release of an order whose outcome the venue could not confirm.
  *
+ * Accepted rather than executed: the order stays quarantined until reconciliation has had one answer from
+ * the venue, so a release can never end an order while a confirmation of it is still in flight. In the
+ * ordinary case that is the next pass, seconds later.
+ *
  * The automatic reconciliation can only ever prove the positive — that the venue knows the reference. It
  * never concludes the negative, because no venue reply establishes "this was never accepted". Somebody has
  * to look, and this is where that judgement is recorded.

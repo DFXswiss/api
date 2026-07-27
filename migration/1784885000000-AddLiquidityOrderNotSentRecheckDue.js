@@ -4,22 +4,21 @@
  */
 
 /**
- * Marks a liquidity management order that a not-sent resolution has failed, until reconciliation has looked
- * at it once more.
+ * Marks a liquidity management order somebody has released as never sent, until the venue has been asked
+ * once more. While the column is set the order stays quarantined: the release is accepted, not yet in effect.
  *
- * A resolution concluding that a request never reached the venue can be written at the same moment another
- * pass is watching the venue confirm that very order. Whichever writes first wins the row, and if the
- * confirmation is the one that loses — or simply cannot be written — it is gone, while the failed order
- * leaves its rule free to plan against funds that are in fact committed. The reconciliation pass that runs
- * next closes that window, and this column is what makes such an order findable for it: on the row rather
- * than in process memory, so a restart in between does not lose the obligation, and cleared as soon as the
- * look has happened, so settled failures are not queried against the venue every ten seconds thereafter.
- * It records work still owed, not when the resolution happened — that goes into the order's own reason,
- * which nothing clears.
+ * Concluding that a request never reached the venue is the one judgement nothing here can verify from the
+ * outside, and it can be made at the very moment reconciliation is watching the venue confirm that same
+ * order. Were the release to take effect at once, the order would be terminal — its rule free to plan
+ * against funds that are in fact committed — before anything could contradict it. Waiting for one machine
+ * answer costs a single reconciliation pass, normally seconds, and closes that window entirely.
+ *
+ * The column records work outstanding, not when the release was asked for: that goes into the order's own
+ * reason, which nothing clears. Indexed so the wait never turns into a scan.
  *
  * Purely additive and nullable, no backfill: existing rows read NULL, which is exactly right — they predate
- * the resolution path entirely and have nothing awaiting a second look. The index is the deterministic
- * TypeORM name for a single-column index on this table, matching the entity's `@Index()`.
+ * this path entirely and have no release awaiting confirmation. The index is the deterministic TypeORM name
+ * for a single-column index on this table, matching the entity's `@Index()`.
  *
  * @class
  * @implements {MigrationInterface}

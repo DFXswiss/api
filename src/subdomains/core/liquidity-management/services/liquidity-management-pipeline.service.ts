@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull, Not } from 'typeorm';
+import { In } from 'typeorm';
 import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -21,12 +21,6 @@ import { LiquidityManagementOrderRepository } from '../repositories/liquidity-ma
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementService } from './liquidity-management.service';
-
-/**
- * Stamped onto every failure that comes from concluding a request was never sent — as opposed to one the
- * venue actually ended. Only a failure carrying this can be taken back by a later positive observation.
- */
-const UNSENT_RESOLUTION_MARKER = '[resolved-as-not-sent]';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -282,18 +276,12 @@ export class LiquidityManagementPipelineService {
    * stays put: an order nobody can account for is safer parked than retried.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
-    const orders = await this.orderRepo.findBy([
-      { status: LiquidityManagementOrderStatus.UNCERTAIN },
-      // Failed by a not-sent resolution and not looked at since. The pass that wrote it may have been racing
-      // one that had just watched the venue confirm the same order, so an observation whose writes did not
-      // land is still applied here. Exactly one further look, marked and released by `notSentRecheckDue`:
-      // an equality predicate on an indexed column, not a wildcard match over every failure ever recorded.
-      { status: LiquidityManagementOrderStatus.FAILED, notSentRecheckDue: Not(IsNull()) },
-    ]);
+    const orders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.UNCERTAIN });
     let anyChanged = false;
 
     for (const order of orders) {
-      const wasResolvedAsNotSent = order.status === LiquidityManagementOrderStatus.FAILED;
+      // Somebody has already judged this one never sent; the venue's answer is what puts that into effect.
+      const releasePending = Boolean(order.notSentRecheckDue);
 
       try {
         // Null when the action's system or command is no longer registered at all — an order can outlive the
@@ -301,44 +289,31 @@ export class LiquidityManagementPipelineService {
         const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
 
         if (!actionIntegration?.resolveUncertainOrder) {
-          // Nothing can look this order up, so the marked recheck can never happen. Left standing it would
-          // have every pass select the row and skip it again, for the rest of the row's life.
-          if (wasResolvedAsNotSent) await this.releaseNegativeResolution(order);
+          // Nothing here can ever ask about this order. A release waiting on an answer that can never come
+          // would leave it quarantined for good, so the operator's judgement is all there is to go on.
+          if (releasePending) await this.completeNotSentRelease(order, 'no integration can look it up');
           continue;
         }
 
         const resolution = await actionIntegration.resolveUncertainOrder(order);
-
-        // The look this row was kept for has now happened — the venue answered, and its answer does not
-        // overrule the resolution. Releasing the marker here rather than on a timer is what keeps settled
-        // failures from being put to the venue every ten seconds for the rest of their existence.
-        //
-        // UNAVAILABLE is excluded on purpose: no question reached the venue, so nothing was looked at, and
-        // retiring the obligation on that would discard exactly the observation it is being kept for.
-        if (
-          wasResolvedAsNotSent &&
-          [UncertainOrderResolution.NOT_SENT, UncertainOrderResolution.UNRESOLVED].includes(resolution)
-        )
-          await this.releaseNegativeResolution(order);
 
         if (resolution === UncertainOrderResolution.SENT) {
           if (await this.applyConfirmedObservation(order)) {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
           }
-        } else if (
-          resolution === UncertainOrderResolution.NOT_SENT &&
-          order.status === LiquidityManagementOrderStatus.UNCERTAIN
-        ) {
-          order.resolveAsNotSent(
-            `${order.errorMessage} (venue confirmed the request never arrived, ${new Date().toISOString()}) ` +
-              UNSENT_RESOLUTION_MARKER,
-          );
-          if (await this.leaveQuarantine(order)) {
+        } else if (resolution === UncertainOrderResolution.NOT_SENT) {
+          // Every reference came back refused — a verdict, not a judgement, so it needs no confirming.
+          if (await this.completeNotSentRelease(order, 'the venue confirmed the request never arrived'))
             anyChanged = true;
-            this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue never received it`);
-          }
+        } else if (releasePending && resolution === UncertainOrderResolution.UNRESOLVED) {
+          // The venue answered and has no record, which is not proof on its own — but somebody has already
+          // checked independently and released the order on that basis. Two negatives, one of them from a
+          // person who looked: that is what this release was waiting for.
+          if (await this.completeNotSentRelease(order, 'the venue has no record of it either')) anyChanged = true;
         }
+        // UNAVAILABLE, or UNRESOLVED with nobody having released it: nothing changes, and the order keeps
+        // blocking. No question was answered that could end it.
       } catch (e) {
         // a failing lookup must never promote the order out of quarantine
         this.logger.error(`Error in resolving uncertain liquidity order ${order.id}:`, e);
@@ -348,14 +323,21 @@ export class LiquidityManagementPipelineService {
     return anyChanged;
   }
 
-  /** Note that a not-sent resolution has had its one re-examination, so it stops being reconciled. */
-  private async releaseNegativeResolution(order: LiquidityManagementOrder): Promise<void> {
-    await this.orderRepo.update(
-      // Guarded on the exact marker this pass looked at. A newer resolution written in between owes a look
-      // of its own, and clearing ITS marker would drop the obligation this whole mechanism exists to keep.
-      { id: order.id, status: LiquidityManagementOrderStatus.FAILED, notSentRecheckDue: order.notSentRecheckDue },
-      { notSentRecheckDue: null },
-    );
+  /**
+   * Put a not-sent conclusion into effect: the order becomes an ordinary failure and its rule may plan anew.
+   *
+   * The only place an order leaves quarantine downwards. Everything that reaches here has either a venue
+   * verdict behind it or a person who checked plus a venue that has no record — never a single judgement on
+   * its own, and never an unanswered lookup.
+   */
+  private async completeNotSentRelease(order: LiquidityManagementOrder, because: string): Promise<boolean> {
+    order.resolveAsNotSent(`${order.errorMessage} (released ${new Date().toISOString()}: ${because})`);
+
+    if (!(await this.leaveQuarantine(order))) return false;
+
+    this.logger.info(`Uncertain liquidity order ${order.id} released as never sent: ${because}`);
+
+    return true;
   }
 
   /**
@@ -374,7 +356,6 @@ export class LiquidityManagementPipelineService {
 
     try {
       if (await this.leaveQuarantine(order)) return true;
-      if (await this.reclaimFromNegativeResolution(order)) return true;
     } catch (e) {
       this.logger.error(`Could not record the venue observation for liquidity order ${order.id}:`, e);
     }
@@ -473,66 +454,6 @@ export class LiquidityManagementPipelineService {
     return true;
   }
 
-  /**
-   * Undo a negative resolution that beat a positive observation to the write.
-   *
-   * The compare-and-set only decides who writes first, and first is not the same as right. If somebody
-   * released this order as not executed while we were busy watching the venue confirm it, the order is now
-   * failed — which lets its rule plan again against a position that is still live. An observation outranks a
-   * judgement, so it is taken back, and loudly.
-   */
-  private async reclaimFromNegativeResolution(order: LiquidityManagementOrder): Promise<boolean> {
-    // Read what the row says NOW. The copy this pass started with predates the resolution being overruled,
-    // and writing it back would erase the account that released the order and the reference they checked —
-    // the record of the very judgement this is overruling, and the first thing anybody reviewing it needs.
-    const current = await this.orderRepo.findOneBy({ id: order.id });
-    if (current?.status !== LiquidityManagementOrderStatus.FAILED) return false;
-
-    // Only failures written BY a not-sent resolution. Taking back one that ended for an entirely unrelated
-    // reason would resurrect an order the venue really did finish — the reclaim overrules a judgement, never
-    // the venue. Checked on the value just read, which is also the value the write below is guarded on.
-    if (!current.errorMessage?.includes(UNSENT_RESOLUTION_MARKER)) return false;
-
-    const result = await this.orderRepo.update(
-      // Narrowed to failures written BY a not-sent resolution. Matching any failed row would resurrect an
-      // order that ended for an entirely unrelated reason — the reclaim exists to overrule a judgement, not
-      // to overrule the venue.
-      // Narrowed to the exact reason just read. Between the read and this write another resolution can have
-      // replaced it, and appending to the older text would erase the newer operator and reference — the
-      // audit trail this reclaim exists to preserve, not to overwrite.
-      { id: order.id, status: LiquidityManagementOrderStatus.FAILED, errorMessage: current.errorMessage },
-      {
-        status: LiquidityManagementOrderStatus.IN_PROGRESS,
-        errorMessage: `${current.errorMessage} (reinstated: the venue confirmed this request exists after it had been resolved as not executed)`,
-        correlationId: order.correlationId,
-        previousCorrelationIds: order.previousCorrelationIds,
-        notSentRecheckDue: null,
-      },
-    );
-
-    if (!result.affected) return false;
-
-    this.logger.error(
-      `Liquidity order ${order.id} had been resolved as not executed, but the venue confirms it exists — reinstated as in progress`,
-    );
-
-    await this.notificationService.sendMail({
-      type: MailType.ERROR_MONITORING,
-      context: MailContext.LIQUIDITY_MANAGEMENT,
-      correlationId: `lm-order-reinstated-${order.id}`,
-      options: { debounce: 3600000 },
-      input: {
-        subject: 'Liquidity management order REINSTATED',
-        errors: [
-          `Order ${order.id} was resolved as not executed, but the venue confirms reference ${order.correlationId} exists. ` +
-            `It has been put back to in progress. Whoever released it should be told that the check missed it.`,
-        ],
-      },
-    });
-
-    return true;
-  }
-
   private async reportUncertainOrder(order: LiquidityManagementOrder): Promise<void> {
     const message =
       `Liquidity order ${order.id} (action ${order.action.id}, ${order.action.system}/${order.action.command}) ` +
@@ -590,9 +511,9 @@ export class LiquidityManagementPipelineService {
     // confirms it is live would win the write and release the rule against a live position. A positive
     // observation therefore outranks the operator's judgement.
     //
-    // A lookup that cannot be performed does not block the release. The operator has asserted an independent
-    // check, and a reference the venue can no longer be asked about must not become an order nobody can ever
-    // clear.
+    // A lookup that cannot be performed does not refuse the request outright — but it does not put it into
+    // effect either. The order stays quarantined until reconciliation has had one answer, so a release can
+    // never end an order while a confirmation of it is still in flight.
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
     if (actionIntegration?.resolveUncertainOrder) {
       const resolution = await actionIntegration.resolveUncertainOrder(order);
@@ -613,9 +534,9 @@ export class LiquidityManagementPipelineService {
       }
     }
 
-    order.resolveAsNotSent(
-      `${order.errorMessage} (manually resolved by account ${resolvedBy} at ${new Date().toISOString()}: ` +
-        `venue checked, no execution found — ${verificationReference}) ${UNSENT_RESOLUTION_MARKER}`,
+    order.requestNotSentRelease(
+      `${order.errorMessage} (released by account ${resolvedBy} at ${new Date().toISOString()}: ` +
+        `venue checked, no execution found — ${verificationReference})`,
     );
 
     if (!(await this.leaveQuarantine(order)))
