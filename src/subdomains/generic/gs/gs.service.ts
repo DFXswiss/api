@@ -572,10 +572,14 @@ export class GsService {
           throw new BadRequestException(`op '${node.op}' requires a single scalar value`);
         }
         this.assertDebugScalarValue(node.value);
-        // Filter-only equality is case-insensitive: equality stays equality (the caller must
-        // know the exact address except for letter case), so this grants no additional
-        // information, and it matches how the application itself resolves mail
-        // (`LOWER(mail) = :mail`). Cannot use a plain index on the column. Value stays bound.
+        // Filter-only equality is case-insensitive so the debug lookup answers the same
+        // question the application asks (`getUsersByMail` resolves via `LOWER(mail)`) and so
+        // a support caller may type an address in a different case than stored. Equality
+        // stays equality — only letter case is forgiven; no additional information is granted.
+        // For `user_data.mail` the emission is index-supported by the functional index on
+        // `LOWER(mail)` (non-unique by design while case-collision duplicates remain pending
+        // merge). That index is specific to `user_data.mail`, not a general guarantee for
+        // every future filter-only column. Value stays bound.
         // Precondition: filter-only columns must be text — `LOWER()` is unconditional here;
         // a non-text column would fail at query time. Documented on `filterOnlyColumns`.
         if (isFilterOnly && node.op === DebugWhereOp.EQ) {

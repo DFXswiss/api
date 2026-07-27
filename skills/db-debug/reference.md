@@ -22,9 +22,11 @@ the TypeORM entities in this repository.
   multiplies guessing throughput; one address per request, each separately audit-logged). Range,
   inequality, and pattern ops would turn the endpoint into an oracle. A filter-only column may
   not appear under a `NOT` node at any depth, including double negation (`NOT (mail = x)` is
-  semantically `mail != x`). Equality is case-insensitive (`LOWER(col) = LOWER($n)`): the caller
-  must know the exact address except for letter case (historical `user_data` rows contain
-  mixed-case addresses). No `jsonbPath`. Intended for looking a record up by a value the
+  semantically `mail != x`). Equality is case-insensitive (`LOWER(col) = LOWER($n)`): it
+  matches the application's own case-insensitive address identity (`getUsersByMail`
+  resolves via `LOWER(mail)`), so the debug lookup answers the same question the
+  application asks, and it tolerates the caller typing an address in a different case
+  than stored. No `jsonbPath`. Intended for looking a record up by a value the
   caller already knows, without the endpoint ever disclosing that value. First instance:
   `user_data.mail` — resolve `userData.id`(s) from a known address; selecting `mail` is refused.
   One mail can map to several `user_data` rows; use a multi-row `limit` (e.g. 100), never 1.

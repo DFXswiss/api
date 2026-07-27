@@ -63,9 +63,13 @@ export interface DebugTableSpec {
   // already knows, without the endpoint ever disclosing that value. MUST be disjoint from
   // `columns` and `jsonbColumns` (enforced by `assertDebugAllowlistInvariants`).
   // Expected to be **text** columns: equality is emitted case-insensitively as
-  // `LOWER(col) = LOWER($n)`. A non-text filter-only column (e.g. integer) would fail at
-  // query time (`function lower(integer) does not exist`). No runtime type check — keep
-  // entries text-only when extending this list.
+  // `LOWER(col) = LOWER($n)` so the lookup matches the application's own case-insensitive
+  // address identity (`getUsersByMail` via `LOWER(mail)`) and tolerates the caller typing
+  // a different case than stored. A non-text filter-only column (e.g. integer) would fail
+  // at query time (`function lower(integer) does not exist`). No runtime type check — keep
+  // entries text-only when extending this list. For `user_data.mail`, `LOWER(mail)` is
+  // backed by a functional index (non-unique while case-collision duplicates remain); that
+  // is not a general guarantee for every future filter-only column.
   filterOnlyColumns?: string[];
 }
 

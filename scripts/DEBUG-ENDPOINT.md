@@ -105,10 +105,12 @@ the full ordinary operator set. A **filter-only** column is narrower: it may app
 WHERE leaf, only with `=` (not `IN` — batching multiplies guessing throughput; one address
 per request, each separately audit-logged), never under a `NOT` node at any depth (including
 double negation: `NOT (mail = x)` is semantically `mail != x`), and never in select, order by,
-or group by. Equality is case-insensitive (`LOWER(col) = LOWER($n)`): the caller must know
-the exact address except for letter case (historical `user_data` rows contain mixed-case
-addresses). The intent is lookup by a value the caller already knows, without the
-endpoint ever disclosing that value.
+or group by. Equality is case-insensitive (`LOWER(col) = LOWER($n)`): it matches the
+application's own case-insensitive address identity (`getUsersByMail` resolves via
+`LOWER(mail)`), so the debug lookup answers the same question the application asks, and
+it tolerates the caller typing an address in a different case than stored. The intent is
+lookup by a value the caller already knows, without the endpoint ever disclosing that
+value.
 
 The first instance is `user_data.mail` (`filterOnlyColumns` on the `user_data` entry in
 `DebugAllowedColumns`). Support needs to resolve a customer's `userData.id` from an address

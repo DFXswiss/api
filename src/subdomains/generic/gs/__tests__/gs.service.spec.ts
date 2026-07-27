@@ -1,8 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { DataSource } from 'typeorm';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { GsService } from '../gs.service';
+import { DbQueryDto } from '../dto/db-query.dto';
 import {
   assertDebugAllowlistInvariants,
   DebugAllowedColumns,
@@ -11,6 +13,7 @@ import {
   DebugQueryAuditPrefix,
   DebugRestrictedOverlapExceptions,
   GsRestrictedColumns,
+  GsRestrictedMarker,
 } from '../dto/gs.dto';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
@@ -465,10 +468,48 @@ describe('GsService', () => {
           expect(DebugRestrictedOverlapExceptions['transaction_aml_check']).toEqual(['amlResponsible']);
         });
 
-        // The exception is scoped to /gs/debug. `/gs/db` masking is driven by GsRestrictedColumns
-        // and must stay untouched, so a non-SUPER_ADMIN caller there still sees [RESTRICTED].
-        it('leaves the /gs/db masking list unchanged', () => {
+        // The exception is scoped to /gs/debug. `/gs/db` still masks via GsRestrictedColumns —
+        // exercise the result path so this fails if masking stops applying that list.
+        it('masks amlResponsible for ADMIN on /gs/db and leaves it visible for SUPER_ADMIN', async () => {
           expect(GsRestrictedColumns['transaction_aml_check']).toEqual(['amlResponsible', 'comment']);
+
+          const original = 'compliance-officer@dfx.swiss';
+          const qb = {
+            from: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            select: jest.fn().mockReturnThis(),
+            leftJoin: jest.fn().mockReturnThis(),
+            // Fresh row each call — maskRestrictedColumns mutates entries in place.
+            getRawMany: jest.fn().mockImplementation(async () => [{ id: 1, amlResponsible: original }]),
+          };
+          jest.spyOn(dataSource, 'createQueryBuilder').mockReturnValue(qb as never);
+
+          const query: DbQueryDto = {
+            table: 'transaction_aml_check',
+            min: 1,
+            updatedSince: new Date(0),
+            sortColumn: 'id',
+            sorting: 'ASC',
+            maxLine: 10,
+            select: ['id', 'amlResponsible'],
+            where: [],
+            join: [],
+          };
+
+          const adminResult = await service.getDbData(query, UserRole.ADMIN);
+          expect(adminResult).toEqual({
+            keys: ['id', 'amlResponsible'],
+            values: [[1, GsRestrictedMarker]],
+          });
+
+          const superAdminResult = await service.getDbData(query, UserRole.SUPER_ADMIN);
+          expect(superAdminResult).toEqual({
+            keys: ['id', 'amlResponsible'],
+            values: [[1, original]],
+          });
         });
 
         // Guard against the exception list growing by accident: every excepted pair must be a
@@ -491,7 +532,7 @@ describe('GsService', () => {
         // --- A. Positive: mail is usable as a filter ---
 
         it('emits WHERE mail = as case-insensitive LOWER equality with a bound parameter (not inlined)', async () => {
-          // Mixed-case rows exist; the application itself resolves mail via LOWER.
+          // Matches getUsersByMail (LOWER(mail)); tolerates the caller typing a different case.
           // Equality stays equality (exact address required; only letter case is forgiven).
           const q = spyQuery([{ id: 42 }]);
           const dto: DebugQueryDto = {
