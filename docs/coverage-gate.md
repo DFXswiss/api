@@ -72,8 +72,15 @@ that costs in run time.
 
 ## Where the gate runs
 
-On a **self-hosted runner** (`runs-on: [self-hosted, dfx-api]`), unlike every other job in the
-workflow, and serialised across all pull requests by a `concurrency` group.
+On a **self-hosted runner**, unlike every other job in the workflow, and serialised across pull
+requests by a `concurrency` group.
+
+Both are conditional. `runs-on` resolves to the self-hosted pool for branches of this repository
+and to `ubuntu-latest` for pull requests from forks — a self-hosted runner executes the workflow
+and the code of the PR head, and this repository is public. Fork runs get `--maxWorkers=3` to match
+a four-vCPU runner, and their own concurrency group, since they share no machine with anything and
+have no reason to queue. Deliberately not an `if:` on the job: a skipped check counts as passing,
+which would let a fork pull request bypass the gate entirely. Forks run the same gate, slower.
 
 A hosted runner gives a public repository four vCPUs, so Jest defaults to three workers. Measured
 there the gate took 13.8 min and single-handedly pushed a PR run from 4.8 to 15.7 min. The team's
