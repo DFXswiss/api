@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { GsService } from '../gs.service';
-import { DbQueryDto } from '../dto/db-query.dto';
+import { DbQueryDto } from 'src/subdomains/generic/gs/dto/db-query.dto';
 import {
   assertDebugAllowlistInvariants,
   DebugAllowedColumns,
@@ -497,6 +497,7 @@ describe('GsService', () => {
             select: ['id', 'amlResponsible'],
             where: [],
             join: [],
+            identifier: 'gs-db-amlResponsible-masking',
           };
 
           const adminResult = await service.getDbData(query, UserRole.ADMIN);

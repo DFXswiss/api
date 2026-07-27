@@ -1,4 +1,4 @@
-import { DebugWhereOp } from './debug-query.dto';
+import { DebugWhereOp } from 'src/subdomains/generic/gs/dto/debug-query.dto';
 
 export const GsRestrictedMarker = '[RESTRICTED]';
 
