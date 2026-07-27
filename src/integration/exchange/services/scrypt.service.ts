@@ -52,7 +52,7 @@ export class ScryptService extends PricingProvider {
   // the length of the outage it repairs. On a socket that keeps dropping these must not chain back to back.
   // The interval is deliberately far above the observed drop cadence of a flapping connection (tens of seconds),
   // because that is the regime it has to bound; an isolated reconnect long after the last round waits not at all.
-  private readonly catchUpMinInterval = 300000; // min wall-clock between two rounds, however many reconnects arrive
+  private readonly catchUpMinInterval = 300000; // 5 min — min wall-clock between rounds, however many reconnects
   private readonly catchUpMaxRounds = 3; // rounds per invocation; leftover work is retried by a scheduled re-entry
   private readonly catchUpStreams: CatchUpStream[] = [
     ScryptMessageType.EXECUTION_REPORT,
@@ -198,7 +198,8 @@ export class ScryptService extends PricingProvider {
   // itself and the venue is re-fetched continuously. `catchUpMinInterval` spaces the rounds, `catchUpMaxRounds`
   // bounds one invocation and hands anything still owed to a scheduled retry, the legs run sequentially so only
   // one bulk fetch is on the socket at a time, and within an invocation a round re-fetches only the legs that
-  // actually failed (the scheduled retry restarts from the full pair — by then both streams have moved on).
+  // actually failed — unless a reconnect coalesced in, whose outage postdates the round's snapshots and
+  // therefore owes both streams again (the scheduled retry likewise restarts from the full pair).
   private async catchUpAfterReconnect(): Promise<void> {
     if (this.catchUpInProgress) {
       this.catchUpPending = true; // coalesce: a following round picks it up, or the retry scheduled on exhaustion
@@ -218,11 +219,11 @@ export class ScryptService extends PricingProvider {
         // consumed: `outstanding` alone carries the failed legs, never the pending reconnect.
         if (this.catchUpPending) outstanding = [...this.catchUpStreams];
         this.catchUpPending = false;
-        this.lastCatchUpAt = Date.now();
 
         outstanding = await this.runCatchUpRound(outstanding);
-        // Stamp the end too: a round that outlasts the interval would otherwise leave `wait <= 0` and let the
-        // next one start immediately — exactly the back-to-back re-fetching this gate exists to prevent.
+        // Stamped at the END of the round, so the gate is a cooldown: a round that outlasts the interval would
+        // otherwise leave `wait <= 0` and let the next one start immediately — exactly the back-to-back
+        // re-fetching this gate exists to prevent.
         this.lastCatchUpAt = Date.now();
 
         if (!outstanding.length) this.reportCatchUpSuccess();
@@ -267,7 +268,9 @@ export class ScryptService extends PricingProvider {
   }
 
   // The legs are independent: a failing execution-report fetch must not cost us the balance transactions, and a
-  // leg that already applied must not be re-fetched by the retry. Returns the streams that are still owed.
+  // leg that already applied is not re-fetched by the next round of this invocation — unless a reconnect
+  // coalesced in (see the pending check above). The scheduled retry always restarts from the full pair.
+  // Returns the streams that are still owed.
   private async runCatchUpRound(streams: CatchUpStream[]): Promise<CatchUpStream[]> {
     const failed: CatchUpStream[] = [];
 

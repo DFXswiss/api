@@ -67,6 +67,7 @@ describe('ScryptService', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers(); // a failing fake-timer test must not leak its clock into the next one
     (service as any).clearCatchUpRetry(); // a bounded invocation may leave a retry armed
     jest.restoreAllMocks();
   });
@@ -319,8 +320,6 @@ describe('ScryptService', () => {
     // The retry is not just armed — it re-enters and restores the streams the bounded loop still owed.
     expect(instance.fetchAll.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
     expect((service as any).catchUpInProgress).toBe(false);
-
-    jest.useRealTimers();
   });
 
   it('catchUpAfterReconnect runs immediately when the last round is longer ago than catchUpMinInterval', async () => {
