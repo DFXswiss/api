@@ -317,13 +317,14 @@ describe('LiquidityManagementPipelineService', () => {
         .mockResolvedValue(uncertainOrder({ status: LiquidityManagementOrderStatus.FAILED }));
       const update = jest
         .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] })
         .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
         .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] });
       stubIntegration(UncertainOrderResolution.SENT);
 
       await service['resolveUncertainOrders']();
 
-      expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      expect(update.mock.calls[2][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
       expect(notificationService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
       );
@@ -336,13 +337,14 @@ describe('LiquidityManagementPipelineService', () => {
         .mockResolvedValue(uncertainOrder({ status: LiquidityManagementOrderStatus.FAILED }));
       const update = jest
         .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] })
         .mockRejectedValueOnce(new Error('connection lost'))
         .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] });
       stubIntegration(UncertainOrderResolution.SENT);
 
       await service['resolveUncertainOrders']();
 
-      expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      expect(update.mock.calls[2][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
       expect(notificationService.sendMail).toHaveBeenCalled();
     });
 
@@ -355,6 +357,7 @@ describe('LiquidityManagementPipelineService', () => {
         .mockResolvedValue(uncertainOrder({ status: LiquidityManagementOrderStatus.FAILED }));
       const update = jest
         .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] })
         .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] }) // the release misses
         .mockRejectedValueOnce(new Error('deadlock detected')) // and the repair fails
         .mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
@@ -382,6 +385,7 @@ describe('LiquidityManagementPipelineService', () => {
         .mockResolvedValue(uncertainOrder({ status: LiquidityManagementOrderStatus.IN_PROGRESS }));
       jest
         .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] })
         .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
         .mockRejectedValueOnce(new Error('deadlock detected'));
       stubIntegration(UncertainOrderResolution.SENT);
@@ -393,6 +397,21 @@ describe('LiquidityManagementPipelineService', () => {
       await service['resolveUncertainOrders']();
 
       expect(service['unappliedObservations'].size).toBe(0);
+    });
+
+    it('cancels a pending release before anything else once the venue confirms the order', async () => {
+      // the narrowest possible write, first: from here on no judgement can end this order, whatever else
+      // fails afterwards and even if this process stops
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([releasePendingOrder()]);
+      const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      stubIntegration(UncertainOrderResolution.SENT);
+
+      await service['resolveUncertainOrders']();
+
+      expect(update.mock.calls[0]).toEqual([
+        { id: 9, status: LiquidityManagementOrderStatus.UNCERTAIN },
+        { notSentRecheckDue: null },
+      ]);
     });
 
     it('reports a confirmed order whose state it cannot even read', async () => {
@@ -497,6 +516,7 @@ describe('LiquidityManagementPipelineService', () => {
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValueOnce(order).mockResolvedValue(raced);
       const update = jest
         .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] })
         .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
         .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] });
       jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
@@ -509,10 +529,10 @@ describe('LiquidityManagementPipelineService', () => {
 
       await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(/held as uncertain/);
 
-      expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      expect(update.mock.calls[2][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
       // the account and reference recorded by whoever released it are still there afterwards
-      expect(update.mock.calls[1][1].errorMessage).toContain('account 7');
-      expect(update.mock.calls[1][1].errorMessage).toContain('OPS-99');
+      expect(update.mock.calls[2][1].errorMessage).toContain('account 7');
+      expect(update.mock.calls[2][1].errorMessage).toContain('OPS-99');
       expect(notificationService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
       );
@@ -599,6 +619,36 @@ describe('LiquidityManagementPipelineService', () => {
       await expect(service.resolveUncertainOrderManually(404, VERIFIED_DTO, 42)).rejects.toThrow(
         /No liquidity management order/,
       );
+    });
+  });
+
+  describe('processPipelines — the observation barrier', () => {
+    it('advances nothing while a confirmed observation could not be recorded', async () => {
+      // an order may be live at the venue while its row says otherwise; starting or advancing anything on
+      // that picture is exactly how a second request goes out
+      service['unappliedObservations'].set(1, new LiquidityManagementOrder());
+      jest.spyOn(service as any, 'resolveUncertainOrders').mockResolvedValue(false);
+      const startNewPipelines = jest.spyOn(service as any, 'startNewPipelines').mockResolvedValue(false);
+      const checkRunningOrders = jest.spyOn(service as any, 'checkRunningOrders').mockResolvedValue(false);
+      const startNewOrders = jest.spyOn(service as any, 'startNewOrders').mockResolvedValue(false);
+
+      await service.processPipelines();
+
+      expect(startNewPipelines).not.toHaveBeenCalled();
+      expect(checkRunningOrders).not.toHaveBeenCalled();
+      expect(startNewOrders).not.toHaveBeenCalled();
+    });
+
+    it('resumes once the observation has been recorded', async () => {
+      jest.spyOn(service as any, 'resolveUncertainOrders').mockResolvedValue(false);
+      const startNewPipelines = jest.spyOn(service as any, 'startNewPipelines').mockResolvedValue(false);
+      jest.spyOn(service as any, 'checkRunningOrders').mockResolvedValue(false);
+      jest.spyOn(service as any, 'checkRunningPipelines').mockResolvedValue(false);
+      jest.spyOn(service as any, 'startNewOrders').mockResolvedValue(false);
+
+      await service.processPipelines();
+
+      expect(startNewPipelines).toHaveBeenCalled();
     });
   });
 

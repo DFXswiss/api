@@ -57,6 +57,18 @@ export class LiquidityManagementPipelineService {
       // reconcile before issuing anything new: an order whose outcome we could not observe must be
       // accounted for against the venue before the same rule is allowed to act again
       const uncertainResolved = await this.resolveUncertainOrders();
+
+      // A venue observation this process holds but could not write means at least one order may be live at
+      // the venue while its row says otherwise. Nothing downstream may run on that picture — starting or
+      // advancing anything now is exactly how a second request goes out — so the pass stops here and the
+      // next one retries the write first.
+      if (this.unappliedObservations.size) {
+        this.logger.error(
+          `Holding the liquidity pipeline: ${this.unappliedObservations.size} confirmed venue observation(s) could not be recorded`,
+        );
+        return;
+      }
+
       const newPipelinesStarted = await this.startNewPipelines();
       const ordersChanged = await this.checkRunningOrders();
       const pipelinesChanged = await this.checkRunningPipelines();
@@ -376,6 +388,11 @@ export class LiquidityManagementPipelineService {
    * Returns whether the order was released; a re-quarantined one has not been.
    */
   private async applyConfirmedObservation(order: LiquidityManagementOrder): Promise<boolean> {
+    // First, and as its own smallest possible write: a pending release must not be able to end this order
+    // now that the venue has confirmed it. One column, no dependencies, no appended text — if it lands, no
+    // judgement can make the order terminal again, even if everything below fails or this process stops.
+    await this.cancelPendingRelease(order);
+
     order.resolveAsSent();
 
     try {
@@ -390,6 +407,19 @@ export class LiquidityManagementPipelineService {
   }
 
   /**
+   * Take away a pending release's power to end an order, durably and on its own.
+   *
+   * Everything else about applying an observation can be retried; this cannot wait for a retry, because
+   * between the observation and the retry another pass could complete the release and make the order
+   * terminal. Deliberately the narrowest write in this file: one column on a row that is still quarantined.
+   */
+  private async cancelPendingRelease(order: LiquidityManagementOrder): Promise<void> {
+    await this.orderRepo
+      .update({ id: order.id, status: LiquidityManagementOrderStatus.UNCERTAIN }, { notSentRecheckDue: null })
+      .catch((e) => this.logger.error(`Could not cancel the pending release of liquidity order ${order.id}:`, e));
+  }
+
+  /**
    * Put an order the venue has confirmed back where nothing can act on it, and say so.
    *
    * Left alone only where the outcome is already safe: in progress or complete means somebody released it
@@ -400,15 +430,16 @@ export class LiquidityManagementPipelineService {
   private async blockConfirmedOrder(order: LiquidityManagementOrder): Promise<void> {
     const current = await this.orderRepo.findOneBy({ id: order.id }).catch(() => null);
 
-    // Already safe: in progress or complete means another path released it correctly, still uncertain means
-    // it never stopped blocking and the next pass will try again. Anything else — including a state that
-    // could not be read — is the case this exists for.
-    const safe = [
-      LiquidityManagementOrderStatus.IN_PROGRESS,
-      LiquidityManagementOrderStatus.COMPLETE,
-      LiquidityManagementOrderStatus.UNCERTAIN,
-    ];
-    if (current && safe.includes(current.status)) {
+    // Already safe: in progress or complete means another path released it correctly. Still quarantined
+    // counts too, but only with no release pending on it — a quarantined order somebody has released is one
+    // inconclusive lookup away from being ended, which is precisely what the observation contradicts.
+    const settled = [LiquidityManagementOrderStatus.IN_PROGRESS, LiquidityManagementOrderStatus.COMPLETE];
+    const safe =
+      current &&
+      (settled.includes(current.status) ||
+        (current.status === LiquidityManagementOrderStatus.UNCERTAIN && !current.notSentRecheckDue));
+
+    if (safe) {
       this.unappliedObservations.delete(order.id);
       return;
     }
