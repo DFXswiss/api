@@ -744,26 +744,36 @@ describe('GsService', () => {
           await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/neither an allowed column/);
         });
 
-        it('rejects ORDER BY / GROUP BY of an alias that never registered because SELECT of mail failed', async () => {
-          // SELECT fails on `mail` before any alias is recorded; neither ORDER BY nor GROUP BY
-          // on that alias name can launder the filter-only column into the result set.
-          const orderDto: DebugQueryDto = {
-            table: 'user_data',
-            select: [{ kind: 'column', column: 'mail', as: 'email' }],
-            orderBy: [{ column: 'email' }],
-            limit: 10,
-          };
-          await expect(service.executeDebugQuery(orderDto, 'tester')).rejects.toThrow(BadRequestException);
-          await expect(service.executeDebugQuery(orderDto, 'tester')).rejects.toThrow(/Column 'mail' is not allowed/);
-
+        it('resolves GROUP BY / ORDER BY of alias mail to the aliased id, not the filter-only column', async () => {
+          // Register an ordinary allowlisted column under the alias name `mail` so SELECT
+          // succeeds and the alias is recorded. GROUP BY must emit the select ordinal;
+          // ORDER BY must emit the quoted alias. Neither may resolve to the physical
+          // filter-only column `"user_data"."mail"`.
+          // jest.spyOn reuses the same mock for both queries; clear so calls[0] is this query's SQL.
+          const q = spyQuery();
           const groupDto: DebugQueryDto = {
             table: 'user_data',
-            select: [{ kind: 'column', column: 'mail', as: 'email' }],
-            groupBy: ['email'],
+            select: [{ kind: 'column', column: 'id', as: 'mail' }],
+            groupBy: ['mail'],
             limit: 10,
           };
-          await expect(service.executeDebugQuery(groupDto, 'tester')).rejects.toThrow(BadRequestException);
-          await expect(service.executeDebugQuery(groupDto, 'tester')).rejects.toThrow(/Column 'mail' is not allowed/);
+          await service.executeDebugQuery(groupDto, 'tester');
+          const groupSql = q.mock.calls[0][0] as string;
+          expect(groupSql).toContain('GROUP BY 1');
+          expect(groupSql).not.toContain('GROUP BY "mail"');
+          expect(groupSql).not.toContain('"user_data"."mail"');
+
+          q.mockClear();
+          const orderDto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id', as: 'mail' }],
+            orderBy: [{ column: 'mail' }],
+            limit: 10,
+          };
+          await service.executeDebugQuery(orderDto, 'tester');
+          const orderSql = q.mock.calls[0][0] as string;
+          expect(orderSql).toContain('ORDER BY "mail"');
+          expect(orderSql).not.toContain('"user_data"."mail"');
         });
 
         // --- C. Operator gating ---

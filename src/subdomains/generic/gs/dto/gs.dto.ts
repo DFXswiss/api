@@ -24,9 +24,9 @@ export const DebugMaxResults = 10000;
 // --- Structured /gs/debug allowlist ---
 //
 // The /gs/debug endpoint accepts a JSON request describing the query (table + select + where
-// + group/order/limit) and emits SQL via TypeORM with parameter binding. No raw SQL is ever
-// accepted, parsed, or interpolated — identifiers come exclusively from this allowlist and
-// values flow through bound parameters.
+// + group/order/limit) and emits hand-built SQL with bound parameters via `dataSource.query`.
+// No raw SQL is ever accepted, parsed, or interpolated — identifiers come exclusively from
+// this allowlist and values flow through bound parameters.
 //
 // Update on every migration: adding / renaming / removing a column on a table that appears
 // below requires editing this allowlist. Adding a new debuggable table requires a new entry.

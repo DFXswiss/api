@@ -140,10 +140,14 @@ Convenience mode and equivalent raw DTO:
 
 1. **Never commit** `.env` to git (it's in `.gitignore`)
 2. The DEBUG role should only be granted to authorized personnel
-3. Every debug request is audit-logged with the caller identifier (`Debug-query by <addr>: …`)
-   before emit/execute. The log is the redacted DTO structure (table / select / where ops /
-   columns); WHERE leaf values are replaced with `<scalar>` / `<array:N>` and never logged
-   verbatim. Failed executions get a separate `… failed:` info line (error message only).
+3. Every debug request that passes DTO validation and reaches the service is audit-logged with
+   the caller identifier (`Debug-query by <addr>: …`) before emit/execute — including ones later
+   rejected for an unknown table or a disallowed column. Requests rejected by NestJS'
+   ValidationPipe (e.g. `limit: 0`, invalid `kind`) never reach the service and produce no
+   audit line. The log is the redacted DTO structure (table / select / where ops / columns);
+   WHERE leaf values are replaced with `<scalar>` / `<array:N>` and never logged verbatim.
+   Failed executions get a separate `… failed:` info line (error message only).
+
 4. The endpoint accepts a structured JSON DTO only — no raw SQL is parsed, walked, or interpolated.
 5. Identifiers (table, column, alias, aggregate, op, ORDER BY direction, jsonb path segment)
    are validated against an allowlist before being interpolated into a hand-built SQL string;

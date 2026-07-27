@@ -53,8 +53,9 @@ export class GsController {
   }
 
   // Structured debug endpoint. Takes a JSON description of the query (table, select, where,
-  // group/order/limit) and emits SQL via QueryBuilder with parameter binding — no raw SQL is
-  // accepted, parsed, or interpolated.
+  // group/order/limit) and emits hand-built SQL with bound parameters via `dataSource.query` —
+  // no raw SQL is accepted, parsed, or interpolated.
+
   @Post('debug')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
