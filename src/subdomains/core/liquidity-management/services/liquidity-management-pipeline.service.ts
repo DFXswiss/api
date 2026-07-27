@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -8,6 +8,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In } from 'typeorm';
+import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, UncertainOrderResolution } from '../enums';
@@ -287,14 +288,16 @@ export class LiquidityManagementPipelineService {
 
         if (resolution === UncertainOrderResolution.SENT) {
           order.resolveAsSent();
-          await this.orderRepo.save(order);
-          anyChanged = true;
-          this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
+          if (await this.leaveQuarantine(order)) {
+            anyChanged = true;
+            this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
+          }
         } else if (resolution === UncertainOrderResolution.NOT_SENT) {
           order.resolveAsNotSent(`${order.errorMessage} (venue confirmed the request never arrived)`);
-          await this.orderRepo.save(order);
-          anyChanged = true;
-          this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue never received it`);
+          if (await this.leaveQuarantine(order)) {
+            anyChanged = true;
+            this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue never received it`);
+          }
         }
       } catch (e) {
         // a failing lookup must never promote the order out of quarantine
@@ -303,6 +306,33 @@ export class LiquidityManagementPipelineService {
     }
 
     return anyChanged;
+  }
+
+  /**
+   * Write a resolved order back, but only if it is still quarantined.
+   *
+   * Automatic reconciliation and an operator can be looking at the same order at the same time; an
+   * unconditional save would let whoever finishes last win. Losing that race the wrong way would release a
+   * rule for an order the venue had just confirmed as live, which is the double execution this all exists to
+   * prevent — so the status is part of the WHERE clause and a lost race is simply skipped.
+   */
+  private async leaveQuarantine(order: LiquidityManagementOrder): Promise<boolean> {
+    const result = await this.orderRepo.update(
+      { id: order.id, status: LiquidityManagementOrderStatus.UNCERTAIN },
+      {
+        status: order.status,
+        errorMessage: order.errorMessage,
+        correlationId: order.correlationId,
+        previousCorrelationIds: order.previousCorrelationIds,
+      },
+    );
+
+    if (!result.affected) {
+      this.logger.info(`Uncertain liquidity order ${order.id} was already resolved elsewhere, skipping`);
+      return false;
+    }
+
+    return true;
   }
 
   private async reportUncertainOrder(order: LiquidityManagementOrder): Promise<void> {
@@ -337,8 +367,18 @@ export class LiquidityManagementPipelineService {
    */
   async resolveUncertainOrderManually(
     orderId: number,
-    verificationReference: string,
-  ): Promise<LiquidityManagementOrder> {
+    dto: ResolveUncertainOrderDto,
+    resolvedBy: number,
+  ): Promise<void> {
+    // Re-asserted here, not only at the edge: this is the one call that can release a possibly-executed
+    // request, so the claim behind it must hold at the point where it takes effect.
+    if (dto.noExecutionVerified !== true)
+      throw new BadRequestException('noExecutionVerified must be true — an unverified order stays quarantined');
+
+    const verificationReference = dto.verificationReference?.trim();
+    if (!verificationReference)
+      throw new BadRequestException('verificationReference must name where the venue was checked');
+
     const order = await this.orderRepo.findOneBy({ id: orderId });
     if (!order) throw new NotFoundException(`No liquidity management order found for id ${orderId}`);
 
@@ -348,14 +388,18 @@ export class LiquidityManagementPipelineService {
       );
 
     order.resolveAsNotSent(
-      `${order.errorMessage} (manually resolved: venue checked, no execution found — ${verificationReference})`,
+      `${order.errorMessage} (manually resolved by account ${resolvedBy}: venue checked, no execution found — ${verificationReference.slice(0, 256)})`,
     );
 
+    if (!(await this.leaveQuarantine(order)))
+      throw new ConflictException(
+        `Liquidity management order ${orderId} was resolved elsewhere while this request was in flight`,
+      );
+
+    // only after the write actually landed — a log line for a save that failed is worse than none
     this.logger.info(
-      `Uncertain liquidity order ${orderId} manually resolved as not executed, verified via ${verificationReference}`,
+      `Uncertain liquidity order ${orderId} manually resolved as not executed by account ${resolvedBy}, verified via ${verificationReference}`,
     );
-
-    return this.orderRepo.save(order);
   }
 
   private async checkRunningOrders(): Promise<boolean> {

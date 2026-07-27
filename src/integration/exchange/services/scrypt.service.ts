@@ -29,6 +29,7 @@ import {
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import {
   isVenueRejection,
+  ScryptAmendRejectedError,
   ScryptMessageType,
   ScryptOrderNotFoundError,
   ScryptUnconfirmedWriteError,
@@ -413,14 +414,16 @@ export class ScryptService extends PricingProvider {
    */
   async findWithdrawal(clReqId: string): Promise<ScryptBalanceTransaction | null> {
     const cached = this.balanceTransactions.get(clReqId);
-    if (cached) return cached;
+    // A terminal record cannot change; a non-terminal one may be stale because the terminal push was the
+    // thing that went missing, so it must not shortcut the lookup.
+    if (cached && this.isTerminalBalanceTransaction(cached)) return cached;
 
     const transactions = await this.connection.fetchAll<ScryptBalanceTransaction>(
       ScryptMessageType.BALANCE_TRANSACTION,
     );
 
     const found = transactions.find((t) => t.ClReqID === clReqId);
-    if (!found) return null;
+    if (!found) return cached ?? null;
 
     // Feed the recovery back into the live cache. `getWithdrawalStatus` reads only from there, so an order
     // that leaves quarantine on the strength of this lookup would otherwise poll a reference the cache still
@@ -529,6 +532,13 @@ export class ScryptService extends PricingProvider {
             } catch (cancelError) {
               this.logger.verbose(`Cancel also failed: ${cancelError.message}`);
             }
+
+            // Surface the refusal so the caller can note the spent reference. Without that the next tick
+            // derives the very same one, the venue refuses it as a duplicate, and the pair loops.
+            throw new ScryptAmendRejectedError(
+              `Scrypt refused the amend of order ${clOrdId}: ${e.message}`,
+              replacementClOrdId,
+            );
           }
         } else {
           this.logger.verbose(`Order ${clOrdId} open, price is still ${currentPrice}`);

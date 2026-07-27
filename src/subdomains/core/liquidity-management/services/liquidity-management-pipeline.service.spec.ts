@@ -206,6 +206,32 @@ describe('LiquidityManagementPipelineService', () => {
   });
 
   describe('resolveUncertainOrderManually', () => {
+    const VERIFIED_DTO = { noExecutionVerified: true, verificationReference: 'venue console, ticket OPS-42' };
+
+    it('refuses an unverified claim, even if the edge validation were bypassed', async () => {
+      await expect(
+        service.resolveUncertainOrderManually(9, { noExecutionVerified: false, verificationReference: 'x' }, 42),
+      ).rejects.toThrow(/noExecutionVerified must be true/);
+    });
+
+    it('refuses a whitespace-only verification reference', async () => {
+      await expect(
+        service.resolveUncertainOrderManually(9, { noExecutionVerified: true, verificationReference: '   ' }, 42),
+      ).rejects.toThrow(/must name where the venue was checked/);
+    });
+
+    it('skips an order another path resolved first, instead of overwriting it', async () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        id: 9,
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        errorMessage: 'unknown',
+      });
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 0 } as any);
+
+      await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(/resolved elsewhere/);
+    });
+
     it('releases a quarantined order and records where the check happened', async () => {
       const order = Object.assign(new LiquidityManagementOrder(), {
         id: 9,
@@ -213,8 +239,9 @@ describe('LiquidityManagementPipelineService', () => {
         errorMessage: 'Scrypt gave no confirmed outcome',
       });
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
 
-      await service.resolveUncertainOrderManually(9, 'venue console, ticket OPS-42');
+      await service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42);
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
       expect(order.errorMessage).toContain('venue console, ticket OPS-42');
@@ -227,14 +254,18 @@ describe('LiquidityManagementPipelineService', () => {
       });
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
 
-      await expect(service.resolveUncertainOrderManually(9, 'ref')).rejects.toThrow(/only an uncertain order/);
+      await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(
+        /only an uncertain order/,
+      );
       expect(order.status).toBe(LiquidityManagementOrderStatus.IN_PROGRESS);
     });
 
     it('fails loudly for an unknown order', async () => {
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(null);
 
-      await expect(service.resolveUncertainOrderManually(404, 'ref')).rejects.toThrow(/No liquidity management order/);
+      await expect(service.resolveUncertainOrderManually(404, VERIFIED_DTO, 42)).rejects.toThrow(
+        /No liquidity management order/,
+      );
     });
   });
 

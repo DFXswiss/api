@@ -553,7 +553,7 @@ describe('ScryptService', () => {
     });
   });
   describe('checkTrade — the amend write boundary', () => {
-    function stubAmendPath(editOutcome: Error) {
+    function stubAmendPath(editOutcome: Error): void {
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PARTIALLY_FILLED,
@@ -584,11 +584,14 @@ describe('ScryptService', () => {
       });
     });
 
-    it('still cancels and continues when the venue explicitly rejected the amend', async () => {
-      // A rejection is a reply: nothing was created, so the existing fallback stays safe.
+    it('cancels on an explicit rejection, but reports the refusal and the spent reference', async () => {
+      // A rejection is a reply: nothing was created, so cancelling is safe. The caller still has to learn
+      // about it — the replacement reference is burnt at the venue and must not be derived again.
       stubAmendPath(new ScryptVenueRejectionError('Scrypt order edit rejected: price out of band'));
 
-      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).resolves.toBe(false);
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toMatchObject({
+        spentReference: 'dfx-lm-7-1',
+      });
       expect((service as any).cancelOrder).toHaveBeenCalled();
     });
   });

@@ -125,6 +125,22 @@ export class LiquidityManagementOrder extends IEntity {
     return this;
   }
 
+  /**
+   * Note a reference an attempt has consumed at the venue without adopting it as the current one.
+   *
+   * A rejected amend still burns its reference — the venue requires them to be unique — so the next attempt
+   * must pick a fresh one. Since the next reference is derived from how many this order has used, recording
+   * the spent one here is what makes that derivation advance instead of repeating itself.
+   */
+  recordSpentCorrelationId(spent: string): this {
+    if (!this.allCorrelationIds.includes(spent))
+      this.previousCorrelationIds = [...this.allCorrelationIds.filter((id) => id !== this.correlationId), spent].join(
+        ',',
+      );
+
+    return this;
+  }
+
   inProgress(correlationId: string): this {
     this.correlationId = correlationId;
     this.status = LiquidityManagementOrderStatus.IN_PROGRESS;

@@ -88,6 +88,29 @@ export class ScryptUnconfirmedWriteError extends Error {
 export class ScryptOrderNotFoundError extends Error {}
 
 /**
+ * An amend the venue refused. The replacement was never created, so the ORIGINAL order is still live — and
+ * its reference is spent, because the venue requires references to be unique. Carries it so the caller can
+ * record it and derive a fresh one next time instead of reusing a burnt reference forever.
+ */
+export class ScryptAmendRejectedError extends Error {
+  constructor(
+    message: string,
+    readonly spentReference: string | undefined,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * The venue sent an explicit error in reply to one specific request.
+ *
+ * Deliberately NOT a rejection: `unknown reqid` arrives the same way and means the venue lost our request
+ * context, which for a mutation is as open as silence. Callers that can tell the two apart narrow it; callers
+ * that cannot must keep treating it as an unresolved outcome.
+ */
+export class ScryptErrorResponseError extends Error {}
+
+/**
  * The venue replied and refused the request. This is the ONLY evidence that a write did not take effect —
  * everything else leaves the outcome open.
  *
@@ -519,7 +542,11 @@ export class ScryptWebSocketConnection {
 
     if (message.type === ScryptMessageType.ERROR) {
       const errorMsg = typeof message.error === 'object' ? JSON.stringify(message.error) : message.error;
-      request.reject(new Error(`Scrypt error: ${errorMsg}`));
+      // The venue answered this specific request negatively. Whether that settles the outcome depends on the
+      // reason — a malformed order is settled, a lost session is not — and Scrypt does not document its
+      // codes, so this stays a distinct type and the caller decides. Never silently a plain Error: that is
+      // what let a refusal look like a transport hiccup.
+      request.reject(new ScryptErrorResponseError(`Scrypt error: ${errorMsg}`));
     } else {
       request.resolve(message);
     }

@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptTransactionStatus, ScryptWithdrawStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import {
+  ScryptAmendRejectedError,
   ScryptOrderNotFoundError,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
@@ -233,6 +234,17 @@ describe('ScryptAdapter', () => {
       await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).rejects.toBeInstanceOf(
         OrderOutcomeUnknownException,
       );
+    });
+
+    it('keeps watching the original when the venue refuses an amend, and notes the spent reference', async () => {
+      jest
+        .spyOn(scryptService, 'checkTrade')
+        .mockRejectedValue(new ScryptAmendRejectedError('Scrypt refused the amend', 'dfx-lm-4711-1'));
+      const order = createUncertainSellOrder();
+
+      await expect(adapter['checkTradeCompletion'](order, 'EUR', 'USDT')).resolves.toBe(false);
+      // recorded, so the next derivation moves on instead of reusing a reference the venue already burnt
+      expect(adapter['nextCorrelationId'](order)).toBe('dfx-lm-4711-2');
     });
 
     it('does not accept a mere message resembling a rejection as a verdict', async () => {

@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
+import {
+  ScryptOrderInfo,
+  ScryptOrderSide,
+  ScryptOrderStatus,
+  ScryptTransactionStatus,
+} from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import {
   isTransientWsError,
   isVenueRejection,
+  ScryptAmendRejectedError,
   ScryptOrderNotFoundError,
   ScryptUnconfirmedWriteError,
 } from 'src/integration/exchange/services/scrypt-websocket-connection';
@@ -273,6 +279,17 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         );
       }
 
+      // The amend was refused, so nothing was created and the original order is still live. Note the spent
+      // reference — the venue will not accept it again — and carry on watching the original.
+      if (e instanceof ScryptAmendRejectedError) {
+        if (e.spentReference) {
+          order.recordSpentCorrelationId(e.spentReference);
+          await this.orderRepo.save(order);
+        }
+        this.logger.warn(`Scrypt refused the amend for order ${order.id}, continuing with the original`);
+        return false;
+      }
+
       if (isTransientWsError(e)) {
         this.logger.warn(`Transient WS error checking order ${order.id}, will retry next tick: ${e.message}`);
         return false;
@@ -476,13 +493,21 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         const candidates = [this.nextCorrelationId(order), ...order.allCorrelationIds];
 
         for (const candidate of candidates) {
-          if (await this.scryptService.getOrderStatus(candidate)) {
-            // Track the reference the venue actually knows.
-            if (candidate !== order.correlationId) order.updateCorrelationId(candidate);
+          const info = await this.scryptService.getOrderStatus(candidate);
+          if (!info) continue;
 
-            this.logger.info(`Scrypt confirmed reference ${candidate} exists; order ${order.id} was sent`);
-            return UncertainOrderResolution.SENT;
+          // A refused replacement never took effect and leaves its predecessor live. Adopting it would hand
+          // the order a dead reference, fail it, and release the rule while the original still stands.
+          if (info.status === ScryptOrderStatus.REJECTED) {
+            order.recordSpentCorrelationId(candidate);
+            continue;
           }
+
+          // Track the reference the venue actually knows.
+          if (candidate !== order.correlationId) order.updateCorrelationId(candidate);
+
+          this.logger.info(`Scrypt confirmed reference ${candidate} exists; order ${order.id} was sent`);
+          return UncertainOrderResolution.SENT;
         }
       }
 
