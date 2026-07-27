@@ -210,7 +210,7 @@ describe('ScryptService', () => {
 
     expect((service as any).balanceTransactions.get('iso-1')).toEqual(freshBalanceTx);
     expect((service as any).executionReports.size).toBe(0);
-    // The balance leg applied in round 1, so only the failed leg is retried — it is not re-fetched three times.
+    // The balance leg applied in round 0, so only the failed leg is retried — it is not re-fetched three times.
     const balanceCalls = instance.fetchAll.mock.calls.filter(
       ([streamName]) => streamName === ScryptMessageType.BALANCE_TRANSACTION,
     );
@@ -336,7 +336,7 @@ describe('ScryptService', () => {
     expect(instance.fetchAll).toHaveBeenCalledTimes((service as any).catchUpStreams.length);
   });
 
-  it('catchUpAfterReconnect stamps the slot at the end of a round, not only at its start', async () => {
+  it('catchUpAfterReconnect stamps the slot when the round ends, so a long round still gates the next one', async () => {
     let startStamp: number | undefined;
 
     instance.fetchAll.mockClear();

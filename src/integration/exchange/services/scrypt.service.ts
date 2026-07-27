@@ -48,8 +48,8 @@ export class ScryptService extends PricingProvider {
   private catchUpFailures = 0;
   private catchUpRetryTimer?: NodeJS.Timeout;
 
-  // A catch-up round is a full re-fetch of both streams, so its cost scales with the account history, not with
-  // the length of the outage it repairs. On a socket that keeps dropping these must not chain back to back.
+  // A catch-up round re-fetches each owed bulk stream in full, so its cost scales with the account history, not
+  // with the length of the outage it repairs. On a socket that keeps dropping these must not chain back to back.
   // The interval is deliberately far above the observed drop cadence of a flapping connection (tens of seconds),
   // because that is the regime it has to bound; an isolated reconnect long after the last round waits not at all.
   private readonly catchUpMinInterval = 300000; // 5 min — min wall-clock between rounds, however many reconnects
