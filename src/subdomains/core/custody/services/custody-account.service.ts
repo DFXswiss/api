@@ -1,9 +1,19 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { EntityManager } from 'typeorm';
 import { CustodyAccountDto } from '../dto/output/custody-account.dto';
 import { CustodyAccountAccess } from '../entities/custody-account-access.entity';
 import { CustodyAccount } from '../entities/custody-account.entity';
+import { CustodyBalance } from '../entities/custody-balance.entity';
+import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyAccessLevel, CustodyAccountStatus } from '../enums/custody';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
 import { CustodyAccountAccessRepository } from '../repositories/custody-account-access.repository';
@@ -105,25 +115,7 @@ export class CustodyAccountService {
   async createCustodyAccount(accountId: number, title: string, description?: string): Promise<CustodyAccount> {
     const owner = await this.userDataService.getActiveUserData(accountId);
 
-    const custodyAccount = this.custodyAccountRepo.create({
-      title,
-      description,
-      owner,
-      status: CustodyAccountStatus.ACTIVE,
-      requiredSignatures: 1,
-    });
-
-    const saved = await this.custodyAccountRepo.save(custodyAccount);
-
-    // Create WRITE access for owner
-    const ownerAccess = this.custodyAccountAccessRepo.create({
-      account: saved,
-      userData: owner,
-      accessLevel: CustodyAccessLevel.WRITE,
-    });
-    await this.custodyAccountAccessRepo.save(ownerAccess);
-
-    return saved;
+    return this.persistCustodyAccount(this.custodyAccountRepo.manager, owner, title, description);
   }
 
   // --- UPDATE --- //
@@ -148,5 +140,195 @@ export class CustodyAccountService {
       where: { account: { id: custodyAccountId } },
       relations: { userData: true },
     });
+  }
+
+  // --- GRANT ACCESS --- //
+  async grantAccess(
+    custodyAccountId: CustodyAccountId,
+    ownerAccountId: number,
+    mail: string,
+    accessLevel: CustodyAccessLevel,
+  ): Promise<CustodyAccountAccess> {
+    const isInvalidNumericId =
+      custodyAccountId !== LegacyAccountId && (typeof custodyAccountId !== 'number' || Number.isNaN(custodyAccountId));
+    if (isInvalidNumericId) {
+      throw new BadRequestException('Invalid custody account ID');
+    }
+
+    const target = await this.resolveUserByMail(mail);
+    if (target.id === ownerAccountId) {
+      throw new BadRequestException('Cannot grant access to yourself');
+    }
+
+    if (custodyAccountId === LegacyAccountId) {
+      return this.grantAccessForLegacy(ownerAccountId, target, accessLevel);
+    }
+
+    const account = await this.requireOwner(custodyAccountId, ownerAccountId);
+    return this.createGrant(this.custodyAccountAccessRepo.manager, account, target, accessLevel);
+  }
+
+  async updateAccess(
+    custodyAccountId: number,
+    accessId: number,
+    ownerAccountId: number,
+    accessLevel: CustodyAccessLevel,
+  ): Promise<CustodyAccountAccess> {
+    await this.requireOwner(custodyAccountId, ownerAccountId);
+
+    const access = await this.getAccessGrantForAccount(custodyAccountId, accessId);
+    access.accessLevel = accessLevel;
+
+    return this.custodyAccountAccessRepo.save(access);
+  }
+
+  async revokeAccess(custodyAccountId: number, accessId: number, ownerAccountId: number): Promise<void> {
+    await this.requireOwner(custodyAccountId, ownerAccountId);
+
+    const access = await this.getAccessGrantForAccount(custodyAccountId, accessId);
+    await this.custodyAccountAccessRepo.remove(access);
+  }
+
+  // --- HELPER METHODS --- //
+  private async resolveUserByMail(mail: string): Promise<UserData> {
+    const users = await this.userDataService.getUsersByMail(mail, true, {});
+    if (users.length === 0) {
+      throw new NotFoundException('User with this e-mail not found');
+    }
+    if (users.length > 1) {
+      throw new ConflictException('Multiple users found for this e-mail');
+    }
+
+    return users[0];
+  }
+
+  private async requireOwner(custodyAccountId: number, accountId: number): Promise<CustodyAccount> {
+    const custodyAccount = await this.getCustodyAccountById(custodyAccountId);
+    if (custodyAccount.owner.id !== accountId) {
+      throw new ForbiddenException('Only the account owner can manage access grants');
+    }
+
+    return custodyAccount;
+  }
+
+  private async getAccessGrantForAccount(custodyAccountId: number, accessId: number): Promise<CustodyAccountAccess> {
+    const access = await this.custodyAccountAccessRepo.findOne({
+      where: { id: accessId },
+      relations: { userData: true, account: true },
+    });
+    if (!access || access.account.id !== custodyAccountId) {
+      throw new NotFoundException('Access grant not found');
+    }
+
+    return access;
+  }
+
+  private async createGrant(
+    manager: EntityManager,
+    account: CustodyAccount,
+    target: UserData,
+    accessLevel: CustodyAccessLevel,
+  ): Promise<CustodyAccountAccess> {
+    const existing = await manager.findOne(CustodyAccountAccess, {
+      where: { account: { id: account.id }, userData: { id: target.id } },
+    });
+    if (existing) {
+      throw new ConflictException('Access grant already exists for this user');
+    }
+
+    const grant = manager.create(CustodyAccountAccess, {
+      account,
+      userData: target,
+      accessLevel,
+    });
+
+    return manager.save(grant);
+  }
+
+  private async persistCustodyAccount(
+    manager: EntityManager,
+    owner: UserData,
+    title: string,
+    description?: string,
+  ): Promise<CustodyAccount> {
+    const custodyAccount = manager.create(CustodyAccount, {
+      title,
+      description,
+      owner,
+      status: CustodyAccountStatus.ACTIVE,
+      requiredSignatures: 1,
+    });
+
+    const saved = await manager.save(custodyAccount);
+
+    const ownerAccess = manager.create(CustodyAccountAccess, {
+      account: saved,
+      userData: owner,
+      accessLevel: CustodyAccessLevel.WRITE,
+    });
+    await manager.save(ownerAccess);
+
+    return saved;
+  }
+
+  private async grantAccessForLegacy(
+    ownerAccountId: number,
+    target: UserData,
+    accessLevel: CustodyAccessLevel,
+  ): Promise<CustodyAccountAccess> {
+    const owner = await this.userDataService.getActiveUserData(ownerAccountId, { users: true });
+    const hasCustody = owner.users.some((u) => u.role === UserRole.CUSTODY);
+    if (!hasCustody) {
+      throw new NotFoundException('Legacy account not found');
+    }
+
+    return this.custodyAccountRepo.manager.transaction(async (manager) => {
+      // Serialize concurrent materialisations for the same owner
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `custody-legacy-materialize:${ownerAccountId}`,
+      ]);
+
+      const existingAccounts = await manager.find(CustodyAccount, {
+        where: { owner: { id: ownerAccountId }, status: CustodyAccountStatus.ACTIVE },
+        relations: { owner: true },
+        order: { id: 'ASC' },
+      });
+
+      let account: CustodyAccount;
+      if (existingAccounts.length > 0) {
+        account = existingAccounts[0];
+      } else {
+        account = await this.persistCustodyAccount(manager, owner, 'Custody');
+        await this.attachLegacyCustodyData(manager, account, owner);
+      }
+
+      return this.createGrant(manager, account, target, accessLevel);
+    });
+  }
+
+  private async attachLegacyCustodyData(
+    manager: EntityManager,
+    account: CustodyAccount,
+    owner: UserData,
+  ): Promise<void> {
+    const custodyUserIds = owner.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
+    if (custodyUserIds.length === 0) return;
+
+    // Set the `account` relation itself — there is no `accountId` property on the entities,
+    // and casting one in hides that from the compiler until it fails at runtime. The column
+    // names are camelCase and therefore have to stay quoted for Postgres.
+    await manager
+      .createQueryBuilder()
+      .update(CustodyBalance)
+      .set({ account })
+      .where('"userId" IN (:...userIds)', { userIds: custodyUserIds })
+      .execute();
+
+    await manager
+      .createQueryBuilder()
+      .update(CustodyOrder)
+      .set({ account })
+      .where('"userId" IN (:...userIds)', { userIds: custodyUserIds })
+      .execute();
   }
 }
