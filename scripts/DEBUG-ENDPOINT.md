@@ -146,7 +146,10 @@ Convenience mode and equivalent raw DTO:
    ValidationPipe (e.g. `limit: 0`, invalid `kind`) never reach the service and produce no
    audit line. The log is the redacted DTO structure (table / select / where ops / columns);
    WHERE leaf values are replaced with `<scalar>` / `<array:N>` and never logged verbatim.
-   Failed executions get a separate `… failed:` info line (error message only).
+   Failed executions get a separate `… failed:` info line with value-free diagnostics only
+   (SQLSTATE `code`, and when present `severity` / `routine`). The raw database error
+   message is never logged — Postgres may echo bound parameter values in it, which would
+   defeat WHERE-value redaction. Missing `code` is logged as `code=<unknown>`.
 
 4. The endpoint accepts a structured JSON DTO only — no raw SQL is parsed, walked, or interpolated.
 5. Identifiers (table, column, alias, aggregate, op, ORDER BY direction, jsonb path segment)

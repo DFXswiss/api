@@ -2675,10 +2675,19 @@ describe('GsService', () => {
         verboseSpy.mockRestore();
       });
 
-      it('writes an info-level log line when the query throws', async () => {
+      // Intentional change of guarantee: the failure path used to log e.message verbatim.
+      // Postgres (and some drivers) echo bound parameter values in error messages, so
+      // that undid WHERE-value redaction. Failures are now logged by SQLSTATE / severity /
+      // routine only — never by message.
+      it('writes an info-level failure log with value-free diagnostics (code, not message)', async () => {
         const infoSpy = jest.spyOn(DfxLogger.prototype, 'info').mockImplementation(() => undefined);
         jest.spyOn(dataSource, 'query').mockImplementation(async () => {
-          throw new Error('boom');
+          const err = Object.assign(new Error('boom — must not appear in logs'), {
+            code: '22P02',
+            severity: 'ERROR',
+            routine: 'pg_atoi',
+          });
+          throw err;
         });
         const dto: DebugQueryDto = {
           table: 'asset',
@@ -2687,8 +2696,67 @@ describe('GsService', () => {
         };
         await expect(service.executeDebugQuery(dto, '0xtester')).rejects.toThrow(/Query execution failed/);
         const lines = infoSpy.mock.calls.map((c) => String(c[0]));
-        expect(lines.some((l) => l.startsWith('Debug-query by 0xtester failed:'))).toBe(true);
-        expect(lines.some((l) => l.includes('boom'))).toBe(true);
+        const failLine = lines.find((l) => l.startsWith('Debug-query by 0xtester failed:'));
+        expect(failLine).toBeDefined();
+        expect(failLine).toContain('code=22P02');
+        expect(failLine).toContain('severity=ERROR');
+        expect(failLine).toContain('routine=pg_atoi');
+        expect(failLine).not.toContain('boom');
+        infoSpy.mockRestore();
+      });
+
+      it('does not log addresses echoed in database error messages (redaction guarantee)', async () => {
+        // Regression: filtering mail = 'user@example.com' AND id = 'user@example.com' makes
+        // Postgres reject the id parameter with a message that embeds the address. That
+        // message must never reach the log; only the SQLSTATE (and other value-free fields).
+        const leakedAddress = 'user@example.com';
+        const infoSpy = jest.spyOn(DfxLogger.prototype, 'info').mockImplementation(() => undefined);
+        jest.spyOn(dataSource, 'query').mockImplementation(async () => {
+          const err = Object.assign(new Error(`invalid input syntax for type integer: "${leakedAddress}"`), {
+            code: '22P02',
+            severity: 'ERROR',
+            routine: 'pg_atoi',
+          });
+          throw err;
+        });
+        const dto: DebugQueryDto = {
+          table: 'user_data',
+          select: [{ kind: 'column', column: 'id' }],
+          where: {
+            kind: 'and',
+            children: [
+              { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: leakedAddress },
+              { kind: 'leaf', column: 'id', op: DebugWhereOp.EQ, value: leakedAddress },
+            ],
+          },
+          limit: 10,
+        };
+        await expect(service.executeDebugQuery(dto, '0xtester')).rejects.toThrow(/Query execution failed/);
+        const lines = infoSpy.mock.calls.map((c) => String(c[0]));
+        const failLine = lines.find((l) => l.startsWith('Debug-query by 0xtester failed:'));
+        expect(failLine).toBeDefined();
+        expect(failLine).toContain('code=22P02');
+        expect(failLine).not.toContain(leakedAddress);
+        expect(lines.every((l) => !l.includes(leakedAddress))).toBe(true);
+        infoSpy.mockRestore();
+      });
+
+      it('logs a stable <unknown> code placeholder when the driver error has no code', async () => {
+        const infoSpy = jest.spyOn(DfxLogger.prototype, 'info').mockImplementation(() => undefined);
+        jest.spyOn(dataSource, 'query').mockImplementation(async () => {
+          throw new Error('connection reset — must not appear in logs');
+        });
+        const dto: DebugQueryDto = {
+          table: 'asset',
+          select: [{ kind: 'column', column: 'id' }],
+          limit: 10,
+        };
+        await expect(service.executeDebugQuery(dto, '0xtester')).rejects.toThrow(/Query execution failed/);
+        const lines = infoSpy.mock.calls.map((c) => String(c[0]));
+        const failLine = lines.find((l) => l.startsWith('Debug-query by 0xtester failed:'));
+        expect(failLine).toBeDefined();
+        expect(failLine).toContain('code=<unknown>');
+        expect(failLine).not.toContain('connection reset');
         infoSpy.mockRestore();
       });
 

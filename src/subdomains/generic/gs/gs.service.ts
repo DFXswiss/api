@@ -300,9 +300,32 @@ export class GsService {
       const keys = dto.select.map((item) => item.as ?? this.defaultDebugSelectAlias(item));
       return { keys, rows: rows.map((r) => keys.map((k) => r[k])) };
     } catch (e) {
-      this.logger.info(`${DebugQueryAuditPrefix}${userIdentifier} failed: ${e.message}`);
+      // Never log e.message or the bound parameter array. Postgres echoes offending
+      // parameter values in some messages (e.g. `invalid input syntax for type integer:
+      // "user@example.com"`), which would defeat the WHERE-value redaction on the audit
+      // line. SQLSTATE (`code`) identifies the failure class; severity/routine are
+      // value-free driver fields when present. Missing code → stable placeholder, not
+      // a fallback to the message.
+      this.logger.info(
+        `${DebugQueryAuditPrefix}${userIdentifier} failed: ${this.formatDebugQueryFailureDiagnostics(e)}`,
+      );
       throw new BadRequestException('Query execution failed');
     }
+  }
+
+  // Value-free failure diagnostics for the /gs/debug catch path. Only fields that cannot
+  // carry bound parameter values are included (SQLSTATE / severity / routine).
+  private formatDebugQueryFailureDiagnostics(e: unknown): string {
+    const err = e as { code?: unknown; severity?: unknown; routine?: unknown } | null | undefined;
+    const code = typeof err?.code === 'string' && err.code.length > 0 ? err.code : '<unknown>';
+    const parts = [`code=${code}`];
+    if (typeof err?.severity === 'string' && err.severity.length > 0) {
+      parts.push(`severity=${err.severity}`);
+    }
+    if (typeof err?.routine === 'string' && err.routine.length > 0) {
+      parts.push(`routine=${err.routine}`);
+    }
+    return parts.join(' ');
   }
 
   // --- Emitters for /gs/debug ---
