@@ -113,7 +113,7 @@ export class CustodyAccountController {
   @Get(':id/balance')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
-  @ApiOkResponse({ type: CustodyBalanceDto })
+  @ApiOkResponse({ type: CustodyBalanceDto, description: 'Custody balance of the addressed account' })
   async getAccountBalance(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyBalanceDto> {
     const ownerAccountId = await this.custodyAccountService.resolveOwnerAccountId(
       this.parseCustodyAccountId(id),
@@ -126,7 +126,7 @@ export class CustodyAccountController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
-  @ApiOkResponse({ type: CustodyHistoryDto })
+  @ApiOkResponse({ type: CustodyHistoryDto, description: 'Custody history of the addressed account' })
   async getAccountHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyHistoryDto> {
     const ownerAccountId = await this.custodyAccountService.resolveOwnerAccountId(
       this.parseCustodyAccountId(id),
@@ -139,7 +139,7 @@ export class CustodyAccountController {
   @Get(':id/order')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
-  @ApiOkResponse({ type: CustodyOrderHistoryDto, isArray: true })
+  @ApiOkResponse({ type: CustodyOrderHistoryDto, isArray: true, description: 'Order history of the addressed account' })
   async getAccountOrders(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyOrderHistoryDto[]> {
     const ownerAccountId = await this.custodyAccountService.resolveOwnerAccountId(
       this.parseCustodyAccountId(id),
