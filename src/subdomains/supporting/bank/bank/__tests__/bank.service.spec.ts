@@ -12,8 +12,12 @@ import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { createCustomVirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/__mocks__/virtual-iban.entity.mock';
+import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
+import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
+  createCustomBank,
   createDefaultBanks,
   createDefaultDisabledBanks,
   yapealCHF,
@@ -26,6 +30,7 @@ import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
 import { BankSelectorInput, BankService } from '../bank.service';
 import { IbanBankName } from '../dto/bank.dto';
+import { ReceiveIbanStatus } from '../dto/receive-iban.enum';
 
 function createBankSelectorInput(
   currency = 'EUR',
@@ -69,6 +74,7 @@ describe('BankService', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: CountryService, useValue: countryService },
         { provide: BankAccountService, useValue: bankAccountService },
+        { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -225,6 +231,7 @@ describe('Bank (name, currency) collision tie-break', () => {
         { provide: FiatService, useValue: createMock<FiatService>() },
         { provide: CountryService, useValue: createMock<CountryService>() },
         { provide: BankAccountService, useValue: createMock<BankAccountService>() },
+        { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -367,5 +374,237 @@ describe('Bank (name, currency) collision tie-break', () => {
     const asset = createCustomAsset({ blockchain: Blockchain.YAPEAL, dexName: 'EUR' });
     expect(BankService.isBankMatching(asset, 'YAPEAL-ASSET-LINKED-IBAN')).toBe(true);
     expect(BankService.isBankMatching(asset, 'YAPEAL-UNBOUND-NEWER-IBAN')).toBe(false);
+  });
+});
+
+describe('BankService.getReceiveIbanStatus', () => {
+  const accountId = 42;
+  const otherAccountId = 43;
+
+  // A retired collective account: same IBAN a customer may have transferred to years ago, but receive=false today.
+  const retiredCollectiveAccount = createCustomBank({ iban: 'CH5604835012345678009', receive: false, send: false });
+  const personalIban = 'DE89370400440532013000';
+  const expiredPersonalIban = 'AT483200000012345864';
+  const foreignPersonalIban = 'CH4431999123000889012';
+
+  let service: BankService;
+  let bankRepo: BankRepository;
+  let virtualIbanRepo: VirtualIbanRepository;
+
+  beforeEach(async () => {
+    bankRepo = createMock<BankRepository>();
+    virtualIbanRepo = createMock<VirtualIbanRepository>();
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        BankService,
+        { provide: BankRepository, useValue: bankRepo },
+        { provide: VirtualIbanRepository, useValue: virtualIbanRepo },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    service = module.get<BankService>(BankService);
+  });
+
+  // The only shape getReceiveIbanStatus passes to findCachedBy; keeps the mock typed without `any`.
+  type AccountScopedWhere = { userData: { id: number } };
+
+  function setup(banks: Bank[], virtualIbansByAccount: Map<number, VirtualIban[]> = new Map()): void {
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue(banks);
+    jest
+      .spyOn(virtualIbanRepo, 'findCachedBy')
+      .mockImplementation(
+        async (_key: string | number, where: AccountScopedWhere) => virtualIbansByAccount.get(where.userData.id) ?? [],
+      );
+  }
+
+  it('reports a collective account IBAN as a DFX IBAN, without asking for personal IBANs', async () => {
+    // A collective account hit short-circuits for a logged-in caller too - no account-scoped lookup happens.
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus(olkyEUR.iban, accountId)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+    expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
+  });
+
+  it('reports a collective account IBAN as a DFX IBAN without a login, before ever asking for personal IBANs', async () => {
+    // The bank check must run before the login check, otherwise a logged-out customer gets LoginRequired for
+    // an IBAN we can already confirm.
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus(olkyEUR.iban)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+    expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
+  });
+
+  it('reports a collective account IBAN stored in paper format as a DFX IBAN', async () => {
+    // The stored side is normalized too, so a row that carries a grouped value still matches.
+    setup([createCustomBank({ iban: 'LU11 6060 0020 0000 5040' })]);
+
+    await expect(service.getReceiveIbanStatus('LU116060002000005040', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
+  it('reports a personal IBAN stored in paper format as a DFX IBAN', async () => {
+    // The comparison normalizes stored virtual_iban values as well, so their format need not be guaranteed.
+    setup(
+      createDefaultBanks(),
+      new Map([[accountId, [createCustomVirtualIban({ iban: 'de89 3704 0044 0532 0130 00' })]]]),
+    );
+
+    await expect(service.getReceiveIbanStatus(personalIban, accountId)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+  });
+
+  it('reports a collective account IBAN with receive=false as a DFX IBAN', async () => {
+    // A retired or closed account still received DFX money, and a missing transfer can predate it being stood down.
+    setup([retiredCollectiveAccount]);
+
+    await expect(service.getReceiveIbanStatus(retiredCollectiveAccount.iban, accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
+  it('reports a personal IBAN of the requesting account as a DFX IBAN', async () => {
+    setup(createDefaultBanks(), new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
+
+    await expect(service.getReceiveIbanStatus(personalIban, accountId)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+    expect(virtualIbanRepo.findCachedBy).toHaveBeenCalledWith(`user-${accountId}`, { userData: { id: accountId } });
+  });
+
+  it.each([VirtualIbanStatus.EXPIRED, VirtualIbanStatus.DEACTIVATED, VirtualIbanStatus.RESERVED])(
+    'reports a personal IBAN with status %s as a DFX IBAN',
+    async (status) => {
+      // An expired personal IBAN was still a real receiving IBAN, so no lifecycle state may be filtered out.
+      setup(
+        createDefaultBanks(),
+        new Map([[accountId, [createCustomVirtualIban({ iban: expiredPersonalIban, active: false, status })]]]),
+      );
+
+      await expect(service.getReceiveIbanStatus(expiredPersonalIban, accountId)).resolves.toBe(
+        ReceiveIbanStatus.DFX_IBAN,
+      );
+    },
+  );
+
+  it('reports a formally invalid IBAN as invalid, without querying any IBAN', async () => {
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus('DE123456', accountId)).resolves.toBe(ReceiveIbanStatus.INVALID_IBAN);
+    expect(bankRepo.findCached).not.toHaveBeenCalled();
+    expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
+  });
+
+  it('reports a correctly shaped IBAN with a wrong checksum as invalid, not as unmatched', async () => {
+    // A changed digit keeps the country and length intact, so only the checksum catches it. Answering
+    // NotMatched here would send a customer looking for a transfer that never left with a typo in the IBAN.
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus('DE89370400440532013001', accountId)).resolves.toBe(
+      ReceiveIbanStatus.INVALID_IBAN,
+    );
+  });
+
+  it.each([undefined, null, '', '   '])(
+    'reports an unusable input (%p) as invalid instead of throwing',
+    async (input) => {
+      // Defensive only: @IsString/@IsNotEmpty reject undefined, null and '' with a 400 before the service is
+      // reached, so of these only '   ' can actually arrive. The typeof guard in normalizeIban short-circuits
+      // the non-string cases, and an all-separator string normalizes to '' and is returned as null.
+      // The cast stays because getReceiveIbanStatus itself declares `iban: string`; it is what lets the test
+      // reach the guard from outside the type system, which is exactly the situation the guard exists for.
+      setup(createDefaultBanks());
+
+      await expect(service.getReceiveIbanStatus(input as string, accountId)).resolves.toBe(
+        ReceiveIbanStatus.INVALID_IBAN,
+      );
+    },
+  );
+
+  it('reports a valid IBAN that matched neither list as not matched when the customer is logged in', async () => {
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus(foreignPersonalIban, accountId)).resolves.toBe(
+      ReceiveIbanStatus.NOT_MATCHED,
+    );
+  });
+
+  it('requires a login for a valid unmatched IBAN, because personal IBANs stay unchecked without one', async () => {
+    setup(createDefaultBanks());
+
+    await expect(service.getReceiveIbanStatus(foreignPersonalIban)).resolves.toBe(ReceiveIbanStatus.LOGIN_REQUIRED);
+    expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
+  });
+
+  it('recognizes the same IBAN written with grouping spaces and in lower case', async () => {
+    setup(createDefaultBanks(), new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
+
+    await expect(service.getReceiveIbanStatus('lu11 6060 0020 0000 5040', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+    await expect(service.getReceiveIbanStatus('de89 3704 0044 0532 0130 00', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
+  // The invisible separators are written as escape sequences on purpose: it makes them visible in review and
+  // lowers the risk of an edit or a copy-paste quietly normalizing them into ordinary spaces, which would
+  // void exactly those cases.
+  it.each([
+    ['an ASCII space', ' '],
+    ['a hyphen', '-'],
+    ['a dot', '.'],
+    ['a slash', '/'],
+    ['a non-breaking space', '\u00a0'],
+    ['a narrow non-breaking space', '\u202f'],
+    ['a zero-width space', '\u200b'],
+    ['a soft hyphen', '\u00ad'],
+    ['a tab', '\t'],
+    ['a line break', '\n'],
+  ])('recognizes an IBAN grouped with %s', async (_name, separator) => {
+    setup([frickEUR], new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
+
+    const group = (iban: string): string => (iban.match(/.{1,4}/g) ?? []).join(separator);
+
+    await expect(service.getReceiveIbanStatus(group(frickEUR.iban), accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+    await expect(service.getReceiveIbanStatus(group(personalIban), accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
+  it('recognizes an IBAN pasted with surrounding quotes', async () => {
+    setup([frickEUR]);
+
+    await expect(service.getReceiveIbanStatus('"LI75 0881 1010 5923 K000E"', accountId)).resolves.toBe(
+      ReceiveIbanStatus.DFX_IBAN,
+    );
+  });
+
+  it('does not extract an IBAN out of surrounding ASCII words', async () => {
+    // Separators are stripped, an ASCII label is not: it survives normalization and makes the value invalid,
+    // which is what we want - a prefix is indistinguishable from extra characters that corrupt the IBAN.
+    // The guarantee is ASCII-only by construction: a label in a non-Latin script is stripped like a
+    // separator and the IBAN is accepted. Harmless, but the reason this test says "ASCII".
+    setup([frickEUR]);
+
+    await expect(service.getReceiveIbanStatus('IBAN: LI75 0881 1010 5923 K000E', accountId)).resolves.toBe(
+      ReceiveIbanStatus.INVALID_IBAN,
+    );
+  });
+
+  it('never reports a personal IBAN of another account as a DFX IBAN', async () => {
+    setup(
+      createDefaultBanks(),
+      new Map([
+        [accountId, [createCustomVirtualIban({ iban: personalIban })]],
+        [otherAccountId, [createCustomVirtualIban({ iban: foreignPersonalIban })]],
+      ]),
+    );
+
+    await expect(service.getReceiveIbanStatus(foreignPersonalIban, accountId)).resolves.toBe(
+      ReceiveIbanStatus.NOT_MATCHED,
+    );
   });
 });

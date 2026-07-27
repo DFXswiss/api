@@ -1,13 +1,16 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import * as IbanTools from 'ibantools';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
 import { BankRepository } from './bank.repository';
 import { IbanBankName } from './dto/bank.dto';
+import { ReceiveIbanStatus } from './dto/receive-iban.enum';
 
 export interface BankSelectorInput {
   amount?: number;
@@ -21,7 +24,12 @@ export class BankService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankService);
   private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
 
-  constructor(private bankRepo: BankRepository) {}
+  // The VirtualIbanRepository is injected instead of the VirtualIbanService: that service depends on this
+  // one, and both live in BankModule, so the service-level dependency would close a provider cycle.
+  constructor(
+    private readonly bankRepo: BankRepository,
+    private readonly virtualIbanRepo: VirtualIbanRepository,
+  ) {}
 
   onModuleInit() {
     void this.loadIbanCache();
@@ -118,7 +126,58 @@ export class BankService implements OnModuleInit {
     return expectedIban === accountIban;
   }
 
+  // --- RECEIVE IBAN CHECK --- //
+
+  // Tells the client whether an IBAN typed in by a customer is one that belongs to DFX - not whether it still
+  // accepts money. Pure input aid for the support form: it enforces nothing, it only lets the frontend phrase
+  // a helpful hint.
+  async getReceiveIbanStatus(iban: string, userDataId?: number): Promise<ReceiveIbanStatus> {
+    // normalizeIban strips separator characters and yields null for input that cannot hold an IBAN at all;
+    // it does not rescue every conceivable input (a `IBAN:` prefix stays invalid, correctly). Both sides of
+    // every comparison run through it, so a stored value in paper format matches too.
+    const normalizedIban = BankService.normalizeIban(iban);
+    if (!normalizedIban || !IbanTools.validateIBAN(normalizedIban).valid) return ReceiveIbanStatus.INVALID_IBAN;
+
+    // Deliberately not filtered by `receive`: a hit on a retired or closed account is still money that went
+    // to DFX, and a missing transfer can predate the account being stood down. A receive=true filter would
+    // tell a real customer that their IBAN does not belong to DFX.
+    const banks = await this.getAllBanks();
+    if (banks.some((b) => BankService.normalizeIban(b.iban) === normalizedIban)) return ReceiveIbanStatus.DFX_IBAN;
+
+    // Personal IBANs are only ever checked for the requesting account. The guard is optional, so a global
+    // lookup would turn this endpoint into an unauthenticated oracle over customer-bound IBANs. Without a
+    // login the personal IBANs stay unchecked, hence the answer must never be NOT_MATCHED here.
+    if (!userDataId) return ReceiveIbanStatus.LOGIN_REQUIRED;
+
+    // No lifecycle filter either (active=false, status Expired/Deactivated/Reserved all count): an expired
+    // personal IBAN was still a real receiving IBAN. Same cache key and filter as
+    // VirtualIbanService.getVirtualIbansForAccount, so both paths share the cached list.
+    const virtualIbans = await this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, {
+      userData: { id: userDataId },
+    });
+    if (virtualIbans.some((v) => BankService.normalizeIban(v.iban) === normalizedIban))
+      return ReceiveIbanStatus.DFX_IBAN;
+
+    return ReceiveIbanStatus.NOT_MATCHED;
+  }
+
   // --- HELPER METHODS --- //
+
+  // An IBAN is ASCII alphanumeric only, so everything else is separator noise: grouping spaces of any kind,
+  // hyphens, dots, slashes, quotes, and the invisible formatting characters that come along when a value
+  // is pasted out of a statement PDF or an HTML mail. Removing everything that is not ASCII alphanumeric
+  // covers every separator by construction, where chasing a deny-list did not - ibantools' own
+  // electronicFormatIBAN only removes ASCII spaces and hyphens, and \s misses the zero-width family.
+  // Note this also drops non-ASCII letters and digits, so a label in a non-Latin script is silently
+  // stripped rather than making the value invalid. Harmless (it can never produce a *different* valid
+  // IBAN), but it means only ASCII surroundings are reliably rejected.
+  // The parameter is widened past the callers' types on purpose: this sits on the trust boundary between a
+  // request body and the comparison, so it answers for anything the type system cannot actually guarantee.
+  private static normalizeIban(iban: string | null | undefined): string | null {
+    if (typeof iban !== 'string') return null;
+
+    return iban.replace(/[^A-Za-z0-9]/g, '').toUpperCase() || null;
+  }
 
   // Picks the bank row that owns attribution for a single (name, currency) key. `banks` must already
   // be sorted by id descending (newest first). Prefer a row linked to an asset: that binding is the
