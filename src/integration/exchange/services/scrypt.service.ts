@@ -30,6 +30,7 @@ import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import {
   isVenueRejection,
   ScryptMessageType,
+  ScryptOrderNotFoundError,
   ScryptUnconfirmedWriteError,
   ScryptWebSocketConnection,
 } from './scrypt-websocket-connection';
@@ -470,8 +471,8 @@ export class ScryptService extends PricingProvider {
       // If the order is older than 1 hour and still not found, it's lost
       const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
       if (ageMinutes > 60) {
-        throw new Error(
-          `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — likely completed or cancelled outside of tracked state`,
+        throw new ScryptOrderNotFoundError(
+          `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — it may have completed or been cancelled outside of tracked state`,
         );
       }
 

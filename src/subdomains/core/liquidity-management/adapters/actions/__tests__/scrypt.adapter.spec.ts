@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptTransactionStatus, ScryptWithdrawStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import {
+  ScryptOrderNotFoundError,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
 } from 'src/integration/exchange/services/scrypt-websocket-connection';
@@ -216,6 +217,31 @@ describe('ScryptAdapter', () => {
 
       await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).resolves.toBe(false);
     });
+
+    it('does not fail an acknowledged order just because it could not be read', async () => {
+      // Failing here would release the rule to open a second position while the first is live at the venue.
+      jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new Error('malformed market data snapshot'));
+
+      await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).resolves.toBe(false);
+    });
+
+    it('quarantines an order the venue acknowledged and can no longer find', async () => {
+      jest
+        .spyOn(scryptService, 'checkTrade')
+        .mockRejectedValue(new ScryptOrderNotFoundError('Order dfx-lm-4711 not found after 90 minutes'));
+
+      await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).rejects.toBeInstanceOf(
+        OrderOutcomeUnknownException,
+      );
+    });
+
+    it('fails the order when the venue explicitly rejected it — that is a verdict, not silence', async () => {
+      jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new Error('Scrypt order rejected: bad price'));
+
+      await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).rejects.toBeInstanceOf(
+        OrderFailedException,
+      );
+    });
   });
 
   describe('nextCorrelationId', () => {
@@ -238,19 +264,13 @@ describe('ScryptAdapter', () => {
       );
     });
 
-    it('reports NOT_SENT only once the venue has had time to register the request', async () => {
+    it('never concludes NOT_SENT from mere absence, however old the order is', async () => {
+      // Scrypt offers no terminal "this reference was never accepted" reply, so absence from a snapshot is
+      // not evidence. Releasing the rule on that basis is what would let a late-materialising request repeat.
       jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
+      const ancient = createUncertainSellOrder({ updated: new Date(Date.now() - 24 * 60 * 60 * 1000) });
 
-      await expect(adapter.resolveUncertainOrder(createUncertainSellOrder())).resolves.toBe(
-        UncertainOrderResolution.NOT_SENT,
-      );
-    });
-
-    it('stays UNRESOLVED inside the grace window, when absence proves nothing yet', async () => {
-      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
-      const fresh = createUncertainSellOrder({ updated: new Date() });
-
-      await expect(adapter.resolveUncertainOrder(fresh)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
+      await expect(adapter.resolveUncertainOrder(ancient)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
 
     it('stays UNRESOLVED when the lookup itself fails — an unreachable venue is not evidence', async () => {
@@ -273,7 +293,7 @@ describe('ScryptAdapter', () => {
         action: { command: ScryptAdapterCommands.WITHDRAW, paramMap: {} } as any,
       });
 
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.NOT_SENT);
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
       expect(scryptService.findWithdrawal).toHaveBeenCalledWith('dfx-lm-4711');
     });
 
@@ -291,6 +311,16 @@ describe('ScryptAdapter', () => {
       jest
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) => (id === 'dfx-lm-4711-1' ? ({ id } as any) : null));
+      const order = createUncertainSellOrder();
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
+      expect(order.correlationId).toBe('dfx-lm-4711-1');
+    });
+
+    it('prefers the replacement when BOTH it and the superseded original still exist', async () => {
+      // The replaced order lingers at the venue in a cancelled state. Matching it first would report SENT
+      // and leave the live replacement untracked, with the completion check polling a dead reference.
+      jest.spyOn(scryptService, 'getOrderStatus').mockImplementation(async (id: string) => ({ id }) as any);
       const order = createUncertainSellOrder();
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);

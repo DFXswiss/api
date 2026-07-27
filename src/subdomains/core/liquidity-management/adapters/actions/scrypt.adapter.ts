@@ -5,6 +5,7 @@ import { TradeChangedException } from 'src/integration/exchange/exceptions/trade
 import {
   isTransientWsError,
   isVenueRejection,
+  ScryptOrderNotFoundError,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
 } from 'src/integration/exchange/services/scrypt-websocket-connection';
@@ -32,13 +33,6 @@ export enum ScryptAdapterCommands {
 
 /** Marks a reference as ours when reading Scrypt's own order/transaction history. */
 const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
-
-/**
- * How long a reference must be missing from Scrypt's history before absence counts as proof of
- * non-arrival. Covers the venue's own registration delay: concluding "never arrived" too early is the one
- * mistake that lets the rule re-issue a request the venue is still processing.
- */
-const SCRYPT_UNCERTAIN_GRACE_MINUTES = 10;
 
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {
@@ -293,7 +287,18 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         );
       }
 
-      throw new OrderFailedException(e.message);
+      // The venue once acknowledged this order and now cannot find it. That is not a failure — it may have
+      // filled or been cancelled outside our view — so it goes to a human instead of releasing the rule.
+      if (e instanceof ScryptOrderNotFoundError) throw new OrderOutcomeUnknownException(e.message);
+
+      // A rejection is a reply: the venue reached a verdict, so the order really did end.
+      if (isVenueRejection(e)) throw new OrderFailedException(e.message);
+
+      // Anything else is a failure to OBSERVE an order that the venue has acknowledged and may still be
+      // working. Failing it here would let the rule open a second position against the same funds, so keep
+      // the order and look again next tick; a check that never succeeds surfaces via the stuck-order metric.
+      this.logger.warn(`Could not check Scrypt order ${order.id}, will look again next tick: ${e.message}`);
+      return false;
     }
   }
 
@@ -459,14 +464,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   /**
    * Ask Scrypt what happened to a quarantined order. Observes only — never re-sends.
    *
-   * Absence is only treated as proof once the venue has had time to register the request; before that, a
-   * missing record is just as likely to be our own race as a genuine non-arrival.
+   * Can only ever confirm a positive: Scrypt has no terminal "this reference was never accepted" reply, so
+   * a missing record leaves the order quarantined for a human rather than releasing its rule.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
     const { correlationId } = order;
     if (!correlationId) return UncertainOrderResolution.UNRESOLVED;
-
-    if (Util.minutesDiff(order.updated) < SCRYPT_UNCERTAIN_GRACE_MINUTES) return UncertainOrderResolution.UNRESOLVED;
 
     try {
       if (order.action.command === ScryptAdapterCommands.WITHDRAW) {
@@ -476,15 +479,14 @@ export class ScryptAdapter extends LiquidityActionAdapter {
           return UncertainOrderResolution.SENT;
         }
       } else {
-        // Every reference this row may have produced: the ones already recorded, plus the replacement an
-        // amend or restart could have created without our ever seeing the confirmation. Missing the latter
-        // would report NOT_SENT for a live venue order.
-        const candidates = [...order.allCorrelationIds, this.nextCorrelationId(order)];
+        // Newest first. A replacement supersedes the order it replaced, and the replaced one usually still
+        // exists at the venue in a cancelled state — checking oldest first would match that, report SENT and
+        // leave the live replacement untracked while the completion check polls a superseded reference.
+        const candidates = [this.nextCorrelationId(order), ...order.allCorrelationIds];
 
         for (const candidate of candidates) {
           if (await this.scryptService.getOrderStatus(candidate)) {
-            // Track the reference the venue actually knows. If the match is a replacement we never got
-            // confirmation for, the completion check would otherwise keep polling the superseded id.
+            // Track the reference the venue actually knows.
             if (candidate !== order.correlationId) order.updateCorrelationId(candidate);
 
             this.logger.info(`Scrypt confirmed reference ${candidate} exists; order ${order.id} was sent`);
@@ -493,8 +495,14 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         }
       }
 
-      this.logger.info(`Scrypt has no record of reference ${correlationId}; order ${order.id} never arrived`);
-      return UncertainOrderResolution.NOT_SENT;
+      // Absence is NOT proof. A snapshot without the reference may simply predate the venue registering it,
+      // and Scrypt offers no terminal "this was never accepted" acknowledgement to rely on. Concluding
+      // otherwise is what would let the rule reissue a request that later materialises — so the order stays
+      // quarantined for a human, and the rule stays blocked, which is the safe direction.
+      this.logger.warn(
+        `Scrypt still has no record of reference ${correlationId} for order ${order.id} — keeping it quarantined`,
+      );
+      return UncertainOrderResolution.UNRESOLVED;
     } catch (e) {
       // The lookup travels the same connection that just went silent. An unreachable venue is not evidence
       // of anything — stay in quarantine rather than guess in either direction.

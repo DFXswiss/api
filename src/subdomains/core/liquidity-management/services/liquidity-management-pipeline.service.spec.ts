@@ -73,22 +73,62 @@ describe('LiquidityManagementPipelineService', () => {
       expect(notificationService.sendMail).toHaveBeenCalled();
     });
 
-    it('quarantines an order whose error escaped classification, so it cannot be re-executed', async () => {
+    it('fails — not quarantines — an unclassified error when no reference was ever reserved', async () => {
       const order = createdOrder();
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
       jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
         supportedCommands: ['sell'],
-        // not one of the four known exception types
-        executeOrder: jest.fn().mockRejectedValue(new Error('database connection lost')),
+        // no reserveCorrelationId, so nothing can have been transmitted
+        executeOrder: jest.fn().mockRejectedValue(new Error('no integration configured')),
         checkCompletion: jest.fn(),
         validateParams: jest.fn(),
       });
 
       const anyChanged = await service['startNewOrders']();
 
-      // leaving it CREATED would spin the caller's `while (hasChanges)` loop on an order it cannot advance
+      // quarantining a provably-never-sent request would strand config errors in a human-only state
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      // and it must still leave CREATED, or the caller's `while (hasChanges)` loop cannot terminate
+      expect(anyChanged).toBe(true);
+    });
+
+    it('quarantines an unclassified error once a reference was reserved', async () => {
+      const order = createdOrder();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        reserveCorrelationId: () => 'dfx-lm-7',
+        executeOrder: jest.fn().mockRejectedValue(new Error('socket exploded mid-send')),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+      });
+
+      const anyChanged = await service['startNewOrders']();
+
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
       expect(anyChanged).toBe(true);
+    });
+
+    it('never re-sends a CREATED order that already carries a reserved reference', async () => {
+      // that combination means a previous pass reached the send boundary and died before recording the
+      // result — re-sending is the one thing that could duplicate a live request
+      const order = createdOrder();
+      order.correlationId = 'dfx-lm-7';
+      const executeOrder = jest.fn();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        reserveCorrelationId: () => 'dfx-lm-7',
+        executeOrder,
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+      });
+
+      await service['startNewOrders']();
+
+      expect(executeOrder).not.toHaveBeenCalled();
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(notificationService.sendMail).toHaveBeenCalled();
     });
 
     it('persists the reserved correlation id BEFORE the request is sent', async () => {

@@ -80,6 +80,14 @@ export class ScryptUnconfirmedWriteError extends Error {
 }
 
 /**
+ * An order the venue once acknowledged can no longer be found in its state.
+ *
+ * Not a failure: the order may have completed or been cancelled outside our view, and we cannot tell which.
+ * Treating it as failed would release the rule to open a second position against the same funds.
+ */
+export class ScryptOrderNotFoundError extends Error {}
+
+/**
  * Messages that can only come from a reply by the venue: it saw the request and refused it. This is the only
  * evidence that a write did NOT take effect — everything else leaves the outcome open.
  *

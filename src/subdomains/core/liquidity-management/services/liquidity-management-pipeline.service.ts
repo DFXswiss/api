@@ -79,10 +79,12 @@ export class LiquidityManagementPipelineService {
 
   async getPendingTx(): Promise<LiquidityManagementOrder[]> {
     return this.orderRepo.findBy({
-      // A quarantined transfer is the definition of pending: the funds may already have left and the
-      // financial log has to keep counting them, otherwise the equity snapshot loses exactly the amount
-      // whose whereabouts are in question.
-      status: In([LiquidityManagementOrderStatus.IN_PROGRESS, LiquidityManagementOrderStatus.UNCERTAIN]),
+      // Deliberately WITHOUT the quarantined status. The financial log adds a pending amount back to the
+      // balance and nets it against the venue's locked funds — which works for an order the venue really is
+      // holding. For a quarantined order there may be nothing locked, so counting it would inflate equity by
+      // its full amount. Overstating equity is the one error direction that can hide a real loss from the
+      // safety threshold, so an unresolved order is left out until reconciliation says it was sent.
+      status: LiquidityManagementOrderStatus.IN_PROGRESS,
       action: { command: In(['withdraw', 'deposit', 'transfer']) },
     });
   }
@@ -190,6 +192,21 @@ export class LiquidityManagementPipelineService {
     let anyChanged = false;
 
     for (const order of newOrders) {
+      // A CREATED order that already carries a reference means a previous pass reached the send boundary and
+      // never recorded the result — the process died between transmitting and saving. Re-sending it is the
+      // one thing we must not do, so it goes straight into quarantine to be reconciled.
+      if (order.correlationId) {
+        order.uncertain(
+          new OrderOutcomeUnknownException(
+            `Reference ${order.correlationId} was reserved but the result was never recorded — the request may have been sent`,
+          ),
+        );
+        await this.orderRepo.save(order);
+        await this.reportUncertainOrder(order);
+        anyChanged = true;
+        continue;
+      }
+
       try {
         await this.executeOrder(order);
         anyChanged = true;
@@ -203,15 +220,21 @@ export class LiquidityManagementPipelineService {
         } else if (e instanceof OrderFailedException) {
           order.fail(e);
           await this.orderRepo.save(order);
-        } else {
-          // Unknown outcome, either declared by the integration or because the error escaped classification
-          // altogether. Both mean the same thing: we cannot prove the request did not reach the venue, so the
-          // order is quarantined instead of failed — a failed order pauses its rule, and the rule
-          // auto-reactivates, which would repeat a request that may already have executed.
+        } else if (e instanceof OrderOutcomeUnknownException || order.correlationId) {
+          // Either the integration declared the outcome unknown, or a reference was reserved — meaning the
+          // send boundary was crossed and we cannot prove the request did not reach the venue. Quarantine
+          // rather than fail: failing pauses the rule, and the rule auto-reactivates, which would repeat a
+          // request that may already have executed.
           const cause = e instanceof OrderOutcomeUnknownException ? e : new OrderOutcomeUnknownException(e.message);
           order.uncertain(cause);
           await this.orderRepo.save(order);
           await this.reportUncertainOrder(order);
+        } else {
+          // No reference was ever reserved, so nothing can have been transmitted — this is an ordinary
+          // failure. Quarantining it would strand configuration and factory errors in a state only a human
+          // can clear, for a request that provably never happened.
+          order.fail(new OrderFailedException(e.message));
+          await this.orderRepo.save(order);
         }
 
         // every branch above persists a new status, so the order leaves the CREATED set either way — this is
