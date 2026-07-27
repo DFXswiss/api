@@ -75,10 +75,15 @@ describe('SettingService', () => {
   });
 
   describe('set', () => {
-    it('writes an ordinary setting', async () => {
+    it('writes an ordinary setting under the given key', async () => {
+      settingRepo.findOneBy.mockResolvedValue(null);
+      settingRepo.create.mockImplementation((data) => Object.assign(new Setting(), data));
+
       await service.set('someOpsFlag', 'true');
 
-      expect(settingRepo.save).toHaveBeenCalled();
+      // Pins key and value, not just that something was written: a swapped argument pair would
+      // otherwise pass, and this is the only place the pair is checked.
+      expect(settingRepo.save).toHaveBeenCalledWith(expect.objectContaining({ key: 'someOpsFlag', value: 'true' }));
     });
 
     // `staffKycClearance` decides who reaches every elevated endpoint and is derived from KYC data by a

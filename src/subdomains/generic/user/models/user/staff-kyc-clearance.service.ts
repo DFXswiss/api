@@ -18,6 +18,11 @@ const ClearanceRelevantRoles = rolesSatisfying(KycGatedRoles);
 // bare `TRIM(x)` removes ASCII space ONLY, so a name of a single tab or a non-breaking space would pass
 // a `TRIM(x) <> ''` test and clear an account that carries no identification at all. The set is spelled
 // out rather than left to `[[:space:]]`, whose meaning depends on the database locale.
+//
+// U+200B (zero width space) is deliberately NOT in here: `trim()` does not strip it either, so adding it
+// would make this predicate stricter than the check it replaced. Whether a name made of invisible
+// characters that `trim()` ignores should count as identification is a question about how verifiedName is
+// written, not about this gate.
 export const BlankChars =
   '\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007' +
   '\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
