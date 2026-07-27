@@ -32,6 +32,7 @@ import {
   ScryptMessageType,
   ScryptOrderNotFoundError,
   ScryptUnconfirmedWriteError,
+  ScryptVenueRejectionError,
   ScryptWebSocketConnection,
 } from './scrypt-websocket-connection';
 
@@ -251,7 +252,7 @@ export class ScryptService extends PricingProvider {
     );
 
     if (transaction.Status === ScryptTransactionStatus.REJECTED) {
-      throw new Error(
+      throw new ScryptVenueRejectionError(
         `Scrypt withdrawal rejected: ${transaction.RejectText ?? transaction.RejectReason ?? 'Unknown reason'}`,
       );
     }
@@ -418,7 +419,15 @@ export class ScryptService extends PricingProvider {
       ScryptMessageType.BALANCE_TRANSACTION,
     );
 
-    return transactions.find((t) => t.ClReqID === clReqId) ?? null;
+    const found = transactions.find((t) => t.ClReqID === clReqId);
+    if (!found) return null;
+
+    // Feed the recovery back into the live cache. `getWithdrawalStatus` reads only from there, so an order
+    // that leaves quarantine on the strength of this lookup would otherwise poll a reference the cache still
+    // does not know and never complete.
+    this.cacheBalanceTransaction(found);
+
+    return found;
   }
 
   async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
@@ -573,7 +582,9 @@ export class ScryptService extends PricingProvider {
         return true;
 
       case ScryptOrderStatus.REJECTED:
-        throw new Error(`Order ${clOrdId} has been rejected: ${orderInfo.rejectReason ?? 'unknown reason'}`);
+        throw new ScryptVenueRejectionError(
+          `Order ${clOrdId} has been rejected: ${orderInfo.rejectReason ?? 'unknown reason'}`,
+        );
 
       case ScryptOrderStatus.PENDING_NEW:
       case ScryptOrderStatus.PENDING_CANCEL:
@@ -635,7 +646,9 @@ export class ScryptService extends PricingProvider {
     );
 
     if (report.OrdStatus === ScryptOrderStatus.REJECTED) {
-      throw new Error(`Scrypt order rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`);
+      throw new ScryptVenueRejectionError(
+        `Scrypt order rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`,
+      );
     }
 
     return {
@@ -696,7 +709,9 @@ export class ScryptService extends PricingProvider {
     );
 
     if (report.OrdStatus === ScryptOrderStatus.REJECTED) {
-      throw new Error(`Scrypt order edit rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`);
+      throw new ScryptVenueRejectionError(
+        `Scrypt order edit rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`,
+      );
     }
 
     return newClOrdId;

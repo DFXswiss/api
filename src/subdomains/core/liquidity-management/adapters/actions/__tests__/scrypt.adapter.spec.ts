@@ -5,6 +5,7 @@ import {
   ScryptOrderNotFoundError,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
+  ScryptVenueRejectionError,
 } from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -38,7 +39,6 @@ function createUncertainSellOrder(overrides: Partial<LiquidityManagementOrder> =
   return Object.assign(new LiquidityManagementOrder(), {
     id: 4711,
     correlationId: 'dfx-lm-4711',
-    // old enough that absence counts as evidence; the grace window is 10 minutes
     updated: new Date(Date.now() - 30 * 60 * 1000),
     action: { command: ScryptAdapterCommands.SELL, paramMap: {} },
     ...overrides,
@@ -180,7 +180,7 @@ describe('ScryptAdapter', () => {
     });
 
     it('keeps a venue rejection an ordinary failure — the venue replied, so the outcome is known', () => {
-      const rejected = new Error('Scrypt withdrawal rejected: insufficient limit');
+      const rejected = new ScryptVenueRejectionError('Scrypt withdrawal rejected: insufficient limit');
 
       const classified = adapter['classifySendOutcome'](rejected, 'withdrawal of 1 USDT to 0xabc');
 
@@ -235,8 +235,23 @@ describe('ScryptAdapter', () => {
       );
     });
 
-    it('fails the order when the venue explicitly rejected it — that is a verdict, not silence', async () => {
+    it('does not accept a mere message resembling a rejection as a verdict', async () => {
+      // the whole point of the type: a transport error quoting the phrase must not end the order
       jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new Error('Scrypt order rejected: bad price'));
+
+      await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).resolves.toBe(false);
+    });
+
+    it('quarantines a read timeout rather than failing — every write here is already wrapped', async () => {
+      jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new ScryptRequestTimeoutError('Request timeout'));
+
+      await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).resolves.toBe(false);
+    });
+
+    it('fails the order when the venue explicitly rejected it — that is a verdict, not silence', async () => {
+      jest
+        .spyOn(scryptService, 'checkTrade')
+        .mockRejectedValue(new ScryptVenueRejectionError('Scrypt order rejected: bad price'));
 
       await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).rejects.toBeInstanceOf(
         OrderFailedException,

@@ -6,7 +6,6 @@ import {
   isTransientWsError,
   isVenueRejection,
   ScryptOrderNotFoundError,
-  ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
 } from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
@@ -279,14 +278,6 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         return false;
       }
 
-      // A read that went unanswered still leaves the order untouched at the venue, but we cannot tell from
-      // here whether the deadline hit before or after a write was attempted — so quarantine rather than fail.
-      if (e instanceof ScryptRequestTimeoutError) {
-        throw new OrderOutcomeUnknownException(
-          `Scrypt gave no confirmed outcome while checking order ${order.id} (replacement reference ${replacementClOrdId}): ${e.message}`,
-        );
-      }
-
       // The venue once acknowledged this order and now cannot find it. That is not a failure — it may have
       // filled or been cancelled outside our view — so it goes to a human instead of releasing the rule.
       if (e instanceof ScryptOrderNotFoundError) throw new OrderOutcomeUnknownException(e.message);
@@ -451,13 +442,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     if (isVenueRejection(e)) return e;
 
     // Everything else is silence, and silence is not evidence. A timeout is obvious, but a dropped socket is
-    // just as ambiguous: `requestWithId` hands the bytes to the network before registering the pending
-    // request, and a later close rejects it with a generic message that says nothing about whether the venue
-    // acted. Both become unknown outcomes.
+    // just as ambiguous: once `ws.send` has run the bytes may already be on the wire, and the close that
+    // follows rejects the pending request with a generic message that says nothing about whether the venue
+    // acted on them. Both become unknown outcomes.
     //
-    // Over-classifying here is cheap and self-correcting: an error that in truth occurred before the send
-    // leaves no trace at the venue, so `resolveUncertainOrder` finds nothing and, after the grace window,
-    // settles the order as failed on its own. Under-classifying is what moved money without a record.
+    // Over-classifying costs an operator a look at the venue; under-classifying is what moved money without
+    // a record. Since absence at the venue is not proof, such an order waits for a human rather than
+    // resolving itself — deliberately the expensive direction, because the cheap one is the dangerous one.
     return new OrderOutcomeUnknownException(`Scrypt gave no confirmed outcome for the ${description}: ${e.message}`);
   }
 

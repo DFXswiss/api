@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -325,6 +325,37 @@ export class LiquidityManagementPipelineService {
         errors: [message],
       },
     });
+  }
+
+  /**
+   * Release a quarantined order by hand, after somebody checked the venue directly.
+   *
+   * Reconciliation can only ever confirm that a reference exists; it never concludes the opposite, because
+   * no venue reply proves "this was never accepted". Without this path a genuinely unsent request would
+   * block its rule forever. Guarded like the payout subdomain's retry: the caller must assert the check and
+   * name where it happened, and the assertion is recorded on the order.
+   */
+  async resolveUncertainOrderManually(
+    orderId: number,
+    verificationReference: string,
+  ): Promise<LiquidityManagementOrder> {
+    const order = await this.orderRepo.findOneBy({ id: orderId });
+    if (!order) throw new NotFoundException(`No liquidity management order found for id ${orderId}`);
+
+    if (order.status !== LiquidityManagementOrderStatus.UNCERTAIN)
+      throw new BadRequestException(
+        `Liquidity management order ${orderId} is ${order.status}, only an uncertain order can be resolved manually`,
+      );
+
+    order.resolveAsNotSent(
+      `${order.errorMessage} (manually resolved: venue checked, no execution found — ${verificationReference})`,
+    );
+
+    this.logger.info(
+      `Uncertain liquidity order ${orderId} manually resolved as not executed, verified via ${verificationReference}`,
+    );
+
+    return this.orderRepo.save(order);
   }
 
   private async checkRunningOrders(): Promise<boolean> {

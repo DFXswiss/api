@@ -1,9 +1,10 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipelineService } from '../services/liquidity-management-pipeline.service';
 
@@ -18,5 +19,16 @@ export class LiquidityManagementOrderController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getProcessingOrders(): Promise<LiquidityManagementOrder[]> {
     return this.service.getProcessingOrders();
+  }
+
+  @Post(':id/resolve-uncertain')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async resolveUncertainOrder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResolveUncertainOrderDto,
+  ): Promise<LiquidityManagementOrder> {
+    return this.service.resolveUncertainOrderManually(id, dto.verificationReference);
   }
 }

@@ -205,6 +205,39 @@ describe('LiquidityManagementPipelineService', () => {
     });
   });
 
+  describe('resolveUncertainOrderManually', () => {
+    it('releases a quarantined order and records where the check happened', async () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        id: 9,
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        errorMessage: 'Scrypt gave no confirmed outcome',
+      });
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
+
+      await service.resolveUncertainOrderManually(9, 'venue console, ticket OPS-42');
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(order.errorMessage).toContain('venue console, ticket OPS-42');
+    });
+
+    it('refuses to touch an order that is not quarantined', async () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        id: 9,
+        status: LiquidityManagementOrderStatus.IN_PROGRESS,
+      });
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
+
+      await expect(service.resolveUncertainOrderManually(9, 'ref')).rejects.toThrow(/only an uncertain order/);
+      expect(order.status).toBe(LiquidityManagementOrderStatus.IN_PROGRESS);
+    });
+
+    it('fails loudly for an unknown order', async () => {
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(null);
+
+      await expect(service.resolveUncertainOrderManually(404, 'ref')).rejects.toThrow(/No liquidity management order/);
+    });
+  });
+
   describe('checkRunningPipelines — quarantined orders', () => {
     it('leaves a pipeline whose last order is UNCERTAIN completely alone', async () => {
       const rule = Object.assign(new LiquidityManagementRule(), { id: 42, sendNotifications: true });

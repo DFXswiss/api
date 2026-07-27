@@ -88,20 +88,18 @@ export class ScryptUnconfirmedWriteError extends Error {
 export class ScryptOrderNotFoundError extends Error {}
 
 /**
- * Messages that can only come from a reply by the venue: it saw the request and refused it. This is the only
- * evidence that a write did NOT take effect — everything else leaves the outcome open.
+ * The venue replied and refused the request. This is the ONLY evidence that a write did not take effect —
+ * everything else leaves the outcome open.
  *
- * Kept narrow on purpose. Every marker added here widens what counts as a proven failure, and a proven
- * failure is what allows the caller to try again.
+ * A type rather than a set of message patterns: a rejection is now impossible to miss by phrasing a message
+ * differently, and impossible to fake by a transport error that happens to contain the word. Every path that
+ * turns a venue refusal into an exception must use this type, or the caller will retry a settled outcome
+ * forever.
  */
-export const VENUE_REJECTION_MARKERS = [
-  'Scrypt order rejected',
-  'Scrypt order edit rejected',
-  'Scrypt withdrawal rejected',
-];
+export class ScryptVenueRejectionError extends Error {}
 
 export function isVenueRejection(e: Error): boolean {
-  return VENUE_REJECTION_MARKERS.some((m) => e.message?.includes(m));
+  return e instanceof ScryptVenueRejectionError;
 }
 
 interface ScryptRequest {

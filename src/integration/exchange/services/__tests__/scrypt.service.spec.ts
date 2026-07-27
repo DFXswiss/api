@@ -8,6 +8,7 @@ import {
   ScryptMessageType,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
+  ScryptVenueRejectionError,
   ScryptWebSocketConnection,
 } from '../scrypt-websocket-connection';
 import { ScryptService } from '../scrypt.service';
@@ -585,7 +586,7 @@ describe('ScryptService', () => {
 
     it('still cancels and continues when the venue explicitly rejected the amend', async () => {
       // A rejection is a reply: nothing was created, so the existing fallback stays safe.
-      stubAmendPath(new Error('Scrypt order edit rejected: price out of band'));
+      stubAmendPath(new ScryptVenueRejectionError('Scrypt order edit rejected: price out of band'));
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).resolves.toBe(false);
       expect((service as any).cancelOrder).toHaveBeenCalled();
