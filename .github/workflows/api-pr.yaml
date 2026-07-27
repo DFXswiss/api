@@ -83,13 +83,24 @@ jobs:
       - name: Run coverage
         run: npm run test:frick:cov
 
-  # Runs on a self-hosted runner. The gate executes the whole suite under full compilation and is
-  # CPU-bound; a hosted runner gives a public repo four vCPUs, so Jest defaults to three workers
-  # and the gate alone decided how long a PR run took. The self-hosted pool has far more cores and
-  # does not count against the account's concurrent-job limit, which the other jobs already strain.
+  # Runs on a self-hosted runner for branches of this repository. The gate executes the whole suite
+  # under full compilation and is CPU-bound; a hosted runner gives a public repo four vCPUs, so Jest
+  # defaults to three workers and the gate alone decided how long a PR run took. The self-hosted
+  # pool has more cores and does not count against the account's concurrent-job limit.
+  #
+  # Pull requests from forks stay on a hosted runner. A self-hosted runner executes the workflow and
+  # the code of the PR head, so anyone able to open a fork PR would otherwise run arbitrary code on
+  # it. The repository additionally requires approval for all outside contributors, but that is a
+  # settings-level control someone can change; this guard lives in the reviewed diff.
+  #
+  # Deliberately NOT an `if:` on the job - a skipped check counts as passing, which would let a fork
+  # PR bypass the gate entirely. Forks run the same gate, just slower.
   coverage-gate:
     name: Coverage ratchet
-    runs-on: [self-hosted, dfx-api]
+    runs-on: >-
+      ${{ (github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository)
+      && fromJSON('["self-hosted","dfx-api"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     # Serialise the gate across every PR. Two of these running at once on the same machine do not
     # split it, they block each other: measured 16.6 min each against 1.5 min for a single run.
@@ -134,7 +145,8 @@ jobs:
       # were never short of cores. Under full compilation each holds its own TypeScript program,
       # and the machine's free memory varies with what else runs on it. Re-measure before changing.
       - name: Run coverage ratchet
-        run: npm run test:cov:gate -- --maxWorkers=8
+        run: npm run test:gate:cov -- --maxWorkers=${{ (github.event_name != 'pull_request'
+             || github.event.pull_request.head.repo.full_name == github.repository) && '8' || '3' }}
 
       # A red gate names the file and the metric but not the uncovered lines. Uploading the lcov
       # report turns diagnosis into a download instead of a 15-minute local rerun.
