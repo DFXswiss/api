@@ -8,6 +8,12 @@ import { isArraySchema, isPrimitiveSchema, SettingSchema, SettingSchemaRegistry 
 import { Setting } from './setting.entity';
 import { SettingRepository } from './setting.repository';
 
+// Settings whose value is derived by a sync job, never by an operator. The generic `PUT /setting/:key`
+// route rejects them: for `staffKycClearance` a manual write would hand elevated access to accounts that
+// never passed KYC — the very thing the gate exists to prevent — and would stay live until the next sync
+// overwrites it. The sync path itself writes through `setObj` and is unaffected.
+export const SystemManagedSettings = ['staffKycClearance'];
+
 @Injectable()
 export class SettingService {
   constructor(private readonly settingRepo: SettingRepository) {}
@@ -128,6 +134,8 @@ export class SettingService {
   // Account (user data) ids cleared for elevated endpoints, maintained by StaffKycClearanceService.
   // No manual-override counterpart on purpose: the clearance is a KYC fact, not an ops decision — an
   // editable override would be a way to hand out admin access without the identification behind it.
+  // The generic `PUT /setting/:key` route would be exactly such an override, which is why the key is
+  // listed in `SystemManagedSettings` below and rejected there.
   async getStaffKycClearance(): Promise<number[]> {
     return this.getObj<(string | number)[]>('staffKycClearance', []).then((list) => list.map(Number));
   }

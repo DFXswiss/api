@@ -14,6 +14,20 @@ import { UserRepository } from './user.repository';
 // lose access.
 const ClearanceRelevantRoles = rolesSatisfying(KycGatedRoles);
 
+// Every character `String.prototype.trim()` strips (ECMAScript WhiteSpace + LineTerminator). Postgres'
+// bare `TRIM(x)` removes ASCII space ONLY, so a name of a single tab or a non-breaking space would pass
+// a `TRIM(x) <> ''` test and clear an account that carries no identification at all. The set is spelled
+// out rather than left to `[[:space:]]`, whose meaning depends on the database locale.
+export const BlankChars =
+  '\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007' +
+  '\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+
+// Exported so the Postgres suite can execute this exact predicate against a real database — a mocked
+// repository never runs the fragment, and the ASCII-only default of `TRIM` is invisible without one.
+export function nonBlankPredicate(alias: string): string {
+  return `BTRIM(${alias}, :blankChars) <> ''`;
+}
+
 // Maintains the `staffKycClearance` setting: the account (user data) ids allowed onto elevated
 // endpoints. `ProcessService` primes the in-memory Set from it and `RoleGuard` enforces it — see
 // `HasStaffKycClearance` for the fail-closed semantics.
@@ -39,11 +53,10 @@ export class StaffKycClearanceService {
         role: In(ClearanceRelevantRoles),
         userData: {
           kycLevel: MoreThanOrEqual(KycLevel.LEVEL_50),
-          // `verifiedName IS NOT NULL` is the stated rule, but an empty or whitespace-only name carries
-          // no identification either — TRIM(...) <> '' covers both, and NULL drops out on its own since
-          // the comparison yields NULL. The alias TypeORM passes in is already quoted, which a raw
-          // camelCase identifier would have to be on Postgres.
-          verifiedName: Raw((alias) => `TRIM(${alias}) <> ''`),
+          // `verifiedName IS NOT NULL` is the stated rule, but an empty or blank name carries no
+          // identification either — the predicate covers both, and NULL drops out on its own because the
+          // comparison yields NULL. See BlankChars for why the character set is explicit.
+          verifiedName: Raw(nonBlankPredicate, { blankChars: BlankChars }),
         },
       },
       relations: { userData: true },

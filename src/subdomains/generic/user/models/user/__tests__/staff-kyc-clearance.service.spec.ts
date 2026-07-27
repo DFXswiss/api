@@ -55,7 +55,15 @@ describe('StaffKycClearanceService', () => {
     expect(verifiedName.type).toBe('raw');
     // The alias must be interpolated verbatim: TypeORM passes it in already quoted, and on Postgres an
     // unquoted camelCase identifier would be folded to lowercase and blow up at runtime.
-    expect(verifiedName.getSql('"UserData"."verifiedName"')).toBe(`TRIM("UserData"."verifiedName") <> ''`);
+    expect(verifiedName.getSql('"UserData"."verifiedName"')).toBe(
+      `BTRIM("UserData"."verifiedName", :blankChars) <> ''`,
+    );
+    // Bare TRIM() would strip ASCII space only; the bound set must carry the characters that make the
+    // predicate agree with String.prototype.trim(). Whether it actually does is proven against a real
+    // database in staff-kyc-clearance.pg.spec.ts — a mocked repository never runs the fragment.
+    expect(verifiedName.objectLiteralParameters.blankChars).toContain('\u0009');
+    expect(verifiedName.objectLiteralParameters.blankChars).toContain('\u00a0');
+    expect(verifiedName.objectLiteralParameters.blankChars).toContain('\u3000');
   });
 
   it('deduplicates accounts backing several staff users', async () => {
