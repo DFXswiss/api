@@ -227,9 +227,6 @@ export class AuthService {
         !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature, dto.blockchain))
       ) {
         throw new UnauthorizedException('Invalid credentials');
-      } else if (!user.signature) {
-        // TODO: temporary code to update empty signatures (remove?)
-        await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
       }
     }
 
