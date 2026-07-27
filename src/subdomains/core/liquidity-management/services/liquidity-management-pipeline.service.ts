@@ -289,8 +289,9 @@ export class LiquidityManagementPipelineService {
         const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
 
         if (!actionIntegration?.resolveUncertainOrder) {
-          // Nothing here can ever ask about this order. A release waiting on an answer that can never come
-          // would leave it quarantined for good, so the operator's judgement is all there is to go on.
+          // The one exception to "a release waits for the venue": there is no lookup for this order at all,
+          // so the answer it would wait for can never come, and waiting would quarantine it for good. The
+          // operator's judgement is all there is, which is why the assertion behind it is required.
           if (releasePending) await this.completeNotSentRelease(order, 'no integration can look it up');
           continue;
         }
@@ -331,9 +332,14 @@ export class LiquidityManagementPipelineService {
    * its own, and never an unanswered lookup.
    */
   private async completeNotSentRelease(order: LiquidityManagementOrder, because: string): Promise<boolean> {
+    // The release this pass looked at, captured before the entity is mutated. Ending an order is the one
+    // irreversible step here, so it may only be taken against exactly the release that was examined — never
+    // against one written since, whose own confirmation is still outstanding.
+    const examined = order.notSentRecheckDue ?? null;
+
     order.resolveAsNotSent(`${order.errorMessage} (released ${new Date().toISOString()}: ${because})`);
 
-    if (!(await this.leaveQuarantine(order))) return false;
+    if (!(await this.leaveQuarantine(order, examined))) return false;
 
     this.logger.info(`Uncertain liquidity order ${order.id} released as never sent: ${because}`);
 
@@ -393,8 +399,8 @@ export class LiquidityManagementPipelineService {
 
     await this.orderRepo
       .update(
-        // Same exact-value guard as the reclaim where the reason could be read: appending to a copy that a
-        // newer resolution has already replaced would erase it.
+        // Guarded on the exact reason just read: between that read and this write another path can have
+        // replaced it, and appending to the older copy would erase whatever it now says.
         {
           id: order.id,
           status: In([LiquidityManagementOrderStatus.FAILED, LiquidityManagementOrderStatus.NOT_PROCESSABLE]),
@@ -432,16 +438,21 @@ export class LiquidityManagementPipelineService {
    * rule for an order the venue had just confirmed as live, which is the double execution this all exists to
    * prevent — so the status is part of the WHERE clause and a lost race is simply skipped.
    */
-  private async leaveQuarantine(order: LiquidityManagementOrder): Promise<boolean> {
+  private async leaveQuarantine(order: LiquidityManagementOrder, expectedRecheckDue?: Date | null): Promise<boolean> {
     const result = await this.orderRepo.update(
-      { id: order.id, status: LiquidityManagementOrderStatus.UNCERTAIN },
+      {
+        id: order.id,
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        // narrowed by the caller when the outcome depends on WHICH pending release was examined
+        ...(expectedRecheckDue !== undefined ? { notSentRecheckDue: expectedRecheckDue } : {}),
+      },
       {
         status: order.status,
         errorMessage: order.errorMessage,
         correlationId: order.correlationId,
         previousCorrelationIds: order.previousCorrelationIds,
-        // carries the resolution's own marker: set by a not-sent resolution so reconciliation looks once
-        // more, cleared by a positive one, and written here because this is where either becomes durable
+        // carries the pending-release marker: set when somebody releases the order, cleared once the venue
+        // has answered, and written here because this is where either becomes durable
         notSentRecheckDue: order.notSentRecheckDue ?? null,
       },
     );

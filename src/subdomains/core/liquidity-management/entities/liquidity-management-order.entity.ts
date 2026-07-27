@@ -67,6 +67,9 @@ export class LiquidityManagementOrder extends IEntity {
    * that are in fact committed — before anything could contradict it. So it waits for one machine answer,
    * which normally arrives on the next pass, seconds later.
    *
+   * The one exception is an order no integration can look up any more: no answer can ever come, so waiting
+   * would quarantine it forever and the release takes effect on the operator's assertion alone.
+   *
    * A marker for work outstanding, NOT a record of when the release was asked for: that goes into the
    * order's reason, which nothing clears. Indexed so that finding these few rows is never a scan.
    */

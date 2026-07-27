@@ -203,6 +203,7 @@ describe('LiquidityManagementPipelineService', () => {
     ])('moves an unreleased order on %s -> %s', async (resolution, expectedStatus) => {
       const order = uncertainOrder();
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
       stubIntegration(resolution);
 
       await service['resolveUncertainOrders']();
@@ -226,15 +227,36 @@ describe('LiquidityManagementPipelineService', () => {
     it('puts a release into effect once the venue confirms it has no record either', async () => {
       const order = releasePendingOrder();
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
       stubIntegration(UncertainOrderResolution.UNRESOLVED);
 
-      await service['resolveUncertainOrders']();
+      await expect(service['resolveUncertainOrders']()).resolves.toBe(true);
 
-      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
-      expect(order.notSentRecheckDue).toBeNull();
+      // the write is what counts, not the in-memory entity — and it is guarded on the exact release examined
+      expect(update).toHaveBeenCalledWith(
+        {
+          id: 9,
+          status: LiquidityManagementOrderStatus.UNCERTAIN,
+          notSentRecheckDue: new Date('2026-07-27T20:00:00Z'),
+        },
+        expect.objectContaining({ status: LiquidityManagementOrderStatus.FAILED, notSentRecheckDue: null }),
+      );
       // the operator and their reference survive, and the release is dated
-      expect(order.errorMessage).toContain('OPS-42');
-      expect(order.errorMessage).toMatch(/released \d{4}-\d{2}-\d{2}T/);
+      expect(update.mock.calls[0][1].errorMessage).toContain('OPS-42');
+      expect(update.mock.calls[0][1].errorMessage).toMatch(/released \d{4}-\d{2}-\d{2}T/);
+    });
+
+    it('cannot end an order on a release written after the one it examined', async () => {
+      // a newer release has a confirmation of its own outstanding; ending the order on the older reading
+      // would skip it, and ending an order is the one step nothing here can take back
+      const order = releasePendingOrder();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+      stubIntegration(UncertainOrderResolution.UNRESOLVED);
+
+      await expect(service['resolveUncertainOrders']()).resolves.toBe(false);
+
+      expect(update.mock.calls[0][0]).toMatchObject({ notSentRecheckDue: new Date('2026-07-27T20:00:00Z') });
     });
 
     it('does not release an unreleased order on the same inconclusive answer', async () => {
@@ -261,14 +283,18 @@ describe('LiquidityManagementPipelineService', () => {
     });
 
     it('puts a release into effect when no integration can ever look the order up', async () => {
-      // waiting on an answer that can never come would quarantine it for good
+      // the documented exception: waiting on an answer that can never come would quarantine it for good
       const order = releasePendingOrder();
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
       jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
 
       await service['resolveUncertainOrders']();
 
-      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 9, notSentRecheckDue: new Date('2026-07-27T20:00:00Z') }),
+        expect.objectContaining({ status: LiquidityManagementOrderStatus.FAILED }),
+      );
     });
 
     it('leaves an unreleased order alone when its adapter is gone', async () => {
