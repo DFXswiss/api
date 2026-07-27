@@ -54,7 +54,7 @@ export interface DebugTableSpec {
   // emits `(col)::jsonb -> 'a' -> 'b' ->> 'c'` for these; segment names are validated by regex.
   jsonbColumns?: string[];
   // Columns usable ONLY as a WHERE-leaf column. Never selectable, never orderable, never
-  // groupable, never usable with a `jsonbPath`. Restricted to equality-style operators
+  // groupable, never usable with a `jsonbPath`. Restricted to the equality operator
   // (`DebugFilterOnlyAllowedOps`). Intended for looking a record up by a value the caller
   // already knows, without the endpoint ever disclosing that value. MUST be disjoint from
   // `columns` and `jsonbColumns` (enforced by `assertDebugAllowlistInvariants`).
@@ -64,9 +64,11 @@ export interface DebugTableSpec {
 // Operators a filter-only column may appear with in a WHERE leaf. Ordering/range/pattern
 // operators (`<`, `<=`, `>`, `>=`, `!=`, `LIKE`, `ILIKE`, `IS NULL`, `IS NOT NULL`) would turn
 // the endpoint into an oracle — a caller could binary-search or pattern-match a secret value
-// character by character and reconstruct it without ever selecting it. `=` and `IN` require
-// knowing the exact value up front, which is the intended use case.
-export const DebugFilterOnlyAllowedOps: DebugWhereOp[] = [DebugWhereOp.EQ, DebugWhereOp.IN];
+// character by character and reconstruct it without ever selecting it. `=` requires knowing
+// the exact value up front, which is the intended use case. `IN` is excluded specifically
+// because batching multiplies the throughput of a guessing attack (one request can test up to
+// 100 candidates); `IN` is not unsafe in itself.
+export const DebugFilterOnlyAllowedOps: DebugWhereOp[] = [DebugWhereOp.EQ];
 
 export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   account_merge: {

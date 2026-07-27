@@ -100,10 +100,15 @@ absent from a table's entry is unreachable from this endpoint.
 
 ### Filter-only columns
 
-Most allowlisted columns may appear in `select` / `where` / `orderBy` / `groupBy`. A
-**filter-only** column is narrower: it may appear only as a WHERE leaf, only with `=` or
-`IN`, and never in select, order by, or group by. The intent is lookup by a value the
-caller already knows, without the endpoint ever disclosing that value.
+Most allowlisted columns may appear in `select` / `where` / `orderBy` / `groupBy` and accept
+the full ordinary operator set. A **filter-only** column is narrower: it may appear only as a
+WHERE leaf, only with `=` (not `IN` — batching multiplies guessing throughput; one address
+per request, each separately audit-logged), never under a `NOT` node at any depth (including
+double negation: `NOT (mail = x)` is semantically `mail != x`), and never in select, order by,
+or group by. Equality is case-insensitive (`LOWER(col) = LOWER($n)`): the caller must still
+know the exact address; only letter case is forgiven (historical `user_data` rows contain
+mixed-case addresses). The intent is lookup by a value the caller already knows, without the
+endpoint ever disclosing that value.
 
 The first instance is `user_data.mail` (`filterOnlyColumns` on the `user_data` entry in
 `DebugAllowedColumns`). Support needs to resolve a customer's `userData.id` from an address
@@ -144,8 +149,8 @@ Convenience mode and equivalent raw DTO:
 6. Tables and columns reachable from this endpoint are enumerated in `DebugAllowedColumns`
    (`src/subdomains/generic/gs/dto/gs.dto.ts`). Anything not listed there is unreachable;
    PII / secrets / free-form text are deliberately excluded. Filter-only columns
-   (`filterOnlyColumns`, e.g. `user_data.mail`) may be used only as WHERE leaves with `=` /
-   `IN` and are never returned in results.
+   (`filterOnlyColumns`, e.g. `user_data.mail`) may be used only as WHERE leaves with `=`
+   (not `IN`, not under `NOT`; equality is case-insensitive) and are never returned in results.
 
 ### Kill switch / revocation
 
@@ -169,6 +174,7 @@ Convenience mode and equivalent raw DTO:
   in `filterOnlyColumns` — filter-only columns cannot be selected / ordered / grouped)
 - jsonb path access (the `jsonb` select kind) is allowed only on columns listed in `jsonbColumns`
   (currently only `log.message`)
-- Filter-only columns accept only `=` and `IN` in WHERE; other operators are rejected
+- Filter-only columns accept only `=` in WHERE (not `IN`, not under any `NOT`); equality is
+  case-insensitive; other operators are rejected
 - If the JSON body is malformed at the DTO level (wrong `kind`, missing required field, value out
   of range) NestJS' ValidationPipe rejects with a 400 before the service runs

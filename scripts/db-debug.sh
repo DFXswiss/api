@@ -72,8 +72,9 @@
 #       ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50
 #   --user-by-mail <MAIL> [N]
 #     Resolve user_data id(s) from a mail address you already know. Filters on the filter-only
-#     column user_data.mail (= only); never selects mail. One address can match several rows.
-#     Limit defaults to 100 (not 1). Returns id, created, kycLevel, status.
+#     column user_data.mail (= only, case-insensitive, not under NOT); never selects mail.
+#     One address can match several rows. Limit defaults to 100 (not 1). Returns id, created,
+#     kycLevel, status.
 #   --query '<json>' | --query @path/to/query.json | --query -
 #     Posts an arbitrary DebugQueryDto. Accepts inline JSON, @file, or - to read the DTO from stdin.
 #     The DTO is validated as well-formed JSON (jq) before the request; malformed JSON fails loudly.
@@ -123,8 +124,9 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  -T, --referral-tree <userDataId>"
   echo "                                Show complete referral tree (all branches)"
   echo "  -M, --user-by-mail <MAIL> [N] Resolve user_data id(s) from a known mail (default limit: 100)."
-  echo "                                mail is filter-only: usable only in WHERE (= / IN), never"
-  echo "                                returned by the endpoint. One mail can match several rows."
+  echo "                                mail is filter-only: usable only in WHERE with = (case-"
+  echo "                                insensitive; not under NOT; no IN), never returned by the"
+  echo "                                endpoint. One mail can match several rows."
   echo "  -g, --get <table> [cols] [N]  Ad-hoc: fetch cols (default id,created,updated) from any"
   echo "                                allowlisted table (default limit: 100)"
   echo "  -q, --query <json|@file|->    Ad-hoc: POST an arbitrary structured DTO (inline JSON,"
@@ -320,12 +322,13 @@ case "${1:-}" in
       echo "Usage: ./scripts/db-debug.sh --user-by-mail <MAIL> [N]"
       echo ""
       echo "Resolves user_data id(s) from a mail you already know. mail is filter-only:"
-      echo "usable only as a WHERE leaf (= / IN), never selectable. One mail can match"
-      echo "several user_data rows; default limit is 100."
+      echo "usable only as a WHERE leaf with = (case-insensitive; not under NOT; no IN),"
+      echo "never selectable. One mail can match several user_data rows; default limit is 100."
       exit 1
     fi
-    # Mail is bound via jq --arg only — never string-interpolated into JSON, never echoed
-    # outside the request payload itself.
+    # Mail is bound via jq --arg only — never string-interpolated into JSON. The shared
+    # payload echo redacts WHERE values (see serializeDebugQueryForAudit); DESCRIPTION
+    # and this branch's own messages must not reintroduce the address either.
     USER_BY_MAIL_LIMIT="${3:-100}"
     PAYLOAD=$(jq -n \
       --arg mail "$2" \
@@ -750,7 +753,23 @@ fi
 echo "=== Executing Debug Query ==="
 echo "Query: $DESCRIPTION"
 echo "Payload:"
-echo "$PAYLOAD" | jq -c .
+# Redact WHERE leaf values the same way the server redacts its audit log
+# (serializeDebugQueryForAudit): scalar → "<scalar>", array → "<array:N>".
+# Structure (table / columns / ops) stays visible; the request body is unredacted.
+echo "$PAYLOAD" | jq -c '
+  walk(
+    if type == "object" and has("value") then
+      .value =
+        if (.value | type) == "array" then
+          "<array:\(.value | length)>"
+        else
+          "<scalar>"
+        end
+    else
+      .
+    end
+  )
+'
 echo ""
 
 RESULT=$(curl -s -X POST "$API_URL/gs/debug" \

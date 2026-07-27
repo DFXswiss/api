@@ -17,11 +17,17 @@ the TypeORM entities in this repository.
   or column absent from that map is unreachable (PII / secrets / free-form text are deliberately
   excluded). The full DTO schema is `src/subdomains/generic/gs/dto/debug-query.dto.ts`.
 - **Filter-only columns** (`filterOnlyColumns` on a table's `DebugTableSpec`): usable only as a
-  WHERE leaf, never in select / order by / group by, and only with `=` or `IN` (range, inequality,
-  and pattern ops would turn the endpoint into an oracle). Intended for looking a record up by a
-  value the caller already knows, without the endpoint ever disclosing that value. First instance:
+  WHERE leaf, never in select / order by / group by, and only with `=` (not `IN` — batching
+  multiplies guessing throughput; one address per request, each separately audit-logged). Range,
+  inequality, and pattern ops would turn the endpoint into an oracle. A filter-only column may
+  not appear under a `NOT` node at any depth, including double negation (`NOT (mail = x)` is
+  semantically `mail != x`). Equality is case-insensitive (`LOWER(col) = LOWER($n)`): the caller
+  must still know the exact address; only letter case is forgiven (historical `user_data` rows
+  contain mixed-case addresses). No `jsonbPath`. Intended for looking a record up by a value the
+  caller already knows, without the endpoint ever disclosing that value. First instance:
   `user_data.mail` — resolve `userData.id`(s) from a known address; selecting `mail` is refused.
   One mail can map to several `user_data` rows; use a multi-row `limit` (e.g. 100), never 1.
+  Ordinary allowlisted columns keep the full operator set; only filter-only columns are restricted.
 - The default target is production (`DEBUG_API_URL` in the local `.env`).
 - `limit` is required (1..10000); the service additionally clamps to its own max. Page larger scans
   with explicit `limit` + `offset`.
@@ -39,7 +45,9 @@ the TypeORM entities in this repository.
 - `where` (optional): a tree of nodes, each with a `kind`:
   - `{"kind":"leaf","column":"x","op":"=","value":...}` — ops: `= != < <= > >= IN "NOT IN" LIKE
     ILIKE "IS NULL" "IS NOT NULL"`. `IN` / `NOT IN` take an array value; `IS NULL` / `IS NOT NULL`
-    take no value; the rest take a scalar. On filter-only columns only `=` and `IN` are allowed.
+    take no value; the rest take a scalar. On filter-only columns only `=` is allowed (not `IN`,
+    not under any `NOT` node at any depth); equality is case-insensitive
+    (`LOWER(col) = LOWER($n)`). Ordinary allowlisted columns keep the full operator set above.
   - `{"kind":"and","children":[...]}` / `{"kind":"or","children":[...]}` — up to 5 children each.
   - `{"kind":"not","child":{...}}`.
   - Caps: tree depth ≤ 5, ≤ 200 nodes, ≤ 50 leaf predicates, ≤ 100 values per IN list.
@@ -88,7 +96,8 @@ Entity: `src/subdomains/core/liquidity-management/entities/liquidity-balance.ent
 ## Other useful tables
 - `recommendation`: `recommenderId`, `recommendedId`, `method`, `created` (referrals).
 - `user_data`: `id`, `status`, `kycStatus`, `kycLevel`, … (used by referral-tree status lookups).
-  `mail` is **filter-only** (not in `columns`): WHERE `=` / `IN` only, never selected. CLI:
+  `mail` is **filter-only** (not in `columns`): WHERE `=` only (case-insensitive; not under
+  `NOT`; no `IN`), never selected / ordered / grouped. CLI:
   `scripts/db-debug.sh --user-by-mail <MAIL> [N]` (default limit 100). Equivalent DTO:
   `{"table":"user_data","select":[{"kind":"column","column":"id"},{"kind":"column","column":"created"},{"kind":"column","column":"kycLevel"},{"kind":"column","column":"status"}],"where":{"kind":"leaf","column":"mail","op":"=","value":"<mail>"},"orderBy":[{"column":"id","direction":"ASC"}],"limit":100}`.
   Result is an array of rows — one mail can belong to several `user_data` records.

@@ -341,9 +341,20 @@ export class GsService {
   // Asserts a column may be used as a WHERE-leaf filter. Accepts `spec.columns` plus any
   // `filterOnlyColumns`. Filter-only columns are further restricted to equality-style ops
   // (`DebugFilterOnlyAllowedOps`) so range/pattern operators cannot oracle-reconstruct the value.
-  private assertDebugFilterColumnAllowed(column: string, op: DebugWhereOp, spec: DebugTableSpec): void {
+  // A filter-only leaf under any `not` ancestor is also rejected (`negated`): `NOT (mail = x)`
+  // is equivalent to `mail != x`, which would bypass the operator gate. Any negation above a
+  // filter-only leaf is refused — double negation is NOT cancelled out.
+  private assertDebugFilterColumnAllowed(
+    column: string,
+    op: DebugWhereOp,
+    spec: DebugTableSpec,
+    negated: boolean,
+  ): void {
     if (spec.columns.includes(column)) return;
     if (spec.filterOnlyColumns?.includes(column)) {
+      if (negated) {
+        throw new BadRequestException(`Filter-only column '${column}' cannot be used inside a NOT`);
+      }
       if (!DebugFilterOnlyAllowedOps.includes(op)) {
         throw new BadRequestException(`Operator '${op}' is not allowed on filter-only column '${column}'`);
       }
@@ -442,27 +453,33 @@ export class GsService {
 
   // Recursive WHERE emitter. Caps depth and predicate count to prevent JSON-tree DoS. Returns
   // a parenthesized SQL fragment with parameter placeholders.
-  private emitDebugWhere(node: DebugWhereNode, ctx: DebugQueryEmitCtx, depth: number): string {
+  //
+  // `negated` is true under any `not` ancestor. Filter-only columns are rejected in a
+  // negated context (see `assertDebugFilterColumnAllowed`). Entering a `not` node sets the
+  // flag for the whole subtree — double negation is deliberately NOT cancelled out.
+  private emitDebugWhere(node: DebugWhereNode, ctx: DebugQueryEmitCtx, depth: number, negated = false): string {
     if (depth > DebugQueryMaxWhereDepth) {
       throw new BadRequestException(`WHERE tree exceeds max depth of ${DebugQueryMaxWhereDepth}`);
     }
 
     switch (node.kind) {
       case 'leaf':
-        return this.emitDebugWhereLeaf(node, ctx);
+        return this.emitDebugWhereLeaf(node, ctx, negated);
 
       case 'and':
       case 'or': {
         if (!node.children?.length) {
           throw new BadRequestException(`'${node.kind}' node requires at least one child`);
         }
-        const parts = node.children.map((c) => this.emitDebugWhere(c, ctx, depth + 1));
+        const parts = node.children.map((c) => this.emitDebugWhere(c, ctx, depth + 1, negated));
         return `(${parts.join(node.kind === 'and' ? ' AND ' : ' OR ')})`;
       }
 
       case 'not': {
         if (!node.child) throw new BadRequestException("'not' node requires `child`");
-        return `(NOT ${this.emitDebugWhere(node.child, ctx, depth + 1)})`;
+        // Set (not flip) negated for the subtree — any filter-only leaf below a NOT is refused,
+        // including under double negation. Ordinary allowlisted columns keep working inside NOT.
+        return `(NOT ${this.emitDebugWhere(node.child, ctx, depth + 1, true)})`;
       }
 
       default:
@@ -472,7 +489,7 @@ export class GsService {
 
   // Emits one leaf predicate. Validates column-in-allowlist and op-against-value-shape, then
   // binds the value(s) as parameters.
-  private emitDebugWhereLeaf(node: DebugWhereNode, ctx: DebugQueryEmitCtx): string {
+  private emitDebugWhereLeaf(node: DebugWhereNode, ctx: DebugQueryEmitCtx, negated: boolean): string {
     if (++ctx.predicateCount > DebugQueryMaxPredicates) {
       throw new BadRequestException(`WHERE tree exceeds max predicates of ${DebugQueryMaxPredicates}`);
     }
@@ -485,9 +502,10 @@ export class GsService {
     if (!Object.values(DebugWhereOp).includes(node.op)) {
       throw new BadRequestException(`Operator '${node.op}' is not allowed`);
     }
-    this.assertDebugFilterColumnAllowed(node.column, node.op, ctx.spec);
+    this.assertDebugFilterColumnAllowed(node.column, node.op, ctx.spec, negated);
 
     const colSql = `"${ctx.table}"."${node.column}"`;
+    const isFilterOnly = !!ctx.spec.filterOnlyColumns?.includes(node.column);
 
     switch (node.op) {
       case DebugWhereOp.IS_NULL:
@@ -516,6 +534,13 @@ export class GsService {
           throw new BadRequestException(`op '${node.op}' requires a single scalar value`);
         }
         this.assertDebugScalarValue(node.value);
+        // Filter-only equality is case-insensitive: equality stays equality (the caller must
+        // still know the exact address; only letter case is forgiven), so this grants no
+        // additional information, and it matches how the application itself resolves mail
+        // (`LOWER(mail) = :mail`). Cannot use a plain index on the column. Value stays bound.
+        if (isFilterOnly && node.op === DebugWhereOp.EQ) {
+          return `LOWER(${colSql}) = LOWER($${this.bindDebugParam(node.value, ctx)})`;
+        }
         return `${colSql} ${node.op} $${this.bindDebugParam(node.value, ctx)}`;
       }
     }
