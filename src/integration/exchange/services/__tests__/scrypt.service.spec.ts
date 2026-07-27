@@ -67,6 +67,7 @@ describe('ScryptService', () => {
   });
 
   afterEach(() => {
+    (service as any).clearCatchUpRetry(); // a bounded invocation may leave a retry armed
     jest.restoreAllMocks();
   });
 
@@ -208,21 +209,26 @@ describe('ScryptService', () => {
 
     expect((service as any).balanceTransactions.get('iso-1')).toEqual(freshBalanceTx);
     expect((service as any).executionReports.size).toBe(0);
-    // Every round of the invocation fails on the same leg, but the streak is logged once, not once per round.
-    expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      'Scrypt reconnect catch-up (execution reports) failed, 1 consecutive failure(s):',
+    // The balance leg applied in round 1, so only the failed leg is retried — it is not re-fetched three times.
+    const balanceCalls = instance.fetchAll.mock.calls.filter(
+      ([streamName]) => streamName === ScryptMessageType.BALANCE_TRANSACTION,
+    );
+    expect(balanceCalls).toHaveLength(1);
+    // A failing leg is a real state gap, so every failed round says so; the round gate is what bounds the volume.
+    expect(loggerErrorSpy).toHaveBeenCalledTimes((service as any).catchUpMaxRounds);
+    expect(loggerErrorSpy).toHaveBeenNthCalledWith(
+      1,
+      `Scrypt reconnect catch-up (${ScryptMessageType.EXECUTION_REPORT}) failed, 1 consecutive failure(s):`,
       rejectionError,
     );
   });
 
-  it('catchUpAfterReconnect stops after catchUpMaxRounds instead of re-arming while the connection flaps', async () => {
+  it('catchUpAfterReconnect stops after catchUpMaxRounds when every round fails', async () => {
     jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
 
     instance.fetchAll.mockClear();
     instance.fetchAll.mockImplementation(async (streamName: string) => {
-      // Every round fails, and each one re-arms the coalescing flag the way an overlapping reconnect would.
-      (service as any).catchUpPending = true;
       if (streamName === ScryptMessageType.EXECUTION_REPORT) throw new Error('Connection closed');
       return [];
     });
@@ -235,6 +241,88 @@ describe('ScryptService', () => {
     );
     expect(executionReportCalls).toHaveLength((service as any).catchUpMaxRounds);
     expect((service as any).catchUpInProgress).toBe(false);
+  });
+
+  it('catchUpAfterReconnect bounds the rounds when every round succeeds but a reconnect re-arms it', async () => {
+    const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockImplementation(async () => {
+      // A reconnect lands while the round's fetches are in flight, exactly as a flapping socket does. This is the
+      // path the old `do { … } while (catchUpPending)` never escaped.
+      (service as any).catchUpPending = true;
+      return [];
+    });
+
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    const executionReportCalls = instance.fetchAll.mock.calls.filter(
+      ([streamName]) => streamName === ScryptMessageType.EXECUTION_REPORT,
+    );
+    expect(executionReportCalls).toHaveLength((service as any).catchUpMaxRounds);
+    expect((service as any).catchUpInProgress).toBe(false);
+    // The still-uncovered reconnect is handed to a scheduled retry rather than dropped.
+    expect((service as any).catchUpRetryTimer).toBeDefined();
+    expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('catch-up incomplete after'));
+  });
+
+  it('catchUpAfterReconnect runs immediately when the last round is longer ago than catchUpMinInterval', async () => {
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockResolvedValue([]);
+    delaySpy.mockClear();
+    (service as any).lastCatchUpAt = Date.now() - 10 * 60 * 1000;
+
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    // The gate must not delay an isolated reconnect — that is the claim that makes the interval acceptable.
+    expect(delaySpy).not.toHaveBeenCalled();
+    expect(instance.fetchAll).toHaveBeenCalledTimes((service as any).catchUpStreams.length);
+  });
+
+  it('catchUpAfterReconnect stamps the slot at the end of a round, not only at its start', async () => {
+    let startStamp: number | undefined;
+
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockImplementation(async () => {
+      startStamp ??= (service as any).lastCatchUpAt;
+      await new Promise((resolve) => setTimeout(resolve, 5)); // a round that consumes real time
+      return [];
+    });
+
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    // Without the end stamp a round longer than catchUpMinInterval would leave the next one ungated.
+    expect((service as any).lastCatchUpAt).toBeGreaterThan(startStamp!);
+  });
+
+  it('a warm-up that failed does not claim the catch-up slot', async () => {
+    const MockedConnection = ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>;
+    MockedConnection.mockImplementationOnce(
+      () =>
+        ({
+          fetchAll: jest.fn().mockRejectedValue(new Error('Connection closed')),
+          fetch: jest.fn().mockResolvedValue([]),
+          subscribeToStream: jest.fn().mockReturnValue(() => undefined),
+          onReconnect: jest.fn(),
+          send: jest.fn(),
+          requestAndWaitForUpdate: jest.fn(),
+        }) as any,
+    );
+
+    const freshService = new ScryptService();
+    jest.spyOn((freshService as any).logger, 'error').mockImplementation(() => undefined);
+    await flushPromises();
+
+    // The caches are not whole, so the next reconnect must repair immediately instead of sitting out the interval.
+    expect((freshService as any).lastCatchUpAt).toBeUndefined();
+  });
+
+  it('a warm-up that loaded both streams claims the catch-up slot', async () => {
+    // The default mock resolves both warm-up fetches, so the service built in beforeEach has a whole cache.
+    expect((service as any).lastCatchUpAt).toBeDefined();
   });
 
   it('catchUpAfterReconnect waits out catchUpMinInterval before a follow-up round', async () => {
