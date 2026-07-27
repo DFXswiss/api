@@ -41,6 +41,12 @@ module.exports = class AddCustodyAccountAccessHistory1785100000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
+    // ACCESS EXCLUSIVE first: the refusal decision and the schema change must see the same
+    // table. Without the lock a concurrent revoke can deactivate a grant after the count
+    // returns 0 and before we drop `active`, resurrecting that grant as if it were live.
+    // TypeORM runs this migration in a transaction, so the lock is held until commit/rollback.
+    await queryRunner.query(`LOCK TABLE "custody_account_access" IN ACCESS EXCLUSIVE MODE`);
+
     // Refuse when inactive history exists: both consolidations are lossy (delete history, or
     // resurrect revoked grants after dropping `active`). Count first so a refused rollback
     // leaves the schema completely untouched.
