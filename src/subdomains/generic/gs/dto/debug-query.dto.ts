@@ -20,9 +20,10 @@ import {
 
 // Structured /gs/debug DTO.
 //
-// The endpoint accepts a JSON description of a query and emits SQL via TypeORM QueryBuilder
-// with parameter binding. No raw SQL ever crosses the wire; identifiers are pulled from
-// DebugAllowedColumns in gs.dto.ts, and values flow exclusively through bound parameters.
+// The endpoint accepts a JSON description of a query and emits SQL manually with parameter
+// binding, then executes it via `dataSource.query`. No raw SQL ever crosses the wire;
+// identifiers are pulled from DebugAllowedColumns in gs.dto.ts, and values flow exclusively
+// through bound parameters.
 //
 // This is deliberately a narrow surface — every shape the executor can produce is enumerated
 // here. To add functionality (CASE, window funcs, OR-with-NOT-NULL, …) extend the schema

@@ -10,6 +10,7 @@
 #   ./scripts/db-debug.sh --asset-history Yapeal/EUR 10      # Show asset balance history
 #   ./scripts/db-debug.sh --referral-chain <userDataId>      # Show referral chain
 #   ./scripts/db-debug.sh --referral-tree <userDataId>       # Show referral tree
+#   ./scripts/db-debug.sh --user-by-mail [N]                 # Resolve user_data id(s); mail on stdin
 #   ./scripts/db-debug.sh --get <table> [cols] [limit]       # Ad-hoc: fetch cols from any allowlisted table
 #   ./scripts/db-debug.sh --query '<json>|@file|-'           # Ad-hoc: POST an arbitrary structured DTO
 #
@@ -26,12 +27,29 @@
 # Safety:
 #   - DEBUG_API_URL defaults to PRODUCTION. The endpoint is read-only by construction:
 #     it accepts a JSON query description and emits parameter-bound SELECT statements
-#     through TypeORM. Writes / DDL are not expressible.
+#     via dataSource.query. Writes / DDL are not expressible.
+#   - Request bodies are sent to curl via stdin (`-d @-`), never as a curl argv value, so the
+#     body does not appear in curl's process arguments (`ps` / `/proc/*/cmdline`) on a shared
+#     host. That does not cover every way a payload can still sit in argv: an inline
+#     `--query '<json>'` places the complete DTO — including any value inside it — in this
+#     script's own argv and in shell history. Inline is fine for ordinary, non-sensitive
+#     queries; for any sensitive value (in particular a filter-only column such as
+#     user_data.mail) use `--query @file` or `--query -` (stdin) instead.
+#   - --user-by-mail is unaffected: it reads the address from stdin (not argv), so it does
+#     not appear in any process's argv. The script does not print the address; error messages
+#     are value-free (no submitted limit, trailing arg, or address is echoed); the payload
+#     echo redacts WHERE values the same way the server audit log does. At a TTY the prompt
+#     states that input is hidden and read uses echo-off, so the address does not enter
+#     terminal scrollback; pipes use plain read. Audit-log and error-path redaction hold
+#     under normal production config (SQL_LOGGING unset). Enabling SQL query logging
+#     (SQL_LOGGING) makes TypeORM print bound parameters — including the address — for
+#     successful queries, which defeats that redaction (see the comment in
+#     src/shared/services/typeorm-logger.ts).
 #
 # Structured /gs/debug endpoint:
 #   The endpoint no longer accepts raw SQL. The request body is a JSON description of
-#   the query that the service translates into SQL via TypeORM QueryBuilder with bound
-#   parameters. Shape:
+#   the query that the service translates into SQL manually with bound parameters and
+#   executes via dataSource.query. Shape:
 #
 #     {
 #       "table": "log",
@@ -69,9 +87,27 @@
 #     Columns default to id,created,updated; limit defaults to 100.
 #       ./scripts/db-debug.sh --get user_data
 #       ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50
+#   --user-by-mail [N]
+#     Resolve user_data id(s) from a mail address you already know. The address is read from
+#     stdin (one line; TTY → prompt on stderr with input hidden; non-TTY → silent read).
+#     Empty/EOF fails loudly. Filters on the filter-only column user_data.mail (= only,
+#     case-insensitive, not under NOT); never selects mail. One address can match several
+#     rows. Limit defaults to 100 (not 1) and must be an integer in 1..10000 (server DTO
+#     cap); trailing args are rejected by argument count. Returns id, created, kycLevel,
+#     status. The address is not placed in any process's argv; the script does not print it;
+#     error messages never echo submitted values; the payload echo redacts WHERE values.
+#     Audit/error redaction holds when SQL query logging is off (production: SQL_LOGGING
+#     unset); enabling SQL_LOGGING would print bound parameters including the address.
+#       ./scripts/db-debug.sh --user-by-mail          # interactive: input hidden at prompt
+#       ./scripts/db-debug.sh --user-by-mail < address.txt
+#       ./scripts/db-debug.sh --user-by-mail 50 < address.txt
 #   --query '<json>' | --query @path/to/query.json | --query -
 #     Posts an arbitrary DebugQueryDto. Accepts inline JSON, @file, or - to read the DTO from stdin.
 #     The DTO is validated as well-formed JSON (jq) before the request; malformed JSON fails loudly.
+#     Inline `--query '<json>'` is convenient for ordinary non-sensitive queries, but the full
+#     DTO (including any values) is visible in this script's argv and shell history. For any
+#     sensitive value — e.g. a filter-only column such as user_data.mail — use --query @file
+#     or --query - (stdin) instead. --user-by-mail already reads the address from stdin.
 #       ./scripts/db-debug.sh --query '{"table":"asset","select":[{"kind":"column","column":"name"}],"limit":5}'
 #       ./scripts/db-debug.sh --query @/tmp/query.json
 #       echo '{"table":"asset","select":[{"kind":"column","column":"id"}],"limit":1}' | ./scripts/db-debug.sh --query -
@@ -117,10 +153,24 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "                                Show complete referral chain for user"
   echo "  -T, --referral-tree <userDataId>"
   echo "                                Show complete referral tree (all branches)"
+  echo "  -M, --user-by-mail [N]        Resolve user_data id(s) from a known mail on stdin"
+  echo "                                (default limit: 100, integer 1..10000; no extra args)."
+  echo "                                mail is filter-only: usable only in WHERE with ="
+  echo "                                (case-insensitive; not under NOT; no IN), never returned."
+  echo "                                One mail can match several rows. Address is not in any"
+  echo "                                process argv; script does not print it; errors never echo"
+  echo "                                submitted values; payload echo redacts WHERE values."
+  echo "                                At a TTY the prompt hides typed input (no scrollback);"
+  echo "                                pipes use plain read. Audit/error redaction holds when"
+  echo "                                SQL query logging is off (prod: SQL_LOGGING unset);"
+  echo "                                enabling SQL_LOGGING would print bound parameters"
+  echo "                                incl. the address."
   echo "  -g, --get <table> [cols] [N]  Ad-hoc: fetch cols (default id,created,updated) from any"
   echo "                                allowlisted table (default limit: 100)"
   echo "  -q, --query <json|@file|->    Ad-hoc: POST an arbitrary structured DTO (inline JSON,"
-  echo "                                @file, or - to read the DTO from stdin)"
+  echo "                                @file, or - to read the DTO from stdin). Inline puts the"
+  echo "                                full DTO in this script's argv and shell history; for"
+  echo "                                sensitive values (e.g. user_data.mail) use @file or -."
   echo ""
   echo "Examples:"
   echo "  ./scripts/db-debug.sh --anomalies 50"
@@ -130,6 +180,9 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
   echo "  ./scripts/db-debug.sh --referral-chain 370625"
   echo "  ./scripts/db-debug.sh --referral-tree 370625"
+  echo "  ./scripts/db-debug.sh --user-by-mail   # interactive: input hidden at prompt"
+  echo "  ./scripts/db-debug.sh --user-by-mail < address.txt"
+  echo "  ./scripts/db-debug.sh --user-by-mail 50 < address.txt"
   echo "  ./scripts/db-debug.sh --get user_data"
   echo "  ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50"
   echo "  ./scripts/db-debug.sh --query '{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"name\"}],\"limit\":5}'"
@@ -140,7 +193,9 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  curl -X POST \$API_URL/gs/debug \\"
   echo "    -H 'Authorization: Bearer \$TOKEN' \\"
   echo "    -H 'Content-Type: application/json' \\"
-  echo "    -d '{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"id\"},{\"kind\":\"column\",\"column\":\"name\"}],\"orderBy\":[{\"column\":\"id\",\"direction\":\"DESC\"}],\"limit\":5}'"
+  echo "    -d @- <<'EOF'"
+  echo "{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"id\"},{\"kind\":\"column\",\"column\":\"name\"}],\"orderBy\":[{\"column\":\"id\",\"direction\":\"DESC\"}],\"limit\":5}"
+  echo "EOF"
   exit 0
 fi
 
@@ -304,6 +359,84 @@ case "${1:-}" in
     REFERRAL_TREE_MODE="1"
     TARGET_USER_ID="$2"
     ;;
+  -M|--user-by-mail)
+    # Mail is read from stdin (not argv) so it does not appear in process argv via ps/proc.
+    # Optional limit stays positional (matches other modes). Empty/EOF fails loudly — no
+    # default filter. Address is bound into jq via stdin (not --arg); the shared payload
+    # echo redacts WHERE values (see serializeDebugQueryForAudit); DESCRIPTION and this
+    # branch's own messages must not reintroduce the address either. Error messages are
+    # value-free: never echo a submitted limit, trailing arg, or address.
+    #
+    # Validate by argument count ($#), not emptiness of $2/$3: an explicitly empty second
+    # arg is invalid, and "--user-by-mail 50 '' ignored" must still be rejected.
+    if [ "$#" -gt 2 ]; then
+      echo "Error: unexpected argument — address comes from stdin (one line), not as an argument"
+      echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
+      exit 1
+    fi
+    if [ "$#" -eq 2 ]; then
+      # Server DebugQueryDto caps limit at 10000; reject out-of-range client-side so a large
+      # N fails before auth instead of after. Default remains 100.
+      # Bound digit length before arithmetic: a long digit string passes a loose regex but
+      # overflows bash integer comparison ("integer expected") and would otherwise proceed.
+      if ! [[ "$2" =~ ^[1-9][0-9]{0,4}$ ]] || [ "$2" -gt 10000 ]; then
+        echo "Error: --user-by-mail limit must be an integer in 1..10000"
+        echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
+        exit 1
+      fi
+      USER_BY_MAIL_LIMIT="$2"
+    else
+      USER_BY_MAIL_LIMIT="100"
+    fi
+    if [ -t 0 ]; then
+      printf 'Mail address (input hidden): ' >&2
+      # Echo off: address must not land in terminal scrollback. Newline after so following
+      # output is not glued to the prompt.
+      IFS= read -r -s USER_BY_MAIL || true
+      printf '\n' >&2
+    else
+      # One line; EOF without content → empty. Trailing newline stripped by read -r.
+      IFS= read -r USER_BY_MAIL || true
+    fi
+    # Trim surrounding whitespace only (trailing newline already removed by read).
+    # Do not lowercase — the server matches case-insensitively.
+    USER_BY_MAIL="${USER_BY_MAIL#"${USER_BY_MAIL%%[![:space:]]*}"}"
+    USER_BY_MAIL="${USER_BY_MAIL%"${USER_BY_MAIL##*[![:space:]]}"}"
+    if [ -z "$USER_BY_MAIL" ]; then
+      echo "Error: --user-by-mail requires a non-empty mail address on stdin (one line)"
+      echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
+      echo ""
+      echo "Pass the address on stdin (one line). Interactive TTY prompts on stderr with"
+      echo "input hidden; pipes/scripts pass the line without a prompt. Empty input / EOF fails."
+      echo ""
+      echo "Examples:"
+      echo "  ./scripts/db-debug.sh --user-by-mail   # interactive prompt (input hidden)"
+      echo "  ./scripts/db-debug.sh --user-by-mail < address.txt"
+      echo "  ./scripts/db-debug.sh --user-by-mail 50 < address.txt"
+      echo ""
+      echo "Resolves user_data id(s) from a mail you already know. mail is filter-only:"
+      echo "usable only as a WHERE leaf with = (case-insensitive; not under NOT; no IN),"
+      echo "never selectable. One mail can match several user_data rows; default limit is 100"
+      echo "(allowed range for N: 1..10000)."
+      exit 1
+    fi
+    # Pass the address via stdin into jq (same pattern as --query JSON validation), not
+    # --arg — so the address is not in jq's argv either.
+    PAYLOAD=$(printf '%s' "$USER_BY_MAIL" | jq -R --argjson limit "$USER_BY_MAIL_LIMIT" '{
+        table: "user_data",
+        select: [
+          {kind: "column", column: "id"},
+          {kind: "column", column: "created"},
+          {kind: "column", column: "kycLevel"},
+          {kind: "column", column: "status"}
+        ],
+        where: {kind: "leaf", column: "mail", op: "=", value: .},
+        orderBy: [{column: "id", direction: "ASC"}],
+        limit: $limit
+      }')
+    DESCRIPTION="user_data by mail (filter-only, limit $USER_BY_MAIL_LIMIT)"
+    OUTPUT_MODE="objects"
+    ;;
   -g|--get)
     if [ -z "${2:-}" ]; then
       echo "Error: --get requires a table name"
@@ -392,9 +525,10 @@ API_URL="${DEBUG_API_URL:-https://api.dfx.swiss/v1}"
 
 # --- Authenticate ---
 echo "=== Authenticating to $API_URL ==="
-TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth" \
+# Body via stdin (`-d @-`) so credentials are not in curl's argv (ps /proc visibility).
+TOKEN_RESPONSE=$(printf '%s' "{\"address\":\"$DEBUG_ADDRESS\",\"signature\":\"$DEBUG_SIGNATURE\"}" | curl -s -X POST "$API_URL/auth" \
   -H "Content-Type: application/json" \
-  -d "{\"address\":\"$DEBUG_ADDRESS\",\"signature\":\"$DEBUG_SIGNATURE\"}")
+  -d @-)
 
 TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.accessToken' 2>/dev/null)
 
@@ -412,6 +546,14 @@ echo ""
 # Many of the existing jq formatters were written against the pre-migration shape (array
 # of objects). This filter rebuilds that shape so we can reuse them.
 KEYS_ROWS_TO_OBJECTS='[ .keys as $k | .rows[] | [$k, .] | transpose | map({(.[0]): .[1]}) | add ]'
+
+# --- Helper: POST a JSON body to /gs/debug without putting the body in curl argv ---
+post_debug_query() {
+  printf '%s' "$1" | curl -s -X POST "$API_URL/gs/debug" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d @-
+}
 
 # --- Helper: build a payload for a single-leaf where query ---
 # Used by the referral walkers.
@@ -459,10 +601,7 @@ if [ -n "$REFERRAL_CHAIN_MODE" ]; then
     # Query recommendation for current user
     SELECT_JSON='[{"kind":"column","column":"recommenderId"},{"kind":"column","column":"method"},{"kind":"column","column":"created"}]'
     REQ_PAYLOAD=$(build_leaf_payload "recommendation" "$SELECT_JSON" "recommendedId" "$CURRENT_ID" "null" "1")
-    RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$REQ_PAYLOAD")
+    RESULT=$(post_debug_query "$REQ_PAYLOAD")
 
     ROWS_LEN=$(echo "$RESULT" | jq -r '.rows | length // 0' 2>/dev/null)
     if [ "$ROWS_LEN" = "0" ] || [ -z "$ROWS_LEN" ]; then
@@ -532,10 +671,7 @@ if [ -n "$REFERRAL_TREE_MODE" ]; then
     ROOT_ID="$CURRENT_ID"
     SELECT_JSON='[{"kind":"column","column":"recommenderId"}]'
     REQ_PAYLOAD=$(build_leaf_payload "recommendation" "$SELECT_JSON" "recommendedId" "$CURRENT_ID" "null" "1")
-    RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$REQ_PAYLOAD")
+    RESULT=$(post_debug_query "$REQ_PAYLOAD")
     ROWS_LEN=$(echo "$RESULT" | jq -r '.rows | length // 0' 2>/dev/null)
     if [ "$ROWS_LEN" = "0" ] || [ -z "$ROWS_LEN" ]; then
       CURRENT_ID=""
@@ -562,10 +698,7 @@ if [ -n "$REFERRAL_TREE_MODE" ]; then
     # Get user status
     local status_select='[{"kind":"column","column":"status"},{"kind":"column","column":"kycStatus"}]'
     local status_payload=$(build_leaf_payload "user_data" "$status_select" "id" "$user_id" "null" "1")
-    local status_result=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$status_payload")
+    local status_result=$(post_debug_query "$status_payload")
     local status=$(echo "$status_result" | jq -r '.rows[0][0] // "?"')
     local kyc_status=$(echo "$status_result" | jq -r '.rows[0][1] // "?"')
 
@@ -590,10 +723,7 @@ if [ -n "$REFERRAL_TREE_MODE" ]; then
     local children_select='[{"kind":"column","column":"recommendedId"}]'
     local children_order='[{"column":"created","direction":"ASC"}]'
     local children_payload=$(build_leaf_payload "recommendation" "$children_select" "recommenderId" "$user_id" "$children_order" "1000")
-    local children_result=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$children_payload")
+    local children_result=$(post_debug_query "$children_payload")
     local children=$(echo "$children_result" | jq -r '.rows[]?[0] // empty' 2>/dev/null)
 
     if [ -n "$children" ]; then
@@ -635,10 +765,7 @@ if [ -n "$REFERRAL_TREE_MODE" ]; then
     for check_id in $TO_CHECK; do
       count_select='[{"kind":"column","column":"recommendedId"}]'
       count_payload=$(build_leaf_payload "recommendation" "$count_select" "recommenderId" "$check_id" "null" "1000")
-      count_children_result=$(curl -s -X POST "$API_URL/gs/debug" \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "$count_payload")
+      count_children_result=$(post_debug_query "$count_payload")
       count_children=$(echo "$count_children_result" | jq -r '.rows[]?[0] // empty' 2>/dev/null)
       for child in $count_children; do
         if [[ ! " $KNOWN_IDS " =~ " $child " ]]; then
@@ -685,10 +812,7 @@ if [ -n "$ASSET_HISTORY_MODE" ]; then
         },
         limit: 1
       }')
-    ASSET_RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$ASSET_PAYLOAD")
+    ASSET_RESULT=$(post_debug_query "$ASSET_PAYLOAD")
 
     ASSET_ID=$(echo "$ASSET_RESULT" | jq -r '.rows[0][0] // empty' 2>/dev/null)
 
@@ -709,13 +833,26 @@ fi
 echo "=== Executing Debug Query ==="
 echo "Query: $DESCRIPTION"
 echo "Payload:"
-echo "$PAYLOAD" | jq -c .
+# Redact WHERE leaf values the same way the server redacts its audit log
+# (serializeDebugQueryForAudit): scalar → "<scalar>", array → "<array:N>".
+# Structure (table / columns / ops) stays visible; the request body is unredacted.
+echo "$PAYLOAD" | jq -c '
+  walk(
+    if type == "object" and has("value") then
+      .value =
+        if (.value | type) == "array" then
+          "<array:\(.value | length)>"
+        else
+          "<scalar>"
+        end
+    else
+      .
+    end
+  )
+'
 echo ""
 
-RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "$PAYLOAD")
+RESULT=$(post_debug_query "$PAYLOAD")
 
 echo "=== Result ==="
 

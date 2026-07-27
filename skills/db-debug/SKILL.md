@@ -1,6 +1,6 @@
 ---
 name: db-debug
-description: Read-only debugging of the production database via the scripts/db-debug.sh CLI (the structured /gs/debug endpoint). Use to inspect financial anomalies, total-balance history (FinancialDataLog), liquidity balances, an asset's balance history, referral chains or trees, compare two balance-log snapshots, inspect one asset's balance structure, or run an ad-hoc read-only query against any allowlisted table with a structured JSON DTO. No raw SQL — read-only by construction, never writes.
+description: Read-only debugging of the production database via the scripts/db-debug.sh CLI (the structured /gs/debug endpoint). Use to inspect financial anomalies, total-balance history (FinancialDataLog), liquidity balances, an asset's balance history, referral chains or trees, resolve user_data id(s) from a known mail (filter-only), compare two balance-log snapshots, inspect one asset's balance structure, or run an ad-hoc read-only query against any allowlisted table with a structured JSON DTO. No raw SQL — read-only by construction, never writes.
 ---
 
 # Database debug (read-only)
@@ -9,7 +9,8 @@ Read-only forensics against the production database through the `scripts/db-debu
 script authenticates itself (DEBUG address + signature from the local `.env`) and posts a
 **structured JSON query** to the `/gs/debug` endpoint. There is no raw SQL: the request body is a
 `DebugQueryDto` describing table, select items, an optional where-tree, group/order/limit, which the
-service compiles to a parameter-bound SELECT via TypeORM. Writes and DDL are not expressible, and
+service emits as a hand-built SELECT with bound `$1..$N` parameters (executed via
+`dataSource.query`, not QueryBuilder). Writes and DDL are not expressible, and
 every identifier must appear in the per-table allowlist (`DebugAllowedColumns` in
 `src/subdomains/generic/gs/dto/gs.dto.ts`) — the source of truth, which drifts per migration.
 
@@ -39,15 +40,21 @@ request implies a write, refuse and explain why.
 | `--asset-history <id\|Blockchain/Name> [N]` | balance history for one asset (default 10) |
 | `--referral-chain <userDataId>` | referral chain upward |
 | `--referral-tree <userDataId>` | full referral tree with status |
+| `--user-by-mail [N]` | resolve `user_data` id(s) from a known mail on stdin (filter-only; mail never returned; not in process argv; script does not print it; errors never echo submitted values; payload echo redacts WHERE values; TTY prompt hides typed input; audit/error redaction holds when SQL query logging is off / prod `SQL_LOGGING` unset; default limit 100, integer 1..10000, trailing args rejected by count; one mail can match several rows) |
 | `--get <table> [col1,col2,...] [limit]` | ad-hoc: fetch columns (default `id,created,updated`) from any allowlisted table (default limit 100) |
-| `--query <json\|@file\|->` | ad-hoc: POST an arbitrary structured DTO (inline JSON, `@file`, or `-` to read the DTO from stdin) |
+| `--query <json\|@file\|->` | ad-hoc: POST an arbitrary structured DTO (inline JSON, `@file`, or `-` to read the DTO from stdin). Inline puts the full DTO in the script's argv and shell history; for sensitive values (e.g. `user_data.mail`) use `@file` or `-` |
 | `--help` | full usage |
 
 ## Ad-hoc queries
 
 Use `--get` for the common case (columns from one table) and `--query` for anything that needs a
 where-tree, aggregate, jsonb path, group by, or order by. `--query` validates that its payload is
-well-formed JSON (via `jq`) and fails loudly before contacting the endpoint.
+well-formed JSON (via `jq`) and fails loudly before contacting the endpoint. Request bodies go to
+`curl` via `-d @-` (not in curl's argv), but an **inline** `--query '<json>'` still places the
+complete DTO — including any value inside it — in the script's own argv and in shell history.
+Inline is fine for ordinary non-sensitive queries; for any sensitive value (in particular a
+filter-only column such as `user_data.mail`) use `--query @file` or `--query -` (stdin).
+`--user-by-mail` always reads the address from stdin and is unaffected by that caveat.
 
 ```
 # Latest 100 rows of a table, default columns id,created,updated
@@ -56,10 +63,19 @@ scripts/db-debug.sh --get user_data
 # Specific columns and a limit
 scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50
 
-# Arbitrary DTO inline
+# Resolve user_data id(s) from a known mail on stdin (filter-only; mail is never returned).
+# Address on stdin — not in process argv; script does not print it; errors never echo
+# submitted values; payload echo redacts WHERE values. Prefer interactive entry or a
+# protected file over piping via `echo` (which would put the address in echo's argv).
+# Optional N is integer 1..10000 (default 100); trailing args rejected by count.
+scripts/db-debug.sh --user-by-mail   # interactive: prompts "Mail address (input hidden): "
+scripts/db-debug.sh --user-by-mail < address.txt
+scripts/db-debug.sh --user-by-mail 50 < address.txt
+
+# Arbitrary DTO inline (non-sensitive values only — full DTO is in argv / shell history)
 scripts/db-debug.sh --query '{"table":"asset","select":[{"kind":"column","column":"id"},{"kind":"column","column":"name"}],"where":{"kind":"leaf","column":"blockchain","op":"=","value":"Ethereum"},"orderBy":[{"column":"id","direction":"DESC"}],"limit":20}'
 
-# Arbitrary DTO from a file, or from stdin
+# Arbitrary DTO from a file, or from stdin (prefer these for sensitive values such as mail)
 scripts/db-debug.sh --query @/tmp/query.json
 cat query.json | scripts/db-debug.sh --query -
 ```

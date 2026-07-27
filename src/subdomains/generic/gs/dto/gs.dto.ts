@@ -1,3 +1,5 @@
+import { DebugWhereOp } from 'src/subdomains/generic/gs/dto/debug-query.dto';
+
 export const GsRestrictedMarker = '[RESTRICTED]';
 
 // db endpoint
@@ -22,9 +24,9 @@ export const DebugMaxResults = 10000;
 // --- Structured /gs/debug allowlist ---
 //
 // The /gs/debug endpoint accepts a JSON request describing the query (table + select + where
-// + group/order/limit) and emits SQL via TypeORM with parameter binding. No raw SQL is ever
-// accepted, parsed, or interpolated — identifiers come exclusively from this allowlist and
-// values flow through bound parameters.
+// + group/order/limit) and emits hand-built SQL with bound parameters via `dataSource.query`.
+// No raw SQL is ever accepted, parsed, or interpolated — identifiers come exclusively from
+// this allowlist and values flow through bound parameters.
 //
 // Update on every migration: adding / renaming / removing a column on a table that appears
 // below requires editing this allowlist. Adding a new debuggable table requires a new entry.
@@ -32,8 +34,10 @@ export const DebugMaxResults = 10000;
 //
 // Conservative inclusion rules — exclude these categories of columns even when present on
 // the entity:
-//   - PII: names, addresses, phone, mail, birthday, nationality/country FKs on user_data,
-//     organization PII, IBANs, BICs, account numbers.
+//   - PII (from selectable / result columns): names, addresses, phone, mail, birthday,
+//     nationality/country FKs on user_data, organization PII, IBANs, BICs, account numbers.
+//     Explicitly reviewed **filter-only** exceptions may appear in `filterOnlyColumns` only
+//     (currently `user_data.mail`) — WHERE `=` lookup, never returned in the result set.
 //   - Secrets: apiKey, apiKeyCT, apiUrl, totpSecret, signature, kycHash, uid, pdfUrl.
 //   - Free-form text: label, internalAmlNote, txInfo, raw, data, message (except log.message
 //     which is the whole point of the endpoint). `comment` is a deliberate exception: it is
@@ -51,7 +55,33 @@ export interface DebugTableSpec {
   // Subset of `columns` where the structured `jsonbPath` selector is allowed. The endpoint
   // emits `(col)::jsonb -> 'a' -> 'b' ->> 'c'` for these; segment names are validated by regex.
   jsonbColumns?: string[];
+  // Columns usable ONLY as a WHERE-leaf column. Never selectable, never orderable, never
+  // groupable, never usable with a `jsonbPath`. Restricted to the equality operator
+  // (`DebugFilterOnlyAllowedOps`). At most one filter-only predicate is allowed per query
+  // (anywhere in the WHERE tree) so multi-candidate batching cannot be reintroduced via
+  // OR/AND of several `=` leaves. Intended for looking a record up by a value the caller
+  // already knows, without the endpoint ever disclosing that value. MUST be disjoint from
+  // `columns` and `jsonbColumns` (enforced by `assertDebugAllowlistInvariants`).
+  // Expected to be **text** columns: equality is emitted case-insensitively as
+  // `LOWER(col) = LOWER($n)` so the lookup matches the application's own case-insensitive
+  // address identity (`getUsersByMail` via `LOWER(mail)`) and tolerates the caller typing
+  // a different case than stored. A non-text filter-only column (e.g. integer) would fail
+  // at query time (`function lower(integer) does not exist`). No runtime type check — keep
+  // entries text-only when extending this list. For `user_data.mail`, `LOWER(mail)` is
+  // backed by a functional index (non-unique while case-collision duplicates remain); that
+  // is not a general guarantee for every future filter-only column.
+  filterOnlyColumns?: string[];
 }
+
+// Operators a filter-only column may appear with in a WHERE leaf. Ordering/range/pattern
+// operators (`<`, `<=`, `>`, `>=`, `!=`, `LIKE`, `ILIKE`, `IS NULL`, `IS NOT NULL`) would turn
+// the endpoint into an oracle — a caller could binary-search or pattern-match a secret value
+// character by character and reconstruct it without ever selecting it. `=` requires knowing
+// the exact value up front, which is the intended use case. Multi-candidate batching is
+// prevented by the one-filter-only-predicate-per-query rule in the emitter (not by excluding
+// `IN` alone — OR of several `=` leaves would otherwise re-enable the same batching). `IN`
+// remains disallowed because a multi-value list has no legitimate filter-only use.
+export const DebugFilterOnlyAllowedOps: DebugWhereOp[] = [DebugWhereOp.EQ];
 
 export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   account_merge: {
@@ -1432,8 +1462,11 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   user_data: {
-    // No PII columns. countryId / nationalityId / organizationId / verifiedCountryId /
-    // accountOpenerId / organizationCountryId all blocked (link to PII tables).
+    // No PII in selectable / result columns. countryId / nationalityId / organizationId /
+    // verifiedCountryId / accountOpenerId / organizationCountryId all blocked (link to PII
+    // tables). Explicit filter-only exception: `mail` (not in `columns`) — support needs to
+    // resolve a customer's `userData.id` from a mail address they already have, without the
+    // endpoint ever returning the address. See `filterOnlyColumns` below.
     columns: [
       'id',
       'created',
@@ -1489,6 +1522,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'tradeApprovalDate',
       'walletId',
     ],
+    filterOnlyColumns: ['mail'],
   },
   user_data_relation: {
     columns: ['id', 'created', 'updated', 'accountId', 'relatedAccountId', 'relation', 'signatory'],
@@ -1570,11 +1604,15 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   },
 };
 
-// Columns that are deliberately reachable on `/gs/debug` even though `/gs/db` masks them for
-// every role below SUPER_ADMIN. Each entry is an explicit, reviewed decision to accept that a
-// DEBUG-role caller sees the real value on the structured endpoint — NOT a general relaxation:
-// `/gs/db` masking is unchanged, and every overlap that is not listed here still aborts module
-// load below.
+// Columns that are deliberately **selectable** on `/gs/debug` even though `/gs/db` masks them
+// for every role below SUPER_ADMIN. Each entry is an explicit, reviewed decision to accept that a
+// DEBUG-role caller sees the real value in the result set — NOT a general relaxation:
+// `/gs/db` masking is unchanged, and every selectable overlap that is not listed here still aborts
+// module load below. This map approves **`columns` (selectable) access only**. Filter-only
+// (`filterOnlyColumns`) overlaps use `DebugFilterOnlyRestrictedExceptions` instead — the two
+// capacities do not share exceptions, so moving a column between `columns` and `filterOnlyColumns`
+// fails module load until the approval is moved too (a visible, reviewable step that prevents a
+// filter-only exception from silently authorising full disclosure).
 //
 // Add an entry ONLY when all of the following hold, and record the reasoning in the comment:
 //   - the value is needed to answer an operational/forensic question the endpoint exists for,
@@ -1590,58 +1628,151 @@ export const DebugRestrictedOverlapExceptions: Record<string, string[]> = {
   transaction_aml_check: ['amlResponsible'],
 };
 
+// Columns that are deliberately reachable as **filter-only** (`filterOnlyColumns`) on `/gs/debug`
+// even though `/gs/db` masks them for every role below SUPER_ADMIN. Same review bar as
+// `DebugRestrictedOverlapExceptions`, but this map approves equality-only WHERE lookup — never
+// selection. Keep the two maps disjoint: an entry in both for the same pair is an error (approval
+// must be unambiguous about capacity). Empty today: no current filter-only column is restricted
+// (`user_data.mail` is filter-only but not in `GsRestrictedColumns`). Add an entry only when a
+// restricted column is intentionally allowlisted for equality lookup, with the reasoning in a
+// comment next to the entry.
+export const DebugFilterOnlyRestrictedExceptions: Record<string, string[]> = {};
+
 /**
  * Invariant: `GsRestrictedColumns` is the per-role masking list that `/gs/db` applies (only
  * SUPER_ADMIN sees the real value). The structured `/gs/debug` endpoint does NOT apply any
  * such masking, so allowlisting any column also listed there would bypass the role
  * restriction. Throw so a future addition can't slip in silently — unless the exact
- * `(table, column)` pair is registered in the exceptions map, which makes the bypass an
- * explicit, documented decision instead of an accident.
+ * `(table, column)` pair is registered in the capacity-matching exceptions map, which makes
+ * the bypass an explicit, documented decision instead of an accident.
  *
- * The counter-check keeps the exceptions map honest: an exception only means anything for a
- * pair that actually overlaps and is actually allowlisted. A stale entry (column dropped from
- * either list) would silently keep a future re-add unguarded, so it fails loudly too.
+ * Capacity is part of the approval: a restricted column in `columns` needs an entry in the
+ * selectable map (`DebugRestrictedOverlapExceptions`); a restricted column in
+ * `filterOnlyColumns` needs an entry in the filter-only map
+ * (`DebugFilterOnlyRestrictedExceptions`). The two maps do not share exceptions — moving a
+ * column between capacities fails module load until the approval is moved too, so a
+ * filter-only exception cannot silently upgrade into full disclosure.
  *
- * Kept as a pure function over its three inputs so the guard itself is testable with synthetic
+ * The counter-checks keep both exceptions maps honest: a selectable exception is stale unless
+ * the column is in `columns`; a filter-only exception is stale unless the column is in
+ * `filterOnlyColumns`; an entry present in both maps for the same pair is an error (approval
+ * must be unambiguous); and every entry must still be in `GsRestrictedColumns`.
+ *
+ * Kept as a pure function over its four inputs so the guard itself is testable with synthetic
  * fixtures — asserting the real constants only proves today's data is consistent, not that the
- * exception matches per column rather than per table.
+ * exception matches per column and capacity rather than per table.
  */
 export function assertDebugAllowlistInvariants(
   restrictedColumns: Record<string, string[]>,
   allowedColumns: Record<string, DebugTableSpec>,
-  exceptions: Record<string, string[]>,
+  selectableExceptions: Record<string, string[]>,
+  filterOnlyExceptions: Record<string, string[]>,
 ): void {
   for (const [table, restricted] of Object.entries(restrictedColumns)) {
     if (!Object.hasOwn(allowedColumns, table)) continue;
     const spec = allowedColumns[table];
-    const excepted = Object.hasOwn(exceptions, table) ? exceptions[table] : [];
+    const selectableExcepted = Object.hasOwn(selectableExceptions, table) ? selectableExceptions[table] : [];
+    const filterOnlyExcepted = Object.hasOwn(filterOnlyExceptions, table) ? filterOnlyExceptions[table] : [];
     for (const col of restricted) {
-      if (spec.columns.includes(col) && !excepted.includes(col))
+      if (spec.columns.includes(col) && !selectableExcepted.includes(col))
         throw new Error(
           `DebugAllowedColumns['${table}'] contains '${col}' which is in GsRestrictedColumns; ` +
             `the /gs/debug endpoint does not apply role masking. Remove it from DebugAllowedColumns ` +
             `or register it in DebugRestrictedOverlapExceptions with a documented reason.`,
         );
+      // Same restriction for filter-only columns: a restricted column must not become a
+      // WHERE key unless the pair is an explicit, documented filter-only exception.
+      if (spec.filterOnlyColumns?.includes(col) && !filterOnlyExcepted.includes(col))
+        throw new Error(
+          `DebugAllowedColumns['${table}'].filterOnlyColumns contains '${col}' which is in GsRestrictedColumns; ` +
+            `the /gs/debug endpoint does not apply role masking. Remove it from filterOnlyColumns ` +
+            `or register it in DebugFilterOnlyRestrictedExceptions with a documented reason.`,
+        );
     }
   }
 
-  for (const [table, excepted] of Object.entries(exceptions)) {
+  for (const [table, excepted] of Object.entries(selectableExceptions)) {
     for (const col of excepted) {
       if (!(Object.hasOwn(restrictedColumns, table) && restrictedColumns[table].includes(col)))
         throw new Error(
           `DebugRestrictedOverlapExceptions['${table}'] lists '${col}', which is not in ` +
             `GsRestrictedColumns['${table}']; the exception is stale — remove it.`,
         );
+      // Selectable exceptions approve `columns` access only — presence in filterOnlyColumns
+      // does not keep this entry live.
       if (!(Object.hasOwn(allowedColumns, table) && allowedColumns[table].columns.includes(col)))
         throw new Error(
           `DebugRestrictedOverlapExceptions['${table}'] lists '${col}', which is not in ` +
-            `DebugAllowedColumns['${table}']; the exception is stale — remove it.`,
+            `DebugAllowedColumns['${table}'].columns; the exception is stale — remove it.`,
+        );
+      if (Object.hasOwn(filterOnlyExceptions, table) && filterOnlyExceptions[table].includes(col))
+        throw new Error(
+          `('${table}', '${col}') is registered in both DebugRestrictedOverlapExceptions and ` +
+            `DebugFilterOnlyRestrictedExceptions; approval must be unambiguous about capacity — ` +
+            `remove one of the entries.`,
+        );
+    }
+  }
+
+  for (const [table, excepted] of Object.entries(filterOnlyExceptions)) {
+    for (const col of excepted) {
+      if (!(Object.hasOwn(restrictedColumns, table) && restrictedColumns[table].includes(col)))
+        throw new Error(
+          `DebugFilterOnlyRestrictedExceptions['${table}'] lists '${col}', which is not in ` +
+            `GsRestrictedColumns['${table}']; the exception is stale — remove it.`,
+        );
+      // Filter-only exceptions approve `filterOnlyColumns` access only.
+      if (
+        !(
+          Object.hasOwn(allowedColumns, table) &&
+          Object.hasOwn(allowedColumns[table], 'filterOnlyColumns') &&
+          allowedColumns[table].filterOnlyColumns &&
+          allowedColumns[table].filterOnlyColumns.includes(col)
+        )
+      )
+        throw new Error(
+          `DebugFilterOnlyRestrictedExceptions['${table}'] lists '${col}', which is not in ` +
+            `DebugAllowedColumns['${table}'].filterOnlyColumns; the exception is stale — remove it.`,
+        );
+      if (Object.hasOwn(selectableExceptions, table) && selectableExceptions[table].includes(col))
+        throw new Error(
+          `('${table}', '${col}') is registered in both DebugRestrictedOverlapExceptions and ` +
+            `DebugFilterOnlyRestrictedExceptions; approval must be unambiguous about capacity — ` +
+            `remove one of the entries.`,
+        );
+    }
+  }
+
+  // filterOnlyColumns must stay strictly narrower than `columns` / `jsonbColumns` and free of
+  // duplicates. Overlap with `columns` would silently make the value selectable; overlap with
+  // `jsonbColumns` would open path access; duplicates are almost certainly a config mistake.
+  for (const [table, spec] of Object.entries(allowedColumns)) {
+    if (!Object.hasOwn(spec, 'filterOnlyColumns') || !spec.filterOnlyColumns) continue;
+    const seen = new Set<string>();
+    for (const col of spec.filterOnlyColumns) {
+      if (seen.has(col))
+        throw new Error(`DebugAllowedColumns['${table}'].filterOnlyColumns has duplicate entry '${col}'`);
+      seen.add(col);
+      if (spec.columns.includes(col))
+        throw new Error(
+          `DebugAllowedColumns['${table}'].filterOnlyColumns contains '${col}' which is also in columns; ` +
+            `a filter-only column must never be selectable.`,
+        );
+      if (spec.jsonbColumns?.includes(col))
+        throw new Error(
+          `DebugAllowedColumns['${table}'].filterOnlyColumns contains '${col}' which is also in jsonbColumns; ` +
+            `a filter-only column must never support jsonb path access.`,
         );
     }
   }
 }
 
-assertDebugAllowlistInvariants(GsRestrictedColumns, DebugAllowedColumns, DebugRestrictedOverlapExceptions);
+assertDebugAllowlistInvariants(
+  GsRestrictedColumns,
+  DebugAllowedColumns,
+  DebugRestrictedOverlapExceptions,
+  DebugFilterOnlyRestrictedExceptions,
+);
 
 // Support endpoint
 export enum SupportTable {
