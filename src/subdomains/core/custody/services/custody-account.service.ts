@@ -148,10 +148,17 @@ export class CustodyAccountService {
   /**
    * Resolves a custody account to its owner's user_data id for data reads.
    * Today balances/orders never set accountId, so a read returns the owner's entire Safe.
-   * If the owner holds more than one ACTIVE account, that would disclose holdings outside
-   * the granted account — refuse instead of returning a fabricated subset or an over-broad
-   * full Safe. Once balances and orders carry an account, callers filter by it and this
-   * multi-account refusal is no longer needed. Legacy is unaffected (caller has no accounts).
+   *
+   * The multi-account refusal is only for grantees: a grant covers one account, but the
+   * data layer can only return the owner's whole Safe. If that owner holds more than one
+   * custody account (any status — closed/blocked still hold assets), serving the Safe would
+   * disclose holdings outside the grant, so refuse with 409 instead of a fabricated subset
+   * or an over-broad full Safe. The owner already authorises every one of those rows and
+   * reaches them via the caller-scoped endpoints; their own authorisation is total, so the
+   * ambiguity check is skipped when the caller is the owner.
+   *
+   * Once balances and orders carry an account, callers filter by it and this multi-account
+   * refusal is no longer needed. Legacy is unaffected (caller has no accounts).
    */
   async resolveOwnerAccountId(custodyAccountId: CustodyAccountId, callerAccountId: number): Promise<number> {
     const { custodyAccount, isLegacy } = await this.checkAccess(
@@ -169,10 +176,16 @@ export class CustodyAccountService {
     }
 
     const ownerId = custodyAccount.owner.id;
-    const activeOwnedCount = await this.custodyAccountRepo.count({
-      where: { owner: { id: ownerId }, status: CustodyAccountStatus.ACTIVE },
+
+    // Owner already holds every Safe row; multi-account ambiguity only matters for grantees.
+    if (ownerId === callerAccountId) {
+      return ownerId;
+    }
+
+    const ownedCount = await this.custodyAccountRepo.count({
+      where: { owner: { id: ownerId } },
     });
-    if (activeOwnedCount > 1) {
+    if (ownedCount > 1) {
       throw new ConflictException(
         'The holdings of this Safe are not attributed to a single account, so the account cannot be read in isolation',
       );
