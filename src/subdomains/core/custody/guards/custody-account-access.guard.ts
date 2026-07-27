@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
 import { CustodyAccessLevel } from '../enums/custody';
 import {
   CustodyAccountId,
@@ -25,7 +25,12 @@ abstract class CustodyAccountAccessGuard implements CanActivate {
       await this.custodyAccountService.checkAccess(custodyAccountId, accountId, this.requiredLevel);
       return true;
     } catch (error) {
-      throw new ForbiddenException(error.message || 'Access denied');
+      // Only translate HTTP errors (e.g. 404 from checkAccess) into 403 to prevent account
+      // enumeration. Programming errors must surface as 500, not look like access denied.
+      if (error instanceof HttpException) {
+        throw new ForbiddenException(error.message || 'Access denied');
+      }
+      throw error;
     }
   }
 
@@ -53,9 +58,17 @@ abstract class CustodyAccountAccessGuard implements CanActivate {
 @Injectable()
 export class CustodyAccountReadGuard extends CustodyAccountAccessGuard {
   protected readonly requiredLevel = CustodyAccessLevel.READ;
+
+  constructor(custodyAccountService: CustodyAccountService) {
+    super(custodyAccountService);
+  }
 }
 
 @Injectable()
 export class CustodyAccountWriteGuard extends CustodyAccountAccessGuard {
   protected readonly requiredLevel = CustodyAccessLevel.WRITE;
+
+  constructor(custodyAccountService: CustodyAccountService) {
+    super(custodyAccountService);
+  }
 }

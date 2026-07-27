@@ -100,8 +100,13 @@ export class CustodyAccountService {
     accountId: number,
     requiredLevel: CustodyAccessLevel,
   ): Promise<{ custodyAccount: CustodyAccount | null; isLegacy: boolean }> {
-    // Legacy mode
+    // Legacy mode — same entitlement as listing / grantAccessForLegacy (CUSTODY user + no owned rows).
+    // Both failures map to NotFound so the alias cannot be used for enumeration or after materialisation.
     if (custodyAccountId === LegacyAccountId) {
+      const { hasCustody, ownedCount } = await this.loadLegacyOwner(accountId);
+      if (!hasCustody || ownedCount > 0) {
+        throw new NotFoundException('Legacy account not found');
+      }
       if (requiredLevel === CustodyAccessLevel.WRITE) {
         throw new ForbiddenException('Cannot modify legacy account');
       }
@@ -366,20 +371,31 @@ export class CustodyAccountService {
     return saved;
   }
 
+  /**
+   * Loads active owner user_data (+ users) and counts owned custody_account rows.
+   * Shared by checkAccess (legacy alias) and grantAccessForLegacy so entitlement stays consistent.
+   */
+  private async loadLegacyOwner(
+    ownerAccountId: number,
+  ): Promise<{ owner: UserData; hasCustody: boolean; ownedCount: number }> {
+    const owner = await this.userDataService.getActiveUserData(ownerAccountId, { users: true });
+    const hasCustody = owner.users.some((u) => u.role === UserRole.CUSTODY);
+    const ownedCount = await this.custodyAccountRepo.count({ where: { owner: { id: ownerAccountId } } });
+    return { owner, hasCustody, ownedCount };
+  }
+
   private async grantAccessForLegacy(
     ownerAccountId: number,
     mail: string,
     accessLevel: CustodyAccessLevel,
   ): Promise<CustodyAccountAccess> {
     // Authorise legacy entitlement before resolving the e-mail (no enumeration for outsiders).
-    const owner = await this.userDataService.getActiveUserData(ownerAccountId, { users: true });
-    const hasCustody = owner.users.some((u) => u.role === UserRole.CUSTODY);
+    const { owner, hasCustody, ownedCount } = await this.loadLegacyOwner(ownerAccountId);
     if (!hasCustody) {
       throw new NotFoundException('Legacy account not found');
     }
 
     // Legacy Safe = absence of any owned account row (pre-check; re-checked under lock).
-    const ownedCount = await this.custodyAccountRepo.count({ where: { owner: { id: ownerAccountId } } });
     if (ownedCount > 0) {
       throw new BadRequestException('Legacy account not available because custody accounts already exist');
     }
