@@ -61,6 +61,41 @@ export function isTransientWsError(e: Error): boolean {
  */
 export class ScryptRequestTimeoutError extends Error {}
 
+/**
+ * A write that may or may not have taken effect at the venue — raised where an order was created, amended or
+ * restarted and no reply confirmed the outcome.
+ *
+ * Distinct from {@link ScryptRequestTimeoutError}, which describes only *how* the call ended: the same
+ * dropped socket is harmless on a read and unresolved on a write, so the distinction that matters to the
+ * caller is the side effect, not the transport. Anything carrying this type must be quarantined and
+ * reconciled, never repeated.
+ */
+export class ScryptUnconfirmedWriteError extends Error {
+  constructor(
+    message: string,
+    readonly reference: string | undefined,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Messages that can only come from a reply by the venue: it saw the request and refused it. This is the only
+ * evidence that a write did NOT take effect — everything else leaves the outcome open.
+ *
+ * Kept narrow on purpose. Every marker added here widens what counts as a proven failure, and a proven
+ * failure is what allows the caller to try again.
+ */
+export const VENUE_REJECTION_MARKERS = [
+  'Scrypt order rejected',
+  'Scrypt order edit rejected',
+  'Scrypt withdrawal rejected',
+];
+
+export function isVenueRejection(e: Error): boolean {
+  return VENUE_REJECTION_MARKERS.some((m) => e.message?.includes(m));
+}
+
 interface ScryptRequest {
   reqid?: number;
   type: ScryptRequestType | ScryptMessageType;

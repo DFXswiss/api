@@ -4,7 +4,9 @@ import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/i
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import {
   isTransientWsError,
+  isVenueRejection,
   ScryptRequestTimeoutError,
+  ScryptUnconfirmedWriteError,
 } from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -37,13 +39,6 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
  * mistake that lets the rule re-issue a request the venue is still processing.
  */
 const SCRYPT_UNCERTAIN_GRACE_MINUTES = 10;
-
-/**
- * Messages that can only originate from a reply by the venue. They are the sole evidence that a request was
- * received and refused — everything else leaves the outcome unknown. Kept narrow on purpose: adding a marker
- * here widens what counts as a proven failure, which is the direction that allows a repeat.
- */
-const VENUE_REJECTION_MARKERS = ['Scrypt order rejected', 'Scrypt withdrawal rejected'];
 
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {
@@ -276,14 +271,22 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         return false;
       }
 
+      // Write boundary FIRST. This check can amend or restart the order, and an unconfirmed write must
+      // quarantine — before the transient-error branch below, which is only ever safe for reads. Getting the
+      // order wrong here would let a dropped socket during an amend look like a harmless retry.
+      if (e instanceof ScryptUnconfirmedWriteError) {
+        throw new OrderOutcomeUnknownException(
+          `${e.message} (replacement reference ${e.reference ?? replacementClOrdId})`,
+        );
+      }
+
       if (isTransientWsError(e)) {
         this.logger.warn(`Transient WS error checking order ${order.id}, will retry next tick: ${e.message}`);
         return false;
       }
 
-      // An amend or restart may have reached the venue before the failure. Reading the state is harmless, but
-      // this path can WRITE, so an unconfirmed outcome must quarantine the order instead of failing it —
-      // failing pauses the rule, which auto-reactivates and reissues the whole trade.
+      // A read that went unanswered still leaves the order untouched at the venue, but we cannot tell from
+      // here whether the deadline hit before or after a write was attempted — so quarantine rather than fail.
       if (e instanceof ScryptRequestTimeoutError) {
         throw new OrderOutcomeUnknownException(
           `Scrypt gave no confirmed outcome while checking order ${order.id} (replacement reference ${replacementClOrdId}): ${e.message}`,
@@ -440,7 +443,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   private classifySendOutcome(e: Error, description: string): Error {
     // Only a reply from the venue proves what happened to the request. A rejection means it was seen and
     // refused — an ordinary failure, safe to let the rule plan again.
-    if (VENUE_REJECTION_MARKERS.some((m) => e.message?.includes(m))) return e;
+    if (isVenueRejection(e)) return e;
 
     // Everything else is silence, and silence is not evidence. A timeout is obvious, but a dropped socket is
     // just as ambiguous: `requestWithId` hands the bytes to the network before registering the pending

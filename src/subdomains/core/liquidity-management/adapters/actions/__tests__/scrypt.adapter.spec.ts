@@ -1,7 +1,10 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptTransactionStatus, ScryptWithdrawStatus } from 'src/integration/exchange/dto/scrypt.dto';
-import { ScryptRequestTimeoutError } from 'src/integration/exchange/services/scrypt-websocket-connection';
+import {
+  ScryptRequestTimeoutError,
+  ScryptUnconfirmedWriteError,
+} from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -182,6 +185,36 @@ describe('ScryptAdapter', () => {
 
       expect(classified).toBe(rejected);
       expect(classified).not.toBeInstanceOf(OrderOutcomeUnknownException);
+    });
+  });
+
+  describe('checkTradeCompletion — the amend boundary', () => {
+    it('quarantines when an amend or restart went unconfirmed, instead of failing the order', async () => {
+      // The check can WRITE (cancel-replace, restart). An unconfirmed write there may have created a live
+      // order at the venue; failing would pause the rule, which auto-reactivates and reissues the trade.
+      jest
+        .spyOn(scryptService, 'checkTrade')
+        .mockRejectedValue(new ScryptUnconfirmedWriteError('no confirmed outcome for the amend', 'dfx-lm-4711-1'));
+
+      await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).rejects.toBeInstanceOf(
+        OrderOutcomeUnknownException,
+      );
+    });
+
+    it('carries the replacement reference into the quarantine reason, so it can be reconciled', async () => {
+      jest
+        .spyOn(scryptService, 'checkTrade')
+        .mockRejectedValue(new ScryptUnconfirmedWriteError('no confirmed outcome for the amend', 'dfx-lm-4711-1'));
+
+      await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).rejects.toThrow(
+        /dfx-lm-4711-1/,
+      );
+    });
+
+    it('still treats a plain dropped connection on the read path as retry-next-tick', async () => {
+      jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new Error('Connection closed'));
+
+      await expect(adapter['checkTradeCompletion'](createUncertainSellOrder(), 'EUR', 'USDT')).resolves.toBe(false);
     });
   });
 

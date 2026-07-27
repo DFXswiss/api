@@ -27,7 +27,12 @@ import {
   ScryptWithdrawStatus,
 } from '../dto/scrypt.dto';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
-import { ScryptMessageType, ScryptWebSocketConnection } from './scrypt-websocket-connection';
+import {
+  isVenueRejection,
+  ScryptMessageType,
+  ScryptUnconfirmedWriteError,
+  ScryptWebSocketConnection,
+} from './scrypt-websocket-connection';
 
 @Injectable()
 export class ScryptService extends PricingProvider {
@@ -498,7 +503,16 @@ export class ScryptService extends PricingProvider {
           } catch (e) {
             if (e instanceof TradeChangedException) throw e;
 
-            // If edit fails, try to cancel and let it restart
+            // The amend is a write. Unless the venue explicitly rejected it, we do not know whether a
+            // replacement order now exists under `replacementClOrdId` — cancelling and carrying on would
+            // leave it live and untracked, which is how an amend turns into a duplicate position.
+            if (!isVenueRejection(e))
+              throw new ScryptUnconfirmedWriteError(
+                `Scrypt gave no confirmed outcome for the amend of order ${clOrdId}: ${e.message}`,
+                replacementClOrdId,
+              );
+
+            // Rejected by the venue: nothing was created, so the cancel-and-restart fallback is safe.
             this.logger.verbose(`Could not update order ${clOrdId}, attempting cancel: ${e.message}`);
             try {
               await this.cancelOrder(clOrdId, from, to);
@@ -530,6 +544,8 @@ export class ScryptService extends PricingProvider {
 
         this.logger.verbose(`Order ${clOrdId} cancelled, restarting with remaining ${remaining} (base currency)`);
 
+        // Same write boundary as the amend above: an unconfirmed restart may have created a live order under
+        // `replacementClOrdId`, so the caller has to quarantine rather than see a retryable transport error.
         const response = await this.placeOrder(
           symbol,
           side,
@@ -538,7 +554,14 @@ export class ScryptService extends PricingProvider {
           ScryptTimeInForce.GOOD_TILL_CANCEL,
           price,
           replacementClOrdId,
-        );
+        ).catch((e) => {
+          if (isVenueRejection(e)) throw e;
+
+          throw new ScryptUnconfirmedWriteError(
+            `Scrypt gave no confirmed outcome for the restart of order ${clOrdId}: ${e.message}`,
+            replacementClOrdId,
+          );
+        });
 
         this.logger.verbose(`Order ${clOrdId} changed to ${response.id}`);
         throw new TradeChangedException(response.id);
