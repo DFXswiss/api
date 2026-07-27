@@ -32,16 +32,6 @@ const UNSENT_RESOLUTION_MARKER = '[resolved-as-not-sent]';
 export class LiquidityManagementPipelineService {
   private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
 
-  /**
-   * Orders whose recorded not-sent failure a fresh look has already failed to overrule.
-   *
-   * Deliberately held per process and not persisted. The only way a positive observation is lost is this
-   * process ending, or its write failing, before it was applied — so re-examining every such order once per
-   * process covers exactly that, and does so without an expiry that could strand one for good. It also keeps
-   * a settled failure from querying the venue on every tick for the rest of its life.
-   */
-  private readonly reExaminedFailures = new Set<number>();
-
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly orderRepo: LiquidityManagementOrderRepository,
@@ -292,41 +282,29 @@ export class LiquidityManagementPipelineService {
    * stays put: an order nobody can account for is safer parked than retried.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
-    const orders = await this.orderRepo.findBy([
-      { status: LiquidityManagementOrderStatus.UNCERTAIN },
-      // Failed AS NOT SENT, so that a positive observation which lost the race — or whose write never
-      // landed — still gets applied. No age limit: any expiry would eventually strand an order the venue
-      // has confirmed in a state nothing reads again, leaving its rule free to plan a second request.
-      // These rows are terminal, so only that positive case does anything here; the negative branch below
-      // leaves them alone, and each is asked about only once per process.
-      { status: LiquidityManagementOrderStatus.FAILED, errorMessage: Like(`%${UNSENT_RESOLUTION_MARKER}%`) },
-    ]);
+    const orders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.UNCERTAIN });
     let anyChanged = false;
 
     for (const order of orders) {
-      const wasResolvedAsNotSent = order.status === LiquidityManagementOrderStatus.FAILED;
-      if (wasResolvedAsNotSent && this.reExaminedFailures.has(order.id)) continue;
+      let observedAsSent = false;
 
       try {
         const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
         if (!actionIntegration.resolveUncertainOrder) continue;
 
         const resolution = await actionIntegration.resolveUncertainOrder(order);
+        observedAsSent = resolution === UncertainOrderResolution.SENT;
 
-        // Nothing came back that overrules the recorded failure, so this order is not asked about again in
-        // this process. Only a positive observation is worth retrying, and that is what stays eligible.
-        if (wasResolvedAsNotSent && resolution !== UncertainOrderResolution.SENT) this.reExaminedFailures.add(order.id);
-
-        if (resolution === UncertainOrderResolution.SENT) {
+        if (observedAsSent) {
           order.resolveAsSent();
+
           if ((await this.leaveQuarantine(order)) || (await this.reclaimFromNegativeResolution(order))) {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
+          } else {
+            await this.reportUnappliedObservation(order);
           }
-        } else if (
-          resolution === UncertainOrderResolution.NOT_SENT &&
-          order.status === LiquidityManagementOrderStatus.UNCERTAIN
-        ) {
+        } else if (resolution === UncertainOrderResolution.NOT_SENT) {
           order.resolveAsNotSent(
             `${order.errorMessage} (venue confirmed the request never arrived) ${UNSENT_RESOLUTION_MARKER}`,
           );
@@ -338,10 +316,48 @@ export class LiquidityManagementPipelineService {
       } catch (e) {
         // a failing lookup must never promote the order out of quarantine
         this.logger.error(`Error in resolving uncertain liquidity order ${order.id}:`, e);
+
+        // ...but a failure AFTER the venue confirmed the order is a different thing: the one fact that
+        // matters is established and about to be dropped on the floor. Say so rather than log and move on.
+        if (observedAsSent) await this.reportUnappliedObservation(order).catch(() => undefined);
       }
     }
 
     return anyChanged;
+  }
+
+  /**
+   * A confirmed venue observation that could not be written back.
+   *
+   * Both releases are conditional on the state they expect, so neither matching means the order is in one
+   * this pass cannot account for — or the write itself failed. Either way the single fact worth having, that
+   * the venue holds this order, is about to be lost, and its rule is free to plan against funds that are
+   * already committed. Since nothing here may guess, it goes to a person while the observation is fresh.
+   */
+  private async reportUnappliedObservation(order: LiquidityManagementOrder): Promise<void> {
+    const current = await this.orderRepo.findOneBy({ id: order.id });
+
+    // Somebody else released it correctly in the meantime — that is the benign way both writes miss.
+    if (
+      current &&
+      [LiquidityManagementOrderStatus.IN_PROGRESS, LiquidityManagementOrderStatus.COMPLETE].includes(current.status)
+    )
+      return;
+
+    const message =
+      `Liquidity order ${order.id}: the venue confirms reference ${order.correlationId} exists, but that ` +
+      `could not be recorded — the order is ${current?.status ?? 'gone'}. Treat it as live at the venue and ` +
+      `resolve it by hand; its rule must not plan against these funds until it is.`;
+
+    this.logger.error(message);
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.LIQUIDITY_MANAGEMENT,
+      correlationId: `lm-observation-unapplied-${order.id}`,
+      options: { debounce: 3600000 },
+      input: { subject: 'Liquidity management order OBSERVATION LOST', errors: [message] },
+    });
   }
 
   /**
