@@ -612,20 +612,14 @@ export class ScryptService extends PricingProvider {
 
       case ScryptOrderStatus.PENDING_NEW:
       case ScryptOrderStatus.PENDING_CANCEL:
-      case ScryptOrderStatus.PENDING_REPLACE: {
-        // Waiting is right — but not indefinitely. A pending report whose terminal update is never seen
-        // would otherwise answer "not complete" for good, and an order stuck that way cannot be resolved by
-        // hand either. Past the age at which an unfindable order is given up on, treat it the same way:
-        // outcome unknown, not failed.
-        const pendingMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
-        if (pendingMinutes > ORDER_LOST_AFTER_MINUTES)
-          throw new ScryptOrderNotFoundError(
-            `Order ${clOrdId} has been ${orderInfo.status} for ${Math.round(pendingMinutes)} minutes — its terminal update was never seen`,
-          );
-
+      case ScryptOrderStatus.PENDING_REPLACE:
+        // Deliberately just waits, however old the order is. A pending report is an OBSERVATION — we know
+        // where the order stands — so it is not an unknown outcome and must not be quarantined: reconciliation
+        // would find the reference, hand the order straight back, and the next completion check would
+        // quarantine it again. An order that stays pending too long is a stuck order, which the monitoring
+        // counter surfaces; it is not an unresolved one.
         this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
         return false;
-      }
     }
   }
 

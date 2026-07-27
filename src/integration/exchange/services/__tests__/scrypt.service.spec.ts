@@ -7,7 +7,6 @@ import {
 import {
   ScryptMessageType,
   ScryptRequestTimeoutError,
-  ScryptOrderNotFoundError,
   ScryptUnconfirmedWriteError,
   ScryptVenueRejectionError,
   ScryptWebSocketConnection,
@@ -585,16 +584,18 @@ describe('ScryptService', () => {
       });
     });
 
-    it('gives up on an order stuck pending past the age bound, as unknown rather than failed', async () => {
+    it('keeps waiting on a pending order however old it is — pending is observed, not unknown', async () => {
+      // quarantining it would make reconciliation find the reference, hand the order back, and the next
+      // completion check quarantine it again: a loop, not a resolution
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PENDING_NEW,
         remainingQuantity: 5,
       });
 
-      await expect(
-        service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 120 * 60 * 1000)),
-      ).rejects.toBeInstanceOf(ScryptOrderNotFoundError);
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 120 * 60 * 1000))).resolves.toBe(
+        false,
+      );
     });
 
     it('keeps waiting on a pending order that is still young', async () => {

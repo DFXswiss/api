@@ -227,12 +227,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
 
     if (!withdrawal?.txHash) {
-      // Same bound as the trade path: an acknowledged withdrawal whose terminal update is never seen would
-      // otherwise be answered "not complete" for good, and the manual path only accepts quarantined orders,
-      // so there would be no way out at all. Not a verdict — the order is still not declared failed.
-      if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
+      // No record at all, past the age at which the venue is considered to have lost it: we cannot tell
+      // whether this withdrawal happened, and the manual path only accepts quarantined orders, so leaving it
+      // here would mean no way out at all. A record WITHOUT a hash is different — that is an observation, the
+      // withdrawal is simply still in flight, and quarantining it would only bounce it back and forth.
+      if (!withdrawal && Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
         throw new OrderOutcomeUnknownException(
-          `Scrypt withdrawal ${correlationId} has had no terminal update for over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes`,
+          `Scrypt has no record of withdrawal ${correlationId} after more than ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes`,
         );
 
       this.logger.verbose(`No withdrawal id for id ${correlationId} at ${this.scryptService.name} found`);

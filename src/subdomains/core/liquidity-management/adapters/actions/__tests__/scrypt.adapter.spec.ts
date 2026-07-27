@@ -158,11 +158,23 @@ describe('ScryptAdapter', () => {
   });
 
   describe('checkWithdrawCompletion — unobservable withdrawals', () => {
-    it('quarantines a withdrawal whose terminal update never arrives, instead of polling for good', async () => {
+    it('quarantines an aged withdrawal the venue has no record of at all', async () => {
       jest.spyOn(scryptService, 'getWithdrawalStatus').mockResolvedValue(null);
       const old = createWithdrawOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
 
       await expect(adapter.checkCompletion(old)).rejects.toBeInstanceOf(OrderOutcomeUnknownException);
+    });
+
+    it('keeps waiting on an aged withdrawal the venue DOES know but has not settled', async () => {
+      // a record without a hash is an observation, not an unknown outcome — quarantining it would only
+      // bounce the order between reconciliation and the completion check
+      jest.spyOn(scryptService, 'getWithdrawalStatus').mockResolvedValue({
+        id: 'w-inflight',
+        status: ScryptTransactionStatus.COMPLETED,
+      });
+      const old = createWithdrawOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
+
+      await expect(adapter.checkCompletion(old)).resolves.toBe(false);
     });
 
     it('still just waits while the withdrawal is young', async () => {
