@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, Like } from 'typeorm';
+import { In, Like, MoreThan } from 'typeorm';
 import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -27,6 +27,17 @@ import { LiquidityManagementService } from './liquidity-management.service';
  * venue actually ended. Only a failure carrying this can be taken back by a later positive observation.
  */
 const UNSENT_RESOLUTION_MARKER = '[resolved-as-not-sent]';
+
+/**
+ * How far back a venue can still be asked about a reference at all — Scrypt's execution history reaches
+ * thirty days, and no integration here reaches further.
+ *
+ * A not-sent resolution stays open to being overruled for exactly as long as a new observation is possible.
+ * This is deliberately NOT a deadline for applying an observation, which would be a way to lose one: it is
+ * the point past which nobody can make an observation to apply. It also keeps the second look off the entire
+ * failure history, which a wildcard match on every pass would otherwise walk.
+ */
+const VENUE_OBSERVATION_HORIZON_DAYS = 30;
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -282,7 +293,17 @@ export class LiquidityManagementPipelineService {
    * stays put: an order nobody can account for is safer parked than retried.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
-    const orders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+    const orders = await this.orderRepo.findBy([
+      { status: LiquidityManagementOrderStatus.UNCERTAIN },
+      // Failed BY a not-sent resolution, so an observation that lost the race — or one whose writes never
+      // landed, including the re-quarantine that normally catches that — is still applied afterwards. These
+      // rows are terminal, so only the positive case does anything here.
+      {
+        status: LiquidityManagementOrderStatus.FAILED,
+        errorMessage: Like(`%${UNSENT_RESOLUTION_MARKER}%`),
+        updated: MoreThan(Util.daysBefore(VENUE_OBSERVATION_HORIZON_DAYS)),
+      },
+    ]);
     let anyChanged = false;
 
     for (const order of orders) {
@@ -297,7 +318,10 @@ export class LiquidityManagementPipelineService {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
           }
-        } else if (resolution === UncertainOrderResolution.NOT_SENT) {
+        } else if (
+          resolution === UncertainOrderResolution.NOT_SENT &&
+          order.status === LiquidityManagementOrderStatus.UNCERTAIN
+        ) {
           order.resolveAsNotSent(
             `${order.errorMessage} (venue confirmed the request never arrived) ${UNSENT_RESOLUTION_MARKER}`,
           );
@@ -350,32 +374,40 @@ export class LiquidityManagementPipelineService {
    * live venue order was about to be treated as finished business.
    */
   private async blockConfirmedOrder(order: LiquidityManagementOrder): Promise<void> {
+    const current = await this.orderRepo.findOneBy({ id: order.id }).catch(() => null);
+
+    // Already safe: in progress or complete means another path released it correctly, still uncertain means
+    // it never stopped blocking and the next pass will try again. Anything else — including a state that
+    // could not be read — is the case this exists for.
+    const safe = [
+      LiquidityManagementOrderStatus.IN_PROGRESS,
+      LiquidityManagementOrderStatus.COMPLETE,
+      LiquidityManagementOrderStatus.UNCERTAIN,
+    ];
+    if (current && safe.includes(current.status)) return;
+
     const message =
       `Liquidity order ${order.id}: the venue confirms reference ${order.correlationId} exists, but that could ` +
       `not be recorded as usual. It is held as uncertain — treat it as live at the venue and resolve it by ` +
       `hand; no rule may plan against these funds until somebody has.`;
 
-    const blocked = await this.orderRepo
+    await this.orderRepo
       .update(
         {
           id: order.id,
           status: In([LiquidityManagementOrderStatus.FAILED, LiquidityManagementOrderStatus.NOT_PROCESSABLE]),
         },
-        { status: LiquidityManagementOrderStatus.UNCERTAIN, errorMessage: message },
+        // Append to the reason already on the row, and where it could not be read, change only the status:
+        // whatever it says may be the operator account and verification reference behind the resolution
+        // being overruled, and that has to survive.
+        current
+          ? {
+              status: LiquidityManagementOrderStatus.UNCERTAIN,
+              errorMessage: [current.errorMessage, message].filter((part) => part).join(' — '),
+            }
+          : { status: LiquidityManagementOrderStatus.UNCERTAIN },
       )
-      .then((result) => Boolean(result.affected))
-      .catch(() => false);
-
-    if (!blocked) {
-      const current = await this.orderRepo.findOneBy({ id: order.id }).catch(() => null);
-      const safe = [
-        LiquidityManagementOrderStatus.IN_PROGRESS,
-        LiquidityManagementOrderStatus.COMPLETE,
-        LiquidityManagementOrderStatus.UNCERTAIN,
-      ];
-
-      if (current && safe.includes(current.status)) return;
-    }
+      .catch(() => undefined);
 
     this.logger.error(message);
 
@@ -424,6 +456,12 @@ export class LiquidityManagementPipelineService {
    * judgement, so it is taken back, and loudly.
    */
   private async reclaimFromNegativeResolution(order: LiquidityManagementOrder): Promise<boolean> {
+    // Read what the row says NOW. The copy this pass started with predates the resolution being overruled,
+    // and writing it back would erase the account that released the order and the reference they checked —
+    // the record of the very judgement this is overruling, and the first thing anybody reviewing it needs.
+    const current = await this.orderRepo.findOneBy({ id: order.id });
+    if (current?.status !== LiquidityManagementOrderStatus.FAILED) return false;
+
     const result = await this.orderRepo.update(
       // Narrowed to failures written BY a not-sent resolution. Matching any failed row would resurrect an
       // order that ended for an entirely unrelated reason — the reclaim exists to overrule a judgement, not
@@ -435,7 +473,7 @@ export class LiquidityManagementPipelineService {
       },
       {
         status: LiquidityManagementOrderStatus.IN_PROGRESS,
-        errorMessage: `${order.errorMessage} (reinstated: the venue confirmed this request exists after it had been resolved as not executed)`,
+        errorMessage: `${current.errorMessage} (reinstated: the venue confirmed this request exists after it had been resolved as not executed)`,
         correlationId: order.correlationId,
         previousCorrelationIds: order.previousCorrelationIds,
       },

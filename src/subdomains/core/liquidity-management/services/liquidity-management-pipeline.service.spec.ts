@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { FindOptionsWhere } from 'typeorm';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -206,29 +207,37 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(expectedStatus);
     });
 
-    it('only asks about quarantined orders', async () => {
-      // scanning terminal failures instead would mean a leading-wildcard match over every historical row
+    it('looks at quarantined orders and at not-sent failures the venue can still be asked about', async () => {
+      // the second branch is what applies an observation whose writes did not land; the bound on it is not a
+      // deadline for applying one, it is the point past which nobody can make one
       const findBy = jest.spyOn(orderRepo, 'findBy').mockResolvedValue([]);
 
       await service['resolveUncertainOrders']();
 
-      expect(findBy).toHaveBeenCalledWith({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      const [uncertain, reclaimable] = findBy.mock.calls[0][0] as FindOptionsWhere<LiquidityManagementOrder>[];
+      expect(uncertain).toEqual({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      expect(reclaimable.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(reclaimable.errorMessage).toBeDefined();
+      expect(reclaimable.updated).toBeDefined();
     });
 
     it('puts a confirmed order back into quarantine when neither release lands', async () => {
       // an alert alone is read at human speed while the rule reactivates in minutes, so the order itself
       // has to go back to a state nothing plans against
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder()]);
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(negativelyResolvedOrder());
       const update = jest
         .spyOn(orderRepo, 'update')
         .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] }) // no longer quarantined
-        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] }) // and not a negative resolution either
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] }) // and the reclaim does not match either
         .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] }); // so it is blocked again
       stubIntegration(UncertainOrderResolution.SENT);
 
       await service['resolveUncertainOrders']();
 
       expect(update.mock.calls[2][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      // and the reason already on the row survives being held again
+      expect(update.mock.calls[2][1].errorMessage).toContain('[resolved-as-not-sent]');
       expect(notificationService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
       );
@@ -292,8 +301,16 @@ describe('LiquidityManagementPipelineService', () => {
     });
 
     it('takes back a not-sent failure once the venue turns out to know the order after all', async () => {
-      const order = negativelyResolvedOrder();
-      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      // the row this pass loaded predates the resolution being overruled, so the reclaim has to write back
+      // what the row says NOW — otherwise it erases the operator and the reference behind that judgement
+      const stale = Object.assign(uncertainOrder(), { errorMessage: 'Scrypt did not answer' });
+      const written = Object.assign(negativelyResolvedOrder(), {
+        errorMessage:
+          'Scrypt did not answer (manually resolved by account 42: venue checked, no execution found — ' +
+          'ticket OPS-1234) [resolved-as-not-sent]',
+      });
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([stale]);
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(written);
       const update = jest
         .spyOn(orderRepo, 'update')
         // the release is skipped — this order is no longer quarantined — and the reclaim catches it instead
@@ -305,6 +322,8 @@ describe('LiquidityManagementPipelineService', () => {
 
       expect(update).toHaveBeenCalledTimes(2);
       expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
+      expect(update.mock.calls[1][1].errorMessage).toContain('account 42');
+      expect(update.mock.calls[1][1].errorMessage).toContain('OPS-1234');
       expect(notificationService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({ correlationId: 'lm-order-reinstated-9' }),
       );
@@ -377,7 +396,13 @@ describe('LiquidityManagementPipelineService', () => {
         errorMessage: 'unknown',
         action: { id: 233, system: 'Scrypt', command: 'sell' },
       });
-      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
+      const raced = Object.assign(new LiquidityManagementOrder(), {
+        id: 9,
+        status: LiquidityManagementOrderStatus.FAILED,
+        errorMessage: 'unknown (manually resolved by account 7: venue checked — ticket OPS-99) [resolved-as-not-sent]',
+        action: { id: 233, system: 'Scrypt', command: 'sell' },
+      });
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValueOnce(order).mockResolvedValue(raced);
       const update = jest
         .spyOn(orderRepo, 'update')
         .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
@@ -394,6 +419,9 @@ describe('LiquidityManagementPipelineService', () => {
       await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(/held as uncertain/);
 
       expect(update.mock.calls[2][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      // the account and reference recorded by whoever released it are still there afterwards
+      expect(update.mock.calls[2][1].errorMessage).toContain('account 7');
+      expect(update.mock.calls[2][1].errorMessage).toContain('OPS-99');
       expect(notificationService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
       );
