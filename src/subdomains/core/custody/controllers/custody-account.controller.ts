@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -83,8 +95,11 @@ export class CustodyAccountController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
   @ApiOkResponse({ type: [CustodyAccountAccessDto], description: 'List of users with access' })
-  async getAccessList(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyAccountAccessDto[]> {
-    const accessList = await this.custodyAccountService.getAccessList(+id, jwt.account);
+  async getAccessList(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<CustodyAccountAccessDto[]> {
+    const accessList = await this.custodyAccountService.getAccessList(id, jwt.account);
 
     return accessList.map(CustodyAccountDtoMapper.toAccessDto);
   }
@@ -115,11 +130,11 @@ export class CustodyAccountController {
   @ApiOkResponse({ type: CustodyAccountAccessDto, description: 'Update access grant' })
   async updateAccess(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Param('accessId') accessId: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('accessId', ParseIntPipe) accessId: number,
     @Body() dto: UpdateCustodyAccountAccessDto,
   ): Promise<CustodyAccountAccessDto> {
-    const access = await this.custodyAccountService.updateAccess(+id, +accessId, jwt.account, dto.accessLevel);
+    const access = await this.custodyAccountService.updateAccess(id, accessId, jwt.account, dto.accessLevel);
 
     return CustodyAccountDtoMapper.toAccessDto(access);
   }
@@ -130,18 +145,19 @@ export class CustodyAccountController {
   @ApiOkResponse({ description: 'Revoke access grant' })
   async revokeAccess(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Param('accessId') accessId: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('accessId', ParseIntPipe) accessId: number,
   ): Promise<void> {
-    await this.custodyAccountService.revokeAccess(+id, +accessId, jwt.account);
+    await this.custodyAccountService.revokeAccess(id, accessId, jwt.account);
   }
 
   private parseCustodyAccountId(id: string): CustodyAccountId {
     if (id === LegacyAccountId) return LegacyAccountId;
 
-    const parsed = +id;
-    if (Number.isNaN(parsed)) throw new NotFoundException('Custody account not found');
+    if (!/^\d+$/.test(id)) {
+      throw new BadRequestException('Invalid custody account ID');
+    }
 
-    return parsed;
+    return parseInt(id, 10);
   }
 }

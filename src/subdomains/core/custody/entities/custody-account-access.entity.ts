@@ -5,7 +5,8 @@ import { CustodyAccessLevel } from '../enums/custody';
 import { CustodyAccount } from './custody-account.entity';
 
 @Entity()
-@Index((a: CustodyAccountAccess) => [a.account, a.userData], { unique: true })
+// One active grant per (account, userData); historical rows stay with active = false.
+@Index((a: CustodyAccountAccess) => [a.account, a.userData], { unique: true, where: '"active" = true' })
 export class CustodyAccountAccess extends IEntity {
   @Index()
   @ManyToOne(() => CustodyAccount, (custodyAccount) => custodyAccount.accessGrants, { nullable: false })
@@ -17,4 +18,10 @@ export class CustodyAccountAccess extends IEntity {
 
   @Column()
   accessLevel: CustodyAccessLevel;
+
+  @Column({ default: true })
+  active: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deactivatedAt?: Date;
 }

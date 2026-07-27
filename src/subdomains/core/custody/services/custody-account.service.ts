@@ -8,6 +8,7 @@ import {
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { EntityManager } from 'typeorm';
 import { CustodyAccountDto } from '../dto/output/custody-account.dto';
 import { CustodyAccountAccess } from '../entities/custody-account-access.entity';
@@ -39,11 +40,13 @@ export class CustodyAccountService {
     });
     if (!account) throw new NotFoundException('User not found');
 
-    // owned accounts
-    const ownedAccounts = (account.custodyAccounts ?? []).filter((ca) => ca.status === CustodyAccountStatus.ACTIVE);
+    // owned accounts (active only for the list)
+    const allOwnedAccounts = account.custodyAccounts ?? [];
+    const ownedAccounts = allOwnedAccounts.filter((ca) => ca.status === CustodyAccountStatus.ACTIVE);
 
-    // shared accounts (via access grants, excluding owned)
+    // shared accounts (via active access grants, excluding owned)
     const sharedAccounts = (account.custodyAccountAccesses ?? [])
+      .filter((a) => a.active)
       .filter((a) => a.account.status === CustodyAccountStatus.ACTIVE)
       .filter((a) => a.account.owner.id !== accountId);
 
@@ -52,17 +55,15 @@ export class CustodyAccountService {
       ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel)),
     ];
 
-    if (custodyAccounts.length > 0) {
-      return custodyAccounts;
+    // Legacy Safe = absence of any owned account row; independent of shared grants.
+    if (allOwnedAccounts.length === 0) {
+      const hasCustody = account.users.some((u) => u.role === UserRole.CUSTODY);
+      if (hasCustody) {
+        custodyAccounts.push(CustodyAccountDtoMapper.toLegacyDto(account));
+      }
     }
 
-    // fallback to legacy custody account
-    const hasCustody = account.users.some((u) => u.role === UserRole.CUSTODY);
-    if (hasCustody) {
-      return [CustodyAccountDtoMapper.toLegacyDto(account)];
-    }
-
-    return [];
+    return custodyAccounts;
   }
 
   async getCustodyAccountById(custodyAccountId: number): Promise<CustodyAccount> {
@@ -97,8 +98,8 @@ export class CustodyAccountService {
       return { custodyAccount, isLegacy: false };
     }
 
-    // Check access grants
-    const access = custodyAccount.accessGrants.find((a) => a.userData.id === accountId);
+    // Check active access grants only
+    const access = custodyAccount.accessGrants.find((a) => a.active && a.userData.id === accountId);
     if (!access) {
       throw new ForbiddenException('No access to this custody account');
     }
@@ -137,7 +138,7 @@ export class CustodyAccountService {
     await this.checkAccess(custodyAccountId, accountId, CustodyAccessLevel.READ);
 
     return this.custodyAccountAccessRepo.find({
-      where: { account: { id: custodyAccountId } },
+      where: { account: { id: custodyAccountId }, active: true },
       relations: { userData: true },
     });
   }
@@ -155,16 +156,19 @@ export class CustodyAccountService {
       throw new BadRequestException('Invalid custody account ID');
     }
 
+    // Authorise the Safe first (ownership / legacy entitlement) so e-mail resolution cannot
+    // leak whether an address is registered to callers without access.
+    if (custodyAccountId === LegacyAccountId) {
+      return this.grantAccessForLegacy(ownerAccountId, mail, accessLevel);
+    }
+
+    const account = await this.requireOwner(custodyAccountId, ownerAccountId);
+
     const target = await this.resolveUserByMail(mail);
     if (target.id === ownerAccountId) {
       throw new BadRequestException('Cannot grant access to yourself');
     }
 
-    if (custodyAccountId === LegacyAccountId) {
-      return this.grantAccessForLegacy(ownerAccountId, target, accessLevel);
-    }
-
-    const account = await this.requireOwner(custodyAccountId, ownerAccountId);
     return this.createGrant(this.custodyAccountAccessRepo.manager, account, target, accessLevel);
   }
 
@@ -174,19 +178,41 @@ export class CustodyAccountService {
     ownerAccountId: number,
     accessLevel: CustodyAccessLevel,
   ): Promise<CustodyAccountAccess> {
-    await this.requireOwner(custodyAccountId, ownerAccountId);
+    const account = await this.requireOwner(custodyAccountId, ownerAccountId);
 
     const access = await this.getAccessGrantForAccount(custodyAccountId, accessId);
-    access.accessLevel = accessLevel;
+    this.rejectOwnerGrantMutation(access, account, 'modify');
 
-    return this.custodyAccountAccessRepo.save(access);
+    if (access.accessLevel === accessLevel) {
+      return access;
+    }
+
+    // Supersede with history: deactivate old row, insert new active row (payload intact).
+    return this.custodyAccountAccessRepo.manager.transaction(async (manager) => {
+      access.active = false;
+      access.deactivatedAt = new Date();
+      await manager.save(access);
+
+      const grant = manager.create(CustodyAccountAccess, {
+        account: access.account,
+        userData: access.userData,
+        accessLevel,
+        active: true,
+      });
+
+      return this.saveGrant(manager, grant);
+    });
   }
 
   async revokeAccess(custodyAccountId: number, accessId: number, ownerAccountId: number): Promise<void> {
-    await this.requireOwner(custodyAccountId, ownerAccountId);
+    const account = await this.requireOwner(custodyAccountId, ownerAccountId);
 
     const access = await this.getAccessGrantForAccount(custodyAccountId, accessId);
-    await this.custodyAccountAccessRepo.remove(access);
+    this.rejectOwnerGrantMutation(access, account, 'revoke');
+
+    access.active = false;
+    access.deactivatedAt = new Date();
+    await this.custodyAccountAccessRepo.save(access);
   }
 
   // --- HELPER METHODS --- //
@@ -211,9 +237,23 @@ export class CustodyAccountService {
     return custodyAccount;
   }
 
+  private rejectOwnerGrantMutation(
+    access: CustodyAccountAccess,
+    account: CustodyAccount,
+    action: 'modify' | 'revoke',
+  ): void {
+    if (access.userData.id === account.owner.id) {
+      throw new BadRequestException(
+        action === 'revoke'
+          ? "Cannot revoke the account owner's access grant"
+          : "Cannot modify the account owner's access grant",
+      );
+    }
+  }
+
   private async getAccessGrantForAccount(custodyAccountId: number, accessId: number): Promise<CustodyAccountAccess> {
     const access = await this.custodyAccountAccessRepo.findOne({
-      where: { id: accessId },
+      where: { id: accessId, active: true },
       relations: { userData: true, account: true },
     });
     if (!access || access.account.id !== custodyAccountId) {
@@ -230,7 +270,7 @@ export class CustodyAccountService {
     accessLevel: CustodyAccessLevel,
   ): Promise<CustodyAccountAccess> {
     const existing = await manager.findOne(CustodyAccountAccess, {
-      where: { account: { id: account.id }, userData: { id: target.id } },
+      where: { account: { id: account.id }, userData: { id: target.id }, active: true },
     });
     if (existing) {
       throw new ConflictException('Access grant already exists for this user');
@@ -240,9 +280,22 @@ export class CustodyAccountService {
       account,
       userData: target,
       accessLevel,
+      active: true,
     });
 
-    return manager.save(grant);
+    return this.saveGrant(manager, grant);
+  }
+
+  private async saveGrant(manager: EntityManager, grant: CustodyAccountAccess): Promise<CustodyAccountAccess> {
+    try {
+      return await manager.save(grant);
+    } catch (e) {
+      // Concurrent insert lost the unique race (SQLSTATE 23505) → same 409 as the pre-check.
+      if ((e as { code?: string }).code === '23505') {
+        throw new ConflictException('Access grant already exists for this user');
+      }
+      throw e;
+    }
   }
 
   private async persistCustodyAccount(
@@ -265,6 +318,7 @@ export class CustodyAccountService {
       account: saved,
       userData: owner,
       accessLevel: CustodyAccessLevel.WRITE,
+      active: true,
     });
     await manager.save(ownerAccess);
 
@@ -273,13 +327,25 @@ export class CustodyAccountService {
 
   private async grantAccessForLegacy(
     ownerAccountId: number,
-    target: UserData,
+    mail: string,
     accessLevel: CustodyAccessLevel,
   ): Promise<CustodyAccountAccess> {
+    // Authorise legacy entitlement before resolving the e-mail (no enumeration for outsiders).
     const owner = await this.userDataService.getActiveUserData(ownerAccountId, { users: true });
     const hasCustody = owner.users.some((u) => u.role === UserRole.CUSTODY);
     if (!hasCustody) {
       throw new NotFoundException('Legacy account not found');
+    }
+
+    // Legacy Safe = absence of any owned account row (pre-check; re-checked under lock).
+    const ownedCount = await this.custodyAccountRepo.count({ where: { owner: { id: ownerAccountId } } });
+    if (ownedCount > 0) {
+      throw new BadRequestException('Legacy account not available because custody accounts already exist');
+    }
+
+    const target = await this.resolveUserByMail(mail);
+    if (target.id === ownerAccountId) {
+      throw new BadRequestException('Cannot grant access to yourself');
     }
 
     return this.custodyAccountRepo.manager.transaction(async (manager) => {
@@ -289,18 +355,17 @@ export class CustodyAccountService {
       ]);
 
       const existingAccounts = await manager.find(CustodyAccount, {
-        where: { owner: { id: ownerAccountId }, status: CustodyAccountStatus.ACTIVE },
+        where: { owner: { id: ownerAccountId } },
         relations: { owner: true },
         order: { id: 'ASC' },
       });
 
-      let account: CustodyAccount;
       if (existingAccounts.length > 0) {
-        account = existingAccounts[0];
-      } else {
-        account = await this.persistCustodyAccount(manager, owner, 'Custody');
-        await this.attachLegacyCustodyData(manager, account, owner);
+        throw new BadRequestException('Legacy account not available because custody accounts already exist');
       }
+
+      const account = await this.persistCustodyAccount(manager, owner, 'Custody');
+      await this.attachLegacyCustodyData(manager, account, owner);
 
       return this.createGrant(manager, account, target, accessLevel);
     });
@@ -317,11 +382,14 @@ export class CustodyAccountService {
     // Set the `account` relation itself — there is no `accountId` property on the entities,
     // and casting one in hides that from the compiler until it fails at runtime. The column
     // names are camelCase and therefore have to stay quoted for Postgres.
+    // Only reparent rows that are still unassigned (NULL account) so foreign/closed accounts
+    // are never hijacked.
     await manager
       .createQueryBuilder()
       .update(CustodyBalance)
       .set({ account })
       .where('"userId" IN (:...userIds)', { userIds: custodyUserIds })
+      .andWhere('"accountId" IS NULL')
       .execute();
 
     await manager
@@ -329,6 +397,16 @@ export class CustodyAccountService {
       .update(CustodyOrder)
       .set({ account })
       .where('"userId" IN (:...userIds)', { userIds: custodyUserIds })
+      .andWhere('"accountId" IS NULL')
+      .execute();
+
+    // Complete the association on the custody User rows (only where still unassigned).
+    await manager
+      .createQueryBuilder()
+      .update(User)
+      .set({ custodyAccount: account })
+      .where('id IN (:...userIds)', { userIds: custodyUserIds })
+      .andWhere('"custodyAccountId" IS NULL')
       .execute();
   }
 }
