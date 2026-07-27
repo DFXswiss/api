@@ -102,9 +102,9 @@ describe('toBroadcastBoundaryError', () => {
       message: 'failed to get output distribution',
     });
 
-    expect(
-      toBroadcastBoundaryError(rpcError, [], [{ code: -4, message: 'failed to get output distribution' }]),
-    ).toBe(rpcError);
+    expect(toBroadcastBoundaryError(rpcError, [], [{ code: -4, message: 'failed to get output distribution' }])).toBe(
+      rpcError,
+    );
     expect(toBroadcastBoundaryError(rpcError, [])).toBeInstanceOf(TxBroadcastError);
   });
 
@@ -141,9 +141,7 @@ describe('toBroadcastBoundaryError', () => {
     });
 
     expect(
-      toBroadcastBoundaryError(splitAcrossNodes, [], [
-        { code: -4, message: 'failed to get output distribution' },
-      ]),
+      toBroadcastBoundaryError(splitAcrossNodes, [], [{ code: -4, message: 'failed to get output distribution' }]),
     ).toBeInstanceOf(TxBroadcastError);
   });
 
@@ -153,9 +151,9 @@ describe('toBroadcastBoundaryError', () => {
     const parsed = { code: -4, message: 'failed to get output distribution' };
     const wrapped = new Error('Monero RPC send failed', { cause: parsed });
 
-    expect(
-      toBroadcastBoundaryError(wrapped, [], [{ code: -4, message: 'failed to get output distribution' }]),
-    ).toBe(wrapped);
+    expect(toBroadcastBoundaryError(wrapped, [], [{ code: -4, message: 'failed to get output distribution' }])).toBe(
+      wrapped,
+    );
   });
 
   it('does not classify an allowlisted pair found only in a raw transport response', () => {
