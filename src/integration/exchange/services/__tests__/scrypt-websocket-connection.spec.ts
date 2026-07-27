@@ -1,6 +1,10 @@
 import { EventEmitter as MockEventEmitter } from 'events';
 import Ws from 'ws';
-import { ScryptMessageType, ScryptWebSocketConnection } from '../scrypt-websocket-connection';
+import {
+  ScryptMessageType,
+  ScryptRequestTimeoutError,
+  ScryptWebSocketConnection,
+} from '../scrypt-websocket-connection';
 
 type MockWebSocketInstance = MockEventEmitter & {
   url: string;
@@ -998,5 +1002,58 @@ describe('ScryptWebSocketConnection', () => {
     await flushPromises();
 
     expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  describe('unanswered requests', () => {
+    const REQUEST_TIMEOUT_MS = 30000;
+
+    function subscribeReqIds(ws: MockWebSocketInstance, streamName: ScryptMessageType): number[] {
+      return ws.send.mock.calls
+        .map(([payload]) => JSON.parse(payload as string))
+        .filter((msg) => msg.type === 'subscribe' && msg.streams?.[0]?.name === streamName)
+        .map((msg) => msg.reqid as number);
+    }
+
+    it('retries a read once when the venue never answers, instead of failing the caller', async () => {
+      const ws = await firstConnectWithStream();
+      const streamName = ScryptMessageType.EXECUTION_REPORT;
+
+      const fetchPromise = connection.fetch(streamName);
+      await flushPromises();
+      expect(subscribeReqIds(ws, streamName)).toHaveLength(1);
+
+      // silence for the whole deadline — the venue simply does not reply
+      jest.advanceTimersByTime(REQUEST_TIMEOUT_MS);
+      await flushPromises();
+
+      const reqIds = subscribeReqIds(ws, streamName);
+      expect(reqIds).toHaveLength(2);
+
+      ws.emit(
+        'message',
+        JSON.stringify({ reqid: reqIds[1], type: streamName, initial: true, data: [{ ClOrdID: 'ord-after-retry' }] }),
+      );
+
+      await expect(fetchPromise).resolves.toEqual([{ ClOrdID: 'ord-after-retry' }]);
+      expect(loggerWarn).toHaveBeenCalledWith(expect.stringContaining(`Retrying fetch ${streamName}`));
+    });
+
+    it('surfaces an unanswered request as ScryptRequestTimeoutError, not a plain Error', async () => {
+      const ws = await firstConnectWithStream();
+      const streamName = ScryptMessageType.EXECUTION_REPORT;
+
+      const fetchPromise = connection.fetch(streamName);
+      const assertion = expect(fetchPromise).rejects.toBeInstanceOf(ScryptRequestTimeoutError);
+      await flushPromises();
+
+      // both the first attempt and its retry go unanswered
+      jest.advanceTimersByTime(REQUEST_TIMEOUT_MS);
+      await flushPromises();
+      jest.advanceTimersByTime(REQUEST_TIMEOUT_MS);
+      await flushPromises();
+
+      await assertion;
+      expect(subscribeReqIds(ws, streamName)).toHaveLength(2);
+    });
   });
 });

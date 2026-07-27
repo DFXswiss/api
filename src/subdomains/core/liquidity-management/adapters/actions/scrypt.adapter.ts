@@ -38,6 +38,13 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
  */
 const SCRYPT_UNCERTAIN_GRACE_MINUTES = 10;
 
+/**
+ * Messages that can only originate from a reply by the venue. They are the sole evidence that a request was
+ * received and refused — everything else leaves the outcome unknown. Kept narrow on purpose: adding a marker
+ * here widens what counts as a proven failure, which is the direction that allows a repeat.
+ */
+const VENUE_REJECTION_MARKERS = ['Scrypt order rejected', 'Scrypt withdrawal rejected'];
+
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {
   private readonly logger = new DfxLogger(ScryptAdapter);
@@ -243,8 +250,19 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
+    // The check may amend or restart the order, which creates a NEW venue order. Hand it a reference derived
+    // from the order row so that a replacement whose confirmation never arrives is still findable — without
+    // this, the reconciliation below could not cover the amend boundary even in principle.
+    const replacementClOrdId = this.nextCorrelationId(order);
+
     try {
-      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to, order.created);
+      const isComplete = await this.scryptService.checkTrade(
+        order.correlationId,
+        from,
+        to,
+        order.created,
+        replacementClOrdId,
+      );
 
       if (isComplete) {
         order.outputAmount = await this.aggregateTradeOutput(order);
@@ -263,8 +281,27 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         return false;
       }
 
+      // An amend or restart may have reached the venue before the failure. Reading the state is harmless, but
+      // this path can WRITE, so an unconfirmed outcome must quarantine the order instead of failing it —
+      // failing pauses the rule, which auto-reactivates and reissues the whole trade.
+      if (e instanceof ScryptRequestTimeoutError) {
+        throw new OrderOutcomeUnknownException(
+          `Scrypt gave no confirmed outcome while checking order ${order.id} (replacement reference ${replacementClOrdId}): ${e.message}`,
+        );
+      }
+
       throw new OrderFailedException(e.message);
     }
+  }
+
+  /**
+   * Reference for the next venue order this row may produce (an amend or a restart).
+   *
+   * Derived from the order id and the number of references already used, so it is reproducible from the row
+   * alone — no extra column, and no window in which a replacement exists that we cannot name.
+   */
+  private nextCorrelationId(order: LiquidityManagementOrder): CorrelationId {
+    return `${SCRYPT_CORRELATION_PREFIX}${order.id}-${order.allCorrelationIds.length}`;
   }
 
   private async aggregateTradeOutput(order: LiquidityManagementOrder): Promise<number> {
@@ -401,12 +438,19 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * unknown outcome and the order is quarantined rather than repeated.
    */
   private classifySendOutcome(e: Error, description: string): Error {
-    if (e instanceof ScryptRequestTimeoutError)
-      return new OrderOutcomeUnknownException(`Scrypt did not answer the ${description}: ${e.message}`);
+    // Only a reply from the venue proves what happened to the request. A rejection means it was seen and
+    // refused — an ordinary failure, safe to let the rule plan again.
+    if (VENUE_REJECTION_MARKERS.some((m) => e.message?.includes(m))) return e;
 
-    // A dropped socket proves the request never completed at the venue, so this stays an ordinary failure —
-    // the same evidence `isTransientWsError` already encodes for the completion-check path.
-    return e;
+    // Everything else is silence, and silence is not evidence. A timeout is obvious, but a dropped socket is
+    // just as ambiguous: `requestWithId` hands the bytes to the network before registering the pending
+    // request, and a later close rejects it with a generic message that says nothing about whether the venue
+    // acted. Both become unknown outcomes.
+    //
+    // Over-classifying here is cheap and self-correcting: an error that in truth occurred before the send
+    // leaves no trace at the venue, so `resolveUncertainOrder` finds nothing and, after the grace window,
+    // settles the order as failed on its own. Under-classifying is what moved money without a record.
+    return new OrderOutcomeUnknownException(`Scrypt gave no confirmed outcome for the ${description}: ${e.message}`);
   }
 
   /**
@@ -422,14 +466,28 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     if (Util.minutesDiff(order.updated) < SCRYPT_UNCERTAIN_GRACE_MINUTES) return UncertainOrderResolution.UNRESOLVED;
 
     try {
-      const found =
-        order.action.command === ScryptAdapterCommands.WITHDRAW
-          ? await this.scryptService.findWithdrawal(correlationId)
-          : await this.scryptService.getOrderStatus(correlationId);
+      if (order.action.command === ScryptAdapterCommands.WITHDRAW) {
+        const withdrawal = await this.scryptService.findWithdrawal(correlationId);
+        if (withdrawal) {
+          this.logger.info(`Scrypt confirmed reference ${correlationId} exists; order ${order.id} was sent`);
+          return UncertainOrderResolution.SENT;
+        }
+      } else {
+        // Every reference this row may have produced: the ones already recorded, plus the replacement an
+        // amend or restart could have created without our ever seeing the confirmation. Missing the latter
+        // would report NOT_SENT for a live venue order.
+        const candidates = [...order.allCorrelationIds, this.nextCorrelationId(order)];
 
-      if (found) {
-        this.logger.info(`Scrypt confirmed reference ${correlationId} exists; order ${order.id} was sent`);
-        return UncertainOrderResolution.SENT;
+        for (const candidate of candidates) {
+          if (await this.scryptService.getOrderStatus(candidate)) {
+            // Track the reference the venue actually knows. If the match is a replacement we never got
+            // confirmation for, the completion check would otherwise keep polling the superseded id.
+            if (candidate !== order.correlationId) order.updateCorrelationId(candidate);
+
+            this.logger.info(`Scrypt confirmed reference ${candidate} exists; order ${order.id} was sent`);
+            return UncertainOrderResolution.SENT;
+          }
+        }
       }
 
       this.logger.info(`Scrypt has no record of reference ${correlationId}; order ${order.id} never arrived`);

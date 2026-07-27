@@ -3,6 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -67,13 +68,21 @@ export class LiquidityManagementPipelineService {
 
   async getProcessingOrders(): Promise<LiquidityManagementOrder[]> {
     return this.orderRepo.findBy({
-      status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
+      // a quarantined order is unfinished business, not a closed one — it belongs in this view
+      status: In([
+        LiquidityManagementOrderStatus.CREATED,
+        LiquidityManagementOrderStatus.IN_PROGRESS,
+        LiquidityManagementOrderStatus.UNCERTAIN,
+      ]),
     });
   }
 
   async getPendingTx(): Promise<LiquidityManagementOrder[]> {
     return this.orderRepo.findBy({
-      status: LiquidityManagementOrderStatus.IN_PROGRESS,
+      // A quarantined transfer is the definition of pending: the funds may already have left and the
+      // financial log has to keep counting them, otherwise the equity snapshot loses exactly the amount
+      // whose whereabouts are in question.
+      status: In([LiquidityManagementOrderStatus.IN_PROGRESS, LiquidityManagementOrderStatus.UNCERTAIN]),
       action: { command: In(['withdraw', 'deposit', 'transfer']) },
     });
   }
@@ -316,6 +325,15 @@ export class LiquidityManagementPipelineService {
           anyChanged = true;
           continue;
         }
+        if (e instanceof OrderOutcomeUnknownException) {
+          // The completion check can amend or restart an order, so it has a send boundary of its own. An
+          // unconfirmed outcome here must quarantine rather than fail, for the same reason as on first send.
+          order.uncertain(e);
+          await this.orderRepo.save(order);
+          await this.reportUncertainOrder(order);
+          anyChanged = true;
+          continue;
+        }
 
         this.logger.error(`Error in checking running liquidity order ${order.id}:`, e);
       }
@@ -366,6 +384,16 @@ export class LiquidityManagementPipelineService {
     if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
   }
 
+  /**
+   * Stable short key for "same cause", used to scope alert debouncing. Digits are stripped so that amounts,
+   * ids and balances in the message do not make every repeat of one recurring problem look like a new one.
+   */
+  private causeKey(errorMessage?: string): string {
+    const normalized = (errorMessage ?? 'unknown').toLowerCase().replace(/\d+/g, '#');
+
+    return Util.createHash(normalized).slice(0, 12);
+  }
+
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): string {
     const { id, type, maxAmount, rule } = pipeline;
 
@@ -388,7 +416,11 @@ export class LiquidityManagementPipelineService {
       // mail. On 20.07.2026 two rules produced 18 mails in two hours for one underlying problem. Debounce
       // rather than suppressRecurring, so a rule that keeps failing keeps reminding us once an hour instead
       // of going quiet forever after the first mail.
-      correlationId: `lm-pipeline-fail-${rule.id}`,
+      // Keyed by rule AND cause. Suppression compares only correlationId and context, never the body, so a
+      // rule-only key would swallow a genuinely different failure of the same rule inside the window.
+      // Keying by pipeline would defeat the purpose instead — every retry is a new pipeline, which is how
+      // one incident produced 18 mails in two hours.
+      correlationId: `lm-pipeline-fail-${rule.id}-${this.causeKey(order.errorMessage)}`,
       options: { debounce: 3600000 },
       input: {
         subject: 'Liquidity management pipeline FAIL',

@@ -165,6 +165,35 @@ describe('LiquidityManagementPipelineService', () => {
     });
   });
 
+  describe('checkRunningPipelines — quarantined orders', () => {
+    it('leaves a pipeline whose last order is UNCERTAIN completely alone', async () => {
+      const rule = Object.assign(new LiquidityManagementRule(), { id: 42, sendNotifications: true });
+      const pipeline = Object.assign(new LiquidityManagementPipeline(), {
+        id: 1,
+        status: LiquidityManagementPipelineStatus.IN_PROGRESS,
+        currentAction: { id: 233 },
+        rule,
+      });
+      jest.spyOn(pipelineRepo, 'find').mockResolvedValue([pipeline]);
+      jest
+        .spyOn(orderRepo, 'findOne')
+        .mockResolvedValue(
+          Object.assign(new LiquidityManagementOrder(), { id: 9, status: LiquidityManagementOrderStatus.UNCERTAIN }),
+        );
+
+      const anyChanged = await service['checkRunningPipelines']();
+
+      // no advance, no fail, no new order — and crucially the rule is neither paused nor reactivated,
+      // which is what stops an unresolved order from being reissued
+      expect(anyChanged).toBe(false);
+      expect(pipeline.status).toBe(LiquidityManagementPipelineStatus.IN_PROGRESS);
+      expect(pipelineRepo.save).not.toHaveBeenCalled();
+      expect(orderRepo.save).not.toHaveBeenCalled();
+      expect(ruleRepo.save).not.toHaveBeenCalled();
+      expect(notificationService.sendMail).not.toHaveBeenCalled();
+    });
+  });
+
   describe('handlePipelineFail', () => {
     it('resets the activation debounce timer when a rule is paused', async () => {
       const rule = Object.assign(new LiquidityManagementRule(), {

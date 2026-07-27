@@ -449,7 +449,17 @@ export class ScryptService extends PricingProvider {
     };
   }
 
-  async checkTrade(clOrdId: string, from: string, to: string, orderCreated?: Date): Promise<boolean> {
+  /**
+   * @param replacementClOrdId reference to use if this check has to amend or restart the order. Must be
+   * reproducible from the order row by the caller, so a timed-out replacement stays findable.
+   */
+  async checkTrade(
+    clOrdId: string,
+    from: string,
+    to: string,
+    orderCreated?: Date,
+    replacementClOrdId?: string,
+  ): Promise<boolean> {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
       // If the order is older than 1 hour and still not found, it's lost
@@ -475,7 +485,14 @@ export class ScryptService extends PricingProvider {
           this.logger.verbose(`Order ${clOrdId}: price changed ${orderInfo.price} -> ${currentPrice}, updating order`);
 
           try {
-            const newId = await this.editOrder(clOrdId, from, to, orderInfo.remainingQuantity, currentPrice);
+            const newId = await this.editOrder(
+              clOrdId,
+              from,
+              to,
+              orderInfo.remainingQuantity,
+              currentPrice,
+              replacementClOrdId,
+            );
             this.logger.verbose(`Order ${clOrdId} changed to ${newId}`);
             throw new TradeChangedException(newId);
           } catch (e) {
@@ -520,6 +537,7 @@ export class ScryptService extends PricingProvider {
           ScryptOrderType.LIMIT,
           ScryptTimeInForce.GOOD_TILL_CANCEL,
           price,
+          replacementClOrdId,
         );
 
         this.logger.verbose(`Order ${clOrdId} changed to ${response.id}`);
@@ -629,9 +647,13 @@ export class ScryptService extends PricingProvider {
     to: string,
     newQuantity: number,
     newPrice: number,
+    // See placeOrder. A cancel-replace creates a NEW venue order, so its reference needs the same
+    // reproducibility as the initial one — otherwise an amend that times out leaves a live order that
+    // nothing can look up.
+    reservedClOrdId?: string,
   ): Promise<string> {
     const { symbol } = await this.getTradePair(from, to);
-    const newClOrdId = randomUUID();
+    const newClOrdId = reservedClOrdId ?? randomUUID();
 
     const editData = {
       OrigClOrdID: clOrdId,

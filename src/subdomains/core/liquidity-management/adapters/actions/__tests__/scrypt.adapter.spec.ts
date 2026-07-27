@@ -165,13 +165,34 @@ describe('ScryptAdapter', () => {
       expect(classified).toBeInstanceOf(OrderOutcomeUnknownException);
     });
 
-    it('leaves a dropped connection as an ordinary error — it proves the request never completed', () => {
+    it('also treats a dropped connection as unknown — the bytes may already have reached the venue', () => {
+      // requestWithId hands the payload to the socket before the pending entry exists; a later close rejects
+      // it with a generic message that says nothing about whether the venue acted on it.
       const dropped = new Error('Connection closed');
 
-      const classified = adapter['classifySendOutcome'](dropped, 'sell of 1 EUR to USDT');
+      const classified = adapter['classifySendOutcome'](dropped, 'withdrawal of 1 USDT to 0xabc');
 
-      expect(classified).toBe(dropped);
+      expect(classified).toBeInstanceOf(OrderOutcomeUnknownException);
+    });
+
+    it('keeps a venue rejection an ordinary failure — the venue replied, so the outcome is known', () => {
+      const rejected = new Error('Scrypt withdrawal rejected: insufficient limit');
+
+      const classified = adapter['classifySendOutcome'](rejected, 'withdrawal of 1 USDT to 0xabc');
+
+      expect(classified).toBe(rejected);
       expect(classified).not.toBeInstanceOf(OrderOutcomeUnknownException);
+    });
+  });
+
+  describe('nextCorrelationId', () => {
+    it('names the replacement an amend or restart would create, reproducibly from the row', () => {
+      const order = Object.assign(new LiquidityManagementOrder(), { id: 4711, correlationId: 'dfx-lm-4711' });
+
+      expect(adapter['nextCorrelationId'](order)).toBe('dfx-lm-4711-1');
+
+      order.updateCorrelationId('dfx-lm-4711-1');
+      expect(adapter['nextCorrelationId'](order)).toBe('dfx-lm-4711-2');
     });
   });
 
@@ -221,6 +242,26 @@ describe('ScryptAdapter', () => {
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.NOT_SENT);
       expect(scryptService.findWithdrawal).toHaveBeenCalledWith('dfx-lm-4711');
+    });
+
+    it('reports SENT for a withdraw order the venue does know', async () => {
+      jest.spyOn(scryptService, 'findWithdrawal').mockResolvedValue({ ClReqID: 'dfx-lm-4711' } as any);
+      const order = createUncertainSellOrder({
+        action: { command: ScryptAdapterCommands.WITHDRAW, paramMap: {} } as any,
+      });
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
+    });
+
+    it('finds a replacement the venue accepted but never confirmed, and tracks its reference', async () => {
+      // the amend boundary: the original is unknown to the venue, the replacement is live
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711-1' ? ({ id } as any) : null));
+      const order = createUncertainSellOrder();
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
+      expect(order.correlationId).toBe('dfx-lm-4711-1');
     });
   });
 });
