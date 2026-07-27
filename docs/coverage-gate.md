@@ -73,31 +73,53 @@ that costs in run time.
 ## Where the gate runs
 
 On a **self-hosted runner** (`runs-on: [self-hosted, dfx-api]`), unlike every other job in the
-workflow. The gate is CPU-bound, and a hosted runner gives a public repository four vCPUs — Jest
-then defaults to three workers. Measured there, the gate took 13.8 min and single-handedly pushed
-a PR run from 4.8 to 15.7 min. On the self-hosted pool the same work takes **3.8 min**, and the
-whole PR run lands at **4.9 min**.
+workflow, and serialised across all pull requests by a `concurrency` group.
 
-Sharding the gate across hosted runners was considered and rejected. At 11–12 jobs per push the
+A hosted runner gives a public repository four vCPUs, so Jest defaults to three workers. Measured
+there the gate took 13.8 min and single-handedly pushed a PR run from 4.8 to 15.7 min. The team's
+ceiling for a full run is 5 min. On the self-hosted runner the same work takes **1.5 min**.
+
+Sharding it across hosted runners was considered and rejected: at 11-12 jobs per push the
 repository already reaches the account's 20-concurrent-job limit whenever two runs overlap
-(measured: 37–52 s of queueing against 2–3 s otherwise), so more jobs there buy queueing, not
+(measured: 37-52 s of queueing against 2-3 s otherwise), so more jobs there buy queueing, not
 speed. Self-hosted jobs do not count against that limit.
 
-Three things about that job are measured rather than assumed, and re-measuring beats reasoning
-about them:
+### What was measured, and what it cost to learn
 
-- **`--maxWorkers=16`.** Raising it backfires: at 20 the gate took 8.4 min against 4.8, while host
-  CPU stayed flat at ~53 % mean either way. The workers contend instead of parallelising — under
-  full compilation each holds its own TypeScript program.
+Everything below is measured. Each line replaced an assumption that turned out wrong, so
+re-measure before changing any of it.
+
+- **`--maxWorkers=8` — fewer, not more.** At 20 the gate took 8.4 min; at 16 it swung between 1.5
+  and 5.4 min across otherwise identical runs; at 8 it took 1.5 min in three consecutive runs with
+  no variation. Host CPU never exceeded ~70 % in any of them — not even when two jobs ran side by
+  side with twice that many workers and both took 16.6 min. The workers were never short of cores,
+  so adding more could not help. Under full compilation
+  each holds its own TypeScript program, and how much memory is free on that host varies with what
+  else runs there.
+- **A `concurrency` group, because two gates at once cripple both.** Two runs started four seconds
+  apart each took 16.6 min, against 1.5 min alone. They do not split the machine, they block each
+  other. `queue: max` matters: without it a third pull request cancels the already-waiting run, and
+  a cancelled check reads as a failure.
 - **No `cache: 'npm'` on that job**, unlike the hosted ones. A persistent runner keeps `~/.npm`
-  between jobs, so restoring gains nothing while saving uploads a cache nobody reads — it cost
-  5.3 min per run, more than the move to self-hosted saved.
-- **A warm Jest cache is worth roughly half the runtime.** The first run on a fresh runner took
-  6.8 min for the same work that later took 3.8. A gate timing measured on a cold runner is not
-  the steady state.
+  between jobs, so restoring gains nothing while saving uploads a cache nobody reads. It cost
+  5.3 min per run — more than moving off hosted runners saved in the first place.
+- **A cold runner reports roughly double.** The first run on a freshly registered slot took 6.8 min
+  for work that later took 1.5. Each slot warms separately. A first measurement is not a result.
 
-The margin against the 5-minute ceiling is thin, and the sharded `test` job at ~4.4 min is close
-behind — the gate is only just the slowest job. Treat a slower run as a signal, not as noise.
+### The gate is no longer the bottleneck — but the margin is not the gate's
+
+At 1.5 min the gate is well clear of the sharded `test` job at ~4.2 min, which now decides how long
+a run takes. Full runs measured at **4.9-5.0 min**: the ceiling is met, but by seconds, and
+tightening the gate further buys nothing.
+
+Two caveats worth knowing before reading a slow run as a regression:
+
+- **Serialisation is not free.** A run that waits for another pull request's gate carries that wait
+  in its total. Three runs queued back to back measured 5.0, 4.9 and 7.6 min — all with a 1.5 min
+  gate. Waiting is still much cheaper than colliding (7.6 against 16.6 min), but it can breach the
+  ceiling when several pull requests land together.
+- **The remaining margin belongs to the `test` shards.** If runs need to get reliably faster, that
+  is where to look, not here.
 
 ## What happens when a pinned file changes
 
@@ -117,7 +139,7 @@ The run also writes an `lcov` report under `coverage-gate/`. On failure the CI j
 directory as the `coverage-gate` artifact (7-day retention, via `actions/upload-artifact@v7`,
 step "Upload coverage report" on the "Coverage ratchet" job). That shows which lines are missing
 without re-running the whole gate locally — which on a developer machine, without the CI runner's
-warm caches, is a good deal slower than the 3.8 min it takes in CI.
+warm caches, is a good deal slower than the 1.5 min it takes in CI.
 
 ## Current state
 
