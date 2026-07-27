@@ -147,8 +147,11 @@ export class CustodyAccountService {
 
   /**
    * Resolves a custody account to its owner's user_data id for data reads.
-   * Today an account is the owner's entire Safe — no per-account attribution exists
-   * (balances/orders never set accountId). Once they carry an account, callers must filter by it.
+   * Today balances/orders never set accountId, so a read returns the owner's entire Safe.
+   * If the owner holds more than one ACTIVE account, that would disclose holdings outside
+   * the granted account — refuse instead of returning a fabricated subset or an over-broad
+   * full Safe. Once balances and orders carry an account, callers filter by it and this
+   * multi-account refusal is no longer needed. Legacy is unaffected (caller has no accounts).
    */
   async resolveOwnerAccountId(custodyAccountId: CustodyAccountId, callerAccountId: number): Promise<number> {
     const { custodyAccount, isLegacy } = await this.checkAccess(
@@ -165,7 +168,17 @@ export class CustodyAccountService {
       throw new NotFoundException('Custody account not found');
     }
 
-    return custodyAccount.owner.id;
+    const ownerId = custodyAccount.owner.id;
+    const activeOwnedCount = await this.custodyAccountRepo.count({
+      where: { owner: { id: ownerId }, status: CustodyAccountStatus.ACTIVE },
+    });
+    if (activeOwnedCount > 1) {
+      throw new ConflictException(
+        'The holdings of this Safe are not attributed to a single account, so the account cannot be read in isolation',
+      );
+    }
+
+    return ownerId;
   }
 
   // --- CREATE --- //
