@@ -56,8 +56,9 @@ export class CustodyAccountService {
     const allOwnedAccounts = account.custodyAccounts ?? [];
     const ownedAccounts = allOwnedAccounts.filter((ca) => ca.status === CustodyAccountStatus.ACTIVE);
 
-    // shared accounts via active grants only (history filtered in SQL, not JS)
-    const activeSharedGrants = await this.custodyAccountAccessRepo.find({
+    // active grants only (history filtered in SQL, not JS) — these cover both foreign accounts
+    // the caller may see and own accounts the caller narrowed for themselves
+    const activeGrants = await this.custodyAccountAccessRepo.find({
       where: {
         userData: { id: accountId },
         active: true,
@@ -65,10 +66,22 @@ export class CustodyAccountService {
       },
       relations: { account: { owner: true } },
     });
-    const sharedAccounts = activeSharedGrants.filter((a) => a.account.owner.id !== accountId);
+    const sharedAccounts = activeGrants.filter((a) => a.account.owner.id !== accountId);
+
+    // A grant on an own account narrows the owner's level — see checkAccess. Without this the
+    // list would offer WRITE where the authorisation only grants inspection.
+    const ownLevelByAccount = new Map(
+      activeGrants.filter((a) => a.account.owner.id === accountId).map((a) => [a.account.id, a.accessLevel]),
+    );
 
     const custodyAccounts: CustodyAccountDto[] = [
-      ...ownedAccounts.map((ca) => CustodyAccountDtoMapper.toDto(ca, CustodyAccessLevel.WRITE)),
+      ...ownedAccounts.map((ca) => {
+        const grantedLevel = ownLevelByAccount.get(ca.id);
+        // No grant on an own account means the owner keeps full disposal — that is the rule,
+        // not a fallback for a missing value.
+        const level = grantedLevel === undefined ? CustodyAccessLevel.WRITE : grantedLevel;
+        return CustodyAccountDtoMapper.toDto(ca, level);
+      }),
       ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel)),
     ];
 
@@ -120,11 +133,6 @@ export class CustodyAccountService {
 
     const custodyAccount = await this.getCustodyAccountById(custodyAccountId);
 
-    // Owner has WRITE access
-    if (custodyAccount.owner.id === accountId) {
-      return { custodyAccount, isLegacy: false };
-    }
-
     // Active grant only — inactive history must not participate in authorisation
     const access = await this.custodyAccountAccessRepo.findOne({
       where: {
@@ -133,6 +141,16 @@ export class CustodyAccountService {
         active: true,
       },
     });
+
+    // Owner has WRITE access — unless they granted themselves a narrower level. A signed
+    // authorisation can reserve acting for someone else while the owner only inspects; the
+    // owner's own grant is the only way to express that, so it must not be overridden here.
+    // Managing grants stays with the owner regardless (requireOwner), so this cannot lock
+    // anyone out of their own account.
+    if (custodyAccount.owner.id === accountId && !access) {
+      return { custodyAccount, isLegacy: false };
+    }
+
     if (!access) {
       throw new ForbiddenException('No access to this custody account');
     }
@@ -155,7 +173,9 @@ export class CustodyAccountService {
    * disclose holdings outside the grant, so refuse with 409 instead of a fabricated subset
    * or an over-broad full Safe. The owner already authorises every one of those rows and
    * reaches them via the caller-scoped endpoints; their own authorisation is total, so the
-   * ambiguity check is skipped when the caller is the owner.
+   * ambiguity check is skipped when the caller is the owner. That still holds once an owner
+   * narrows themselves to READ: what a narrowed grant withdraws is acting, not sight — the
+   * holdings are the owner's either way, so there is nothing to disclose across a boundary.
    *
    * Once balances and orders carry an account, callers filter by it and this multi-account
    * refusal is no longer needed. Legacy is unaffected (caller has no accounts).
