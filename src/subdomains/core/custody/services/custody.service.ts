@@ -229,13 +229,18 @@ export class CustodyService {
    * Grouping uses UTC (`Util.isoDate`). `asset_price.created` is a local-time
    * `timestamp without time zone`, so multiple snapshots can land on the same UTC day
    * (e.g. local post-midnight). Use the latest price per asset for that day.
+   * On equal `created`, the higher `id` wins (later insert), independent of list order.
    */
   private calculateDailyPortfolioValue(dayPrices: AssetPrice[], assetBalancesMap: Map<number, number>): DailyFiatValue {
     const latestPriceByAsset = new Map<number, AssetPrice>();
 
     for (const price of dayPrices) {
       const existing = latestPriceByAsset.get(price.asset.id);
-      if (!existing || price.created.getTime() > existing.created.getTime()) {
+      if (
+        !existing ||
+        price.created.getTime() > existing.created.getTime() ||
+        (price.created.getTime() === existing.created.getTime() && price.id > existing.id)
+      ) {
         latestPriceByAsset.set(price.asset.id, price);
       }
     }

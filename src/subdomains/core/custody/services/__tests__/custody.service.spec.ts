@@ -126,5 +126,26 @@ describe('CustodyService', () => {
         usd: balance * laterPrice.priceUsd,
       });
     });
+
+    it('uses the higher id when two price rows share the same created timestamp', async () => {
+      const balance = 2;
+      const created = new Date('2025-11-01T09:00:00.000Z');
+      // Lower id first in the array — selection must use higher id, not array order.
+      const lowerIdPrice = Object.assign(assetPrice(created, 100, 90, 110), { id: 1 });
+      const higherIdPrice = Object.assign(assetPrice(created, 150, 140, 160), { id: 2 });
+
+      custodyOrderRepo.find.mockResolvedValue([depositOrder(new Date('2025-11-01T08:00:00.000Z'), balance)]);
+      assetPricesService.getAssetPrices.mockResolvedValue([lowerIdPrice, higherIdPrice]);
+
+      const result = await service.getUserCustodyHistory(accountId);
+
+      expect(result.totalValue).toHaveLength(1);
+      // Must be balance × higher-id price (300), not the lower-id price (200).
+      expect(result.totalValue[0].value).toEqual({
+        chf: balance * higherIdPrice.priceChf,
+        eur: balance * higherIdPrice.priceEur,
+        usd: balance * higherIdPrice.priceUsd,
+      });
+    });
   });
 });
