@@ -118,6 +118,13 @@ export class AmlService {
     }
   }
 
+  // Delegate for the AML orchestrators (see buy-crypto-preparation.service): a payout address whose
+  // Scorechain high-risk score was manually reviewed and cleared by compliance skips the recurring
+  // withdrawal screening. Managed via SpecialExternalAccount (type ScorechainExemptAddress).
+  async isScorechainExemptAddress(address: string): Promise<boolean> {
+    return this.specialExternalBankAccountService.isScorechainExemptAddress(address);
+  }
+
   async getAmlCheckInput(entity: BuyFiat | BuyCrypto): Promise<{
     users: User[];
     refUser: User;

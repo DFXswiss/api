@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { CreateSpecialExternalAccountDto } from '../dto/input/create-special-external-account.dto';
 import { SpecialExternalAccount, SpecialExternalAccountType } from '../entities/special-external-account.entity';
@@ -42,6 +43,18 @@ export class SpecialExternalAccountService {
         )
         .map((a) => a.name),
     );
+  }
+
+  // Whether a payout address was manually reviewed and exempted from the Scorechain withdrawal gate.
+  // Exact, case-insensitive comparison — deliberately NOT the regex matching of the ban lists: an
+  // exemption suppresses an AML control, so an entry must never be able to cover more than the one
+  // reviewed address. Only the Scorechain gate is skipped; every other AML check still applies.
+  async isScorechainExemptAddress(address: string): Promise<boolean> {
+    const exemptions = await this.specialExternalAccountRepo.findCachedBy('ScorechainExemptAddresses', {
+      type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+    });
+
+    return exemptions.some((e) => e.value && Util.equalsIgnoreCase(e.value, address));
   }
 
   async getPhoneCallList(): Promise<SpecialExternalAccount[]> {

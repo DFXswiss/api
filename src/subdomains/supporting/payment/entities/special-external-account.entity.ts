@@ -21,6 +21,10 @@ export enum SpecialExternalAccountType {
   AML_PHONE_CALL_NEEDED_BIC_BUY = 'AmlPhoneCallNeededBicBuy',
   AML_PHONE_CALL_NEEDED_BLZ_BUY = 'AmlPhoneCallNeededBlzBuy',
   AML_PHONE_CALL_NEEDED_IBAN_BUY = 'AmlPhoneCallNeededIbanBuy',
+  // Compliance-reviewed payout address: suppresses the recurring Scorechain withdrawal gate for an
+  // address whose high risk score was manually analyzed and cleared (e.g. third-party address
+  // poisoning against a customer wallet). Matched exactly (case-insensitive), never as regex.
+  SCORECHAIN_EXEMPT_ADDRESS = 'ScorechainExemptAddress',
 }
 
 @Entity()
