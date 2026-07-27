@@ -523,6 +523,122 @@ describe('GsService', () => {
           );
         });
 
+        // At most one filter-only predicate per query — OR/AND of several `=` leaves would
+        // re-enable the multi-candidate batching that removing `IN` was meant to prevent.
+        it('rejects OR of two mail = leaves (one filter-only predicate per query)', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'or',
+              children: [
+                { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'a@example.com' },
+                { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'b@example.com' },
+              ],
+            },
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(
+            /Only one filter-only predicate is allowed per query/,
+          );
+        });
+
+        it('rejects AND of two mail = leaves (one filter-only predicate per query)', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'and',
+              children: [
+                { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'a@example.com' },
+                { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'b@example.com' },
+              ],
+            },
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(
+            /Only one filter-only predicate is allowed per query/,
+          );
+        });
+
+        it('rejects deeply nested two mail = leaves (AND of ORs, one filter-only per query)', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'and',
+              children: [
+                {
+                  kind: 'or',
+                  children: [{ kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'a@example.com' }],
+                },
+                {
+                  kind: 'or',
+                  children: [{ kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'b@example.com' }],
+                },
+              ],
+            },
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(
+            /Only one filter-only predicate is allowed per query/,
+          );
+        });
+
+        it('accepts one mail = leaf combined with several ordinary predicates', async () => {
+          const q = spyQuery([{ id: 1 }]);
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'and',
+              children: [
+                { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'user@example.com' },
+                { kind: 'leaf', column: 'id', op: DebugWhereOp.GT, value: 0 },
+                { kind: 'leaf', column: 'status', op: DebugWhereOp.EQ, value: 'Active' },
+                { kind: 'leaf', column: 'kycLevel', op: DebugWhereOp.GE, value: 10 },
+              ],
+            },
+            limit: 10,
+          };
+
+          await service.executeDebugQuery(dto, 'tester');
+
+          const [sql, params] = q.mock.calls[0] as [string, unknown[]];
+          expect(sql).toContain('LOWER("user_data"."mail") = LOWER($1)');
+          expect(sql).toContain('"user_data"."id" > $2');
+          expect(sql).toContain('"user_data"."status" = $3');
+          expect(sql).toContain('"user_data"."kycLevel" >= $4');
+          expect(params).toEqual(['user@example.com', 0, 'Active', 10]);
+        });
+
+        it('still accepts two ordinary predicates on the same ordinary column', async () => {
+          // The one-predicate cap is filter-only only; ordinary columns keep any number.
+          const q = spyQuery([{ id: 1 }]);
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'and',
+              children: [
+                { kind: 'leaf', column: 'id', op: DebugWhereOp.GT, value: 0 },
+                { kind: 'leaf', column: 'id', op: DebugWhereOp.LT, value: 1000 },
+              ],
+            },
+            limit: 10,
+          };
+
+          await service.executeDebugQuery(dto, 'tester');
+
+          const [sql, params] = q.mock.calls[0] as [string, unknown[]];
+          expect(sql).toContain('"user_data"."id" > $1');
+          expect(sql).toContain('"user_data"."id" < $2');
+          expect(params).toEqual([0, 1000]);
+        });
+
         it('emits select id where mail = … limit 100 without clamping to a single row', async () => {
           // Several user_data rows can share one mail; the multi-match case must remain
           // expressible (limit 100, not a forced single-row lookup).
@@ -2586,6 +2702,30 @@ describe('GsService', () => {
         verboseSpy.mockRestore();
       });
 
+      it('still writes the audit log for an unknown-table probe (before allowlist rejection)', async () => {
+        // Audit must fire before the table allowlist check so probes of non-allowlisted
+        // tables are attributable. Values stay redacted as in every other audit path.
+        const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
+        const secret = 'super-secret-value';
+        const dto = {
+          table: 'pg_catalog_pg_roles',
+          select: [{ kind: 'column' as const, column: 'id' }],
+          where: { kind: 'leaf' as const, column: 'rolname', op: DebugWhereOp.EQ, value: secret },
+          limit: 10,
+        };
+        await expect(service.executeDebugQuery(dto, '0xprobe')).rejects.toThrow(
+          /Table 'pg_catalog_pg_roles' is not allowed/,
+        );
+        const auditLine = verboseSpy.mock.calls
+          .map((c) => String(c[0]))
+          .find((l) => l.startsWith('Debug-query by 0xprobe:'));
+        expect(auditLine).toBeDefined();
+        expect(auditLine).toContain('"table":"pg_catalog_pg_roles"');
+        expect(auditLine).not.toContain(secret);
+        expect(auditLine).toContain('"value":"<scalar>"');
+        verboseSpy.mockRestore();
+      });
+
       it('audit JSON payload contains the table name', async () => {
         const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
         spyQuery();
@@ -3018,6 +3158,11 @@ describe('DebugQueryDto - ValidationPipe layer', () => {
     ['limit too small', { table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 0 }, 'min'],
     ['limit too large', { table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 10001 }, 'max'],
     ['offset negative', { table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 10, offset: -1 }, 'min'],
+    [
+      'offset too large',
+      { table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 10, offset: 1000001 },
+      'max',
+    ],
   ])('rejects %s', async (_label, payload, expectedConstraint) => {
     const errors = await validateDto(payload);
     expect(errors.length).toBeGreaterThan(0);

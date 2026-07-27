@@ -34,8 +34,10 @@ export const DebugMaxResults = 10000;
 //
 // Conservative inclusion rules — exclude these categories of columns even when present on
 // the entity:
-//   - PII: names, addresses, phone, mail, birthday, nationality/country FKs on user_data,
-//     organization PII, IBANs, BICs, account numbers.
+//   - PII (from selectable / result columns): names, addresses, phone, mail, birthday,
+//     nationality/country FKs on user_data, organization PII, IBANs, BICs, account numbers.
+//     Explicitly reviewed **filter-only** exceptions may appear in `filterOnlyColumns` only
+//     (currently `user_data.mail`) — WHERE `=` lookup, never returned in the result set.
 //   - Secrets: apiKey, apiKeyCT, apiUrl, totpSecret, signature, kycHash, uid, pdfUrl.
 //   - Free-form text: label, internalAmlNote, txInfo, raw, data, message (except log.message
 //     which is the whole point of the endpoint). `comment` is a deliberate exception: it is
@@ -55,7 +57,9 @@ export interface DebugTableSpec {
   jsonbColumns?: string[];
   // Columns usable ONLY as a WHERE-leaf column. Never selectable, never orderable, never
   // groupable, never usable with a `jsonbPath`. Restricted to the equality operator
-  // (`DebugFilterOnlyAllowedOps`). Intended for looking a record up by a value the caller
+  // (`DebugFilterOnlyAllowedOps`). At most one filter-only predicate is allowed per query
+  // (anywhere in the WHERE tree) so multi-candidate batching cannot be reintroduced via
+  // OR/AND of several `=` leaves. Intended for looking a record up by a value the caller
   // already knows, without the endpoint ever disclosing that value. MUST be disjoint from
   // `columns` and `jsonbColumns` (enforced by `assertDebugAllowlistInvariants`).
   // Expected to be **text** columns: equality is emitted case-insensitively as
@@ -69,9 +73,10 @@ export interface DebugTableSpec {
 // operators (`<`, `<=`, `>`, `>=`, `!=`, `LIKE`, `ILIKE`, `IS NULL`, `IS NOT NULL`) would turn
 // the endpoint into an oracle — a caller could binary-search or pattern-match a secret value
 // character by character and reconstruct it without ever selecting it. `=` requires knowing
-// the exact value up front, which is the intended use case. `IN` is excluded specifically
-// because batching multiplies the throughput of a guessing attack (one request can test up to
-// 100 candidates); `IN` is not unsafe in itself.
+// the exact value up front, which is the intended use case. Multi-candidate batching is
+// prevented by the one-filter-only-predicate-per-query rule in the emitter (not by excluding
+// `IN` alone — OR of several `=` leaves would otherwise re-enable the same batching). `IN`
+// remains disallowed because a multi-value list has no legitimate filter-only use.
 export const DebugFilterOnlyAllowedOps: DebugWhereOp[] = [DebugWhereOp.EQ];
 
 export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
@@ -1453,11 +1458,11 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   user_data: {
-    // No PII columns. countryId / nationalityId / organizationId / verifiedCountryId /
-    // accountOpenerId / organizationCountryId all blocked (link to PII tables).
-    // `mail` is filter-only (not in `columns`): support needs to resolve a customer's
-    // `userData.id` from a mail address they already have, without the endpoint ever
-    // returning the address. See `filterOnlyColumns` below.
+    // No PII in selectable / result columns. countryId / nationalityId / organizationId /
+    // verifiedCountryId / accountOpenerId / organizationCountryId all blocked (link to PII
+    // tables). Explicit filter-only exception: `mail` (not in `columns`) — support needs to
+    // resolve a customer's `userData.id` from a mail address they already have, without the
+    // endpoint ever returning the address. See `filterOnlyColumns` below.
     columns: [
       'id',
       'created',

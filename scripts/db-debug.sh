@@ -27,12 +27,12 @@
 # Safety:
 #   - DEBUG_API_URL defaults to PRODUCTION. The endpoint is read-only by construction:
 #     it accepts a JSON query description and emits parameter-bound SELECT statements
-#     through TypeORM. Writes / DDL are not expressible.
+#     via dataSource.query. Writes / DDL are not expressible.
 #
 # Structured /gs/debug endpoint:
 #   The endpoint no longer accepts raw SQL. The request body is a JSON description of
-#   the query that the service translates into SQL via TypeORM QueryBuilder with bound
-#   parameters. Shape:
+#   the query that the service translates into SQL manually with bound parameters and
+#   executes via dataSource.query. Shape:
 #
 #     {
 #       "table": "log",

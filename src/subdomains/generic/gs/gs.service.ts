@@ -53,8 +53,9 @@ import {
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 // Mutable state carried through the /gs/debug SQL emitters. Holds the bound parameter
-// array, the alias set (for ORDER/GROUP BY resolution), and a predicate counter for the
-// WHERE-tree depth/size caps. Constructed once per query in executeDebugQuery.
+// array, the alias set (for ORDER/GROUP BY resolution), a predicate counter for the
+// WHERE-tree depth/size caps, and a filter-only leaf counter (at most one per query).
+// Constructed once per query in executeDebugQuery.
 interface DebugQueryEmitCtx {
   table: string;
   spec: DebugTableSpec;
@@ -66,6 +67,10 @@ interface DebugQueryEmitCtx {
   // declaring an alias whose text matches a physical-but-not-allowlisted column.
   aliases: Map<string, number>;
   predicateCount: number;
+  // Number of filter-only WHERE leaves seen so far in this query. At most one is allowed
+  // anywhere in the tree (including nested and/or branches) so OR/AND of several `=` leaves
+  // cannot re-enable multi-candidate batching after `IN` was removed for filter-only columns.
+  filterOnlyCount: number;
 }
 
 @Injectable()
@@ -236,6 +241,13 @@ export class GsService {
   //     explicit code changes.
   //   - LIMIT is a numeric DTO field, clamped at DebugMaxResults. No string substring scan.
   async executeDebugQuery(dto: DebugQueryDto, userIdentifier: string): Promise<DebugQueryResult> {
+    // Audit log emitted FIRST — before the table allowlist check or any emit/validate step
+    // can throw — so every accepted-shape request is attributable for forensics, including
+    // unknown-table probes. WHERE leaf values may carry PII (LIKE patterns over mail / IBAN);
+    // redact them. Bound parameters already protect the SQL string; we shouldn't undo that
+    // via the verbose log.
+    this.logger.verbose(`${DebugQueryAuditPrefix}${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
+
     // `Object.hasOwn` so prototype keys like `__proto__` / `constructor` / `toString` don't
     // pass the `if (!spec)` guard (they'd otherwise return `Object.prototype` and crash later
     // with a 500). Use the allowlist as a real lookup, not a `in`/index probe.
@@ -244,18 +256,13 @@ export class GsService {
     }
     const spec = DebugAllowedColumns[dto.table];
 
-    // Audit log emitted FIRST — before any emit/validate step can throw — so a malformed or
-    // probing request (bad column, oversized IN list, etc.) is still recorded for forensics.
-    // WHERE leaf values may carry PII (LIKE patterns over mail / IBAN); redact them. Bound
-    // parameters already protect the SQL string; we shouldn't undo that via the verbose log.
-    this.logger.verbose(`${DebugQueryAuditPrefix}${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
-
     const ctx: DebugQueryEmitCtx = {
       table: dto.table,
       spec,
       params: [],
       aliases: new Map<string, number>(),
       predicateCount: 0,
+      filterOnlyCount: 0,
     };
 
     // SELECT — emit fragments in the order they appear in the DTO. Aliases are collected
@@ -506,6 +513,14 @@ export class GsService {
 
     const colSql = `"${ctx.table}"."${node.column}"`;
     const isFilterOnly = !!ctx.spec.filterOnlyColumns?.includes(node.column);
+    // At most one filter-only predicate per query, anywhere in the WHERE tree (including
+    // nested and/or). Without this, OR/AND of several `=` leaves would batch candidates as
+    // effectively as the `IN` form that was deliberately disallowed for filter-only columns.
+    if (isFilterOnly) {
+      if (++ctx.filterOnlyCount > 1) {
+        throw new BadRequestException('Only one filter-only predicate is allowed per query');
+      }
+    }
 
     switch (node.op) {
       case DebugWhereOp.IS_NULL:
