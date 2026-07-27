@@ -663,9 +663,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return UncertainOrderResolution.UNRESOLVED;
     } catch (e) {
       // The lookup travels the same connection that just went silent. An unreachable venue is not evidence
-      // of anything — stay in quarantine rather than guess in either direction.
+      // of anything — stay in quarantine rather than guess in either direction. Reported as UNAVAILABLE and
+      // not UNRESOLVED, because no question was actually put to the venue: the caller uses that difference
+      // to decide whether the order still owes a look.
       this.logger.warn(`Could not resolve uncertain Scrypt order ${order.id}: ${e.message}`);
-      return UncertainOrderResolution.UNRESOLVED;
+      return UncertainOrderResolution.UNAVAILABLE;
     }
   }
 

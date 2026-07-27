@@ -51,8 +51,16 @@ export enum UncertainOrderResolution {
   SENT = 'Sent',
   /** The venue demonstrably does not know the order — nothing was executed, the rule may plan anew. */
   NOT_SENT = 'NotSent',
-  /** Still undecidable (venue unreachable, lookup inconclusive). Stay in quarantine and retry later. */
+  /** The venue answered, and the answer settles nothing. Stay in quarantine and look again later. */
   UNRESOLVED = 'Unresolved',
+  /**
+   * The venue could not be asked at all.
+   *
+   * Deliberately not the same as UNRESOLVED: that one is an answer, this one is the absence of one, and a
+   * caller that retires an order's outstanding work on the strength of a completed lookup must not retire it
+   * on a failed one.
+   */
+  UNAVAILABLE = 'Unavailable',
 }
 
 export enum LiquidityManagementPipelineStatus {

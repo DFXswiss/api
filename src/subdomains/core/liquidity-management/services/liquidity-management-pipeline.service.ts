@@ -296,9 +296,11 @@ export class LiquidityManagementPipelineService {
       const wasResolvedAsNotSent = order.status === LiquidityManagementOrderStatus.FAILED;
 
       try {
+        // Null when the action's system or command is no longer registered at all — an order can outlive the
+        // adapter that made it, and dereferencing that would throw here on every pass, forever.
         const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
 
-        if (!actionIntegration.resolveUncertainOrder) {
+        if (!actionIntegration?.resolveUncertainOrder) {
           // Nothing can look this order up, so the marked recheck can never happen. Left standing it would
           // have every pass select the row and skip it again, for the rest of the row's life.
           if (wasResolvedAsNotSent) await this.releaseNegativeResolution(order);
@@ -307,10 +309,16 @@ export class LiquidityManagementPipelineService {
 
         const resolution = await actionIntegration.resolveUncertainOrder(order);
 
-        // The look this row was kept for has now happened and found nothing to overrule the resolution
-        // with. Releasing it here rather than on a timer is what keeps the venue from being asked about
-        // settled failures every ten seconds for the rest of their existence.
-        if (wasResolvedAsNotSent && resolution !== UncertainOrderResolution.SENT)
+        // The look this row was kept for has now happened — the venue answered, and its answer does not
+        // overrule the resolution. Releasing the marker here rather than on a timer is what keeps settled
+        // failures from being put to the venue every ten seconds for the rest of their existence.
+        //
+        // UNAVAILABLE is excluded on purpose: no question reached the venue, so nothing was looked at, and
+        // retiring the obligation on that would discard exactly the observation it is being kept for.
+        if (
+          wasResolvedAsNotSent &&
+          [UncertainOrderResolution.NOT_SENT, UncertainOrderResolution.UNRESOLVED].includes(resolution)
+        )
           await this.releaseNegativeResolution(order);
 
         if (resolution === UncertainOrderResolution.SENT) {
@@ -586,7 +594,7 @@ export class LiquidityManagementPipelineService {
     // check, and a reference the venue can no longer be asked about must not become an order nobody can ever
     // clear.
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
-    if (actionIntegration.resolveUncertainOrder) {
+    if (actionIntegration?.resolveUncertainOrder) {
       const resolution = await actionIntegration.resolveUncertainOrder(order);
 
       if (resolution === UncertainOrderResolution.SENT) {

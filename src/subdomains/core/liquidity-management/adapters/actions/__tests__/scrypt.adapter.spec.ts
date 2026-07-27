@@ -475,11 +475,11 @@ describe('ScryptAdapter', () => {
       await expect(adapter.resolveUncertainOrder(ancient)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
 
-    it('stays UNRESOLVED when the lookup itself fails — an unreachable venue is not evidence', async () => {
+    it('reports UNAVAILABLE when the lookup itself fails — no question reached the venue', async () => {
       jest.spyOn(scryptService, 'getOrderStatus').mockRejectedValue(new Error('Connection closed'));
 
       await expect(adapter.resolveUncertainOrder(createUncertainSellOrder())).resolves.toBe(
-        UncertainOrderResolution.UNRESOLVED,
+        UncertainOrderResolution.UNAVAILABLE,
       );
     });
 

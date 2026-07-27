@@ -240,6 +240,29 @@ describe('LiquidityManagementPipelineService', () => {
       );
     });
 
+    it('keeps a not-sent failure marked when the venue could not be asked at all', async () => {
+      // an unreachable venue answered nothing, so nothing was looked at — retiring the obligation on that
+      // would discard the very observation it is being kept for
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([negativelyResolvedOrder()]);
+      const update = jest.spyOn(orderRepo, 'update');
+      stubIntegration(UncertainOrderResolution.UNAVAILABLE);
+
+      await service['resolveUncertainOrders']();
+
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('releases a marked failure whose adapter is no longer registered at all', async () => {
+      // an order outlives the adapter that made it; dereferencing null here would throw on every pass
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([negativelyResolvedOrder()]);
+      const update = jest.spyOn(orderRepo, 'update');
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+
+      await service['resolveUncertainOrders']();
+
+      expect(update).toHaveBeenCalledWith(expect.anything(), { notSentRecheckDue: null });
+    });
+
     it('cannot clear a newer resolution that was written while it was looking', async () => {
       // the pass holds the marker it started from; a resolution written since owes a look of its own, and
       // dropping ITS marker would discard exactly the obligation this mechanism exists to keep
@@ -503,6 +526,24 @@ describe('LiquidityManagementPipelineService', () => {
       expect(notificationService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
       );
+    });
+
+    it('still releases an uncertain order whose adapter is no longer registered', async () => {
+      // there is nothing left to ask, and the operator has asserted an independent check — refusing here
+      // would leave the order quarantined with no way out at all
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        id: 9,
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        errorMessage: 'unknown',
+        action: { id: 233, system: 'Scrypt', command: 'sell' },
+      });
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+
+      await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).resolves.toBeUndefined();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
     });
 
     it('skips an order another path resolved first, instead of overwriting it', async () => {
