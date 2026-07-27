@@ -1,6 +1,6 @@
 import { Column, Entity, Index } from 'typeorm';
-import { IEntity } from '../../../../shared/models/entity';
-import { VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent.entity';
+import { IEntity } from 'src/shared/models/entity';
+import { VirtualIbanIssuanceIntentStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent.entity';
 
 /**
  * Append-only audit record written before every issuance-intent snapshot transition.
@@ -15,6 +15,12 @@ export class VirtualIbanIssuanceEvent extends IEntity {
 
   @Column({ type: 'integer' })
   userDataId: number;
+
+  @Column({ type: 'integer' })
+  previousUserDataId: number;
+
+  @Column({ type: 'integer' })
+  nextUserDataId: number;
 
   @Column({ type: 'integer' })
   currencyId: number;

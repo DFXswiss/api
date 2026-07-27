@@ -14,15 +14,12 @@ import { Bank } from '../bank/bank.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
 import { FrickVibanProvider } from './providers/frick-viban.provider';
-import {
-  ReservedViban,
-  VibanAccountHolder,
-  VibanNotCreatedError,
-  VibanProvider,
-} from './providers/viban-provider.interface';
+import { VibanAccountHolder } from './providers/viban-account-holder.enum';
+import { ReservedViban, VibanNotCreatedError, VibanProvider } from './providers/viban-provider.interface';
 import { YapealVibanProvider } from './providers/yapeal-viban.provider';
 import { VirtualIbanIssuanceEvent } from './virtual-iban-issuance-event.entity';
 import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent.entity';
+import { VirtualIbanLifecycleEvent } from './virtual-iban-lifecycle-event.entity';
 import { VirtualIban, VirtualIbanStatus } from './virtual-iban.entity';
 import { VirtualIbanRepository } from './virtual-iban.repository';
 
@@ -62,6 +59,9 @@ export const MERGE_SUPERSEDED_MARKER = 'merge-superseded';
 @Injectable()
 export class VirtualIbanService {
   private readonly logger = new DfxLogger(VirtualIbanService);
+
+  /** Longest possible Bank Frick create processing window, including one authorization retry. */
+  static readonly FRICK_CREATE_MAX_PROCESSING_MS = 90_000;
 
   /**
    * Bounded wait for a parallel claim winner before falling back to recovery (F3).
@@ -437,6 +437,22 @@ export class VirtualIbanService {
         throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
       }
 
+      if (intent.userDataId !== userData.id || intent.currencyId !== currency.id || intent.bankId !== bank.id) {
+        this.logger.error(
+          `Bank Frick finalize refused: intent ownership changed under lock ` +
+            `(intentId=${intent.id}, suppliedUserDataId=${userData.id}, suppliedCurrencyId=${currency.id}, ` +
+            `suppliedBankId=${bank.id}, intentUserDataId=${intent.userDataId}, ` +
+            `intentCurrencyId=${intent.currencyId}, intentBankId=${intent.bankId})`,
+        );
+        await this.sendReferenceIntegrityAlert('finalize: intent ownership changed under lock', {
+          intentId: intent.id,
+          userDataId: intent.userDataId,
+          currencyId: intent.currencyId,
+          bankId: intent.bankId,
+        });
+        throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+      }
+
       // Merge-driven fail does not rotate requestReference, so the check above cannot catch it.
       if (
         intent.status === VirtualIbanIssuanceIntentStatus.FAILED &&
@@ -565,6 +581,7 @@ export class VirtualIbanService {
   async resetStuckFrickIntentForReconciliationOnly(
     intentId: number,
     expectedRequestReference: string,
+    absenceEvidence: { listingStartedAt: Date },
   ): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
       const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
@@ -582,9 +599,30 @@ export class VirtualIbanService {
         return false;
       }
 
+      const listingStartedAtMs = absenceEvidence.listingStartedAt.getTime();
+      if (!Number.isFinite(listingStartedAtMs)) {
+        throw new Error(`Invalid Frick absence-evidence timestamp (intentId=${intent.id})`);
+      }
+      const latestPossibleCreateProcessedAtMs =
+        intent.updated.getTime() + VirtualIbanService.FRICK_CREATE_MAX_PROCESSING_MS;
+      if (listingStartedAtMs <= latestPossibleCreateProcessedAtMs) {
+        this.logger.error(
+          `Bank Frick reconciliation reset refused: absence evidence became stale under lock ` +
+            `(intentId=${intent.id}, userDataId=${intent.userDataId}, currencyId=${intent.currencyId}, ` +
+            `bankId=${intent.bankId})`,
+        );
+        await this.sendReferenceIntegrityAlert('reset: listing no longer proves create absence under lock', {
+          intentId: intent.id,
+          userDataId: intent.userDataId,
+          currencyId: intent.currencyId,
+          bankId: intent.bankId,
+        });
+        return false;
+      }
+
       const newRequestReference = this.newFrickRequestReference();
       const message = (
-        `reconciliation: empty listing after safety threshold; ` +
+        `reconciliation: post-create listing proved absence; ` +
         `${CREATE_PATH_REFERENCE_MARKER}${intent.requestReference}; newRequestReference=${newRequestReference}`
       ).slice(0, 2000);
 
@@ -677,6 +715,8 @@ export class VirtualIbanService {
     const intentIds = {
       intentId: intent.id,
       userDataId: intent.userDataId,
+      previousUserDataId: intent.userDataId,
+      nextUserDataId: intent.userDataId,
       currencyId: intent.currencyId,
       bankId: intent.bankId,
     };
@@ -706,12 +746,8 @@ export class VirtualIbanService {
    * (never stores the IBAN itself there — see VirtualIbanIssuanceEvent). Returns null for null/undefined
    * input (no IBAN to reference) — this is the expected common case (most transitions don't touch it).
    *
-   * On a genuine miss (should not happen: externalIban is only set to a value just persisted as
-   * VirtualIban.iban), still returns null so the enclosing state transition is not aborted — aborting
-   * a successful/necessary money-path transition for a secondary audit pointer would be
-   * disproportionate. The miss is made loud instead: logger.error plus
-   * {@link sendReferenceIntegrityAlert} with intent identifiers only (never the raw IBAN), so the
-   * inconsistency is operationally reconstructible without silently masking it.
+   * A genuine miss means the transition cannot preserve a non-null prior IBAN in the append-only
+   * audit record. Alert and throw so the enclosing transaction retains the intent snapshot unchanged.
    */
   private async resolveVirtualIbanId(
     manager: EntityManager,
@@ -731,7 +767,77 @@ export class VirtualIbanService {
       'resolveVirtualIbanId: genuine miss — no VirtualIban row for stored IBAN',
       intentIds,
     );
-    return null;
+    throw new Error(
+      `Cannot transition Frick issuance intent ${intentIds.intentId}: stored external IBAN has no VirtualIban row`,
+    );
+  }
+
+  private async reassignFrickIntentLocked(
+    manager: EntityManager,
+    intent: VirtualIbanIssuanceIntent,
+    nextUserDataId: number,
+  ): Promise<void> {
+    if (intent.userDataId === nextUserDataId) return;
+
+    const intentIds = {
+      intentId: intent.id,
+      userDataId: intent.userDataId,
+      currencyId: intent.currencyId,
+      bankId: intent.bankId,
+    };
+    const virtualIbanId = await this.resolveVirtualIbanId(manager, intent.externalIban, intentIds);
+    const event = manager.create(VirtualIbanIssuanceEvent, {
+      intentId: intent.id,
+      userDataId: intent.userDataId,
+      previousUserDataId: intent.userDataId,
+      nextUserDataId,
+      currencyId: intent.currencyId,
+      bankId: intent.bankId,
+      previousStatus: intent.status,
+      nextStatus: intent.status,
+      previousVirtualIbanId: virtualIbanId,
+      nextVirtualIbanId: virtualIbanId,
+      previousError: intent.error,
+      nextError: intent.error,
+    });
+    await manager.save(event);
+    await manager.update(VirtualIbanIssuanceIntent, intent.id, { userDataId: nextUserDataId });
+    intent.userDataId = nextUserDataId;
+  }
+
+  private async recordVirtualIbanLifecycleEventLocked(
+    manager: EntityManager,
+    virtualIban: VirtualIban,
+    next: {
+      userDataId: number;
+      active: boolean;
+      status: VirtualIbanStatus | null | undefined;
+      deactivatedAt: Date | null | undefined;
+    },
+    reason: string,
+  ): Promise<void> {
+    const previousUserDataId = virtualIban.userData?.id;
+    if (previousUserDataId == null) {
+      throw new Error(`Virtual IBAN owner missing for lifecycle audit (virtualIbanId=${virtualIban.id})`);
+    }
+    if (!reason.trim()) throw new Error(`Virtual IBAN lifecycle reason missing (virtualIbanId=${virtualIban.id})`);
+
+    const event = manager.create(VirtualIbanLifecycleEvent, {
+      virtualIbanId: virtualIban.id,
+      previousUserDataId,
+      nextUserDataId: next.userDataId,
+      previousActive: virtualIban.active,
+      nextActive: next.active,
+      // VirtualIban models nullable SQL columns as optional properties. Convert that legacy
+      // representation explicitly so the audit records the actual NULL state.
+      previousStatus: virtualIban.status === undefined ? null : virtualIban.status,
+      nextStatus: next.status === undefined ? null : next.status,
+      previousDeactivatedAt: virtualIban.deactivatedAt === undefined ? null : virtualIban.deactivatedAt,
+      nextDeactivatedAt: next.deactivatedAt === undefined ? null : next.deactivatedAt,
+      transitionedAt: new Date(),
+      reason,
+    });
+    await manager.save(event);
   }
 
   private async getFrickIntentForUpdate(
@@ -965,14 +1071,13 @@ export class VirtualIbanService {
     return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
   }
 
-  private async deactivateVirtualIbanLocked(manager: EntityManager, virtualIban: VirtualIban): Promise<VirtualIban> {
-    virtualIban.active = false;
-    virtualIban.status = VirtualIbanStatus.DEACTIVATED;
-    virtualIban.deactivatedAt = new Date();
-    const deactivated = await manager.save(virtualIban);
-
+  private async deactivateVirtualIbanLocked(
+    manager: EntityManager,
+    virtualIban: VirtualIban,
+    reason: string,
+  ): Promise<VirtualIban> {
     // Resolve ownership keys for intent lookup. currency/bank are eager; userData is not —
-    // re-read under the same transaction when the caller did not preload relations.
+    // re-read under the same transaction before audit when the caller did not preload relations.
     let userDataId = virtualIban.userData?.id;
     let currencyId = virtualIban.currency?.id;
     let bankId = virtualIban.bank?.id;
@@ -995,7 +1100,25 @@ export class VirtualIbanService {
       currencyId = owned.currency.id;
       bankId = owned.bank.id;
       deactivatedIban = owned.iban;
+      virtualIban = owned;
     }
+
+    const deactivatedAt = new Date();
+    await this.recordVirtualIbanLifecycleEventLocked(
+      manager,
+      virtualIban,
+      {
+        userDataId,
+        active: false,
+        status: VirtualIbanStatus.DEACTIVATED,
+        deactivatedAt,
+      },
+      reason,
+    );
+    virtualIban.active = false;
+    virtualIban.status = VirtualIbanStatus.DEACTIVATED;
+    virtualIban.deactivatedAt = deactivatedAt;
+    const deactivated = await manager.save(virtualIban);
 
     // Unconditional intent lookup (same lock pattern as getFrickIntentForUpdate). Missing row
     // is a natural no-op for non-Frick providers — do not throw, do not special-case by bank.
@@ -1083,9 +1206,7 @@ export class VirtualIbanService {
       });
 
       if (!masterIntent) {
-        // Ownership reassignment only — not a status transition, so no event log (same as bankDatas/etc.).
-        await manager.update(VirtualIbanIssuanceIntent, slaveIntent.id, { userDataId: masterId });
-        slaveIntent.userDataId = masterId;
+        await this.reassignFrickIntentLocked(manager, slaveIntent, masterId);
         continue;
       }
 
@@ -1111,10 +1232,9 @@ export class VirtualIbanService {
    * Runs inside the caller's open transaction (no nested transaction).
    *
    * 1. Locate the single surviving active user-level winner for the pair across master|slave.
-   * 2. Persist winner ownership onto masterId immediately (plain manager.update — no event log;
-   *    mirrors the no-conflict intent reassignment style in resolveIssuanceIntentsForMergeLocked).
-   *    Callers must not rely on a later userDataRepo.save(master) for this row — UserData.virtualIbans
-   *    has no cascade, so that save does not reassign VirtualIban.userData.
+   * 2. Append the winner ownership transition, then persist it onto masterId immediately.
+   *    Callers must not rely on a later userDataRepo.save(master) for this row —
+   *    UserData.virtualIbans has no cascade, so that save does not reassign VirtualIban.userData.
    * 3. Reconcile both accounts' Frick intents for the pair: winner-side Completed stays Completed and
    *    moves to masterId; loser-side Pending/InFlight/Failed is permanently merge-failed (never left
    *    reopenable under a retired userDataId). COMPLETED non-winner historical rows stay untouched.
@@ -1163,8 +1283,18 @@ export class VirtualIbanService {
 
     const winner = winners[0];
     if (winner.userData?.id !== masterId) {
-      // Plain ownership move — not a status transition, so no event log (same style/reasoning as the
-      // no-conflict intent reassignment in resolveIssuanceIntentsForMergeLocked).
+      await this.recordVirtualIbanLifecycleEventLocked(
+        manager,
+        winner,
+        {
+          userDataId: masterId,
+          active: winner.active,
+          status: winner.status,
+          deactivatedAt: winner.deactivatedAt,
+        },
+        `Reassigned surviving virtual IBAN ${winner.id} during account merge ` +
+          `(master ${masterId}, slave ${slaveId})`,
+      );
       await manager.update(VirtualIban, winner.id, { userData: { id: masterId } });
       winner.userData = { id: masterId } as UserData;
     }
@@ -1212,12 +1342,10 @@ export class VirtualIbanService {
       if (blocking != null && blocking.id !== winnerIntent.id) {
         const previousOwnerId = winnerIntent.userDataId;
         const parkUserDataId = -winnerIntent.id;
-        await manager.update(VirtualIbanIssuanceIntent, winnerIntent.id, { userDataId: parkUserDataId });
-        await manager.update(VirtualIbanIssuanceIntent, blocking.id, { userDataId: previousOwnerId });
-        blocking.userDataId = previousOwnerId;
+        await this.reassignFrickIntentLocked(manager, winnerIntent, parkUserDataId);
+        await this.reassignFrickIntentLocked(manager, blocking, previousOwnerId);
       }
-      await manager.update(VirtualIbanIssuanceIntent, winnerIntent.id, { userDataId: masterId });
-      winnerIntent.userDataId = masterId;
+      await this.reassignFrickIntentLocked(manager, winnerIntent, masterId);
     }
   }
 
@@ -1225,7 +1353,7 @@ export class VirtualIbanService {
    * Atomically deactivates every superseded user-level personal IBAN, reassigns each surviving
    * winner onto masterId, reconciles both accounts' Frick issuance intents for every deduped
    * (currency, bank) pair, and dissolves remaining single-sided slave intents — all in a single
-   * transaction/lock scope.
+   * transaction/lock scope supplied by the account-merge caller.
    *
    * Fixes the race where a concurrent customer request on the master account could miss the
    * still-slave-owned winner vIBAN, see only a reopened Pending master intent, and create a real
@@ -1237,51 +1365,79 @@ export class VirtualIbanService {
     masterId: number,
     slaveId: number,
     deactivations: { virtualIban: VirtualIban; reason: string }[],
+    manager: EntityManager,
   ): Promise<void> {
-    await this.dataSource.transaction(async (manager) => {
-      // `reason` is retained on the deactivations element type for caller audit/documentation;
-      // the locked helpers only mutate state.
-      const losersByPair = new Map<string, { currencyId: number; bankId: number; losers: VirtualIban[] }>();
+    const losersByPair = new Map<
+      string,
+      {
+        currencyId: number;
+        bankId: number;
+        losers: { virtualIban: VirtualIban; reason: string }[];
+      }
+    >();
 
-      for (const { virtualIban } of deactivations) {
-        let currencyId = virtualIban.currency?.id;
-        let bankId = virtualIban.bank?.id;
-        if (currencyId == null || bankId == null) {
-          const owned = await manager.findOne(VirtualIban, {
-            where: { id: virtualIban.id },
-            relations: { currency: true, bank: true },
-          });
-          if (owned?.currency?.id == null || owned?.bank?.id == null) {
-            this.logger.error(
-              `Virtual IBAN currency/bank missing during merge dedup (virtualIbanId=${virtualIban.id}, ` +
-                `masterId=${masterId}, slaveId=${slaveId})`,
-            );
-            throw new Error(
-              `Virtual IBAN currency/bank missing during merge dedup (virtualIbanId=${virtualIban.id}, ` +
-                `masterId=${masterId}, slaveId=${slaveId})`,
-            );
-          }
-          currencyId = owned.currency.id;
-          bankId = owned.bank.id;
+    for (const deactivation of deactivations) {
+      const { virtualIban } = deactivation;
+      let currencyId = virtualIban.currency?.id;
+      let bankId = virtualIban.bank?.id;
+      if (currencyId == null || bankId == null) {
+        const owned = await manager.findOne(VirtualIban, {
+          where: { id: virtualIban.id },
+          relations: { currency: true, bank: true },
+        });
+        if (owned?.currency?.id == null || owned?.bank?.id == null) {
+          this.logger.error(
+            `Virtual IBAN currency/bank missing during merge dedup (virtualIbanId=${virtualIban.id}, ` +
+              `masterId=${masterId}, slaveId=${slaveId})`,
+          );
+          throw new Error(
+            `Virtual IBAN currency/bank missing during merge dedup (virtualIbanId=${virtualIban.id}, ` +
+              `masterId=${masterId}, slaveId=${slaveId})`,
+          );
         }
-
-        const key = `${currencyId}:${bankId}`;
-        const group = losersByPair.get(key);
-        if (group) group.losers.push(virtualIban);
-        else losersByPair.set(key, { currencyId, bankId, losers: [virtualIban] });
+        currencyId = owned.currency.id;
+        bankId = owned.bank.id;
       }
 
-      for (const { currencyId, bankId, losers } of losersByPair.values()) {
-        for (const loser of losers) {
-          await this.deactivateVirtualIbanLocked(manager, loser);
-        }
-        await this.resolveMergedVirtualIbanPairLocked(manager, masterId, slaveId, currencyId, bankId);
-      }
+      const key = `${currencyId}:${bankId}`;
+      const group = losersByPair.get(key);
+      if (group) group.losers.push(deactivation);
+      else losersByPair.set(key, { currencyId, bankId, losers: [deactivation] });
+    }
 
-      // Single-sided pairs (no dedup conflict): reassign or fail remaining slave intents.
-      // Already-resolved conflict pairs are naturally safe — see resolveIssuanceIntentsForMergeLocked.
-      await this.resolveIssuanceIntentsForMergeLocked(manager, masterId, slaveId);
+    for (const { currencyId, bankId, losers } of losersByPair.values()) {
+      for (const { virtualIban, reason } of losers) {
+        await this.deactivateVirtualIbanLocked(manager, virtualIban, reason);
+      }
+      await this.resolveMergedVirtualIbanPairLocked(manager, masterId, slaveId, currencyId, bankId);
+    }
+
+    const deactivatedIds = new Set(deactivations.map(({ virtualIban }) => virtualIban.id));
+    const survivingSlaveVirtualIbans = await manager.find(VirtualIban, {
+      where: { userData: { id: slaveId } },
+      relations: { userData: true },
     });
+    for (const surviving of survivingSlaveVirtualIbans) {
+      if (deactivatedIds.has(surviving.id)) continue;
+
+      await this.recordVirtualIbanLifecycleEventLocked(
+        manager,
+        surviving,
+        {
+          userDataId: masterId,
+          active: surviving.active,
+          status: surviving.status,
+          deactivatedAt: surviving.deactivatedAt,
+        },
+        `Reassigned virtual IBAN ${surviving.id} during account merge (master ${masterId}, slave ${slaveId})`,
+      );
+      await manager.update(VirtualIban, surviving.id, { userData: { id: masterId } });
+      surviving.userData = { id: masterId } as UserData;
+    }
+
+    // Single-sided pairs (no dedup conflict): reassign or fail remaining slave intents.
+    // Already-resolved conflict pairs are naturally safe — see resolveIssuanceIntentsForMergeLocked.
+    await this.resolveIssuanceIntentsForMergeLocked(manager, masterId, slaveId);
     this.virtualIbanRepo.invalidateCache();
   }
 

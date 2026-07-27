@@ -1,7 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
-import { FindOperator, IsNull, Not } from 'typeorm';
+import { EntityManager, FindOperator, IsNull, Not } from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -57,9 +57,15 @@ describe('UserDataService', () => {
   let bankDataService: jest.Mocked<BankDataService>;
   let virtualIbanService: jest.Mocked<VirtualIbanService>;
   let documentService: jest.Mocked<KycDocumentService>;
+  let mergeManager: EntityManager;
 
   beforeEach(async () => {
     userDataRepo = createMock<UserDataRepository>();
+    mergeManager = createMock<EntityManager>();
+    Object.defineProperty(userDataRepo, 'manager', { value: mergeManager });
+    (mergeManager.transaction as jest.Mock).mockImplementation(async (run: (manager: EntityManager) => unknown) =>
+      run(mergeManager),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -435,7 +441,7 @@ describe('UserDataService', () => {
 
       expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(master.id);
       expect(virtualIbanService.getVirtualIbansForAccount).toHaveBeenCalledWith(slave.id);
-      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [], mergeManager);
       expect(master.virtualIbans).toEqual([masterViban, slaveViban]);
       const saved = userDataRepo.save.mock.calls[0][0] as UserData;
       expect(saved.virtualIbans).toEqual([masterViban, slaveViban]);
@@ -453,12 +459,17 @@ describe('UserDataService', () => {
       await service.mergeUserData(master.id, slave.id);
 
       expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledTimes(1);
-      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [
-        {
-          virtualIban: slaveViban,
-          reason: expect.stringContaining(`Merged into virtual IBAN ${masterViban.id}`),
-        },
-      ]);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(
+        master.id,
+        slave.id,
+        [
+          {
+            virtualIban: slaveViban,
+            reason: expect.stringContaining(`Merged into virtual IBAN ${masterViban.id}`),
+          },
+        ],
+        mergeManager,
+      );
       const deactivations = virtualIbanService.mergeUserLevelVirtualIbans.mock.calls[0][2];
       expect(deactivations[0].reason).toEqual(expect.stringMatching(/master 1000.*slave 2000|slave 2000.*master 1000/));
       expect(deactivations[0].reason).toContain(String(slaveViban.id));
@@ -485,7 +496,7 @@ describe('UserDataService', () => {
 
       await service.mergeUserData(master.id, slave.id);
 
-      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [], mergeManager);
       expect(masterViban.active).toBe(true);
       expect(slaveViban.active).toBe(true);
       expect(master.virtualIbans).toEqual([masterViban, slaveViban]);
@@ -513,7 +524,7 @@ describe('UserDataService', () => {
 
       await service.mergeUserData(master.id, slave.id);
 
-      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [], mergeManager);
       expect(slaveIntent.userDataId).toBe(master.id);
     });
 
@@ -544,7 +555,7 @@ describe('UserDataService', () => {
 
       await service.mergeUserData(master.id, slave.id);
 
-      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [], mergeManager);
       expect(masterIntent.status).toBe(VirtualIbanIssuanceIntentStatus.PENDING);
       expect(masterIntent.userDataId).toBe(master.id);
       expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.FAILED);
@@ -573,7 +584,7 @@ describe('UserDataService', () => {
 
       await service.mergeUserData(master.id, slave.id);
 
-      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, []);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [], mergeManager);
       expect(slaveIntent.status).toBe(VirtualIbanIssuanceIntentStatus.COMPLETED);
       expect(slaveIntent.userDataId).toBe(slave.id);
       expect(slaveIntent.externalIban).toBe('LI21088110100111K000E');
@@ -596,12 +607,17 @@ describe('UserDataService', () => {
       await service.mergeUserData(master.id, slave.id);
 
       expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledTimes(1);
-      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [
-        {
-          virtualIban: slaveUserLevel,
-          reason: expect.stringContaining(`Merged into virtual IBAN ${masterUserLevel.id}`),
-        },
-      ]);
+      expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(
+        master.id,
+        slave.id,
+        [
+          {
+            virtualIban: slaveUserLevel,
+            reason: expect.stringContaining(`Merged into virtual IBAN ${masterUserLevel.id}`),
+          },
+        ],
+        mergeManager,
+      );
       expect(masterUserLevel.active).toBe(true);
       expect(slaveUserLevel.active).toBe(false);
       expect(masterBuyScoped.active).toBe(true);
@@ -717,12 +733,17 @@ describe('UserDataService', () => {
         const loserIntent = winnerSide === 'master' ? slaveIntent : masterIntent;
 
         expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledTimes(1);
-        expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [
-          {
-            virtualIban: loser,
-            reason: expect.stringContaining(`Merged into virtual IBAN ${winner.id}`),
-          },
-        ]);
+        expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(
+          master.id,
+          slave.id,
+          [
+            {
+              virtualIban: loser,
+              reason: expect.stringContaining(`Merged into virtual IBAN ${winner.id}`),
+            },
+          ],
+          mergeManager,
+        );
         expect(winner.active).toBe(true);
         expect(winner.status).toBe(VirtualIbanStatus.ACTIVE);
         expect(loser.active).toBe(false);

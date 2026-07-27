@@ -1229,13 +1229,13 @@ describe('BankFrickService', () => {
     };
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(listResponse);
 
-    await expect(service.listVibans()).resolves.toEqual(listResponse);
+    await expect(service.listVibans(undefined, undefined, 0, 50)).resolves.toEqual(listResponse);
     expect(http.request.mock.calls[1][0].url).toBe(
       'https://vban.bank.invalid/vban/virtual-ibans?pageIndex=0&pageSize=50',
     );
 
     http.request.mockResolvedValueOnce(listResponse);
-    await service.listVibans(debtorIban, [FrickVirtualIbanState.ACTIVE, FrickVirtualIbanState.PREPARED]);
+    await service.listVibans(debtorIban, [FrickVirtualIbanState.ACTIVE, FrickVirtualIbanState.PREPARED], 0, 50);
     const filteredUrl = new URL(http.request.mock.calls[2][0].url);
     expect(filteredUrl.searchParams.get('account')).toBe(debtorIban);
     expect(filteredUrl.searchParams.getAll('state')).toEqual([
@@ -1246,7 +1246,9 @@ describe('BankFrickService', () => {
     http.request.mockResolvedValueOnce({
       pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 0 },
     });
-    await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBANs response');
+    await expect(service.listVibans(undefined, undefined, 0, 50)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBANs response',
+    );
   });
 
   it('accepts a single virtual IBAN with description null (treated as absent)', async () => {
@@ -1264,7 +1266,7 @@ describe('BankFrickService', () => {
     };
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(listResponse);
 
-    await expect(service.listVibans()).resolves.toEqual(listResponse);
+    await expect(service.listVibans(undefined, undefined, 0, 50)).resolves.toEqual(listResponse);
     expect(listResponse.virtualIbans).toHaveLength(1);
   });
 
@@ -1282,7 +1284,7 @@ describe('BankFrickService', () => {
     };
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(listResponse);
 
-    const result = await service.listVibans();
+    const result = await service.listVibans(undefined, undefined, 0, 50);
     expect(result.virtualIbans).toEqual([valid, otherValid]);
     expect(result.pagination).toEqual(listResponse.pagination);
   });
@@ -1292,19 +1294,25 @@ describe('BankFrickService', () => {
       pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: -1 },
       virtualIbans: [],
     });
-    await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBANs response');
+    await expect(service.listVibans(undefined, undefined, 0, 50)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBANs response',
+    );
 
     http.request.mockResolvedValueOnce({
       pagination: { hasMore: 'nope', pageIndex: 0, pageSize: 50, totalCount: 0 },
       virtualIbans: [],
     });
-    await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBANs response');
+    await expect(service.listVibans(undefined, undefined, 0, 50)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBANs response',
+    );
 
     http.request.mockResolvedValueOnce({
       pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 0 },
       // virtualIbans missing
     });
-    await expect(service.listVibans()).rejects.toThrow('Invalid Bank Frick virtual IBANs response');
+    await expect(service.listVibans(undefined, undefined, 0, 50)).rejects.toThrow(
+      'Invalid Bank Frick virtual IBANs response',
+    );
   });
 
   it('still rejects a malformed single-entity create response (fail-closed)', async () => {
@@ -1337,7 +1345,12 @@ describe('BankFrickService', () => {
 
     await expect(
       service.listAllVibans(debtorIban, [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE], 1),
-    ).resolves.toEqual({ virtualIbans: [first, second], fullyValidated: true });
+    ).resolves.toEqual({
+      virtualIbans: [first, second],
+      fullyValidated: true,
+      listingStartedAt: expect.any(Date),
+      listingCompletedAt: expect.any(Date),
+    });
     expect(new URL(http.request.mock.calls[2][0].url).searchParams.get('pageIndex')).toBe('1');
 
     http = { request: jest.fn() };
@@ -1350,10 +1363,10 @@ describe('BankFrickService', () => {
   });
 
   it('rejects invalid virtual-IBAN page sizes and inconsistent pagination envelopes', async () => {
-    await expect(service.listVibans(undefined, undefined, -1)).rejects.toThrow(
+    await expect(service.listVibans(undefined, undefined, -1, 50)).rejects.toThrow(
       'Invalid Bank Frick virtual IBAN pageIndex',
     );
-    await expect(service.listVibans(undefined, undefined, 0.5)).rejects.toThrow(
+    await expect(service.listVibans(undefined, undefined, 0.5, 50)).rejects.toThrow(
       'Invalid Bank Frick virtual IBAN pageIndex',
     );
     await expect(service.listVibans(undefined, undefined, 0, 0)).rejects.toThrow(
@@ -1381,7 +1394,12 @@ describe('BankFrickService', () => {
       },
       droppedCount: 0,
     });
-    await expect(service.listAllVibans()).resolves.toEqual({ virtualIbans: [], fullyValidated: true });
+    await expect(service.listAllVibans(undefined, undefined, 50)).resolves.toEqual({
+      virtualIbans: [],
+      fullyValidated: true,
+      listingStartedAt: expect.any(Date),
+      listingCompletedAt: expect.any(Date),
+    });
 
     listSpy
       .mockResolvedValueOnce({
@@ -1456,9 +1474,11 @@ describe('BankFrickService', () => {
       virtualIbans: [valid, { ...valid, vban: undefined }, otherValid],
     });
 
-    await expect(service.listAllVibans()).resolves.toEqual({
+    await expect(service.listAllVibans(undefined, undefined, 50)).resolves.toEqual({
       virtualIbans: [valid, otherValid],
       fullyValidated: false,
+      listingStartedAt: expect.any(Date),
+      listingCompletedAt: expect.any(Date),
     });
   });
 
@@ -1487,6 +1507,8 @@ describe('BankFrickService', () => {
     await expect(service.listAllVibans(undefined, undefined, 2)).resolves.toEqual({
       virtualIbans: [valid],
       fullyValidated: false,
+      listingStartedAt: expect.any(Date),
+      listingCompletedAt: expect.any(Date),
     });
   });
 
@@ -1510,7 +1532,9 @@ describe('BankFrickService', () => {
       virtualIbans: [valid, { ...valid, vban: undefined }],
     });
 
-    await expect(service.listAllVibans()).rejects.toThrow('returned 1 of 5 items (1 dropped as invalid)');
+    await expect(service.listAllVibans(undefined, undefined, 50)).rejects.toThrow(
+      'returned 1 of 5 items (1 dropped as invalid)',
+    );
   });
 
   it('fails closed when virtual-IBAN pagination exceeds the safety limit', async () => {
@@ -1572,7 +1596,9 @@ describe('BankFrickService', () => {
   it('throws when virtual IBAN is not configured and never calls http.request (listVibans)', async () => {
     Config.bank.frick.vbanBaseUrl = undefined;
 
-    await expect(service.listVibans()).rejects.toThrow('Bank Frick virtual IBAN is not configured');
+    await expect(service.listVibans(undefined, undefined, 0, 50)).rejects.toThrow(
+      'Bank Frick virtual IBAN is not configured',
+    );
     expect(http.request).not.toHaveBeenCalled();
   });
 
@@ -1597,7 +1623,9 @@ describe('BankFrickService', () => {
   });
 
   it('rejects a malformed reference IBAN filter before any HTTP call, and normalizes a valid one to canonical form', async () => {
-    await expect(service.listVibans('not-an-iban')).rejects.toThrow('Invalid Bank Frick reference account IBAN filter');
+    await expect(service.listVibans('not-an-iban', undefined, 0, 50)).rejects.toThrow(
+      'Invalid Bank Frick reference account IBAN filter',
+    );
     expect(http.request).not.toHaveBeenCalled();
 
     const listResponse = {
@@ -1605,7 +1633,7 @@ describe('BankFrickService', () => {
       virtualIbans: [],
     };
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(listResponse);
-    await service.listVibans(` ${debtorIban.toLowerCase()} `);
+    await service.listVibans(` ${debtorIban.toLowerCase()} `, undefined, 0, 50);
 
     const url = new URL(http.request.mock.calls[1][0].url);
     expect(url.searchParams.get('account')).toBe(debtorIban);

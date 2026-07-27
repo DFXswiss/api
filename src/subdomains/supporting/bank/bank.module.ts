@@ -19,13 +19,21 @@ import { YapealVibanProvider } from './virtual-iban/providers/yapeal-viban.provi
 import { VirtualIbanFrickIssuanceReconciliationService } from './virtual-iban/virtual-iban-frick-issuance-reconciliation.service';
 import { VirtualIbanIssuanceEvent } from './virtual-iban/virtual-iban-issuance-event.entity';
 import { VirtualIbanIssuanceIntent } from './virtual-iban/virtual-iban-issuance-intent.entity';
+import { VirtualIbanLifecycleEvent } from './virtual-iban/virtual-iban-lifecycle-event.entity';
 import { VirtualIban } from './virtual-iban/virtual-iban.entity';
 import { VirtualIbanRepository } from './virtual-iban/virtual-iban.repository';
 import { VirtualIbanService } from './virtual-iban/virtual-iban.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BankAccount, Bank, VirtualIban, VirtualIbanIssuanceIntent, VirtualIbanIssuanceEvent]),
+    TypeOrmModule.forFeature([
+      BankAccount,
+      Bank,
+      VirtualIban,
+      VirtualIbanIssuanceIntent,
+      VirtualIbanIssuanceEvent,
+      VirtualIbanLifecycleEvent,
+    ]),
     SharedModule,
     BankIntegrationModule,
     NotificationModule,

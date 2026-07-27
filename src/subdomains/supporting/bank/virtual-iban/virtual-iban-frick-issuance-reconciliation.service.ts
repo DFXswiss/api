@@ -56,9 +56,21 @@ interface StuckIntentListingMatch {
   updated: Date;
 }
 
+interface UnprovenAbsenceIntent {
+  intentId: number;
+  userDataId: number;
+  currencyId: number;
+  bankId: number;
+  status: VirtualIbanIssuanceIntentStatus;
+  updated: Date;
+  listingStartedAt: Date;
+  latestPossibleCreateProcessedAt: Date;
+}
+
 /**
  * Periodic Frick issuance reconciliation:
- * - Phase 1: reopen stuck InFlight/Failed intents after an empty listing + safety threshold
+ * - Phase 1: reopen stuck InFlight/Failed intents only when a complete empty listing began after
+ *   the intent-specific latest possible create-processing time
  *   (sole caller of {@link VirtualIbanService.resetStuckFrickIntentForReconciliationOnly}).
  * - Phase 2: alert-only check for delayed Frick vIBANs under retired issuance references.
  */
@@ -77,6 +89,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
    * - ×10 safety multiplier (job is hourly; being generous costs nothing) → 1_800_000 ms (30 min)
    */
   static readonly FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS = 1_800_000;
+  static readonly FRICK_CREATE_MAX_PROCESSING_MS = VirtualIbanService.FRICK_CREATE_MAX_PROCESSING_MS;
 
   constructor(
     private readonly dataSource: DataSource,
@@ -110,7 +123,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     } catch (error) {
       // Fail-closed: any unhandled Phase 1 failure must surface as an operator alert.
       this.logger.error('Frick vIBAN reconciliation Phase 1 (stuck intents) failed:', error);
-      await this.sendFailureAlert(error);
+      await this.trySendFailureAlert(error, 'Phase 1');
     }
 
     try {
@@ -118,7 +131,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     } catch (error) {
       // Fail-closed: any unhandled Phase 2 failure must surface as an operator alert.
       this.logger.error('Frick vIBAN reconciliation Phase 2 (retired references) failed:', error);
-      await this.sendFailureAlert(error);
+      await this.trySendFailureAlert(error, 'Phase 2');
     }
   }
 
@@ -162,6 +175,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     }
 
     const listingMatches: StuckIntentListingMatch[] = [];
+    const unprovenAbsences: UnprovenAbsenceIntent[] = [];
     let resetCount = 0;
     let skippedFreshCount = 0;
     let incompleteListingBankCount = 0;
@@ -172,6 +186,15 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     for (const [bankId, group] of byBankId) {
       try {
         const listingResult = await this.getListingForBank(bankId, listingCache);
+        if (
+          !(listingResult.listingStartedAt instanceof Date) ||
+          !Number.isFinite(listingResult.listingStartedAt.getTime()) ||
+          !(listingResult.listingCompletedAt instanceof Date) ||
+          !Number.isFinite(listingResult.listingCompletedAt.getTime()) ||
+          listingResult.listingCompletedAt.getTime() < listingResult.listingStartedAt.getTime()
+        ) {
+          throw new Error(`Frick vIBAN listing timestamps invalid for bankId=${bankId}`);
+        }
         const descriptions = new Set(
           listingResult.virtualIbans
             .map((viban) => viban.description)
@@ -231,9 +254,27 @@ export class VirtualIbanFrickIssuanceReconciliationService {
             continue;
           }
 
+          const latestPossibleCreateProcessedAt = new Date(
+            intent.updated.getTime() + VirtualIbanFrickIssuanceReconciliationService.FRICK_CREATE_MAX_PROCESSING_MS,
+          );
+          if (listingResult.listingStartedAt.getTime() <= latestPossibleCreateProcessedAt.getTime()) {
+            unprovenAbsences.push({
+              intentId: intent.id,
+              userDataId: intent.userDataId,
+              currencyId: intent.currencyId,
+              bankId: intent.bankId,
+              status: intent.status,
+              updated: intent.updated,
+              listingStartedAt: listingResult.listingStartedAt,
+              latestPossibleCreateProcessedAt,
+            });
+            continue;
+          }
+
           const didReset = await this.virtualIbanService.resetStuckFrickIntentForReconciliationOnly(
             intent.id,
             intent.requestReference,
+            { listingStartedAt: listingResult.listingStartedAt },
           );
           if (didReset) resetCount += 1;
         }
@@ -251,6 +292,10 @@ export class VirtualIbanFrickIssuanceReconciliationService {
       await this.sendStuckIntentMatchAlert(listingMatches);
     }
 
+    if (unprovenAbsences.length > 0) {
+      await this.sendUnprovenAbsenceAlert(unprovenAbsences);
+    }
+
     if (incompleteListingBankCount > 0) {
       await this.sendIncompleteListingAlert(incompleteListingBankCount, 'Phase 1');
     }
@@ -266,6 +311,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     this.logger.info(
       `Frick vIBAN reconciliation Phase 1: checked ${intents.length} intent(s) across ${byBankId.size} bank(s); ` +
         `${listingMatches.length} listing match(es), ${resetCount} reset(s), ${skippedFreshCount} skipped (too fresh), ` +
+        `${unprovenAbsences.length} skipped (listing did not prove post-create absence), ` +
         `${skippedIncompleteCount} skipped (incomplete listing across ${incompleteListingBankCount} bank(s))` +
         (skippedMergeSupersededCount > 0 ? `, ${skippedMergeSupersededCount} skipped (merge-superseded)` : ''),
     );
@@ -502,6 +548,27 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     );
   }
 
+  private async sendUnprovenAbsenceAlert(intents: UnprovenAbsenceIntent[]): Promise<void> {
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.MONITORING,
+      input: {
+        subject: 'Frick vIBAN reconciliation Phase 1: listing does not prove create absence',
+        errors: intents.map(
+          (intent) =>
+            `intentId=${intent.intentId}; userDataId=${intent.userDataId}; currencyId=${intent.currencyId}; ` +
+            `bankId=${intent.bankId}; status=${intent.status}; updated=${intent.updated.toISOString()}; ` +
+            `listingStartedAt=${intent.listingStartedAt.toISOString()}; ` +
+            `latestPossibleCreateProcessedAt=${intent.latestPossibleCreateProcessedAt.toISOString()}`,
+        ),
+      },
+    });
+    this.logger.error(
+      `Frick vIBAN reconciliation Phase 1: ${intents.length} intent(s) left non-retryable because ` +
+        `listing timing did not prove absence after the last possible create-processing moment`,
+    );
+  }
+
   private async sendMatchAlert(matches: AbandonedReferenceHit[]): Promise<void> {
     const errors = matches.map(
       (m) =>
@@ -609,5 +676,13 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         ],
       },
     });
+  }
+
+  private async trySendFailureAlert(error: unknown, phase: 'Phase 1' | 'Phase 2'): Promise<void> {
+    try {
+      await this.sendFailureAlert(error);
+    } catch (alertError) {
+      this.logger.error(`Failed to deliver Frick vIBAN reconciliation ${phase} failure alert:`, alertError);
+    }
   }
 }

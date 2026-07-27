@@ -1,7 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
-import { ReservedViban, VibanAccountHolder, VibanProvider } from './viban-provider.interface';
+import { VibanAccountHolder } from './viban-account-holder.enum';
+import { ReservedViban, VibanProvider } from './viban-provider.interface';
 
 @Injectable()
 export class YapealVibanProvider implements VibanProvider {

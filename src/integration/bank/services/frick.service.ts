@@ -55,6 +55,10 @@ export interface FrickVirtualIbansFetchResult {
   // checks) must treat fullyValidated=false as an incomplete check, not as a clean empty result.
   // Well-formed entries are still returned and may be used for positive matches.
   fullyValidated: boolean;
+  /** Local instant immediately before the first page request was dispatched. */
+  listingStartedAt: Date;
+  /** Local instant after the final page was received and validated. */
+  listingCompletedAt: Date;
 }
 
 @Injectable()
@@ -259,10 +263,10 @@ export class BankFrickService {
   }
 
   async listVibans(
-    referenceAccountIban?: string,
-    states?: FrickVirtualIbanState[],
-    pageIndex = 0,
-    pageSize = 50,
+    referenceAccountIban: string | undefined,
+    states: FrickVirtualIbanState[] | undefined,
+    pageIndex: number,
+    pageSize: number,
   ): Promise<FrickVirtualIbansResponse> {
     // Public contract stays a plain FrickVirtualIbansResponse; drop count is only consumed by listAllVibans.
     const { response } = await this.listVibansPage(referenceAccountIban, states, pageIndex, pageSize);
@@ -279,11 +283,12 @@ export class BankFrickService {
    * as proof must treat that as an incomplete listing.
    */
   async listAllVibans(
-    referenceAccountIban?: string,
-    states?: FrickVirtualIbanState[],
-    pageSize = 50,
+    referenceAccountIban: string | undefined,
+    states: FrickVirtualIbanState[] | undefined,
+    pageSize: number,
   ): Promise<FrickVirtualIbansFetchResult> {
     this.assertVibanAvailable();
+    const listingStartedAt = new Date();
     const all: FrickVirtualIban[] = [];
     const seenVibans = new Set<string>();
     let expectedTotalCount: number | undefined;
@@ -331,7 +336,12 @@ export class BankFrickService {
             `Bank Frick virtual IBAN listing returned ${all.length} of ${expectedTotalCount} items` +
               ` (${totalDropped} dropped as invalid)`,
           );
-        return { virtualIbans: all, fullyValidated: totalDropped === 0 };
+        return {
+          virtualIbans: all,
+          fullyValidated: totalDropped === 0,
+          listingStartedAt,
+          listingCompletedAt: new Date(),
+        };
       }
       pageIndex += 1;
     }

@@ -1,4 +1,5 @@
 import { IbanBankName } from '../../bank/dto/bank.dto';
+import { VibanAccountHolder } from './viban-account-holder.enum';
 
 export interface ReservedViban {
   iban: string;
@@ -23,11 +24,6 @@ export class VibanNotCreatedError extends Error {}
  * see FrickCreateVirtualIbanRequest.name/address, which the create request never populates) — show
  * DFX's own name/address as recipient, exactly like the standard non-personal bank path.
  */
-export enum VibanAccountHolder {
-  CUSTOMER = 'CUSTOMER',
-  DFX = 'DFX',
-}
-
 export interface VibanProvider {
   readonly bankName: IbanBankName;
   readonly currencies: string[];

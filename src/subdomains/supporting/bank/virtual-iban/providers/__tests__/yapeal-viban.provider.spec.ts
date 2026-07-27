@@ -1,7 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { IbanBankName } from '../../../bank/dto/bank.dto';
-import { VibanAccountHolder } from '../viban-provider.interface';
+import { VibanAccountHolder } from '../viban-account-holder.enum';
 import { YapealVibanProvider } from '../yapeal-viban.provider';
 
 describe('YapealVibanProvider', () => {

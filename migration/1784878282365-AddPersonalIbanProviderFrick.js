@@ -89,6 +89,22 @@ module.exports = class AddPersonalIbanProviderFrick1784878282365 {
   async down(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
+    const [{ cnt }] = await queryRunner.query(`
+      SELECT (
+        (SELECT count(*) FROM "virtual_iban_issuance_event") +
+        (SELECT count(*) FROM "virtual_iban_issuance_intent") +
+        (SELECT count(*) FROM "transaction_request" WHERE "virtualIbanId" IS NOT NULL) +
+        (SELECT count(*) FROM "transaction_request" WHERE "bankId" IS NOT NULL)
+      )::int AS "cnt"
+    `);
+    const persistedValueCount = Number(cnt);
+    if (persistedValueCount > 0) {
+      throw new Error(
+        `AddPersonalIbanProviderFrick down(): refusing to destroy ${persistedValueCount} persisted ` +
+          `issuance/history/routing value(s). Reconcile and archive them before rollback.`,
+      );
+    }
+
     await queryRunner.query(`DROP INDEX "public"."IDX_580678e6381e31186dc016daa8"`);
     await queryRunner.query(`DROP TABLE "virtual_iban_issuance_event"`);
 

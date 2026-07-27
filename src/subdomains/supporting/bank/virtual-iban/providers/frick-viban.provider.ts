@@ -7,7 +7,8 @@ import {
 } from 'src/integration/bank/services/frick.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IbanBankName } from '../../bank/dto/bank.dto';
-import { ReservedViban, VibanAccountHolder, VibanNotCreatedError, VibanProvider } from './viban-provider.interface';
+import { VibanAccountHolder } from './viban-account-holder.enum';
+import { ReservedViban, VibanNotCreatedError, VibanProvider } from './viban-provider.interface';
 
 @Injectable()
 export class FrickVibanProvider implements VibanProvider {
@@ -63,10 +64,11 @@ export class FrickVibanProvider implements VibanProvider {
       throw new ServiceUnavailableException('Bank Frick virtual IBAN reference account is missing');
 
     try {
-      return await this.bankFrickService.listAllVibans(referenceAccountIban, [
-        FrickVirtualIbanState.PREPARED,
-        FrickVirtualIbanState.ACTIVE,
-      ]);
+      return await this.bankFrickService.listAllVibans(
+        referenceAccountIban,
+        [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE],
+        50,
+      );
     } catch (error) {
       this.logger.error('Bank Frick virtual IBAN listing failed', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Bank Frick virtual IBAN listing failed');
@@ -93,10 +95,11 @@ export class FrickVibanProvider implements VibanProvider {
 
     let all: FrickVirtualIban[];
     try {
-      const result = await this.bankFrickService.listAllVibans(referenceAccountIban, [
-        FrickVirtualIbanState.PREPARED,
-        FrickVirtualIbanState.ACTIVE,
-      ]);
+      const result = await this.bankFrickService.listAllVibans(
+        referenceAccountIban,
+        [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE],
+        50,
+      );
       all = result.virtualIbans;
     } catch (error) {
       this.logger.error('Bank Frick virtual IBAN recovery failed', error instanceof Error ? error : undefined);

@@ -4,7 +4,8 @@ import { BankFrickService, FrickVibanNotCreatedError } from 'src/integration/ban
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IbanBankName } from '../../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../frick-viban.provider';
-import { VibanAccountHolder, VibanNotCreatedError } from '../viban-provider.interface';
+import { VibanAccountHolder } from '../viban-account-holder.enum';
+import { VibanNotCreatedError } from '../viban-provider.interface';
 
 function virtualIban(
   overrides: {
@@ -225,14 +226,20 @@ describe('FrickVibanProvider', () => {
   it('lists PREPARED/ACTIVE vIBANs for a reference account and propagates fullyValidated', async () => {
     bankFrickService.isVibanAvailable.mockReturnValue(true);
     const listed = [virtualIban({ description: 'dfx-viban-a' }), virtualIban({ description: 'dfx-viban-b' })];
-    const result = { virtualIbans: listed, fullyValidated: true };
+    const result = {
+      virtualIbans: listed,
+      fullyValidated: true,
+      listingStartedAt: new Date('2026-07-01T00:00:00.000Z'),
+      listingCompletedAt: new Date('2026-07-01T00:00:01.000Z'),
+    };
     bankFrickService.listAllVibans.mockResolvedValue(result);
 
     await expect(provider.listByReferenceAccount('LI32088110105923K000C')).resolves.toBe(result);
-    expect(bankFrickService.listAllVibans).toHaveBeenCalledWith('LI32088110105923K000C', [
-      FrickVirtualIbanState.PREPARED,
-      FrickVirtualIbanState.ACTIVE,
-    ]);
+    expect(bankFrickService.listAllVibans).toHaveBeenCalledWith(
+      'LI32088110105923K000C',
+      [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE],
+      50,
+    );
   });
 
   it('maps a listing integration error to a classified service unavailable without embedding the cause', async () => {
@@ -252,15 +259,18 @@ describe('FrickVibanProvider', () => {
     bankFrickService.listAllVibans.mockResolvedValue({
       virtualIbans: [virtualIban({ description: 'dfx-viban-reference-other' }), exact],
       fullyValidated: true,
+      listingStartedAt: new Date('2026-07-01T00:00:00.000Z'),
+      listingCompletedAt: new Date('2026-07-01T00:00:01.000Z'),
     });
 
     await expect(provider.findRecoverableByDescription('dfx-viban-reference', 'LI32088110105923K000C')).resolves.toBe(
       exact,
     );
-    expect(bankFrickService.listAllVibans).toHaveBeenCalledWith('LI32088110105923K000C', [
-      FrickVirtualIbanState.PREPARED,
-      FrickVirtualIbanState.ACTIVE,
-    ]);
+    expect(bankFrickService.listAllVibans).toHaveBeenCalledWith(
+      'LI32088110105923K000C',
+      [FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE],
+      50,
+    );
   });
 
   it('fails closed when the same recovery description has multiple matches', async () => {
@@ -271,6 +281,8 @@ describe('FrickVibanProvider', () => {
         virtualIban({ vban: 'LI11ACTIVE00000000001', description: 'dfx-viban-duplicate' }),
       ],
       fullyValidated: true,
+      listingStartedAt: new Date('2026-07-01T00:00:00.000Z'),
+      listingCompletedAt: new Date('2026-07-01T00:00:01.000Z'),
     });
 
     await expect(provider.findRecoverableByDescription('dfx-viban-duplicate', 'LI32088110105923K000C')).rejects.toThrow(
@@ -385,6 +397,8 @@ describe('FrickVibanProvider', () => {
     bankFrickService.listAllVibans.mockResolvedValue({
       virtualIbans: [virtualIban({ description: 'dfx-viban-other' })],
       fullyValidated: true,
+      listingStartedAt: new Date('2026-07-01T00:00:00.000Z'),
+      listingCompletedAt: new Date('2026-07-01T00:00:01.000Z'),
     });
 
     await expect(
@@ -402,6 +416,8 @@ describe('FrickVibanProvider', () => {
         }),
       ],
       fullyValidated: true,
+      listingStartedAt: new Date('2026-07-01T00:00:00.000Z'),
+      listingCompletedAt: new Date('2026-07-01T00:00:01.000Z'),
     });
 
     await expect(
@@ -418,6 +434,8 @@ describe('FrickVibanProvider', () => {
     bankFrickService.listAllVibans.mockResolvedValue({
       virtualIbans: [exact],
       fullyValidated: true,
+      listingStartedAt: new Date('2026-07-01T00:00:00.000Z'),
+      listingCompletedAt: new Date('2026-07-01T00:00:01.000Z'),
     });
 
     await expect(
