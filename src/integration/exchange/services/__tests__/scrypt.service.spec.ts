@@ -4,7 +4,12 @@ import {
   ScryptTransactionStatus,
   ScryptTransactionType,
 } from '../../dto/scrypt.dto';
-import { ScryptMessageType, ScryptWebSocketConnection } from '../scrypt-websocket-connection';
+import {
+  ScryptMessageType,
+  ScryptRequestTimeoutError,
+  ScryptUnconfirmedWriteError,
+  ScryptWebSocketConnection,
+} from '../scrypt-websocket-connection';
 import { ScryptService } from '../scrypt.service';
 
 jest.mock('src/config/config', () => {
@@ -544,6 +549,46 @@ describe('ScryptService', () => {
           TxHashes: [{ TxHash: '0xabc' }, { TxHash: '0xdef' }],
         },
       ]);
+    });
+  });
+  describe('checkTrade — the amend write boundary', () => {
+    function stubAmendPath(editOutcome: Error) {
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PARTIALLY_FILLED,
+        price: 1,
+        remainingQuantity: 5,
+      });
+      jest.spyOn(service as any, 'getTradePrice').mockResolvedValue(2);
+      jest.spyOn(service as any, 'editOrder').mockRejectedValue(editOutcome);
+      jest.spyOn(service as any, 'cancelOrder').mockResolvedValue(undefined);
+    }
+
+    it('propagates an unconfirmed amend instead of swallowing it', async () => {
+      // Regression guard: the amend used to be wrapped in a catch that cancelled and returned false, so the
+      // caller never learned that a replacement order might be live at the venue under the reserved id.
+      stubAmendPath(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toBeInstanceOf(
+        ScryptUnconfirmedWriteError,
+      );
+      expect((service as any).cancelOrder).not.toHaveBeenCalled();
+    });
+
+    it('carries the reserved replacement reference on the raised error', async () => {
+      stubAmendPath(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toMatchObject({
+        reference: 'dfx-lm-7-1',
+      });
+    });
+
+    it('still cancels and continues when the venue explicitly rejected the amend', async () => {
+      // A rejection is a reply: nothing was created, so the existing fallback stays safe.
+      stubAmendPath(new Error('Scrypt order edit rejected: price out of band'));
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).resolves.toBe(false);
+      expect((service as any).cancelOrder).toHaveBeenCalled();
     });
   });
 });
