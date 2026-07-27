@@ -362,10 +362,11 @@ Frick provides no authoritative “this create did not happen” operation.
 `FRICK_CREATE_MAX_PROCESSING_MS = 90_000` is derived from
 `BankFrickService.HTTP_TIMEOUT_MS = 30_000`:
 
-- create call worst case = 90s: original request (30s) + `/authorize` re-auth after 401 (30s) +
-  one-shot retried request (30s). `requestSigned` has no further internal retry beyond that.
-- the create side effect can therefore occur no later than 90s after the persisted intent update
-  used by the gate
+- the locally bounded create HTTP attempt lasts at most 90s: original request (30s) +
+  `/authorize` re-auth after 401 (30s) + one-shot retried request (30s). `requestSigned` has no
+  further internal retry beyond that.
+- **90s is not an upper bound on Bank Frick processing or on when its create side effect can
+  occur.** Bank Frick may queue or finish work after the local HTTP attempt has ended.
 
 The separate 30-minute `FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS` remains as a conservative
 operational delay, but it never substitutes for the per-listing ordering requirement.
@@ -485,6 +486,24 @@ only the Phase-1 not-found-and-old-enough path self-heals by reopening the local
      supervision) rather than leaving an unmonitored IBAN live.
 3. Do not invent a second automated recovery path here; treat every match as an ops incident
    until local and Frick state agree, then record what was done for audit.
+
+### Residual risk: committed account merge can lose a post-commit effect
+
+Account-merge database mutations, including KYC approval changes and virtual-IBAN ownership, commit
+before mail, document copying, webhooks, and notification delivery begin. This ordering prevents an
+external announcement of a merge that later rolls back.
+
+There is no durable outbox in this change. A process death after commit but before an effect
+completes can therefore lose that effect permanently, and replaying the merge itself is not
+possible because the slave is already marked `Merged`. The service writes one contextual
+`UserData merge committed; starting post-commit effects` marker and a completion marker for every
+effect. An effect failure is logged at critical severity with `masterId`, `slaveId`, and the exact
+effect name; all remaining effects are still attempted, and the request then fails loudly with the
+failed effect names. Operations must compare the committed marker with the completion markers and
+manually replay any missing effect after a crash.
+
+This is a known, bounded gap accepted for this PR. Durable delivery requires an idempotent outbox or
+retry queue and is intentionally deferred.
 
 ### Residual risk: the retained auto-retry can still create a second real account
 

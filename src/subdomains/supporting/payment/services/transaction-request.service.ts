@@ -207,9 +207,7 @@ export class TransactionRequestService {
       return transactionRequest;
     } catch (e) {
       this.logger.error(
-        `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
-          request,
-        )}, response was ${JSON.stringify(response)}:`,
+        `Failed to store ${type} transaction request ` + `(routeId=${response.routeId}, userId=${userId}):`,
         e,
       );
       throw e;

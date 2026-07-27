@@ -6,6 +6,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
+import { EntityManager } from 'typeorm';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
 import { BankRepository } from './bank.repository';
@@ -47,16 +48,19 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findCachedBy(bankName, { name: bankName });
   }
 
-  async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
+  async getBankInternal(name: IbanBankName, currency: string, manager?: EntityManager): Promise<Bank> {
     // A (name, currency) pair can match more than one row (e.g. a retired legacy account alongside its
     // replacement, or a second account created for the same bank/currency without an asset link).
     // Rows are ordered newest-first; selectAttributionBank then prefers the asset-linked identity so
     // per-asset matching (isBankMatching) stays aligned with bank_tx history.
-    const banks = await this.bankRepo.findCached(`${name}-${currency}`, {
+    const options = {
       where: { name, currency },
-      order: { id: 'DESC' },
+      order: { id: 'DESC' as const },
       relations: { asset: true },
-    });
+    };
+    const banks = manager
+      ? await manager.find(Bank, options)
+      : await this.bankRepo.findCached(`${name}-${currency}`, options);
     return BankService.selectAttributionBank(banks);
   }
 

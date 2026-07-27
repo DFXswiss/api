@@ -89,7 +89,7 @@ module.exports = class AddPersonalIbanProviderFrick1784878282365 {
   async down(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
-    const [{ cnt }] = await queryRunner.query(`
+    const rows = await queryRunner.query(`
       SELECT (
         (SELECT count(*) FROM "virtual_iban_issuance_event") +
         (SELECT count(*) FROM "virtual_iban_issuance_intent") +
@@ -97,6 +97,7 @@ module.exports = class AddPersonalIbanProviderFrick1784878282365 {
         (SELECT count(*) FROM "transaction_request" WHERE "bankId" IS NOT NULL)
       )::int AS "cnt"
     `);
+    const { cnt } = rows.at(0);
     const persistedValueCount = Number(cnt);
     if (persistedValueCount > 0) {
       throw new Error(

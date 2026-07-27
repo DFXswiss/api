@@ -1249,7 +1249,7 @@ export class UserDataService {
   async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
-    const { master, slave, kycStepMerge } = await this.userDataRepo.manager.transaction(
+    const { master, slave, kycReminderUser } = await this.userDataRepo.manager.transaction(
       async (manager: EntityManager) => {
         const userDataRepo = manager.getRepository(UserData);
         const userRepo = manager.getRepository(User);
@@ -1533,23 +1533,84 @@ export class UserDataService {
         await this.kycLogService.createMergeLog(master, log, manager);
         await this.kycLogService.createMergeLog(slave, log, manager);
 
-        return { master, slave, kycStepMerge };
+        const kycReminderUser = kycStepMerge
+          ? await this.kycService.checkDfxApprovalInTransaction(master, manager)
+          : null;
+
+        return { master, slave, kycReminderUser };
       },
     );
 
-    // External side effects start only after the transaction callback has returned and TypeORM has
-    // committed every merge mutation, including vIBAN ownership/lifecycle events.
-    if (notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail))
-      await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
+    this.virtualIbanService.invalidateCacheAfterMerge();
 
-    void this.documentService
-      .copyFiles(slave.id, master.id)
-      .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
+    const effects: { name: string; run: () => Promise<void> }[] = [
+      ...(notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail)
+        ? [
+            {
+              name: 'changed-mail notification',
+              run: () => this.userDataNotificationService.userDataChangedMailInfo(master, slave),
+            },
+          ]
+        : []),
+      {
+        name: 'document copy',
+        run: () => this.documentService.copyFiles(slave.id, master.id),
+      },
+      {
+        name: 'account-changed webhook',
+        run: () => this.webhookService.accountChanged(master, slave),
+      },
+      {
+        name: 'KYC-changed notification',
+        run: () => this.kycNotificationService.kycChanged(master),
+      },
+      ...(kycReminderUser
+        ? [
+            {
+              name: 'KYC-step reminder',
+              run: () => this.kycNotificationService.kycStepReminder(kycReminderUser),
+            },
+          ]
+        : []),
+      ...(notifyUser
+        ? [
+            {
+              name: 'added-address notification',
+              run: () => this.userDataNotificationService.userDataAddedAddressInfo(master, slave),
+            },
+          ]
+        : []),
+    ];
 
-    await this.webhookService.accountChanged(master, slave);
-    await this.kycNotificationService.kycChanged(master);
-    if (kycStepMerge) await this.kycService.checkDfxApproval(master);
-    if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);
+    // The committed marker plus per-effect completion markers make a process-death gap observable:
+    // an operator can identify exactly which effects did not finish and replay them manually.
+    this.logger.info(
+      `UserData merge committed; starting post-commit effects ` +
+        `(masterId=${master.id}, slaveId=${slave.id}, effects=${effects.map((effect) => effect.name).join(',')})`,
+    );
+    const failedEffects: string[] = [];
+    for (const effect of effects) {
+      try {
+        await effect.run();
+        this.logger.info(
+          `UserData merge post-commit effect completed ` +
+            `(masterId=${master.id}, slaveId=${slave.id}, effect=${effect.name})`,
+        );
+      } catch (error) {
+        failedEffects.push(effect.name);
+        this.logger.critical(
+          `UserData merge committed but post-commit effect failed; manual replay required ` +
+            `(masterId=${master.id}, slaveId=${slave.id}, effect=${effect.name})`,
+          error instanceof Error ? error : undefined,
+        );
+      }
+    }
+    if (failedEffects.length) {
+      throw new Error(
+        `UserData merge ${slave.id} into ${master.id} committed with failed post-commit effects: ` +
+          failedEffects.join(', '),
+      );
+    }
   }
 
   private async updateBankTxTime(userDataId: number, manager?: EntityManager): Promise<void> {

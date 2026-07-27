@@ -26,6 +26,7 @@ import { KycFileService } from '../kyc-file.service';
 import { KycLogService } from '../kyc-log.service';
 import { KycService } from '../kyc.service';
 import { TfaLevel } from '../tfa.service';
+import { EntityManager } from 'typeorm';
 
 describe('KycService', () => {
   let service: KycService;
@@ -537,6 +538,24 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
       order: { sequenceNumber: 'DESC' },
     });
     expect(kycStepRepo.update).toHaveBeenCalledWith(812746, { status: ReviewStatus.MANUAL_REVIEW });
+  });
+
+  it('uses only the supplied merge manager for approval-step mutations', async () => {
+    const manager = createMock<EntityManager>();
+    const transactionalRepo = createMock<KycStepRepository>();
+    Object.assign(transactionalRepo, { metadata: { indices: [{ isUnique: true, name: kycStepUniqueIndex }] } });
+    (manager.getRepository as jest.Mock).mockReturnValue(transactionalRepo);
+    const newStep = createMock<KycStep>();
+    newStep.manualReview.mockReturnValue([99, { status: ReviewStatus.MANUAL_REVIEW }]);
+    const initiateStep = jest.spyOn(service as any, 'initiateStep').mockResolvedValue(newStep);
+    const user = approvalUser();
+
+    await expect(service.checkDfxApprovalInTransaction(user, manager)).resolves.toBeNull();
+
+    expect(initiateStep).toHaveBeenCalledWith(user, KycStepName.DFX_APPROVAL, undefined, undefined, manager);
+    expect(transactionalRepo.update).toHaveBeenCalledWith(99, { status: ReviewStatus.MANUAL_REVIEW });
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(kycStepRepo.findOne).not.toHaveBeenCalled();
   });
 
   it('treats a winner that already advanced into review as success, without promoting again', async () => {

@@ -1,7 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
-import { EntityManager, FindOperator, IsNull, Not } from 'typeorm';
+import { EntityManager, FindOperator, FindOptionsWhere, IsNull, Not } from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -59,6 +59,7 @@ describe('UserDataService', () => {
   let documentService: jest.Mocked<KycDocumentService>;
   let kycLogService: jest.Mocked<KycLogService>;
   let kycNotificationService: jest.Mocked<KycNotificationService>;
+  let kycService: jest.Mocked<KycService>;
   let userDataNotificationService: jest.Mocked<UserDataNotificationService>;
   let webhookService: jest.Mocked<WebhookService>;
   let mergeManager: EntityManager;
@@ -115,6 +116,7 @@ describe('UserDataService', () => {
     documentService = module.get(KycDocumentService);
     kycLogService = module.get(KycLogService);
     kycNotificationService = module.get(KycNotificationService);
+    kycService = module.get(KycService);
     userDataNotificationService = module.get(UserDataNotificationService);
     webhookService = module.get(WebhookService);
   });
@@ -299,6 +301,49 @@ describe('UserDataService', () => {
 
     beforeEach(() => {
       stepId = 0;
+    });
+
+    it('runs DFX approval mutations on the merge manager and invalidates the vIBAN cache only after commit', async () => {
+      const master = buildAccount(1000, 50);
+      const slave = buildAccount(2000, 20);
+      const slaveStep = buildStep(KycStepName.CONTACT_DATA, 0);
+      let transactionActive = false;
+      let committed = false;
+
+      userDataRepo.findOne.mockResolvedValueOnce(master).mockResolvedValueOnce(slave);
+      transactionService.getAllTransactionsForUserData.mockResolvedValue([]);
+      userRepo.find.mockResolvedValue([]);
+      bankDataService.getAllBankDatasForUser.mockResolvedValue([]);
+      virtualIbanService.getVirtualIbansForAccount.mockResolvedValue([]);
+      kycAdminService.getKycSteps.mockResolvedValueOnce([]).mockResolvedValueOnce([slaveStep]);
+      documentService.copyFiles.mockResolvedValue(undefined);
+      jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as unknown as { updateBankTxTime: () => Promise<void> }, 'updateBankTxTime')
+        .mockResolvedValue(undefined);
+      (mergeManager.transaction as jest.Mock).mockImplementation(
+        async (run: (manager: EntityManager) => Promise<unknown>) => {
+          transactionActive = true;
+          const result = await run(mergeManager);
+          transactionActive = false;
+          committed = true;
+          return result;
+        },
+      );
+      kycService.checkDfxApprovalInTransaction.mockImplementation(async (_userData, manager) => {
+        expect(transactionActive).toBe(true);
+        expect(manager).toBe(mergeManager);
+        return null;
+      });
+      virtualIbanService.invalidateCacheAfterMerge.mockImplementation(() => {
+        expect(transactionActive).toBe(false);
+        expect(committed).toBe(true);
+      });
+
+      await service.mergeUserData(master.id, slave.id);
+
+      expect(kycService.checkDfxApprovalInTransaction).toHaveBeenCalledWith(master, mergeManager);
+      expect(virtualIbanService.invalidateCacheAfterMerge).toHaveBeenCalledTimes(1);
     });
 
     // prod debris shape (userData 240169): repeated failed merges left same-name steps at 0, -100 … -400
@@ -860,9 +905,14 @@ describe('UserDataService', () => {
 
       // These injected-repository implementations deliberately mutate committed state. If merge
       // code escapes the transaction manager, the rollback assertion below exposes the leak.
-      userDataRepo.findOne.mockImplementation(async ({ where: { id } }) => findAccount(persisted, id));
-      userDataRepo.update.mockImplementation(async (id: number, update: Partial<UserData>) => {
-        if (id === slaveId && update.status) persisted.slaveStatus = update.status;
+      userDataRepo.findOne.mockImplementation(async ({ where }) => {
+        const id = (where as FindOptionsWhere<UserData>).id as number;
+        return findAccount(persisted, id);
+      });
+      userDataRepo.update.mockImplementation(async (criteria, partialEntity) => {
+        const update = partialEntity as Partial<UserData>;
+        if (criteria === slaveId && update.status) persisted.slaveStatus = update.status;
+        return { affected: 1, raw: [], generatedMaps: [] };
       });
       userDataRepo.save.mockImplementation(async (entity: UserData) => entity);
 
@@ -931,6 +981,61 @@ describe('UserDataService', () => {
       expect(kycNotificationService.kycChanged).not.toHaveBeenCalled();
       expect(userDataNotificationService.userDataChangedMailInfo).not.toHaveBeenCalled();
       expect(userDataNotificationService.userDataAddedAddressInfo).not.toHaveBeenCalled();
+    });
+
+    it('logs contextual completion markers, attempts remaining effects, and fails loudly after a post-commit failure', async () => {
+      const master = Object.assign(new UserData(), {
+        id: 1000,
+        kycLevel: 50,
+        kycType: KycType.DFX,
+        status: UserDataStatus.ACTIVE,
+        mail: 'master@example.com',
+        users: [],
+        accountRelations: [],
+        relatedAccountRelations: [],
+        supportIssues: [],
+      });
+      const slave = Object.assign(new UserData(), {
+        id: 2000,
+        kycLevel: 20,
+        kycType: KycType.DFX,
+        status: UserDataStatus.ACTIVE,
+        mail: 'slave@example.com',
+        users: [],
+        accountRelations: [],
+        relatedAccountRelations: [],
+        supportIssues: [],
+      });
+      userDataRepo.findOne.mockResolvedValueOnce(master).mockResolvedValueOnce(slave);
+      transactionService.getAllTransactionsForUserData.mockResolvedValue([]);
+      userRepo.find.mockResolvedValue([]);
+      bankDataService.getAllBankDatasForUser.mockResolvedValue([]);
+      virtualIbanService.getVirtualIbansForAccount.mockResolvedValue([]);
+      kycAdminService.getKycSteps.mockResolvedValue([]);
+      documentService.copyFiles.mockRejectedValue(new Error('storage unavailable'));
+      webhookService.accountChanged.mockResolvedValue(undefined);
+      kycNotificationService.kycChanged.mockResolvedValue(undefined);
+      jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as unknown as { updateBankTxTime: () => Promise<void> }, 'updateBankTxTime')
+        .mockResolvedValue(undefined);
+      const infoSpy = jest.spyOn((service as any).logger, 'info').mockImplementation(() => undefined);
+      const criticalSpy = jest.spyOn((service as any).logger, 'critical').mockImplementation(() => undefined);
+
+      await expect(service.mergeUserData(master.id, slave.id)).rejects.toThrow(
+        `UserData merge ${slave.id} into ${master.id} committed with failed post-commit effects: document copy`,
+      );
+
+      expect(webhookService.accountChanged).toHaveBeenCalledWith(master, slave);
+      expect(kycNotificationService.kycChanged).toHaveBeenCalledWith(master);
+      expect(criticalSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`masterId=${master.id}, slaveId=${slave.id}, effect=document copy`),
+        expect.any(Error),
+      );
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.stringContaining('UserData merge committed; starting post-commit effects'),
+      );
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('effect=account-changed webhook'));
     });
   });
 

@@ -63,4 +63,53 @@ describe('TransactionRequestService bank selection persistence', () => {
     expect(response).not.toHaveProperty('bankId');
     expect(response).not.toHaveProperty('virtualIbanId');
   });
+
+  it('logs only bounded identifiers when persistence fails and never logs a customer IBAN', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    jest.spyOn(repo, 'create').mockImplementation((value) => value as TransactionRequest);
+    jest.spyOn(repo, 'save').mockRejectedValue(new Error('database unavailable'));
+    const module = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        TransactionRequestService,
+        { provide: TransactionRequestRepository, useValue: repo },
+        { provide: SiftService, useValue: createMock<SiftService>() },
+        { provide: AssetService, useValue: createMock<AssetService>() },
+        { provide: FiatService, useValue: createMock<FiatService>() },
+        { provide: BuyService, useValue: createMock<BuyService>() },
+        { provide: SellService, useValue: createMock<SellService>() },
+        { provide: SwapService, useValue: createMock<SwapService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+    const service = module.get(TransactionRequestService);
+    const loggerError = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    const customerIban = 'LI75088110105923K000E';
+    const request = { paymentMethod: FiatPaymentMethod.BANK, note: customerIban } as any;
+    const response = {
+      routeId: 42,
+      amount: 100,
+      estimatedAmount: 0.001,
+      exchangeRate: 100000,
+      rate: 101000,
+      iban: customerIban,
+      isValid: true,
+      exactPrice: false,
+      fees: { dfx: 1, network: 0, total: 1 },
+      priceSteps: [],
+      currency: { id: 2, name: 'EUR' },
+      asset: { id: 10, name: 'BTC', blockchain: 'Bitcoin' },
+    } as any;
+
+    await expect(service.create(TransactionRequestType.BUY, request, response, 7)).rejects.toThrow(
+      'database unavailable',
+    );
+
+    const logged = loggerError.mock.calls.flat().join(' ');
+    expect(logged).toContain('routeId=42');
+    expect(logged).toContain('userId=7');
+    expect(logged).not.toContain(customerIban);
+    expect(logged).not.toContain(JSON.stringify(request));
+    expect(logged).not.toContain(JSON.stringify(response));
+  });
 });

@@ -49,12 +49,13 @@ module.exports = class RemovePersonalIbanFromIssuanceEvent1784995385824 {
 
     // Fail closed before dropping cleartext columns: unresolved rows would permanently lose
     // audit information. Check runs after backfill and before DROP so a throw rolls back cleanly.
-    const [{ cnt }] = await queryRunner.query(`
+    const rows = await queryRunner.query(`
       SELECT count(*)::int AS "cnt"
       FROM "virtual_iban_issuance_event"
       WHERE ("previousExternalIban" IS NOT NULL AND "previousVirtualIbanId" IS NULL)
          OR ("nextExternalIban" IS NOT NULL AND "nextVirtualIbanId" IS NULL)
     `);
+    const { cnt } = rows.at(0);
     const orphanCount = Number(cnt);
     if (orphanCount > 0) {
       throw new Error(
@@ -109,12 +110,13 @@ module.exports = class RemovePersonalIbanFromIssuanceEvent1784995385824 {
 
     // Fail closed before dropping id columns: unresolved rows would permanently lose the
     // VirtualIban.id → IBAN join target. Symmetric to up()'s orphan check after reverse backfill.
-    const [{ cnt }] = await queryRunner.query(`
+    const rows = await queryRunner.query(`
       SELECT count(*)::int AS "cnt"
       FROM "virtual_iban_issuance_event"
       WHERE ("previousVirtualIbanId" IS NOT NULL AND "previousExternalIban" IS NULL)
          OR ("nextVirtualIbanId" IS NOT NULL AND "nextExternalIban" IS NULL)
     `);
+    const { cnt } = rows.at(0);
     const orphanCount = Number(cnt);
     if (orphanCount > 0) {
       throw new Error(

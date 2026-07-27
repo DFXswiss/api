@@ -63,12 +63,13 @@ module.exports = class AddVirtualIbanLifecycleEvent1785100000000 {
   async down(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
-    const [{ cnt }] = await queryRunner.query(`
+    const rows = await queryRunner.query(`
       SELECT (
         (SELECT count(*) FROM "virtual_iban_lifecycle_event") +
         (SELECT count(*) FROM "virtual_iban_issuance_event")
       )::int AS "cnt"
     `);
+    const { cnt } = rows.at(0);
     const auditRowCount = Number(cnt);
     if (auditRowCount > 0) {
       throw new Error(
