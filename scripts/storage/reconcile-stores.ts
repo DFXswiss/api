@@ -21,6 +21,12 @@
  * and require a separate, not-yet-built byte-level Azure↔S3 verification before Azure
  * teardown (that check is not part of this tool).
  *
+ * Azure and S3 listings are not atomic. After each pair of listings, additive candidates are
+ * therefore re-checked directly on the allegedly missing target. A same-size target that has
+ * appeared meanwhile is removed as a concurrent dual-write race; a different-size target is
+ * promoted to the hard size-mismatch gate. This keeps live uploads enabled without weakening
+ * the candidate digest or allowing a write, overwrite, or delete in REPORT mode.
+ *
  * Overwrite direction is one-sided on purpose: only azure.lastModified >= s3.lastModified +
  * tolerance is flagged. The reverse (s3 newer than azure) is the normal backfill / dual-write
  * ordering case and must not be treated as an overwrite — Azure is the authoritative source.
@@ -80,6 +86,7 @@
 import {
   GetObjectCommand,
   GetObjectLockConfigurationCommand,
+  HeadObjectCommand,
   ListBucketsCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -131,6 +138,11 @@ export interface DiffResult {
    * advisory lastModified hint (not gate-blocking; unreliable after heals), not auto-healable
    */
   suspectedOverwrite: string[];
+}
+
+export interface StabilizedDiffResult {
+  diff: DiffResult;
+  resolvedConcurrentCandidates: number;
 }
 
 export type HealDirection = 'azureToS3' | 's3ToAzure';
@@ -693,7 +705,8 @@ export function formatReconcileReportJsonLine(report: MachineReadableReconcileRe
   return `RECONCILE_REPORT_JSON=${JSON.stringify(report)}`;
 }
 
-// size/lastModified from list pages only — no HeadObject per key.
+// Base inventory uses size/lastModified from list pages. Only keys that initially appear on
+// one side are target-HEAD re-checked after listing to close the concurrent-upload race.
 // --- LISTING --- //
 
 export async function listS3Objects(client: S3Client, bucket: string): Promise<StoredObject[]> {
@@ -745,6 +758,109 @@ export async function listAzureObjects(containerClient: ContainerClient): Promis
   }
 
   return objects;
+}
+
+export function isS3NotFound(err: unknown): boolean {
+  const e = err as { $metadata?: { httpStatusCode?: number }; name?: string };
+  return e?.$metadata?.httpStatusCode === 404 || e?.name === 'NoSuchKey' || e?.name === 'NotFound';
+}
+
+export function isAzureNotFound(err: unknown): boolean {
+  const e = err as { statusCode?: number; details?: { errorCode?: string } };
+  return e?.statusCode === 404 || e?.details?.errorCode === 'BlobNotFound';
+}
+
+/**
+ * Close the open-inventory race without pausing uploads. Azure is listed before S3, so a
+ * successful dual write completed during the scan can look S3-only even though Azure already
+ * contains the object by the time the diff is built. Re-check only additive candidates on the
+ * allegedly missing target:
+ * - same size now present → concurrent appearance, remove from the additive candidate set;
+ * - different size now present → promote to the existing hard size-mismatch gate;
+ * - still absent → keep the real additive candidate.
+ *
+ * Successful target re-check metadata is added to the in-memory inventory maps so promoted
+ * size mismatches remain printable in detail mode. This deliberately performs no content
+ * download, write, overwrite, or delete. Raw keys stay private and are used only as SDK inputs /
+ * privacy-safe hashed error references.
+ */
+export async function stabilizeAdditiveCandidates(
+  diff: DiffResult,
+  azureByKey: Map<string, StoredObject>,
+  s3ByKey: Map<string, StoredObject>,
+  azureContainer: ContainerClient,
+  s3: S3Client,
+  container: string,
+): Promise<StabilizedDiffResult> {
+  // Preserve the cheap one-sided-empty outage/misconfiguration guard before doing candidate
+  // I/O. The only bounded exception is a new container's first concurrent object (0↔1), which
+  // can legitimately appear between the two non-atomic listings and is safe to HEAD once.
+  const oneSideEmpty = (azureByKey.size === 0) !== (s3ByKey.size === 0);
+  if (oneSideEmpty && Math.max(azureByKey.size, s3ByKey.size) > 1) {
+    assertNotOneSidedEmpty(azureByKey.size, s3ByKey.size, container);
+  }
+
+  const onlyOnAzure: string[] = [];
+  const onlyOnS3: string[] = [];
+  const sizeMismatch = [...diff.sizeMismatch];
+  const suspectedOverwrite = [...diff.suspectedOverwrite];
+  let resolvedConcurrentCandidates = 0;
+
+  for (const key of diff.onlyOnAzure) {
+    const source = azureByKey.get(key);
+    if (!source) throw new Error(`Missing Azure inventory object for ${safeObjectReference(container, key)}`);
+
+    try {
+      const target = await s3.send(new HeadObjectCommand({ Bucket: container, Key: key }));
+      if (target.ContentLength == null || target.LastModified == null) {
+        throw new Error(
+          `Incomplete S3 HEAD response for ${safeObjectReference(container, key)}: ` +
+            `ContentLength and LastModified are required`,
+        );
+      }
+      s3ByKey.set(key, { key, size: target.ContentLength, lastModified: target.LastModified });
+      if (target.ContentLength === source.size) {
+        resolvedConcurrentCandidates++;
+        if (source.lastModified.getTime() >= target.LastModified.getTime() + OVERWRITE_SKEW_TOLERANCE_MS) {
+          suspectedOverwrite.push(key);
+        }
+      } else sizeMismatch.push(key);
+    } catch (err) {
+      if (isS3NotFound(err)) onlyOnAzure.push(key);
+      else throw new Error(`S3 candidate re-check failed for ${safeObjectReference(container, key)}`, { cause: err });
+    }
+  }
+
+  for (const key of diff.onlyOnS3) {
+    const source = s3ByKey.get(key);
+    if (!source) throw new Error(`Missing S3 inventory object for ${safeObjectReference(container, key)}`);
+
+    try {
+      const target = await azureContainer.getBlockBlobClient(key).getProperties();
+      if (target.contentLength == null || target.lastModified == null) {
+        throw new Error(
+          `Incomplete Azure properties response for ${safeObjectReference(container, key)}: ` +
+            `contentLength and lastModified are required`,
+        );
+      }
+      azureByKey.set(key, { key, size: target.contentLength, lastModified: target.lastModified });
+      if (target.contentLength === source.size) {
+        resolvedConcurrentCandidates++;
+        if (target.lastModified.getTime() >= source.lastModified.getTime() + OVERWRITE_SKEW_TOLERANCE_MS) {
+          suspectedOverwrite.push(key);
+        }
+      } else sizeMismatch.push(key);
+    } catch (err) {
+      if (isAzureNotFound(err)) onlyOnS3.push(key);
+      else
+        throw new Error(`Azure candidate re-check failed for ${safeObjectReference(container, key)}`, { cause: err });
+    }
+  }
+
+  return {
+    diff: { onlyOnAzure, onlyOnS3, sizeMismatch, suspectedOverwrite },
+    resolvedConcurrentCandidates,
+  };
 }
 
 // --- CLIENTS / CONFIG --- //
@@ -1289,11 +1405,18 @@ async function main(): Promise<number> {
       const azureObjs = await listAzureObjects(azureContainer);
       const s3Objs = await listS3Objects(s3, container);
 
-      assertNotOneSidedEmpty(azureObjs.length, s3Objs.length, container);
-
-      const diff = diffStores(azureObjs, s3Objs, OVERWRITE_SKEW_TOLERANCE_MS);
       const azureByKey = indexStoredObjectsByKey(azureObjs);
       const s3ByKey = indexStoredObjectsByKey(s3Objs);
+      const initialDiff = diffStores(azureObjs, s3Objs, OVERWRITE_SKEW_TOLERANCE_MS);
+      const { diff, resolvedConcurrentCandidates } = await stabilizeAdditiveCandidates(
+        initialDiff,
+        azureByKey,
+        s3ByKey,
+        azureContainer,
+        s3,
+        container,
+      );
+      assertNotOneSidedEmpty(azureByKey.size, s3ByKey.size, container);
       reports.push({
         container,
         diff,
@@ -1309,6 +1432,7 @@ async function main(): Promise<number> {
       const s3ToAzure = buildDirectionSummary(diff.onlyOnS3, s3ByKey);
 
       console.log(`\n[${container}] azure=${azureObjs.length} s3=${s3Objs.length}`);
+      console.log(`    candidateRecheckResolved: ${resolvedConcurrentCandidates}`);
       printCategory(container, 'onlyOnAzure', diff.onlyOnAzure, verbose, {
         bytes: azureToS3.bytes,
         azureByKey,
@@ -1434,7 +1558,17 @@ async function main(): Promise<number> {
       const azureContainer = azure.getContainerClient(container);
       const azureObjs = await listAzureObjects(azureContainer);
       const s3Objs = await listS3Objects(s3, container);
-      const diff = diffStores(azureObjs, s3Objs, OVERWRITE_SKEW_TOLERANCE_MS);
+      const azureByKey = indexStoredObjectsByKey(azureObjs);
+      const s3ByKey = indexStoredObjectsByKey(s3Objs);
+      const initialDiff = diffStores(azureObjs, s3Objs, OVERWRITE_SKEW_TOLERANCE_MS);
+      const { diff, resolvedConcurrentCandidates } = await stabilizeAdditiveCandidates(
+        initialDiff,
+        azureByKey,
+        s3ByKey,
+        azureContainer,
+        s3,
+        container,
+      );
 
       if (diff.onlyOnAzure.length > 0 || diff.onlyOnS3.length > 0) {
         throw new Error(
@@ -1448,7 +1582,8 @@ async function main(): Promise<number> {
 
       console.log(
         `\n[post-heal ${container}] sizeMismatch=${diff.sizeMismatch.length} ` +
-          `suspectedOverwrite=${diff.suspectedOverwrite.length}`,
+          `suspectedOverwrite=${diff.suspectedOverwrite.length} ` +
+          `candidateRecheckResolved=${resolvedConcurrentCandidates}`,
       );
     } catch (e) {
       throw new Error(`[container="${container}"] ${e?.message ?? e}`, { cause: e });

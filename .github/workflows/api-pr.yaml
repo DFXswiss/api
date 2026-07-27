@@ -13,8 +13,10 @@ permissions:
 env:
   NODE_VERSION: '20.x'
 
-# Three job groups run in parallel, so PR feedback is ~max(test-shard, checks, coverage)
-# instead of the sum of every step. `test` is additionally split into shards.
+# Four job groups run in parallel, so PR feedback is ~max(test-shard, checks, coverage,
+# coverage-gate) instead of the sum of every step. `test` is additionally split into shards.
+# The ratchet runs the whole suite under full TypeScript compilation, which is what makes its
+# per-file numbers exact.
 jobs:
   checks:
     name: Build and checks
@@ -80,6 +82,87 @@ jobs:
       # 100% branch gate is not skewed by transpile-only decorator-metadata emit.
       - name: Run coverage
         run: npm run test:frick:cov
+
+  # Runs on a self-hosted runner for branches of this repository. The gate executes the whole suite
+  # under full compilation and is CPU-bound; a hosted runner gives a public repo four vCPUs, so Jest
+  # defaults to three workers and the gate alone decided how long a PR run took. The self-hosted
+  # pool has more cores and does not count against the account's concurrent-job limit.
+  #
+  # Pull requests from forks stay on a hosted runner. A self-hosted runner executes the workflow and
+  # the code of the PR head, so anyone able to open a fork PR would otherwise run arbitrary code on
+  # it. The repository additionally requires approval for all outside contributors, but that is a
+  # settings-level control someone can change; this guard lives in the reviewed diff.
+  #
+  # Deliberately NOT an `if:` on the job - a skipped check counts as passing, which would let a fork
+  # PR bypass the gate entirely. Forks run the same gate, just slower.
+  coverage-gate:
+    name: Coverage ratchet
+    runs-on: >-
+      ${{ (github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository)
+      && fromJSON('["self-hosted","dfx-api"]') || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    # Serialise the gate, but only where that is physically necessary. Two of these on the same
+    # self-hosted machine do not split it, they block each other: measured 16.6 min each against
+    # 1.5 min for a single run, so waiting is the cheaper outcome. A fork PR runs on a throwaway
+    # hosted runner instead and shares nothing, so it gets a group of its own and never queues
+    # behind - or ahead of - an internal run. `queue: max` keeps pending runs queued rather than
+    # cancelling all but the newest, so a third PR does not turn a waiting run into a red check.
+    concurrency:
+      group: >-
+        ${{ (github.event_name != 'pull_request'
+        || github.event.pull_request.head.repo.full_name == github.repository)
+        && 'coverage-ratchet-self-hosted'
+        || format('coverage-ratchet-hosted-{0}', github.run_id) }}
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # No `cache: 'npm'` here, unlike the hosted jobs. The runner's ~/.npm survives between jobs,
+      # so the cache would only be redundant - and its post-run upload cost 5.3 min, more than the
+      # gate itself saves by running here.
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install packages
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: npm ci
+
+      # Repo-wide ratchet: every file already at 100% is pinned, so coverage cannot regress.
+      # Runs the whole suite (a file is often covered by specs other than its own) with the same
+      # full compilation as the Frick gate. Deliberately without the Postgres service: no pinned
+      # file belongs to the migration suites that need it, and enabling those suites can only
+      # raise coverage, never lower it.
+      #
+      # maxWorkers is set here rather than in the npm script so the script stays machine-agnostic:
+      # a contributor running it locally keeps Jest's own default.
+      #
+      # 8 is measured, and the direction is counter-intuitive: fewer workers, not more. At 20 the
+      # gate took 8.4 min, at 16 it swung between 1.5 and 5.4 min. Host CPU never exceeded ~70%
+      # in any of those runs - not even with two jobs and 32 workers on 28 cores - so the workers
+      # were never short of cores. Under full compilation each holds its own TypeScript program,
+      # and the machine's free memory varies with what else runs on it. Re-measure before changing.
+      - name: Run coverage ratchet
+        run: npm run test:gate:cov -- --maxWorkers=${{ (github.event_name != 'pull_request'
+             || github.event.pull_request.head.repo.full_name == github.repository) && '8' || '3' }}
+
+      # A red gate names the file and the metric but not the uncovered lines. Uploading the lcov
+      # report turns diagnosis into a download instead of a 15-minute local rerun.
+      - name: Upload coverage report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-gate
+          path: coverage-gate/
+          retention-days: 7
 
   test:
     name: Test (shard ${{ matrix.shard }}/3)

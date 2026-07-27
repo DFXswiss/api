@@ -291,22 +291,38 @@ describe('BitcoinFeeService', () => {
     });
 
     it('should execute in parallel', async () => {
-      let callCount = 0;
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const resolvers: Array<() => void> = [];
+
       mockClient.getMempoolEntry.mockImplementation(async () => {
-        callCount++;
-        // Simulate delay
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        return { feeRate: callCount * 10, vsize: 100 };
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise<void>((resolve) => {
+          resolvers.push(resolve);
+        });
+        inFlight--;
+        return { feeRate: 10, vsize: 100 };
       });
 
-      const startTime = Date.now();
       const txids = ['tx1', 'tx2', 'tx3', 'tx4', 'tx5'];
-      await service.getTxFeeRates(txids);
-      const duration = Date.now() - startTime;
+      const resultPromise = service.getTxFeeRates(txids);
 
-      // If executed in parallel, total time should be ~10ms, not ~50ms
-      // Allow some margin for test execution overhead
-      expect(duration).toBeLessThan(100);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Sequential awaits would keep maxInFlight at 1; concurrent calls reach txids.length
+      try {
+        expect(maxInFlight).toBe(txids.length);
+      } finally {
+        // Release the calls captured so far even when the assertion fails, so a failing run
+        // does not leave them parked. getTxFeeRates either resolves or stays pending
+        // harmlessly - the assertion throws before it is awaited.
+        resolvers.forEach((resolve) => resolve());
+      }
+
+      const result = await resultPromise;
+
+      expect(result.size).toBe(5);
     });
 
     it('should handle empty txid array', async () => {

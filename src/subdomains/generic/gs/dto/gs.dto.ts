@@ -558,7 +558,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'ownerId', 'requiredSignatures', 'status'],
   },
   custody_account_access: {
-    columns: ['id', 'created', 'updated', 'accessLevel', 'accountId', 'userDataId'],
+    columns: ['id', 'created', 'updated', 'accessLevel', 'accountId', 'userDataId', 'active', 'deactivatedAt'],
   },
   custody_balance: {
     columns: ['id', 'created', 'updated', 'accountId', 'assetId', 'balance', 'userId'],
