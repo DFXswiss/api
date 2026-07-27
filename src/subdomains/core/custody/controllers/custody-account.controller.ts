@@ -158,6 +158,6 @@ export class CustodyAccountController {
       throw new BadRequestException('Invalid custody account ID');
     }
 
-    return parseInt(id, 10);
+    return +id;
   }
 }

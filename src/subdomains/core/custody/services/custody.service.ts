@@ -56,6 +56,12 @@ export class CustodyService {
 
     const account = await this.userDataService.getActiveUserData(accountId, { users: true });
 
+    // Inherit the materialised Safe from an existing custody sibling (null while still legacy).
+    const materialisedAccount = account.users
+      .filter((u) => u.role === UserRole.CUSTODY)
+      .map((u) => u.custodyAccount)
+      .find((ca) => ca != null && ca.id != null);
+
     const custodyUser = await this.userService.createUser(
       {
         address: custodyWallet.address,
@@ -68,6 +74,7 @@ export class CustodyService {
         custodyAddressType: dto.addressType,
         custodyAddressIndex: addressIndex,
         role: UserRole.CUSTODY,
+        custodyAccount: materialisedAccount,
       },
       dto.specialCode,
       dto.moderator,
@@ -100,7 +107,8 @@ export class CustodyService {
   }
 
   async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {
-    const entity = this.custodyBalanceRepo.create({ user, asset, balance });
+    // Row belongs to the same account as its user (null while still in legacy mode).
+    const entity = this.custodyBalanceRepo.create({ user, asset, balance, account: user.custodyAccount });
 
     return this.custodyBalanceRepo.save(entity);
   }

@@ -232,7 +232,8 @@ export class CustodyOrderService {
   }
 
   async createOrderInternal(dto: CreateCustodyOrderInternalDto): Promise<CustodyOrder> {
-    const order = this.custodyOrderRepo.create(dto);
+    // Row belongs to the same account as its user (null while still in legacy mode).
+    const order = this.custodyOrderRepo.create({ ...dto, account: dto.user.custodyAccount });
 
     if (dto.transactionRequestId) order.transactionRequest = { id: dto.transactionRequestId } as TransactionRequest;
 
