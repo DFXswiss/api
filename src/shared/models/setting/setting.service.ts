@@ -125,7 +125,7 @@ export class SettingService {
     return [...new Set([...manual, ...auto].map(Number))];
   }
 
-  // Account (user data) ids cleared for elevated endpoints, maintained by StaffKycClearanceSyncService.
+  // Account (user data) ids cleared for elevated endpoints, maintained by StaffKycClearanceService.
   // No manual-override counterpart on purpose: the clearance is a KYC fact, not an ops decision — an
   // editable override would be a way to hand out admin access without the identification behind it.
   async getStaffKycClearance(): Promise<number[]> {
