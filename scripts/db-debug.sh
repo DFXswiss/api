@@ -10,7 +10,7 @@
 #   ./scripts/db-debug.sh --asset-history Yapeal/EUR 10      # Show asset balance history
 #   ./scripts/db-debug.sh --referral-chain <userDataId>      # Show referral chain
 #   ./scripts/db-debug.sh --referral-tree <userDataId>       # Show referral tree
-#   ./scripts/db-debug.sh --user-by-mail <MAIL> [N]          # Resolve user_data id(s) from a known mail
+#   ./scripts/db-debug.sh --user-by-mail [N]                 # Resolve user_data id(s); mail on stdin
 #   ./scripts/db-debug.sh --get <table> [cols] [limit]       # Ad-hoc: fetch cols from any allowlisted table
 #   ./scripts/db-debug.sh --query '<json>|@file|-'           # Ad-hoc: POST an arbitrary structured DTO
 #
@@ -28,6 +28,10 @@
 #   - DEBUG_API_URL defaults to PRODUCTION. The endpoint is read-only by construction:
 #     it accepts a JSON query description and emits parameter-bound SELECT statements
 #     via dataSource.query. Writes / DDL are not expressible.
+#   - Request bodies are sent via curl stdin (`-d @-`), never as a curl argv value, so a
+#     payload cannot appear in `ps` / `/proc/*/cmdline` on a shared host.
+#   - --user-by-mail reads the address from stdin (not argv). The address is never placed
+#     in any process's argv, never echoed, and the payload echo redacts WHERE values.
 #
 # Structured /gs/debug endpoint:
 #   The endpoint no longer accepts raw SQL. The request body is a JSON description of
@@ -70,11 +74,16 @@
 #     Columns default to id,created,updated; limit defaults to 100.
 #       ./scripts/db-debug.sh --get user_data
 #       ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50
-#   --user-by-mail <MAIL> [N]
-#     Resolve user_data id(s) from a mail address you already know. Filters on the filter-only
-#     column user_data.mail (= only, case-insensitive, not under NOT); never selects mail.
-#     One address can match several rows. Limit defaults to 100 (not 1). Returns id, created,
-#     kycLevel, status.
+#   --user-by-mail [N]
+#     Resolve user_data id(s) from a mail address you already know. The address is read from
+#     stdin (one line; TTY → prompt on stderr; non-TTY → silent read). Empty/EOF fails loudly.
+#     Filters on the filter-only column user_data.mail (= only, case-insensitive, not under
+#     NOT); never selects mail. One address can match several rows. Limit defaults to 100
+#     (not 1). Returns id, created, kycLevel, status. The address is not placed in any
+#     process's argv and is not echoed; the payload echo redacts WHERE values.
+#       echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail
+#       echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50
+#       ./scripts/db-debug.sh --user-by-mail          # interactive: prompts "Mail address: "
 #   --query '<json>' | --query @path/to/query.json | --query -
 #     Posts an arbitrary DebugQueryDto. Accepts inline JSON, @file, or - to read the DTO from stdin.
 #     The DTO is validated as well-formed JSON (jq) before the request; malformed JSON fails loudly.
@@ -123,10 +132,12 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "                                Show complete referral chain for user"
   echo "  -T, --referral-tree <userDataId>"
   echo "                                Show complete referral tree (all branches)"
-  echo "  -M, --user-by-mail <MAIL> [N] Resolve user_data id(s) from a known mail (default limit: 100)."
-  echo "                                mail is filter-only: usable only in WHERE with = (case-"
-  echo "                                insensitive; not under NOT; no IN), never returned by the"
-  echo "                                endpoint. One mail can match several rows."
+  echo "  -M, --user-by-mail [N]        Resolve user_data id(s) from a known mail on stdin"
+  echo "                                (default limit: 100). mail is filter-only: usable only"
+  echo "                                in WHERE with = (case-insensitive; not under NOT; no IN),"
+  echo "                                never returned by the endpoint. One mail can match"
+  echo "                                several rows. Address is never in process argv and never"
+  echo "                                echoed; payload echo redacts WHERE values."
   echo "  -g, --get <table> [cols] [N]  Ad-hoc: fetch cols (default id,created,updated) from any"
   echo "                                allowlisted table (default limit: 100)"
   echo "  -q, --query <json|@file|->    Ad-hoc: POST an arbitrary structured DTO (inline JSON,"
@@ -140,8 +151,9 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
   echo "  ./scripts/db-debug.sh --referral-chain 370625"
   echo "  ./scripts/db-debug.sh --referral-tree 370625"
-  echo "  ./scripts/db-debug.sh --user-by-mail user@example.com"
-  echo "  ./scripts/db-debug.sh --user-by-mail user@example.com 50"
+  echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail"
+  echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50"
+  echo "  ./scripts/db-debug.sh --user-by-mail   # interactive: prompts on stderr"
   echo "  ./scripts/db-debug.sh --get user_data"
   echo "  ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50"
   echo "  ./scripts/db-debug.sh --query '{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"name\"}],\"limit\":5}'"
@@ -152,7 +164,9 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  curl -X POST \$API_URL/gs/debug \\"
   echo "    -H 'Authorization: Bearer \$TOKEN' \\"
   echo "    -H 'Content-Type: application/json' \\"
-  echo "    -d '{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"id\"},{\"kind\":\"column\",\"column\":\"name\"}],\"orderBy\":[{\"column\":\"id\",\"direction\":\"DESC\"}],\"limit\":5}'"
+  echo "    -d @- <<'EOF'"
+  echo "  {\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"id\"},{\"kind\":\"column\",\"column\":\"name\"}],\"orderBy\":[{\"column\":\"id\",\"direction\":\"DESC\"}],\"limit\":5}"
+  echo "  EOF"
   exit 0
 fi
 
@@ -317,23 +331,52 @@ case "${1:-}" in
     TARGET_USER_ID="$2"
     ;;
   -M|--user-by-mail)
-    if [ -z "${2:-}" ]; then
-      echo "Error: --user-by-mail requires a mail address"
-      echo "Usage: ./scripts/db-debug.sh --user-by-mail <MAIL> [N]"
+    # Mail is read from stdin (not argv) so it never appears in process argv via ps/proc.
+    # Optional limit stays positional (matches other modes). Empty/EOF fails loudly — no
+    # default filter. Address is bound into jq via stdin (not --arg); the shared payload
+    # echo redacts WHERE values (see serializeDebugQueryForAudit); DESCRIPTION and this
+    # branch's own messages must not reintroduce the address either.
+    USER_BY_MAIL_LIMIT="${2:-100}"
+    if [ -t 0 ]; then
+      printf 'Mail address: ' >&2
+    fi
+    if ! IFS= read -r USER_BY_MAIL; then
+      echo "Error: --user-by-mail requires a mail address on stdin"
+      echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
+      echo ""
+      echo "Pass the address on stdin (one line). Interactive TTY prompts on stderr;"
+      echo "pipes/scripts pass the line without a prompt. Empty input / EOF fails."
+      echo ""
+      echo "Examples:"
+      echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail"
+      echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50"
+      echo "  ./scripts/db-debug.sh --user-by-mail   # interactive prompt"
       echo ""
       echo "Resolves user_data id(s) from a mail you already know. mail is filter-only:"
       echo "usable only as a WHERE leaf with = (case-insensitive; not under NOT; no IN),"
       echo "never selectable. One mail can match several user_data rows; default limit is 100."
       exit 1
     fi
-    # Mail is bound via jq --arg only — never string-interpolated into JSON. The shared
-    # payload echo redacts WHERE values (see serializeDebugQueryForAudit); DESCRIPTION
-    # and this branch's own messages must not reintroduce the address either.
-    USER_BY_MAIL_LIMIT="${3:-100}"
-    PAYLOAD=$(jq -n \
-      --arg mail "$2" \
-      --argjson limit "$USER_BY_MAIL_LIMIT" \
-      '{
+    # Trim surrounding whitespace only (trailing newline already removed by read).
+    # Do not lowercase — the server matches case-insensitively.
+    USER_BY_MAIL="${USER_BY_MAIL#"${USER_BY_MAIL%%[![:space:]]*}"}"
+    USER_BY_MAIL="${USER_BY_MAIL%"${USER_BY_MAIL##*[![:space:]]}"}"
+    if [ -z "$USER_BY_MAIL" ]; then
+      echo "Error: --user-by-mail requires a non-empty mail address on stdin"
+      echo "Usage: ./scripts/db-debug.sh --user-by-mail [N]"
+      echo ""
+      echo "Pass the address on stdin (one line). Interactive TTY prompts on stderr;"
+      echo "pipes/scripts pass the line without a prompt. Empty input / EOF fails."
+      echo ""
+      echo "Examples:"
+      echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail"
+      echo "  echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50"
+      echo "  ./scripts/db-debug.sh --user-by-mail   # interactive prompt"
+      exit 1
+    fi
+    # Pass the address via stdin into jq (same pattern as --query JSON validation), not
+    # --arg — so the address is not in jq's argv either.
+    PAYLOAD=$(printf '%s' "$USER_BY_MAIL" | jq -R --argjson limit "$USER_BY_MAIL_LIMIT" '{
         table: "user_data",
         select: [
           {kind: "column", column: "id"},
@@ -341,7 +384,7 @@ case "${1:-}" in
           {kind: "column", column: "kycLevel"},
           {kind: "column", column: "status"}
         ],
-        where: {kind: "leaf", column: "mail", op: "=", value: $mail},
+        where: {kind: "leaf", column: "mail", op: "=", value: .},
         orderBy: [{column: "id", direction: "ASC"}],
         limit: $limit
       }')
@@ -436,9 +479,10 @@ API_URL="${DEBUG_API_URL:-https://api.dfx.swiss/v1}"
 
 # --- Authenticate ---
 echo "=== Authenticating to $API_URL ==="
-TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth" \
+# Body via stdin (`-d @-`) so credentials are not in curl's argv (ps /proc visibility).
+TOKEN_RESPONSE=$(printf '%s' "{\"address\":\"$DEBUG_ADDRESS\",\"signature\":\"$DEBUG_SIGNATURE\"}" | curl -s -X POST "$API_URL/auth" \
   -H "Content-Type: application/json" \
-  -d "{\"address\":\"$DEBUG_ADDRESS\",\"signature\":\"$DEBUG_SIGNATURE\"}")
+  -d @-)
 
 TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.accessToken' 2>/dev/null)
 
@@ -456,6 +500,14 @@ echo ""
 # Many of the existing jq formatters were written against the pre-migration shape (array
 # of objects). This filter rebuilds that shape so we can reuse them.
 KEYS_ROWS_TO_OBJECTS='[ .keys as $k | .rows[] | [$k, .] | transpose | map({(.[0]): .[1]}) | add ]'
+
+# --- Helper: POST a JSON body to /gs/debug without putting the body in curl argv ---
+post_debug_query() {
+  printf '%s' "$1" | curl -s -X POST "$API_URL/gs/debug" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d @-
+}
 
 # --- Helper: build a payload for a single-leaf where query ---
 # Used by the referral walkers.
@@ -503,10 +555,7 @@ if [ -n "$REFERRAL_CHAIN_MODE" ]; then
     # Query recommendation for current user
     SELECT_JSON='[{"kind":"column","column":"recommenderId"},{"kind":"column","column":"method"},{"kind":"column","column":"created"}]'
     REQ_PAYLOAD=$(build_leaf_payload "recommendation" "$SELECT_JSON" "recommendedId" "$CURRENT_ID" "null" "1")
-    RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$REQ_PAYLOAD")
+    RESULT=$(post_debug_query "$REQ_PAYLOAD")
 
     ROWS_LEN=$(echo "$RESULT" | jq -r '.rows | length // 0' 2>/dev/null)
     if [ "$ROWS_LEN" = "0" ] || [ -z "$ROWS_LEN" ]; then
@@ -576,10 +625,7 @@ if [ -n "$REFERRAL_TREE_MODE" ]; then
     ROOT_ID="$CURRENT_ID"
     SELECT_JSON='[{"kind":"column","column":"recommenderId"}]'
     REQ_PAYLOAD=$(build_leaf_payload "recommendation" "$SELECT_JSON" "recommendedId" "$CURRENT_ID" "null" "1")
-    RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$REQ_PAYLOAD")
+    RESULT=$(post_debug_query "$REQ_PAYLOAD")
     ROWS_LEN=$(echo "$RESULT" | jq -r '.rows | length // 0' 2>/dev/null)
     if [ "$ROWS_LEN" = "0" ] || [ -z "$ROWS_LEN" ]; then
       CURRENT_ID=""
@@ -606,10 +652,7 @@ if [ -n "$REFERRAL_TREE_MODE" ]; then
     # Get user status
     local status_select='[{"kind":"column","column":"status"},{"kind":"column","column":"kycStatus"}]'
     local status_payload=$(build_leaf_payload "user_data" "$status_select" "id" "$user_id" "null" "1")
-    local status_result=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$status_payload")
+    local status_result=$(post_debug_query "$status_payload")
     local status=$(echo "$status_result" | jq -r '.rows[0][0] // "?"')
     local kyc_status=$(echo "$status_result" | jq -r '.rows[0][1] // "?"')
 
@@ -634,10 +677,7 @@ if [ -n "$REFERRAL_TREE_MODE" ]; then
     local children_select='[{"kind":"column","column":"recommendedId"}]'
     local children_order='[{"column":"created","direction":"ASC"}]'
     local children_payload=$(build_leaf_payload "recommendation" "$children_select" "recommenderId" "$user_id" "$children_order" "1000")
-    local children_result=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$children_payload")
+    local children_result=$(post_debug_query "$children_payload")
     local children=$(echo "$children_result" | jq -r '.rows[]?[0] // empty' 2>/dev/null)
 
     if [ -n "$children" ]; then
@@ -679,10 +719,7 @@ if [ -n "$REFERRAL_TREE_MODE" ]; then
     for check_id in $TO_CHECK; do
       count_select='[{"kind":"column","column":"recommendedId"}]'
       count_payload=$(build_leaf_payload "recommendation" "$count_select" "recommenderId" "$check_id" "null" "1000")
-      count_children_result=$(curl -s -X POST "$API_URL/gs/debug" \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "$count_payload")
+      count_children_result=$(post_debug_query "$count_payload")
       count_children=$(echo "$count_children_result" | jq -r '.rows[]?[0] // empty' 2>/dev/null)
       for child in $count_children; do
         if [[ ! " $KNOWN_IDS " =~ " $child " ]]; then
@@ -729,10 +766,7 @@ if [ -n "$ASSET_HISTORY_MODE" ]; then
         },
         limit: 1
       }')
-    ASSET_RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$ASSET_PAYLOAD")
+    ASSET_RESULT=$(post_debug_query "$ASSET_PAYLOAD")
 
     ASSET_ID=$(echo "$ASSET_RESULT" | jq -r '.rows[0][0] // empty' 2>/dev/null)
 
@@ -772,10 +806,7 @@ echo "$PAYLOAD" | jq -c '
 '
 echo ""
 
-RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "$PAYLOAD")
+RESULT=$(post_debug_query "$PAYLOAD")
 
 echo "=== Result ==="
 

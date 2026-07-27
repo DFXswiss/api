@@ -86,9 +86,11 @@ with the wallet at `DEBUG_ADDRESS`.
 ./scripts/db-debug.sh --referral-chain 370625
 ./scripts/db-debug.sh --referral-tree  370625
 
-# Resolve user_data id(s) from a mail you already know (filter-only; mail is never returned)
-./scripts/db-debug.sh --user-by-mail user@example.com
-./scripts/db-debug.sh --user-by-mail user@example.com 50
+# Resolve user_data id(s) from a mail you already know (filter-only; mail is never returned).
+# Address on stdin — never in process argv; not echoed; payload echo redacts WHERE values.
+echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail
+echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail 50
+./scripts/db-debug.sh --user-by-mail   # interactive: prompts "Mail address: " on stderr
 ```
 
 For ad-hoc queries the endpoint expects a JSON DTO (no raw SQL). See the
@@ -121,10 +123,14 @@ they already have; the endpoint must not become a way to read addresses out. Sel
 Convenience mode and equivalent raw DTO:
 
 ```bash
-./scripts/db-debug.sh --user-by-mail user@example.com
+# Piped (non-interactive) or interactive (TTY prompts on stderr)
+echo 'user@example.com' | ./scripts/db-debug.sh --user-by-mail
+./scripts/db-debug.sh --user-by-mail
 
-# Same query as an ad-hoc --query payload (mail bound as a JSON value; never returned):
-./scripts/db-debug.sh --query '{
+# Same query as an ad-hoc --query payload (mail bound as a JSON value; never returned).
+# Prefer a file or stdin for the DTO so the address is not in the shell's command line:
+./scripts/db-debug.sh --query - <<'EOF'
+{
   "table": "user_data",
   "select": [
     {"kind": "column", "column": "id"},
@@ -135,8 +141,16 @@ Convenience mode and equivalent raw DTO:
   "where": {"kind": "leaf", "column": "mail", "op": "=", "value": "user@example.com"},
   "orderBy": [{"column": "id", "direction": "ASC"}],
   "limit": 100
-}'
+}
+EOF
 ```
+
+**Client argv guarantee (`scripts/db-debug.sh`):** `--user-by-mail` reads the address from
+stdin (not a positional argument). The address is passed into `jq` via stdin (not `--arg`)
+and every request body is sent with `curl … -d @-` (body on curl's stdin). The address is
+therefore not placed in any process's argv, is not echoed by the script, and the payload
+echo redacts WHERE leaf values (`<scalar>` / `<array:N>`, matching
+`serializeDebugQueryForAudit`).
 
 ## Security Notes
 

@@ -101,7 +101,10 @@ Entity: `src/subdomains/core/liquidity-management/entities/liquidity-balance.ent
 - `user_data`: `id`, `status`, `kycStatus`, `kycLevel`, … (used by referral-tree status lookups).
   `mail` is **filter-only** (not in `columns`): WHERE `=` only (case-insensitive; not under
   `NOT`; no `IN`), never selected / ordered / grouped. CLI:
-  `scripts/db-debug.sh --user-by-mail <MAIL> [N]` (default limit 100). Equivalent DTO:
+  `echo '<mail>' | scripts/db-debug.sh --user-by-mail [N]` (default limit 100; interactive TTY
+  prompts on stderr). The address is read from stdin, passed into `jq` via stdin (not `--arg`),
+  and request bodies go to `curl` via `-d @-` — not in any process argv, not echoed; the
+  payload echo redacts WHERE values. Equivalent DTO:
   `{"table":"user_data","select":[{"kind":"column","column":"id"},{"kind":"column","column":"created"},{"kind":"column","column":"kycLevel"},{"kind":"column","column":"status"}],"where":{"kind":"leaf","column":"mail","op":"=","value":"<mail>"},"orderBy":[{"column":"id","direction":"ASC"}],"limit":100}`.
   Result is an array of rows — one mail can belong to several `user_data` records.
 - `asset`: `id`, `name`, `blockchain`, `type`, … — resolve one with a `where` and-tree on
