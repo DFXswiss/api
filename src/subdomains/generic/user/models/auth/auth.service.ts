@@ -40,7 +40,6 @@ import { KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-
 import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User } from '../user/user.entity';
-import { UserRepository } from '../user/user.repository';
 import { UserService } from '../user/user.service';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -75,7 +74,6 @@ export class AuthService {
 
   constructor(
     private readonly userService: UserService,
-    private readonly userRepo: UserRepository,
     private readonly walletService: WalletService,
     private readonly custodyProviderService: CustodyProviderService,
     private readonly jwtService: JwtService,
