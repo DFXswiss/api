@@ -14,7 +14,7 @@ import { DataSource, EntityManager, FindOperator, IsNull } from 'typeorm';
 import { BankService } from '../../bank/bank.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../providers/frick-viban.provider';
-import { VibanNotCreatedError } from '../providers/viban-provider.interface';
+import { VibanAccountHolder, VibanNotCreatedError } from '../providers/viban-provider.interface';
 import { YapealVibanProvider } from '../providers/yapeal-viban.provider';
 import { VirtualIban, VirtualIbanStatus } from '../virtual-iban.entity';
 import { VirtualIbanIssuanceEvent } from '../virtual-iban-issuance-event.entity';
@@ -52,10 +52,12 @@ describe('VirtualIbanService', () => {
     yapealVibanProvider = createMock<YapealVibanProvider>({
       bankName: IbanBankName.YAPEAL,
       currencies: ['CHF'],
+      accountHolder: VibanAccountHolder.CUSTOMER,
     });
     frickVibanProvider = createMock<FrickVibanProvider>({
       bankName: IbanBankName.FRICK,
       currencies: ['EUR'],
+      accountHolder: VibanAccountHolder.DFX,
     });
     notificationService = createMock<NotificationService>();
     jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined as any);
@@ -94,6 +96,22 @@ describe('VirtualIbanService', () => {
     }).compile();
 
     service = module.get<VirtualIbanService>(VirtualIbanService);
+  });
+
+  describe('getAccountHolder', () => {
+    it('returns CUSTOMER for Yapeal', () => {
+      expect(service.getAccountHolder(IbanBankName.YAPEAL)).toBe(VibanAccountHolder.CUSTOMER);
+    });
+
+    it('returns DFX for Frick', () => {
+      expect(service.getAccountHolder(IbanBankName.FRICK)).toBe(VibanAccountHolder.DFX);
+    });
+
+    it('throws for a bank name with no registered viban provider', () => {
+      expect(() => service.getAccountHolder(IbanBankName.OLKY)).toThrow(
+        `No viban provider registered for bank ${IbanBankName.OLKY}`,
+      );
+    });
   });
 
   describe('isUserEligible', () => {

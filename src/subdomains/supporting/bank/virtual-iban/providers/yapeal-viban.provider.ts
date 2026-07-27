@@ -1,12 +1,13 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
-import { ReservedViban, VibanProvider } from './viban-provider.interface';
+import { ReservedViban, VibanAccountHolder, VibanProvider } from './viban-provider.interface';
 
 @Injectable()
 export class YapealVibanProvider implements VibanProvider {
   readonly bankName = IbanBankName.YAPEAL;
   readonly currencies = ['CHF'];
+  readonly accountHolder = VibanAccountHolder.CUSTOMER;
 
   constructor(private readonly yapealService: YapealService) {}
 

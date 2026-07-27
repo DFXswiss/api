@@ -26,6 +26,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { VibanAccountHolder } from 'src/subdomains/supporting/bank/virtual-iban/providers/viban-provider.interface';
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
@@ -562,14 +563,29 @@ export class BuyService {
     userData: UserData,
     reference?: string,
   ): BankInfoDto & { isPersonalIban: boolean; reference?: string } {
+    // Bank Frick issues the personal IBAN as a routing sub-account of DFX's own account, not an account
+    // opened in the customer's name (see FrickCreateVirtualIbanRequest — the create request never sends
+    // name/address). Yapeal genuinely opens the account in the customer's own name. Showing the wrong
+    // holder as recipient makes the payer's bank flag/reject the SEPA name<->IBAN match, defeating the
+    // point of a "verified" personal IBAN. VirtualIbanService.getAccountHolder is the single source of
+    // truth for which case applies (see its doc comment for why the lookup lives there, not on this
+    // entity: this function only has the persisted row, never the issuing provider instance).
+    const accountHolder = this.virtualIbanService.getAccountHolder(virtualIban.bank.name);
     const { address } = userData;
+    const recipient =
+      accountHolder === VibanAccountHolder.CUSTOMER
+        ? {
+            name: userData.completeName,
+            street: address.street,
+            ...(address.houseNumber && { number: address.houseNumber }),
+            zip: address.zip,
+            city: address.city,
+            country: address.country?.name,
+          }
+        : { ...Config.bank.dfxAddress };
+
     return {
-      name: userData.completeName,
-      street: address.street,
-      ...(address.houseNumber && { number: address.houseNumber }),
-      zip: address.zip,
-      city: address.city,
-      country: address.country?.name,
+      ...recipient,
       bank: virtualIban.bank.name,
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,

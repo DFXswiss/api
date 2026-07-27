@@ -7,7 +7,7 @@ import {
 } from 'src/integration/bank/services/frick.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IbanBankName } from '../../bank/dto/bank.dto';
-import { ReservedViban, VibanNotCreatedError, VibanProvider } from './viban-provider.interface';
+import { ReservedViban, VibanAccountHolder, VibanNotCreatedError, VibanProvider } from './viban-provider.interface';
 
 @Injectable()
 export class FrickVibanProvider implements VibanProvider {
@@ -15,6 +15,7 @@ export class FrickVibanProvider implements VibanProvider {
 
   readonly bankName = IbanBankName.FRICK;
   readonly currencies = ['EUR'];
+  readonly accountHolder = VibanAccountHolder.DFX;
 
   constructor(private readonly bankFrickService: BankFrickService) {}
 

@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -11,6 +12,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { VibanAccountHolder } from 'src/subdomains/supporting/bank/virtual-iban/providers/viban-provider.interface';
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
@@ -518,6 +520,82 @@ describe('BuyService', () => {
         isPersonalIban: true,
         reference: buy.bankUsage,
       });
+    });
+
+    it('shows DFX name/address as recipient for a Frick personal IBAN (account held by DFX)', async () => {
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.DFX);
+      jest.spyOn(bankService, 'getBankById').mockResolvedValue(frickBank as any);
+      jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
+
+      const bankInfo = await service.getBankInfoForRequest(
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData },
+        buy,
+        true,
+        19,
+        501,
+      );
+
+      expect(virtualIbanService.getAccountHolder).toHaveBeenCalledWith(IbanBankName.FRICK);
+      expect(bankInfo).toMatchObject({
+        name: Config.bank.dfxAddress.name,
+        street: Config.bank.dfxAddress.street,
+        number: Config.bank.dfxAddress.number,
+        zip: Config.bank.dfxAddress.zip,
+        city: Config.bank.dfxAddress.city,
+        country: Config.bank.dfxAddress.country,
+        iban: virtualIban.iban,
+        isPersonalIban: true,
+        reference: buy.bankUsage,
+      });
+      expect(bankInfo.name).not.toBe(userData.completeName);
+      expect(bankInfo.street).not.toBe(address.street);
+    });
+
+    it('shows the customer name/address as recipient for a Yapeal personal IBAN (account held by customer)', async () => {
+      const yapealBank = {
+        id: 20,
+        name: IbanBankName.YAPEAL,
+        iban: 'CH9300762011623852957',
+        bic: 'YAPECHZZ',
+        receive: true,
+        sctInst: false,
+      };
+      const yapealVirtualIban = {
+        id: 502,
+        iban: 'CH4400762011623852958',
+        bank: yapealBank,
+        currency: { id: 1, name: 'CHF' },
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+        buy: null,
+      } as VirtualIban;
+
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
+      jest.spyOn(bankService, 'getBankById').mockResolvedValue(yapealBank as any);
+      jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(yapealVirtualIban);
+
+      const bankInfo = await service.getBankInfoForRequest(
+        { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData },
+        buy,
+        true,
+        20,
+        502,
+      );
+
+      expect(virtualIbanService.getAccountHolder).toHaveBeenCalledWith(IbanBankName.YAPEAL);
+      expect(bankInfo).toMatchObject({
+        name: userData.completeName,
+        street: address.street,
+        number: address.houseNumber,
+        zip: address.zip,
+        city: address.city,
+        country: address.country.name,
+        iban: yapealVirtualIban.iban,
+        isPersonalIban: true,
+        reference: buy.bankUsage,
+      });
+      expect(bankInfo.name).not.toBe(Config.bank.dfxAddress.name);
     });
   });
 

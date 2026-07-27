@@ -1,6 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { IbanBankName } from '../../../bank/dto/bank.dto';
+import { VibanAccountHolder } from '../viban-provider.interface';
 import { YapealVibanProvider } from '../yapeal-viban.provider';
 
 describe('YapealVibanProvider', () => {
@@ -18,6 +19,7 @@ describe('YapealVibanProvider', () => {
   it('exposes Yapeal bank name and CHF currency', () => {
     expect(provider.bankName).toBe(IbanBankName.YAPEAL);
     expect(provider.currencies).toEqual(['CHF']);
+    expect(provider.accountHolder).toBe(VibanAccountHolder.CUSTOMER);
   });
 
   it('delegates isAvailable to yapealService', () => {

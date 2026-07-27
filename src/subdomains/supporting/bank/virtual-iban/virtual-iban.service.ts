@@ -14,7 +14,12 @@ import { Bank } from '../bank/bank.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
 import { FrickVibanProvider } from './providers/frick-viban.provider';
-import { ReservedViban, VibanNotCreatedError, VibanProvider } from './providers/viban-provider.interface';
+import {
+  ReservedViban,
+  VibanAccountHolder,
+  VibanNotCreatedError,
+  VibanProvider,
+} from './providers/viban-provider.interface';
 import { YapealVibanProvider } from './providers/yapeal-viban.provider';
 import { VirtualIbanIssuanceEvent } from './virtual-iban-issuance-event.entity';
 import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent.entity';
@@ -84,6 +89,22 @@ export class VirtualIbanService {
 
   isUserEligible(currencyName: string, userData: UserData): boolean {
     return this.hasProviderForCurrency(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
+  }
+
+  /**
+   * Resolves who legally holds the deposit account behind a personal-IBAN bank name (see
+   * {@link VibanAccountHolder}). This is the seam that lets buildVirtualIbanResponse (buy.service.ts) —
+   * which only has the persisted VirtualIban row, never the VibanProvider instance that issued it — ask
+   * "who owns this account" without threading provider objects through the entity layer. Deliberately
+   * looks across ALL registered providers (not just `genericProviders`, which excludes Frick by design for
+   * unrelated eligibility reasons — see its own doc comment) because a persisted VirtualIban can point at
+   * either bank. Fail-closed: an unrecognized bank name must never silently default to either party's
+   * identity — a wrong default here means showing the wrong recipient name on a real bank transfer.
+   */
+  getAccountHolder(bankName: IbanBankName): VibanAccountHolder {
+    const provider = [this.yapealVibanProvider, this.frickVibanProvider].find((p) => p.bankName === bankName);
+    if (!provider) throw new Error(`No viban provider registered for bank ${bankName}`);
+    return provider.accountHolder;
   }
 
   /** Bank Frick is exclusively available through the explicit selector path. */

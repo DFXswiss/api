@@ -4,7 +4,7 @@ import { BankFrickService, FrickVibanNotCreatedError } from 'src/integration/ban
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IbanBankName } from '../../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../frick-viban.provider';
-import { VibanNotCreatedError } from '../viban-provider.interface';
+import { VibanAccountHolder, VibanNotCreatedError } from '../viban-provider.interface';
 
 function virtualIban(
   overrides: {
@@ -56,6 +56,7 @@ describe('FrickVibanProvider', () => {
   it('exposes Frick bank name and EUR currency', () => {
     expect(provider.bankName).toBe(IbanBankName.FRICK);
     expect(provider.currencies).toEqual(['EUR']);
+    expect(provider.accountHolder).toBe(VibanAccountHolder.DFX);
   });
 
   it('delegates isAvailable to bankFrickService.isVibanAvailable', () => {
