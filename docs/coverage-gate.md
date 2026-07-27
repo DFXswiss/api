@@ -45,7 +45,7 @@ Reproduce with:
 
 ```bash
 npm ci
-npm run test:cov:gate
+npm run test:gate:cov
 ```
 
 Two properties of that run matter, and changing either invalidates the numbers:
@@ -132,7 +132,7 @@ Both failure modes are loud, verified against jest 29.7 rather than assumed:
 
 The second row is the important one: the gate cannot silently stop protecting a file. Threshold
 keys are resolved with `path.resolve` against the working directory, and both `npm run
-test:cov:gate` and the workflow run from the repo root, so the `src/...` keys match the coverage
+test:gate:cov` and the workflow run from the repo root, so the `src/...` keys match the coverage
 map.
 
 The run also writes an `lcov` report under `coverage-gate/`. On failure the CI job uploads that
@@ -145,9 +145,9 @@ warm caches, is a good deal slower than the 1.5 min it takes in CI.
 
 The collection glob matches 1,643 files under `src/`. 1,591 of them contain instrumentable code
 and appear in the report. The remaining 52 compile to no executable statements and therefore
-cannot be measured or pinned: 50 are type-only (interfaces, type aliases, response shapes) and 2
-consist entirely of commented-out code (`integration/exchange/services/p2b.service.ts`,
-`subdomains/supporting/payin/enums/index.ts`). Those two are pre-existing and untouched here;
+cannot be measured or pinned: 50 are type-only (interfaces, type aliases, response shapes), one
+consists entirely of commented-out code (`integration/exchange/services/p2b.service.ts`) and one
+is empty (`subdomains/supporting/payin/enums/index.ts`, 0 bytes). Those two are pre-existing and untouched here;
 deleting them would be a separate cleanup.
 
 | Class    | Files | Meaning                                         |

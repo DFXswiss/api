@@ -19,6 +19,7 @@ const base = require('./package.json').jest;
 // Every pinned file is held to all four metrics at 100%.
 const FULL_COVERAGE = { branches: 100, functions: 100, lines: 100, statements: 100 };
 
+// --- PINNED LOGIC --- //
 // Files carrying real logic: they have functions and/or branches, so the threshold asserts
 // that executable code stays covered.
 const PINNED_LOGIC = [
@@ -241,6 +242,7 @@ const PINNED_LOGIC = [
   'src/subdomains/supporting/support-issue/enums/support-log.enum.ts',
 ];
 
+// --- PINNED DECLARATIVE --- //
 // Purely declarative files: NestJS modules and constant files with neither functions nor
 // branches today. Istanbul reports a metric with a total of 0 as 100%, so pinning them is not
 // vacuous - adding an unexecuted function moves that metric from 0/0 to 0/N and fails the gate.
