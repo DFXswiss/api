@@ -729,6 +729,67 @@ describe('GsService', () => {
           expect(params).toEqual(['Personal']);
         });
 
+        // Filter-only equality value validation — missing/null/array values must fail closed
+        // before any SQL is issued; empty string is a deliberate legitimate exact filter.
+        it.each([
+          {
+            label: 'value omitted entirely',
+            value: undefined as unknown,
+            omitValue: true,
+            message: /requires a single scalar value/,
+          },
+          {
+            label: 'value: null',
+            value: null as unknown,
+            omitValue: false,
+            message: /string, number, or boolean/,
+          },
+          {
+            label: 'value: []',
+            value: [] as unknown,
+            omitValue: false,
+            message: /requires a single scalar value/,
+          },
+          {
+            label: "value: ['user@example.com']",
+            value: ['user@example.com'] as unknown,
+            omitValue: false,
+            message: /requires a single scalar value/,
+          },
+        ])('rejects filter-only equality when $label', async ({ value, omitValue, message }) => {
+          const q = spyQuery();
+          const leaf: DebugWhereNode = { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ };
+          if (!omitValue) leaf.value = value as DebugWhereNode['value'];
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: leaf,
+            limit: 10,
+          };
+
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(message);
+          // Rejection must not reach the database — a thrown error after SQL would still be a defect.
+          expect(q).not.toHaveBeenCalled();
+        });
+
+        it('binds empty string as an ordinary exact-equality parameter for filter-only mail', async () => {
+          // Deliberate: an empty address is a legitimate exact filter that simply matches nothing.
+          const q = spyQuery([]);
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: '' },
+            limit: 10,
+          };
+
+          await service.executeDebugQuery(dto, 'tester');
+
+          const [sql, params] = q.mock.calls[0] as [string, unknown[]];
+          expect(sql).toContain('LOWER("user_data"."mail") = LOWER($1)');
+          expect(params).toEqual(['']);
+        });
+
         // --- B. Negative: mail is NOT returnable (security core) ---
 
         it('rejects SELECT of mail as a column', async () => {
@@ -1167,6 +1228,12 @@ describe('GsService', () => {
 
         // --- D. filterOnlyColumns invariants (synthetic fixtures) ---
 
+        it('accepts an empty filterOnlyColumns list as a valid configuration', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants({}, { t: { columns: ['id'], filterOnlyColumns: [] } }, {}, {}),
+          ).not.toThrow();
+        });
+
         it('throws when the same column appears in both columns and filterOnlyColumns', () => {
           expect(() =>
             assertDebugAllowlistInvariants(
@@ -1552,14 +1619,27 @@ describe('GsService', () => {
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Column .*not allowed/);
       });
 
-      it('rejects an object/array as a scalar value', async () => {
+      // Pins both halves of the scalar check: objects fall through to assertDebugScalarValue,
+      // arrays are refused earlier by the Array.isArray guard on single-scalar ops.
+      it.each([
+        {
+          label: 'object',
+          value: { a: 1 } as never,
+          message: /string, number, or boolean/,
+        },
+        {
+          label: 'array',
+          value: [1, 2] as never,
+          message: /requires a single scalar value/,
+        },
+      ])('rejects an $label as a scalar value', async ({ value, message }) => {
         const dto = {
           table: 'asset',
           select: [{ kind: 'column' as const, column: 'id' }],
-          where: { kind: 'leaf' as const, column: 'id', op: DebugWhereOp.EQ, value: { a: 1 } as never },
+          where: { kind: 'leaf' as const, column: 'id', op: DebugWhereOp.EQ, value },
           limit: 10,
         };
-        await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/string, number, or boolean/);
+        await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(message);
       });
     });
 
