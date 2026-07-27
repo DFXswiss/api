@@ -57,6 +57,19 @@ export class LiquidityManagementOrder extends IEntity {
   @Column({ type: 'int', nullable: true })
   previousOrderId?: number;
 
+  /**
+   * Set when a not-sent resolution failed this order, and cleared by the first reconciliation pass that
+   * looks at it again.
+   *
+   * That one look is the whole purpose. The pass writing such a resolution may be racing another that has
+   * just watched the venue confirm the very same order, and an observation that cannot be written would
+   * otherwise simply be gone. Kept on the row rather than in memory, so a restart in between does not lose
+   * it, and indexed, so finding the few rows still awaiting that look never walks the failure history.
+   */
+  @Index()
+  @Column({ type: 'timestamp', nullable: true })
+  notSentResolvedAt?: Date | null;
+
   @Column({ type: 'text', nullable: true })
   correlationId?: string;
 
@@ -186,6 +199,7 @@ export class LiquidityManagementOrder extends IEntity {
   /** The venue confirmed it knows this order: leave quarantine and let the normal completion check take over. */
   resolveAsSent(): this {
     this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
+    this.notSentResolvedAt = null;
 
     return this;
   }
@@ -194,6 +208,7 @@ export class LiquidityManagementOrder extends IEntity {
   resolveAsNotSent(reason: string): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
     this.errorMessage = reason;
+    this.notSentResolvedAt = new Date();
 
     return this;
   }

@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, Like, MoreThan } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -27,17 +27,6 @@ import { LiquidityManagementService } from './liquidity-management.service';
  * venue actually ended. Only a failure carrying this can be taken back by a later positive observation.
  */
 const UNSENT_RESOLUTION_MARKER = '[resolved-as-not-sent]';
-
-/**
- * How far back a venue can still be asked about a reference at all — Scrypt's execution history reaches
- * thirty days, and no integration here reaches further.
- *
- * A not-sent resolution stays open to being overruled for exactly as long as a new observation is possible.
- * This is deliberately NOT a deadline for applying an observation, which would be a way to lose one: it is
- * the point past which nobody can make an observation to apply. It also keeps the second look off the entire
- * failure history, which a wildcard match on every pass would otherwise walk.
- */
-const VENUE_OBSERVATION_HORIZON_DAYS = 30;
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -295,14 +284,11 @@ export class LiquidityManagementPipelineService {
   private async resolveUncertainOrders(): Promise<boolean> {
     const orders = await this.orderRepo.findBy([
       { status: LiquidityManagementOrderStatus.UNCERTAIN },
-      // Failed BY a not-sent resolution, so an observation that lost the race — or one whose writes never
-      // landed, including the re-quarantine that normally catches that — is still applied afterwards. These
-      // rows are terminal, so only the positive case does anything here.
-      {
-        status: LiquidityManagementOrderStatus.FAILED,
-        errorMessage: Like(`%${UNSENT_RESOLUTION_MARKER}%`),
-        updated: MoreThan(Util.daysBefore(VENUE_OBSERVATION_HORIZON_DAYS)),
-      },
+      // Failed by a not-sent resolution and not looked at since. The pass that wrote it may have been racing
+      // one that had just watched the venue confirm the same order, so an observation whose writes did not
+      // land is still applied here. Exactly one further look, marked and released by `notSentResolvedAt`:
+      // an equality predicate on an indexed column, not a wildcard match over every failure ever recorded.
+      { status: LiquidityManagementOrderStatus.FAILED, notSentResolvedAt: Not(IsNull()) },
     ]);
     let anyChanged = false;
 
@@ -311,7 +297,14 @@ export class LiquidityManagementPipelineService {
         const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
         if (!actionIntegration.resolveUncertainOrder) continue;
 
+        const wasResolvedAsNotSent = order.status === LiquidityManagementOrderStatus.FAILED;
         const resolution = await actionIntegration.resolveUncertainOrder(order);
+
+        // The look this row was kept for has now happened and found nothing to overrule the resolution
+        // with. Releasing it here rather than on a timer is what keeps the venue from being asked about
+        // settled failures every ten seconds for the rest of their existence.
+        if (wasResolvedAsNotSent && resolution !== UncertainOrderResolution.SENT)
+          await this.releaseNegativeResolution(order);
 
         if (resolution === UncertainOrderResolution.SENT) {
           if (await this.applyConfirmedObservation(order)) {
@@ -337,6 +330,14 @@ export class LiquidityManagementPipelineService {
     }
 
     return anyChanged;
+  }
+
+  /** Note that a not-sent resolution has had its one re-examination, so it stops being reconciled. */
+  private async releaseNegativeResolution(order: LiquidityManagementOrder): Promise<void> {
+    await this.orderRepo.update(
+      { id: order.id, status: LiquidityManagementOrderStatus.FAILED },
+      { notSentResolvedAt: null },
+    );
   }
 
   /**
@@ -393,9 +394,12 @@ export class LiquidityManagementPipelineService {
 
     await this.orderRepo
       .update(
+        // Same exact-value guard as the reclaim where the reason could be read: appending to a copy that a
+        // newer resolution has already replaced would erase it.
         {
           id: order.id,
           status: In([LiquidityManagementOrderStatus.FAILED, LiquidityManagementOrderStatus.NOT_PROCESSABLE]),
+          ...(current ? { errorMessage: current.errorMessage } : {}),
         },
         // Append to the reason already on the row, and where it could not be read, change only the status:
         // whatever it says may be the operator account and verification reference behind the resolution
@@ -404,6 +408,7 @@ export class LiquidityManagementPipelineService {
           ? {
               status: LiquidityManagementOrderStatus.UNCERTAIN,
               errorMessage: [current.errorMessage, message].filter((part) => part).join(' — '),
+              notSentResolvedAt: null,
             }
           : { status: LiquidityManagementOrderStatus.UNCERTAIN },
       )
@@ -436,6 +441,9 @@ export class LiquidityManagementPipelineService {
         errorMessage: order.errorMessage,
         correlationId: order.correlationId,
         previousCorrelationIds: order.previousCorrelationIds,
+        // carries the resolution's own marker: set by a not-sent resolution so reconciliation looks once
+        // more, cleared by a positive one, and written here because this is where either becomes durable
+        notSentResolvedAt: order.notSentResolvedAt ?? null,
       },
     );
 
@@ -462,20 +470,25 @@ export class LiquidityManagementPipelineService {
     const current = await this.orderRepo.findOneBy({ id: order.id });
     if (current?.status !== LiquidityManagementOrderStatus.FAILED) return false;
 
+    // Only failures written BY a not-sent resolution. Taking back one that ended for an entirely unrelated
+    // reason would resurrect an order the venue really did finish — the reclaim overrules a judgement, never
+    // the venue. Checked on the value just read, which is also the value the write below is guarded on.
+    if (!current.errorMessage?.includes(UNSENT_RESOLUTION_MARKER)) return false;
+
     const result = await this.orderRepo.update(
       // Narrowed to failures written BY a not-sent resolution. Matching any failed row would resurrect an
       // order that ended for an entirely unrelated reason — the reclaim exists to overrule a judgement, not
       // to overrule the venue.
-      {
-        id: order.id,
-        status: LiquidityManagementOrderStatus.FAILED,
-        errorMessage: Like(`%${UNSENT_RESOLUTION_MARKER}%`),
-      },
+      // Narrowed to the exact reason just read. Between the read and this write another resolution can have
+      // replaced it, and appending to the older text would erase the newer operator and reference — the
+      // audit trail this reclaim exists to preserve, not to overwrite.
+      { id: order.id, status: LiquidityManagementOrderStatus.FAILED, errorMessage: current.errorMessage },
       {
         status: LiquidityManagementOrderStatus.IN_PROGRESS,
         errorMessage: `${current.errorMessage} (reinstated: the venue confirmed this request exists after it had been resolved as not executed)`,
         correlationId: order.correlationId,
         previousCorrelationIds: order.previousCorrelationIds,
+        notSentResolvedAt: null,
       },
     );
 

@@ -27,7 +27,7 @@ export class ResolveUncertainOrderDto {
   @ApiProperty({ description: 'Where that was checked, so the decision can be audited later.' })
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trimAll)
+  @Transform(Util.trim)
   @MinLength(3)
   @MaxLength(1024)
   verificationReference: string;

@@ -207,9 +207,9 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(expectedStatus);
     });
 
-    it('looks at quarantined orders and at not-sent failures the venue can still be asked about', async () => {
-      // the second branch is what applies an observation whose writes did not land; the bound on it is not a
-      // deadline for applying one, it is the point past which nobody can make one
+    it('looks at quarantined orders and at not-sent failures still awaiting their one further look', async () => {
+      // the second branch is what applies an observation whose writes did not land, and it selects on an
+      // indexed marker rather than matching a wildcard against every failure ever recorded
       const findBy = jest.spyOn(orderRepo, 'findBy').mockResolvedValue([]);
 
       await service['resolveUncertainOrders']();
@@ -217,8 +217,37 @@ describe('LiquidityManagementPipelineService', () => {
       const [uncertain, reclaimable] = findBy.mock.calls[0][0] as FindOptionsWhere<LiquidityManagementOrder>[];
       expect(uncertain).toEqual({ status: LiquidityManagementOrderStatus.UNCERTAIN });
       expect(reclaimable.status).toBe(LiquidityManagementOrderStatus.FAILED);
-      expect(reclaimable.errorMessage).toBeDefined();
-      expect(reclaimable.updated).toBeDefined();
+      expect(reclaimable.notSentResolvedAt).toBeDefined();
+      expect(reclaimable.errorMessage).toBeUndefined();
+    });
+
+    it('releases a not-sent failure from reconciliation once that look has happened', async () => {
+      // otherwise the venue would be asked about every settled failure every ten seconds, for good
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([negativelyResolvedOrder()]);
+      const update = jest.spyOn(orderRepo, 'update');
+      stubIntegration(UncertainOrderResolution.UNRESOLVED);
+
+      await service['resolveUncertainOrders']();
+
+      expect(update).toHaveBeenCalledWith(
+        { id: 9, status: LiquidityManagementOrderStatus.FAILED },
+        { notSentResolvedAt: null },
+      );
+    });
+
+    it('keeps a not-sent failure eligible when the venue confirms the order after all', async () => {
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([negativelyResolvedOrder()]);
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(negativelyResolvedOrder());
+      const update = jest
+        .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] });
+      stubIntegration(UncertainOrderResolution.SENT);
+
+      await service['resolveUncertainOrders']();
+
+      expect(update).not.toHaveBeenCalledWith(expect.anything(), { notSentResolvedAt: null });
+      expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
     });
 
     it('puts a confirmed order back into quarantine when neither release lands', async () => {
@@ -327,6 +356,18 @@ describe('LiquidityManagementPipelineService', () => {
       expect(notificationService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({ correlationId: 'lm-order-reinstated-9' }),
       );
+    });
+
+    it('marks a not-sent resolution so it gets that one further look', async () => {
+      const order = uncertainOrder();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      const update = jest.spyOn(orderRepo, 'update');
+      stubIntegration(UncertainOrderResolution.NOT_SENT);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.notSentResolvedAt).toBeInstanceOf(Date);
+      expect(update.mock.calls[0][1]).toMatchObject({ notSentResolvedAt: order.notSentResolvedAt });
     });
 
     it('keeps the order quarantined when the lookup itself throws', async () => {
