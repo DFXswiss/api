@@ -778,6 +778,104 @@ describe('GsService', () => {
           );
         });
 
+        // `negated` is propagated into and/or children (not only direct NOT→leaf). Without these
+        // cases a regression that stopped propagating through a boolean node would stay green.
+        it('rejects NOT ( AND [ mail = x, id = 1 ] ) — negated flag propagates into AND', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'not',
+              child: {
+                kind: 'and',
+                children: [
+                  { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'user@example.com' },
+                  { kind: 'leaf', column: 'id', op: DebugWhereOp.EQ, value: 1 },
+                ],
+              },
+            },
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(
+            /Filter-only column 'mail' cannot be used inside a NOT/,
+          );
+        });
+
+        it('rejects NOT ( OR [ mail = x, id = 1 ] ) — negated flag propagates into OR', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'not',
+              child: {
+                kind: 'or',
+                children: [
+                  { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'user@example.com' },
+                  { kind: 'leaf', column: 'id', op: DebugWhereOp.EQ, value: 1 },
+                ],
+              },
+            },
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(
+            /Filter-only column 'mail' cannot be used inside a NOT/,
+          );
+        });
+
+        it('rejects NOT ( AND [ OR [ mail = x ] ] ) — deeper nesting still propagates', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'not',
+              child: {
+                kind: 'and',
+                children: [
+                  {
+                    kind: 'or',
+                    children: [{ kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'user@example.com' }],
+                  },
+                ],
+              },
+            },
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(
+            /Filter-only column 'mail' cannot be used inside a NOT/,
+          );
+        });
+
+        it('accepts AND [ NOT (id = 1), mail = x ] — filter-only leaf not under the negation', async () => {
+          // Positive control: pins propagation semantics rather than a blanket refusal of
+          // any tree that contains both NOT and a filter-only leaf.
+          const q = spyQuery([{ id: 2 }]);
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'and',
+              children: [
+                {
+                  kind: 'not',
+                  child: { kind: 'leaf', column: 'id', op: DebugWhereOp.EQ, value: 1 },
+                },
+                { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'user@example.com' },
+              ],
+            },
+            limit: 10,
+          };
+
+          await service.executeDebugQuery(dto, 'tester');
+
+          const [sql, params] = q.mock.calls[0] as [string, unknown[]];
+          expect(sql).toContain('NOT "user_data"."id" = $1');
+          expect(sql).toContain('LOWER("user_data"."mail") = LOWER($2)');
+          expect(params).toEqual([1, 'user@example.com']);
+        });
+
         it('still allows NOT over an ordinary allowlisted column', async () => {
           const q = spyQuery([{ id: 1 }]);
           const dto: DebugQueryDto = {

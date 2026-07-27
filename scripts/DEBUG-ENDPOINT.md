@@ -105,9 +105,9 @@ the full ordinary operator set. A **filter-only** column is narrower: it may app
 WHERE leaf, only with `=` (not `IN` — batching multiplies guessing throughput; one address
 per request, each separately audit-logged), never under a `NOT` node at any depth (including
 double negation: `NOT (mail = x)` is semantically `mail != x`), and never in select, order by,
-or group by. Equality is case-insensitive (`LOWER(col) = LOWER($n)`): the caller must still
-know the exact address; only letter case is forgiven (historical `user_data` rows contain
-mixed-case addresses). The intent is lookup by a value the caller already knows, without the
+or group by. Equality is case-insensitive (`LOWER(col) = LOWER($n)`): the caller must know
+the exact address except for letter case (historical `user_data` rows contain mixed-case
+addresses). The intent is lookup by a value the caller already knows, without the
 endpoint ever disclosing that value.
 
 The first instance is `user_data.mail` (`filterOnlyColumns` on the `user_data` entry in
@@ -140,12 +140,14 @@ Convenience mode and equivalent raw DTO:
 
 1. **Never commit** `.env` to git (it's in `.gitignore`)
 2. The DEBUG role should only be granted to authorized personnel
-3. All queries are logged with user identifier for audit (`Debug-query by <addr>: …`).
-   WHERE leaf values are redacted in the audit log; structure (table / columns / ops) is preserved.
+3. Every debug request is audit-logged with the caller identifier (`Debug-query by <addr>: …`)
+   before emit/execute. The log is the redacted DTO structure (table / select / where ops /
+   columns); WHERE leaf values are replaced with `<scalar>` / `<array:N>` and never logged
+   verbatim. Failed executions get a separate `… failed:` info line (error message only).
 4. The endpoint accepts a structured JSON DTO only — no raw SQL is parsed, walked, or interpolated.
 5. Identifiers (table, column, alias, aggregate, op, ORDER BY direction, jsonb path segment)
-   are validated against an allowlist before being interpolated into SQL; values are bound as
-   `$1..$N` parameters via TypeORM.
+   are validated against an allowlist before being interpolated into a hand-built SQL string;
+   values are bound as `$1..$N` parameters and executed via `dataSource.query` (not QueryBuilder).
 6. Tables and columns reachable from this endpoint are enumerated in `DebugAllowedColumns`
    (`src/subdomains/generic/gs/dto/gs.dto.ts`). Anything not listed there is unreachable;
    PII / secrets / free-form text are deliberately excluded. Filter-only columns

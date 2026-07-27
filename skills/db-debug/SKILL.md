@@ -9,7 +9,8 @@ Read-only forensics against the production database through the `scripts/db-debu
 script authenticates itself (DEBUG address + signature from the local `.env`) and posts a
 **structured JSON query** to the `/gs/debug` endpoint. There is no raw SQL: the request body is a
 `DebugQueryDto` describing table, select items, an optional where-tree, group/order/limit, which the
-service compiles to a parameter-bound SELECT via TypeORM. Writes and DDL are not expressible, and
+service emits as a hand-built SELECT with bound `$1..$N` parameters (executed via
+`dataSource.query`, not QueryBuilder). Writes and DDL are not expressible, and
 every identifier must appear in the per-table allowlist (`DebugAllowedColumns` in
 `src/subdomains/generic/gs/dto/gs.dto.ts`) — the source of truth, which drifts per migration.
 

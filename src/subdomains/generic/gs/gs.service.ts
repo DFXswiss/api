@@ -535,9 +535,11 @@ export class GsService {
         }
         this.assertDebugScalarValue(node.value);
         // Filter-only equality is case-insensitive: equality stays equality (the caller must
-        // still know the exact address; only letter case is forgiven), so this grants no
-        // additional information, and it matches how the application itself resolves mail
+        // know the exact address except for letter case), so this grants no additional
+        // information, and it matches how the application itself resolves mail
         // (`LOWER(mail) = :mail`). Cannot use a plain index on the column. Value stays bound.
+        // Precondition: filter-only columns must be text — `LOWER()` is unconditional here;
+        // a non-text column would fail at query time. Documented on `filterOnlyColumns`.
         if (isFilterOnly && node.op === DebugWhereOp.EQ) {
           return `LOWER(${colSql}) = LOWER($${this.bindDebugParam(node.value, ctx)})`;
         }

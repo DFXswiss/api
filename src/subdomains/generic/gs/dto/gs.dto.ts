@@ -58,6 +58,10 @@ export interface DebugTableSpec {
   // (`DebugFilterOnlyAllowedOps`). Intended for looking a record up by a value the caller
   // already knows, without the endpoint ever disclosing that value. MUST be disjoint from
   // `columns` and `jsonbColumns` (enforced by `assertDebugAllowlistInvariants`).
+  // Expected to be **text** columns: equality is emitted case-insensitively as
+  // `LOWER(col) = LOWER($n)`. A non-text filter-only column (e.g. integer) would fail at
+  // query time (`function lower(integer) does not exist`). No runtime type check — keep
+  // entries text-only when extending this list.
   filterOnlyColumns?: string[];
 }
 

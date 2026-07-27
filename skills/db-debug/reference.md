@@ -7,10 +7,11 @@ the TypeORM entities in this repository.
 ## Endpoint & safety
 - The CLI posts a `DebugQueryDto` (structured JSON) to `POST /gs/debug` with a Bearer token obtained
   from `POST /auth` (DEBUG address + signature from the local `.env`, role `DEBUG`).
-- No raw SQL crosses the wire. The service (`src/subdomains/generic/gs`) compiles the DTO to SQL via
-  TypeORM QueryBuilder: every identifier (table, column, alias, aggregate, op, order-by direction,
-  jsonb path segment) is validated against an allowlist, and all leaf values are bound as parameters
-  (`$1..$N`) — never interpolated. Writes / DDL are not expressible; read-only is structural.
+- No raw SQL crosses the wire. The service (`src/subdomains/generic/gs`) emits SQL manually: every
+  identifier (table, column, alias, aggregate, op, order-by direction, jsonb path segment) is
+  validated against an allowlist, and all leaf values are bound as parameters (`$1..$N`) — never
+  interpolated — then executed with `dataSource.query` (not QueryBuilder). Writes / DDL are not
+  expressible; read-only is structural.
 - Reachable tables and columns are enumerated in `DebugAllowedColumns`
   (`src/subdomains/generic/gs/dto/gs.dto.ts`) — the **source of truth**. It drifts per migration:
   every migration that adds, renames, or removes a column on a debuggable table updates it. A table
@@ -22,8 +23,8 @@ the TypeORM entities in this repository.
   inequality, and pattern ops would turn the endpoint into an oracle. A filter-only column may
   not appear under a `NOT` node at any depth, including double negation (`NOT (mail = x)` is
   semantically `mail != x`). Equality is case-insensitive (`LOWER(col) = LOWER($n)`): the caller
-  must still know the exact address; only letter case is forgiven (historical `user_data` rows
-  contain mixed-case addresses). No `jsonbPath`. Intended for looking a record up by a value the
+  must know the exact address except for letter case (historical `user_data` rows contain
+  mixed-case addresses). No `jsonbPath`. Intended for looking a record up by a value the
   caller already knows, without the endpoint ever disclosing that value. First instance:
   `user_data.mail` — resolve `userData.id`(s) from a known address; selecting `mail` is refused.
   One mail can map to several `user_data` rows; use a multi-row `limit` (e.g. 100), never 1.
