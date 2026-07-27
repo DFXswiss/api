@@ -42,7 +42,6 @@ import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
-import { CustodyAccountResolver } from './custody-account-resolver.service';
 import { CustodyService } from './custody.service';
 
 @Injectable()
@@ -54,7 +53,6 @@ export class CustodyOrderService {
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
     private readonly custodyService: CustodyService,
-    private readonly custodyAccountResolver: CustodyAccountResolver,
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     @Inject(forwardRef(() => BuyService))
@@ -234,18 +232,11 @@ export class CustodyOrderService {
   }
 
   async createOrderInternal(dto: CreateCustodyOrderInternalDto): Promise<CustodyOrder> {
-    // Resolve-and-insert under the same owner-scoped advisory lock as legacy materialisation
-    // so a concurrent materialise cannot leave this order permanently outside the Safe.
-    return this.custodyAccountResolver.withLegacyMaterializeLockForUser(dto.user.id, async (manager) => {
-      const account = await this.custodyAccountResolver.resolveAccountForUser(dto.user.id, manager);
-      const order = manager.create(CustodyOrder, { ...dto, account });
+    const order = this.custodyOrderRepo.create(dto);
 
-      if (dto.transactionRequestId) {
-        order.transactionRequest = { id: dto.transactionRequestId } as TransactionRequest;
-      }
+    if (dto.transactionRequestId) order.transactionRequest = { id: dto.transactionRequestId } as TransactionRequest;
 
-      return manager.save(order);
-    });
+    return this.custodyOrderRepo.save(order);
   }
 
   async updateCustodyOrderInternal(entity: CustodyOrder, dto: UpdateCustodyOrderInternalDto): Promise<CustodyOrder> {

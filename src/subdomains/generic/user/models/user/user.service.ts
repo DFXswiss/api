@@ -351,7 +351,6 @@ export class UserService {
     if (userIsActive) user.status = UserStatus.ACTIVE;
     user.custodyAddressType = data.custodyAddressType;
     user.custodyAddressIndex = data.custodyAddressIndex;
-    user.custodyAccount = data.custodyAccount;
     user.role = data.role;
     user.primaryUser = data.primaryUser;
 

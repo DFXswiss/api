@@ -8,21 +8,33 @@ import {
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { EntityManager } from 'typeorm';
 import { CustodyAccountDto } from '../dto/output/custody-account.dto';
 import { CustodyAccountAccess } from '../entities/custody-account-access.entity';
 import { CustodyAccount } from '../entities/custody-account.entity';
-import { CustodyBalance } from '../entities/custody-balance.entity';
-import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyAccessLevel, CustodyAccountStatus } from '../enums/custody';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
 import { CustodyAccountAccessRepository } from '../repositories/custody-account-access.repository';
 import { CustodyAccountRepository } from '../repositories/custody-account.repository';
-import { acquireCustodyLegacyMaterializeLock } from './custody-account-resolver.service';
 
 export const LegacyAccountId = 'legacy';
 export type CustodyAccountId = number | typeof LegacyAccountId;
+
+/** Postgres INTEGER / SERIAL upper bound (positive ids only). */
+export const PG_INTEGER_MAX = 2_147_483_647;
+
+/**
+ * Owner-scoped advisory lock key for legacy materialisation.
+ * Must stay identical everywhere — a second key scheme would re-open races.
+ */
+function custodyLegacyMaterializeLockKey(ownerAccountId: number): string {
+  return `custody-legacy-materialize:${ownerAccountId}`;
+}
+
+/** Transaction-scoped advisory lock serialising concurrent legacy materialisations. */
+async function acquireCustodyLegacyMaterializeLock(manager: EntityManager, ownerAccountId: number): Promise<void> {
+  await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [custodyLegacyMaterializeLockKey(ownerAccountId)]);
+}
 
 @Injectable()
 export class CustodyAccountService {
@@ -162,7 +174,11 @@ export class CustodyAccountService {
     accessLevel: CustodyAccessLevel,
   ): Promise<CustodyAccountAccess> {
     const isInvalidNumericId =
-      custodyAccountId !== LegacyAccountId && (typeof custodyAccountId !== 'number' || Number.isNaN(custodyAccountId));
+      custodyAccountId !== LegacyAccountId &&
+      (typeof custodyAccountId !== 'number' ||
+        !Number.isSafeInteger(custodyAccountId) ||
+        custodyAccountId < 1 ||
+        custodyAccountId > PG_INTEGER_MAX);
     if (isInvalidNumericId) {
       throw new BadRequestException('Invalid custody account ID');
     }
@@ -376,7 +392,7 @@ export class CustodyAccountService {
     }
 
     return this.custodyAccountRepo.manager.transaction(async (manager) => {
-      // Serialize concurrent materialisations and resolve-and-create paths for the same owner
+      // Serialize concurrent materialisations for the same owner
       await acquireCustodyLegacyMaterializeLock(manager, ownerAccountId);
 
       const existingAccounts = await manager.find(CustodyAccount, {
@@ -389,56 +405,12 @@ export class CustodyAccountService {
         throw new BadRequestException('Legacy account not available because custody accounts already exist');
       }
 
+      // Creates the account + owner grant only. Data rows (balances, orders, users) are
+      // deliberately not re-parented: nothing reads accountId/custodyAccountId for
+      // authorisation, and account-scoped read paths resolve data through the account owner.
       const account = await this.persistCustodyAccount(manager, owner, 'Custody');
-      await this.attachLegacyCustodyData(manager, account, ownerAccountId);
 
       return this.createGrant(manager, account, target, accessLevel);
     });
-  }
-
-  private async attachLegacyCustodyData(
-    manager: EntityManager,
-    account: CustodyAccount,
-    ownerAccountId: number,
-  ): Promise<void> {
-    // Select custody users inside the locked transaction so rows created just before we
-    // acquired the lock (and committed under that same lock) are part of the sweep.
-    // Do not use a preloaded `owner.users` collection loaded outside the transaction.
-    const custodyUsers = await manager.find(User, {
-      where: { userData: { id: ownerAccountId }, role: UserRole.CUSTODY },
-      select: { id: true },
-    });
-    const custodyUserIds = custodyUsers.map((u) => u.id);
-    if (custodyUserIds.length === 0) return;
-
-    // Set the `account` relation itself — there is no `accountId` property on the entities,
-    // and casting one in hides that from the compiler until it fails at runtime. The column
-    // names are camelCase and therefore have to stay quoted for Postgres.
-    // Only reparent rows that are still unassigned (NULL account) so foreign/closed accounts
-    // are never hijacked.
-    await manager
-      .createQueryBuilder()
-      .update(CustodyBalance)
-      .set({ account })
-      .where('"userId" IN (:...userIds)', { userIds: custodyUserIds })
-      .andWhere('"accountId" IS NULL')
-      .execute();
-
-    await manager
-      .createQueryBuilder()
-      .update(CustodyOrder)
-      .set({ account })
-      .where('"userId" IN (:...userIds)', { userIds: custodyUserIds })
-      .andWhere('"accountId" IS NULL')
-      .execute();
-
-    // Complete the association on the custody User rows (only where still unassigned).
-    await manager
-      .createQueryBuilder()
-      .update(User)
-      .set({ custodyAccount: account })
-      .where('id IN (:...userIds)', { userIds: custodyUserIds })
-      .andWhere('"custodyAccountId" IS NULL')
-      .execute();
   }
 }

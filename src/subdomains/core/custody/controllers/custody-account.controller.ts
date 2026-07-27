@@ -6,7 +6,6 @@ import {
   Get,
   NotFoundException,
   Param,
-  ParseIntPipe,
   Post,
   Put,
   UseGuards,
@@ -26,7 +25,12 @@ import { CustodyAccountAccessDto, CustodyAccountDto } from '../dto/output/custod
 import { CustodyAccessLevel } from '../enums/custody';
 import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from '../guards/custody-account-access.guard';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
-import { CustodyAccountId, CustodyAccountService, LegacyAccountId } from '../services/custody-account.service';
+import {
+  CustodyAccountId,
+  CustodyAccountService,
+  LegacyAccountId,
+  PG_INTEGER_MAX,
+} from '../services/custody-account.service';
 
 @ApiTags('Custody')
 @Controller('custody/account')
@@ -49,7 +53,9 @@ export class CustodyAccountController {
     const custodyAccounts = await this.custodyAccountService.getCustodyAccountsForUser(jwt.account);
 
     const isLegacy = id === LegacyAccountId;
-    const account = isLegacy ? custodyAccounts.find((ca) => ca.isLegacy) : custodyAccounts.find((ca) => ca.id === +id);
+    const account = isLegacy
+      ? custodyAccounts.find((ca) => ca.isLegacy)
+      : custodyAccounts.find((ca) => ca.id === this.parsePositiveIntParam(id, 'custody account ID'));
     if (!account) throw new NotFoundException(`${isLegacy ? 'Legacy' : 'Custody'} account not found`);
 
     return account;
@@ -82,7 +88,7 @@ export class CustodyAccountController {
     @Body() dto: UpdateCustodyAccountDto,
   ): Promise<CustodyAccountDto> {
     const custodyAccount = await this.custodyAccountService.updateCustodyAccount(
-      +id,
+      this.parsePositiveIntParam(id, 'custody account ID'),
       jwt.account,
       dto.title,
       dto.description,
@@ -95,11 +101,11 @@ export class CustodyAccountController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
   @ApiOkResponse({ type: [CustodyAccountAccessDto], description: 'List of users with access' })
-  async getAccessList(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<CustodyAccountAccessDto[]> {
-    const accessList = await this.custodyAccountService.getAccessList(id, jwt.account);
+  async getAccessList(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyAccountAccessDto[]> {
+    const accessList = await this.custodyAccountService.getAccessList(
+      this.parsePositiveIntParam(id, 'custody account ID'),
+      jwt.account,
+    );
 
     return accessList.map(CustodyAccountDtoMapper.toAccessDto);
   }
@@ -130,11 +136,16 @@ export class CustodyAccountController {
   @ApiOkResponse({ type: CustodyAccountAccessDto, description: 'Update access grant' })
   async updateAccess(
     @GetJwt() jwt: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-    @Param('accessId', ParseIntPipe) accessId: number,
+    @Param('id') id: string,
+    @Param('accessId') accessId: string,
     @Body() dto: UpdateCustodyAccountAccessDto,
   ): Promise<CustodyAccountAccessDto> {
-    const access = await this.custodyAccountService.updateAccess(id, accessId, jwt.account, dto.accessLevel);
+    const access = await this.custodyAccountService.updateAccess(
+      this.parsePositiveIntParam(id, 'custody account ID'),
+      this.parsePositiveIntParam(accessId, 'access ID'),
+      jwt.account,
+      dto.accessLevel,
+    );
 
     return CustodyAccountDtoMapper.toAccessDto(access);
   }
@@ -145,19 +156,35 @@ export class CustodyAccountController {
   @ApiOkResponse({ description: 'Revoke access grant' })
   async revokeAccess(
     @GetJwt() jwt: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-    @Param('accessId', ParseIntPipe) accessId: number,
+    @Param('id') id: string,
+    @Param('accessId') accessId: string,
   ): Promise<void> {
-    await this.custodyAccountService.revokeAccess(id, accessId, jwt.account);
+    await this.custodyAccountService.revokeAccess(
+      this.parsePositiveIntParam(id, 'custody account ID'),
+      this.parsePositiveIntParam(accessId, 'access ID'),
+      jwt.account,
+    );
   }
 
   private parseCustodyAccountId(id: string): CustodyAccountId {
     if (id === LegacyAccountId) return LegacyAccountId;
+    return this.parsePositiveIntParam(id, 'custody account ID');
+  }
 
-    if (!/^\d+$/.test(id)) {
-      throw new BadRequestException('Invalid custody account ID');
+  /**
+   * Finite, safe, positive integer within the Postgres INTEGER/SERIAL range.
+   * Rejects non-digits, Infinity (e.g. 309 nines), zero, and values outside column range → 400.
+   */
+  private parsePositiveIntParam(value: string, name: string): number {
+    if (!/^\d+$/.test(value)) {
+      throw new BadRequestException(`Invalid ${name}`);
     }
 
-    return +id;
+    const n = Number(value);
+    if (!Number.isSafeInteger(n) || n < 1 || n > PG_INTEGER_MAX) {
+      throw new BadRequestException(`Invalid ${name}`);
+    }
+
+    return n;
   }
 }

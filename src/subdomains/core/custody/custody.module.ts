@@ -28,7 +28,6 @@ import { CustodyOrderService } from './services/custody-order.service';
 import { CustodyPdfService } from './services/custody-pdf.service';
 import { CustodyService } from './services/custody.service';
 import { CustodyAccountService } from './services/custody-account.service';
-import { CustodyAccountResolver } from './services/custody-account-resolver.service';
 import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from './guards/custody-account-access.guard';
 
 @Module({
@@ -59,10 +58,9 @@ import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from './guards/cust
     CustodyAccountRepository,
     CustodyAccountAccessRepository,
     CustodyAccountService,
-    CustodyAccountResolver,
     CustodyAccountReadGuard,
     CustodyAccountWriteGuard,
   ],
-  exports: [CustodyService, CustodyOrderService, CustodyAccountService, CustodyAccountResolver],
+  exports: [CustodyService, CustodyOrderService, CustodyAccountService],
 })
 export class CustodyModule {}
