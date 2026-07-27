@@ -314,8 +314,9 @@ describe('BitcoinFeeService', () => {
       try {
         expect(maxInFlight).toBe(txids.length);
       } finally {
-        // Release the mocked calls even when the assertion fails, so the pending
-        // getTxFeeRates promise cannot outlive the test.
+        // Release the calls captured so far even when the assertion fails, so a failing run
+        // does not leave them parked. getTxFeeRates either resolves or stays pending
+        // harmlessly - the assertion throws before it is awaited.
         resolvers.forEach((resolve) => resolve());
       }
 
