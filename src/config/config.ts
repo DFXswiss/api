@@ -145,6 +145,11 @@ export class Configuration {
     unroutedDepositAlarmDays: +(process.env.LEDGER_UNROUTED_DEPOSIT_ALARM_DAYS ?? 3), // §7.5 age-alarm
   };
 
+  custody = {
+    savingAsset: 'Ethereum/sZCHF', // uniqueName of the interest-bearing custody position
+    savingInterestRate: 0.035, // 3.5 % p.a., simple interest, day-count basis 365
+  };
+
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
 

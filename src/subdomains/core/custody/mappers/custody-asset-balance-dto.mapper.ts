@@ -9,18 +9,22 @@ export class CustodyAssetBalanceDtoMapper {
     return this.map(custodyBalance.asset, custodyBalance.balance);
   }
 
-  static mapCustodyBalances(custodyBalances: CustodyBalance[]): CustodyAssetBalanceDto[] {
+  static mapCustodyBalances(
+    custodyBalances: CustodyBalance[],
+    interestByAssetId: Map<number, number>,
+  ): CustodyAssetBalanceDto[] {
     const groups = Util.groupByAccessor(custodyBalances, (b) => b.asset.name);
 
     return Array.from(groups.values()).map((g) => {
       const asset = g[0].asset;
       const balance = Util.sumObjValue(g, 'balance');
+      const interest = interestByAssetId.get(asset.id);
 
-      return this.map(asset, balance);
+      return this.map(asset, balance, interest);
     });
   }
 
-  private static map(asset: Asset, balance: number): CustodyAssetBalanceDto {
+  private static map(asset: Asset, balance: number, interest?: number): CustodyAssetBalanceDto {
     const priceInEur = Price.create('EUR', asset.name, asset.approxPriceEur).invert();
     const priceInChf = Price.create('CHF', asset.name, asset.approxPriceChf).invert();
     const priceInUsd = Price.create('USD', asset.name, asset.approxPriceUsd).invert();
@@ -34,6 +38,15 @@ export class CustodyAssetBalanceDtoMapper {
         usd: Util.roundReadable(priceInUsd.convert(balance), AmountType.FIAT),
       },
     };
+
+    if (interest != null) {
+      dto.interest = Util.floor(interest, 8);
+      dto.interestValue = {
+        eur: Util.roundReadable(priceInEur.convert(interest), AmountType.FIAT),
+        chf: Util.roundReadable(priceInChf.convert(interest), AmountType.FIAT),
+        usd: Util.roundReadable(priceInUsd.convert(interest), AmountType.FIAT),
+      };
+    }
 
     return Object.assign(new CustodyAssetBalanceDto(), dto);
   }

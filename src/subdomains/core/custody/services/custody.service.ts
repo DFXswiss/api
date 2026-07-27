@@ -12,7 +12,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { In } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
@@ -90,7 +90,16 @@ export class CustodyService {
 
     const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
-    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances);
+
+    const savingBalance = custodyBalances.find((b) => b.asset.uniqueName === Config.custody.savingAsset);
+    const interestByAssetId = new Map<number, number>();
+    if (savingBalance) {
+      // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
+      const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
+      interestByAssetId.set(savingBalance.asset.id, interest);
+    }
+
+    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetId);
 
     const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur, 0);
     const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf, 0);
@@ -223,6 +232,51 @@ export class CustodyService {
     }
 
     return { totalValue };
+  }
+
+  /**
+   * Accrued simple interest for an interest-bearing custody position.
+   * dueDate is a parameter (not new Date() inside) so the method is deterministically testable.
+   * Order type is intentionally not filtered — any completed order that moves the asset counts.
+   */
+  private async calculateAccruedInterest(userIds: number[], asset: Asset, dueDate: Date): Promise<number> {
+    // Exclude NULL amounts at the query level — mirrors updateCustodyBalance()'s SQL SUM(),
+    // which silently skips NULLs; interest and balance must be derived from the same order
+    // set, or they drift apart.
+    const orders = await this.custodyOrderRepo.find({
+      where: [
+        {
+          user: { id: In(userIds) },
+          status: CustodyOrderStatus.COMPLETED,
+          inputAsset: { id: asset.id },
+          inputAmount: Not(IsNull()),
+        },
+        {
+          user: { id: In(userIds) },
+          status: CustodyOrderStatus.COMPLETED,
+          outputAsset: { id: asset.id },
+          outputAmount: Not(IsNull()),
+        },
+      ],
+    });
+
+    let interest = 0;
+    const rate = Config.custody.savingInterestRate;
+
+    for (const order of orders) {
+      // Amount is checked in JS too (not just in the query above): this method must never
+      // propagate NaN regardless of what the caller/repo returns.
+      if (order.inputAsset?.id === asset.id && order.inputAmount != null) {
+        const days = Util.daysDiff(order.updated, dueDate);
+        if (days >= 0) interest += (order.inputAmount * rate * days) / 365;
+      }
+      if (order.outputAsset?.id === asset.id && order.outputAmount != null) {
+        const days = Util.daysDiff(order.updated, dueDate);
+        if (days >= 0) interest += (-order.outputAmount * rate * days) / 365;
+      }
+    }
+
+    return interest;
   }
 
   /**
