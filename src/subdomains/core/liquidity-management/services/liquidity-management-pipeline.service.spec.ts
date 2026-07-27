@@ -215,14 +215,46 @@ describe('LiquidityManagementPipelineService', () => {
       expect(findBy).toHaveBeenCalledWith({ status: LiquidityManagementOrderStatus.UNCERTAIN });
     });
 
-    it('raises an alert when a confirmed observation cannot be written back', async () => {
-      // the one fact worth having is established; dropping it as a log line is how a rule ends up planning
-      // against funds that are already committed
+    it('puts a confirmed order back into quarantine when neither release lands', async () => {
+      // an alert alone is read at human speed while the rule reactivates in minutes, so the order itself
+      // has to go back to a state nothing plans against
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder()]);
+      const update = jest
+        .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] }) // no longer quarantined
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] }) // and not a negative resolution either
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] }); // so it is blocked again
+      stubIntegration(UncertainOrderResolution.SENT);
+
+      await service['resolveUncertainOrders']();
+
+      expect(update.mock.calls[2][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      expect(notificationService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
+      );
+    });
+
+    it('does the same when the release throws instead of matching nothing', async () => {
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder()]);
+      const update = jest
+        .spyOn(orderRepo, 'update')
+        .mockRejectedValueOnce(new Error('connection lost'))
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] });
+      stubIntegration(UncertainOrderResolution.SENT);
+
+      await service['resolveUncertainOrders']();
+
+      expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      expect(notificationService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
+      );
+    });
+
+    it('reports a confirmed order whose state it cannot even read', async () => {
+      // the alert must not depend on a second read succeeding — that was the failure it exists to catch
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder()]);
       jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
-      jest
-        .spyOn(orderRepo, 'findOneBy')
-        .mockResolvedValue(Object.assign(uncertainOrder(), { status: LiquidityManagementOrderStatus.FAILED }));
+      jest.spyOn(orderRepo, 'findOneBy').mockRejectedValue(new Error('connection lost'));
       stubIntegration(UncertainOrderResolution.SENT);
 
       await service['resolveUncertainOrders']();
@@ -232,17 +264,18 @@ describe('LiquidityManagementPipelineService', () => {
       );
     });
 
-    it('raises that alert when the write throws too, not only when it matches nothing', async () => {
+    it('stays quiet while the order is still quarantined — the next pass simply tries again', async () => {
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder()]);
-      jest.spyOn(orderRepo, 'update').mockRejectedValue(new Error('connection lost'));
+      jest
+        .spyOn(orderRepo, 'update')
+        .mockRejectedValueOnce(new Error('connection lost'))
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] });
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(uncertainOrder());
       stubIntegration(UncertainOrderResolution.SENT);
 
       await service['resolveUncertainOrders']();
 
-      expect(notificationService.sendMail).toHaveBeenCalledWith(
-        expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
-      );
+      expect(notificationService.sendMail).not.toHaveBeenCalled();
     });
 
     it('stays quiet when something else had already released the order correctly', async () => {
@@ -333,6 +366,37 @@ describe('LiquidityManagementPipelineService', () => {
       // is unreachable could still release the order and undo what was seen here
       expect(order.status).toBe(LiquidityManagementOrderStatus.IN_PROGRESS);
       expect(orderRepo.update).toHaveBeenCalled();
+    });
+
+    it('holds a confirmed order and reports it when the manual refusal cannot be written either', async () => {
+      // the manual path faces the same race as reconciliation, so it must end the same way: the order stays
+      // blocking and a person is told, rather than the observation being discarded with the exception
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        id: 9,
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        errorMessage: 'unknown',
+        action: { id: 233, system: 'Scrypt', command: 'sell' },
+      });
+      jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
+      const update = jest
+        .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
+        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        supportedCommands: ['sell'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder: jest.fn().mockResolvedValue(UncertainOrderResolution.SENT),
+      });
+
+      await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(/held as uncertain/);
+
+      expect(update.mock.calls[2][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
+      expect(notificationService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ correlationId: 'lm-observation-unapplied-9' }),
+      );
     });
 
     it('skips an order another path resolved first, instead of overwriting it', async () => {

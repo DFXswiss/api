@@ -286,23 +286,16 @@ export class LiquidityManagementPipelineService {
     let anyChanged = false;
 
     for (const order of orders) {
-      let observedAsSent = false;
-
       try {
         const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
         if (!actionIntegration.resolveUncertainOrder) continue;
 
         const resolution = await actionIntegration.resolveUncertainOrder(order);
-        observedAsSent = resolution === UncertainOrderResolution.SENT;
 
-        if (observedAsSent) {
-          order.resolveAsSent();
-
-          if ((await this.leaveQuarantine(order)) || (await this.reclaimFromNegativeResolution(order))) {
+        if (resolution === UncertainOrderResolution.SENT) {
+          if (await this.applyConfirmedObservation(order)) {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
-          } else {
-            await this.reportUnappliedObservation(order);
           }
         } else if (resolution === UncertainOrderResolution.NOT_SENT) {
           order.resolveAsNotSent(
@@ -316,10 +309,6 @@ export class LiquidityManagementPipelineService {
       } catch (e) {
         // a failing lookup must never promote the order out of quarantine
         this.logger.error(`Error in resolving uncertain liquidity order ${order.id}:`, e);
-
-        // ...but a failure AFTER the venue confirmed the order is a different thing: the one fact that
-        // matters is established and about to be dropped on the floor. Say so rather than log and move on.
-        if (observedAsSent) await this.reportUnappliedObservation(order).catch(() => undefined);
       }
     }
 
@@ -327,27 +316,66 @@ export class LiquidityManagementPipelineService {
   }
 
   /**
-   * A confirmed venue observation that could not be written back.
+   * Record that the venue holds this order — and make sure that fact lands somewhere durable.
    *
-   * Both releases are conditional on the state they expect, so neither matching means the order is in one
-   * this pass cannot account for — or the write itself failed. Either way the single fact worth having, that
-   * the venue holds this order, is about to be lost, and its rule is free to plan against funds that are
-   * already committed. Since nothing here may guess, it goes to a person while the observation is fresh.
+   * Both releases are conditional on the state they expect, so either can miss, and either can fail. What
+   * must never follow from that is a confirmed order sitting in a state its rule reads as finished: an alert
+   * is acted on at human speed, a rule reactivates in minutes. So anything short of a clean release puts the
+   * order back into quarantine, which is the state this subdomain already treats as "in flight, outcome
+   * open" — no rule plans against it, and the next reconciliation pass simply tries again.
+   *
+   * Returns whether the order was released; a re-quarantined one has not been.
    */
-  private async reportUnappliedObservation(order: LiquidityManagementOrder): Promise<void> {
-    const current = await this.orderRepo.findOneBy({ id: order.id });
+  private async applyConfirmedObservation(order: LiquidityManagementOrder): Promise<boolean> {
+    order.resolveAsSent();
 
-    // Somebody else released it correctly in the meantime — that is the benign way both writes miss.
-    if (
-      current &&
-      [LiquidityManagementOrderStatus.IN_PROGRESS, LiquidityManagementOrderStatus.COMPLETE].includes(current.status)
-    )
-      return;
+    try {
+      if (await this.leaveQuarantine(order)) return true;
+      if (await this.reclaimFromNegativeResolution(order)) return true;
+    } catch (e) {
+      this.logger.error(`Could not record the venue observation for liquidity order ${order.id}:`, e);
+    }
 
+    await this.blockConfirmedOrder(order);
+
+    return false;
+  }
+
+  /**
+   * Put an order the venue has confirmed back where nothing can act on it, and say so.
+   *
+   * Left alone only where the outcome is already safe: in progress or complete means somebody released it
+   * correctly first, still quarantined means it never stopped blocking and the next pass will retry. Every
+   * other state — including one this pass could not even read — is reported, because it is the case where a
+   * live venue order was about to be treated as finished business.
+   */
+  private async blockConfirmedOrder(order: LiquidityManagementOrder): Promise<void> {
     const message =
-      `Liquidity order ${order.id}: the venue confirms reference ${order.correlationId} exists, but that ` +
-      `could not be recorded — the order is ${current?.status ?? 'gone'}. Treat it as live at the venue and ` +
-      `resolve it by hand; its rule must not plan against these funds until it is.`;
+      `Liquidity order ${order.id}: the venue confirms reference ${order.correlationId} exists, but that could ` +
+      `not be recorded as usual. It is held as uncertain — treat it as live at the venue and resolve it by ` +
+      `hand; no rule may plan against these funds until somebody has.`;
+
+    const blocked = await this.orderRepo
+      .update(
+        {
+          id: order.id,
+          status: In([LiquidityManagementOrderStatus.FAILED, LiquidityManagementOrderStatus.NOT_PROCESSABLE]),
+        },
+        { status: LiquidityManagementOrderStatus.UNCERTAIN, errorMessage: message },
+      )
+      .then((result) => Boolean(result.affected))
+      .catch(() => false);
+
+    if (!blocked) {
+      const current = await this.orderRepo.findOneBy({ id: order.id }).catch(() => null);
+      const safe = [
+        LiquidityManagementOrderStatus.IN_PROGRESS,
+        LiquidityManagementOrderStatus.COMPLETE,
+        LiquidityManagementOrderStatus.UNCERTAIN,
+      ];
+
+      if (current && safe.includes(current.status)) return;
+    }
 
     this.logger.error(message);
 
@@ -356,7 +384,7 @@ export class LiquidityManagementPipelineService {
       context: MailContext.LIQUIDITY_MANAGEMENT,
       correlationId: `lm-observation-unapplied-${order.id}`,
       options: { debounce: 3600000 },
-      input: { subject: 'Liquidity management order OBSERVATION LOST', errors: [message] },
+      input: { subject: 'Liquidity management order CONFIRMED BUT NOT RECORDED', errors: [message] },
     });
   }
 
@@ -504,14 +532,14 @@ export class LiquidityManagementPipelineService {
         // Record the observation before refusing. Merely throwing would leave the row quarantined, so a
         // later attempt — made while the venue happens to be unreachable — could still release it and undo
         // what we just saw. Once observed live, the order is no longer a candidate for manual release at all.
-        order.resolveAsSent();
-        // Same precedence as automatic reconciliation: if a negative resolution beat us to the write, take
-        // it back rather than discard what we just observed.
-        if (!(await this.leaveQuarantine(order))) await this.reclaimFromNegativeResolution(order);
+        // Same path as automatic reconciliation, including what happens when that write does not land.
+        const released = await this.applyConfirmedObservation(order);
 
         throw new ConflictException(
           `Liquidity management order ${orderId} cannot be released: the venue confirms the request exists. ` +
-            `It has been returned to in progress and the normal completion check now tracks it.`,
+            (released
+              ? 'It has been returned to in progress and the normal completion check now tracks it.'
+              : 'It could not be returned to in progress and is held as uncertain — it has been reported.'),
         );
       }
     }
