@@ -10,6 +10,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
+import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { In } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
@@ -26,6 +27,12 @@ import { CustodyOrderRepository } from '../repositories/custody-order.repository
 interface CustodyOrderSingle {
   asset: Asset;
   amount: number;
+}
+
+interface DailyFiatValue {
+  chf: number;
+  eur: number;
+  usd: number;
 }
 
 @Injectable()
@@ -203,16 +210,7 @@ export class CustodyService {
       }
 
       // calculate daily portfolio value from current balances and available prices
-      const dailyValue = dayPrices.reduce(
-        (value, price) => {
-          const balance = assetBalancesMap.get(price.asset.id) ?? 0;
-          value.chf += balance * price.priceChf;
-          value.eur += balance * price.priceEur;
-          value.usd += balance * price.priceUsd;
-          return value;
-        },
-        { chf: 0, eur: 0, usd: 0 },
-      );
+      const dailyValue = this.calculateDailyPortfolioValue(dayPrices, assetBalancesMap);
 
       totalValue.push({
         date: new Date(day),
@@ -225,6 +223,33 @@ export class CustodyService {
     }
 
     return { totalValue };
+  }
+
+  /**
+   * Grouping uses UTC (`Util.isoDate`). `asset_price.created` is a local-time
+   * `timestamp without time zone`, so multiple snapshots can land on the same UTC day
+   * (e.g. local post-midnight). Use the latest price per asset for that day.
+   */
+  private calculateDailyPortfolioValue(dayPrices: AssetPrice[], assetBalancesMap: Map<number, number>): DailyFiatValue {
+    const latestPriceByAsset = new Map<number, AssetPrice>();
+
+    for (const price of dayPrices) {
+      const existing = latestPriceByAsset.get(price.asset.id);
+      if (!existing || price.created.getTime() > existing.created.getTime()) {
+        latestPriceByAsset.set(price.asset.id, price);
+      }
+    }
+
+    return [...latestPriceByAsset.values()].reduce(
+      (value, price) => {
+        const balance = assetBalancesMap.get(price.asset.id) ?? 0;
+        value.chf += balance * price.priceChf;
+        value.eur += balance * price.priceEur;
+        value.usd += balance * price.priceUsd;
+        return value;
+      },
+      { chf: 0, eur: 0, usd: 0 },
+    );
   }
 
   async getUserTotalBalancesChf(date: Date): Promise<Map<number, number>> {
