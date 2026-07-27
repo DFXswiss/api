@@ -7,7 +7,9 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  # `write` is required because the release PR is opened with the workflow's own
+  # GITHUB_TOKEN (see the create step) rather than with a personal access token.
+  pull-requests: write
 
 concurrency:
   group: auto-release-pr
@@ -47,7 +49,23 @@ jobs:
       - name: Create Release PR
         if: steps.check-pr.outputs.pr_exists == 'false' && steps.check-diff.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
+          # The release PR must be authored by the Actions bot, not by a person. A personal
+          # access token would put a human's name on an automated PR and tie the automation to
+          # one account's credential lifetime.
+          #
+          # Cost, deliberately accepted: under this repository's Actions approval policy
+          # (`all_external_contributors`), the runs for the `opened` activity — the ones
+          # `github-actions[bot]` triggers by creating the PR — are held. Attempt 1 completes as
+          # `action_required` with zero jobs; a manual approval starts attempt 2, which is what
+          # actually executes. Only those are held: later `synchronize` runs from human pushes to
+          # `develop` execute on attempt 1, and so did the PAT-authored release PRs.
+          #
+          # Consequence for reviewers: a freshly opened release PR shows a mix. Its pending
+          # `pull_request` entries carry no jobs, while other green checks can be `develop` push
+          # runs for the same head commit — real results, but not PR CI against `main`. Approve
+          # the held runs, then check that what you read belongs to the `pull_request` runs for
+          # the current head.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMIT_COUNT: ${{ steps.check-diff.outputs.commit_count }}
         run: |
           printf '%s\n' \
