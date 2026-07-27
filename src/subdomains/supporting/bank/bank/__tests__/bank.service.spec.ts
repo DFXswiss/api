@@ -408,22 +408,29 @@ describe('BankService.getReceiveIbanStatus', () => {
     service = module.get<BankService>(BankService);
   });
 
-  function setup(banks: Bank[], virtualIbansByAccount: Map<number, VirtualIban[]> = new Map()) {
+  // The only shape getReceiveIbanStatus passes to findCachedBy; keeps the mock typed without `any`.
+  type AccountScopedWhere = { userData: { id: number } };
+
+  function setup(banks: Bank[], virtualIbansByAccount: Map<number, VirtualIban[]> = new Map()): void {
     jest.spyOn(bankRepo, 'findCached').mockResolvedValue(banks);
     jest
       .spyOn(virtualIbanRepo, 'findCachedBy')
-      .mockImplementation(async (_key: string, where: any) => virtualIbansByAccount.get(where.userData.id) ?? []);
+      .mockImplementation(
+        async (_key: string | number, where: AccountScopedWhere) => virtualIbansByAccount.get(where.userData.id) ?? [],
+      );
   }
 
-  it('reports a collective account IBAN as a DFX IBAN', async () => {
+  it('reports a collective account IBAN as a DFX IBAN, without asking for personal IBANs', async () => {
+    // A collective account hit short-circuits for a logged-in caller too - no account-scoped lookup happens.
     setup(createDefaultBanks());
 
     await expect(service.getReceiveIbanStatus(olkyEUR.iban, accountId)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
+    expect(virtualIbanRepo.findCachedBy).not.toHaveBeenCalled();
   });
 
   it('reports a collective account IBAN as a DFX IBAN without a login, before ever asking for personal IBANs', async () => {
-    // The most common case by far: a logged-out customer types a collective account IBAN. The bank check must
-    // run before the login check, otherwise this answers LoginRequired for an IBAN we can already confirm.
+    // The bank check must run before the login check, otherwise a logged-out customer gets LoginRequired for
+    // an IBAN we can already confirm.
     setup(createDefaultBanks());
 
     await expect(service.getReceiveIbanStatus(olkyEUR.iban)).resolves.toBe(ReceiveIbanStatus.DFX_IBAN);
@@ -440,7 +447,7 @@ describe('BankService.getReceiveIbanStatus', () => {
   });
 
   it('reports a personal IBAN stored in paper format as a DFX IBAN', async () => {
-    // virtual_iban values arrive unvalidated from provider.reserveViban(), so their format is not guaranteed.
+    // The comparison normalizes stored virtual_iban values as well, so their format need not be guaranteed.
     setup(
       createDefaultBanks(),
       new Map([[accountId, [createCustomVirtualIban({ iban: 'de89 3704 0044 0532 0130 00' })]]]),
@@ -450,7 +457,7 @@ describe('BankService.getReceiveIbanStatus', () => {
   });
 
   it('reports a collective account IBAN with receive=false as a DFX IBAN', async () => {
-    // The customer reports a missing, often old transfer - a retired or closed account still received DFX money.
+    // A retired or closed account still received DFX money, and a missing transfer can predate it being stood down.
     setup([retiredCollectiveAccount]);
 
     await expect(service.getReceiveIbanStatus(retiredCollectiveAccount.iban, accountId)).resolves.toBe(
@@ -489,7 +496,7 @@ describe('BankService.getReceiveIbanStatus', () => {
   });
 
   it('reports a correctly shaped IBAN with a wrong checksum as invalid, not as unmatched', async () => {
-    // A transposed digit keeps the country and length intact, so only the checksum catches it. Answering
+    // A changed digit keeps the country and length intact, so only the checksum catches it. Answering
     // NotMatched here would send a customer looking for a transfer that never left with a typo in the IBAN.
     setup(createDefaultBanks());
 
@@ -540,8 +547,9 @@ describe('BankService.getReceiveIbanStatus', () => {
     );
   });
 
-  // The invisible separators are written as escape sequences on purpose: as literal characters an editor or a
-  // copy-paste would silently turn them back into ordinary spaces, which would void exactly those cases.
+  // The invisible separators are written as escape sequences on purpose: it makes them visible in review and
+  // lowers the risk of an edit or a copy-paste quietly normalizing them into ordinary spaces, which would
+  // void exactly those cases. Writing them literally already went wrong twice here.
   it.each([
     ['an ASCII space', ' '],
     ['a hyphen', '-'],
@@ -556,7 +564,7 @@ describe('BankService.getReceiveIbanStatus', () => {
   ])('recognizes an IBAN grouped with %s', async (_name, separator) => {
     setup([frickEUR], new Map([[accountId, [createCustomVirtualIban({ iban: personalIban })]]]));
 
-    const group = (iban: string) => (iban.match(/.{1,4}/g) ?? []).join(separator);
+    const group = (iban: string): string => (iban.match(/.{1,4}/g) ?? []).join(separator);
 
     await expect(service.getReceiveIbanStatus(group(frickEUR.iban), accountId)).resolves.toBe(
       ReceiveIbanStatus.DFX_IBAN,

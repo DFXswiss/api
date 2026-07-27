@@ -28,8 +28,8 @@ export class BankController {
   @ApiBearerAuth()
   // RateLimitGuard first; the route-level @Throttle below is what sets the limit. Deliberately more generous
   // than the 10/60 on the one-shot endpoints (kyc 2fa/verify, auth mail login): RateLimitGuard buckets IPv4
-  // callers by /24, so everyone behind one company NAT shares this counter, and an IBAN field is re-checked
-  // several times while a customer corrects a typo.
+  // callers by /24, so everyone behind one company NAT shares this counter, and the intended consumer is an
+  // input field meant to be re-checked while a customer corrects a typo.
   @UseGuards(RateLimitGuard, OptionalJwtAuthGuard)
   @Throttle(60, 60)
   @ApiOkResponse({ type: ReceiveIbanDto })

@@ -138,9 +138,9 @@ export class BankService implements OnModuleInit {
     const normalizedIban = BankService.normalizeIban(iban);
     if (!normalizedIban || !IbanTools.validateIBAN(normalizedIban).valid) return ReceiveIbanStatus.INVALID_IBAN;
 
-    // Deliberately not filtered by `receive`: the customer is reporting a missing, often old transfer, so a
-    // hit on a retired or closed account is still money that went to DFX. A receive=true filter would tell a
-    // real customer that their IBAN does not belong to DFX.
+    // Deliberately not filtered by `receive`: a hit on a retired or closed account is still money that went
+    // to DFX, and a missing transfer can predate the account being stood down. A receive=true filter would
+    // tell a real customer that their IBAN does not belong to DFX.
     const banks = await this.getAllBanks();
     if (banks.some((b) => BankService.normalizeIban(b.iban) === normalizedIban)) return ReceiveIbanStatus.DFX_IBAN;
 
