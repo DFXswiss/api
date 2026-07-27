@@ -96,3 +96,15 @@ describe('CheckReceiveIbanDto validation boundary', () => {
     });
   });
 });
+
+// These four strings are the wire contract: the client library carries its own copy of this enum, and the
+// support form derives its wording from it. Comparing enum members would let a renamed value pass here and
+// break at runtime in the browser instead, so the literals are asserted.
+describe('ReceiveIbanStatus wire values', () => {
+  it('serializes to the strings the consumers expect', () => {
+    expect(ReceiveIbanStatus.DFX_IBAN).toBe('DfxIban');
+    expect(ReceiveIbanStatus.NOT_MATCHED).toBe('NotMatched');
+    expect(ReceiveIbanStatus.INVALID_IBAN).toBe('InvalidIban');
+    expect(ReceiveIbanStatus.LOGIN_REQUIRED).toBe('LoginRequired');
+  });
+});

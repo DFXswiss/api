@@ -549,7 +549,7 @@ describe('BankService.getReceiveIbanStatus', () => {
 
   // The invisible separators are written as escape sequences on purpose: it makes them visible in review and
   // lowers the risk of an edit or a copy-paste quietly normalizing them into ordinary spaces, which would
-  // void exactly those cases. Writing them literally already went wrong twice here.
+  // void exactly those cases.
   it.each([
     ['an ASCII space', ' '],
     ['a hyphen', '-'],
