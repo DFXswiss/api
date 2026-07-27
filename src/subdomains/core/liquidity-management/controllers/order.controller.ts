@@ -23,7 +23,7 @@ export class LiquidityManagementOrderController {
     return this.service.getProcessingOrders();
   }
 
-  @Post(':id/resolve-uncertain')
+  @Post(':id/resolveUncertain')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())

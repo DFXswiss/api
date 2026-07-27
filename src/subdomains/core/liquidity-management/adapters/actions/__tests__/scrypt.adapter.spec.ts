@@ -1,6 +1,8 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import {
+  ScryptBalanceTransaction,
+  ScryptOrderInfo,
   ScryptOrderStatus,
   ScryptTransactionStatus,
   ScryptWithdrawStatus,
@@ -16,6 +18,7 @@ import { ScryptService } from 'src/integration/exchange/services/scrypt.service'
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { LiquidityManagementAction } from '../../../entities/liquidity-management-action.entity';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { UncertainOrderResolution } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
@@ -52,6 +55,16 @@ function createUncertainSellOrder(overrides: Partial<LiquidityManagementOrder> =
     action: { command: ScryptAdapterCommands.SELL, paramMap: {} },
     ...overrides,
   });
+}
+
+/** Minimal but fully typed venue order record, so the tests do not have to widen the return type. */
+function venueOrder(id: string, status = ScryptOrderStatus.NEW): ScryptOrderInfo {
+  return { id, symbol: 'EUR/USDT', side: 'Sell', status, quantity: 1, filledQuantity: 0, remainingQuantity: 1 };
+}
+
+/** Typed action stub — `paramMap` is a getter over `params`, so the raw field is what a fixture sets. */
+function withdrawAction(): LiquidityManagementAction {
+  return Object.assign(new LiquidityManagementAction(), { command: ScryptAdapterCommands.WITHDRAW, params: '{}' });
 }
 
 describe('ScryptAdapter', () => {
@@ -225,6 +238,46 @@ describe('ScryptAdapter', () => {
     });
   });
 
+  describe('checkTradeCompletion — recovering a lost adoption', () => {
+    it('adopts a claimed replacement the venue is working before it may write again', async () => {
+      // the window: the venue accepted the replacement, the save that would have recorded it failed, and the
+      // row still names the predecessor the venue has since cancelled
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711-1' ? venueOrder(id) : null));
+      jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await adapter['checkTradeCompletion'](order, 'EUR', 'USDT');
+
+      expect(order.correlationId).toBe('dfx-lm-4711-1');
+      expect(orderRepo.save).toHaveBeenCalled();
+    });
+
+    it('does not adopt a replacement the venue rejected', async () => {
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => venueOrder(id, ScryptOrderStatus.REJECTED));
+      jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await adapter['checkTradeCompletion'](order, 'EUR', 'USDT');
+
+      expect(order.correlationId).toBe('dfx-lm-4711');
+    });
+
+    it('does not quarantine an aged order the venue can still show us, whatever failed downstream', async () => {
+      // otherwise reconciliation hands it straight back and the next check quarantines it again
+      jest.spyOn(scryptService, 'getOrderStatus').mockImplementation(async (id: string) => venueOrder(id));
+      jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new Error('pricing service unavailable'));
+      const old = createUncertainSellOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
+
+      await expect(adapter['checkTradeCompletion'](old, 'EUR', 'USDT')).resolves.toBe(false);
+    });
+  });
+
   describe('checkTradeCompletion — the amend boundary', () => {
     it('quarantines when an amend or restart went unconfirmed, instead of failing the order', async () => {
       // The check can WRITE (cancel-replace, restart). An unconfirmed write there may have created a live
@@ -263,6 +316,7 @@ describe('ScryptAdapter', () => {
 
     it('also stops retrying when the error is a transient transport one', async () => {
       jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new Error('Connection closed'));
+      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
       const old = createUncertainSellOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
 
       await expect(adapter['checkTradeCompletion'](old, 'EUR', 'USDT')).rejects.toBeInstanceOf(
@@ -274,6 +328,9 @@ describe('ScryptAdapter', () => {
       // otherwise it polls for good: the manual path only accepts quarantined orders, so there would be no
       // way out at all
       jest.spyOn(scryptService, 'checkTrade').mockRejectedValue(new Error('malformed market data snapshot'));
+      // and the venue cannot show us the order either — that is what makes it a blind spot rather than a
+      // downstream hiccup
+      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
       const old = createUncertainSellOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
 
       await expect(adapter['checkTradeCompletion'](old, 'EUR', 'USDT')).rejects.toBeInstanceOf(
@@ -339,7 +396,7 @@ describe('ScryptAdapter', () => {
 
   describe('resolveUncertainOrder', () => {
     it('reports SENT when the venue knows the reference', async () => {
-      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue({ id: 'dfx-lm-4711' } as any);
+      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(venueOrder('dfx-lm-4711'));
 
       await expect(adapter.resolveUncertainOrder(createUncertainSellOrder())).resolves.toBe(
         UncertainOrderResolution.SENT,
@@ -372,7 +429,7 @@ describe('ScryptAdapter', () => {
     it('uses the withdrawal lookup for withdraw orders', async () => {
       jest.spyOn(scryptService, 'findWithdrawal').mockResolvedValue(null);
       const order = createUncertainSellOrder({
-        action: { command: ScryptAdapterCommands.WITHDRAW, paramMap: {} } as any,
+        action: withdrawAction(),
       });
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
@@ -380,9 +437,11 @@ describe('ScryptAdapter', () => {
     });
 
     it('reports SENT for a withdraw order the venue does know', async () => {
-      jest.spyOn(scryptService, 'findWithdrawal').mockResolvedValue({ ClReqID: 'dfx-lm-4711' } as any);
+      jest
+        .spyOn(scryptService, 'findWithdrawal')
+        .mockResolvedValue({ ClReqID: 'dfx-lm-4711' } as ScryptBalanceTransaction);
       const order = createUncertainSellOrder({
-        action: { command: ScryptAdapterCommands.WITHDRAW, paramMap: {} } as any,
+        action: withdrawAction(),
       });
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
@@ -392,7 +451,7 @@ describe('ScryptAdapter', () => {
       // the amend boundary: the original is unknown to the venue, the claimed replacement is live
       jest
         .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711-1' ? ({ id } as any) : null));
+        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711-1' ? venueOrder(id) : null));
       const order = createUncertainSellOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
@@ -403,7 +462,7 @@ describe('ScryptAdapter', () => {
     it('reports NOT_SENT when every reference this order sent was rejected — nothing is live', async () => {
       jest
         .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => ({ id, status: ScryptOrderStatus.REJECTED }) as any);
+        .mockImplementation(async (id: string) => venueOrder(id, ScryptOrderStatus.REJECTED));
       const order = createUncertainSellOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
@@ -416,7 +475,7 @@ describe('ScryptAdapter', () => {
       const seen: string[] = [];
       jest.spyOn(scryptService, 'getOrderStatus').mockImplementation(async (id: string) => {
         seen.push(id);
-        return { id, status: ScryptOrderStatus.NEW } as any;
+        return venueOrder(id);
       });
 
       await expect(adapter.resolveUncertainOrder(createUncertainSellOrder())).resolves.toBe(
@@ -430,7 +489,7 @@ describe('ScryptAdapter', () => {
       // report SENT on a superseded reference and leave the live replacement untracked
       jest
         .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? ({ id } as any) : null));
+        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
       const order = createUncertainSellOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
@@ -456,9 +515,7 @@ describe('ScryptAdapter', () => {
     it('prefers the replacement when BOTH it and the superseded original still exist', async () => {
       // The replaced order lingers at the venue in a cancelled state. Matching it first would report SENT
       // and leave the live replacement untracked, with the completion check polling a dead reference.
-      jest
-        .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => ({ id, status: ScryptOrderStatus.NEW }) as any);
+      jest.spyOn(scryptService, 'getOrderStatus').mockImplementation(async (id: string) => venueOrder(id));
       const order = createUncertainSellOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 

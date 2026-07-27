@@ -261,6 +261,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
+    // Before anything may write again: a previous pass may have had its replacement accepted and then failed
+    // to record it, leaving this row pointing at the predecessor the venue has already cancelled. Restarting
+    // from that predecessor would place a second order alongside the live replacement.
+    await this.adoptLiveReplacement(order);
+
     // The check may amend or restart the order, which creates a NEW venue order. Hand it a reference derived
     // from the order row so that a replacement whose confirmation never arrives is still findable — without
     // this, the reconciliation below could not cover the amend boundary even in principle.
@@ -326,15 +331,42 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // accepts quarantined orders, so there would be no way out at all. Past the same age at which the venue
       // itself is considered to have lost an order, it is quarantined — still not declared failed, and now
       // reachable for a human.
-      // Applies to a transient transport error just as much as to any other failure to observe: a socket that
-      // keeps dropping is indistinguishable, from here, from one that will never answer again.
-      if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
+      // Quarantine only for a genuine blind spot. The failure may just as well have come from pricing or from
+      // aggregating the result — on an order the venue can still show us, and quarantining THAT would have
+      // reconciliation hand it straight back, only for the next check to quarantine it again.
+      const stillObservable = await this.scryptService.getOrderStatus(order.correlationId).catch(() => null);
+
+      if (!stillObservable && Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
         throw new OrderOutcomeUnknownException(
           `Scrypt order ${order.id} has been unobservable for over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes: ${e.message}`,
         );
 
       this.logger.warn(`Could not check Scrypt order ${order.id}, will look again next tick: ${e.message}`);
       return false;
+    }
+  }
+
+  /**
+   * Adopt a claimed replacement the venue has accepted but this row never recorded.
+   *
+   * The window is narrow — the venue accepted the replacement and the save that would have adopted it
+   * failed — but its consequence is not: the row still names the predecessor, the venue has cancelled that
+   * one, and the next check would happily restart from it while the replacement is live.
+   */
+  private async adoptLiveReplacement(order: LiquidityManagementOrder): Promise<void> {
+    const claimed = this.attemptedReferencesNewestFirst(order).filter((reference) => reference !== order.correlationId);
+
+    for (const reference of claimed) {
+      const info = await this.scryptService.getOrderStatus(reference).catch(() => null);
+      if (!info || info.status === ScryptOrderStatus.REJECTED) continue;
+
+      this.logger.warn(
+        `Order ${order.id} still named ${order.correlationId}, but the venue is working ${reference} — adopting it`,
+      );
+      order.updateCorrelationId(reference);
+      await this.orderRepo.save(order);
+
+      return;
     }
   }
 

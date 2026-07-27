@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
 
 /**
  * Manual release of an order whose outcome the venue could not confirm.
@@ -25,6 +27,7 @@ export class ResolveUncertainOrderDto {
   @ApiProperty({ description: 'Where that was checked, so the decision can be audited later.' })
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trimAll)
   @MinLength(3)
   @MaxLength(1024)
   verificationReference: string;
