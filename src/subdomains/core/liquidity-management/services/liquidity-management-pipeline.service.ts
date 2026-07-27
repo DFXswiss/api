@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In } from 'typeorm';
+import { In, Like } from 'typeorm';
 import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -21,6 +21,12 @@ import { LiquidityManagementOrderRepository } from '../repositories/liquidity-ma
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementService } from './liquidity-management.service';
+
+/**
+ * Stamped onto every failure that comes from concluding a request was never sent — as opposed to one the
+ * venue actually ended. Only a failure carrying this can be taken back by a later positive observation.
+ */
+const UNSENT_RESOLUTION_MARKER = '[resolved-as-not-sent]';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -293,7 +299,9 @@ export class LiquidityManagementPipelineService {
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
           }
         } else if (resolution === UncertainOrderResolution.NOT_SENT) {
-          order.resolveAsNotSent(`${order.errorMessage} (venue confirmed the request never arrived)`);
+          order.resolveAsNotSent(
+            `${order.errorMessage} (venue confirmed the request never arrived) ${UNSENT_RESOLUTION_MARKER}`,
+          );
           if (await this.leaveQuarantine(order)) {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue never received it`);
@@ -345,7 +353,14 @@ export class LiquidityManagementPipelineService {
    */
   private async reclaimFromNegativeResolution(order: LiquidityManagementOrder): Promise<boolean> {
     const result = await this.orderRepo.update(
-      { id: order.id, status: LiquidityManagementOrderStatus.FAILED },
+      // Narrowed to failures written BY a not-sent resolution. Matching any failed row would resurrect an
+      // order that ended for an entirely unrelated reason — the reclaim exists to overrule a judgement, not
+      // to overrule the venue.
+      {
+        id: order.id,
+        status: LiquidityManagementOrderStatus.FAILED,
+        errorMessage: Like(`%${UNSENT_RESOLUTION_MARKER}%`),
+      },
       {
         status: LiquidityManagementOrderStatus.IN_PROGRESS,
         errorMessage: `${order.errorMessage} (reinstated: the venue confirmed this request exists after it had been resolved as not executed)`,
@@ -446,7 +461,9 @@ export class LiquidityManagementPipelineService {
         // later attempt — made while the venue happens to be unreachable — could still release it and undo
         // what we just saw. Once observed live, the order is no longer a candidate for manual release at all.
         order.resolveAsSent();
-        await this.leaveQuarantine(order);
+        // Same precedence as automatic reconciliation: if a negative resolution beat us to the write, take
+        // it back rather than discard what we just observed.
+        if (!(await this.leaveQuarantine(order))) await this.reclaimFromNegativeResolution(order);
 
         throw new ConflictException(
           `Liquidity management order ${orderId} cannot be released: the venue confirms the request exists. ` +
@@ -456,7 +473,7 @@ export class LiquidityManagementPipelineService {
     }
 
     order.resolveAsNotSent(
-      `${order.errorMessage} (manually resolved by account ${resolvedBy}: venue checked, no execution found — ${verificationReference})`,
+      `${order.errorMessage} (manually resolved by account ${resolvedBy}: venue checked, no execution found — ${verificationReference}) ${UNSENT_RESOLUTION_MARKER}`,
     );
 
     if (!(await this.leaveQuarantine(order)))

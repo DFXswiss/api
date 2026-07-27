@@ -7,6 +7,7 @@ import {
 import {
   ScryptMessageType,
   ScryptRequestTimeoutError,
+  ScryptOrderNotFoundError,
   ScryptUnconfirmedWriteError,
   ScryptVenueRejectionError,
   ScryptWebSocketConnection,
@@ -582,6 +583,28 @@ describe('ScryptService', () => {
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toMatchObject({
         reference: 'dfx-lm-7-1',
       });
+    });
+
+    it('gives up on an order stuck pending past the age bound, as unknown rather than failed', async () => {
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+
+      await expect(
+        service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 120 * 60 * 1000)),
+      ).rejects.toBeInstanceOf(ScryptOrderNotFoundError);
+    });
+
+    it('keeps waiting on a pending order that is still young', async () => {
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
     });
 
     it('cancels on an explicit rejection, but reports the refusal and the spent reference', async () => {

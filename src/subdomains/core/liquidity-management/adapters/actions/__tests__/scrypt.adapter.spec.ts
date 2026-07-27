@@ -28,6 +28,8 @@ const DEST_ENV = 'TEST_SCRYPT_WITHDRAW_ADDR';
 function createWithdrawOrder(overrides: Partial<LiquidityManagementOrder> = {}): LiquidityManagementOrder {
   return Object.assign(new LiquidityManagementOrder(), {
     correlationId: 'corr-1',
+    // young enough that an unobservable withdrawal is still waited on rather than quarantined
+    created: new Date(),
     action: {
       command: ScryptAdapterCommands.WITHDRAW,
       paramMap: {
@@ -152,6 +154,21 @@ describe('ScryptAdapter', () => {
       expect(result).toBe(true);
       expect(order.outputAmount).toBe(3.25);
       expect(dexService.checkTransferCompletion).toHaveBeenCalledWith('0xsuccess', Blockchain.ETHEREUM);
+    });
+  });
+
+  describe('checkWithdrawCompletion — unobservable withdrawals', () => {
+    it('quarantines a withdrawal whose terminal update never arrives, instead of polling for good', async () => {
+      jest.spyOn(scryptService, 'getWithdrawalStatus').mockResolvedValue(null);
+      const old = createWithdrawOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
+
+      await expect(adapter.checkCompletion(old)).rejects.toBeInstanceOf(OrderOutcomeUnknownException);
+    });
+
+    it('still just waits while the withdrawal is young', async () => {
+      jest.spyOn(scryptService, 'getWithdrawalStatus').mockResolvedValue(null);
+
+      await expect(adapter.checkCompletion(createWithdrawOrder({ created: new Date() }))).resolves.toBe(false);
     });
   });
 
@@ -369,6 +386,16 @@ describe('ScryptAdapter', () => {
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
       expect(order.correlationId).toBe('dfx-lm-4711-1');
+    });
+
+    it('reports NOT_SENT when every reference this order sent was rejected — nothing is live', async () => {
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => ({ id, status: ScryptOrderStatus.REJECTED }) as any);
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.NOT_SENT);
     });
 
     it('checks the reference that was actually sent, never a synthesised future one', async () => {

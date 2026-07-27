@@ -595,6 +595,21 @@ export class ScryptService extends PricingProvider {
         throw new TradeChangedException(response.id);
       }
 
+      case ScryptOrderStatus.PENDING_NEW:
+      case ScryptOrderStatus.PENDING_CANCEL:
+      case ScryptOrderStatus.PENDING_REPLACE: {
+        // A pending report that never turns terminal — because the update was missed — would otherwise be
+        // answered "not complete" for good. Past the age at which an unfindable order is given up on, treat
+        // it the same way: unknown, not failed.
+        const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
+        if (ageMinutes > 60)
+          throw new ScryptOrderNotFoundError(
+            `Order ${clOrdId} has been ${orderInfo.status} for ${Math.round(ageMinutes)} minutes — its terminal update was never seen`,
+          );
+
+        return false;
+      }
+
       case ScryptOrderStatus.FILLED:
         this.logger.verbose(`Order ${clOrdId} filled`);
         return true;

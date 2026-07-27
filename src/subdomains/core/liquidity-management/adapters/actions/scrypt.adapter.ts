@@ -227,6 +227,14 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
 
     if (!withdrawal?.txHash) {
+      // Same bound as the trade path: an acknowledged withdrawal whose terminal update is never seen would
+      // otherwise be answered "not complete" for good, and the manual path only accepts quarantined orders,
+      // so there would be no way out at all. Not a verdict — the order is still not declared failed.
+      if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
+        throw new OrderOutcomeUnknownException(
+          `Scrypt withdrawal ${correlationId} has had no terminal update for over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes`,
+        );
+
       this.logger.verbose(`No withdrawal id for id ${correlationId} at ${this.scryptService.name} found`);
       return false;
     }
@@ -513,6 +521,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const { correlationId } = order;
     if (!correlationId) return UncertainOrderResolution.UNRESOLVED;
 
+    let allAttemptsRejected = false;
+
     try {
       if (order.action.command === ScryptAdapterCommands.WITHDRAW) {
         const withdrawal = await this.scryptService.findWithdrawal(correlationId);
@@ -525,6 +535,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // exists at the venue in a cancelled state — checking oldest first would match that, report SENT and
         // leave the live replacement untracked while the completion check polls a superseded reference.
         const candidates = this.attemptedReferencesNewestFirst(order);
+        let rejectedCount = 0;
 
         for (const candidate of candidates) {
           const info = await this.scryptService.getOrderStatus(candidate);
@@ -543,6 +554,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
           // which an older reference may be considered.
           if (info.status === ScryptOrderStatus.REJECTED) {
             order.recordSpentCorrelationId(candidate);
+            rejectedCount++;
             continue;
           }
 
@@ -552,6 +564,16 @@ export class ScryptAdapter extends LiquidityActionAdapter {
           this.logger.info(`Scrypt confirmed reference ${candidate} exists; order ${order.id} was sent`);
           return UncertainOrderResolution.SENT;
         }
+
+        allAttemptsRejected = candidates.length > 0 && rejectedCount === candidates.length;
+      }
+
+      // Every reference this order put on the wire came back rejected. Nothing was ever created, so unlike
+      // mere absence this IS a definitive negative — and leaving it unresolved would query a settled outcome
+      // forever while the rule stays blocked.
+      if (allAttemptsRejected) {
+        this.logger.info(`Scrypt rejected every reference of order ${order.id}; nothing was executed`);
+        return UncertainOrderResolution.NOT_SENT;
       }
 
       // Absence is NOT proof. A snapshot without the reference may simply predate the venue registering it,
