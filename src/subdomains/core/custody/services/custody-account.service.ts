@@ -24,14 +24,14 @@ export type CustodyAccountId = number | typeof LegacyAccountId;
 export const PG_INTEGER_MAX = 2_147_483_647;
 
 /**
- * Owner-scoped advisory lock key for legacy materialisation.
+ * Owner-scoped advisory lock key for ordinary creation vs legacy materialisation.
  * Must stay identical everywhere — a second key scheme would re-open races.
  */
 function custodyLegacyMaterializeLockKey(ownerAccountId: number): string {
   return `custody-legacy-materialize:${ownerAccountId}`;
 }
 
-/** Transaction-scoped advisory lock serialising concurrent legacy materialisations. */
+/** Transaction-scoped advisory lock serialising concurrent creation and legacy materialisations. */
 async function acquireCustodyLegacyMaterializeLock(manager: EntityManager, ownerAccountId: number): Promise<void> {
   await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [custodyLegacyMaterializeLockKey(ownerAccountId)]);
 }
@@ -83,9 +83,14 @@ export class CustodyAccountService {
     return custodyAccounts;
   }
 
+  /**
+   * Resolves an account for authorisation. Only ACTIVE accounts are visible —
+   * Blocked/Closed are treated as missing so status cannot be bypassed via id.
+   * Shared by checkAccess and requireOwner so every auth path is covered once.
+   */
   async getCustodyAccountById(custodyAccountId: number): Promise<CustodyAccount> {
     const custodyAccount = await this.custodyAccountRepo.findOne({
-      where: { id: custodyAccountId },
+      where: { id: custodyAccountId, status: CustodyAccountStatus.ACTIVE },
       relations: { owner: true },
     });
 
@@ -144,7 +149,12 @@ export class CustodyAccountService {
   async createCustodyAccount(accountId: number, title: string, description?: string): Promise<CustodyAccount> {
     const owner = await this.userDataService.getActiveUserData(accountId);
 
-    return this.persistCustodyAccount(this.custodyAccountRepo.manager, owner, title, description);
+    // Same owner-scoped lock as grantAccessForLegacy so ordinary create cannot race
+    // materialisation (check-zero → insert) and leave two accounts + a legacy grant.
+    return this.custodyAccountRepo.manager.transaction(async (manager) => {
+      await acquireCustodyLegacyMaterializeLock(manager, accountId);
+      return this.persistCustodyAccount(manager, owner, title, description);
+    });
   }
 
   // --- UPDATE --- //
@@ -259,8 +269,22 @@ export class CustodyAccountService {
     return users[0];
   }
 
+  /**
+   * Owner-only authorisation for grant management. Missing, non-active and foreign
+   * accounts all yield the same Forbidden so callers cannot probe existence (403 vs 404).
+   * NotFound for missing grant rows stays downstream after ownership is established.
+   */
   private async requireOwner(custodyAccountId: number, accountId: number): Promise<CustodyAccount> {
-    const custodyAccount = await this.getCustodyAccountById(custodyAccountId);
+    let custodyAccount: CustodyAccount;
+    try {
+      custodyAccount = await this.getCustodyAccountById(custodyAccountId);
+    } catch (e) {
+      if (e instanceof NotFoundException) {
+        throw new ForbiddenException('Only the account owner can manage access grants');
+      }
+      throw e;
+    }
+
     if (custodyAccount.owner.id !== accountId) {
       throw new ForbiddenException('Only the account owner can manage access grants');
     }
