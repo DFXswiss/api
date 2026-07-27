@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -17,11 +18,15 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { CreateCustodyAccountAccessDto } from '../dto/input/create-custody-account-access.dto';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
+import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
 import { UpdateCustodyAccountAccessDto } from '../dto/input/update-custody-account-access.dto';
 import { UpdateCustodyAccountDto } from '../dto/input/update-custody-account.dto';
 import { CustodyAccountAccessDto, CustodyAccountDto } from '../dto/output/custody-account.dto';
+import { CustodyBalanceDto, CustodyHistoryDto } from '../dto/output/custody-balance.dto';
+import { CustodyOrderHistoryDto } from '../dto/output/custody-order-history.dto';
 import { CustodyAccessLevel } from '../enums/custody';
 import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from '../guards/custody-account-access.guard';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
@@ -31,11 +36,19 @@ import {
   LegacyAccountId,
   PG_INTEGER_MAX,
 } from '../services/custody-account.service';
+import { CustodyOrderService } from '../services/custody-order.service';
+import { CustodyPdfService } from '../services/custody-pdf.service';
+import { CustodyService } from '../services/custody.service';
 
 @ApiTags('Custody')
 @Controller('custody/account')
 export class CustodyAccountController {
-  constructor(private readonly custodyAccountService: CustodyAccountService) {}
+  constructor(
+    private readonly custodyAccountService: CustodyAccountService,
+    private readonly custodyService: CustodyService,
+    private readonly custodyOrderService: CustodyOrderService,
+    private readonly custodyPdfService: CustodyPdfService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -95,6 +108,63 @@ export class CustodyAccountController {
     );
 
     return CustodyAccountDtoMapper.toDto(custodyAccount, CustodyAccessLevel.WRITE);
+  }
+
+  @Get(':id/balance')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
+  @ApiOkResponse({ type: CustodyBalanceDto })
+  async getAccountBalance(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyBalanceDto> {
+    const ownerAccountId = await this.custodyAccountService.resolveOwnerAccountId(
+      this.parseCustodyAccountId(id),
+      jwt.account,
+    );
+
+    return this.custodyService.getUserCustodyBalance(ownerAccountId);
+  }
+
+  @Get(':id/history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
+  @ApiOkResponse({ type: CustodyHistoryDto })
+  async getAccountHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyHistoryDto> {
+    const ownerAccountId = await this.custodyAccountService.resolveOwnerAccountId(
+      this.parseCustodyAccountId(id),
+      jwt.account,
+    );
+
+    return this.custodyService.getUserCustodyHistory(ownerAccountId);
+  }
+
+  @Get(':id/order')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
+  @ApiOkResponse({ type: CustodyOrderHistoryDto, isArray: true })
+  async getAccountOrders(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyOrderHistoryDto[]> {
+    const ownerAccountId = await this.custodyAccountService.resolveOwnerAccountId(
+      this.parseCustodyAccountId(id),
+      jwt.account,
+    );
+
+    return this.custodyOrderService.getOrdersByUserData(ownerAccountId);
+  }
+
+  @Get(':id/pdf')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
+  @ApiOkResponse({ type: PdfDto, description: 'Custody balance PDF report (base64 encoded)' })
+  async getAccountPdf(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Query() dto: GetCustodyPdfDto,
+  ): Promise<PdfDto> {
+    const ownerAccountId = await this.custodyAccountService.resolveOwnerAccountId(
+      this.parseCustodyAccountId(id),
+      jwt.account,
+    );
+
+    const pdfData = await this.custodyPdfService.generateCustodyPdf(ownerAccountId, dto);
+    return { pdfData };
   }
 
   @Get(':id/access')

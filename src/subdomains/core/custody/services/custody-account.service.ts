@@ -145,6 +145,29 @@ export class CustodyAccountService {
     return { custodyAccount, isLegacy: false };
   }
 
+  /**
+   * Resolves a custody account to its owner's user_data id for data reads.
+   * Today an account is the owner's entire Safe — no per-account attribution exists
+   * (balances/orders never set accountId). Once they carry an account, callers must filter by it.
+   */
+  async resolveOwnerAccountId(custodyAccountId: CustodyAccountId, callerAccountId: number): Promise<number> {
+    const { custodyAccount, isLegacy } = await this.checkAccess(
+      custodyAccountId,
+      callerAccountId,
+      CustodyAccessLevel.READ,
+    );
+
+    if (isLegacy) {
+      return callerAccountId;
+    }
+
+    if (!custodyAccount) {
+      throw new NotFoundException('Custody account not found');
+    }
+
+    return custodyAccount.owner.id;
+  }
+
   // --- CREATE --- //
   async createCustodyAccount(accountId: number, title: string, description?: string): Promise<CustodyAccount> {
     const owner = await this.userDataService.getActiveUserData(accountId);
