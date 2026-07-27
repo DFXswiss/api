@@ -26,6 +26,19 @@ import { LiquidityManagementService } from './liquidity-management.service';
 export class LiquidityManagementPipelineService {
   private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
 
+  /**
+   * Confirmed venue observations this process has not managed to write down yet.
+   *
+   * A statement that fails must not be the end of one. The order it belongs to would stay terminal while the
+   * venue works it, and nothing selects a terminal row again — so the write is kept and simply retried until
+   * it lands. A retry here asks the venue nothing; it only repeats what is already known.
+   *
+   * Held in memory on purpose. The alternative is a durable queue whose rows nothing ever drains, and the
+   * case this cannot cover — the process ending first — is the case the alert raised alongside it covers:
+   * somebody has been told, by name and reference, to treat the order as live.
+   */
+  private readonly unappliedObservations = new Map<number, LiquidityManagementOrder>();
+
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly orderRepo: LiquidityManagementOrderRepository,
@@ -276,6 +289,10 @@ export class LiquidityManagementPipelineService {
    * stays put: an order nobody can account for is safer parked than retried.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
+    // First: anything this process observed and could not write. Retried before new lookups, because an
+    // order the venue has confirmed sitting in a terminal state is the one thing here that cannot wait.
+    for (const unapplied of [...this.unappliedObservations.values()]) await this.blockConfirmedOrder(unapplied);
+
     const orders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.UNCERTAIN });
     let anyChanged = false;
 
@@ -292,7 +309,8 @@ export class LiquidityManagementPipelineService {
           // The one exception to "a release waits for the venue": there is no lookup for this order at all,
           // so the answer it would wait for can never come, and waiting would quarantine it for good. The
           // operator's judgement is all there is, which is why the assertion behind it is required.
-          if (releasePending) await this.completeNotSentRelease(order, 'no integration can look it up');
+          if (releasePending && (await this.completeNotSentRelease(order, 'no integration can look it up')))
+            anyChanged = true;
           continue;
         }
 
@@ -390,14 +408,17 @@ export class LiquidityManagementPipelineService {
       LiquidityManagementOrderStatus.COMPLETE,
       LiquidityManagementOrderStatus.UNCERTAIN,
     ];
-    if (current && safe.includes(current.status)) return;
+    if (current && safe.includes(current.status)) {
+      this.unappliedObservations.delete(order.id);
+      return;
+    }
 
     const message =
       `Liquidity order ${order.id}: the venue confirms reference ${order.correlationId} exists, but that could ` +
       `not be recorded as usual. It is held as uncertain — treat it as live at the venue and resolve it by ` +
       `hand; no rule may plan against these funds until somebody has.`;
 
-    await this.orderRepo
+    const blocked = await this.orderRepo
       .update(
         // Guarded on the exact reason just read: between that read and this write another path can have
         // replaced it, and appending to the older copy would erase whatever it now says.
@@ -417,7 +438,13 @@ export class LiquidityManagementPipelineService {
             }
           : { status: LiquidityManagementOrderStatus.UNCERTAIN },
       )
-      .catch(() => undefined);
+      .then((result) => Boolean(result.affected))
+      .catch(() => false);
+
+    // Kept for the next pass if it did not land. Dropping it here is what would let a confirmed order stay
+    // terminal on the strength of one failed statement.
+    if (blocked) this.unappliedObservations.delete(order.id);
+    else this.unappliedObservations.set(order.id, order);
 
     this.logger.error(message);
 

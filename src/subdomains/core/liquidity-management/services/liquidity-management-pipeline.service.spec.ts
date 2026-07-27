@@ -289,7 +289,8 @@ describe('LiquidityManagementPipelineService', () => {
       const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
       jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
 
-      await service['resolveUncertainOrders']();
+      // and the pass reports the change, so the caller's loop knows something moved
+      await expect(service['resolveUncertainOrders']()).resolves.toBe(true);
 
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({ id: 9, notSentRecheckDue: new Date('2026-07-27T20:00:00Z') }),
@@ -343,6 +344,55 @@ describe('LiquidityManagementPipelineService', () => {
 
       expect(update.mock.calls[1][1]).toMatchObject({ status: LiquidityManagementOrderStatus.UNCERTAIN });
       expect(notificationService.sendMail).toHaveBeenCalled();
+    });
+
+    it('keeps retrying a confirmed observation whose repair write failed, until it lands', async () => {
+      // one failed statement must not be the end of an observation: the order would stay terminal while the
+      // venue works it, and nothing selects a terminal row again
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder()]);
+      jest
+        .spyOn(orderRepo, 'findOneBy')
+        .mockResolvedValue(uncertainOrder({ status: LiquidityManagementOrderStatus.FAILED }));
+      const update = jest
+        .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] }) // the release misses
+        .mockRejectedValueOnce(new Error('deadlock detected')) // and the repair fails
+        .mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      stubIntegration(UncertainOrderResolution.SENT);
+
+      await service['resolveUncertainOrders']();
+      expect(service['unappliedObservations'].size).toBe(1);
+
+      // the next pass repeats the write before it asks the venue anything
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([]);
+      await service['resolveUncertainOrders']();
+
+      expect(update).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ status: LiquidityManagementOrderStatus.UNCERTAIN }),
+      );
+      expect(service['unappliedObservations'].size).toBe(0);
+    });
+
+    it('stops retrying once another path has put the order somewhere safe', async () => {
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder()]);
+      jest
+        .spyOn(orderRepo, 'findOneBy')
+        .mockResolvedValueOnce(uncertainOrder({ status: LiquidityManagementOrderStatus.FAILED }))
+        .mockResolvedValue(uncertainOrder({ status: LiquidityManagementOrderStatus.IN_PROGRESS }));
+      jest
+        .spyOn(orderRepo, 'update')
+        .mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] })
+        .mockRejectedValueOnce(new Error('deadlock detected'));
+      stubIntegration(UncertainOrderResolution.SENT);
+
+      await service['resolveUncertainOrders']();
+      expect(service['unappliedObservations'].size).toBe(1);
+
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([]);
+      await service['resolveUncertainOrders']();
+
+      expect(service['unappliedObservations'].size).toBe(0);
     });
 
     it('reports a confirmed order whose state it cannot even read', async () => {
