@@ -303,7 +303,7 @@ describe('UserDataService', () => {
       stepId = 0;
     });
 
-    it('runs DFX approval mutations on the merge manager and invalidates the vIBAN cache only after commit', async () => {
+    it('runs DFX approval only after the atomic merge commits', async () => {
       const master = buildAccount(1000, 50);
       const slave = buildAccount(2000, 20);
       const slaveStep = buildStep(KycStepName.CONTACT_DATA, 0);
@@ -330,10 +330,9 @@ describe('UserDataService', () => {
           return result;
         },
       );
-      kycService.checkDfxApprovalInTransaction.mockImplementation(async (_userData, manager) => {
-        expect(transactionActive).toBe(true);
-        expect(manager).toBe(mergeManager);
-        return null;
+      kycService.checkDfxApproval.mockImplementation(async () => {
+        expect(transactionActive).toBe(false);
+        expect(committed).toBe(true);
       });
       virtualIbanService.invalidateCacheAfterMerge.mockImplementation(() => {
         expect(transactionActive).toBe(false);
@@ -342,7 +341,7 @@ describe('UserDataService', () => {
 
       await service.mergeUserData(master.id, slave.id);
 
-      expect(kycService.checkDfxApprovalInTransaction).toHaveBeenCalledWith(master, mergeManager);
+      expect(kycService.checkDfxApproval).toHaveBeenCalledWith(master);
       expect(virtualIbanService.invalidateCacheAfterMerge).toHaveBeenCalledTimes(1);
     });
 
@@ -983,7 +982,7 @@ describe('UserDataService', () => {
       expect(userDataNotificationService.userDataAddedAddressInfo).not.toHaveBeenCalled();
     });
 
-    it('logs contextual completion markers, attempts remaining effects, and fails loudly after a post-commit failure', async () => {
+    it('records a failed post-commit effect, attempts the rest, and still reports the committed merge as complete', async () => {
       const master = Object.assign(new UserData(), {
         id: 1000,
         kycLevel: 50,
@@ -1014,7 +1013,9 @@ describe('UserDataService', () => {
       kycAdminService.getKycSteps.mockResolvedValue([]);
       documentService.copyFiles.mockRejectedValue(new Error('storage unavailable'));
       webhookService.accountChanged.mockResolvedValue(undefined);
-      kycNotificationService.kycChanged.mockResolvedValue(undefined);
+      kycNotificationService.kycChangedStrict.mockResolvedValue(undefined);
+      userDataNotificationService.userDataChangedMailInfoStrict.mockRejectedValue(new Error('mail unavailable'));
+      userDataNotificationService.userDataAddedAddressInfoStrict.mockResolvedValue(undefined);
       jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
       jest
         .spyOn(service as unknown as { updateBankTxTime: () => Promise<void> }, 'updateBankTxTime')
@@ -1022,15 +1023,24 @@ describe('UserDataService', () => {
       const infoSpy = jest.spyOn((service as any).logger, 'info').mockImplementation(() => undefined);
       const criticalSpy = jest.spyOn((service as any).logger, 'critical').mockImplementation(() => undefined);
 
-      await expect(service.mergeUserData(master.id, slave.id)).rejects.toThrow(
-        `UserData merge ${slave.id} into ${master.id} committed with failed post-commit effects: document copy`,
-      );
+      await expect(service.mergeUserData(master.id, slave.id, undefined, true)).resolves.toBeUndefined();
 
       expect(webhookService.accountChanged).toHaveBeenCalledWith(master, slave);
-      expect(kycNotificationService.kycChanged).toHaveBeenCalledWith(master);
+      expect(kycNotificationService.kycChangedStrict).toHaveBeenCalledWith(master);
+      expect(userDataNotificationService.userDataChangedMailInfoStrict).toHaveBeenCalledWith(
+        expect.objectContaining({ id: master.id, mail: 'master@example.com' }),
+        slave,
+      );
+      expect(userDataNotificationService.userDataAddedAddressInfoStrict).toHaveBeenCalledWith(master, slave);
       expect(criticalSpy).toHaveBeenCalledWith(
         expect.stringContaining(`masterId=${master.id}, slaveId=${slave.id}, effect=document copy`),
         expect.any(Error),
+      );
+      expect(criticalSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `UserData merge completed with failed post-commit effects (masterId=${master.id}, ` +
+            `slaveId=${slave.id}, failedEffects=changed-mail notification,document copy)`,
+        ),
       );
       expect(infoSpy).toHaveBeenCalledWith(
         expect.stringContaining('UserData merge committed; starting post-commit effects'),

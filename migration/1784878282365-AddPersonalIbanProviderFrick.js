@@ -40,6 +40,8 @@ module.exports = class AddPersonalIbanProviderFrick1784878282365 {
         "userDataId" integer NOT NULL,
         "currencyId" integer NOT NULL,
         "bankId" integer NOT NULL,
+        "provider" character varying(256) NOT NULL DEFAULT 'Bank Frick',
+        "buyId" integer,
         "status" character varying(32) NOT NULL,
         "externalIban" character varying(34),
         "error" text,
@@ -48,7 +50,10 @@ module.exports = class AddPersonalIbanProviderFrick1784878282365 {
       )`,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_b2192a6137c2bf4227da3fad6f" ON "virtual_iban_issuance_intent" ("userDataId", "currencyId", "bankId") `,
+      `CREATE UNIQUE INDEX "IDX_b2192a6137c2bf4227da3fad6f" ON "virtual_iban_issuance_intent" ("userDataId", "currencyId", "bankId") WHERE "buyId" IS NULL`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_a2bc742d45eed31bb95b7ae704" ON "virtual_iban_issuance_intent" ("buyId", "currencyId", "bankId") WHERE "buyId" IS NOT NULL`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_da5b830c24dbb7b9eb62c44408" ON "virtual_iban_issuance_intent" ("userDataId") `,
@@ -58,6 +63,9 @@ module.exports = class AddPersonalIbanProviderFrick1784878282365 {
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_659351abecd8dfb6f4c5a78c7b" ON "virtual_iban_issuance_intent" ("bankId") `,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_d13a086240fde776387b9a5ee7" ON "virtual_iban_issuance_intent" ("buyId") `,
     );
 
     await queryRunner.query(
@@ -109,9 +117,11 @@ module.exports = class AddPersonalIbanProviderFrick1784878282365 {
     await queryRunner.query(`DROP INDEX "public"."IDX_580678e6381e31186dc016daa8"`);
     await queryRunner.query(`DROP TABLE "virtual_iban_issuance_event"`);
 
+    await queryRunner.query(`DROP INDEX "public"."IDX_d13a086240fde776387b9a5ee7"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_659351abecd8dfb6f4c5a78c7b"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_54fcaf3b2e029ba042672d82c8"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_da5b830c24dbb7b9eb62c44408"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_a2bc742d45eed31bb95b7ae704"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_b2192a6137c2bf4227da3fad6f"`);
     await queryRunner.query(`DROP TABLE "virtual_iban_issuance_intent"`);
 

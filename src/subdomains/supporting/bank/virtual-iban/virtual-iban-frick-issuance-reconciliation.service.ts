@@ -5,6 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FrickVibanProvider } from 'src/subdomains/supporting/bank/virtual-iban/providers/frick-viban.provider';
 import { VirtualIbanIssuanceEvent } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-event.entity';
 import {
@@ -155,6 +156,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
   private async runPhase1StuckIntents(listingCache: Map<number, FrickVirtualIbansFetchResult>): Promise<void> {
     const loadedIntents = await this.dataSource.getRepository(VirtualIbanIssuanceIntent).find({
       where: {
+        provider: IbanBankName.FRICK,
         status: In([VirtualIbanIssuanceIntentStatus.IN_FLIGHT, VirtualIbanIssuanceIntentStatus.FAILED]),
       },
     });

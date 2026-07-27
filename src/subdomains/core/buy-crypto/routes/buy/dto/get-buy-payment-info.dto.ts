@@ -21,10 +21,9 @@ import { XOR } from 'src/shared/validators/xor.validator';
 import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { PersonalIbanProvider } from './personal-iban-provider.enum';
 
-export enum PersonalIbanProvider {
-  FRICK = 'Frick',
-}
+export { PersonalIbanProvider } from './personal-iban-provider.enum';
 
 export class GetBuyPaymentInfoDto {
   @ApiPropertyOptional()

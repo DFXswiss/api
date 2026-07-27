@@ -1,5 +1,6 @@
 import { Column, Entity, Index } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 
 export enum VirtualIbanIssuanceIntentStatus {
   PENDING = 'Pending',
@@ -9,9 +10,16 @@ export enum VirtualIbanIssuanceIntentStatus {
 }
 
 @Entity()
-@Index((intent: VirtualIbanIssuanceIntent) => [intent.userDataId, intent.currencyId, intent.bankId], { unique: true })
+@Index((intent: VirtualIbanIssuanceIntent) => [intent.userDataId, intent.currencyId, intent.bankId], {
+  unique: true,
+  where: '"buyId" IS NULL',
+})
+@Index((intent: VirtualIbanIssuanceIntent) => [intent.buyId, intent.currencyId, intent.bankId], {
+  unique: true,
+  where: '"buyId" IS NOT NULL',
+})
 export class VirtualIbanIssuanceIntent extends IEntity {
-  /** Non-PII technical reference used as Bank Frick `description` for crash recovery. */
+  /** Non-PII claim reference; Bank Frick also uses it as its recoverable `description`. */
   @Column({ length: 64, unique: true })
   requestReference: string;
 
@@ -26,6 +34,13 @@ export class VirtualIbanIssuanceIntent extends IEntity {
   @Index()
   @Column({ type: 'integer' })
   bankId: number;
+
+  @Column({ type: 'varchar', length: 256, default: IbanBankName.FRICK })
+  provider: IbanBankName = IbanBankName.FRICK;
+
+  @Index()
+  @Column({ type: 'integer', nullable: true })
+  buyId: number | null;
 
   // Explicit type even though the enum is same-file today: keeps the column independent of
   // emitDecoratorMetadata if the enum is ever moved (same trap as previousStatus/nextStatus).

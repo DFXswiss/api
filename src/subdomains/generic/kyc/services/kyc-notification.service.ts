@@ -166,6 +166,14 @@ export class KycNotificationService {
   }
 
   async kycChanged(userData: UserData, newLevel?: KycLevel): Promise<void> {
+    return this.sendKycChanged(userData, newLevel, false);
+  }
+
+  async kycChangedStrict(userData: UserData, newLevel?: KycLevel): Promise<void> {
+    return this.sendKycChanged(userData, newLevel, true);
+  }
+
+  private async sendKycChanged(userData: UserData, newLevel: KycLevel | undefined, rethrow: boolean): Promise<void> {
     try {
       if (newLevel === KycLevel.LEVEL_50 && !DisabledProcess(Process.KYC_MAIL)) {
         if (userData.mail) {
@@ -192,6 +200,7 @@ export class KycNotificationService {
       await this.webhookService.kycChanged(userData);
     } catch (e) {
       this.logger.error(`Failed to send KYC success mail or KYC changed webhook ${userData.id}:`, e);
+      if (rethrow) throw e;
     }
   }
 

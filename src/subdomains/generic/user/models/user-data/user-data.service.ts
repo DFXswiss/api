@@ -1249,8 +1249,17 @@ export class UserDataService {
   async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
-    const { master, slave, kycReminderUser } = await this.userDataRepo.manager.transaction(
-      async (manager: EntityManager) => {
+    // Atomic boundary: this transaction owns every database mutation that reassigns the two
+    // accounts, their KYC steps, vIBANs/intents, volumes, and merge logs. KYC approval continuation
+    // is intentionally excluded because it can invoke Sumsub, mail, and webhooks.
+    let mergeResult: {
+      master: UserData;
+      slave: UserData;
+      kycStepMerge: boolean;
+      changedMailNotificationMaster?: UserData;
+    };
+    try {
+      mergeResult = await this.userDataRepo.manager.transaction(async (manager: EntityManager) => {
         const userDataRepo = manager.getRepository(UserData);
         const userRepo = manager.getRepository(User);
 
@@ -1476,6 +1485,10 @@ export class UserDataService {
           master.bankTransactionVerification = CheckStatus.UNNECESSARY;
         }
         if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
+        const changedMailNotificationMaster =
+          notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail)
+            ? Object.assign(new UserData(), master)
+            : undefined;
         master.mail = mail ?? slave.mail ?? master.mail;
         if (!master.tradeApprovalDate && slave.tradeApprovalDate) {
           master.tradeApprovalDate = slave.tradeApprovalDate;
@@ -1533,22 +1546,31 @@ export class UserDataService {
         await this.kycLogService.createMergeLog(master, log, manager);
         await this.kycLogService.createMergeLog(slave, log, manager);
 
-        const kycReminderUser = kycStepMerge
-          ? await this.kycService.checkDfxApprovalInTransaction(master, manager)
-          : null;
-
-        return { master, slave, kycReminderUser };
-      },
-    );
+        return { master, slave, kycStepMerge, changedMailNotificationMaster };
+      });
+    } catch (error) {
+      await this.virtualIbanService.reportIntegrityError(error);
+      throw error;
+    }
+    const { master, slave, kycStepMerge, changedMailNotificationMaster } = mergeResult;
 
     this.virtualIbanService.invalidateCacheAfterMerge();
 
     const effects: { name: string; run: () => Promise<void> }[] = [
-      ...(notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail)
+      ...(kycStepMerge
+        ? [
+            {
+              name: 'KYC approval continuation',
+              run: () => this.kycService.checkDfxApproval(master),
+            },
+          ]
+        : []),
+      ...(changedMailNotificationMaster
         ? [
             {
               name: 'changed-mail notification',
-              run: () => this.userDataNotificationService.userDataChangedMailInfo(master, slave),
+              run: () =>
+                this.userDataNotificationService.userDataChangedMailInfoStrict(changedMailNotificationMaster, slave),
             },
           ]
         : []),
@@ -1562,21 +1584,13 @@ export class UserDataService {
       },
       {
         name: 'KYC-changed notification',
-        run: () => this.kycNotificationService.kycChanged(master),
+        run: () => this.kycNotificationService.kycChangedStrict(master),
       },
-      ...(kycReminderUser
-        ? [
-            {
-              name: 'KYC-step reminder',
-              run: () => this.kycNotificationService.kycStepReminder(kycReminderUser),
-            },
-          ]
-        : []),
       ...(notifyUser
         ? [
             {
               name: 'added-address notification',
-              run: () => this.userDataNotificationService.userDataAddedAddressInfo(master, slave),
+              run: () => this.userDataNotificationService.userDataAddedAddressInfoStrict(master, slave),
             },
           ]
         : []),
@@ -1605,12 +1619,11 @@ export class UserDataService {
         );
       }
     }
-    if (failedEffects.length) {
-      throw new Error(
-        `UserData merge ${slave.id} into ${master.id} committed with failed post-commit effects: ` +
-          failedEffects.join(', '),
+    if (failedEffects.length)
+      this.logger.critical(
+        `UserData merge completed with failed post-commit effects ` +
+          `(masterId=${master.id}, slaveId=${slave.id}, failedEffects=${failedEffects.join(',')})`,
       );
-    }
   }
 
   private async updateBankTxTime(userDataId: number, manager?: EntityManager): Promise<void> {

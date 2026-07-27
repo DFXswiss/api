@@ -57,6 +57,14 @@ export class UserDataNotificationService {
   }
 
   async userDataAddedAddressInfo(master: UserData, slave: UserData): Promise<void> {
+    return this.sendUserDataAddedAddressInfo(master, slave, false);
+  }
+
+  async userDataAddedAddressInfoStrict(master: UserData, slave: UserData): Promise<void> {
+    return this.sendUserDataAddedAddressInfo(master, slave, true);
+  }
+
+  private async sendUserDataAddedAddressInfo(master: UserData, slave: UserData, rethrow: boolean): Promise<void> {
     try {
       if (master.mail) {
         for (const user of slave.users) {
@@ -92,10 +100,19 @@ export class UserDataNotificationService {
         `Failed to send userData added address info mail slave (${slave.id}) and master (${master.id}):`,
         e,
       );
+      if (rethrow) throw e;
     }
   }
 
   async userDataChangedMailInfo(master: UserData, slave: UserData): Promise<void> {
+    return this.sendUserDataChangedMailInfo(master, slave, false);
+  }
+
+  async userDataChangedMailInfoStrict(master: UserData, slave: UserData): Promise<void> {
+    return this.sendUserDataChangedMailInfo(master, slave, true);
+  }
+
+  private async sendUserDataChangedMailInfo(master: UserData, slave: UserData, rethrow: boolean): Promise<void> {
     try {
       if (master.mail)
         await this.notificationService.sendMail({
@@ -147,6 +164,7 @@ export class UserDataNotificationService {
       });
     } catch (e) {
       this.logger.error(`Failed to send userData changed mail info slave (${slave.id}) and master (${master.id}):`, e);
+      if (rethrow) throw e;
     }
   }
 

@@ -134,6 +134,21 @@ describe('BuyService', () => {
       } as GetBuyPaymentInfoDto;
     }
 
+    it('returns the established payment-method token from the public endpoint for Frick plus CARD', async () => {
+      jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet: {} } as any);
+
+      await expect(
+        service.createBuyPaymentInfo(
+          { user: 1, address: '0x123' } as any,
+          dto({ paymentMethod: FiatPaymentMethod.CARD }),
+        ),
+      ).rejects.toThrow(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
+
+      expect(paymentInfoService.buyCheck).not.toHaveBeenCalled();
+      expect(buyRepo.findOne).not.toHaveBeenCalled();
+      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+    });
+
     it('selects Frick once before fee calculation, persists exact IDs, and does not leak IDs publicly', async () => {
       const events: string[] = [];
       jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet: {} } as any);
@@ -308,7 +323,9 @@ describe('BuyService', () => {
       },
     );
 
-    it('rejects KYC below 50 with the established KycRequired error', async () => {
+    it('delegates the KYC decision to the locked issuance read and preserves its KycRequired error', async () => {
+      jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockRejectedValue(new Error(QuoteError.KYC_REQUIRED));
+
       await expect(
         service['resolveBankInfo'](
           {
@@ -322,7 +339,10 @@ describe('BuyService', () => {
           PersonalIbanProvider.FRICK,
         ),
       ).rejects.toThrow(QuoteError.KYC_REQUIRED);
-      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.getOrCreateFrickForUser).toHaveBeenCalledWith(
+        expect.objectContaining({ kycLevel: KycLevel.LEVEL_40 }),
+        'EUR',
+      );
     });
 
     it('uses the standard bank without the selector when implicit providers are ineligible for EUR', async () => {

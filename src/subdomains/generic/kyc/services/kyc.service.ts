@@ -24,7 +24,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { EntityManager, FindOptionsWhere, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -389,26 +389,8 @@ export class KycService {
   }
 
   async checkDfxApproval(userData: UserData, kycStep?: KycStep): Promise<void> {
-    const reminderUser = await this.checkDfxApprovalDatabase(userData, kycStep);
-    if (reminderUser) await this.kycNotificationService.kycStepReminder(reminderUser);
-  }
-
-  /**
-   * Merge-only database phase. Every KYC read/write uses the merge manager; the returned reminder
-   * is deliberately delivered by the caller only after the merge transaction commits.
-   */
-  async checkDfxApprovalInTransaction(userData: UserData, manager: EntityManager): Promise<UserData | null> {
-    return this.checkDfxApprovalDatabase(userData, undefined, manager);
-  }
-
-  private async checkDfxApprovalDatabase(
-    userData: UserData,
-    kycStep?: KycStep,
-    manager?: EntityManager,
-  ): Promise<UserData | null> {
-    const kycStepRepo = manager?.getRepository(KycStep) ?? this.kycStepRepo;
     const missingCompletedSteps = requiredKycSteps(userData).filter((rs) => !userData.hasCompletedStep(rs));
-    if (!missingCompletedSteps.includes(KycStepName.DFX_APPROVAL)) return null;
+    if (!missingCompletedSteps.includes(KycStepName.DFX_APPROVAL)) return;
 
     const expiredSteps = [
       ...userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_AUTO),
@@ -423,18 +405,15 @@ export class KycService {
 
     if (expiredSteps.length) {
       for (const expiredStep of expiredSteps) {
-        await kycStepRepo.update(...expiredStep.update(ReviewStatus.OUTDATED, undefined, KycError.EXPIRED_STEP));
+        await this.kycStepRepo.update(...expiredStep.update(ReviewStatus.OUTDATED, undefined, KycError.EXPIRED_STEP));
       }
 
-      userData = manager
-        ? await manager.findOne(UserData, { where: { id: userData.id }, relations: { kycSteps: true } })
-        : await this.userDataService.getUserData(userData.id, { kycSteps: true });
-      if (!userData) throw new Error('UserData not found while checking DFX approval');
+      userData = await this.userDataService.getUserData(userData.id, { kycSteps: true });
 
       // initiate next step
-      await this.updateProgress(userData, true, false, 0, manager);
+      await this.updateProgress(userData, true, false);
 
-      return userData;
+      return this.kycNotificationService.kycStepReminder(userData);
     }
 
     if (
@@ -446,19 +425,13 @@ export class KycService {
     ) {
       const approvalStep = userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
       if (approvalStep?.isOnHold) {
-        await kycStepRepo.update(...approvalStep.manualReview());
+        await this.kycStepRepo.update(...approvalStep.manualReview());
       } else if (!approvalStep && !userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isInReview)) {
-        const newStep = await this.initiateStep(
-          userData,
-          KycStepName.DFX_APPROVAL,
-          undefined,
-          undefined,
-          manager,
-        ).catch(async (e) => {
-          if (!this.isKycStepUniqueViolation(e, manager)) throw e;
+        const newStep = await this.initiateStep(userData, KycStepName.DFX_APPROVAL).catch(async (e) => {
+          if (!this.isKycStepUniqueViolation(e)) throw e;
 
           // a concurrent caller won the create race → adopt the winner's step
-          const winner = await kycStepRepo.findOne({
+          const winner = await this.kycStepRepo.findOne({
             where: { name: KycStepName.DFX_APPROVAL, userData: { id: userData.id } },
             order: { sequenceNumber: 'DESC' },
           });
@@ -467,17 +440,15 @@ export class KycService {
           throw e; // 23505 on the right constraint but no provable winner → surface the original error
         });
 
-        if (newStep) await kycStepRepo.update(...newStep.manualReview());
+        if (newStep) await this.kycStepRepo.update(...newStep.manualReview());
       }
     }
-    return null;
   }
 
   // Postgres unique_violation (SQLSTATE 23505) on the kyc_step composite unique index (userData, name, type, sequenceNumber)
-  private isKycStepUniqueViolation(error: unknown, manager?: EntityManager): boolean {
+  private isKycStepUniqueViolation(error: unknown): boolean {
     const e = error as { code?: string; constraint?: string };
-    const kycStepRepo = manager?.getRepository(KycStep) ?? this.kycStepRepo;
-    const kycStepUniqueIndex = kycStepRepo.metadata.indices.find((i) => i.isUnique)?.name;
+    const kycStepUniqueIndex = this.kycStepRepo.metadata.indices.find((i) => i.isUnique)?.name;
     return e?.code === '23505' && e?.constraint != null && e.constraint === kycStepUniqueIndex;
   }
 
@@ -1229,40 +1200,23 @@ export class KycService {
     return this.toDto(user, true, step);
   }
 
-  private async updateProgress(
-    user: UserData,
-    shouldContinue: boolean,
-    autoStep = true,
-    depth = 0,
-    manager?: EntityManager,
-  ): Promise<UserData> {
+  private async updateProgress(user: UserData, shouldContinue: boolean, autoStep = true, depth = 0): Promise<UserData> {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
       if (nextLevel && nextLevel > user.kycLevel) {
-        if (manager) {
-          await manager.update(UserData, user.id, { kycLevel: nextLevel });
-          user.kycLevel = nextLevel;
-        } else {
-          await this.userDataService.updateUserDataInternal(user, { kycLevel: nextLevel });
-          await this.kycNotificationService.kycChanged(user, nextLevel);
-        }
-        await this.createKycLevelLog(user, nextLevel, manager);
+        await this.userDataService.updateUserDataInternal(user, { kycLevel: nextLevel });
+        await this.kycNotificationService.kycChanged(user, nextLevel);
+        await this.createKycLevelLog(user, nextLevel);
       }
 
       if (nextStep && shouldContinue && (autoStep || depth === 0)) {
         // continue with next step
-        const step = await this.initiateStep(
-          user,
-          nextStep.name,
-          nextStep.type,
-          nextStep.preventDirectEvaluation,
-          manager,
-        );
+        const step = await this.initiateStep(user, nextStep.name, nextStep.type, nextStep.preventDirectEvaluation);
         user.kycSteps.push(step);
 
         // update again if step is complete
-        if (step.isCompleted) return this.updateProgress(user, shouldContinue, autoStep, depth + 1, manager);
+        if (step.isCompleted) return this.updateProgress(user, shouldContinue, autoStep, depth + 1);
       }
     }
 
@@ -1379,15 +1333,13 @@ export class KycService {
     stepName: KycStepName,
     stepType?: KycStepType,
     preventDirectEvaluation?: boolean,
-    manager?: EntityManager,
   ): Promise<KycStep> {
-    const kycStepRepo = manager?.getRepository(KycStep) ?? this.kycStepRepo;
     const nextSequenceNumber = user.getNextSequenceNumber(stepName, stepType);
     const kycStep = KycStep.create(user, stepName, nextSequenceNumber, stepType);
 
     // cancel a pending step with same type
     const pendingStep = user.getPendingStepWith(stepName);
-    if (pendingStep) await kycStepRepo.update(...pendingStep.cancel());
+    if (pendingStep) await this.kycStepRepo.update(...pendingStep.cancel());
 
     switch (stepName) {
       case KycStepName.CONTACT_DATA:
@@ -1396,7 +1348,7 @@ export class KycService {
 
       case KycStepName.PERSONAL_DATA: {
         const completedStep = user.getStepsWith(KycStepName.PERSONAL_DATA).find((s) => s.isCompleted);
-        if (completedStep) await kycStepRepo.update(...completedStep.cancel());
+        if (completedStep) await this.kycStepRepo.update(...completedStep.cancel());
 
         const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
         if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(result);
@@ -1458,7 +1410,7 @@ export class KycService {
       }
     }
 
-    return kycStepRepo.save(kycStep);
+    return this.kycStepRepo.save(kycStep);
   }
 
   private async restartStep(userData: UserData, kycStep: KycStep, comment?: KycError): Promise<void> {
@@ -1469,8 +1421,8 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
-  async createKycLevelLog(userData: UserData, newKycLevel: KycLevel, manager?: EntityManager): Promise<void> {
-    await this.kycLogService.createLogInternal(userData, KycLogType.KYC, `KycLevel changed to ${newKycLevel}`, manager);
+  async createKycLevelLog(userData: UserData, newKycLevel: KycLevel): Promise<void> {
+    await this.kycLogService.createLogInternal(userData, KycLogType.KYC, `KycLevel changed to ${newKycLevel}`);
   }
 
   async trySetMail(user: UserData, step: KycStep, mail: string): Promise<UpdateResult<KycStep>> {

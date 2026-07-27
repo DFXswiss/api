@@ -142,6 +142,9 @@ export class BuyService {
 
   async createBuyPaymentInfo(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    if (dto.personalIbanProvider === PersonalIbanProvider.FRICK && dto.paymentMethod !== FiatPaymentMethod.BANK) {
+      throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
+    }
     dto = await this.paymentInfoService.buyCheck(dto, jwt, user);
     const buy = await Util.retry(
       () => this.createBuy(user, jwt.address, dto, true),
@@ -472,7 +475,6 @@ export class BuyService {
       if (selector.currency !== 'EUR') throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
       if (selector.paymentMethod !== FiatPaymentMethod.BANK)
         throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
-      if (selector.userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException(QuoteError.KYC_REQUIRED);
 
       const virtualIban = await this.virtualIbanService.getOrCreateFrickForUser(selector.userData, selector.currency);
       if (!virtualIban.bank.receive || virtualIban.bank.name !== IbanBankName.FRICK)

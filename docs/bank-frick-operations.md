@@ -489,18 +489,24 @@ only the Phase-1 not-found-and-old-enough path self-heals by reopening the local
 
 ### Residual risk: committed account merge can lose a post-commit effect
 
-Account-merge database mutations, including KYC approval changes and virtual-IBAN ownership, commit
-before mail, document copying, webhooks, and notification delivery begin. This ordering prevents an
-external announcement of a merge that later rolls back.
+The atomic merge transaction contains the account reassignment, slave `Merged` state, KYC-step
+reassignment/cancellation, virtual-IBAN ownership/deduplication, issuance-intent reconciliation,
+volumes, and merge logs. It does **not** contain the KYC approval continuation. That continuation
+can reach Sumsub, merge-request mail, and KYC notifications, so it runs only after commit together
+with document copying, account/KYC webhooks, and user notifications. A failure in any of those
+effects cannot roll the database merge back.
 
 There is no durable outbox in this change. A process death after commit but before an effect
 completes can therefore lose that effect permanently, and replaying the merge itself is not
 possible because the slave is already marked `Merged`. The service writes one contextual
 `UserData merge committed; starting post-commit effects` marker and a completion marker for every
 effect. An effect failure is logged at critical severity with `masterId`, `slaveId`, and the exact
-effect name; all remaining effects are still attempted, and the request then fails loudly with the
-failed effect names. Operations must compare the committed marker with the completion markers and
-manually replay any missing effect after a crash.
+effect name; all remaining effects are still attempted. Failed effects do not receive a completion
+marker, and the final critical summary names every failed effect. The committed merge returns
+success so an `AccountMerge` request is completed rather than left open for an impossible retry.
+Operations must compare the committed marker with the completion markers and
+manually replay any missing effect after a crash. The same manual replay applies to every
+critically logged failure.
 
 This is a known, bounded gap accepted for this PR. Durable delivery requires an idempotent outbox or
 retry queue and is intentionally deferred.
