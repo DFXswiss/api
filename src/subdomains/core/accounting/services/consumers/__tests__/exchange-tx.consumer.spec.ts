@@ -335,6 +335,32 @@ describe('ExchangeTxConsumer', () => {
     expect(cents(booked[0].legs)).toBe(0);
   });
 
+  it('books an unattributable Trade THAT HAS an order at the per-row key, and guards it there too', async () => {
+    // the load-bearing branch of bookingKey's `&& !!parseSymbol(tx)` conjunct: an unresolvable symbol returns early
+    // through singleSpec, so even WITH an order the row books at (exchange_tx, `${id}`, 0) — never the composite
+    // trade key. Dropping that conjunct would book this row at (ExchangeTrade, `${exchange}:${order}`, rank) while
+    // the pre-book guard still queried the per-row key: guard and booking would disagree and the wedge reopens.
+    const hasAnyTxAtSpy = jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(false);
+    mockBatch([
+      exchangeTx({
+        id: 5,
+        type: ExchangeTxType.TRADE,
+        symbol: null,
+        side: null,
+        order: 'O-7',
+        amount: 100,
+        amountChf: 90,
+      }),
+    ]);
+
+    await consumer.process();
+
+    expect(booked[0].sourceType).toBe('exchange_tx');
+    expect(booked[0].sourceId).toBe('5');
+    expect(booked[0].seq).toBe(0);
+    expect(hasAnyTxAtSpy).toHaveBeenCalledWith('exchange_tx', '5', 0); // guard queried the key it actually books at
+  });
+
   it('assigns batch-stable, re-run-idempotent fill_index per (exchange, order)', async () => {
     const f1 = exchangeTx({
       id: 10,
