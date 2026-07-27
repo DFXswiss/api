@@ -5,6 +5,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { GsService } from '../gs.service';
 import {
   assertDebugAllowlistInvariants,
+  DebugAllowedColumns,
+  DebugFilterOnlyAllowedOps,
   DebugQueryAuditPrefix,
   DebugRestrictedOverlapExceptions,
   GsRestrictedColumns,
@@ -202,7 +204,8 @@ describe('GsService', () => {
       // sensitive. The new allowlist must reject every one. A future migration that adds any
       // of these to DebugAllowedColumns will fail CI here — that's intentional.
       it.each([
-        // user_data PII
+        // user_data PII — `mail` is filter-only (WHERE allowed, SELECT/ORDER/GROUP rejected);
+        // the matrix still asserts SELECT rejection so a future promotion into `columns` fails CI.
         ['user_data', 'mail'],
         ['user_data', 'phone'],
         ['user_data', 'firstname'],
@@ -474,6 +477,259 @@ describe('GsService', () => {
         });
       });
 
+      // Filter-only columns: usable solely as a WHERE leaf (equality-style ops), never
+      // selectable / orderable / groupable / jsonb-addressable. Driven by looking up
+      // `user_data.id` from a known `user_data.mail` without ever disclosing the address.
+      describe('user_data.mail filter-only column', () => {
+        // --- A. Positive: mail is usable as a filter ---
+
+        it('emits WHERE mail = with a bound parameter (not inlined)', async () => {
+          const q = spyQuery([{ id: 42 }]);
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'user@example.com' },
+            limit: 10,
+          };
+
+          await service.executeDebugQuery(dto, 'tester');
+
+          const [sql, params] = q.mock.calls[0] as [string, unknown[]];
+          expect(sql).toContain('"user_data"."mail" = $1');
+          expect(sql).not.toContain("'user@example.com'");
+          expect(params).toEqual(['user@example.com']);
+        });
+
+        it('emits WHERE mail IN with one bound parameter per value', async () => {
+          const q = spyQuery([{ id: 1 }, { id: 2 }]);
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: {
+              kind: 'leaf',
+              column: 'mail',
+              op: DebugWhereOp.IN,
+              value: ['user@example.com', 'other@example.com'],
+            },
+            limit: 10,
+          };
+
+          await service.executeDebugQuery(dto, 'tester');
+
+          const [sql, params] = q.mock.calls[0] as [string, unknown[]];
+          expect(sql).toContain('"user_data"."mail" IN ($1, $2)');
+          expect(sql).not.toContain("'user@example.com'");
+          expect(params).toEqual(['user@example.com', 'other@example.com']);
+        });
+
+        it('emits select id where mail = … limit 100 without clamping to a single row', async () => {
+          // Several user_data rows can share one mail; the multi-match case must remain
+          // expressible (limit 100, not a forced single-row lookup).
+          const q = spyQuery([{ id: 1 }, { id: 2 }, { id: 3 }]);
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'user@example.com' },
+            limit: 100,
+          };
+
+          await service.executeDebugQuery(dto, 'tester');
+
+          const [sql, params] = q.mock.calls[0] as [string, unknown[]];
+          expect(sql).toContain('SELECT "user_data"."id" AS "id" FROM "user_data"');
+          expect(sql).toContain('"user_data"."mail" = $1');
+          // Word-boundary so LIMIT 100 is not mistaken for LIMIT 1 (substring).
+          expect(sql).toMatch(/LIMIT 100(?:\s|$)/);
+          expect(sql).not.toMatch(/LIMIT 1(?:\s|$)/);
+          expect(sql).not.toMatch(/"user_data"\."mail" AS/);
+          expect(params).toEqual(['user@example.com']);
+        });
+
+        // --- B. Negative: mail is NOT returnable (security core) ---
+
+        it('rejects SELECT of mail as a column', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'mail' }],
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Column 'mail' is not allowed/);
+        });
+
+        it('rejects SELECT aggregate over mail (no leak via aggregation)', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'aggregate', aggregate: DebugAggregate.COUNT, column: 'mail' }],
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Column 'mail' is not allowed/);
+        });
+
+        it('rejects SELECT jsonb path on mail', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'jsonb', column: 'mail', jsonbPath: 'x' }],
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Column 'mail' is not allowed/);
+        });
+
+        it('rejects SELECT of mail under an alias (alias does not launder)', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'mail', as: 'email' }],
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Column 'mail' is not allowed/);
+        });
+
+        it('rejects ORDER BY mail', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            orderBy: [{ column: 'mail' }],
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/neither an allowed column/);
+        });
+
+        it('rejects GROUP BY mail', async () => {
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            groupBy: ['mail'],
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/neither an allowed column/);
+        });
+
+        it('rejects ORDER BY / GROUP BY of an alias that never registered because SELECT of mail failed', async () => {
+          // SELECT fails on `mail` before any alias is recorded; neither ORDER BY nor GROUP BY
+          // on that alias name can launder the filter-only column into the result set.
+          const orderDto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'mail', as: 'email' }],
+            orderBy: [{ column: 'email' }],
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(orderDto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(orderDto, 'tester')).rejects.toThrow(/Column 'mail' is not allowed/);
+
+          const groupDto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'mail', as: 'email' }],
+            groupBy: ['email'],
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(groupDto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(groupDto, 'tester')).rejects.toThrow(/Column 'mail' is not allowed/);
+        });
+
+        // --- C. Operator gating ---
+
+        // Every op outside DebugFilterOnlyAllowedOps must be rejected on filter-only columns
+        // so range/pattern operators cannot oracle-reconstruct the value.
+        it.each(
+          [
+            { op: DebugWhereOp.NE, value: 'user@example.com' as string | string[] | undefined },
+            { op: DebugWhereOp.LT, value: 'user@example.com' },
+            { op: DebugWhereOp.LE, value: 'user@example.com' },
+            { op: DebugWhereOp.GT, value: 'user@example.com' },
+            { op: DebugWhereOp.GE, value: 'user@example.com' },
+            { op: DebugWhereOp.NOT_IN, value: ['user@example.com'] },
+            { op: DebugWhereOp.LIKE, value: '%@example.com' },
+            { op: DebugWhereOp.ILIKE, value: '%@example.com' },
+            { op: DebugWhereOp.IS_NULL, value: undefined },
+            { op: DebugWhereOp.IS_NOT_NULL, value: undefined },
+          ].filter(({ op }) => !DebugFilterOnlyAllowedOps.includes(op)),
+        )('rejects WHERE mail with disallowed operator $op', async ({ op, value }) => {
+          const leaf: DebugWhereNode = { kind: 'leaf', column: 'mail', op };
+          if (value !== undefined) leaf.value = value;
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: leaf,
+            limit: 10,
+          };
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(
+            new RegExp(`Operator '${op.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}' is not allowed on filter-only column 'mail'`),
+          );
+        });
+
+        it('still allows non-equality operators on ordinary allowlisted user_data columns', async () => {
+          // Gating is per-column, not a global op lockdown.
+          const cases: Array<{ op: DebugWhereOp; value?: string | number | number[] }> = [
+            { op: DebugWhereOp.NE, value: 1 },
+            { op: DebugWhereOp.LT, value: 10 },
+            { op: DebugWhereOp.LE, value: 10 },
+            { op: DebugWhereOp.GT, value: 0 },
+            { op: DebugWhereOp.GE, value: 0 },
+            { op: DebugWhereOp.LIKE, value: '1%' },
+            { op: DebugWhereOp.ILIKE, value: '1%' },
+            { op: DebugWhereOp.IS_NULL },
+            { op: DebugWhereOp.IS_NOT_NULL },
+          ];
+          for (const { op, value } of cases) {
+            const q = spyQuery();
+            // jest.spyOn reuses the same mock across iterations; clear so calls[0] is this op's SQL.
+            q.mockClear();
+            const leaf: DebugWhereNode = { kind: 'leaf', column: 'id', op };
+            if (value !== undefined) leaf.value = value;
+            const dto: DebugQueryDto = {
+              table: 'user_data',
+              select: [{ kind: 'column', column: 'id' }],
+              where: leaf,
+              limit: 10,
+            };
+            await service.executeDebugQuery(dto, 'tester');
+            expect(q).toHaveBeenCalled();
+            const sql = q.mock.calls[0][0] as string;
+            expect(sql).toContain(`"user_data"."id" ${op}`);
+          }
+        });
+
+        // --- E. Pinning + audit ---
+
+        it('pins filterOnlyColumns to exactly [mail] and keeps mail out of columns', () => {
+          expect(DebugAllowedColumns['user_data'].filterOnlyColumns).toEqual(['mail']);
+          expect(DebugAllowedColumns['user_data'].columns).not.toContain('mail');
+        });
+
+        it('pins DebugFilterOnlyAllowedOps to the equality-style set', () => {
+          expect(DebugFilterOnlyAllowedOps).toEqual([DebugWhereOp.EQ, DebugWhereOp.IN]);
+        });
+
+        it('redacts a realistic mail filter value in the audit log', async () => {
+          const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
+          spyQuery([{ id: 1 }]);
+          const address = 'user@example.com';
+          const dto: DebugQueryDto = {
+            table: 'user_data',
+            select: [{ kind: 'column', column: 'id' }],
+            where: { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: address },
+            limit: 10,
+          };
+
+          await service.executeDebugQuery(dto, '0xtester');
+
+          const auditLine = verboseSpy.mock.calls
+            .map((c) => String(c[0]))
+            .find((l) => l.startsWith('Debug-query by 0xtester:'));
+          expect(auditLine).toBeDefined();
+          expect(auditLine).not.toContain(address);
+          expect(auditLine).toContain('"value":"<scalar>"');
+          expect(auditLine).toContain('"column":"mail"');
+          verboseSpy.mockRestore();
+        });
+      });
+
       // The assertions above only prove today's constants are consistent with each other. They
       // cannot show that the guard matches per (table, column) rather than per table — with the
       // current data there is no second overlap left to expose such a bug. So drive the guard
@@ -532,6 +788,90 @@ describe('GsService', () => {
           expect(() => assertDebugAllowlistInvariants({}, {}, { ['constructor']: ['ok'] })).toThrow(
             /not in GsRestrictedColumns/,
           );
+        });
+
+        // --- D. filterOnlyColumns invariants (synthetic fixtures) ---
+
+        it('throws when the same column appears in both columns and filterOnlyColumns', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              {},
+              { t: { columns: ['id', 'secret'], filterOnlyColumns: ['secret'] } },
+              {},
+            ),
+          ).toThrow(/filterOnlyColumns contains 'secret' which is also in columns/);
+        });
+
+        it('throws when the same column appears in both jsonbColumns and filterOnlyColumns', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              {},
+              { t: { columns: ['id'], jsonbColumns: ['payload'], filterOnlyColumns: ['payload'] } },
+              {},
+            ),
+          ).toThrow(/filterOnlyColumns contains 'payload' which is also in jsonbColumns/);
+        });
+
+        it('throws on a duplicate entry inside filterOnlyColumns', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              {},
+              { t: { columns: ['id'], filterOnlyColumns: ['mail', 'mail'] } },
+              {},
+            ),
+          ).toThrow(/filterOnlyColumns has duplicate entry 'mail'/);
+        });
+
+        it('throws when a filter-only column is also in GsRestrictedColumns unless exactly excepted', () => {
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id'], filterOnlyColumns: ['secret'] } },
+              {},
+            ),
+          ).toThrow(/filterOnlyColumns contains 'secret' which is in GsRestrictedColumns/);
+
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { t: ['secret'] },
+              { t: { columns: ['id'], filterOnlyColumns: ['secret'] } },
+              { t: ['secret'] },
+            ),
+          ).not.toThrow();
+        });
+
+        it('does not resolve prototype-chain keys through Object.prototype (filter-only path)', () => {
+          // Computed keys so these are real own properties. The filterOnlyColumns loop and the
+          // restricted-overlap check both use Object.hasOwn / Object.entries — prototype keys
+          // must not resolve via Object.prototype or TypeError into a 500.
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { ['__proto__']: ['ok'] },
+              { t: { columns: ['id'], filterOnlyColumns: ['mail'] } },
+              {},
+            ),
+          ).not.toThrow();
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              { ['constructor']: ['ok'] },
+              { t: { columns: ['id'], filterOnlyColumns: ['mail'] } },
+              {},
+            ),
+          ).not.toThrow();
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              {},
+              { ['__proto__']: { columns: [], filterOnlyColumns: ['x'] } },
+              {},
+            ),
+          ).not.toThrow();
+          expect(() =>
+            assertDebugAllowlistInvariants(
+              {},
+              { t: { columns: ['id'], filterOnlyColumns: ['mail'] } },
+              { ['constructor']: ['ok'] },
+            ),
+          ).toThrow(/not in GsRestrictedColumns/);
         });
       });
 
@@ -711,10 +1051,12 @@ describe('GsService', () => {
       });
 
       it('rejects = on a disallowed column (PII)', async () => {
+        // `phone` is fully blocked (not filter-only). `mail` is filter-only — its WHERE path is
+        // covered by the dedicated positive tests under `user_data.mail filter-only column`.
         const dto: DebugQueryDto = {
           table: 'user_data',
           select: [{ kind: 'column', column: 'id' }],
-          where: { kind: 'leaf', column: 'mail', op: DebugWhereOp.EQ, value: 'a@b.c' },
+          where: { kind: 'leaf', column: 'phone', op: DebugWhereOp.EQ, value: '+41000000000' },
           limit: 10,
         };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Column .*not allowed/);

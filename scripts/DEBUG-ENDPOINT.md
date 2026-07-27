@@ -85,6 +85,10 @@ with the wallet at `DEBUG_ADDRESS`.
 # Referral chain / tree for a userDataId
 ./scripts/db-debug.sh --referral-chain 370625
 ./scripts/db-debug.sh --referral-tree  370625
+
+# Resolve user_data id(s) from a mail you already know (filter-only; mail is never returned)
+./scripts/db-debug.sh --user-by-mail user@example.com
+./scripts/db-debug.sh --user-by-mail user@example.com 50
 ```
 
 For ad-hoc queries the endpoint expects a JSON DTO (no raw SQL). See the
@@ -93,6 +97,39 @@ For ad-hoc queries the endpoint expects a JSON DTO (no raw SQL). See the
 per-table column allowlist lives in
 `src/subdomains/generic/gs/dto/gs.dto.ts` (`DebugAllowedColumns`); a column
 absent from a table's entry is unreachable from this endpoint.
+
+### Filter-only columns
+
+Most allowlisted columns may appear in `select` / `where` / `orderBy` / `groupBy`. A
+**filter-only** column is narrower: it may appear only as a WHERE leaf, only with `=` or
+`IN`, and never in select, order by, or group by. The intent is lookup by a value the
+caller already knows, without the endpoint ever disclosing that value.
+
+The first instance is `user_data.mail` (`filterOnlyColumns` on the `user_data` entry in
+`DebugAllowedColumns`). Support needs to resolve a customer's `userData.id` from an address
+they already have; the endpoint must not become a way to read addresses out. Selecting
+`mail` (or ordering / grouping by it) is rejected with 400. One mail can map to several
+`user_data` rows — the result is an array of matching rows (do not clamp `limit` to 1).
+
+Convenience mode and equivalent raw DTO:
+
+```bash
+./scripts/db-debug.sh --user-by-mail user@example.com
+
+# Same query as an ad-hoc --query payload (mail bound as a JSON value; never returned):
+./scripts/db-debug.sh --query '{
+  "table": "user_data",
+  "select": [
+    {"kind": "column", "column": "id"},
+    {"kind": "column", "column": "created"},
+    {"kind": "column", "column": "kycLevel"},
+    {"kind": "column", "column": "status"}
+  ],
+  "where": {"kind": "leaf", "column": "mail", "op": "=", "value": "user@example.com"},
+  "orderBy": [{"column": "id", "direction": "ASC"}],
+  "limit": 100
+}'
+```
 
 ## Security Notes
 
@@ -106,7 +143,9 @@ absent from a table's entry is unreachable from this endpoint.
    `$1..$N` parameters via TypeORM.
 6. Tables and columns reachable from this endpoint are enumerated in `DebugAllowedColumns`
    (`src/subdomains/generic/gs/dto/gs.dto.ts`). Anything not listed there is unreachable;
-   PII / secrets / free-form text are deliberately excluded.
+   PII / secrets / free-form text are deliberately excluded. Filter-only columns
+   (`filterOnlyColumns`, e.g. `user_data.mail`) may be used only as WHERE leaves with `=` /
+   `IN` and are never returned in results.
 
 ### Kill switch / revocation
 
@@ -126,8 +165,10 @@ absent from a table's entry is unreachable from this endpoint.
 ### "Query execution failed" for database
 
 - Verify the table is listed in `DebugAllowedColumns`
-- Verify every referenced column appears in that table's `columns` array
+- Verify every referenced column appears in that table's `columns` array (or, for WHERE only,
+  in `filterOnlyColumns` — filter-only columns cannot be selected / ordered / grouped)
 - jsonb path access (the `jsonb` select kind) is allowed only on columns listed in `jsonbColumns`
   (currently only `log.message`)
+- Filter-only columns accept only `=` and `IN` in WHERE; other operators are rejected
 - If the JSON body is malformed at the DTO level (wrong `kind`, missing required field, value out
   of range) NestJS' ValidationPipe rejects with a 400 before the service runs

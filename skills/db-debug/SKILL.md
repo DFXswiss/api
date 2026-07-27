@@ -1,6 +1,6 @@
 ---
 name: db-debug
-description: Read-only debugging of the production database via the scripts/db-debug.sh CLI (the structured /gs/debug endpoint). Use to inspect financial anomalies, total-balance history (FinancialDataLog), liquidity balances, an asset's balance history, referral chains or trees, compare two balance-log snapshots, inspect one asset's balance structure, or run an ad-hoc read-only query against any allowlisted table with a structured JSON DTO. No raw SQL — read-only by construction, never writes.
+description: Read-only debugging of the production database via the scripts/db-debug.sh CLI (the structured /gs/debug endpoint). Use to inspect financial anomalies, total-balance history (FinancialDataLog), liquidity balances, an asset's balance history, referral chains or trees, resolve user_data id(s) from a known mail (filter-only), compare two balance-log snapshots, inspect one asset's balance structure, or run an ad-hoc read-only query against any allowlisted table with a structured JSON DTO. No raw SQL — read-only by construction, never writes.
 ---
 
 # Database debug (read-only)
@@ -39,6 +39,7 @@ request implies a write, refuse and explain why.
 | `--asset-history <id\|Blockchain/Name> [N]` | balance history for one asset (default 10) |
 | `--referral-chain <userDataId>` | referral chain upward |
 | `--referral-tree <userDataId>` | full referral tree with status |
+| `--user-by-mail <MAIL> [N]` | resolve `user_data` id(s) from a known mail (filter-only; mail never returned; default limit 100; one mail can match several rows) |
 | `--get <table> [col1,col2,...] [limit]` | ad-hoc: fetch columns (default `id,created,updated`) from any allowlisted table (default limit 100) |
 | `--query <json\|@file\|->` | ad-hoc: POST an arbitrary structured DTO (inline JSON, `@file`, or `-` to read the DTO from stdin) |
 | `--help` | full usage |
@@ -55,6 +56,9 @@ scripts/db-debug.sh --get user_data
 
 # Specific columns and a limit
 scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50
+
+# Resolve user_data id(s) from a mail you already know (filter-only; mail is never returned)
+scripts/db-debug.sh --user-by-mail user@example.com
 
 # Arbitrary DTO inline
 scripts/db-debug.sh --query '{"table":"asset","select":[{"kind":"column","column":"id"},{"kind":"column","column":"name"}],"where":{"kind":"leaf","column":"blockchain","op":"=","value":"Ethereum"},"orderBy":[{"column":"id","direction":"DESC"}],"limit":20}'

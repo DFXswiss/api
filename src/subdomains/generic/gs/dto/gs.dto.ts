@@ -1,3 +1,5 @@
+import { DebugWhereOp } from './debug-query.dto';
+
 export const GsRestrictedMarker = '[RESTRICTED]';
 
 // db endpoint
@@ -51,7 +53,20 @@ export interface DebugTableSpec {
   // Subset of `columns` where the structured `jsonbPath` selector is allowed. The endpoint
   // emits `(col)::jsonb -> 'a' -> 'b' ->> 'c'` for these; segment names are validated by regex.
   jsonbColumns?: string[];
+  // Columns usable ONLY as a WHERE-leaf column. Never selectable, never orderable, never
+  // groupable, never usable with a `jsonbPath`. Restricted to equality-style operators
+  // (`DebugFilterOnlyAllowedOps`). Intended for looking a record up by a value the caller
+  // already knows, without the endpoint ever disclosing that value. MUST be disjoint from
+  // `columns` and `jsonbColumns` (enforced by `assertDebugAllowlistInvariants`).
+  filterOnlyColumns?: string[];
 }
+
+// Operators a filter-only column may appear with in a WHERE leaf. Ordering/range/pattern
+// operators (`<`, `<=`, `>`, `>=`, `!=`, `LIKE`, `ILIKE`, `IS NULL`, `IS NOT NULL`) would turn
+// the endpoint into an oracle — a caller could binary-search or pattern-match a secret value
+// character by character and reconstruct it without ever selecting it. `=` and `IN` require
+// knowing the exact value up front, which is the intended use case.
+export const DebugFilterOnlyAllowedOps: DebugWhereOp[] = [DebugWhereOp.EQ, DebugWhereOp.IN];
 
 export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   account_merge: {
@@ -1434,6 +1449,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   user_data: {
     // No PII columns. countryId / nationalityId / organizationId / verifiedCountryId /
     // accountOpenerId / organizationCountryId all blocked (link to PII tables).
+    // `mail` is filter-only (not in `columns`): support needs to resolve a customer's
+    // `userData.id` from a mail address they already have, without the endpoint ever
+    // returning the address. See `filterOnlyColumns` below.
     columns: [
       'id',
       'created',
@@ -1489,6 +1507,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'tradeApprovalDate',
       'walletId',
     ],
+    filterOnlyColumns: ['mail'],
   },
   user_data_relation: {
     columns: ['id', 'created', 'updated', 'accountId', 'relatedAccountId', 'relation', 'signatory'],
@@ -1599,8 +1618,9 @@ export const DebugRestrictedOverlapExceptions: Record<string, string[]> = {
  * explicit, documented decision instead of an accident.
  *
  * The counter-check keeps the exceptions map honest: an exception only means anything for a
- * pair that actually overlaps and is actually allowlisted. A stale entry (column dropped from
- * either list) would silently keep a future re-add unguarded, so it fails loudly too.
+ * pair that actually overlaps and is actually allowlisted (in `columns` or in
+ * `filterOnlyColumns`). A stale entry (column dropped from the restricted list, or from both
+ * allowlist capacities) would silently keep a future re-add unguarded, so it fails loudly too.
  *
  * Kept as a pure function over its three inputs so the guard itself is testable with synthetic
  * fixtures — asserting the real constants only proves today's data is consistent, not that the
@@ -1622,6 +1642,14 @@ export function assertDebugAllowlistInvariants(
             `the /gs/debug endpoint does not apply role masking. Remove it from DebugAllowedColumns ` +
             `or register it in DebugRestrictedOverlapExceptions with a documented reason.`,
         );
+      // Same restriction for filter-only columns: a restricted column must not become a
+      // WHERE key unless the pair is an explicit, documented exception.
+      if (spec.filterOnlyColumns?.includes(col) && !excepted.includes(col))
+        throw new Error(
+          `DebugAllowedColumns['${table}'].filterOnlyColumns contains '${col}' which is in GsRestrictedColumns; ` +
+            `the /gs/debug endpoint does not apply role masking. Remove it from filterOnlyColumns ` +
+            `or register it in DebugRestrictedOverlapExceptions with a documented reason.`,
+        );
     }
   }
 
@@ -1632,10 +1660,43 @@ export function assertDebugAllowlistInvariants(
           `DebugRestrictedOverlapExceptions['${table}'] lists '${col}', which is not in ` +
             `GsRestrictedColumns['${table}']; the exception is stale — remove it.`,
         );
-      if (!(Object.hasOwn(allowedColumns, table) && allowedColumns[table].columns.includes(col)))
+      // An exception is live if the column is allowlisted in either capacity: selectable
+      // (`columns`) or filter-only (`filterOnlyColumns`). Only absence from both is stale.
+      if (
+        !(
+          Object.hasOwn(allowedColumns, table) &&
+          (allowedColumns[table].columns.includes(col) ||
+            (Object.hasOwn(allowedColumns[table], 'filterOnlyColumns') &&
+              allowedColumns[table].filterOnlyColumns &&
+              allowedColumns[table].filterOnlyColumns.includes(col)))
+        )
+      )
         throw new Error(
           `DebugRestrictedOverlapExceptions['${table}'] lists '${col}', which is not in ` +
-            `DebugAllowedColumns['${table}']; the exception is stale — remove it.`,
+            `DebugAllowedColumns['${table}'] (columns or filterOnlyColumns); the exception is stale — remove it.`,
+        );
+    }
+  }
+
+  // filterOnlyColumns must stay strictly narrower than `columns` / `jsonbColumns` and free of
+  // duplicates. Overlap with `columns` would silently make the value selectable; overlap with
+  // `jsonbColumns` would open path access; duplicates are almost certainly a config mistake.
+  for (const [table, spec] of Object.entries(allowedColumns)) {
+    if (!Object.hasOwn(spec, 'filterOnlyColumns') || !spec.filterOnlyColumns) continue;
+    const seen = new Set<string>();
+    for (const col of spec.filterOnlyColumns) {
+      if (seen.has(col))
+        throw new Error(`DebugAllowedColumns['${table}'].filterOnlyColumns has duplicate entry '${col}'`);
+      seen.add(col);
+      if (spec.columns.includes(col))
+        throw new Error(
+          `DebugAllowedColumns['${table}'].filterOnlyColumns contains '${col}' which is also in columns; ` +
+            `a filter-only column must never be selectable.`,
+        );
+      if (spec.jsonbColumns?.includes(col))
+        throw new Error(
+          `DebugAllowedColumns['${table}'].filterOnlyColumns contains '${col}' which is also in jsonbColumns; ` +
+            `a filter-only column must never support jsonb path access.`,
         );
     }
   }

@@ -10,6 +10,7 @@
 #   ./scripts/db-debug.sh --asset-history Yapeal/EUR 10      # Show asset balance history
 #   ./scripts/db-debug.sh --referral-chain <userDataId>      # Show referral chain
 #   ./scripts/db-debug.sh --referral-tree <userDataId>       # Show referral tree
+#   ./scripts/db-debug.sh --user-by-mail <MAIL> [N]          # Resolve user_data id(s) from a known mail
 #   ./scripts/db-debug.sh --get <table> [cols] [limit]       # Ad-hoc: fetch cols from any allowlisted table
 #   ./scripts/db-debug.sh --query '<json>|@file|-'           # Ad-hoc: POST an arbitrary structured DTO
 #
@@ -69,6 +70,10 @@
 #     Columns default to id,created,updated; limit defaults to 100.
 #       ./scripts/db-debug.sh --get user_data
 #       ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50
+#   --user-by-mail <MAIL> [N]
+#     Resolve user_data id(s) from a mail address you already know. Filters on the filter-only
+#     column user_data.mail (= only); never selects mail. One address can match several rows.
+#     Limit defaults to 100 (not 1). Returns id, created, kycLevel, status.
 #   --query '<json>' | --query @path/to/query.json | --query -
 #     Posts an arbitrary DebugQueryDto. Accepts inline JSON, @file, or - to read the DTO from stdin.
 #     The DTO is validated as well-formed JSON (jq) before the request; malformed JSON fails loudly.
@@ -117,6 +122,9 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "                                Show complete referral chain for user"
   echo "  -T, --referral-tree <userDataId>"
   echo "                                Show complete referral tree (all branches)"
+  echo "  -M, --user-by-mail <MAIL> [N] Resolve user_data id(s) from a known mail (default limit: 100)."
+  echo "                                mail is filter-only: usable only in WHERE (= / IN), never"
+  echo "                                returned by the endpoint. One mail can match several rows."
   echo "  -g, --get <table> [cols] [N]  Ad-hoc: fetch cols (default id,created,updated) from any"
   echo "                                allowlisted table (default limit: 100)"
   echo "  -q, --query <json|@file|->    Ad-hoc: POST an arbitrary structured DTO (inline JSON,"
@@ -130,6 +138,8 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
   echo "  ./scripts/db-debug.sh --referral-chain 370625"
   echo "  ./scripts/db-debug.sh --referral-tree 370625"
+  echo "  ./scripts/db-debug.sh --user-by-mail user@example.com"
+  echo "  ./scripts/db-debug.sh --user-by-mail user@example.com 50"
   echo "  ./scripts/db-debug.sh --get user_data"
   echo "  ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50"
   echo "  ./scripts/db-debug.sh --query '{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"name\"}],\"limit\":5}'"
@@ -303,6 +313,37 @@ case "${1:-}" in
     fi
     REFERRAL_TREE_MODE="1"
     TARGET_USER_ID="$2"
+    ;;
+  -M|--user-by-mail)
+    if [ -z "${2:-}" ]; then
+      echo "Error: --user-by-mail requires a mail address"
+      echo "Usage: ./scripts/db-debug.sh --user-by-mail <MAIL> [N]"
+      echo ""
+      echo "Resolves user_data id(s) from a mail you already know. mail is filter-only:"
+      echo "usable only as a WHERE leaf (= / IN), never selectable. One mail can match"
+      echo "several user_data rows; default limit is 100."
+      exit 1
+    fi
+    # Mail is bound via jq --arg only — never string-interpolated into JSON, never echoed
+    # outside the request payload itself.
+    USER_BY_MAIL_LIMIT="${3:-100}"
+    PAYLOAD=$(jq -n \
+      --arg mail "$2" \
+      --argjson limit "$USER_BY_MAIL_LIMIT" \
+      '{
+        table: "user_data",
+        select: [
+          {kind: "column", column: "id"},
+          {kind: "column", column: "created"},
+          {kind: "column", column: "kycLevel"},
+          {kind: "column", column: "status"}
+        ],
+        where: {kind: "leaf", column: "mail", op: "=", value: $mail},
+        orderBy: [{column: "id", direction: "ASC"}],
+        limit: $limit
+      }')
+    DESCRIPTION="user_data by mail (filter-only, limit $USER_BY_MAIL_LIMIT)"
+    OUTPUT_MODE="objects"
     ;;
   -g|--get)
     if [ -z "${2:-}" ]; then

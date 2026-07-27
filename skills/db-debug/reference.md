@@ -16,6 +16,12 @@ the TypeORM entities in this repository.
   every migration that adds, renames, or removes a column on a debuggable table updates it. A table
   or column absent from that map is unreachable (PII / secrets / free-form text are deliberately
   excluded). The full DTO schema is `src/subdomains/generic/gs/dto/debug-query.dto.ts`.
+- **Filter-only columns** (`filterOnlyColumns` on a table's `DebugTableSpec`): usable only as a
+  WHERE leaf, never in select / order by / group by, and only with `=` or `IN` (range, inequality,
+  and pattern ops would turn the endpoint into an oracle). Intended for looking a record up by a
+  value the caller already knows, without the endpoint ever disclosing that value. First instance:
+  `user_data.mail` — resolve `userData.id`(s) from a known address; selecting `mail` is refused.
+  One mail can map to several `user_data` rows; use a multi-row `limit` (e.g. 100), never 1.
 - The default target is production (`DEBUG_API_URL` in the local `.env`).
 - `limit` is required (1..10000); the service additionally clamps to its own max. Page larger scans
   with explicit `limit` + `offset`.
@@ -29,15 +35,18 @@ the TypeORM entities in this repository.
     segments are dot-separated and each is regex-validated.
   - `{"kind":"aggregate","aggregate":"count|sum|min|max|avg","column":"id","as":"n"}`.
   - optional `as` on any item sets the output alias (also referenceable in `orderBy` / `groupBy`).
+  - Filter-only columns must not appear in `select` (plain, aggregate, or jsonb).
 - `where` (optional): a tree of nodes, each with a `kind`:
   - `{"kind":"leaf","column":"x","op":"=","value":...}` — ops: `= != < <= > >= IN "NOT IN" LIKE
     ILIKE "IS NULL" "IS NOT NULL"`. `IN` / `NOT IN` take an array value; `IS NULL` / `IS NOT NULL`
-    take no value; the rest take a scalar.
+    take no value; the rest take a scalar. On filter-only columns only `=` and `IN` are allowed.
   - `{"kind":"and","children":[...]}` / `{"kind":"or","children":[...]}` — up to 5 children each.
   - `{"kind":"not","child":{...}}`.
   - Caps: tree depth ≤ 5, ≤ 200 nodes, ≤ 50 leaf predicates, ≤ 100 values per IN list.
-- `groupBy` (optional): array of columns or select-aliases (order preserved).
-- `orderBy` (optional): array of `{"column":"x","direction":"ASC|DESC"}` (column or select-alias).
+- `groupBy` (optional): array of columns or select-aliases (order preserved); filter-only columns
+  are not allowed.
+- `orderBy` (optional): array of `{"column":"x","direction":"ASC|DESC"}` (column or select-alias);
+  filter-only columns are not allowed.
 - `limit` (required); `offset` (optional, ≥ 0).
 - Column names are camelCase and case-sensitive; table names are snake_case.
 - Response shape: `{"keys":[...],"rows":[[...], ...]}` — `keys` mirror the `as`-or-column order of
@@ -78,6 +87,10 @@ Entity: `src/subdomains/core/liquidity-management/entities/liquidity-balance.ent
 
 ## Other useful tables
 - `recommendation`: `recommenderId`, `recommendedId`, `method`, `created` (referrals).
-- `user_data`: `id`, `status`, `kycStatus`, … (used by referral-tree status lookups).
+- `user_data`: `id`, `status`, `kycStatus`, `kycLevel`, … (used by referral-tree status lookups).
+  `mail` is **filter-only** (not in `columns`): WHERE `=` / `IN` only, never selected. CLI:
+  `scripts/db-debug.sh --user-by-mail <MAIL> [N]` (default limit 100). Equivalent DTO:
+  `{"table":"user_data","select":[{"kind":"column","column":"id"},{"kind":"column","column":"created"},{"kind":"column","column":"kycLevel"},{"kind":"column","column":"status"}],"where":{"kind":"leaf","column":"mail","op":"=","value":"<mail>"},"orderBy":[{"column":"id","direction":"ASC"}],"limit":100}`.
+  Result is an array of rows — one mail can belong to several `user_data` records.
 - `asset`: `id`, `name`, `blockchain`, `type`, … — resolve one with a `where` and-tree on
   `blockchain` + `name`, e.g. `{"kind":"and","children":[{"kind":"leaf","column":"blockchain","op":"=","value":"<chain>"},{"kind":"leaf","column":"name","op":"=","value":"<name>"}]}`.

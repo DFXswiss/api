@@ -42,6 +42,7 @@ import {
 } from './dto/debug-query.dto';
 import {
   DebugAllowedColumns,
+  DebugFilterOnlyAllowedOps,
   DebugMaxResults,
   DebugQueryAuditPrefix,
   DebugTableSpec,
@@ -328,12 +329,27 @@ export class GsService {
     return redacted.length > 500 ? `${redacted.substring(0, 500)}...` : redacted;
   }
 
-  // Asserts a column name is in the table allowlist; throws otherwise. Used everywhere a
-  // user-supplied identifier could reach SQL.
-  private assertDebugColumnAllowed(column: string, spec: DebugTableSpec): void {
+  // Asserts a column name is in the SELECT allowlist (`spec.columns` only). Filter-only
+  // columns are deliberately excluded so they can never appear in SELECT, aggregates, or
+  // jsonb path access (all three select kinds route through this helper).
+  private assertDebugSelectColumnAllowed(column: string, spec: DebugTableSpec): void {
     if (!spec.columns.includes(column)) {
       throw new BadRequestException(`Column '${column}' is not allowed on this table`);
     }
+  }
+
+  // Asserts a column may be used as a WHERE-leaf filter. Accepts `spec.columns` plus any
+  // `filterOnlyColumns`. Filter-only columns are further restricted to equality-style ops
+  // (`DebugFilterOnlyAllowedOps`) so range/pattern operators cannot oracle-reconstruct the value.
+  private assertDebugFilterColumnAllowed(column: string, op: DebugWhereOp, spec: DebugTableSpec): void {
+    if (spec.columns.includes(column)) return;
+    if (spec.filterOnlyColumns?.includes(column)) {
+      if (!DebugFilterOnlyAllowedOps.includes(op)) {
+        throw new BadRequestException(`Operator '${op}' is not allowed on filter-only column '${column}'`);
+      }
+      return;
+    }
+    throw new BadRequestException(`Column '${column}' is not allowed on this table`);
   }
 
   // Validates a jsonb path string: dot-separated, each segment matches the identifier regex,
@@ -371,7 +387,7 @@ export class GsService {
   // inputs. Otherwise a malformed `{kind: 'jsonb'}` (no jsonbPath) would TypeError when
   // synthesizing the alias and surface as 500 instead of a clean 400.
   private emitDebugSelectItem(item: DebugSelectItem, ctx: DebugQueryEmitCtx, position: number): string {
-    this.assertDebugColumnAllowed(item.column, ctx.spec);
+    this.assertDebugSelectColumnAllowed(item.column, ctx.spec);
 
     // Defense in depth: an explicit `as` is interpolated as `AS "${alias}"`. The DTO regex
     // already enforces this shape — re-check here so a future change that bypasses the DTO
@@ -469,7 +485,7 @@ export class GsService {
     if (!Object.values(DebugWhereOp).includes(node.op)) {
       throw new BadRequestException(`Operator '${node.op}' is not allowed`);
     }
-    this.assertDebugColumnAllowed(node.column, ctx.spec);
+    this.assertDebugFilterColumnAllowed(node.column, node.op, ctx.spec);
 
     const colSql = `"${ctx.table}"."${node.column}"`;
 
@@ -530,6 +546,8 @@ export class GsService {
   // "ip"` would bind to a physical `ip` column (if one exists on the table but isn't in the
   // allowlist), bypassing the allowlist for grouping. Ordinals sidestep the ambiguity.
   private emitDebugGroupIdent(name: string, ctx: DebugQueryEmitCtx): string {
+    // Filter-only columns are deliberately excluded — validate against `columns` only so
+    // they stay ungroupable (and never surface as a grouping key).
     if (ctx.spec.columns.includes(name)) return `"${ctx.table}"."${name}"`;
     const position = ctx.aliases.get(name);
     if (position !== undefined) return String(position);
@@ -541,6 +559,8 @@ export class GsService {
   // quoted alias is safe. Kept separate from `emitDebugGroupIdent` so the GROUP BY ordinal
   // emission is explicit at the call site.
   private emitDebugOrderIdent(name: string, ctx: DebugQueryEmitCtx): string {
+    // Filter-only columns are deliberately excluded — validate against `columns` only so
+    // they stay unorderable (and never surface as a sort key).
     if (ctx.spec.columns.includes(name)) return `"${ctx.table}"."${name}"`;
     if (ctx.aliases.has(name)) return `"${name}"`;
     throw new BadRequestException(`'${name}' is neither an allowed column nor a select alias`);
