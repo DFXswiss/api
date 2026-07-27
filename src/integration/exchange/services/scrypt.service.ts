@@ -37,6 +37,12 @@ import {
   ScryptWebSocketConnection,
 } from './scrypt-websocket-connection';
 
+/**
+ * After this long without a usable answer, an order the venue once acknowledged is treated as lost rather
+ * than merely slow. Shared by the "cannot be found" and the "stuck pending" paths so both give up together.
+ */
+const ORDER_LOST_AFTER_MINUTES = 60;
+
 @Injectable()
 export class ScryptService extends PricingProvider {
   private readonly logger = new DfxLogger(ScryptService);
@@ -486,7 +492,7 @@ export class ScryptService extends PricingProvider {
     if (!orderInfo) {
       // If the order is older than 1 hour and still not found, it's lost
       const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
-      if (ageMinutes > 60) {
+      if (ageMinutes > ORDER_LOST_AFTER_MINUTES) {
         throw new ScryptOrderNotFoundError(
           `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — it may have completed or been cancelled outside of tracked state`,
         );
@@ -595,21 +601,6 @@ export class ScryptService extends PricingProvider {
         throw new TradeChangedException(response.id);
       }
 
-      case ScryptOrderStatus.PENDING_NEW:
-      case ScryptOrderStatus.PENDING_CANCEL:
-      case ScryptOrderStatus.PENDING_REPLACE: {
-        // A pending report that never turns terminal — because the update was missed — would otherwise be
-        // answered "not complete" for good. Past the age at which an unfindable order is given up on, treat
-        // it the same way: unknown, not failed.
-        const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
-        if (ageMinutes > 60)
-          throw new ScryptOrderNotFoundError(
-            `Order ${clOrdId} has been ${orderInfo.status} for ${Math.round(ageMinutes)} minutes — its terminal update was never seen`,
-          );
-
-        return false;
-      }
-
       case ScryptOrderStatus.FILLED:
         this.logger.verbose(`Order ${clOrdId} filled`);
         return true;
@@ -621,9 +612,20 @@ export class ScryptService extends PricingProvider {
 
       case ScryptOrderStatus.PENDING_NEW:
       case ScryptOrderStatus.PENDING_CANCEL:
-      case ScryptOrderStatus.PENDING_REPLACE:
+      case ScryptOrderStatus.PENDING_REPLACE: {
+        // Waiting is right — but not indefinitely. A pending report whose terminal update is never seen
+        // would otherwise answer "not complete" for good, and an order stuck that way cannot be resolved by
+        // hand either. Past the age at which an unfindable order is given up on, treat it the same way:
+        // outcome unknown, not failed.
+        const pendingMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
+        if (pendingMinutes > ORDER_LOST_AFTER_MINUTES)
+          throw new ScryptOrderNotFoundError(
+            `Order ${clOrdId} has been ${orderInfo.status} for ${Math.round(pendingMinutes)} minutes — its terminal update was never seen`,
+          );
+
         this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
         return false;
+      }
     }
   }
 
