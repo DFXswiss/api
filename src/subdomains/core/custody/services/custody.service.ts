@@ -46,6 +46,7 @@ export class CustodyService {
 
   // --- ACCOUNT --- //
   async createCustodyAccount(accountId: number, dto: CustodySignupDto, userIp: string): Promise<CustodyAuthDto> {
+    // All preparation stays outside the advisory lock (no pool pin for wallet/signing/owner load).
     const ref = await this.refService.get(userIp);
     if (ref) dto.usedRef ??= ref.ref;
 
@@ -58,36 +59,49 @@ export class CustodyService {
 
     const account = await this.userDataService.getActiveUserData(accountId, { users: true });
 
-    // Resolve-and-insert under the same owner-scoped advisory lock as legacy materialisation
-    // so a concurrent materialise cannot leave this user permanently outside the Safe.
-    // Unrelated prep (wallet, signing, owner load) stays outside the lock.
-    const custodyUser = await this.custodyAccountResolver.withLegacyMaterializeLockForOwner(
-      account.id,
-      async (manager) => {
-        const materialisedAccount = await this.custodyAccountResolver.resolveAccountForNewCustodyUser(
-          account.id,
-          manager,
-        );
-
-        return this.userService.createUser(
-          {
-            address: custodyWallet.address,
-            signature,
-            usedRef: dto.usedRef,
-            ip: userIp,
-            origin: ref?.origin,
-            wallet,
-            userData: account,
-            custodyAddressType: dto.addressType,
-            custodyAddressIndex: addressIndex,
-            role: UserRole.CUSTODY,
-            custodyAccount: materialisedAccount,
-          },
-          dto.specialCode,
-          dto.moderator,
-        );
+    // User insert must NOT run under the advisory lock: UserService.createUser() uses its own
+    // global repositories (and side-effect services). Holding the lock transaction while it
+    // opens a second pool connection deadlocks the default pool of 10 under concurrent signups,
+    // and the insert would also escape a rollback of the lock transaction.
+    //
+    // Invariant is restored in a separate, minimal locked step that only needs EntityManager:
+    // after the user exists, resolve the materialised Safe and set custodyAccountId if needed.
+    const custodyUser = await this.userService.createUser(
+      {
+        address: custodyWallet.address,
+        signature,
+        usedRef: dto.usedRef,
+        ip: userIp,
+        origin: ref?.origin,
+        wallet,
+        userData: account,
+        custodyAddressType: dto.addressType,
+        custodyAddressIndex: addressIndex,
+        role: UserRole.CUSTODY,
       },
+      dto.specialCode,
+      dto.moderator,
     );
+
+    await this.custodyAccountResolver.withLegacyMaterializeLockForOwner(account.id, async (manager) => {
+      const materialisedAccount = await this.custodyAccountResolver.resolveAccountForNewCustodyUser(
+        account.id,
+        manager,
+      );
+      if (!materialisedAccount) return;
+
+      // Only fill still-unassigned rows (same fail-closed pattern as legacy materialise sweep).
+      // camelCase column must stay quoted for Postgres.
+      await manager
+        .createQueryBuilder()
+        .update(User)
+        .set({ custodyAccount: materialisedAccount })
+        .where('id = :userId', { userId: custodyUser.id })
+        .andWhere('"custodyAccountId" IS NULL')
+        .execute();
+
+      custodyUser.custodyAccount = materialisedAccount;
+    });
 
     return { accessToken: this.authService.generateUserToken(custodyUser, userIp) };
   }
