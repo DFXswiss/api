@@ -41,6 +41,17 @@ export class ScryptService extends PricingProvider {
   private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
   private catchUpInProgress = false;
   private catchUpPending = false;
+  private lastCatchUpAt?: number;
+  private catchUpFailures = 0;
+  private lastCatchUpErrorAt?: number;
+
+  // A catch-up round is a full re-fetch of both streams, so its cost scales with the account history, not with
+  // the length of the outage it repairs. On a socket that keeps dropping these must not chain back to back.
+  // The interval is deliberately far above the observed drop cadence of a flapping connection (tens of seconds),
+  // because that is the regime it has to bound; while drops are rare it never bites.
+  private readonly catchUpMinInterval = 300000; // min wall-clock between two rounds, however many reconnects arrive
+  private readonly catchUpMaxRounds = 3; // rounds per invocation; a later reconnect re-enters (still interval-gated)
+  private readonly catchUpErrorInterval = 300000; // re-log a persisting failure at most every 5 min
 
   readonly name: string = 'Scrypt';
 
@@ -99,6 +110,10 @@ export class ScryptService extends PricingProvider {
       },
     );
 
+    // The warm-up above is the same pair of bulk fetches a catch-up round runs, so it takes the first slot:
+    // a reconnect right after boot waits it out instead of re-fetching everything again.
+    this.lastCatchUpAt = Date.now();
+
     this.connection.onReconnect(() => this.catchUpAfterReconnect());
   }
 
@@ -143,6 +158,11 @@ export class ScryptService extends PricingProvider {
   // After a WS reconnect, re-fetch balance transactions + execution reports so an event missed during the outage
   // is recovered (a bare re-subscribe is not documented to replay it). Mirrors the constructor warm-up's fetchAll,
   // but not its subscribeToStream (resubscription is handled by the reconnect itself). Best-effort; logs on failure.
+  //
+  // Rate-limited on purpose: the previous version re-ran a round for every reconnect observed during the round,
+  // which cannot converge once rounds take longer than the interval between drops — each round then re-arms
+  // itself and the venue is re-fetched continuously. `catchUpMinInterval` bounds the rounds, `catchUpMaxRounds`
+  // bounds one invocation, and both legs run sequentially so only one bulk fetch is on the socket at a time.
   private async catchUpAfterReconnect(): Promise<void> {
     if (this.catchUpInProgress) {
       this.catchUpPending = true; // coalesce: re-run once after the in-flight catch-up, to cover this reconnect's downtime
@@ -150,28 +170,84 @@ export class ScryptService extends PricingProvider {
     }
     this.catchUpInProgress = true;
     try {
-      do {
+      for (let round = 0; round < this.catchUpMaxRounds; round++) {
+        await this.awaitCatchUpSlot(); // reconnects arriving during the wait only set catchUpPending
         this.catchUpPending = false;
-        const [executionResult, balanceResult] = await Promise.allSettled([
-          this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT),
-          this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION),
-        ]);
+        this.lastCatchUpAt = Date.now();
 
-        if (executionResult.status === 'fulfilled') {
-          this.applyExecutionReports(executionResult.value);
-        } else {
-          this.logger.error('Scrypt reconnect catch-up (execution reports) failed:', executionResult.reason);
+        const failure = await this.runCatchUpRound();
+        if (failure) {
+          this.reportCatchUpFailure(failure);
+          continue; // retry in the next round, still interval-gated
         }
 
-        if (balanceResult.status === 'fulfilled') {
-          this.applyBalanceTransactions(balanceResult.value);
-        } else {
-          this.logger.error('Scrypt reconnect catch-up (balance transactions) failed:', balanceResult.reason);
-        }
-      } while (this.catchUpPending);
+        this.reportCatchUpSuccess();
+        if (!this.catchUpPending) return; // state is fresh and no reconnect happened meanwhile
+      }
+      // Rounds exhausted, so a reconnect seen during the last round may still be uncovered. That is the
+      // deliberate trade for a bounded loop: rounds are only exhausted while the socket keeps dropping, and
+      // every further drop re-enters this method — one round per catchUpMinInterval instead of continuously.
     } finally {
       this.catchUpInProgress = false;
     }
+  }
+
+  private async awaitCatchUpSlot(): Promise<void> {
+    if (this.lastCatchUpAt == null) return;
+
+    const wait = this.catchUpMinInterval - (Date.now() - this.lastCatchUpAt);
+    if (wait > 0) await Util.delay(wait);
+  }
+
+  // Both legs are independent: a failing execution-report fetch must not cost us the balance transactions.
+  // Returns the failed legs (with the first error for the log), or undefined when both applied.
+  private async runCatchUpRound(): Promise<{ legs: string; error: Error } | undefined> {
+    const legs: string[] = [];
+    let firstError: Error | undefined;
+
+    try {
+      const reports = await this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
+      this.applyExecutionReports(reports);
+    } catch (e) {
+      legs.push('execution reports');
+      firstError ??= e;
+    }
+
+    try {
+      const transactions = await this.connection.fetchAll<ScryptBalanceTransaction>(
+        ScryptMessageType.BALANCE_TRANSACTION,
+      );
+      this.applyBalanceTransactions(transactions);
+    } catch (e) {
+      legs.push('balance transactions');
+      firstError ??= e;
+    }
+
+    return legs.length ? { legs: legs.join(' + '), error: firstError } : undefined;
+  }
+
+  // A failed catch-up is a real state gap — the missed events stay missed until a later round succeeds — so it
+  // stays ERROR rather than being downgraded. It is only de-duplicated: the first failure of a streak logs
+  // immediately, further ones at most once per catchUpErrorInterval, so a flapping socket cannot flood the log.
+  private reportCatchUpFailure({ legs, error }: { legs: string; error: Error }): void {
+    this.catchUpFailures++;
+
+    const now = Date.now();
+    if (this.lastCatchUpErrorAt != null && now - this.lastCatchUpErrorAt < this.catchUpErrorInterval) return;
+
+    this.lastCatchUpErrorAt = now;
+    this.logger.error(
+      `Scrypt reconnect catch-up (${legs}) failed, ${this.catchUpFailures} consecutive failure(s):`,
+      error,
+    );
+  }
+
+  private reportCatchUpSuccess(): void {
+    if (this.catchUpFailures > 0)
+      this.logger.info(`Scrypt reconnect catch-up succeeded after ${this.catchUpFailures} consecutive failure(s)`);
+
+    this.catchUpFailures = 0;
+    this.lastCatchUpErrorAt = undefined;
   }
 
   // --- BALANCES --- //

@@ -1,3 +1,4 @@
+import { Util } from 'src/shared/utils/util';
 import {
   ScryptBalanceTransaction,
   ScryptOrderStatus,
@@ -51,8 +52,13 @@ describe('ScryptService', () => {
     send: jest.Mock;
   };
 
+  let delaySpy: jest.SpyInstance;
+
   beforeEach(async () => {
     (ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>).mockClear();
+    // The catch-up waits out catchUpMinInterval between rounds; tests assert the wait was requested
+    // rather than sitting through it.
+    delaySpy = jest.spyOn(Util, 'delay').mockResolvedValue(undefined);
     service = new ScryptService();
     instance = (ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>).mock.results[0]
       .value as any;
@@ -176,7 +182,7 @@ describe('ScryptService', () => {
     expect(instance.fetchAll).toHaveBeenCalledWith(ScryptMessageType.BALANCE_TRANSACTION);
   });
 
-  it('catchUpAfterReconnect applies the fulfilled stream even when the other stream rejects (Promise.allSettled isolation)', async () => {
+  it('catchUpAfterReconnect applies the fulfilled stream even when the other stream rejects (leg isolation)', async () => {
     const now = new Date().toISOString();
     const freshBalanceTx = {
       ClReqID: 'iso-1',
@@ -202,11 +208,73 @@ describe('ScryptService', () => {
 
     expect((service as any).balanceTransactions.get('iso-1')).toEqual(freshBalanceTx);
     expect((service as any).executionReports.size).toBe(0);
+    // Every round of the invocation fails on the same leg, but the streak is logged once, not once per round.
     expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
     expect(loggerErrorSpy).toHaveBeenCalledWith(
-      'Scrypt reconnect catch-up (execution reports) failed:',
+      'Scrypt reconnect catch-up (execution reports) failed, 1 consecutive failure(s):',
       rejectionError,
     );
+  });
+
+  it('catchUpAfterReconnect stops after catchUpMaxRounds instead of re-arming while the connection flaps', async () => {
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockImplementation(async (streamName: string) => {
+      // Every round fails, and each one re-arms the coalescing flag the way an overlapping reconnect would.
+      (service as any).catchUpPending = true;
+      if (streamName === ScryptMessageType.EXECUTION_REPORT) throw new Error('Connection closed');
+      return [];
+    });
+
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    const executionReportCalls = instance.fetchAll.mock.calls.filter(
+      ([streamName]) => streamName === ScryptMessageType.EXECUTION_REPORT,
+    );
+    expect(executionReportCalls).toHaveLength((service as any).catchUpMaxRounds);
+    expect((service as any).catchUpInProgress).toBe(false);
+  });
+
+  it('catchUpAfterReconnect waits out catchUpMinInterval before a follow-up round', async () => {
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockImplementation(async (streamName: string) => {
+      if (streamName === ScryptMessageType.EXECUTION_REPORT) throw new Error('Connection closed');
+      return [];
+    });
+    delaySpy.mockClear();
+
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    // Every round waits — the first one too, because the constructor warm-up already took a slot.
+    expect(delaySpy).toHaveBeenCalledTimes((service as any).catchUpMaxRounds);
+    for (const [wait] of delaySpy.mock.calls) {
+      expect(wait).toBeGreaterThan(0);
+      expect(wait).toBeLessThanOrEqual((service as any).catchUpMinInterval);
+    }
+  });
+
+  it('catchUpAfterReconnect reports recovery once a failing streak succeeds', async () => {
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    const loggerInfoSpy = jest.spyOn((service as any).logger, 'info').mockImplementation(() => undefined);
+
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockRejectedValue(new Error('Connection closed'));
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    expect((service as any).catchUpFailures).toBeGreaterThan(0);
+
+    instance.fetchAll.mockResolvedValue([]);
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    expect((service as any).catchUpFailures).toBe(0);
+    expect(loggerInfoSpy).toHaveBeenCalledWith(expect.stringContaining('Scrypt reconnect catch-up succeeded after'));
   });
 
   it('live BalanceTransaction subscriber goes through the terminal-aware guard', () => {
@@ -428,29 +496,20 @@ describe('ScryptService', () => {
     expect((freshService as any).balanceTransactions.get('warm-old')).toBeUndefined();
   });
 
-  it('catchUpAfterReconnect coalesces overlapping reconnects into a second full run', async () => {
-    let resolveFirstExecutionReport: (value: unknown[]) => void;
-    const firstExecutionReportPromise = new Promise<unknown[]>((resolve) => {
-      resolveFirstExecutionReport = resolve;
-    });
+  it('catchUpAfterReconnect coalesces a reconnect seen during the fetches into one follow-up round', async () => {
     let fetchAllCallCount = 0;
 
     instance.fetchAll.mockClear();
-    instance.fetchAll.mockImplementation((streamName: string) => {
+    instance.fetchAll.mockImplementation(async (streamName: string) => {
       fetchAllCallCount += 1;
-      if (fetchAllCallCount === 1 && streamName === ScryptMessageType.EXECUTION_REPORT) {
-        return firstExecutionReportPromise;
-      }
-      return Promise.resolve([]);
+      // Overlapping reconnect while the first round's EXECUTION_REPORT fetch is already in flight: it lands
+      // after the round's data, so it needs a round of its own.
+      if (fetchAllCallCount === 1 && streamName === ScryptMessageType.EXECUTION_REPORT)
+        await (service as any).catchUpAfterReconnect();
+      return [];
     });
 
-    const inFlight = (service as any).catchUpAfterReconnect();
-
-    // Overlapping reconnect while first catch-up is still pending on EXECUTION_REPORT
     await (service as any).catchUpAfterReconnect();
-
-    resolveFirstExecutionReport!([]);
-    await inFlight;
     await flushPromises();
 
     const executionReportCalls = instance.fetchAll.mock.calls.filter(
@@ -461,6 +520,26 @@ describe('ScryptService', () => {
     );
     expect(executionReportCalls).toHaveLength(2);
     expect(balanceTransactionCalls).toHaveLength(2);
+  });
+
+  it('catchUpAfterReconnect absorbs a reconnect that arrives before the round starts fetching', async () => {
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockResolvedValue([]);
+
+    // The slot wait runs before the round clears catchUpPending, so a reconnect arriving during the wait is
+    // covered by the round that follows it — no extra round, no extra pair of bulk fetches.
+    delaySpy.mockImplementation(async () => {
+      await (service as any).catchUpAfterReconnect();
+    });
+
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    const executionReportCalls = instance.fetchAll.mock.calls.filter(
+      ([streamName]) => streamName === ScryptMessageType.EXECUTION_REPORT,
+    );
+    expect(executionReportCalls).toHaveLength(1);
+    expect((service as any).catchUpPending).toBe(false);
   });
 
   describe('getDepositStatus', () => {
