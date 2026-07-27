@@ -7,7 +7,9 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  # `write` is required because the release PR is opened with the workflow's own
+  # GITHUB_TOKEN (see the create step) rather than with a personal access token.
+  pull-requests: write
 
 concurrency:
   group: auto-release-pr
@@ -47,7 +49,24 @@ jobs:
       - name: Create Release PR
         if: steps.check-pr.outputs.pr_exists == 'false' && steps.check-diff.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
+          # The release PR must be authored by the Actions bot, not by a person. A personal
+          # access token would put a human's name on an automated PR and tie the automation to
+          # one account's credential lifetime.
+          #
+          # Trade-off, deliberately accepted: a PR opened with GITHUB_TOKEN does not start a
+          # `pull_request` workflow run for the `opened` activity. The release PR therefore opens
+          # without any of them — API PR CI, CodeQL Advanced, PR Review Bot, and API Migration
+          # Check when the release carries non-seed `migration/**` changes. Later pushes to
+          # `develop` do start `synchronize` runs, so a release PR merged before any such push
+          # gets no `pull_request` run at all, while one that stays open across further merges
+          # does. Observed on the bot-authored release PRs before this was switched to a PAT:
+          # one merged unchanged had no `pull_request` run, another got its runs only once a
+          # later merge moved the head.
+          #
+          # Consequence for reviewers: a green release PR does NOT imply CI ran with `main` as
+          # the target. The checks shown may come solely from the push runs on `develop` for the
+          # same head commit.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMIT_COUNT: ${{ steps.check-diff.outputs.commit_count }}
         run: |
           printf '%s\n' \
