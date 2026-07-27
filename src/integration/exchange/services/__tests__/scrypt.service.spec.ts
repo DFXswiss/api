@@ -267,6 +267,62 @@ describe('ScryptService', () => {
     expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('catch-up incomplete after'));
   });
 
+  it('re-fetches the healthy leg too when a reconnect lands after a partially failing round', async () => {
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+
+    let executionCalls = 0;
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockImplementation(async (streamName: string) => {
+      if (streamName === ScryptMessageType.EXECUTION_REPORT) {
+        executionCalls += 1;
+        if (executionCalls === 1) throw new Error('Connection closed'); // round 0 fails on this leg only
+      }
+      return [];
+    });
+    // Round 0 waits first (the constructor warm-up claimed a slot), so the reconnect goes into round 1's wait —
+    // i.e. after round 0 already fetched the balance leg. Its outage postdates that snapshot, so round 1 owes
+    // BOTH streams, not just the leg round 0 failed on.
+    let delayCalls = 0;
+    delaySpy.mockImplementation(async () => {
+      delayCalls += 1;
+      if (delayCalls === 2) await (service as any).catchUpAfterReconnect();
+    });
+
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    const balanceCalls = instance.fetchAll.mock.calls.filter(
+      ([streamName]) => streamName === ScryptMessageType.BALANCE_TRANSACTION,
+    );
+    expect(balanceCalls).toHaveLength(2);
+  });
+
+  it('the scheduled retry actually runs a fresh round when it fires', async () => {
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+    jest.useFakeTimers();
+
+    instance.fetchAll.mockClear();
+    instance.fetchAll.mockRejectedValue(new Error('Connection closed'));
+
+    await (service as any).catchUpAfterReconnect();
+    await flushPromises();
+
+    const callsBeforeRetry = instance.fetchAll.mock.calls.length;
+    expect(callsBeforeRetry).toBeGreaterThan(0);
+    expect((service as any).catchUpRetryTimer).toBeDefined();
+
+    instance.fetchAll.mockResolvedValue([]);
+    jest.advanceTimersByTime((service as any).catchUpMinInterval);
+    await flushPromises();
+
+    // The retry is not just armed — it re-enters and restores the streams the bounded loop still owed.
+    expect(instance.fetchAll.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
+    expect((service as any).catchUpInProgress).toBe(false);
+
+    jest.useRealTimers();
+  });
+
   it('catchUpAfterReconnect runs immediately when the last round is longer ago than catchUpMinInterval', async () => {
     instance.fetchAll.mockClear();
     instance.fetchAll.mockResolvedValue([]);
