@@ -238,6 +238,9 @@ export class CustodyService {
    * Accrued simple interest for an interest-bearing custody position.
    * dueDate is a parameter (not new Date() inside) so the method is deterministically testable.
    * Order type is intentionally not filtered — any completed order that moves the asset counts.
+   * Value date is order.updated (not created): for a Completed order, updated is the completion
+   * timestamp from which the amount is in the custody position — the same valuta semantics as
+   * getUserCustodyHistory() (order: { updated: 'ASC' }, Util.isoDate(order.updated)).
    */
   private async calculateAccruedInterest(userIds: number[], asset: Asset, dueDate: Date): Promise<number> {
     // Exclude NULL amounts at the query level — mirrors updateCustodyBalance()'s SQL SUM(),

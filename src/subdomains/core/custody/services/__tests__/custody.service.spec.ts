@@ -1,6 +1,6 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
-import { Config } from 'src/config/config';
+import { Config, ConfigService } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -29,6 +29,8 @@ describe('CustodyService', () => {
   const asset = createCustomAsset({ id: 42, name: 'BTC' });
   const custodyUser = createCustomUser({ id: 7, role: UserRole.CUSTODY });
   const accountId = 100;
+
+  beforeAll(() => new ConfigService());
 
   beforeEach(() => {
     userDataService = createMock<UserDataService>();
@@ -152,7 +154,12 @@ describe('CustodyService', () => {
   });
 
   describe('calculateAccruedInterest', () => {
-    const rate = Config.custody.savingInterestRate;
+    let rate: number;
+
+    beforeAll(() => {
+      rate = Config.custody.savingInterestRate;
+    });
+
     const dueDate = new Date('2026-07-28T00:00:00.000Z');
     const userIds = [custodyUser.id];
 
@@ -218,8 +225,7 @@ describe('CustodyService', () => {
 
       const depositDays = Util.daysDiff(depositUpdated, dueDate);
       const withdrawalDays = Util.daysDiff(withdrawalUpdated, dueDate);
-      const expected =
-        (depositAmount * rate * depositDays) / 365 + (-withdrawalAmount * rate * withdrawalDays) / 365;
+      const expected = (depositAmount * rate * depositDays) / 365 + (-withdrawalAmount * rate * withdrawalDays) / 365;
       const depositOnly = (depositAmount * rate * depositDays) / 365;
 
       expect(result).toBeCloseTo(expected, 2);
@@ -228,9 +234,7 @@ describe('CustodyService', () => {
 
     it('ignores orders with value date after dueDate', async () => {
       const afterDueDate = new Date('2026-07-29T00:00:00.000Z');
-      custodyOrderRepo.find.mockResolvedValue([
-        interestOrder({ updated: afterDueDate, inputAmount: 99500 }),
-      ]);
+      custodyOrderRepo.find.mockResolvedValue([interestOrder({ updated: afterDueDate, inputAmount: 99500 })]);
 
       const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
 
