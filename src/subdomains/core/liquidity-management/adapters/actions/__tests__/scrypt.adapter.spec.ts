@@ -562,11 +562,8 @@ describe('ScryptAdapter', () => {
     it('falls back to the predecessor only after the replacement was explicitly rejected', async () => {
       jest
         .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(
-          async (id: string) =>
-            (id === 'dfx-lm-4711-1'
-              ? { id, status: ScryptOrderStatus.REJECTED }
-              : { id, status: ScryptOrderStatus.NEW }) as any,
+        .mockImplementation(async (id: string) =>
+          venueOrder(id, id === 'dfx-lm-4711-1' ? ScryptOrderStatus.REJECTED : ScryptOrderStatus.NEW),
         );
       const order = createUncertainSellOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
