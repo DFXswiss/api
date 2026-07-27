@@ -227,7 +227,7 @@ describe('LiquidityManagementPipelineService', () => {
         errorMessage: 'unknown',
       });
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
-      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 0 } as any);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
 
       await expect(service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42)).rejects.toThrow(/resolved elsewhere/);
     });
@@ -239,7 +239,7 @@ describe('LiquidityManagementPipelineService', () => {
         errorMessage: 'Scrypt gave no confirmed outcome',
       });
       jest.spyOn(orderRepo, 'findOneBy').mockResolvedValue(order);
-      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
       await service.resolveUncertainOrderManually(9, VERIFIED_DTO, 42);
 

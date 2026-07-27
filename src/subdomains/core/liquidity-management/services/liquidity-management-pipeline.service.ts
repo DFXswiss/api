@@ -388,7 +388,7 @@ export class LiquidityManagementPipelineService {
       );
 
     order.resolveAsNotSent(
-      `${order.errorMessage} (manually resolved by account ${resolvedBy}: venue checked, no execution found — ${verificationReference.slice(0, 256)})`,
+      `${order.errorMessage} (manually resolved by account ${resolvedBy}: venue checked, no execution found — ${verificationReference})`,
     );
 
     if (!(await this.leaveQuarantine(order)))

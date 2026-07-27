@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsString, MinLength, IsIn } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 
 /**
  * Manual release of an order whose outcome the venue could not confirm.
@@ -26,5 +26,6 @@ export class ResolveUncertainOrderDto {
   @IsNotEmpty()
   @IsString()
   @MinLength(3)
+  @MaxLength(1024)
   verificationReference: string;
 }
