@@ -21,10 +21,6 @@ const { spawn } = require('child_process');
 const { ethers } = require('ethers');
 const { Client } = require('pg');
 
-// Read the same .env the API uses, so a customised SQL_* (e.g. a different port
-// because 5432 is already taken) applies to this script's own database checks.
-require('dotenv').config();
-
 // ============================================================================
 // SAFETY CHECKS - Prevent accidental execution against production
 // ============================================================================
