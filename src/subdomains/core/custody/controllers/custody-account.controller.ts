@@ -99,7 +99,7 @@ export class CustodyAccountController {
 
   @Get(':id/access')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOkResponse({ type: [CustodyAccountAccessDto], description: 'List of users with access' })
   async getAccessList(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyAccountAccessDto[]> {
     const accessList = await this.custodyAccountService.getAccessList(

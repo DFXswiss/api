@@ -41,16 +41,23 @@ module.exports = class AddCustodyAccountAccessHistory1785100000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
+    // Refuse when inactive history exists: both consolidations are lossy (delete history, or
+    // resurrect revoked grants after dropping `active`). Count first so a refused rollback
+    // leaves the schema completely untouched.
+    const inactiveCount = (
+      await queryRunner.query(`SELECT COUNT(*)::int AS count FROM "custody_account_access" WHERE "active" = false`)
+    ).at(0).count;
+
+    if (inactiveCount > 0) {
+      throw new Error(
+        `Cannot roll back AddCustodyAccountAccessHistory: ${inactiveCount} inactive custody_account_access row(s) exist. ` +
+          'Both consolidations are lossy — deleting inactive rows destroys grant history; keeping them and ' +
+          'recreating the full unique index would resurrect revoked grants once the active column is gone. ' +
+          'Archive or consolidate custody_account_access deliberately, then run the rollback again.',
+      );
+    }
+
     await queryRunner.query(`DROP INDEX "public"."IDX_aab22f509e4cf0a1856adefa45"`);
-
-    // Lossy rollback by nature: after level changes or revoke-and-regrant there are several rows
-    // per (accountId, userDataId), so the original full unique index cannot be recreated without
-    // first consolidating. Keep ONLY the active rows — the partial index guarantees at most one
-    // per pair. Every inactive row is history and must go: keeping the newest one for a pair that
-    // has no active row would resurrect a revoked grant, because the rolled-back application has
-    // no `active` column left to tell live from historical.
-    await queryRunner.query(`DELETE FROM "custody_account_access" WHERE "active" = false`);
-
     await queryRunner.query(
       `CREATE UNIQUE INDEX "IDX_380e225bfd7707fff0e4f98035" ON "custody_account_access" ("accountId", "userDataId")`,
     );

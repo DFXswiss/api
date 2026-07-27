@@ -163,7 +163,7 @@ export class CustodyAccountService {
 
   // --- GET ACCESS LIST --- //
   async getAccessList(custodyAccountId: number, accountId: number): Promise<CustodyAccountAccess[]> {
-    await this.checkAccess(custodyAccountId, accountId, CustodyAccessLevel.READ);
+    await this.requireOwner(custodyAccountId, accountId);
 
     return this.custodyAccountAccessRepo.find({
       where: { account: { id: custodyAccountId }, active: true },
