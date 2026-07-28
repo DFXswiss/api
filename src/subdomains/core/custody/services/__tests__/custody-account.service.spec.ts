@@ -226,12 +226,7 @@ describe('CustodyAccountService', () => {
     userDataService = createMock<UserDataService>();
     custodyService = createMock<CustodyService>();
 
-    service = new CustodyAccountService(
-      custodyAccountRepo,
-      custodyAccountAccessRepo,
-      userDataService,
-      custodyService,
-    );
+    service = new CustodyAccountService(custodyAccountRepo, custodyAccountAccessRepo, userDataService, custodyService);
   });
 
   describe('checkAccess', () => {
