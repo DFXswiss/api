@@ -139,6 +139,17 @@ export class CustodyService {
     };
   }
 
+  /**
+   * Cheap existence check used by CustodyAccountService to decide whether the legacy Safe
+   * entry is empty: a `0` balance counts as empty, a negative one does not — production has
+   * real negative custody balances, and those must not be treated as an empty Safe.
+   */
+  async hasNonZeroCustodyBalance(custodyUserIds: number[]): Promise<boolean> {
+    if (!custodyUserIds.length) return false;
+
+    return this.custodyBalanceRepo.exists({ where: { user: { id: In(custodyUserIds) }, balance: Not(0) } });
+  }
+
   async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {
     const entity = this.custodyBalanceRepo.create({ user, asset, balance });
 
