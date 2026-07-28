@@ -35,6 +35,7 @@ import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-pay
 import { Sell } from '../route/sell.entity';
 
 @Entity()
+@Index(['amlCheck', 'amlReason'])
 export class BuyFiat extends IEntity {
   // References
   @OneToOne(() => CryptoInput, { nullable: false })

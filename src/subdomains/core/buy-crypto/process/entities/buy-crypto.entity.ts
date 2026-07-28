@@ -70,6 +70,7 @@ export interface CreditorData {
 }
 
 @Entity()
+@Index(['amlCheck', 'amlReason'])
 export class BuyCrypto extends IEntity {
   // References
   @OneToOne(() => BankTx, { nullable: true })

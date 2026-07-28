@@ -270,6 +270,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   phoneCallTimes: string; // PhoneCallPreferredTimes array
 
+  @Index()
   @Column({ length: 256, nullable: true })
   phoneCallStatus: PhoneCallStatus;
 

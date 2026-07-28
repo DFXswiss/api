@@ -20,6 +20,7 @@ export type KycStepResult = string | object;
 
 @Entity()
 @Index((s: KycStep) => [s.userData, s.name, s.type, s.sequenceNumber], { unique: true })
+@Index(['status', 'name'])
 export class KycStep extends IEntity {
   @Index()
   @ManyToOne(() => UserData, (userData) => userData.kycSteps, { nullable: false })

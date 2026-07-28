@@ -32,6 +32,7 @@ export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
   name?: string;
 
+  @Index()
   @Column({ nullable: true })
   status?: ReviewStatus;
 
