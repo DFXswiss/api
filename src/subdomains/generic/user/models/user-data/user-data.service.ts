@@ -784,7 +784,7 @@ export class UserDataService {
     // Re-submitting the address the account already has is a no-op, not a change. The 2FA gate
     // below guards a change of mail; demanding it for an unchanged address turns a client retry
     // into a dead end. Runs after checkMail so a merged account still gets its master-code redirect.
-    if (userData.mail.toLowerCase() === dto.mail.toLowerCase()) return UpdateMailStatus.Ok;
+    if (Util.equalsIgnoreCase(userData.mail, dto.mail)) return UpdateMailStatus.Ok;
 
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
@@ -875,8 +875,14 @@ export class UserDataService {
 
   private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
     mail = mail?.toLowerCase();
-    // captured before the assign below overwrites it — otherwise the change log sees old === new
+
+    // Read before write, and log before the column is overwritten: the change log is the event of
+    // record for this snapshot column, so a failed log write must leave the old address in place
+    // (CONTRIBUTING, "Auditable mutations"). Only an actual change is logged — reaching here with a
+    // null oldMail is an initial assignment, which the log never recorded.
     const oldMail = userData.mail;
+    if (oldMail) await this.kycLogService.createMailChangeLog(userData, oldMail, mail);
+
     await this.userDataRepo.update(userData.id, { mail });
     Object.assign(userData, { mail });
 
@@ -890,8 +896,6 @@ export class UserDataService {
       updateSiftAccount.$user_id = user.id.toString();
       this.siftService.updateAccount(updateSiftAccount);
     }
-
-    await this.kycLogService.createMailChangeLog(userData, oldMail, mail);
 
     try {
       await this.kycService.initializeProcess(userData);

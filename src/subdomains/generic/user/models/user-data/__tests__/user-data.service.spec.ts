@@ -305,14 +305,16 @@ describe('UserDataService', () => {
       const userData = Object.assign(new UserData(), {
         id: 397899,
         status: UserDataStatus.ACTIVE,
-        mail: 'user@example.com',
+        // legacy stored rows predate the lowercase-on-write normalization; the DTO transform
+        // guarantees the incoming address is already lowercased, so the stored side is the one
+        // the case-insensitive comparison has to carry
+        mail: 'User@Example.com',
         users: [],
       });
 
       userDataRepo.find.mockResolvedValue([userData]);
 
-      // mixed case: legacy rows predate the lowercase-on-write normalization
-      const result = await service.updateUserMail(userData, { mail: 'User@Example.com' }, '1.2.3.4');
+      const result = await service.updateUserMail(userData, { mail: 'user@example.com' }, '1.2.3.4');
 
       expect(result).toBe(UpdateMailStatus.Ok);
       expect(tfaService.checkVerification).not.toHaveBeenCalled();
@@ -354,6 +356,39 @@ describe('UserDataService', () => {
       await service.trySetUserMail(userData, 'new@example.com');
 
       expect(kycLogService.createMailChangeLog).toHaveBeenCalledWith(userData, 'old@example.com', 'new@example.com');
+    });
+
+    it('writes no log for an initial assignment, which is not a change', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.ACTIVE,
+        mail: null,
+        users: [],
+      });
+
+      userDataRepo.find.mockResolvedValue([]);
+
+      await service.trySetUserMail(userData, 'new@example.com');
+
+      expect(kycLogService.createMailChangeLog).not.toHaveBeenCalled();
+      expect(userDataRepo.update).toHaveBeenCalledWith(userData.id, { mail: 'new@example.com' });
+    });
+
+    it('leaves the stored address untouched when the log write fails', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.ACTIVE,
+        mail: 'old@example.com',
+        users: [],
+      });
+
+      userDataRepo.find.mockResolvedValue([]);
+      kycLogService.createMailChangeLog.mockRejectedValue(new Error('log write failed'));
+
+      await expect(service.trySetUserMail(userData, 'new@example.com')).rejects.toThrow('log write failed');
+
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+      expect(userData.mail).toBe('old@example.com');
     });
   });
 

@@ -270,7 +270,8 @@ export class UserV2Controller {
 
   @Put('mail')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @UseGuards(RateLimitGuard, AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @Throttle(10, 60)
   @ApiOkResponse({ description: 'Mail updated successfully' })
   @ApiAcceptedResponse({ description: 'Verification code sent' })
   @ApiForbiddenResponse({ description: 'Missing 2FA' })
