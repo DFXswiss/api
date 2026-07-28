@@ -22,17 +22,6 @@ import { LiquidityManagementPipelineRepository } from '../repositories/liquidity
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementService } from './liquidity-management.service';
 
-/**
- * How long a release waits for a venue that cannot be reached before taking effect anyway.
- *
- * A liveness bound, not a safety one — the distinction matters here. The wait exists to catch a confirmation
- * that is in flight RIGHT NOW; after an hour of a venue that answers nothing there is none in flight, and a
- * check nobody can perform must not hold an order somebody has verified by hand out of reach for good.
- * Nothing is concluded from silence: the person who released the order concluded it, and this only stops an
- * unreachable venue from vetoing them forever.
- */
-const UNREACHABLE_VENUE_RELEASE_MINUTES = 60;
-
 @Injectable()
 export class LiquidityManagementPipelineService {
   private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
@@ -353,10 +342,11 @@ export class LiquidityManagementPipelineService {
           // checked independently and released the order on that basis. Two negatives, one of them from a
           // person who looked: that is what this release was waiting for.
           if (await this.completeNotSentRelease(order, 'the venue has no record of it either')) anyChanged = true;
-        } else if (releasePending && this.venueHasBeenSilentTooLong(order)) {
-          // Nobody has been able to ask this venue anything for an hour. Waiting longer does not make an
-          // answer more likely; it only keeps an order a person has verified by hand out of reach.
-          if (await this.completeNotSentRelease(order, 'the venue could not be reached for an hour')) anyChanged = true;
+        } else if (releasePending && order.releaseWaitedOutVenue()) {
+          // Nobody has been able to ask this venue anything for long enough. Waiting more does not make an
+          // answer likelier; it only keeps an order a person has verified by hand out of reach.
+          if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
+            anyChanged = true;
         }
         // Otherwise — a venue that cannot be asked yet, or an inconclusive answer with nobody having
         // released the order — nothing changes and it keeps blocking.
@@ -373,8 +363,9 @@ export class LiquidityManagementPipelineService {
    * Put a not-sent conclusion into effect: the order becomes an ordinary failure and its rule may plan anew.
    *
    * The only place an order leaves quarantine downwards. Everything that reaches here has either a venue
-   * verdict behind it or a person who checked plus a venue that has no record — never a single judgement on
-   * its own, and never an unanswered lookup.
+   * verdict behind it, or a person who checked plus a venue that has no record — never a single judgement on
+   * its own. The two exceptions are about liveness, not evidence: a venue nothing can ask, and one that has
+   * answered nothing for long enough. Silence there stops vetoing the person who checked; it proves nothing.
    */
   private async completeNotSentRelease(order: LiquidityManagementOrder, because: string): Promise<boolean> {
     // The release this pass looked at, captured before the entity is mutated. Ending an order is the one
@@ -420,11 +411,6 @@ export class LiquidityManagementPipelineService {
     await this.blockConfirmedOrder(order);
 
     return false;
-  }
-
-  /** Whether a pending release has been waiting on an unreachable venue longer than is any use. */
-  private venueHasBeenSilentTooLong(order: LiquidityManagementOrder): boolean {
-    return Util.minutesDiff(order.notSentRecheckDue) > UNREACHABLE_VENUE_RELEASE_MINUTES;
   }
 
   /**

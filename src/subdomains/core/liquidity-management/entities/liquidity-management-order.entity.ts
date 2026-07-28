@@ -1,4 +1,5 @@
 import { Active } from 'src/shared/models/active';
+import { Util } from 'src/shared/utils/util';
 import { IEntity } from 'src/shared/models/entity';
 import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -9,6 +10,14 @@ import { OrderNotProcessableException } from '../exceptions/order-not-processabl
 import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
+
+/**
+ * How long a release waits for a venue that cannot be reached before taking effect anyway.
+ *
+ * A liveness bound, not a safety one. Nothing is concluded from the silence: the person who released the
+ * order concluded it, and this only stops an unreachable venue from vetoing them forever.
+ */
+const RELEASE_WITHOUT_VENUE_MINUTES = 60;
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -67,8 +76,11 @@ export class LiquidityManagementOrder extends IEntity {
    * that are in fact committed — before anything could contradict it. So it waits for one machine answer,
    * which normally arrives on the next pass, seconds later.
    *
-   * The one exception is an order no integration can look up any more: no answer can ever come, so waiting
-   * would quarantine it forever and the release takes effect on the operator's assertion alone.
+   * Two exceptions, both about liveness rather than safety, and neither concluding anything from silence:
+   * an order no integration can look up any more never gets an answer, and a venue that has been unreachable
+   * for `RELEASE_WITHOUT_VENUE_MINUTES` is not going to give one. There the release takes effect on the
+   * operator's assertion — which is what it was checked for. Silence stops being a veto; it never becomes
+   * evidence.
    *
    * A marker for work outstanding, NOT a record of when the release was asked for: that goes into the
    * order's reason, which nothing clears. Indexed so that finding these few rows is never a scan.
@@ -218,6 +230,16 @@ export class LiquidityManagementOrder extends IEntity {
     this.notSentRecheckDue = null;
 
     return this;
+  }
+
+  /**
+   * Whether a pending release has waited out a venue that answers nothing.
+   *
+   * The wait exists to catch a confirmation that is in flight right now. After this long there is none in
+   * flight, only an operator who checked and is being ignored — so silence stops vetoing them.
+   */
+  releaseWaitedOutVenue(): boolean {
+    return this.notSentRecheckDue != null && Util.minutesDiff(this.notSentRecheckDue) > RELEASE_WITHOUT_VENUE_MINUTES;
   }
 
   /**
