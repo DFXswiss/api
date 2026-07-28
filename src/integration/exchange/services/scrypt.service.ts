@@ -43,6 +43,9 @@ import {
  */
 const ORDER_LOST_AFTER_MINUTES = 60;
 
+// The bulk streams a reconnect catch-up restores; the live subscriptions cover everything else.
+type CatchUpStream = ScryptMessageType.EXECUTION_REPORT | ScryptMessageType.BALANCE_TRANSACTION;
+
 @Injectable()
 export class ScryptService extends PricingProvider {
   private readonly logger = new DfxLogger(ScryptService);
@@ -55,6 +58,33 @@ export class ScryptService extends PricingProvider {
   private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
   private catchUpInProgress = false;
   private catchUpPending = false;
+  private lastCatchUpAt?: number;
+  private catchUpFailures = 0;
+  private catchUpRetryTimer?: NodeJS.Timeout;
+
+  // A catch-up round re-fetches each owed bulk stream in full, so its cost scales with the account history, not
+  // with the length of the outage it repairs. On a socket that keeps dropping these must not chain back to back.
+  // The interval is deliberately far above the observed drop cadence of a flapping connection (tens of seconds),
+  // because that is the regime it has to bound; an isolated reconnect long after the last round waits not at all.
+  private readonly catchUpMinInterval = 300000; // 5 min — min wall-clock between rounds, however many reconnects
+  private readonly catchUpMaxRounds = 3; // rounds per invocation; leftover work is retried by a scheduled re-entry
+  private readonly catchUpStreams: CatchUpStream[] = [
+    ScryptMessageType.EXECUTION_REPORT,
+    ScryptMessageType.BALANCE_TRANSACTION,
+  ];
+
+  // Keyed by stream rather than a switch, so adding one to catchUpStreams without a fetcher is a build error
+  // instead of a leg that silently reports itself as caught up without ever fetching.
+  private readonly catchUpFetchers: Record<CatchUpStream, () => Promise<void>> = {
+    [ScryptMessageType.EXECUTION_REPORT]: async () =>
+      this.applyExecutionReports(
+        await this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT),
+      ),
+    [ScryptMessageType.BALANCE_TRANSACTION]: async () =>
+      this.applyBalanceTransactions(
+        await this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION),
+      ),
+  };
 
   readonly name: string = 'Scrypt';
 
@@ -91,20 +121,32 @@ export class ScryptService extends PricingProvider {
     });
 
     // ExecutionReport subscription (all pages + subscription)
-    this.connection
+    const executionWarmUp = this.connection
       .fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT)
-      .then((reports) => this.applyExecutionReports(reports))
-      .catch((error) => this.logger.error('Failed to fetch execution reports:', error));
+      .then((reports) => {
+        this.applyExecutionReports(reports);
+        return true;
+      })
+      .catch((error) => {
+        this.logger.error('Failed to fetch execution reports:', error);
+        return false;
+      });
 
     this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) => {
       for (const r of reports) this.cacheExecutionReport(r); // live event: always cache (terminal guard only, no age cutoff)
     });
 
     // BalanceTransaction subscription (all pages + subscription)
-    this.connection
+    const balanceWarmUp = this.connection
       .fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION)
-      .then((transactions) => this.applyBalanceTransactions(transactions))
-      .catch((error) => this.logger.error('Failed to fetch balance transactions:', error));
+      .then((transactions) => {
+        this.applyBalanceTransactions(transactions);
+        return true;
+      })
+      .catch((error) => {
+        this.logger.error('Failed to fetch balance transactions:', error);
+        return false;
+      });
 
     this.connection.subscribeToStream<ScryptBalanceTransaction>(
       ScryptMessageType.BALANCE_TRANSACTION,
@@ -112,6 +154,13 @@ export class ScryptService extends PricingProvider {
         for (const t of transactions) this.cacheBalanceTransaction(t); // live event: always cache (terminal guard only)
       },
     );
+
+    // A warm-up that loaded BOTH streams is exactly what a catch-up round does, so it claims the first slot and a
+    // reconnect right after boot waits it out instead of repeating it. If either leg failed the caches are not
+    // whole, and the next reconnect must repair immediately rather than sit out the interval on stale state.
+    void Promise.all([executionWarmUp, balanceWarmUp]).then(([executionLoaded, balanceLoaded]) => {
+      if (executionLoaded && balanceLoaded) this.lastCatchUpAt = Date.now();
+    });
 
     this.connection.onReconnect(() => this.catchUpAfterReconnect());
   }
@@ -167,35 +216,117 @@ export class ScryptService extends PricingProvider {
   // After a WS reconnect, re-fetch balance transactions + execution reports so an event missed during the outage
   // is recovered (a bare re-subscribe is not documented to replay it). Mirrors the constructor warm-up's fetchAll,
   // but not its subscribeToStream (resubscription is handled by the reconnect itself). Best-effort; logs on failure.
+  //
+  // Rate-limited on purpose: the previous version re-ran a round for every reconnect observed during the round,
+  // which cannot converge once rounds take longer than the interval between drops — each round then re-arms
+  // itself and the venue is re-fetched continuously. `catchUpMinInterval` spaces the rounds, `catchUpMaxRounds`
+  // bounds one invocation and hands anything still owed to a scheduled retry, the legs run sequentially so only
+  // one bulk fetch is on the socket at a time, and within an invocation a round re-fetches only the legs that
+  // actually failed — unless a reconnect coalesced in, whose outage postdates the round's snapshots and
+  // therefore owes both streams again (the scheduled retry likewise restarts from the full pair).
   private async catchUpAfterReconnect(): Promise<void> {
     if (this.catchUpInProgress) {
-      this.catchUpPending = true; // coalesce: re-run once after the in-flight catch-up, to cover this reconnect's downtime
+      this.catchUpPending = true; // coalesce: a following round picks it up, or the retry scheduled on exhaustion
       return;
     }
+
+    this.clearCatchUpRetry(); // a live invocation supersedes a scheduled one
     this.catchUpInProgress = true;
+
+    let outstanding = [...this.catchUpStreams];
     try {
-      do {
+      for (let round = 0; round < this.catchUpMaxRounds; round++) {
+        await this.awaitCatchUpSlot(); // reconnects arriving during the wait only set catchUpPending
+
+        // A coalesced reconnect covers an outage that postdates the last round's snapshots, so it needs BOTH
+        // streams again — not just the legs an earlier round failed on. This has to sit where the flag is
+        // consumed: `outstanding` alone carries the failed legs, never the pending reconnect.
+        if (this.catchUpPending) outstanding = [...this.catchUpStreams];
         this.catchUpPending = false;
-        const [executionResult, balanceResult] = await Promise.allSettled([
-          this.connection.fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT),
-          this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION),
-        ]);
 
-        if (executionResult.status === 'fulfilled') {
-          this.applyExecutionReports(executionResult.value);
-        } else {
-          this.logger.error('Scrypt reconnect catch-up (execution reports) failed:', executionResult.reason);
-        }
+        outstanding = await this.runCatchUpRound(outstanding);
+        // Stamped at the END of the round, so the gate is a cooldown: a round that outlasts the interval would
+        // otherwise leave `wait <= 0` and let the next one start immediately — exactly the back-to-back
+        // re-fetching this gate exists to prevent.
+        this.lastCatchUpAt = Date.now();
 
-        if (balanceResult.status === 'fulfilled') {
-          this.applyBalanceTransactions(balanceResult.value);
-        } else {
-          this.logger.error('Scrypt reconnect catch-up (balance transactions) failed:', balanceResult.reason);
-        }
-      } while (this.catchUpPending);
+        if (!outstanding.length) this.reportCatchUpSuccess();
+        if (!outstanding.length && !this.catchUpPending) return; // state is fresh and nothing coalesced
+      }
     } finally {
       this.catchUpInProgress = false;
+      // The loop is bounded, so it can end with a leg still failing or a reconnect still uncovered. onReconnect
+      // only fires on the NEXT drop, so if the socket stabilises right here nothing would ever repair the gap.
+      if (outstanding.length || this.catchUpPending) this.scheduleCatchUpRetry(outstanding);
     }
+  }
+
+  private async awaitCatchUpSlot(): Promise<void> {
+    if (this.lastCatchUpAt == null) return;
+
+    const wait = this.catchUpMinInterval - (Date.now() - this.lastCatchUpAt);
+    if (wait > 0) await Util.delay(wait);
+  }
+
+  private scheduleCatchUpRetry(outstanding: CatchUpStream[]): void {
+    this.logger.warn(
+      `Scrypt reconnect catch-up incomplete after ${this.catchUpMaxRounds} round(s)${
+        outstanding.length ? ` (still owed: ${outstanding.join(', ')})` : ''
+      } — retrying in ${this.catchUpMinInterval}ms`,
+    );
+
+    // Retries the full pair: by the time it fires both streams have moved on anyway. The rejection handler
+    // mirrors fireReconnectCallbacks — this runs detached, so an escaping error would take the process down.
+    this.catchUpRetryTimer = setTimeout(
+      () => void this.catchUpAfterReconnect().catch((e) => this.logger.error('Scrypt catch-up retry failed:', e)),
+      this.catchUpMinInterval,
+    );
+    this.catchUpRetryTimer.unref();
+  }
+
+  private clearCatchUpRetry(): void {
+    if (!this.catchUpRetryTimer) return;
+
+    clearTimeout(this.catchUpRetryTimer);
+    this.catchUpRetryTimer = undefined;
+  }
+
+  // The legs are independent: a failing execution-report fetch must not cost us the balance transactions, and a
+  // leg that already applied is not re-fetched by the next round of this invocation — unless a reconnect
+  // coalesced in (see the pending check above). The scheduled retry always restarts from the full pair.
+  // Returns the streams that are still owed.
+  private async runCatchUpRound(streams: CatchUpStream[]): Promise<CatchUpStream[]> {
+    const failed: CatchUpStream[] = [];
+
+    for (const stream of streams) {
+      try {
+        await this.catchUpFetchers[stream]();
+      } catch (e) {
+        failed.push(stream);
+        this.reportCatchUpFailure(stream, e);
+      }
+    }
+
+    return failed;
+  }
+
+  // A failed leg is a real state gap — the missed events stay missed until a later round restores them — so it
+  // stays ERROR rather than being downgraded. Its volume is bounded by the round gate rather than by suppressing
+  // lines: at most one per leg per catchUpMinInterval, which keeps a persisting failure visible.
+  private reportCatchUpFailure(stream: CatchUpStream, error: Error): void {
+    this.catchUpFailures++;
+
+    this.logger.error(
+      `Scrypt reconnect catch-up (${stream}) failed, ${this.catchUpFailures} consecutive failure(s):`,
+      error,
+    );
+  }
+
+  private reportCatchUpSuccess(): void {
+    if (this.catchUpFailures > 0)
+      this.logger.info(`Scrypt reconnect catch-up succeeded after ${this.catchUpFailures} consecutive failure(s)`);
+
+    this.catchUpFailures = 0;
   }
 
   // --- BALANCES --- //
