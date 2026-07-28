@@ -601,6 +601,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'accountId',
       'amountInChf',
       'buyId',
+      'completedAt',
       'initiatedById',
       'inputAmount',
       'inputAssetId',
