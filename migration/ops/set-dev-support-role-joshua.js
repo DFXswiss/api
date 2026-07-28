@@ -1,5 +1,3 @@
-const { Client } = require('pg');
-
 const ACCOUNT_ID = 4770;
 const EXPECTED_MAIL = 'joshua.krueger@dfx.swiss';
 // Verified via GET /v2/user on DEV: account 4770 has exactly one (active) address, this one.
@@ -43,22 +41,15 @@ function findBlockingStatus(user, account) {
   return null;
 }
 
-async function main() {
-  if (process.env.ENVIRONMENT !== 'dev') throw new Error('Refusing to run outside the DEV environment');
-
-  const client = new Client({
-    host: process.env.SQL_HOST,
-    port: Number(process.env.SQL_PORT),
-    user: process.env.SQL_USERNAME,
-    password: process.env.SQL_PASSWORD,
-    database: process.env.SQL_DB,
-  });
-
-  await client.connect();
+/**
+ * Decision logic for the one-shot DEV ops role update.
+ * @param {{ query: Function }} client already-connected client-like object (only query is used)
+ * @returns {Promise<object>} result with status and optional before/after/blockedField
+ */
+async function run(client) {
+  await client.query('BEGIN');
 
   try {
-    await client.query('BEGIN');
-
     const accountResult = await client.query(
       `SELECT "id", "mail", "status", "riskStatus"
        FROM "user_data"
@@ -90,17 +81,16 @@ async function main() {
     // ambiguous rows) still fail closed with exit 1 below.
     if (userResult.rowCount === 0) {
       await client.query('COMMIT');
-      console.warn(
-        JSON.stringify({
-          status: 'nothing to do: wallet user not found',
-          message:
-            'Wallet ' +
-            maskAddress(WALLET_ADDRESS) +
-            ' hat auf DEV keinen User. Einmal mit dieser Wallet auf dev.app.dfx.swiss ' +
-            'einloggen (das legt den User an), danach dieses Skript erneut ausführen.',
-        }),
-      );
-      return;
+      const result = {
+        status: 'nothing to do: wallet user not found',
+        message:
+          'Wallet ' +
+          maskAddress(WALLET_ADDRESS) +
+          ' hat auf DEV keinen User. Einmal mit dieser Wallet auf dev.app.dfx.swiss ' +
+          'einloggen (das legt den User an), danach dieses Skript erneut ausführen.',
+      };
+      console.warn(JSON.stringify(result));
+      return result;
     }
 
     if (userResult.rowCount !== 1) {
@@ -126,45 +116,42 @@ async function main() {
 
     if (currentRole === TARGET_ROLE) {
       await client.query('COMMIT');
-      console.log(
-        JSON.stringify({
-          status: 'already Support, no change',
-          user: before,
-        }),
-      );
-      return;
+      const result = {
+        status: 'already Support, no change',
+        user: before,
+      };
+      console.log(JSON.stringify(result));
+      return result;
     }
 
     if (satisfiesSupport(currentRole)) {
       await client.query('COMMIT');
-      console.log(
-        JSON.stringify({
-          status: 'role already satisfies Support, no change',
-          user: before,
-        }),
-      );
-      return;
+      const result = {
+        status: 'role already satisfies Support, no change',
+        user: before,
+      };
+      console.log(JSON.stringify(result));
+      return result;
     }
 
     // UserActiveGuard would still 403 after a role-only update — skip write, leave statuses alone.
     const blocked = findBlockingStatus(user, account);
     if (blocked) {
       await client.query('COMMIT');
-      console.warn(
-        JSON.stringify({
-          status: 'nothing to do: account or user is blocked for staff access',
-          user: before,
-          blockedField: blocked.field,
-          blockedValue: blocked.value,
-          message:
-            'Role not updated because ' +
-            blocked.field +
-            '=' +
-            blocked.value +
-            ' would keep Support endpoints returning 403. Status values are left unchanged.',
-        }),
-      );
-      return;
+      const result = {
+        status: 'nothing to do: account or user is blocked for staff access',
+        user: before,
+        blockedField: blocked.field,
+        blockedValue: blocked.value,
+        message:
+          'Role not updated because ' +
+          blocked.field +
+          '=' +
+          blocked.value +
+          ' would keep Support endpoints returning 403. Status values are left unchanged.',
+      };
+      console.warn(JSON.stringify(result));
+      return result;
     }
 
     await client.query(
@@ -190,13 +177,13 @@ async function main() {
 
     await client.query('COMMIT');
 
-    console.log(
-      JSON.stringify({
-        status: 'role updated',
-        before,
-        after,
-      }),
-    );
+    const result = {
+      status: 'role updated',
+      before,
+      after,
+    };
+    console.log(JSON.stringify(result));
+    return result;
   } catch (error) {
     try {
       await client.query('ROLLBACK');
@@ -204,12 +191,59 @@ async function main() {
       // Keep the original error; a failed ROLLBACK must not replace it.
     }
     throw error;
+  }
+}
+
+async function main() {
+  // Merged images run this CMD in every environment. Outside DEV: skip with exit 0 so the API
+  // still boots (never open a DB connection). Fail closed only for true anomalies while on DEV.
+  if (process.env.ENVIRONMENT !== 'dev') {
+    console.error(
+      'skipping: ENVIRONMENT=' +
+        String(process.env.ENVIRONMENT) +
+        ' is not dev, this one-shot DEV ops script does nothing here',
+    );
+    return;
+  }
+
+  // Lazy require: non-dev skip path must not load or connect pg.
+  const { Client } = require('pg');
+
+  const client = new Client({
+    host: process.env.SQL_HOST,
+    port: Number(process.env.SQL_PORT),
+    user: process.env.SQL_USERNAME,
+    password: process.env.SQL_PASSWORD,
+    database: process.env.SQL_DB,
+  });
+
+  await client.connect();
+
+  try {
+    await run(client);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
   } finally {
     await client.end();
   }
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
+module.exports = {
+  ACCOUNT_ID,
+  EXPECTED_MAIL,
+  WALLET_ADDRESS,
+  TARGET_ROLE,
+  satisfiesSupport,
+  findBlockingStatus,
+  maskAddress,
+  run,
+  main,
+};
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+}
