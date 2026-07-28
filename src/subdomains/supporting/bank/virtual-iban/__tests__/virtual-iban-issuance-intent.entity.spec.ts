@@ -8,10 +8,16 @@ describe('VirtualIbanIssuanceIntent', () => {
   it('requires an explicit provider and keeps imported-enum columns typed as varchar', () => {
     const columns = getMetadataArgsStorage().columns.filter((column) => column.target === VirtualIbanIssuanceIntent);
     const provider = columns.find((column) => column.propertyName === 'provider');
+    const referenceAccountIban = columns.find((column) => column.propertyName === 'referenceAccountIban');
+    const referenceAccountReceive = columns.find((column) => column.propertyName === 'referenceAccountReceive');
     const status = columns.find((column) => column.propertyName === 'status');
 
     expect(provider?.options.nullable).not.toBe(true);
     expect(provider?.options.default).toBeUndefined();
+    expect(referenceAccountIban?.options.nullable).not.toBe(true);
+    expect(referenceAccountIban?.options.default).toBeUndefined();
+    expect(referenceAccountReceive?.options.nullable).not.toBe(true);
+    expect(referenceAccountReceive?.options.default).toBeUndefined();
     expect(status?.options.type).toBe('varchar');
     expect(new VirtualIbanIssuanceIntent().provider).toBeUndefined();
     expect(VirtualIbanIssuanceIntentStatus.PENDING).toBe('Pending');

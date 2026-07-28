@@ -6,8 +6,6 @@ import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { DataSource, FindOperator, FindOptionsWhere, Repository } from 'typeorm';
-import { BankRepository } from '../../bank/bank.repository';
-import { BankService } from '../../bank/bank.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../providers/frick-viban.provider';
 import { VirtualIbanFrickIssuanceReconciliationService } from '../virtual-iban-frick-issuance-reconciliation.service';
@@ -21,7 +19,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
   let eventRepo: { find: jest.Mock };
   let intentRepo: { find: jest.Mock };
   let frickVibanProvider: FrickVibanProvider;
-  let bankService: BankService;
   let notificationService: NotificationService;
   let legacyReopener: { resetStuckFrickIntentForReconciliationOnly: jest.Mock };
 
@@ -39,6 +36,8 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       currencyId: 40,
       bankId,
       provider: IbanBankName.FRICK,
+      referenceAccountIban,
+      referenceAccountReceive: true,
       previousStatus: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
       nextStatus: VirtualIbanIssuanceIntentStatus.PENDING,
       previousVirtualIbanId: null,
@@ -57,6 +56,9 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       userDataId: 30,
       currencyId: 40,
       bankId,
+      provider: IbanBankName.FRICK,
+      referenceAccountIban,
+      referenceAccountReceive: true,
       status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
       externalIban: null,
       error: null,
@@ -90,14 +92,10 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
     eventRepo = { find: jest.fn().mockResolvedValue([]) };
     intentRepo = { find: jest.fn().mockResolvedValue([]) };
     frickVibanProvider = createMock<FrickVibanProvider>();
-    bankService = createMock<BankService>();
     notificationService = createMock<NotificationService>();
     legacyReopener = { resetStuckFrickIntentForReconciliationOnly: jest.fn().mockResolvedValue(true) };
 
     jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
-    jest
-      .spyOn(bankService, 'getBankByIdUncached')
-      .mockResolvedValue({ id: bankId, iban: referenceAccountIban, name: IbanBankName.FRICK } as any);
     jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined as any);
 
     const dataSource = {
@@ -113,7 +111,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
         VirtualIbanFrickIssuanceReconciliationService,
         { provide: DataSource, useValue: dataSource },
         { provide: FrickVibanProvider, useValue: frickVibanProvider },
-        { provide: BankService, useValue: bankService },
         { provide: NotificationService, useValue: notificationService },
         { provide: VirtualIbanService, useValue: legacyReopener },
       ],
@@ -180,42 +177,27 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           status: expect.any(FindOperator),
         },
       });
-      expect(bankService.getBankByIdUncached).not.toHaveBeenCalled();
       expect(frickVibanProvider.listByReferenceAccount).not.toHaveBeenCalled();
     });
 
-    it('lists the current DB reference account instead of a stale cached IBAN', async () => {
-      const staleIban = 'LI00STALE000000000000C';
+    it('lists the intent reference-account snapshot even when the current Bank IBAN moved', async () => {
+      const snapshottedIban = 'LI00SNAPSHOT0000000000C';
       const currentIban = 'LI00CURRENT00000000000C';
-      const bankRepo = createMock<BankRepository>();
-      jest.spyOn(bankRepo, 'findOneCachedBy').mockResolvedValue({
-        id: bankId,
-        iban: staleIban,
-        name: IbanBankName.FRICK,
-      } as any);
-      jest.spyOn(bankRepo, 'findOneBy').mockResolvedValue({
-        id: bankId,
-        iban: currentIban,
-        name: IbanBankName.FRICK,
-      } as any);
-      (service as unknown as { bankService: BankService }).bankService = new BankService(bankRepo);
-      intentRepo.find.mockResolvedValue([intent({ requestReference: stuckRequestReference })]);
+      intentRepo.find.mockResolvedValue([
+        intent({ requestReference: stuckRequestReference, referenceAccountIban: snapshottedIban }),
+      ]);
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([], true));
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(frickVibanProvider.listByReferenceAccount).toHaveBeenCalledWith(currentIban);
-      expect(bankRepo.findOneBy).toHaveBeenCalledWith({ id: bankId });
-      expect(bankRepo.findOneCachedBy).not.toHaveBeenCalled();
+      expect(frickVibanProvider.listByReferenceAccount).toHaveBeenCalledWith(snapshottedIban);
+      expect(frickVibanProvider.listByReferenceAccount).not.toHaveBeenCalledWith(currentIban);
     });
 
-    it('refuses to send a non-Frick bank reference account to Bank Frick', async () => {
-      intentRepo.find.mockResolvedValue([intent({ requestReference: stuckRequestReference })]);
-      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue({
-        id: bankId,
-        iban: referenceAccountIban,
-        name: IbanBankName.YAPEAL,
-      } as any);
+    it('refuses to send a non-Frick provider snapshot to Bank Frick', async () => {
+      intentRepo.find.mockResolvedValue([
+        intent({ requestReference: stuckRequestReference, provider: IbanBankName.YAPEAL }),
+      ]);
 
       await service.reconcileRetiredIssuanceReferences();
 
@@ -314,9 +296,9 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           updated,
         }),
       ]);
-      const listingStartedAt = new Date(
-        updated.getTime() + VirtualIbanFrickIssuanceReconciliationService.FRICK_CREATE_MAX_PROCESSING_MS,
-      );
+      expect(VirtualIbanFrickIssuanceReconciliationService.FRICK_CREATE_MAX_PROCESSING_MS).toBe(120_000);
+      const latestPossibleCreateProcessedAt = new Date(updated.getTime() + 120_000);
+      const listingStartedAt = new Date(latestPossibleCreateProcessedAt.getTime() - 1);
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue({
         ...listingResult([], true),
         listingStartedAt,
@@ -335,7 +317,9 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       });
       const mail = (notificationService.sendMail as jest.Mock).mock.calls[0][0];
       expect(mail.input.errors[0]).toContain(`listingStartedAt=${listingStartedAt.toISOString()}`);
-      expect(mail.input.errors[0]).toContain('latestPossibleCreateProcessedAt=');
+      expect(mail.input.errors[0]).toContain(
+        `latestPossibleCreateProcessedAt=${latestPossibleCreateProcessedAt.toISOString()}`,
+      );
       expect(mail.input.errors[0]).not.toContain(currentReference);
     });
 
@@ -448,16 +432,16 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
     it('continues Phase 1 for healthy banks when one bank throws, and sends per-bank failure alert', async () => {
       const healthyBankId = 51;
       const healthyRef = 'dfx-viban-healthybankintent0000000001';
+      const healthyReferenceAccountIban = 'LI00HEALTHY00000000000C';
       intentRepo.find.mockResolvedValue([
-        intent({ id: 110, requestReference: stuckRequestReference, bankId }),
-        intent({ id: 111, requestReference: healthyRef, bankId: healthyBankId }),
+        intent({ id: 110, requestReference: stuckRequestReference, bankId, referenceAccountReceive: false }),
+        intent({
+          id: 111,
+          requestReference: healthyRef,
+          bankId: healthyBankId,
+          referenceAccountIban: healthyReferenceAccountIban,
+        }),
       ]);
-      jest.spyOn(bankService, 'getBankByIdUncached').mockImplementation(async (id: number) => {
-        if (id === bankId) return { id: bankId, iban: null } as any;
-        if (id === healthyBankId)
-          return { id: healthyBankId, iban: referenceAccountIban, name: IbanBankName.FRICK } as any;
-        throw new Error(`unexpected bank id ${id}`);
-      });
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([], true));
 
       await service.reconcileRetiredIssuanceReferences();
@@ -552,7 +536,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(bankService.getBankByIdUncached).toHaveBeenCalledWith(bankId);
       expect(frickVibanProvider.listByReferenceAccount).toHaveBeenCalledWith(referenceAccountIban);
       expect(notificationService.sendMail).not.toHaveBeenCalled();
     });
@@ -588,7 +571,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(bankService.getBankByIdUncached).toHaveBeenCalledWith(bankId);
       expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
@@ -674,24 +656,21 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
     it('continues Phase 2 for healthy banks when one bank throws, and sends per-bank failure alert', async () => {
       const healthyBankId = 52;
+      const healthyReferenceAccountIban = 'LI00HEALTHY00000000000C';
       eventRepo.find.mockResolvedValue([
         event({
           id: 21,
           bankId,
+          referenceAccountReceive: false,
           nextError: `create failed; recovery listing found no match; previousRequestReference=${abandonedCreate}; newRequestReference=dfx-viban-new`,
         }),
         event({
           id: 22,
           bankId: healthyBankId,
+          referenceAccountIban: healthyReferenceAccountIban,
           nextError: `create failed; recovery listing found no match; previousRequestReference=${abandonedRecovery}; newRequestReference=dfx-viban-new`,
         }),
       ]);
-      jest.spyOn(bankService, 'getBankByIdUncached').mockImplementation(async (id: number) => {
-        if (id === bankId) throw new Error('Frick receive bank id=50 is not configured');
-        if (id === healthyBankId)
-          return { id: healthyBankId, iban: referenceAccountIban, name: IbanBankName.FRICK } as any;
-        throw new Error(`unexpected bank id ${id}`);
-      });
       jest
         .spyOn(frickVibanProvider, 'listByReferenceAccount')
         .mockResolvedValue(listingResult([listingEntry(abandonedRecovery)], true));
@@ -755,7 +734,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           where: expect.arrayContaining([expect.objectContaining({ provider: IbanBankName.FRICK })]),
         }),
       );
-      expect(bankService.getBankByIdUncached).not.toHaveBeenCalled();
       expect(frickVibanProvider.listByReferenceAccount).not.toHaveBeenCalled();
     });
 
@@ -907,8 +885,9 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
     });
 
     it('sends per-bank failure alert when bank has no IBAN configured and does not abort the whole run', async () => {
-      intentRepo.find.mockResolvedValue([intent({ id: 200, requestReference: stuckRequestReference })]);
-      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue({ id: bankId, iban: null } as any);
+      intentRepo.find.mockResolvedValue([
+        intent({ id: 200, requestReference: stuckRequestReference, referenceAccountIban: '' }),
+      ]);
 
       await expect(service.reconcileRetiredIssuanceReferences()).resolves.toBeUndefined();
 
@@ -1015,8 +994,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       expect(mailArg.input.errors[0]).not.toContain('nextError');
     });
 
-    it('reuses the Phase-1 listing cache in Phase 2 for the same bankId', async () => {
-      // Same bankId in both phases → getListingForBank returns the cached result on the second call.
+    it('reuses the Phase-1 listing cache in Phase 2 for the same reference-account snapshot', async () => {
       intentRepo.find.mockResolvedValue([intent({ id: 202, requestReference: stuckRequestReference })]);
       eventRepo.find.mockResolvedValue([
         event({
@@ -1030,7 +1008,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       await service.reconcileRetiredIssuanceReferences();
 
       expect(frickVibanProvider.listByReferenceAccount).toHaveBeenCalledTimes(1);
-      expect(bankService.getBankByIdUncached).toHaveBeenCalledTimes(1);
     });
 
     it('extracts marker value when there is no trailing semicolon', () => {

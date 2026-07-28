@@ -323,13 +323,14 @@ are included in the alert as operator context. They are not an automatic-retry p
 even a correctly ordered listing miss remains non-authoritative because Bank Frick provides no
 authoritative “this create did not happen” operation.
 
-`FRICK_CREATE_MAX_PROCESSING_MS = 90_000` is derived from
+`FRICK_CREATE_MAX_PROCESSING_MS = 120_000` is derived from
 `BankFrickService.HTTP_TIMEOUT_MS = 30_000`:
 
-- the locally bounded create HTTP attempt lasts at most 90s: original request (30s) +
+- authorization preflight before the create call can consume 30s;
+- the locally bounded create HTTP attempt then lasts at most 90s: original request (30s) +
   `/authorize` re-auth after 401 (30s) + one-shot retried request (30s). `requestSigned` has no
   further internal retry beyond that.
-- **90s is not an upper bound on Bank Frick processing or on when its create side effect can
+- **120s is not an upper bound on Bank Frick processing or on when its create side effect can
   occur.** Bank Frick may queue or finish work after the local HTTP attempt has ended.
 
 The separate 30-minute `FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS` remains as a conservative delay
@@ -418,17 +419,30 @@ free-form columns, so the debug endpoint is not that fallback.
 
 ### What it reconciles against
 
-Both phases list Bank Frick virtual IBANs **per bank and across every lifecycle state**, not against
-one hardcoded EUR reference account. For each distinct `bankId` on the intents (Phase 1) or
-abandoned-reference events (Phase 2), the job resolves `Bank.iban` through the uncached
-`BankService.getBankByIdUncached` database read, verifies `Bank.name === 'Bank Frick'`, and calls
-`FrickVibanProvider.listByReferenceAccount` (no lifecycle-state filter). A reference-account IBAN
-correction is therefore visible on the next run rather than after the repository cache expires.
+Both phases list Bank Frick virtual IBANs **per immutable reference-account snapshot and across
+every lifecycle state**, not against one hardcoded EUR reference account. Every intent captures
+`referenceAccountIban` and `referenceAccountReceive` when it is created; every issuance event copies
+the same values. Preflight, create, request recovery, finalization checks, Phase 1, and Phase 2 all
+use that snapshot. Reconciliation never switches an in-flight or historical issuance to a newly
+edited `Bank.iban`.
 Comparison is exact equality of listed `description` to the intent's current `requestReference`
 (Phase 1) or the extracted abandoned reference (Phase 2). A missing IBAN or non-Frick bank throws
 inside that bank's processing and is caught by the per-bank `try/catch` in both phases: only that
 one bank is skipped (`sendPerBankFailureAlert`); every other bank in the same run continues
 normally. Absence of a match alert for the skipped bank is **not** evidence of a clean state.
+
+Before changing a Frick reference-account IBAN or disabling its receive state, Operations must:
+
+1. stop new Frick personal-IBAN issuance;
+2. wait for the 120-second local create window to drain;
+3. reconcile every `Pending`, `InFlight`, and `Failed` intent against its stored
+   `referenceAccountIban`, including Phase-2 retired references;
+4. confirm incoming-payment monitoring remains active for every snapshotted reference account;
+5. only then change the Bank row and re-enable issuance.
+
+Finalization reloads the Bank row and refuses to expose a newly finalized vIBAN if provider, IBAN,
+or receive-enabled state differs from the intent snapshot. The old snapshot remains the
+reconciliation authority even after such a refusal.
 
 ### What to do on a match (operator follow-up)
 
@@ -463,7 +477,9 @@ The merge transaction writes two durable `KycLog` start rows whose `result` cont
 `postCommitEffectsPending=<comma-separated effect names>`. After each effect succeeds, the service
 writes a second pair of durable rows in one database transaction with
 `postCommitEffectCompleted=<effect name>`. Application logs are observability only; they are not
-used as the completion record.
+used as the completion record. A failed effect instead receives
+`postCommitEffectFailed=<effect name>`; it never receives a completion marker. Effect-marker rows
+contain only the master/slave account IDs and the marker, not customer email addresses or names.
 
 Operator procedure:
 
@@ -471,9 +487,11 @@ Operator procedure:
 2. For the same merge, collect the durable `postCommitEffectCompleted=` rows from both accounts.
    A completion counts only when the matching marker exists on both accounts; the pair is written
    atomically, so a one-sided marker is an integrity incident.
-3. For each effect still pending, verify the target system first: inspect the destination document
+3. Collect `postCommitEffectFailed=` rows. They are explicit failed attempts, remain unresolved,
+   and do not count as completion.
+4. For each effect still pending, verify the target system first: inspect the destination document
    store, webhook receiver, notification/mail provider, or KYC provider as applicable.
-4. Replay only after that target-system check proves the effect did not complete. A process can die
+5. Replay only after that target-system check proves the effect did not complete. A process can die
    after the external system accepted an effect but before the durable completion transaction, so
    a missing durable marker is evidence of an unresolved effect, not proof that replay is safe.
 

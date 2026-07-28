@@ -80,8 +80,11 @@ export const MERGE_SUPERSEDED_MARKER = 'merge-superseded';
 export class VirtualIbanService {
   private readonly logger = new DfxLogger(VirtualIbanService);
 
-  /** Longest possible Bank Frick create processing window, including one authorization retry. */
-  static readonly FRICK_CREATE_MAX_PROCESSING_MS = 90_000;
+  /**
+   * Longest local window from intent claim through create processing: authorization preflight
+   * (30s) plus create, re-authorization, and one retried create request (90s).
+   */
+  static readonly FRICK_CREATE_MAX_PROCESSING_MS = 120_000;
 
   /** Providers eligible for implicit/default personal-IBAN behavior. Frick is explicit opt-in only. */
   private readonly genericProviders: VibanProvider[];
@@ -285,6 +288,7 @@ export class VirtualIbanService {
     if (!bank?.receive) throw new BadRequestException(QuoteError.NO_BANK_AVAILABLE_FOR_THIS_CURRENCY);
 
     const initial = await this.initializeFrickIntent(manager, userData, bank, currency);
+    this.assertFrickReferenceAccountSnapshot(initial.intent, bank);
     if (initial.existing || initial.intent.status !== VirtualIbanIssuanceIntentStatus.PENDING) {
       return { userData, currency, bank, ...initial, claimed: false };
     }
@@ -332,8 +336,9 @@ export class VirtualIbanService {
     bank: Bank,
     currency: Fiat,
   ): Promise<VirtualIban> {
+    const referenceAccountIban = intent.referenceAccountIban;
     try {
-      await this.frickVibanProvider.prepareVibanReservation(bank.iban, intent.requestReference);
+      await this.frickVibanProvider.prepareVibanReservation(referenceAccountIban, intent.requestReference);
     } catch (error) {
       await this.resetFrickIntentToPending(
         intent.id,
@@ -362,7 +367,7 @@ export class VirtualIbanService {
     currency: Fiat,
   ): Promise<VirtualIban> {
     try {
-      const reserved = await this.frickVibanProvider.reserveViban(bank.iban, intent.requestReference);
+      const reserved = await this.frickVibanProvider.reserveViban(intent.referenceAccountIban, intent.requestReference);
       return await this.finalizeFrickIssuance(intent.id, intent.requestReference, userData, bank, currency, reserved);
     } catch (error) {
       if (error instanceof VibanNotCreatedError) {
@@ -422,8 +427,9 @@ export class VirtualIbanService {
   ): Promise<{ intent: VirtualIbanIssuanceIntent; existing: VirtualIban | null }> {
     await manager.query(
       `INSERT INTO "virtual_iban_issuance_intent"
-          ("requestReference", "userDataId", "currencyId", "bankId", "provider", "buyId", "status", "externalIban", "error")
-         VALUES ($1, $2, $3, $4, $5, NULL, $6, NULL, NULL)
+          ("requestReference", "userDataId", "currencyId", "bankId", "provider",
+           "referenceAccountIban", "referenceAccountReceive", "buyId", "status", "externalIban", "error")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, NULL, NULL)
          ON CONFLICT DO NOTHING`,
       [
         this.newFrickRequestReference(),
@@ -431,6 +437,8 @@ export class VirtualIbanService {
         currency.id,
         bank.id,
         IbanBankName.FRICK,
+        bank.iban,
+        bank.receive,
         VirtualIbanIssuanceIntentStatus.PENDING,
       ],
     );
@@ -512,10 +520,17 @@ export class VirtualIbanService {
     bank: Bank,
     currency: Fiat,
   ): Promise<VirtualIban | typeof FrickRecoveryNotFound> {
-    const match = await this.frickVibanProvider.findRecoverableByDescription(intent.requestReference, bank.iban);
+    const match = await this.frickVibanProvider.findRecoverableByDescription(
+      intent.requestReference,
+      intent.referenceAccountIban,
+    );
     if (!match) return FrickRecoveryNotFound;
 
-    const reserved = await this.frickVibanProvider.adoptAndActivate(match, bank.iban, intent.requestReference);
+    const reserved = await this.frickVibanProvider.adoptAndActivate(
+      match,
+      intent.referenceAccountIban,
+      intent.requestReference,
+    );
     return this.finalizeFrickIssuance(intent.id, intent.requestReference, userData, bank, currency, reserved);
   }
 
@@ -615,7 +630,18 @@ export class VirtualIbanService {
             throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
           }
 
-          const persisted = await this.persistUserLevelIfMissing(manager, lockedOwner, bank, currency, reserved);
+          const currentBank = await manager.findOne(Bank, { where: { id: intent.bankId } });
+          try {
+            this.assertFrickReferenceAccountSnapshot(intent, currentBank);
+          } catch {
+            throw new IssuanceIntegrityError(
+              'finalize: reference-account configuration changed after intent claim',
+              details,
+              new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED),
+            );
+          }
+
+          const persisted = await this.persistUserLevelIfMissing(manager, lockedOwner, currentBank, currency, reserved);
           await this.transitionFrickIntent(
             manager,
             intent,
@@ -635,6 +661,27 @@ export class VirtualIbanService {
     }
     this.virtualIbanRepo.invalidateCache();
     return virtualIban;
+  }
+
+  private assertFrickReferenceAccountSnapshot(
+    intent: VirtualIbanIssuanceIntent,
+    bank: Bank | null | undefined,
+  ): asserts bank is Bank {
+    if (
+      intent.provider !== IbanBankName.FRICK ||
+      intent.referenceAccountReceive !== true ||
+      !intent.referenceAccountIban ||
+      bank?.name !== intent.provider ||
+      bank.iban !== intent.referenceAccountIban ||
+      bank.receive !== intent.referenceAccountReceive
+    ) {
+      this.logger.error(
+        `Bank Frick reference-account snapshot mismatch ` +
+          `(intentId=${intent.id}, userDataId=${intent.userDataId}, currencyId=${intent.currencyId}, ` +
+          `bankId=${intent.bankId})`,
+      );
+      throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+    }
   }
 
   private async hasOrderedOwnershipPath(
@@ -872,6 +919,8 @@ export class VirtualIbanService {
       currencyId: intent.currencyId,
       bankId: intent.bankId,
       provider: intent.provider,
+      referenceAccountIban: intent.referenceAccountIban,
+      referenceAccountReceive: intent.referenceAccountReceive,
       previousStatus: intent.status,
       nextStatus,
       previousVirtualIbanId: await this.resolveVirtualIbanId(manager, intent.externalIban, intentIds),
@@ -941,6 +990,8 @@ export class VirtualIbanService {
       currencyId: intent.currencyId,
       bankId: intent.bankId,
       provider: intent.provider,
+      referenceAccountIban: intent.referenceAccountIban,
+      referenceAccountReceive: intent.referenceAccountReceive,
       previousStatus: intent.status,
       nextStatus: intent.status,
       previousVirtualIbanId: virtualIbanId,
@@ -1425,9 +1476,6 @@ export class VirtualIbanService {
       winner.userData = { id: masterId } as UserData;
     }
 
-    // Only Frick rows enter account-merge virtual-IBAN handling.
-    if (winner.bank.name !== IbanBankName.FRICK) return;
-
     const masterIntent = await manager.findOne(VirtualIbanIssuanceIntent, {
       where: { userDataId: masterId, currencyId, bankId, provider: IbanBankName.FRICK, buyId: IsNull() },
     });
@@ -1463,7 +1511,8 @@ export class VirtualIbanService {
     if (winnerIntent != null && winnerIntent.userDataId !== masterId) {
       // Unique index (userDataId, currencyId, bankId): master may already hold the merge-failed loser
       // row for this pair. Park the winner, relocate the blocker onto the winner's previous owner,
-      // then complete the move onto masterId. Plain ownership moves only — no event log.
+      // then complete the move onto masterId. Each intermediate and final ownership move appends its
+      // own issuance event before updating the intent snapshot.
       const blocking = await manager.findOne(VirtualIbanIssuanceIntent, {
         where: { userDataId: masterId, currencyId, bankId, provider: IbanBankName.FRICK, buyId: IsNull() },
       });

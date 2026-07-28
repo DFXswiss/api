@@ -11,6 +11,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { DataSource, EntityManager, FindOperator, IsNull } from 'typeorm';
+import { Bank } from '../../bank/bank.entity';
 import { BankService } from '../../bank/bank.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../providers/frick-viban.provider';
@@ -414,14 +415,24 @@ describe('VirtualIbanService', () => {
           currencyId: parameters[2],
           bankId: parameters[3],
           provider: parameters[4],
+          referenceAccountIban: parameters[5],
+          referenceAccountReceive: parameters[6],
           buyId: null,
-          status: parameters[5],
+          status: parameters[7],
           externalIban: null,
           error: null,
         });
       });
       manager.findOne.mockImplementation(async (entity, options) => {
-        if (entity === VirtualIbanIssuanceIntent) return currentIntent;
+        if (entity === VirtualIbanIssuanceIntent) {
+          if (currentIntent) {
+            currentIntent.provider ??= IbanBankName.FRICK;
+            currentIntent.referenceAccountIban ??= frickBank.iban;
+            currentIntent.referenceAccountReceive ??= frickBank.receive;
+          }
+          return currentIntent;
+        }
+        if (entity === Bank) return frickBank;
         if (entity === VirtualIban) {
           if (options.where.iban) return currentViban?.iban === options.where.iban ? currentViban : null;
           return currentViban?.active && currentViban.status === VirtualIbanStatus.ACTIVE ? currentViban : null;
@@ -465,6 +476,18 @@ describe('VirtualIbanService', () => {
       const result = await service.getOrCreateFrickForUser(userData, 'EUR');
 
       expect(result).toMatchObject({ id: 501, iban: reserved.iban, buy: null });
+      expect(currentIntent).toMatchObject({
+        provider: IbanBankName.FRICK,
+        referenceAccountIban: frickBank.iban,
+        referenceAccountReceive: true,
+      });
+      for (const event of auditEvents) {
+        expect(event).toMatchObject({
+          provider: IbanBankName.FRICK,
+          referenceAccountIban: frickBank.iban,
+          referenceAccountReceive: true,
+        });
+      }
       expect(auditEvents).toEqual([
         expect.objectContaining({
           previousUserDataId: userData.id,
@@ -487,6 +510,60 @@ describe('VirtualIbanService', () => {
         expect.objectContaining({ userData, bank: frickBank, currency: eur, buy: null }),
       );
     });
+
+    it.each([
+      {
+        change: 'IBAN',
+        mutate: (): void => {
+          frickBank.iban = 'LI00MOVED0000000000000C';
+        },
+      },
+      {
+        change: 'receive-enabled state',
+        mutate: (): void => {
+          frickBank.receive = false;
+        },
+      },
+    ])(
+      'uses the claim snapshot for external calls and fails finalization if the Bank $change moves',
+      async ({ mutate }) => {
+        const originalIban = frickBank.iban;
+        const originalReceive = frickBank.receive;
+        jest.spyOn(frickVibanProvider, 'reserveViban').mockResolvedValue(reserved);
+        (frickVibanProvider.prepareVibanReservation as jest.Mock).mockImplementation(async () => mutate());
+
+        try {
+          await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
+            QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
+          );
+
+          expect(currentIntent).toMatchObject({
+            referenceAccountIban: originalIban,
+            referenceAccountReceive: originalReceive,
+          });
+          expect(frickVibanProvider.prepareVibanReservation).toHaveBeenCalledWith(
+            originalIban,
+            currentIntent.requestReference,
+          );
+          expect(frickVibanProvider.reserveViban).toHaveBeenCalledWith(originalIban, currentIntent.requestReference);
+          expect(currentViban).toBeNull();
+          expect(notificationService.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({
+              input: expect.objectContaining({
+                errors: [
+                  expect.stringContaining(
+                    'reason=finalize: reference-account configuration changed after intent claim',
+                  ),
+                ],
+              }),
+            }),
+          );
+        } finally {
+          frickBank.iban = originalIban;
+          frickBank.receive = originalReceive;
+        }
+      },
+    );
 
     it('follows a merged owner after the lock before creating a Frick intent', async () => {
       const master = Object.assign(new UserData(), {
@@ -683,6 +760,9 @@ describe('VirtualIbanService', () => {
         userDataId: userData.id,
         currencyId: eur.id,
         bankId: frickBank.id,
+        provider: IbanBankName.FRICK,
+        referenceAccountIban: frickBank.iban,
+        referenceAccountReceive: true,
         status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
         externalIban: null,
         error: null,
@@ -2260,6 +2340,65 @@ describe('VirtualIbanService', () => {
       );
     });
 
+    it('reloads a Frick loser whose currency relation was not preloaded before deduplication', async () => {
+      const loser = Object.assign(new VirtualIban(), {
+        id: 22,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+        userData: { id: slaveId },
+        bank: frickBank,
+      });
+      const owned = Object.assign(new VirtualIban(), loser, { currency: eur, bank: frickBank });
+      manager.findOne.mockResolvedValue(owned);
+      manager.find.mockResolvedValue([]);
+      const deactivateSpy = jest.spyOn(service as any, 'deactivateVirtualIbanLocked').mockResolvedValue(owned);
+      const resolvePairSpy = jest
+        .spyOn(service as any, 'resolveMergedVirtualIbanPairLocked')
+        .mockResolvedValue(undefined);
+
+      try {
+        await service.mergeUserLevelVirtualIbans(
+          masterId,
+          slaveId,
+          [{ virtualIban: loser, reason: 'merged' }],
+          manager as unknown as EntityManager,
+        );
+
+        expect(manager.findOne).toHaveBeenCalledWith(VirtualIban, {
+          where: { id: loser.id },
+          relations: { currency: true, bank: true },
+        });
+        expect(deactivateSpy).toHaveBeenCalledWith(manager, loser, 'merged');
+        expect(resolvePairSpy).toHaveBeenCalledWith(manager, masterId, slaveId, eur.id, frickBank.id);
+      } finally {
+        deactivateSpy.mockRestore();
+        resolvePairSpy.mockRestore();
+      }
+    });
+
+    it('fails closed when a reloaded Frick loser still has no bank relation', async () => {
+      const loser = Object.assign(new VirtualIban(), {
+        id: 22,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+        userData: { id: slaveId },
+        bank: frickBank,
+      });
+      manager.findOne.mockResolvedValue(Object.assign(new VirtualIban(), loser, { currency: eur, bank: undefined }));
+
+      await expect(
+        service.mergeUserLevelVirtualIbans(
+          masterId,
+          slaveId,
+          [{ virtualIban: loser, reason: 'merged' }],
+          manager as unknown as EntityManager,
+        ),
+      ).rejects.toThrow(
+        `Virtual IBAN currency/bank missing during merge dedup ` +
+          `(virtualIbanId=${loser.id}, masterId=${masterId}, slaveId=${slaveId})`,
+      );
+    });
+
     it('ignores an unclassified loser instead of pulling a possibly-Yapeal row into Frick merge handling', async () => {
       const loser = Object.assign(new VirtualIban(), {
         id: 22,
@@ -2897,6 +3036,9 @@ describe('VirtualIbanService', () => {
         userDataId: masterId,
         currencyId: eur.id,
         bankId: frickBank.id,
+        provider: IbanBankName.FRICK,
+        referenceAccountIban: frickBank.iban,
+        referenceAccountReceive: true,
         status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
         externalIban: null,
         error: null,
@@ -2910,6 +3052,7 @@ describe('VirtualIbanService', () => {
       manager.findOne.mockImplementation(async (entity, options) => {
         if (entity === VirtualIbanIssuanceIntent) return intent;
         if (entity === UserData) return master;
+        if (entity === Bank) return frickBank;
         if (entity === VirtualIban && options.where.iban)
           return persistedVirtualIban?.iban === options.where.iban ? persistedVirtualIban : null;
         return null;
@@ -2967,6 +3110,9 @@ describe('VirtualIbanService', () => {
         userDataId: masterId,
         currencyId: eur.id,
         bankId: frickBank.id,
+        provider: IbanBankName.FRICK,
+        referenceAccountIban: frickBank.iban,
+        referenceAccountReceive: true,
         status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
         externalIban: null,
         error: null,
@@ -2983,6 +3129,7 @@ describe('VirtualIbanService', () => {
       manager.findOne.mockImplementation(async (entity, options) => {
         if (entity === VirtualIbanIssuanceIntent) return intent;
         if (entity === UserData) return master;
+        if (entity === Bank) return frickBank;
         if (entity === VirtualIban && options.where.iban) return existingVirtualIban;
         return null;
       });
@@ -3245,11 +3392,15 @@ describe('VirtualIbanService', () => {
             userDataId: userData.id,
             currencyId: eur.id,
             bankId: frickBank.id,
+            provider: IbanBankName.FRICK,
+            referenceAccountIban: frickBank.iban,
+            referenceAccountReceive: true,
             status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
             externalIban: null,
             error: null,
           });
         }
+        if (entity === Bank) return frickBank;
         if (entity === VirtualIban && options?.where?.iban === reserved.iban) {
           return Object.assign(new VirtualIban(), {
             id: 77,
@@ -3277,11 +3428,15 @@ describe('VirtualIbanService', () => {
             userDataId: userData.id,
             currencyId: eur.id,
             bankId: frickBank.id,
+            provider: IbanBankName.FRICK,
+            referenceAccountIban: frickBank.iban,
+            referenceAccountReceive: true,
             status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
             externalIban: null,
             error: null,
           });
         }
+        if (entity === Bank) return frickBank;
         if (entity === VirtualIban && options?.where?.iban === reserved.iban) {
           return Object.assign(new VirtualIban(), {
             id: 77,
@@ -3316,11 +3471,15 @@ describe('VirtualIbanService', () => {
             userDataId: userData.id,
             currencyId: eur.id,
             bankId: frickBank.id,
+            provider: IbanBankName.FRICK,
+            referenceAccountIban: frickBank.iban,
+            referenceAccountReceive: true,
             status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
             externalIban: null,
             error: null,
           });
         }
+        if (entity === Bank) return frickBank;
         if (entity === VirtualIban && options?.where?.iban === reserved.iban) {
           return Object.assign(new VirtualIban(), {
             id: 77,
@@ -3349,11 +3508,15 @@ describe('VirtualIbanService', () => {
             userDataId: userData.id,
             currencyId: eur.id,
             bankId: frickBank.id,
+            provider: IbanBankName.FRICK,
+            referenceAccountIban: frickBank.iban,
+            referenceAccountReceive: true,
             status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
             externalIban: null,
             error: null,
           });
         }
+        if (entity === Bank) return frickBank;
         if (entity === VirtualIban) {
           // by-iban miss, then active-for-user-currency-bank hit with a different IBAN
           if (options?.where?.iban) return null;
@@ -3449,6 +3612,17 @@ describe('VirtualIbanService', () => {
         rotateReference,
         nextRequestReference,
       );
+
+    it('returns false when the current status is outside the allowed source statuses', async () => {
+      const intent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 301,
+        status: VirtualIbanIssuanceIntentStatus.PENDING,
+        requestReference: 'dfx-viban-guard-ref',
+      });
+
+      await expect(locked(intent, false, null)).resolves.toBe(false);
+      expect(manager.save).not.toHaveBeenCalled();
+    });
 
     it('throws when rotateReference is true but nextRequestReference is null', async () => {
       const intent = Object.assign(new VirtualIbanIssuanceIntent(), {
@@ -3710,6 +3884,8 @@ describe('VirtualIbanService', () => {
           currencyId,
           bankId,
           provider: IbanBankName.FRICK,
+          referenceAccountIban: 'LI32088110105923K000C',
+          referenceAccountReceive: true,
           status: VirtualIbanIssuanceIntentStatus.PENDING,
           externalIban: null,
           error: null,
@@ -3795,6 +3971,8 @@ describe('VirtualIbanService', () => {
           currencyId,
           bankId,
           provider: IbanBankName.FRICK,
+          referenceAccountIban: 'LI32088110105923K000C',
+          referenceAccountReceive: true,
           status: VirtualIbanIssuanceIntentStatus.COMPLETED,
           externalIban: blockingIban,
           error: null,
@@ -3809,6 +3987,8 @@ describe('VirtualIbanService', () => {
           currencyId,
           bankId,
           provider: IbanBankName.FRICK,
+          referenceAccountIban: 'LI32088110105923K000C',
+          referenceAccountReceive: true,
           status: VirtualIbanIssuanceIntentStatus.COMPLETED,
           externalIban: winnerIban,
           error: null,

@@ -77,6 +77,15 @@ describe('FrickVibanProvider', () => {
     expect(bankFrickService.createViban).not.toHaveBeenCalled();
   });
 
+  it('refuses an empty issuance reference before calling createViban', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+
+    await expect(provider.reserveViban('LI32088110105923K000C', '   ')).rejects.toThrow(
+      new ServiceUnavailableException('Bank Frick virtual IBAN issuance reference is missing'),
+    );
+    expect(bankFrickService.createViban).not.toHaveBeenCalled();
+  });
+
   it('preflights the exact base account and technical description without creating a vIBAN', async () => {
     bankFrickService.isVibanAvailable.mockReturnValue(true);
     bankFrickService.prepareVibanCreate.mockResolvedValue(undefined);

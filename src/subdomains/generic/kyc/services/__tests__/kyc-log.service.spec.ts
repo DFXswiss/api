@@ -5,8 +5,8 @@ import { KycLogType } from '../../enums/kyc.enum';
 import { KycLogRepository } from '../../repositories/kyc-log.repository';
 import { KycLogService } from '../kyc-log.service';
 
-describe('KycLogService merge effect completion', () => {
-  it('writes both account completion records atomically through one transaction manager', async () => {
+describe('KycLogService merge effect markers', () => {
+  it('writes both account marker records atomically through one transaction manager', async () => {
     const master = Object.assign(new UserData(), { id: 1000 });
     const slave = Object.assign(new UserData(), { id: 2000 });
     const txRepo = {
@@ -26,7 +26,7 @@ describe('KycLogService merge effect completion', () => {
     const service = new KycLogService(kycLogRepo, undefined as never, undefined as never);
     const log = 'merge; postCommitEffectCompleted=document copy';
 
-    await service.createMergeEffectCompletionLogs(master, slave, log);
+    await service.createMergeEffectMarkerLogs(master, slave, log);
 
     expect(kycLogRepo.manager.transaction).toHaveBeenCalledTimes(1);
     expect(manager.getRepository).toHaveBeenCalledTimes(2);

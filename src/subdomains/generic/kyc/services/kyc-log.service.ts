@@ -30,7 +30,7 @@ export class KycLogService {
     await repo.save(entity);
   }
 
-  async createMergeEffectCompletionLogs(master: UserData, slave: UserData, log: string): Promise<void> {
+  async createMergeEffectMarkerLogs(master: UserData, slave: UserData, log: string): Promise<void> {
     await this.kycLogRepo.manager.transaction(async (manager) => {
       await this.createMergeLog(master, log, manager);
       await this.createMergeLog(slave, log, manager);

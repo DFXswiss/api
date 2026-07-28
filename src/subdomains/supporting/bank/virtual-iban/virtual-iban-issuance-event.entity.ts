@@ -33,6 +33,13 @@ export class VirtualIbanIssuanceEvent extends IEntity {
   @Column({ type: 'varchar', length: 256 })
   provider: IbanBankName;
 
+  /** Immutable copy of the intent's reference-account snapshot for standalone audit/reconciliation. */
+  @Column({ length: 34 })
+  referenceAccountIban: string;
+
+  @Column({ type: 'boolean' })
+  referenceAccountReceive: boolean;
+
   // Explicit type: Enum is imported cross-file; ts-jest transpile-only (isolatedModules) cannot
   // reliably emit design:type for that import and would otherwise leave Object → Postgres crash.
   @Column({ type: 'varchar', length: 32 })

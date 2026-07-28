@@ -1,7 +1,21 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
-import { EntityManager, FindOperator, FindOptionsWhere, IsNull, Not } from 'typeorm';
+import { DataType, newDb } from 'pg-mem';
+import {
+  Column,
+  DataSource,
+  Entity,
+  EntityManager,
+  FindOperator,
+  FindOptionsWhere,
+  IsNull,
+  JoinColumn,
+  ManyToOne,
+  Not,
+  OneToMany,
+  PrimaryColumn,
+} from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -39,6 +53,7 @@ import { KycType, UserDataStatus } from '../user-data.enum';
 import { UserDataRepository } from '../user-data.repository';
 import {
   MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER,
+  MERGE_POST_COMMIT_EFFECT_FAILED_MARKER,
   MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER,
   MergedPrefix,
   UserDataService,
@@ -51,6 +66,28 @@ jest.mock('src/config/config', () => ({
   ...jest.requireActual('src/config/config'),
   Config: { formats: { kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i } },
 }));
+
+@Entity({ name: 'merge_user_data' })
+class MergeUserDataTable {
+  @PrimaryColumn({ type: 'integer' })
+  id: number;
+
+  @OneToMany(() => MergeVirtualIbanTable, (virtualIban) => virtualIban.userData)
+  virtualIbans?: MergeVirtualIbanTable[];
+}
+
+@Entity({ name: 'merge_virtual_iban' })
+class MergeVirtualIbanTable {
+  @PrimaryColumn({ type: 'integer' })
+  id: number;
+
+  @Column({ type: 'varchar', length: 256 })
+  provider: IbanBankName;
+
+  @ManyToOne(() => MergeUserDataTable, (userData) => userData.virtualIbans, { nullable: false })
+  @JoinColumn({ name: 'userDataId' })
+  userData: MergeUserDataTable;
+}
 
 describe('UserDataService', () => {
   let service: UserDataService;
@@ -490,6 +527,143 @@ describe('UserDataService', () => {
         .mockResolvedValue(undefined);
     };
 
+    describe('merge-base virtual IBAN constellations (Postgres semantics)', () => {
+      let pgDataSource: DataSource;
+
+      beforeAll(async () => {
+        const db = newDb();
+        db.public.registerFunction({
+          name: 'version',
+          returns: DataType.text,
+          implementation: () => 'PostgreSQL 15.0',
+        });
+        db.public.registerFunction({
+          name: 'current_database',
+          returns: DataType.text,
+          implementation: () => 'test',
+        });
+        pgDataSource = (await db.adapters.createTypeormDataSource({
+          type: 'postgres',
+          entities: [MergeUserDataTable, MergeVirtualIbanTable],
+          synchronize: true,
+        })) as DataSource;
+        await pgDataSource.initialize();
+      });
+
+      afterAll(async () => {
+        if (pgDataSource?.isInitialized) await pgDataSource.destroy();
+      });
+
+      it.each([
+        {
+          constellation: 'no virtual IBANs',
+          masterProviders: [] as IbanBankName[],
+          slaveProviders: [] as IbanBankName[],
+          expectedOwnerIds: [] as number[],
+        },
+        {
+          constellation: 'Yapeal on master',
+          masterProviders: [IbanBankName.YAPEAL],
+          slaveProviders: [] as IbanBankName[],
+          expectedOwnerIds: [1000],
+        },
+        {
+          constellation: 'Yapeal on slave',
+          masterProviders: [] as IbanBankName[],
+          slaveProviders: [IbanBankName.YAPEAL],
+          expectedOwnerIds: [2000],
+        },
+        {
+          constellation: 'Yapeal on both',
+          masterProviders: [IbanBankName.YAPEAL],
+          slaveProviders: [IbanBankName.YAPEAL],
+          expectedOwnerIds: [1000, 2000],
+        },
+        {
+          constellation: 'Frick on master',
+          masterProviders: [IbanBankName.FRICK],
+          slaveProviders: [] as IbanBankName[],
+          expectedOwnerIds: [1000],
+        },
+        {
+          constellation: 'Frick on slave',
+          masterProviders: [] as IbanBankName[],
+          slaveProviders: [IbanBankName.FRICK],
+          expectedOwnerIds: [1000],
+        },
+        {
+          constellation: 'Frick on both',
+          masterProviders: [IbanBankName.FRICK],
+          slaveProviders: [IbanBankName.FRICK],
+          expectedOwnerIds: [1000, 1000],
+        },
+      ])(
+        'preserves merge-base ownership and applies only the Frick addition: $constellation',
+        async ({ masterProviders, slaveProviders, expectedOwnerIds }) => {
+          const master = buildAccount(1000, 50);
+          const slave = buildAccount(2000, 20);
+          const allProviders = [...masterProviders, ...slaveProviders];
+          const masterVibans = masterProviders.map((provider, index) =>
+            buildActiveViban(
+              index + 1,
+              master,
+              index === 0 ? eur : chf,
+              provider === IbanBankName.FRICK ? frick : yapeal,
+            ),
+          );
+          const slaveVibans = slaveProviders.map((provider, index) =>
+            buildActiveViban(
+              masterProviders.length + index + 1,
+              slave,
+              masterProviders.length === 0 ? eur : chf,
+              provider === IbanBankName.FRICK ? frick : yapeal,
+            ),
+          );
+
+          await pgDataSource.query(`DELETE FROM "merge_virtual_iban"`);
+          await pgDataSource.query(`DELETE FROM "merge_user_data"`);
+          await pgDataSource.getRepository(MergeUserDataTable).save([{ id: master.id }, { id: slave.id }]);
+          await pgDataSource.getRepository(MergeVirtualIbanTable).save(
+            allProviders.map((provider, index) => ({
+              id: index + 1,
+              provider,
+              userData: { id: index < masterProviders.length ? master.id : slave.id },
+            })),
+          );
+
+          await prepareMerge(master, slave, masterVibans, slaveVibans);
+          virtualIbanService.mergeUserLevelVirtualIbans.mockImplementation(async (masterId, slaveId) => {
+            await pgDataSource.query(
+              `UPDATE "merge_virtual_iban"
+                  SET "userDataId" = $1
+                WHERE "userDataId" = $2
+                  AND "provider" = $3`,
+              [masterId, slaveId, IbanBankName.FRICK],
+            );
+          });
+          userDataRepo.save.mockImplementation(async (entity) => {
+            const persistedMaster = Object.assign(new MergeUserDataTable(), { id: entity.id });
+            if (entity.virtualIbans !== undefined) {
+              persistedMaster.virtualIbans = entity.virtualIbans.map((virtualIban) =>
+                Object.assign(new MergeVirtualIbanTable(), { id: virtualIban.id }),
+              );
+            }
+            await pgDataSource.getRepository(MergeUserDataTable).save(persistedMaster);
+            return entity as UserData;
+          });
+
+          await expect(service.mergeUserData(master.id, slave.id)).resolves.toBeUndefined();
+
+          const rows = await pgDataSource.getRepository(MergeVirtualIbanTable).find({
+            relations: { userData: true },
+            order: { id: 'ASC' },
+          });
+          expect(rows.map((row) => row.userData.id)).toEqual(expectedOwnerIds);
+          expect((userDataRepo.save.mock.calls[0][0] as UserData).virtualIbans).toBeUndefined();
+        },
+      );
+    });
+
     it('does not load or reassign a single-sided Yapeal IBAN during account merge', async () => {
       const master = buildAccount(1000, 50);
       const slave = buildAccount(2000, 20);
@@ -503,7 +677,7 @@ describe('UserDataService', () => {
       expect(virtualIbanService.getFrickVirtualIbansForAccount).toHaveBeenCalledWith(master.id, mergeManager);
       expect(virtualIbanService.getFrickVirtualIbansForAccount).toHaveBeenCalledWith(slave.id, mergeManager);
       expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [], mergeManager);
-      expect(master.virtualIbans).toEqual([masterViban]);
+      expect(master.virtualIbans).toBeUndefined();
       expect(slaveViban.userData).toBe(slave);
       expect(slaveViban.active).toBe(true);
       expect(slaveViban.status).toBe(VirtualIbanStatus.ACTIVE);
@@ -542,10 +716,7 @@ describe('UserDataService', () => {
       expect(slaveViban.deactivatedAt).toBeInstanceOf(Date);
 
       const saved = userDataRepo.save.mock.calls[0][0] as UserData;
-      const activeForPair = saved.virtualIbans.filter(
-        (v) => v.active && v.status === VirtualIbanStatus.ACTIVE && v.currency.id === eur.id && v.bank.id === frick.id,
-      );
-      expect(activeForPair).toEqual([masterViban]);
+      expect(saved.virtualIbans).toBeUndefined();
     });
 
     it('keeps both active when master and slave have different currency+bank pairs', async () => {
@@ -561,7 +732,7 @@ describe('UserDataService', () => {
       expect(virtualIbanService.mergeUserLevelVirtualIbans).toHaveBeenCalledWith(master.id, slave.id, [], mergeManager);
       expect(masterViban.active).toBe(true);
       expect(slaveViban.active).toBe(true);
-      expect(master.virtualIbans).toEqual([masterViban]);
+      expect(master.virtualIbans).toBeUndefined();
     });
 
     it('does not deduplicate same-pair Yapeal IBANs during account merge', async () => {
@@ -998,7 +1169,7 @@ describe('UserDataService', () => {
         mergeManager,
       );
       expect(documentService.copyFiles).not.toHaveBeenCalled();
-      expect(webhookService.accountChanged).not.toHaveBeenCalled();
+      expect(webhookService.accountChangedStrict).not.toHaveBeenCalled();
       expect(kycNotificationService.kycChanged).not.toHaveBeenCalled();
       expect(userDataNotificationService.userDataChangedMailInfo).not.toHaveBeenCalled();
       expect(userDataNotificationService.userDataAddedAddressInfo).not.toHaveBeenCalled();
@@ -1022,6 +1193,7 @@ describe('UserDataService', () => {
         kycType: KycType.DFX,
         status: UserDataStatus.ACTIVE,
         mail: 'slave@example.com',
+        firstname: 'Sensitive Slave Name',
         users: [],
         accountRelations: [],
         relatedAccountRelations: [],
@@ -1034,8 +1206,8 @@ describe('UserDataService', () => {
       virtualIbanService.getFrickVirtualIbansForAccount.mockResolvedValue([]);
       kycAdminService.getKycSteps.mockResolvedValue([]);
       documentService.copyFiles.mockRejectedValue(new Error('storage unavailable'));
-      webhookService.accountChanged.mockResolvedValue(undefined);
-      kycNotificationService.kycChangedStrict.mockResolvedValue(undefined);
+      webhookService.accountChangedStrict.mockRejectedValue(new Error('account webhook unavailable'));
+      kycNotificationService.kycChangedStrict.mockRejectedValue(new Error('KYC webhook unavailable'));
       userDataNotificationService.userDataChangedMailInfoStrict.mockRejectedValue(new Error('mail unavailable'));
       userDataNotificationService.userDataAddedAddressInfoStrict.mockResolvedValue(undefined);
       jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
@@ -1063,7 +1235,7 @@ describe('UserDataService', () => {
 
       await expect(service.mergeUserData(master.id, slave.id, undefined, true)).resolves.toBeUndefined();
 
-      expect(webhookService.accountChanged).toHaveBeenCalledWith(master, slave);
+      expect(webhookService.accountChangedStrict).toHaveBeenCalledWith(master, slave);
       expect(kycNotificationService.kycChangedStrict).toHaveBeenCalledWith(master);
       expect(userDataNotificationService.userDataChangedMailInfoStrict).toHaveBeenCalledWith(
         expect.objectContaining({ id: master.id, mail: 'master@example.com' }),
@@ -1077,27 +1249,44 @@ describe('UserDataService', () => {
       expect(criticalSpy).toHaveBeenCalledWith(
         expect.stringContaining(
           `UserData merge completed with failed post-commit effects (masterId=${master.id}, ` +
-            `slaveId=${slave.id}, failedEffects=changed-mail notification,document copy)`,
+            `slaveId=${slave.id}, failedEffects=changed-mail notification,document copy,` +
+            `account-changed webhook,KYC-changed notification)`,
         ),
       );
       expect(infoSpy).toHaveBeenCalledWith(
         expect.stringContaining('UserData merge committed; starting post-commit effects'),
       );
-      expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('effect=account-changed webhook'));
       expect(kycLogService.createMergeLog).toHaveBeenCalledTimes(2);
-      expect(kycLogService.createMergeEffectCompletionLogs).toHaveBeenCalledTimes(3);
-      for (const effect of ['account-changed webhook', 'KYC-changed notification', 'added-address notification']) {
-        expect(kycLogService.createMergeEffectCompletionLogs).toHaveBeenCalledWith(
-          master,
-          slave,
-          expect.stringContaining(`${MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER}${effect}`),
+      expect(kycLogService.createMergeEffectMarkerLogs).toHaveBeenCalledTimes(5);
+      expect(kycLogService.createMergeEffectMarkerLogs).toHaveBeenCalledWith(
+        master,
+        slave,
+        `masterId=${master.id}; slaveId=${slave.id}; ` +
+          `${MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER}added-address notification`,
+      );
+      const markerLogs = kycLogService.createMergeEffectMarkerLogs.mock.calls.map((call) => call[2]);
+      for (const effect of [
+        'changed-mail notification',
+        'document copy',
+        'account-changed webhook',
+        'KYC-changed notification',
+      ]) {
+        expect(markerLogs).toContain(
+          `masterId=${master.id}; slaveId=${slave.id}; ${MERGE_POST_COMMIT_EFFECT_FAILED_MARKER}${effect}`,
         );
       }
-      const completionLogs = kycLogService.createMergeEffectCompletionLogs.mock.calls.map((call) => call[2]);
-      expect(completionLogs.join('\n')).not.toContain(
-        `${MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER}changed-mail notification`,
-      );
-      expect(completionLogs.join('\n')).not.toContain(`${MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER}document copy`);
+      const completionLogs = markerLogs.filter((log) => log.includes(MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER));
+      for (const effect of [
+        'changed-mail notification',
+        'document copy',
+        'account-changed webhook',
+        'KYC-changed notification',
+      ]) {
+        expect(completionLogs.join('\n')).not.toContain(`${MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER}${effect}`);
+      }
+      expect(markerLogs.join('\n')).not.toContain(master.mail);
+      expect(markerLogs.join('\n')).not.toContain(slave.mail);
+      expect(markerLogs.join('\n')).not.toContain(slave.firstname);
       expect(kycLogService.createMergeLog).toHaveBeenCalledWith(
         master,
         expect.stringContaining(

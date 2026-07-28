@@ -77,6 +77,7 @@ import { UserDataRepository } from './user-data.repository';
 export const MergedPrefix = 'Merged into ';
 export const MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER = 'postCommitEffectsPending=';
 export const MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER = 'postCommitEffectCompleted=';
+export const MERGE_POST_COMMIT_EFFECT_FAILED_MARKER = 'postCommitEffectFailed=';
 
 interface SecretCacheEntry {
   secret: string;
@@ -1259,7 +1260,7 @@ export class UserDataService {
       master: UserData;
       slave: UserData;
       effects: { name: string; run: () => Promise<void> }[];
-      durableMergeLog: string;
+      mergeCorrelation: string;
     };
     try {
       mergeResult = await this.userDataRepo.manager.transaction(async (manager: EntityManager) => {
@@ -1286,7 +1287,7 @@ export class UserDataService {
           relations: { userData: true, wallet: true },
         });
         master.bankDatas = await this.bankDataService.getAllBankDatasForUser(masterId, manager);
-        master.virtualIbans = await this.virtualIbanService.getFrickVirtualIbansForAccount(masterId, manager);
+        const masterFrickVirtualIbans = await this.virtualIbanService.getFrickVirtualIbansForAccount(masterId, manager);
         master.kycSteps = await this.kycAdminService.getKycSteps(masterId, {}, manager);
 
         const slave = await userDataRepo.findOne({
@@ -1306,7 +1307,7 @@ export class UserDataService {
           relations: { userData: true, wallet: true },
         });
         slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId, manager);
-        slave.virtualIbans = await this.virtualIbanService.getFrickVirtualIbansForAccount(slaveId, manager);
+        const slaveFrickVirtualIbans = await this.virtualIbanService.getFrickVirtualIbansForAccount(slaveId, manager);
         slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId, {}, manager);
 
         master.checkIfMergePossibleWith(slave);
@@ -1316,7 +1317,7 @@ export class UserDataService {
 
         const mergedEntitiesString = [
           slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
-          slave.virtualIbans.length > 0 && `virtual ibans ${slave.virtualIbans.map((v) => v.id)}`,
+          slaveFrickVirtualIbans.length > 0 && `virtual ibans ${slaveFrickVirtualIbans.map((v) => v.id)}`,
           slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
           slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
           slave.relatedAccountRelations.length > 0 &&
@@ -1419,7 +1420,7 @@ export class UserDataService {
         const virtualIbanPairKey = (v: VirtualIban): string => `${v.currency.id}:${v.bank.id}`;
 
         const masterActiveByPair = new Map<string, VirtualIban[]>();
-        for (const v of master.virtualIbans.filter(isActiveUserLevelVirtualIban)) {
+        for (const v of masterFrickVirtualIbans.filter(isActiveUserLevelVirtualIban)) {
           const key = virtualIbanPairKey(v);
           const group = masterActiveByPair.get(key);
           if (group) group.push(v);
@@ -1427,7 +1428,7 @@ export class UserDataService {
         }
 
         const slaveActiveByPair = new Map<string, VirtualIban[]>();
-        for (const v of slave.virtualIbans.filter(isActiveUserLevelVirtualIban)) {
+        for (const v of slaveFrickVirtualIbans.filter(isActiveUserLevelVirtualIban)) {
           const key = virtualIbanPairKey(v);
           const group = slaveActiveByPair.get(key);
           if (group) group.push(v);
@@ -1455,9 +1456,11 @@ export class UserDataService {
         // reset to Pending first; then non-terminal slave rows are reassigned or failed.
         await this.virtualIbanService.mergeUserLevelVirtualIbans(masterId, slaveId, deactivations, manager);
 
-        // reassign bank datas, virtual ibans, users and userDataRelations
+        // Merge-base path: UserData.virtualIbans is deliberately not loaded or assigned, so
+        // userDataRepo.save(master) cannot reconcile an incomplete relation collection and nullify
+        // Yapeal ownership. Frick-only ownership/dedup additions are completed explicitly by
+        // mergeUserLevelVirtualIbans above; they never modify the generic UserData save path.
         master.bankDatas = master.bankDatas.concat(slave.bankDatas);
-        master.virtualIbans = master.virtualIbans.concat(slave.virtualIbans);
         master.users = master.users.concat(slave.users);
         master.accountRelations = master.accountRelations.concat(slave.accountRelations);
         master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
@@ -1576,7 +1579,7 @@ export class UserDataService {
           },
           {
             name: 'account-changed webhook',
-            run: () => this.webhookService.accountChanged(master, slave),
+            run: () => this.webhookService.accountChangedStrict(master, slave),
           },
           {
             name: 'KYC-changed notification',
@@ -1597,13 +1600,18 @@ export class UserDataService {
         await this.kycLogService.createMergeLog(master, durableMergeLog, manager);
         await this.kycLogService.createMergeLog(slave, durableMergeLog, manager);
 
-        return { master, slave, effects, durableMergeLog };
+        return {
+          master,
+          slave,
+          effects,
+          mergeCorrelation: `masterId=${master.id}; slaveId=${slave.id}`,
+        };
       });
     } catch (error) {
       await this.virtualIbanService.reportIntegrityError(error);
       throw error;
     }
-    const { master, slave, effects, durableMergeLog } = mergeResult;
+    const { master, slave, effects, mergeCorrelation } = mergeResult;
 
     this.virtualIbanService.invalidateCacheAfterMerge();
 
@@ -1620,6 +1628,19 @@ export class UserDataService {
         await effect.run();
       } catch (error) {
         failedEffects.push(effect.name);
+        try {
+          await this.kycLogService.createMergeEffectMarkerLogs(
+            master,
+            slave,
+            `${mergeCorrelation}; ${MERGE_POST_COMMIT_EFFECT_FAILED_MARKER}${effect.name}`,
+          );
+        } catch (markerError) {
+          this.logger.critical(
+            `UserData merge post-commit effect failed and its durable failure marker also failed ` +
+              `(masterId=${master.id}, slaveId=${slave.id}, effect=${effect.name})`,
+            markerError instanceof Error ? markerError : undefined,
+          );
+        }
         this.logger.critical(
           `UserData merge committed but post-commit effect failed; manual reconciliation required ` +
             `(masterId=${master.id}, slaveId=${slave.id}, effect=${effect.name})`,
@@ -1629,10 +1650,10 @@ export class UserDataService {
       }
 
       try {
-        await this.kycLogService.createMergeEffectCompletionLogs(
+        await this.kycLogService.createMergeEffectMarkerLogs(
           master,
           slave,
-          `${durableMergeLog}; ${MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER}${effect.name}`,
+          `${mergeCorrelation}; ${MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER}${effect.name}`,
         );
         this.logger.info(
           `UserData merge post-commit effect completed ` +

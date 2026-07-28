@@ -4,7 +4,6 @@ import { FrickVirtualIbansFetchResult } from 'src/integration/bank/services/fric
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FrickVibanProvider } from 'src/subdomains/supporting/bank/virtual-iban/providers/frick-viban.provider';
 import { VirtualIbanIssuanceEvent } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-event.entity';
@@ -27,6 +26,9 @@ interface AbandonedReferenceHit {
   userDataId: number;
   currencyId: number;
   bankId: number;
+  provider: IbanBankName;
+  referenceAccountIban: string;
+  referenceAccountReceive: boolean;
   created: Date;
 }
 
@@ -83,11 +85,12 @@ export class VirtualIbanFrickIssuanceReconciliationService {
    * Minimum age of an InFlight/Failed Frick intent before Phase 1 escalates a listing miss to Operations.
    *
    * Derivation from BankFrickService.HTTP_TIMEOUT_MS = 30_000:
+   * - authorization preflight = 30s
    * - create call worst case = 90s: original request (30s) + /authorize re-auth after 401 (30s) +
    *   one-shot retried request (30s). requestSigned has no further internal retry loop beyond that.
    * - activate call: same shape, another 90s
-   * - worst-case in-flight window therefore 180s
-   * - ×10 safety multiplier (job is hourly; being generous costs nothing) → 1_800_000 ms (30 min)
+   * - worst-case local issuance window is therefore 210s; the 30-minute threshold is a conservative
+   *   delay of more than eight times that window (the job itself runs hourly).
    */
   static readonly FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS = 1_800_000;
   static readonly FRICK_CREATE_MAX_PROCESSING_MS = VirtualIbanService.FRICK_CREATE_MAX_PROCESSING_MS;
@@ -95,7 +98,6 @@ export class VirtualIbanFrickIssuanceReconciliationService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly frickVibanProvider: FrickVibanProvider,
-    private readonly bankService: BankService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -113,8 +115,9 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     // Silent no-op when the vIBAN rail is not configured (mirrors FiatOutputFrickService status check).
     if (!this.frickVibanProvider.isAvailable()) return;
 
-    // Shared per bankId listing cache so Phase 1 and Phase 2 never list the same bank twice in one run.
-    const listingCache = new Map<number, FrickVirtualIbansFetchResult>();
+    // Shared immutable reference-account listing cache. A mutable Bank row is never re-read here:
+    // each intent/event is reconciled against the account captured when the intent was created.
+    const listingCache = new Map<string, FrickVirtualIbansFetchResult>();
 
     try {
       await this.runPhase1StuckIntents(listingCache);
@@ -143,7 +146,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
    * Merge-superseded intents (`error` contains {@link MERGE_SUPERSEDED_MARKER}) are permanently
    * retired and must never be reopened — exclude them before any listing work.
    */
-  private async runPhase1StuckIntents(listingCache: Map<number, FrickVirtualIbansFetchResult>): Promise<void> {
+  private async runPhase1StuckIntents(listingCache: Map<string, FrickVirtualIbansFetchResult>): Promise<void> {
     const loadedIntents = await this.dataSource.getRepository(VirtualIbanIssuanceIntent).find({
       where: {
         provider: IbanBankName.FRICK,
@@ -167,11 +170,12 @@ export class VirtualIbanFrickIssuanceReconciliationService {
       return;
     }
 
-    const byBankId = new Map<number, VirtualIbanIssuanceIntent[]>();
+    const byReferenceAccountSnapshot = new Map<string, VirtualIbanIssuanceIntent[]>();
     for (const intent of intents) {
-      const group = byBankId.get(intent.bankId) ?? [];
+      const snapshotKey = this.referenceAccountSnapshotKey(intent);
+      const group = byReferenceAccountSnapshot.get(snapshotKey) ?? [];
       group.push(intent);
-      byBankId.set(intent.bankId, group);
+      byReferenceAccountSnapshot.set(snapshotKey, group);
     }
 
     const listingMatches: StuckIntentListingMatch[] = [];
@@ -182,9 +186,16 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     let failedBankCount = 0;
     const chronicIncompleteBankIds = new Set<number>();
 
-    for (const [bankId, group] of byBankId) {
+    for (const group of byReferenceAccountSnapshot.values()) {
+      const snapshot = group.at(0)!;
+      const bankId = snapshot.bankId;
       try {
-        const listingResult = await this.getListingForBank(bankId, listingCache);
+        const listingResult = await this.getListingForReferenceAccount(
+          snapshot.referenceAccountIban,
+          snapshot.referenceAccountReceive,
+          snapshot.provider,
+          listingCache,
+        );
         if (
           !(listingResult.listingStartedAt instanceof Date) ||
           !Number.isFinite(listingResult.listingStartedAt.getTime()) ||
@@ -299,7 +310,8 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     }
 
     this.logger.info(
-      `Frick vIBAN reconciliation Phase 1: checked ${intents.length} intent(s) across ${byBankId.size} bank(s); ` +
+      `Frick vIBAN reconciliation Phase 1: checked ${intents.length} intent(s) across ` +
+        `${byReferenceAccountSnapshot.size} reference-account snapshot(s); ` +
         `${listingMatches.length} listing match(es), ${skippedFreshCount} skipped (too fresh), ` +
         `${unprovenAbsences.length} left non-retryable (listing cannot prove absence), ` +
         `${skippedIncompleteCount} skipped (incomplete listing across ${incompleteListingBankCount} bank(s))` +
@@ -311,7 +323,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
    * Phase 2: alert when Bank Frick still lists a vIBAN under a retired (abandoned) requestReference.
    * Incomplete listings never count as "clean" for unmatched abandoned references.
    */
-  private async runPhase2RetiredReferences(listingCache: Map<number, FrickVirtualIbansFetchResult>): Promise<void> {
+  private async runPhase2RetiredReferences(listingCache: Map<string, FrickVirtualIbansFetchResult>): Promise<void> {
     const { hits: abandoned, unresolved } = await this.loadAbandonedReferences();
 
     // Unresolved candidates (query match but no parseable abandoned reference) always alert —
@@ -327,11 +339,12 @@ export class VirtualIbanFrickIssuanceReconciliationService {
       return;
     }
 
-    const byBankId = new Map<number, AbandonedReferenceHit[]>();
+    const byReferenceAccountSnapshot = new Map<string, AbandonedReferenceHit[]>();
     for (const hit of abandoned) {
-      const group = byBankId.get(hit.bankId) ?? [];
+      const snapshotKey = this.referenceAccountSnapshotKey(hit);
+      const group = byReferenceAccountSnapshot.get(snapshotKey) ?? [];
       group.push(hit);
-      byBankId.set(hit.bankId, group);
+      byReferenceAccountSnapshot.set(snapshotKey, group);
     }
 
     const matches: AbandonedReferenceHit[] = [];
@@ -339,9 +352,16 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     let incompleteUnresolvedCount = 0;
     let failedBankCount = 0;
 
-    for (const [bankId, group] of byBankId) {
+    for (const group of byReferenceAccountSnapshot.values()) {
+      const snapshot = group.at(0)!;
+      const bankId = snapshot.bankId;
       try {
-        const listingResult = await this.getListingForBank(bankId, listingCache);
+        const listingResult = await this.getListingForReferenceAccount(
+          snapshot.referenceAccountIban,
+          snapshot.referenceAccountReceive,
+          snapshot.provider,
+          listingCache,
+        );
         const descriptions = new Set(
           listingResult.virtualIbans
             .map((viban) => viban.description)
@@ -404,29 +424,33 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     }
   }
 
-  /**
-   * Resolve bank by id and list Frick vIBANs for its reference IBAN, caching by bankId for the run.
-   */
-  private async getListingForBank(
-    bankId: number,
-    listingCache: Map<number, FrickVirtualIbansFetchResult>,
+  private async getListingForReferenceAccount(
+    referenceAccountIban: string,
+    referenceAccountReceive: boolean,
+    provider: IbanBankName,
+    listingCache: Map<string, FrickVirtualIbansFetchResult>,
   ): Promise<FrickVirtualIbansFetchResult> {
-    const cached = listingCache.get(bankId);
+    if (provider !== IbanBankName.FRICK) {
+      throw new Error('Frick reconciliation refused a non-Frick reference-account snapshot');
+    }
+    if (referenceAccountReceive !== true || !referenceAccountIban) {
+      throw new Error('Frick reconciliation refused an invalid reference-account snapshot');
+    }
+
+    const cached = listingCache.get(referenceAccountIban);
     if (cached !== undefined) return cached;
 
-    // Correctness read-through: a reference-account correction must take effect immediately and
-    // must never be hidden behind BankRepository's five-minute cache.
-    const bank = await this.bankService.getBankByIdUncached(bankId);
-    if (!bank?.iban) {
-      throw new Error(`Frick receive bank id=${bankId} (reference account IBAN) is not configured`);
-    }
-    if (bank.name !== IbanBankName.FRICK) {
-      throw new Error(`Frick reconciliation refused non-Frick bank id=${bankId}`);
-    }
-
-    const listing = await this.frickVibanProvider.listByReferenceAccount(bank.iban);
-    listingCache.set(bankId, listing);
+    const listing = await this.frickVibanProvider.listByReferenceAccount(referenceAccountIban);
+    listingCache.set(referenceAccountIban, listing);
     return listing;
+  }
+
+  private referenceAccountSnapshotKey(snapshot: {
+    provider: IbanBankName;
+    referenceAccountIban: string;
+    referenceAccountReceive: boolean;
+  }): string {
+    return JSON.stringify([snapshot.provider, snapshot.referenceAccountIban, snapshot.referenceAccountReceive]);
   }
 
   /**
@@ -495,6 +519,9 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         userDataId: event.userDataId,
         currencyId: event.currencyId,
         bankId: event.bankId,
+        provider: event.provider,
+        referenceAccountIban: event.referenceAccountIban,
+        referenceAccountReceive: event.referenceAccountReceive,
         created: event.created,
       });
     }

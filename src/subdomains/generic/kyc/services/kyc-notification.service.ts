@@ -197,7 +197,8 @@ export class KycNotificationService {
       }
 
       // KYC webhook external services
-      await this.webhookService.kycChanged(userData);
+      if (rethrow) await this.webhookService.kycChangedStrict(userData);
+      else await this.webhookService.kycChanged(userData);
     } catch (e) {
       this.logger.error(`Failed to send KYC success mail or KYC changed webhook ${userData.id}:`, e);
       if (rethrow) throw e;

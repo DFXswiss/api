@@ -32,6 +32,13 @@ export class VirtualIbanIssuanceIntent extends IEntity {
   @Column({ type: 'varchar', length: 256 })
   provider: IbanBankName;
 
+  /** Immutable reference-account configuration captured when the intent is first created. */
+  @Column({ length: 34 })
+  referenceAccountIban: string;
+
+  @Column({ type: 'boolean' })
+  referenceAccountReceive: boolean;
+
   @Index()
   @Column({ type: 'integer', nullable: true })
   buyId: number | null;
