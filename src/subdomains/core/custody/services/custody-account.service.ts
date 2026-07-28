@@ -97,9 +97,10 @@ export class CustodyAccountService {
   }
 
   /**
-   * Resolves an account for authorisation. Only ACTIVE accounts are visible —
+   * Resolves an account for the data path. Only ACTIVE accounts are visible —
    * Blocked/Closed are treated as missing so status cannot be bypassed via id.
-   * Shared by checkAccess and requireOwner so every auth path is covered once.
+   * Grant management does not go through here: it depends on ownership alone, so blocking an
+   * account cannot strand the grants on it (see requireOwner).
    */
   async getCustodyAccountById(custodyAccountId: number): Promise<CustodyAccount> {
     const custodyAccount = await this.custodyAccountRepo.findOne({
