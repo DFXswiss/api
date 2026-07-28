@@ -8,8 +8,9 @@ import { Util } from 'src/shared/utils/util';
  *
  * Accepted rather than executed: the order stays quarantined until reconciliation has had one answer from
  * the venue, so a release can never end an order while a confirmation of it is still in flight. In the
- * ordinary case that is the next pass, seconds later. The exception is an order no integration can look up
- * any more — no answer can come, so the release takes effect on this assertion alone.
+ * ordinary case that is the next pass, seconds later. Two exceptions, both about liveness: an order no
+ * integration can look up any more, and a venue that has answered nothing for long enough. There the release
+ * takes effect on this assertion alone — silence stops being a veto, it never becomes evidence.
  *
  * The automatic reconciliation can only ever prove the positive — that the venue knows the reference. It
  * never concludes the negative, because no venue reply establishes "this was never accepted". Somebody has

@@ -13,6 +13,9 @@
  * against funds that are in fact committed — before anything could contradict it. Waiting for one machine
  * answer costs a single reconciliation pass, normally seconds, and closes that window entirely.
  *
+ * Two exceptions end the wait without an answer, both about liveness rather than evidence: an order no
+ * integration can look up any more, and a venue that has answered nothing for long enough.
+ *
  * The column records work outstanding, not when the release was asked for: that goes into the order's own
  * reason, which nothing clears. Indexed so the wait never turns into a scan.
  *
