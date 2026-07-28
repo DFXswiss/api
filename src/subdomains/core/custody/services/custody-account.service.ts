@@ -281,7 +281,7 @@ export class CustodyAccountService {
     // during a hold is exactly what a hold is meant to prevent, and it is no way out of one
     // either. Withdrawing and re-levelling stay open.
     if (account.status !== CustodyAccountStatus.ACTIVE) {
-      throw new ConflictException('Cannot grant access on an account that is not active');
+      throw new BadRequestException('Cannot grant access on an account that is not active');
     }
 
     const target = await this.resolveUserByMail(mail);
@@ -300,7 +300,7 @@ export class CustodyAccountService {
   ): Promise<CustodyAccountAccess> {
     // Authorise before touching any grant row. The owner may re-level any grant including
     // their own — see rejectOwnerGrantRevocation for why only revoking stays refused.
-    await this.requireOwner(custodyAccountId, ownerAccountId);
+    const account = await this.requireOwner(custodyAccountId, ownerAccountId);
 
     // Read + deactivate + insert under one transaction with a row lock so concurrent
     // update/revoke cannot leave a superseded active grant behind a false revoke success.
@@ -310,6 +310,8 @@ export class CustodyAccountService {
       if (access.accessLevel === accessLevel) {
         return access;
       }
+
+      this.rejectElevationWhileNotActive(access, account, accessLevel);
 
       await manager.update(CustodyAccountAccess, ...access.deactivate());
 
@@ -359,8 +361,9 @@ export class CustodyAccountService {
    * withdraw a stranger's access, and since a narrowing blocks the owner's whole Safe
    * (requireActingAllowed), one blocked account would freeze all their others with no way back.
    *
-   * That reasoning covers withdrawing and re-levelling, not issuing: grantAccess checks the
-   * status itself, so a hold cannot be used to widen the circle of authorised people.
+   * That reasoning covers taking rights away, not handing them out. Issuing a grant and raising
+   * a stranger's level both check the status themselves (grantAccess,
+   * rejectElevationWhileNotActive), so a hold cannot be used to widen anyone's authority.
    */
   private async requireOwner(custodyAccountId: number, accountId: number): Promise<CustodyAccount> {
     const custodyAccount = await this.custodyAccountRepo.findOne({
@@ -408,6 +411,26 @@ export class CustodyAccountService {
 
     if (narrowed) {
       throw new ForbiddenException('This Safe is limited to inspection, acting is not permitted');
+    }
+  }
+
+  /**
+   * On an account that is not active, rights may be taken away but not handed out — the same
+   * rule grantAccess applies to new grants. Raising a stranger from READ to WRITE arms a right
+   * that becomes effective the moment the account is unblocked, which is exactly what a hold is
+   * meant to prevent; lowering them stays open, as does anything on the owner's own row, which
+   * is their way out of a narrowing.
+   */
+  private rejectElevationWhileNotActive(
+    access: CustodyAccountAccess,
+    account: CustodyAccount,
+    newLevel: CustodyAccessLevel,
+  ): void {
+    const isOwnGrant = access.userData.id === account.owner.id;
+    const isElevation = access.accessLevel === CustodyAccessLevel.READ && newLevel === CustodyAccessLevel.WRITE;
+
+    if (!isOwnGrant && isElevation && account.status !== CustodyAccountStatus.ACTIVE) {
+      throw new BadRequestException('Cannot raise access on an account that is not active');
     }
   }
 

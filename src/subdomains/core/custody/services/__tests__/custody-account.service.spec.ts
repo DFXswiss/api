@@ -566,7 +566,7 @@ describe('CustodyAccountService', () => {
       mockFindOneAccountForOwnerCheck(blockedOwnAccount);
 
       await expect(service.grantAccess(ownAccountId, ownerId, mail, CustodyAccessLevel.READ)).rejects.toThrow(
-        new ConflictException('Cannot grant access on an account that is not active'),
+        new BadRequestException('Cannot grant access on an account that is not active'),
       );
       expect(userDataService.getUsersByMail).not.toHaveBeenCalled();
       expect(txManager.findOne).not.toHaveBeenCalled();
@@ -743,6 +743,76 @@ describe('CustodyAccountService', () => {
       );
 
       expect(txManager.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it("rejects raising a stranger's access on a blocked account and writes nothing", async () => {
+      const blockedOwnAccount = ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED });
+      mockFindOneAccountForOwnerCheck(blockedOwnAccount);
+
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: blockedOwnAccount,
+        userData: strangerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      await expect(service.updateAccess(ownAccountId, accessId, ownerId, CustodyAccessLevel.WRITE)).rejects.toThrow(
+        new BadRequestException('Cannot raise access on an account that is not active'),
+      );
+      expect(txManager.update).not.toHaveBeenCalled();
+      expect(txManager.create).not.toHaveBeenCalled();
+      expect(txManager.save).not.toHaveBeenCalled();
+    });
+
+    it("lets a stranger's access be lowered on a blocked account", async () => {
+      const blockedOwnAccount = ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED });
+      mockFindOneAccountForOwnerCheck(blockedOwnAccount);
+
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: blockedOwnAccount,
+        userData: strangerUserData(),
+        accessLevel: CustodyAccessLevel.WRITE,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      const result = await service.updateAccess(ownAccountId, accessId, ownerId, CustodyAccessLevel.READ);
+
+      expect(result.accessLevel).toBe(CustodyAccessLevel.READ);
+      expect(txManager.update).toHaveBeenCalledTimes(1);
+      expect(txManager.create).toHaveBeenCalledTimes(1);
+      expect(txManager.create).toHaveBeenCalledWith(
+        CustodyAccountAccess,
+        expect.objectContaining({
+          accessLevel: CustodyAccessLevel.READ,
+          active: true,
+        }),
+      );
+      expect(txManager.save).toHaveBeenCalledTimes(1);
+    });
+
+    it("still lets a stranger's access be raised on an active account", async () => {
+      const activeOwnAccount = ownCustodyAccount();
+      mockFindOneAccountForOwnerCheck(activeOwnAccount);
+
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: activeOwnAccount,
+        userData: strangerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      const result = await service.updateAccess(ownAccountId, accessId, ownerId, CustodyAccessLevel.WRITE);
+
+      expect(result.accessLevel).toBe(CustodyAccessLevel.WRITE);
+      expect(txManager.update).toHaveBeenCalledTimes(1);
+      expect(txManager.create).toHaveBeenCalledTimes(1);
+      expect(txManager.save).toHaveBeenCalledTimes(1);
     });
   });
 
