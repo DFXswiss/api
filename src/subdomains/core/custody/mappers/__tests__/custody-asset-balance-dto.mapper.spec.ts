@@ -279,18 +279,33 @@ describe('CustodyAssetBalanceDtoMapper', () => {
         approxPriceEur: 1,
         approxPriceUsd: 1,
       });
-      const cccAsset: Asset = createCustomAsset({
+      const dddAsset: Asset = createCustomAsset({
         id: 62,
+        name: 'DDD',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 63,
         name: 'CCC',
         approxPriceChf: 1,
         approxPriceEur: 1,
         approxPriceUsd: 1,
       });
 
+      // NaN plus two positive values is not enough: the old raw-value comparator and the ranked
+      // comparator happen to return the same order for both forward and reversed input, so the
+      // order-stability assertion cannot catch a regression. This four-value set adds a negative
+      // value: the old comparator returns BBB, CCC, DDD, AAA forward and BBB, AAA, CCC, DDD
+      // reversed, while the ranked comparator returns BBB, DDD, AAA, CCC both ways. Collapsing
+      // this back to three entries silently removes the only thing this test checks, so it must
+      // not be "simplified" later.
       const balances: CustodyBalance[] = [
-        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: NaN }),
-        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 100 }),
-        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 300 }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: -5 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 10 }),
+        Object.assign(new CustodyBalance(), { asset: dddAsset, balance: 0 }),
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: NaN }),
       ];
       const firstInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
       const secondInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
@@ -304,10 +319,60 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(firstResult.map((balance) => balance.asset.name)).toEqual(
         secondResult.map((balance) => balance.asset.name),
       );
-      expect(firstResult[firstResult.length - 1].asset.name).toBe('BBB');
-      expect(secondResult[secondResult.length - 1].asset.name).toBe('BBB');
+      expect(firstResult[firstResult.length - 1].asset.name).toBe('CCC');
+      expect(secondResult[secondResult.length - 1].asset.name).toBe('CCC');
       expect(firstResult[firstResult.length - 1].value.chf).toBeNaN();
       expect(secondResult[secondResult.length - 1].value.chf).toBeNaN();
+    });
+
+    it('places a positive Infinity CHF value last, the same as a non-finite NaN value', () => {
+      const cccAsset: Asset = createCustomAsset({
+        id: 70,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const aaaAsset: Asset = createCustomAsset({
+        id: 71,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 72,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      // Infinity is distinct from NaN because it is ordinarily comparable: the old raw-value
+      // comparator sorts it first instead of scrambling the order, so the position assertions
+      // catch the regression here. The order-stability assertion remains for consistency even
+      // though it does not distinguish the old and ranked comparators for this dataset.
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: Infinity }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 200 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 100 }),
+      ];
+      const firstInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+      const secondInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const firstResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, firstInterestByAssetName);
+      const secondResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(
+        [...balances].reverse(),
+        secondInterestByAssetName,
+      );
+
+      expect(firstResult.map((balance) => balance.asset.name)).toEqual(
+        secondResult.map((balance) => balance.asset.name),
+      );
+      expect(firstResult[firstResult.length - 1].asset.name).toBe('CCC');
+      expect(secondResult[secondResult.length - 1].asset.name).toBe('CCC');
+      expect(firstResult[firstResult.length - 1].value.chf).toBe(Infinity);
+      expect(secondResult[secondResult.length - 1].value.chf).toBe(Infinity);
     });
   });
 });
