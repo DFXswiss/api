@@ -345,7 +345,9 @@ describe('set-dev-support-role-joshua ops script', () => {
       const addressLookup = client.statements.find(
         (s) => /FROM\s+"user"/.test(s) && /LOWER\s*\(\s*"address"\s*\)/.test(s),
       );
-      expect(addressLookup).toBeDefined();
+      // The fake client compares case-insensitively itself, so existence proves nothing:
+      // pin that the SQL lowers BOTH sides, which is what makes the real lookup case-insensitive.
+      expect(addressLookup).toMatch(/LOWER\s*\(\s*"address"\s*\)\s*=\s*LOWER\s*\(\s*\$1\s*\)/);
     });
   });
 
