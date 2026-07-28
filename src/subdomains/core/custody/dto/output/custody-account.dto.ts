@@ -22,6 +22,9 @@ export class CustodyAccountDto {
   @ApiProperty({ enum: CustodyAccessLevel, description: 'Access level for current user' })
   accessLevel: CustodyAccessLevel;
 
+  @ApiProperty({ description: 'Whether the current user owns this account rather than being granted access to it' })
+  isOwner: boolean;
+
   @ApiPropertyOptional({ type: CustodyUserDto })
   owner?: CustodyUserDto;
 }

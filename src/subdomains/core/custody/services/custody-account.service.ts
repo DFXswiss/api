@@ -81,9 +81,9 @@ export class CustodyAccountService {
         // No grant on an own account means the owner keeps full disposal — that is the rule,
         // not a fallback for a missing value.
         const level = ownLevelByAccount.get(ca.id) ?? CustodyAccessLevel.WRITE;
-        return CustodyAccountDtoMapper.toDto(ca, level);
+        return CustodyAccountDtoMapper.toDto(ca, level, true);
       }),
-      ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel)),
+      ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel, false)),
     ];
 
     // Legacy Safe = absence of any owned account row; independent of shared grants. Hidden
