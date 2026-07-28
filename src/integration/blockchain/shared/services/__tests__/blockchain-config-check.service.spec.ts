@@ -8,16 +8,17 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TestUtil } from 'src/shared/utils/test.util';
 
-// TestBlockchains is evaluated from process.env at import time and is empty outside prd, so the prd list is
-// pinned here to exercise the behavior the (prd-only) sweep actually has in production
+// TestBlockchains is evaluated from process.env at import time and is empty outside prd, so the module is
+// loaded under a prd environment to get the real prd list instead of a copy that could drift from it
 jest.mock('src/integration/blockchain/shared/util/blockchain.util', () => {
-  const util = jest.requireActual('src/integration/blockchain/shared/util/blockchain.util');
-  const { Blockchain: Chain } = jest.requireActual('src/integration/blockchain/shared/enums/blockchain.enum');
+  const environment = process.env.ENVIRONMENT;
+  process.env.ENVIRONMENT = 'prd';
 
-  return {
-    ...util,
-    TestBlockchains: [Chain.SEPOLIA, Chain.CITREA_TESTNET, Chain.BITCOIN_TESTNET4, Chain.HAQQ, Chain.ARWEAVE],
-  };
+  try {
+    return jest.requireActual('src/integration/blockchain/shared/util/blockchain.util');
+  } finally {
+    process.env.ENVIRONMENT = environment;
+  }
 });
 
 type MockClient = { isConfigured: boolean } | null;
@@ -72,7 +73,7 @@ describe('BlockchainConfigCheckService', () => {
     service.logUnconfiguredClients();
 
     expect(warnSpy).toHaveBeenCalledTimes(2);
-    expect(warnSpy).toHaveBeenCalledWith('Blockchain clients not configured: Cardano, Solana');
+    expect(warnSpy).toHaveBeenCalledWith('Blockchain client not configured: Cardano, Solana');
   });
 
   it('stays silent when all clients are configured', async () => {
@@ -108,7 +109,7 @@ describe('BlockchainConfigCheckService', () => {
     service.logUnconfiguredClients();
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy).toHaveBeenCalledWith('Blockchain clients not configured: Firo');
+    expect(warnSpy).toHaveBeenCalledWith('Blockchain client not configured: Firo');
   });
 
   it('reports the bitcoin output node, which the default client lookup skips', async () => {
@@ -119,7 +120,7 @@ describe('BlockchainConfigCheckService', () => {
     service.logUnconfiguredClients();
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy).toHaveBeenCalledWith('Blockchain clients not configured: Bitcoin (btc-out)');
+    expect(warnSpy).toHaveBeenCalledWith('Blockchain client not configured: Bitcoin (btc-out)');
   });
 
   it('ignores test blockchains, which have no prd config by design', async () => {
@@ -130,5 +131,28 @@ describe('BlockchainConfigCheckService', () => {
     service.logUnconfiguredClients();
 
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('reports a chain whose check fails unexpectedly instead of aborting the sweep', async () => {
+    await setup(Environment.PRD);
+    const warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(blockchainRegistryService, 'getClient').mockImplementation((chain: Blockchain) => {
+      if (chain === Blockchain.MONERO) throw new Error('Monero node not configured');
+      throw new Error(`No service found for blockchain ${chain}`);
+    });
+    jest.spyOn(blockchainRegistryService, 'getBitcoinClient').mockReturnValue({ isConfigured: true } as any);
+
+    service.logUnconfiguredClients();
+
+    expect(warnSpy).toHaveBeenCalledWith('Blockchain client not configured: Monero');
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // the sweep tells "no service registered" apart from a real failure by the message the registry throws
+  it('skips exactly the chains for which the registry reports no service', () => {
+    const getService = BlockchainRegistryService.prototype.getService;
+
+    expect(() => getService.call({}, Blockchain.LIGHTNING)).toThrow('No service found for blockchain Lightning');
   });
 });
