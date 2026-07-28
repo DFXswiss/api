@@ -18,7 +18,7 @@ import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
-import { In, Not } from 'typeorm';
+import { Equal, In, Not } from 'typeorm';
 import { isSellRoute } from '../../sell-crypto/route/sell.entity';
 import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
@@ -71,7 +71,7 @@ export class PaymentLinkService {
 
     if (loadPayments) {
       const payment = externalPaymentId
-        ? await this.paymentLinkPaymentService.getPaymentByExternalId(externalPaymentId)
+        ? await this.paymentLinkPaymentService.getPaymentByExternalId(link.id, externalPaymentId)
         : await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
       if (payment) link.payments.push(payment);
     }
@@ -626,11 +626,16 @@ export class PaymentLinkService {
     }
 
     if (externalPaymentId) {
-      const payments = await this.paymentLinkPaymentService.getAllPaymentsByExternalLinkId(externalPaymentId);
-      const payment = payments.find((p) => p.link.configObj.accessKeys?.includes(key));
-      if (!payment) throw new NotFoundException('No payment found');
+      // Resolve the access-key against payment links first, then look up the payment scoped to
+      // those links — externalPaymentId is not unique across merchants (BUG-1289).
+      const candidateLinks = await this.paymentLinkRepo.find({
+        where: { payments: { externalId: Equal(externalPaymentId) } },
+        relations: { route: { user: { userData: { organization: true } } } },
+      });
+      const paymentLink = candidateLinks.find((pl) => pl.configObj.accessKeys?.includes(key));
+      if (!paymentLink) throw new NotFoundException('No payment found');
 
-      return this.getOrThrow(payment.link.route.user.id, payment.link.id, payment.link.externalId, payment.externalId);
+      return this.getOrThrow(paymentLink.route.user.id, paymentLink.id, paymentLink.externalId, externalPaymentId);
     }
 
     throw new BadRequestException('Either externalLinkId or externalPaymentId must be provided');
