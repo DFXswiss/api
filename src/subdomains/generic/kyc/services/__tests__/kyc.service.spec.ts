@@ -491,6 +491,18 @@ describe('KycService initiateStep NATIONALITY_DATA auto-complete', () => {
   });
 });
 
+// the DFX_APPROVAL branches read the real status getters, so build real steps instead of mocking them
+const dfxApprovalStep = (status: ReviewStatus): KycStep =>
+  Object.assign(new KycStep(), { id: 812746, name: KycStepName.DFX_APPROVAL, status });
+
+// only DFX_APPROVAL is missing, no OnHold/InReview approval step exists yet
+const approvalUser = (): UserData => {
+  const user = createMock<UserData>({ id: 42, kycSteps: [] });
+  user.hasCompletedStep.mockImplementation((step) => step !== KycStepName.DFX_APPROVAL);
+  user.getStepsWith.mockReturnValue([]);
+  return user;
+};
+
 // checkDfxApproval is called concurrently (account merge, KYC review cron, mail-confirm merge), so
 // the DfxApproval insert can lose a race against the unique index on (userDataId, name, type,
 // sequenceNumber). The loser must recover ONLY when the error is provably that race (SQLSTATE 23505
@@ -505,14 +517,6 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
     new Error(`duplicate key value violates unique constraint "${kycStepUniqueIndex}"`),
     { code: '23505', constraint: kycStepUniqueIndex },
   );
-
-  // only DFX_APPROVAL is missing, no OnHold/InReview approval step exists yet
-  const approvalUser = (): UserData => {
-    const user = createMock<UserData>({ id: 42, kycSteps: [] });
-    user.hasCompletedStep.mockImplementation((step) => step !== KycStepName.DFX_APPROVAL);
-    user.getStepsWith.mockReturnValue([]);
-    return user;
-  };
 
   // requiredKycSteps reads the global Config
   beforeAll(() => {
@@ -530,10 +534,8 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
   });
 
   it("recovers the concurrent winner's OnHold step and promotes it to manual review", async () => {
-    const winnerStep = createMock<KycStep>({ isOnHold: true });
-    winnerStep.manualReview.mockReturnValue([812746, { status: ReviewStatus.MANUAL_REVIEW }]);
     jest.spyOn(service as any, 'initiateStep').mockRejectedValue(pgDuplicateKeyError);
-    kycStepRepo.findOne.mockResolvedValue(winnerStep);
+    kycStepRepo.findOne.mockResolvedValue(dfxApprovalStep(ReviewStatus.ON_HOLD));
 
     await service.checkDfxApproval(approvalUser());
 
@@ -546,7 +548,7 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
 
   it('treats a winner that already advanced into review as success, without promoting again', async () => {
     jest.spyOn(service as any, 'initiateStep').mockRejectedValue(pgDuplicateKeyError);
-    kycStepRepo.findOne.mockResolvedValue(createMock<KycStep>({ isOnHold: false, isInReview: true }));
+    kycStepRepo.findOne.mockResolvedValue(dfxApprovalStep(ReviewStatus.MANUAL_REVIEW));
 
     await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
     expect(kycStepRepo.update).not.toHaveBeenCalled();
@@ -554,11 +556,17 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
 
   it('treats a winner auto-completed via LEVEL_50 as success, without promoting again', async () => {
     jest.spyOn(service as any, 'initiateStep').mockRejectedValue(pgDuplicateKeyError);
-    kycStepRepo.findOne.mockResolvedValue(
-      createMock<KycStep>({ isOnHold: false, isInReview: false, isCompleted: true }),
-    );
+    kycStepRepo.findOne.mockResolvedValue(dfxApprovalStep(ReviewStatus.COMPLETED));
 
     await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('rethrows the original error when the winner has not advanced (fail-closed)', async () => {
+    jest.spyOn(service as any, 'initiateStep').mockRejectedValue(pgDuplicateKeyError);
+    kycStepRepo.findOne.mockResolvedValue(dfxApprovalStep(ReviewStatus.CANCELED));
+
+    await expect(service.checkDfxApproval(approvalUser())).rejects.toBe(pgDuplicateKeyError);
     expect(kycStepRepo.update).not.toHaveBeenCalled();
   });
 
@@ -751,5 +759,39 @@ describe('KycService reviewIdentSteps file sync', () => {
     expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
     expect(kycStepRepo.save).not.toHaveBeenCalled();
     expect(savedStatus).toBeUndefined();
+  });
+});
+
+// initiateStep auto-completes DFX_APPROVAL when the account already reached kycLevel LEVEL_50 (e.g.
+// after a reset that cancelled the step without lowering the level). The promotion that follows must
+// not demote such a step back into the manual-review queue.
+describe('KycService checkDfxApproval step promotion', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+
+  beforeAll(() => {
+    new ConfigService(new Configuration());
+  });
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+  });
+
+  it('promotes a newly created OnHold step to manual review', async () => {
+    jest.spyOn(service as any, 'initiateStep').mockResolvedValue(dfxApprovalStep(ReviewStatus.ON_HOLD));
+
+    await service.checkDfxApproval(approvalUser());
+
+    expect(kycStepRepo.update).toHaveBeenCalledWith(812746, { status: ReviewStatus.MANUAL_REVIEW });
+  });
+
+  it('leaves a step auto-completed via LEVEL_50 alone instead of demoting it', async () => {
+    jest.spyOn(service as any, 'initiateStep').mockResolvedValue(dfxApprovalStep(ReviewStatus.COMPLETED));
+
+    await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
   });
 });
