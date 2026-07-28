@@ -11,7 +11,7 @@
  * against a minimal stub `this`, following the same pattern as cardano/solana/icp-client.spec.ts.
  */
 
-import { ConfigService } from 'src/config/config';
+import { Config, ConfigService } from 'src/config/config';
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TronClient } from '../tron-client';
@@ -178,6 +178,23 @@ describe('TronClient - broadcast boundary', () => {
 
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('Tron broadcast returned an empty txId');
+    });
+  });
+
+  describe('isConfigured', () => {
+    it('follows the Tatum API key, which every request sends as x-api-key', () => {
+      const client = Object.create(TronClient.prototype);
+      const apiKey = Config.blockchain.tron.tronApiKey;
+
+      try {
+        Config.blockchain.tron.tronApiKey = undefined;
+        expect(client.isConfigured).toBe(false);
+
+        Config.blockchain.tron.tronApiKey = 'TATUM_API_KEY';
+        expect(client.isConfigured).toBe(true);
+      } finally {
+        Config.blockchain.tron.tronApiKey = apiKey;
+      }
     });
   });
 });
