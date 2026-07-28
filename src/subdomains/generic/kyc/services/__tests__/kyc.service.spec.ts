@@ -16,7 +16,7 @@ import { UserDataService } from '../../../user/models/user-data/user-data.servic
 import { UserStatus } from '../../../user/models/user/user.enum';
 import { IdentDocument } from '../../dto/ident.dto';
 import { KycError } from '../../dto/kyc-error.enum';
-import { FileType, KycFileBlob } from '../../dto/kyc-file.dto';
+import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
 import { SumSubLevelName } from '../../dto/sum-sub.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
@@ -595,19 +595,26 @@ describe('KycService reviewIdentSteps file sync', () => {
   let savedStatus: ReviewStatus | undefined;
 
   // resultData is read per ident type, so each type needs its own result shape
-  const sumsubResult = {
+  const sumsubResult = (levelName: SumSubLevelName) => ({
     data: { info: { idDocs: [{ firstNameEn: 'Max', lastNameEn: 'Muster', dob: '1990-01-01' }] } },
-    webhook: { levelName: SumSubLevelName.CH_STANDARD },
+    webhook: { levelName },
+  });
+
+  const idNowResult = {
+    userdata: { firstname: { value: 'Max' }, lastname: { value: 'Muster' }, birthday: { value: '1990-01-01' } },
+    identificationprocess: { companyid: 'dfxauto', result: 'SUCCESS' },
   };
 
   const identResult: { [t in KycStepType]?: object } = {
     [KycStepType.MANUAL]: { firstName: 'Max', lastName: 'Muster', birthday: '1990-01-01' },
-    [KycStepType.SUMSUB_AUTO]: sumsubResult,
-    [KycStepType.SUMSUB_VIDEO]: sumsubResult,
+    [KycStepType.AUTO]: idNowResult,
+    [KycStepType.VIDEO]: idNowResult,
+    [KycStepType.SUMSUB_AUTO]: sumsubResult(SumSubLevelName.CH_STANDARD),
+    [KycStepType.SUMSUB_VIDEO]: sumsubResult(SumSubLevelName.CH_STANDARD_VIDEO),
   };
 
-  const identStep = (type: KycStepType): KycStep => {
-    const userData = createCustomUserData({ id: 42, kycFiles: [], users: [] });
+  const identStep = (type: KycStepType, kycFiles: KycFile[] = []): KycStep => {
+    const userData = createCustomUserData({ id: 42, kycFiles, users: [] });
     // mirrors the finder's WHERE clause: the account has a completed nationality step
     userData.getStepsWith = jest.fn().mockReturnValue([createMock<KycStep>({ isCompleted: true })]);
 
@@ -648,21 +655,24 @@ describe('KycService reviewIdentSteps file sync', () => {
     syncIdentFilesInternalSpy = jest.spyOn(service as any, 'syncIdentFilesInternal').mockResolvedValue(undefined);
   });
 
-  it('persists a manual ident step as manual review without touching the Sumsub file sync', async () => {
-    const step = identStep(KycStepType.MANUAL);
+  // the sync throws for every type it does not know, so all of them have to stay out of it - the
+  // legacy IdNow types are dormant, but a guard narrowed to Manual would wedge them just the same
+  const nonSumsubTypes = [KycStepType.MANUAL, KycStepType.AUTO, KycStepType.VIDEO];
+  // both Sumsub types can sync, so both have to be covered - a guard narrowed to one of them would
+  // otherwise leave the other completing without any file, silently
+  const sumsubTypes = [KycStepType.SUMSUB_AUTO, KycStepType.SUMSUB_VIDEO];
+
+  it.each(nonSumsubTypes)('persists a %s ident step without touching the Sumsub file sync', async (type) => {
+    const step = identStep(type);
     kycStepRepo.find.mockResolvedValue([step]);
     // mirror the real implementation: it rejects a non-Sumsub step, which would skip the save below
-    syncIdentFilesInternalSpy.mockRejectedValue(new Error(`Invalid ident step type ${KycStepType.MANUAL}`));
+    syncIdentFilesInternalSpy.mockRejectedValue(new Error(`Invalid ident step type ${type}`));
 
     await service.reviewIdentSteps();
 
     expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
-
-  // both Sumsub types can sync, so both have to be covered - a guard narrowed to one of them would
-  // otherwise leave the other completing without any file, silently
-  const sumsubTypes = [KycStepType.SUMSUB_AUTO, KycStepType.SUMSUB_VIDEO];
 
   it.each(sumsubTypes)('still syncs the files of a %s ident step that has no ident report yet', async (type) => {
     const step = identStep(type);
@@ -672,6 +682,33 @@ describe('KycService reviewIdentSteps file sync', () => {
 
     expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
+  });
+
+  // the normal case: the ident webhook already downloaded the report, so there is nothing to fetch
+  it.each(sumsubTypes)('skips the file sync of a %s ident step that already has its report', async (type) => {
+    const step = identStep(type, [createMock<KycFile>({ subType: FileSubType.IDENT_REPORT })]);
+    kycStepRepo.find.mockResolvedValue([step]);
+
+    await service.reviewIdentSteps();
+
+    expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+    expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
+  });
+
+  // a completing step must sync too: it leaves INTERNAL_REVIEW for good, so a missed file is not
+  // retried by a later run but simply stays missing
+  it.each(sumsubTypes)('still syncs the files of a completing %s ident step', async (type) => {
+    const step = identStep(type);
+    kycStepRepo.find.mockResolvedValue([step]);
+    jest.spyOn(service as any, 'getIdentCheckErrors').mockReturnValue([]);
+    // both run after the save; stub them so an unwired dep cannot throw into the catch and mask this
+    jest.spyOn(service as any, 'completeIdent').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'checkDfxApproval').mockResolvedValue(undefined);
+
+    await service.reviewIdentSteps();
+
+    expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
+    expect(savedStatus).toBe(ReviewStatus.COMPLETED);
   });
 
   // the sync deliberately runs before the save: a Sumsub step whose files could not be fetched has
