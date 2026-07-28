@@ -1,5 +1,5 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { EntityManager, FindManyOptions, FindOneOptions } from 'typeorm';
@@ -69,6 +69,36 @@ describe('CustodyAccountService', () => {
       accessLevel: params.accessLevel,
       active: params.active,
     });
+  }
+
+  /**
+   * Mirrors the repository where clause for requireOwner: `{ id }`.
+   * Status is deliberately absent there, so a non-matching status returns null if that filter
+   * is accidentally reintroduced.
+   */
+  function mockFindOneAccountForOwnerCheck(account: CustodyAccount | undefined): void {
+    custodyAccountRepo.findOne.mockImplementation(
+      async (options: FindOneOptions<CustodyAccount>): Promise<CustodyAccount | null> => {
+        const where = options.where as {
+          id?: number;
+          status?: CustodyAccountStatus;
+        };
+
+        if (!account) {
+          return null;
+        }
+
+        if (where.id !== undefined && account.id !== where.id) {
+          return null;
+        }
+
+        if (where.status !== undefined && account.status !== where.status) {
+          return null;
+        }
+
+        return account;
+      },
+    );
   }
 
   /**
@@ -449,6 +479,121 @@ describe('CustodyAccountService', () => {
     });
   });
 
+  describe('getAccessList', () => {
+    it('lets the owner inspect active grants on their blocked account', async () => {
+      const blockedOwnAccount = ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED });
+      const grant = accessGrant({
+        account: blockedOwnAccount,
+        userData: strangerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      mockFindOneAccountForOwnerCheck(blockedOwnAccount);
+      custodyAccountAccessRepo.find.mockResolvedValue([grant]);
+
+      await expect(service.getAccessList(ownAccountId, ownerId)).resolves.toEqual([grant]);
+      expect(custodyAccountAccessRepo.find).toHaveBeenCalledWith({
+        where: { account: { id: ownAccountId }, active: true },
+        relations: { userData: true },
+      });
+    });
+
+    it('rejects a non-owner', async () => {
+      mockFindOneAccountForOwnerCheck(foreignCustodyAccount());
+
+      await expect(service.getAccessList(foreignAccountId, ownerId)).rejects.toThrow(
+        new ForbiddenException('Only the account owner can manage access grants'),
+      );
+      expect(custodyAccountAccessRepo.find).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('grantAccess', () => {
+    const mail = 'stranger@example.com';
+
+    let txManager: {
+      findOne: jest.Mock;
+      create: jest.Mock;
+      save: jest.Mock;
+    };
+
+    beforeEach(() => {
+      txManager = {
+        findOne: jest.fn().mockResolvedValue(null),
+        create: jest.fn(
+          (_entityClass: unknown, plain: Partial<CustodyAccountAccess>): CustodyAccountAccess =>
+            Object.assign(new CustodyAccountAccess(), plain),
+        ),
+        save: jest.fn(async (entity: CustodyAccountAccess): Promise<CustodyAccountAccess> => entity),
+      };
+
+      Object.defineProperty(custodyAccountAccessRepo, 'manager', {
+        value: txManager as unknown as EntityManager,
+        configurable: true,
+      });
+    });
+
+    it('creates a grant for a foreign e-mail address on an active own account', async () => {
+      const account = ownCustodyAccount();
+      const target = strangerUserData();
+      mockFindOneAccountForOwnerCheck(account);
+      userDataService.getUsersByMail.mockResolvedValue([target]);
+
+      const result = await service.grantAccess(ownAccountId, ownerId, mail, CustodyAccessLevel.READ);
+
+      expect(userDataService.getUsersByMail).toHaveBeenCalledWith(mail, true, {});
+      expect(txManager.findOne).toHaveBeenCalledWith(CustodyAccountAccess, {
+        where: { account: { id: ownAccountId }, userData: { id: strangerId }, active: true },
+      });
+      expect(txManager.create).toHaveBeenCalledWith(CustodyAccountAccess, {
+        account,
+        userData: target,
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          account,
+          userData: target,
+          accessLevel: CustodyAccessLevel.READ,
+          active: true,
+        }),
+      );
+    });
+
+    it('rejects granting on a blocked own account before resolving the e-mail address', async () => {
+      const blockedOwnAccount = ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED });
+      mockFindOneAccountForOwnerCheck(blockedOwnAccount);
+
+      await expect(service.grantAccess(ownAccountId, ownerId, mail, CustodyAccessLevel.READ)).rejects.toThrow(
+        new ConflictException('Cannot grant access on an account that is not active'),
+      );
+      expect(userDataService.getUsersByMail).not.toHaveBeenCalled();
+      expect(txManager.findOne).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-owner', async () => {
+      mockFindOneAccountForOwnerCheck(foreignCustodyAccount());
+
+      await expect(service.grantAccess(foreignAccountId, ownerId, mail, CustodyAccessLevel.READ)).rejects.toThrow(
+        new ForbiddenException('Only the account owner can manage access grants'),
+      );
+      expect(userDataService.getUsersByMail).not.toHaveBeenCalled();
+      expect(txManager.findOne).not.toHaveBeenCalled();
+    });
+
+    it("rejects granting access to the caller's own e-mail address", async () => {
+      const account = ownCustodyAccount();
+      mockFindOneAccountForOwnerCheck(account);
+      userDataService.getUsersByMail.mockResolvedValue([ownerUserData()]);
+
+      await expect(service.grantAccess(ownAccountId, ownerId, mail, CustodyAccessLevel.WRITE)).rejects.toThrow(
+        new BadRequestException('Cannot grant access to yourself'),
+      );
+      expect(txManager.findOne).not.toHaveBeenCalled();
+    });
+  });
+
   describe('updateAccess', () => {
     const accessId = 10;
 
@@ -537,7 +682,7 @@ describe('CustodyAccountService', () => {
       // account status. If grant management required an ACTIVE account, blocking one account
       // would freeze every other one of theirs with no way back.
       const blockedOwnAccount = ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED });
-      custodyAccountRepo.findOne.mockResolvedValue(blockedOwnAccount);
+      mockFindOneAccountForOwnerCheck(blockedOwnAccount);
 
       const lockedGrant = accessGrant({
         id: accessId,

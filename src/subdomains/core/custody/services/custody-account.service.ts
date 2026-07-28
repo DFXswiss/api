@@ -276,6 +276,14 @@ export class CustodyAccountService {
 
     const account = await this.requireOwner(custodyAccountId, ownerAccountId);
 
+    // Grant management stays reachable on a blocked account so nobody gets stranded — but that
+    // covers taking rights away, not handing them out. Widening the circle of authorised people
+    // during a hold is exactly what a hold is meant to prevent, and it is no way out of one
+    // either. Withdrawing and re-levelling stay open.
+    if (account.status !== CustodyAccountStatus.ACTIVE) {
+      throw new ConflictException('Cannot grant access on an account that is not active');
+    }
+
     const target = await this.resolveUserByMail(mail);
     if (target.id === ownerAccountId) {
       throw new BadRequestException('Cannot grant access to yourself');
@@ -350,6 +358,9 @@ export class CustodyAccountService {
    * grant on a blocked account: the owner could neither lift a narrowing they placed on it nor
    * withdraw a stranger's access, and since a narrowing blocks the owner's whole Safe
    * (requireActingAllowed), one blocked account would freeze all their others with no way back.
+   *
+   * That reasoning covers withdrawing and re-levelling, not issuing: grantAccess checks the
+   * status itself, so a hold cannot be used to widen the circle of authorised people.
    */
   private async requireOwner(custodyAccountId: number, accountId: number): Promise<CustodyAccount> {
     const custodyAccount = await this.custodyAccountRepo.findOne({
