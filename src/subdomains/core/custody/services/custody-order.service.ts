@@ -242,11 +242,21 @@ export class CustodyOrderService {
 
     if (dto.transactionRequestId) order.transactionRequest = { id: dto.transactionRequestId } as TransactionRequest;
 
+    // Enforces the completedAt invariant — see CustodyOrder.applyCompletedAt() for the full
+    // rationale. A caller creating an order directly with status: Completed must not end up
+    // with a Completed order that has no valuta timestamp.
+    order.applyCompletedAt();
+
     return this.custodyOrderRepo.save(order);
   }
 
   async updateCustodyOrderInternal(entity: CustodyOrder, dto: UpdateCustodyOrderInternalDto): Promise<CustodyOrder> {
     Object.assign(entity, dto);
+
+    // Enforces the completedAt invariant — see CustodyOrder.applyCompletedAt() for the full
+    // rationale (single source of truth, shared with createOrderInternal() and
+    // CustodyOrder.complete()).
+    entity.applyCompletedAt();
 
     entity = await this.custodyOrderRepo.save(entity);
 

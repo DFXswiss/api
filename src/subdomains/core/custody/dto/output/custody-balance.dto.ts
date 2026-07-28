@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CustodyAssetDto {
   @ApiProperty({ description: 'Asset name' })
@@ -28,6 +28,15 @@ export class CustodyAssetBalanceDto {
 
   @ApiProperty({ description: 'Total value in fiat values' })
   value: CustodyFiatValueDto;
+
+  @ApiPropertyOptional({ description: 'Accrued interest in asset units (only present for interest-bearing positions)' })
+  interest?: number;
+
+  @ApiPropertyOptional({
+    type: CustodyFiatValueDto,
+    description: 'Fiat value of the accrued interest (only present for interest-bearing positions)',
+  })
+  interestValue?: CustodyFiatValueDto;
 }
 
 export class CustodyBalanceDto {

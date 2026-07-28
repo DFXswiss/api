@@ -21,6 +21,9 @@ export class CustodyOrder extends IEntity {
   @Column({ nullable: false, default: CustodyOrderStatus.CREATED })
   status: CustodyOrderStatus;
 
+  @Column({ type: 'timestamp', nullable: true })
+  completedAt?: Date;
+
   @Column({ type: 'float', nullable: true })
   inputAmount?: number;
 
@@ -87,10 +90,26 @@ export class CustodyOrder extends IEntity {
     });
   }
 
+  /**
+   * Single source of truth for the completedAt invariant: set exactly once, the first time
+   * the order's status is Completed, and never overwritten afterward. `updated` (a TypeORM
+   * @UpdateDateColumn) cannot serve as the valuta timestamp
+   * CustodyService.calculateAccruedInterest() relies on — it is overwritten on every
+   * `.save()`, including harmless re-saves of an already-Completed order. Call this after
+   * `status` has been assigned, on every write path that can produce a Completed order:
+   * CustodyOrderService.createOrderInternal(), updateCustodyOrderInternal(), and complete()
+   * below. There must be no path that bypasses it.
+   */
+  applyCompletedAt(): void {
+    if (this.status === CustodyOrderStatus.COMPLETED && !this.completedAt) {
+      this.completedAt = new Date();
+    }
+  }
+
   complete(): UpdateResult<CustodyOrder> {
-    return Util.updateEntity<CustodyOrder>(this, {
-      status: CustodyOrderStatus.COMPLETED,
-    });
+    this.status = CustodyOrderStatus.COMPLETED;
+    this.applyCompletedAt();
+    return Util.updateEntity<CustodyOrder>(this, { status: this.status, completedAt: this.completedAt });
   }
 
   fail(): UpdateResult<CustodyOrder> {
