@@ -370,13 +370,24 @@ export class CustodyAccountService {
    * those holdings, and serving it would act past the authorisation. Fail closed rather than
    * guess which account an order belongs to.
    *
+   * Account status is deliberately not filtered here, unlike everywhere else. Elsewhere a
+   * non-active account is treated as absent so it grants nothing; here absence would grant
+   * something — the right to act. Blocking or closing an account must never be a way to shed
+   * a restriction.
+   *
    * Without a narrowing grant this passes, which is every account in production today.
+   *
+   * The check does not span a lock with the write that follows it, so a narrowing committed in
+   * that gap lets one order through. Accepted deliberately: only the owner manages grants and
+   * only the owner narrows themselves, so the sole party who could win that race is the one
+   * who may lift the restriction outright. There is no adversary to lock out, and holding a
+   * lock across order creation would slow every trade to guard against nobody.
    */
   async requireActingAllowed(accountId: number): Promise<void> {
     const narrowed = await this.custodyAccountAccessRepo.findOne({
       where: {
         userData: { id: accountId },
-        account: { owner: { id: accountId }, status: CustodyAccountStatus.ACTIVE },
+        account: { owner: { id: accountId } },
         accessLevel: CustodyAccessLevel.READ,
         active: true,
       },

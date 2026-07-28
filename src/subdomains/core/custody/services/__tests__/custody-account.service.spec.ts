@@ -722,7 +722,9 @@ describe('CustodyAccountService', () => {
       await expect(service.requireActingAllowed(ownerId)).resolves.toBeUndefined();
     });
 
-    it('allows acting when the own account with a read grant is not active', async () => {
+    it('still rejects acting when the narrowed own account is blocked', async () => {
+      // Blocking an account must not be a way to shed the restriction: elsewhere a non-active
+      // account grants nothing, here its absence would grant the right to act.
       const grant = accessGrant({
         account: ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED }),
         userData: ownerUserData(),
@@ -731,7 +733,7 @@ describe('CustodyAccountService', () => {
       });
       mockFindOneActingGrant(grant);
 
-      await expect(service.requireActingAllowed(ownerId)).resolves.toBeUndefined();
+      await expect(service.requireActingAllowed(ownerId)).rejects.toThrow(ForbiddenException);
     });
   });
 });
