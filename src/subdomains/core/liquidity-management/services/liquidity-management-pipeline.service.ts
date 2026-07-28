@@ -388,10 +388,11 @@ export class LiquidityManagementPipelineService {
    * Returns whether the order was released; a re-quarantined one has not been.
    */
   private async applyConfirmedObservation(order: LiquidityManagementOrder): Promise<boolean> {
-    // First, and as its own smallest possible write: a pending release must not be able to end this order
-    // now that the venue has confirmed it. One column, no dependencies, no appended text — if it lands, no
-    // judgement can make the order terminal again, even if everything below fails or this process stops.
-    await this.cancelPendingRelease(order);
+    // First, and as its own smallest possible write: put the order where nothing acts on it. That covers
+    // both a pending release, which could otherwise end it on the next inconclusive lookup, and a release
+    // that has already ended it — repairing that here rather than afterwards is what stops this process
+    // from being the only thing standing between a live venue order and a second request.
+    await this.secureConfirmedOrder(order);
 
     order.resolveAsSent();
 
@@ -407,16 +408,30 @@ export class LiquidityManagementPipelineService {
   }
 
   /**
-   * Take away a pending release's power to end an order, durably and on its own.
+   * Make an order the venue has confirmed safe in one statement, before anything else can fail.
    *
-   * Everything else about applying an observation can be retried; this cannot wait for a retry, because
-   * between the observation and the retry another pass could complete the release and make the order
-   * terminal. Deliberately the narrowest write in this file: one column on a row that is still quarantined.
+   * Quarantine is the state nothing acts on, so this both strips a pending release of its power to end the
+   * order and puts one that has already been ended back. Everything else about applying an observation can
+   * be retried; this cannot wait for a retry, because until it lands the only thing keeping a confirmed
+   * order from being treated as finished business is this process staying alive.
+   *
+   * Deliberately the narrowest write here: two columns, no appended text, no read it depends on. The reason
+   * why follows separately, and if that never lands the order is at least still blocking.
    */
-  private async cancelPendingRelease(order: LiquidityManagementOrder): Promise<void> {
+  private async secureConfirmedOrder(order: LiquidityManagementOrder): Promise<void> {
     await this.orderRepo
-      .update({ id: order.id, status: LiquidityManagementOrderStatus.UNCERTAIN }, { notSentRecheckDue: null })
-      .catch((e) => this.logger.error(`Could not cancel the pending release of liquidity order ${order.id}:`, e));
+      .update(
+        {
+          id: order.id,
+          status: In([
+            LiquidityManagementOrderStatus.UNCERTAIN,
+            LiquidityManagementOrderStatus.FAILED,
+            LiquidityManagementOrderStatus.NOT_PROCESSABLE,
+          ]),
+        },
+        { status: LiquidityManagementOrderStatus.UNCERTAIN, notSentRecheckDue: null },
+      )
+      .catch((e) => this.logger.error(`Could not secure confirmed liquidity order ${order.id}:`, e));
   }
 
   /**

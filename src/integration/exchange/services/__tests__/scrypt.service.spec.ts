@@ -8,6 +8,7 @@ import {
   ScryptMessageType,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
+  ScryptAmendRejectedError,
   ScryptVenueRejectionError,
   ScryptWebSocketConnection,
 } from '../scrypt-websocket-connection';
@@ -582,6 +583,32 @@ describe('ScryptService', () => {
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toMatchObject({
         reference: 'dfx-lm-7-1',
       });
+    });
+
+    it('forgets a cached open order when the follow-up cancel goes unconfirmed', async () => {
+      // the cancel is a write as well: unconfirmed, it may have taken effect while the cached report still
+      // shows the order open — and a non-terminal entry is never refreshed, so every later check would wait
+      // on a picture that cannot change
+      stubAmendPath(new ScryptVenueRejectionError('Scrypt order edit rejected: price out of band'));
+      jest.spyOn(service as any, 'cancelOrder').mockRejectedValue(new ScryptRequestTimeoutError('Request timeout'));
+      (service as any).executionReports.set('dfx-lm-7', { ClOrdID: 'dfx-lm-7', OrdStatus: ScryptOrderStatus.NEW });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toMatchObject({
+        message: expect.stringContaining('cancel went unconfirmed'),
+      });
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
+    });
+
+    it('keeps the cached order when the cancel is confirmed', async () => {
+      stubAmendPath(new ScryptVenueRejectionError('Scrypt order edit rejected: price out of band'));
+      (service as any).executionReports.set('dfx-lm-7', { ClOrdID: 'dfx-lm-7', OrdStatus: ScryptOrderStatus.NEW });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toBeInstanceOf(
+        ScryptAmendRejectedError,
+      );
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(true);
     });
 
     it('keeps waiting on a pending order however old it is — pending is observed, not unknown', async () => {

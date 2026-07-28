@@ -136,6 +136,16 @@ export class ScryptService extends PricingProvider {
     return [ScryptOrderStatus.FILLED, ScryptOrderStatus.CANCELED, ScryptOrderStatus.REJECTED].includes(r.OrdStatus);
   }
 
+  /**
+   * Drop what we believe about an order, so the next lookup has to ask the venue.
+   *
+   * A non-terminal cached report is never replaced by a fetch, which is right while it is trustworthy and
+   * wrong the moment an unconfirmed write may have changed the order underneath it.
+   */
+  private forgetExecutionReport(clOrdId: string): void {
+    this.executionReports.delete(clOrdId);
+  }
+
   private cacheExecutionReport(r: ScryptExecutionReport): void {
     const existing = this.executionReports.get(r.ClOrdID);
     if (existing && this.isTerminalExecutionReport(existing) && !this.isTerminalExecutionReport(r)) return;
@@ -539,16 +549,24 @@ export class ScryptService extends PricingProvider {
 
             // Rejected by the venue: nothing was created, so the cancel-and-restart fallback is safe.
             this.logger.verbose(`Could not update order ${clOrdId}, attempting cancel: ${e.message}`);
+            let cancelConfirmed = true;
             try {
               await this.cancelOrder(clOrdId, from, to);
             } catch (cancelError) {
-              this.logger.verbose(`Cancel also failed: ${cancelError.message}`);
+              // The cancel is a write too. Unconfirmed, it may well have taken effect at the venue while the
+              // cached report still shows the order open — and a non-terminal entry is never refreshed, so
+              // every later check would keep waiting on a picture that cannot change. Drop it instead and
+              // let the next lookup ask the venue.
+              cancelConfirmed = false;
+              this.forgetExecutionReport(clOrdId);
+              this.logger.warn(`Cancel of order ${clOrdId} went unconfirmed: ${cancelError.message}`);
             }
 
             // Surface the refusal so the caller can note the spent reference. Without that the next tick
             // derives the very same one, the venue refuses it as a duplicate, and the pair loops.
             throw new ScryptAmendRejectedError(
-              `Scrypt refused the amend of order ${clOrdId}: ${e.message}`,
+              `Scrypt refused the amend of order ${clOrdId}: ${e.message}` +
+                (cancelConfirmed ? '' : ' (the follow-up cancel went unconfirmed)'),
               replacementClOrdId,
             );
           }

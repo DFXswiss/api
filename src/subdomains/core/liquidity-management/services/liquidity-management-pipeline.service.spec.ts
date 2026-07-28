@@ -399,19 +399,25 @@ describe('LiquidityManagementPipelineService', () => {
       expect(service['unappliedObservations'].size).toBe(0);
     });
 
-    it('cancels a pending release before anything else once the venue confirms the order', async () => {
-      // the narrowest possible write, first: from here on no judgement can end this order, whatever else
-      // fails afterwards and even if this process stops
+    it('makes a confirmed order safe with the very first write, whatever state it is in', async () => {
+      // until this lands, the only thing keeping a confirmed order from being treated as finished business
+      // is this process staying alive — so it comes before the substantial write, and covers an order a
+      // concurrent release has already ended
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([releasePendingOrder()]);
       const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
       stubIntegration(UncertainOrderResolution.SENT);
 
       await service['resolveUncertainOrders']();
 
-      expect(update.mock.calls[0]).toEqual([
-        { id: 9, status: LiquidityManagementOrderStatus.UNCERTAIN },
-        { notSentRecheckDue: null },
-      ]);
+      const [where, payload] = update.mock.calls[0];
+      expect(payload).toEqual({
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        notSentRecheckDue: null,
+      });
+      expect(where).toMatchObject({ id: 9 });
+      // an order already ended by a release is repaired by this same statement
+      const status = (where as unknown as { status: { _value: LiquidityManagementOrderStatus[] } }).status;
+      expect(status._value).toEqual(expect.arrayContaining([LiquidityManagementOrderStatus.FAILED]));
     });
 
     it('reports a confirmed order whose state it cannot even read', async () => {
