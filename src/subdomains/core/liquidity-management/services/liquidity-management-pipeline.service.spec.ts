@@ -158,12 +158,17 @@ describe('LiquidityManagementPipelineService', () => {
   });
 
   describe('resolveUncertainOrders', () => {
+    /** Fixed and weeks old: the resolve cooldown derives its interval from the order's age, so a moving
+     * `created` would make these tests depend on when they run. */
+    const ORDER_CREATED = new Date('2026-07-01T00:00:00Z');
+
     function uncertainOrder(overrides: Partial<LiquidityManagementOrder> = {}): LiquidityManagementOrder {
       return Object.assign(new LiquidityManagementOrder(), {
         id: 9,
         status: LiquidityManagementOrderStatus.UNCERTAIN,
         correlationId: 'dfx-lm-9',
         errorMessage: 'Scrypt did not answer',
+        created: ORDER_CREATED,
         action: { id: 233, system: 'Scrypt', command: 'sell' },
         ...overrides,
       });
@@ -476,6 +481,99 @@ describe('LiquidityManagementPipelineService', () => {
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    describe('venue-lookup cooldown', () => {
+      // The cooldown is a pure function of Date.now(), so these tests drive the clock instead of waiting.
+      // Scoped here rather than suite-wide: nothing else in this file cares about time.
+      beforeEach(() => jest.useFakeTimers());
+      afterEach(() => jest.useRealTimers());
+
+      /** Like `stubIntegration`, but hands the lookup mock back so a test can count venue asks. UNAVAILABLE
+       * keeps the order quarantined without touching any other state, so every pass sees the same picture
+       * and only the cooldown decides whether the venue is asked. */
+      function stubResolver(): jest.Mock {
+        const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNAVAILABLE);
+        jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+          supportedCommands: ['sell'],
+          executeOrder: jest.fn(),
+          checkCompletion: jest.fn(),
+          validateParams: jest.fn(),
+          resolveUncertainOrder,
+        });
+        return resolveUncertainOrder;
+      }
+
+      it('asks the venue immediately on the first pass for a fresh quarantined order', async () => {
+        const resolveUncertainOrder = stubResolver();
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder({ created: new Date() })]);
+
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+      });
+
+      it('does not ask again while the cooldown is running', async () => {
+        const resolveUncertainOrder = stubResolver();
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder({ created: new Date() })]);
+
+        await service['resolveUncertainOrders']();
+        // the next cron tick, well inside the one-minute floor a fresh order gets
+        jest.advanceTimersByTime(10_000);
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+      });
+
+      it('asks again once the cooldown has elapsed', async () => {
+        const resolveUncertainOrder = stubResolver();
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder({ created: new Date() })]);
+
+        await service['resolveUncertainOrders']();
+        jest.advanceTimersByTime(61_000);
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
+      });
+
+      it('starts the cooldown even when the venue lookup throws', async () => {
+        // a dead connection is exactly the regime the cooldown exists for — stamping only successful
+        // lookups would re-ask a venue that cannot answer on every pass, at full fetch cost each time
+        const resolveUncertainOrder = stubResolver();
+        resolveUncertainOrder.mockRejectedValue(new Error('Connection closed'));
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder({ created: new Date() })]);
+
+        await service['resolveUncertainOrders']();
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+      });
+
+      it('resolves an order with a pending release on every pass', async () => {
+        // a manual release must complete on the next tick, and its own venue-wait runs on its own clock —
+        // the cooldown has no say here
+        const resolveUncertainOrder = stubResolver();
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([releasePendingOrder()]);
+
+        await service['resolveUncertainOrders']();
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
+      });
+
+      it('prunes the cooldown entry once an order has left quarantine', async () => {
+        stubResolver();
+        const findBy = jest.spyOn(orderRepo, 'findBy');
+
+        findBy.mockResolvedValueOnce([uncertainOrder({ created: new Date() })]);
+        await service['resolveUncertainOrders']();
+        expect(service['uncertainResolveAttempts'].size).toBe(1);
+
+        // resolved elsewhere: the quarantine set no longer holds the order, so its entry must not linger
+        findBy.mockResolvedValueOnce([]);
+        await service['resolveUncertainOrders']();
+        expect(service['uncertainResolveAttempts'].size).toBe(0);
+      });
     });
   });
 

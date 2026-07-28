@@ -22,6 +22,20 @@ import { LiquidityManagementPipelineRepository } from '../repositories/liquidity
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementService } from './liquidity-management.service';
 
+/**
+ * How long reconciliation waits before asking the venue about the same quarantined order again,
+ * proportional to the order's age (a tenth of it, within these bounds).
+ *
+ * A venue lookup is not free: for an order the venue does not know it is a full history fetch, carried over
+ * the very connection whose failure usually caused the quarantine in the first place. Asking on every pass
+ * is what turned one permanently-absent reference into hundreds of heavy fetches per hour. The interval is
+ * age-proportional because the value of asking decays with age: a freshly quarantined order's answer can
+ * still change — the venue may simply not have published the reference yet, and fast auto-heal matters —
+ * while an order that has been absent for eight hours is not going to answer differently within a minute.
+ */
+const UNCERTAIN_RESOLVE_MIN_INTERVAL_MS = 60_000; // 1 minute
+const UNCERTAIN_RESOLVE_MAX_INTERVAL_MS = 30 * 60_000; // 30 minutes
+
 @Injectable()
 export class LiquidityManagementPipelineService {
   private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
@@ -38,6 +52,16 @@ export class LiquidityManagementPipelineService {
    * somebody has been told, by name and reference, to treat the order as live.
    */
   private readonly unappliedObservations = new Map<number, LiquidityManagementOrder>();
+
+  /**
+   * When the venue lookup for each quarantined order last FINISHED — the clock behind the resolve cooldown.
+   *
+   * The end of the attempt, not its start: a slow lookup that finishes just before the next pass must not
+   * permit immediate re-entry. In memory like `unappliedObservations`, and safe there for the same reason —
+   * losing it on a restart only means one extra lookup per order, never a wrong conclusion. Pruned against
+   * the freshly loaded quarantine set each pass, so orders that leave quarantine do not leak entries.
+   */
+  private readonly uncertainResolveAttempts = new Map<number, Date>(); // orderId -> last attempt END
 
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
@@ -308,9 +332,29 @@ export class LiquidityManagementPipelineService {
     const orders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.UNCERTAIN });
     let anyChanged = false;
 
+    // an order that has left quarantine has no cooldown to keep
+    const quarantinedIds = new Set(orders.map((order) => order.id));
+    for (const id of this.uncertainResolveAttempts.keys())
+      if (!quarantinedIds.has(id)) this.uncertainResolveAttempts.delete(id);
+
     for (const order of orders) {
       // Somebody has already judged this one never sent; the venue's answer is what puts that into effect.
       const releasePending = Boolean(order.notSentRecheckDue);
+
+      // Not re-asked on every pass: the interval grows with the order's age, because the value of asking
+      // decays with it — a fresh order's venue answer can still change, an eight-hour-old one's cannot. A
+      // pending release bypasses the wait entirely: a manual release must complete on the next tick, and
+      // its own venue-wait runs on its own clock.
+      if (!releasePending) {
+        const ageMs = Date.now() - order.created.getTime();
+        const intervalMs = Math.min(
+          Math.max(ageMs / 10, UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
+          UNCERTAIN_RESOLVE_MAX_INTERVAL_MS,
+        );
+
+        const lastAttemptEnd = this.uncertainResolveAttempts.get(order.id);
+        if (lastAttemptEnd && Date.now() - lastAttemptEnd.getTime() < intervalMs) continue;
+      }
 
       try {
         // Null when the action's system or command is no longer registered at all — an order can outlive the
@@ -326,7 +370,15 @@ export class LiquidityManagementPipelineService {
           continue;
         }
 
-        const resolution = await actionIntegration.resolveUncertainOrder(order);
+        let resolution: UncertainOrderResolution;
+        try {
+          resolution = await actionIntegration.resolveUncertainOrder(order);
+        } finally {
+          // Stamped when the lookup finishes, whatever it returned or threw. A dead connection is exactly
+          // the regime the cooldown exists for — stamping only successes would re-ask a venue that cannot
+          // answer on every pass, at full fetch cost each time.
+          this.uncertainResolveAttempts.set(order.id, new Date());
+        }
 
         if (resolution === UncertainOrderResolution.SENT) {
           if (await this.applyConfirmedObservation(order)) {

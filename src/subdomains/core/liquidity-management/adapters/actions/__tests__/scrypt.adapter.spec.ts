@@ -16,6 +16,7 @@ import {
 } from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementAction } from '../../../entities/liquidity-management-action.entity';
@@ -581,6 +582,31 @@ describe('ScryptAdapter', () => {
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
       expect(order.correlationId).toBe('dfx-lm-4711-1');
+    });
+
+    it("bounds the fallback fetch by the order's creation date, with one day of margin", async () => {
+      // a reference cannot be published before the order that reserved it existed, so the venue lookup for
+      // a recent order has no business pulling a month of history
+      const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(venueOrder('dfx-lm-4711'));
+      const order = createUncertainSellOrder();
+
+      await adapter.resolveUncertainOrder(order);
+
+      expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711', Util.daysBefore(1, order.created));
+    });
+
+    it('never widens the fetch window past the previous fixed 30 days, however old the order', async () => {
+      const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(venueOrder('dfx-lm-4711'));
+      const order = createUncertainSellOrder({ created: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) });
+
+      // the 30-day bound is derived from "now", so pin it from both sides instead of comparing exact dates
+      const earliest = Util.daysBefore(30);
+      await adapter.resolveUncertainOrder(order);
+      const latest = Util.daysBefore(30);
+
+      const [, since] = getOrderStatus.mock.calls[0];
+      expect(since?.getTime()).toBeGreaterThanOrEqual(earliest.getTime());
+      expect(since?.getTime()).toBeLessThanOrEqual(latest.getTime());
     });
   });
 });
