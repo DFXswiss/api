@@ -183,14 +183,17 @@ and the target revision must carry the provider-aware lookup and recipient rende
 SELECT EXISTS (
   SELECT 1
   FROM virtual_iban AS vi
-  INNER JOIN bank AS b ON b.id = vi."bankId"
-  WHERE b.name = 'Bank Frick'
+  INNER JOIN virtual_iban_issuance_event AS vie ON vie."nextVirtualIbanId" = vi.id
+  WHERE vie.provider = 'Bank Frick'
 ) AS "frickPersonalIbanHasExisted";
 ```
 
-The query deliberately includes inactive and deactivated rows. The application retains those rows,
-so under the supported lifecycle it detects whether first use has occurred. A `false` result is not
-proof that first use never occurred if rows were manually deleted or archived; in that case use the
+The query proves that at least one currently persisted `virtual_iban` row is linked to an immutable
+issuance event whose provider snapshot is Bank Frick. It deliberately includes inactive and
+deactivated rows and remains true if the mutable `bank` row was renamed, reclassified or replaced.
+It does **not** prove that the linked vIBAN is currently active, that its current bank row is Frick,
+or that a `false` result means Frick was never used. Manual deletion/archival, missing historical
+issuance events or damaged audit data can all remove that evidence. In those cases use the
 deployment/audit record and keep the rollback floor unless absence can be established. This is an
 irreversible deployment boundary, not a check that an older revision happens to be safe for the
 currently active subset.
@@ -381,8 +384,9 @@ The listing result carries `listingStartedAt` (captured immediately before page 
 and `listingCompletedAt` (captured after the final page validates). In Phase 1, invalid/reversed
 timestamps fail that snapshot group for the run. For each intent, the code computes
 `latestPossibleCreateProcessedAt = intent.updated + FRICK_CREATE_MAX_PROCESSING_MS`. The absence
-alert includes `listingStartedAt` and `latestPossibleCreateProcessedAt`; `listingCompletedAt` is
-validated when deciding whether a miss is fully covered, but is not emitted in that alert. These
+alert includes `listingStartedAt` and `latestPossibleCreateProcessedAt`. `listingCompletedAt` is
+checked only for a valid `Date` and for not preceding `listingStartedAt`; it is not compared with
+`latestPossibleCreateProcessedAt` and establishes no temporal coverage of the create window. These
 times are not an automatic-retry precondition: even a correctly ordered listing miss remains
 non-authoritative because Bank Frick provides no authoritative “this create did not happen”
 operation.

@@ -147,30 +147,38 @@ describe('VirtualIbanService', () => {
         where: {
           userDataId: expect.any(FindOperator),
           provider: IbanBankName.FRICK,
-          status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+          status: expect.any(FindOperator),
         },
         order: { id: 'ASC' },
       });
+      const statusFilter = (mergeManager.findOne as jest.Mock).mock.calls[0][1].where
+        .status as FindOperator<VirtualIbanIssuanceIntentStatus>;
+      expect(statusFilter.value).toEqual([
+        VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+        VirtualIbanIssuanceIntentStatus.FAILED,
+      ]);
     });
 
     it.each([
-      ['master', 20],
-      ['slave', 10],
-    ])('returns a retriable error when the %s account has an InFlight Frick intent', async (_side, userDataId) => {
-      const inFlightIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+      ['master', 20, VirtualIbanIssuanceIntentStatus.IN_FLIGHT],
+      ['slave', 10, VirtualIbanIssuanceIntentStatus.IN_FLIGHT],
+      ['master', 20, VirtualIbanIssuanceIntentStatus.FAILED],
+      ['slave', 10, VirtualIbanIssuanceIntentStatus.FAILED],
+    ])('returns a retriable error when the %s account has a %s Frick intent', async (_side, userDataId, status) => {
+      const externallyLiveIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
         id: 301,
         userDataId,
         provider: IbanBankName.FRICK,
-        status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+        status,
       });
       const mergeManager = {
         query: jest.fn().mockResolvedValue([]),
-        findOne: jest.fn().mockResolvedValue(inFlightIntent),
+        findOne: jest.fn().mockResolvedValue(externallyLiveIntent),
       } as unknown as EntityManager;
 
       await expect(service.lockUserLevelIssuanceForMerge(20, 10, mergeManager)).rejects.toThrow(
         new ServiceUnavailableException(
-          'Account merge is temporarily blocked by in-flight personal IBAN issuance; retry after issuance reconciliation',
+          'Account merge is temporarily blocked by externally live personal IBAN issuance; retry after it is reconciled',
         ),
       );
       expect(mergeManager.query).toHaveBeenCalledTimes(2);
@@ -464,6 +472,17 @@ describe('VirtualIbanService', () => {
             currentIntent.referenceAccountIban ??= frickBank.iban;
             currentIntent.referenceAccountReceive ??= frickBank.receive;
           }
+          const statusFilter = options.where?.status;
+          if (
+            currentIntent &&
+            statusFilter instanceof FindOperator &&
+            !(statusFilter.value as VirtualIbanIssuanceIntentStatus[]).includes(currentIntent.status)
+          ) {
+            return null;
+          }
+          if (currentIntent && statusFilter != null && !(statusFilter instanceof FindOperator)) {
+            return statusFilter === currentIntent.status ? currentIntent : null;
+          }
           return currentIntent;
         }
         if (entity === Bank) return frickBank;
@@ -590,10 +609,83 @@ describe('VirtualIbanService', () => {
 
       expect(mergeError).toBeInstanceOf(ServiceUnavailableException);
       expect((mergeError as ServiceUnavailableException).message).toContain(
-        'Account merge is temporarily blocked by in-flight personal IBAN issuance',
+        'Account merge is temporarily blocked by externally live personal IBAN issuance',
       );
       expect(mergeCommitted).toBe(false);
       expect(issuanceError).toBeInstanceOf(ServiceUnavailableException);
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('keeps Failed recovery alive while a same-pair merge attempts to commit', async () => {
+      currentIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 301,
+        requestReference: 'dfx-viban-failed-recovery-reference',
+        userDataId: userData.id,
+        currencyId: eur.id,
+        bankId: frickBank.id,
+        provider: IbanBankName.FRICK,
+        referenceAccountIban: frickBank.iban,
+        referenceAccountReceive: true,
+        buyId: null,
+        status: VirtualIbanIssuanceIntentStatus.FAILED,
+        externalIban: null,
+        error: 'ambiguous create failure',
+      });
+      const masterIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 302,
+        requestReference: 'dfx-viban-master-same-pair',
+        userDataId: 8,
+        currencyId: eur.id,
+        bankId: frickBank.id,
+        provider: IbanBankName.FRICK,
+        status: VirtualIbanIssuanceIntentStatus.PENDING,
+      });
+      let enterRecovery: () => void;
+      const recoveryEntered = new Promise<void>((resolve) => {
+        enterRecovery = resolve;
+      });
+      let releaseRecovery: () => void;
+      const recoveryRelease = new Promise<void>((resolve) => {
+        releaseRecovery = resolve;
+      });
+      let mergeCommitted = false;
+
+      jest.spyOn(frickVibanProvider, 'findRecoverableByDescription').mockImplementation(async () => {
+        expect(transactionActive).toBe(false);
+        enterRecovery();
+        await recoveryRelease;
+        return { vban: reserved.iban } as any;
+      });
+      jest.spyOn(frickVibanProvider, 'adoptAndActivate').mockResolvedValue(reserved);
+      jest.spyOn(frickVibanProvider, 'reserveViban');
+
+      const recovery = service.getOrCreateFrickForUser(userData, 'EUR');
+      await recoveryEntered;
+      expect(currentIntent.status).toBe(VirtualIbanIssuanceIntentStatus.FAILED);
+      expect(masterIntent).toMatchObject({ userDataId: 8, currencyId: eur.id, bankId: frickBank.id });
+
+      const mergeError = await dataSource
+        .transaction(async (mergeManager) => {
+          await service.lockUserLevelIssuanceForMerge(masterIntent.userDataId, userData.id, mergeManager);
+          currentIntent.status = VirtualIbanIssuanceIntentStatus.FAILED;
+          currentIntent.error =
+            `Superseded by same-pair account merge; ${MERGE_SUPERSEDED_MARKER}; ` +
+            `${CREATE_PATH_REFERENCE_MARKER}${currentIntent.requestReference}`;
+          mergeCommitted = true;
+        })
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+
+      expect(mergeError).toBeInstanceOf(ServiceUnavailableException);
+      expect(mergeCommitted).toBe(false);
+      expect(currentIntent.error).toBe('ambiguous create failure');
+
+      releaseRecovery();
+      await expect(recovery).resolves.toMatchObject({ id: 501, iban: reserved.iban });
+      expect(currentIntent.status).toBe(VirtualIbanIssuanceIntentStatus.COMPLETED);
+      expect(frickVibanProvider.adoptAndActivate).toHaveBeenCalledTimes(1);
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
@@ -860,7 +952,7 @@ describe('VirtualIbanService', () => {
         QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
       );
 
-      // Request path must not reopen / rotate — reconciliation is the sole reopener.
+      // Neither the request path nor alert-only reconciliation may reopen or rotate this intent.
       expect(currentIntent.requestReference).toBe(oldReference);
       expect(currentIntent.status).toBe(VirtualIbanIssuanceIntentStatus.IN_FLIGHT);
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();

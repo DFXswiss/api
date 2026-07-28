@@ -270,9 +270,9 @@ export class BuyService {
       wallet: true,
     });
 
-    // Frick personal-IBAN selector: resolve deposit destination before fee calculation so bankInOverride
-    // can pass the Frick bank name (Frick is excluded from getBankIn()'s user-level pool). Fail-closed —
-    // never replaced by the default-bank path.
+    // Explicit personal-IBAN selector dispatch is exhaustive and fail-closed. Frick resolves the
+    // deposit destination before fee calculation so bankInOverride can pass the Frick bank name
+    // (Frick is excluded from getBankIn()'s user-level pool).
     //
     // Every other path: merge-base order — getTxDetails first (bankInOverride undefined so getBankIn()
     // resolves fees itself), then resolveBankInfo with the amount from getTxDetails. That way a failed
@@ -286,20 +286,26 @@ export class BuyService {
     };
     let bankInOverride: IbanBankName | undefined;
 
-    if (dto.personalIbanProvider === PersonalIbanProvider.FRICK) {
-      resolvedBank = await this.resolveBankInfo(
-        {
-          amount: dto.amount,
-          currency: dto.currency.name,
-          paymentMethod: dto.paymentMethod,
-          userData: user.userData,
-        },
-        buy,
-        dto.asset,
-        user.wallet,
-        dto.personalIbanProvider,
-      );
-      bankInOverride = resolvedBank.bankName;
+    switch (dto.personalIbanProvider) {
+      case undefined:
+        break;
+      case PersonalIbanProvider.FRICK:
+        resolvedBank = await this.resolveBankInfo(
+          {
+            amount: dto.amount,
+            currency: dto.currency.name,
+            paymentMethod: dto.paymentMethod,
+            userData: user.userData,
+          },
+          buy,
+          dto.asset,
+          user.wallet,
+          dto.personalIbanProvider,
+        );
+        bankInOverride = resolvedBank.bankName;
+        break;
+      default:
+        throw new BadRequestException(QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED);
     }
 
     const {
@@ -334,7 +340,7 @@ export class BuyService {
       bankInOverride,
     );
 
-    if (dto.personalIbanProvider !== PersonalIbanProvider.FRICK) {
+    if (dto.personalIbanProvider === undefined) {
       resolvedBank = await this.resolveBankInfo(
         {
           amount: amount,

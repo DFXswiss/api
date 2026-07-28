@@ -135,6 +135,19 @@ describe('BuyService', () => {
       } as GetBuyPaymentInfoDto;
     }
 
+    it('fails closed before bank or fee selection for an unhandled explicit provider', async () => {
+      jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet: {} } as any);
+
+      await expect(
+        service.toPaymentInfoDto(1, buy, dto({ personalIbanProvider: 'FutureProvider' as PersonalIbanProvider })),
+      ).rejects.toThrow(QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED);
+
+      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+      expect(transactionHelper.getTxDetails).not.toHaveBeenCalled();
+      expect(bankService.getBank).not.toHaveBeenCalled();
+      expect(transactionRequestService.create).not.toHaveBeenCalled();
+    });
+
     it('returns the established payment-method token from the public endpoint for Frick plus CARD', async () => {
       jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet: {} } as any);
 

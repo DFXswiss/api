@@ -52,10 +52,10 @@ class IssuanceIntegrityError extends Error {
 
 /**
  * Prefixes written into issuance-event `nextError` when a Frick requestReference is retired.
- * Written by reconciliation Phase 1, deactivation reopen, and account-merge supersede (via
- * CREATE_PATH_REFERENCE_MARKER co-located in the merge-fail message). Request-path issuance never
- * retires references on its own. Phase 2 of the reconciliation job parses these markers; keep
- * writer and parser on the same constants.
+ * Current writers are deactivation reopen and account-merge supersede (via
+ * CREATE_PATH_REFERENCE_MARKER co-located in the merge-fail message). Historical reconciliation
+ * events may also contain either marker. Request-path issuance never retires references on its own.
+ * Phase 2 of the reconciliation job parses these markers; keep writer and parser on the same constants.
  *
  * CREATE_PATH_REFERENCE_MARKER is the current writer format.
  * RECOVERY_PATH_REFERENCE_MARKER is retained for parsing any historical events from older builds.
@@ -307,8 +307,8 @@ export class VirtualIbanService {
    * Acquires every Frick/currency lock that can issue onto either side of an account merge.
    * Yapeal retains its merge-base behavior and never enters this Frick recovery protocol.
    * Keys are globally sorted to make concurrent/reversed merge attempts deadlock-safe.
-   * After every key is held, an InFlight intent on either account blocks the merge: its caller has
-   * already committed the claim and may be between provider preflight and the irreversible create.
+   * After every key is held, any intent state from which an external effect can still arrive blocks
+   * the merge. The explicit state list below documents those externally live states.
    */
   async lockUserLevelIssuanceForMerge(masterId: number, slaveId: number, manager: EntityManager): Promise<void> {
     const keys = [
@@ -327,21 +327,29 @@ export class VirtualIbanService {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [namespace, owner]);
     }
 
-    const inFlightIntent = await manager.findOne(VirtualIbanIssuanceIntent, {
+    const externallyLiveStatuses = [
+      // The committed claim may be between provider preflight, create, activation, and local finalization.
+      VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+      // Ambiguous create/activation failures remain recoverable, and request-path recovery performs
+      // listing plus activation outside the lock before returning to local finalization.
+      VirtualIbanIssuanceIntentStatus.FAILED,
+    ];
+    const externallyLiveIntent = await manager.findOne(VirtualIbanIssuanceIntent, {
       where: {
         userDataId: In([masterId, slaveId]),
         provider: IbanBankName.FRICK,
-        status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+        status: In(externallyLiveStatuses),
       },
       order: { id: 'ASC' },
     });
-    if (inFlightIntent) {
+    if (externallyLiveIntent) {
       this.logger.info(
-        `Account merge deferred for in-flight Bank Frick personal IBAN issuance ` +
-          `(intentId=${inFlightIntent.id}, masterId=${masterId}, slaveId=${slaveId})`,
+        `Account merge deferred for externally live Bank Frick personal IBAN issuance ` +
+          `(intentId=${externallyLiveIntent.id}, status=${externallyLiveIntent.status}, ` +
+          `masterId=${masterId}, slaveId=${slaveId})`,
       );
       throw new ServiceUnavailableException(
-        'Account merge is temporarily blocked by in-flight personal IBAN issuance; retry after issuance reconciliation',
+        'Account merge is temporarily blocked by externally live personal IBAN issuance; retry after it is reconciled',
       );
     }
   }
@@ -411,8 +419,8 @@ export class VirtualIbanService {
       // Listing succeeded and proved zero matches. That is NOT safe proof of non-existence while a
       // concurrent create may still be mid-flight at Bank Frick (HTTP timeouts up to 30s per call,
       // create+activate, possible 401 retry). Leave the intent exactly as reserveViban left it
-      // (InFlight) — no reset, no reference rotation, no second POST. Reconciliation is the only
-      // reopener after a safety age threshold.
+      // (InFlight) — no reset, no reference rotation, no second POST. Hourly reconciliation only
+      // alerts on positive matches or unproven absence; it never reopens the intent.
       if (recoveryError === undefined) {
         this.logger.error(
           `Bank Frick personal IBAN issuance failed with empty recovery listing; leaving intent ` +
@@ -1373,8 +1381,8 @@ export class VirtualIbanService {
    * - No master intent for the same (currencyId, bankId): reassign the slave row to master.
    * - Master already has a row: unique index blocks reassignment — permanently merge-fail every
    *   non-COMPLETED slave intent (Pending/InFlight/Failed) via the event-logged transition path so
-   *   reconciliation never reopens a pre-merge failure under the retired slave id. COMPLETED is left
-   *   alone (runPhase1StuckIntents never loads Completed rows).
+   *   alert-only reconciliation never treats a pre-merge failure under the retired slave id as
+   *   eligible work. COMPLETED is left alone (runPhase1StuckIntents never loads Completed rows).
    *
    * Pairs already reconciled by {@link resolveMergedVirtualIbanPairLocked} are naturally safe to
    * re-visit: the loser-side intent is already FAILED with MERGE_SUPERSEDED_MARKER, so a second
@@ -1407,10 +1415,9 @@ export class VirtualIbanService {
         continue;
       }
 
-      // COMPLETED is safe to leave alone: runPhase1StuckIntents only selects IN_FLIGHT/FAILED, so a
-      // Completed historical row under the retired slave id is never reopened. FAILED must still be
-      // merge-marked — without MERGE_SUPERSEDED_MARKER reconciliation would reopen it under a
-      // userDataId that no longer exists after the merge.
+      // COMPLETED is safe to leave alone: runPhase1StuckIntents only selects IN_FLIGHT/FAILED.
+      // FAILED must still be merge-marked so alert-only reconciliation excludes the retired
+      // userDataId from listing and absence alerts after the merge.
       if (slaveIntent.status === VirtualIbanIssuanceIntentStatus.COMPLETED) {
         continue;
       }
@@ -1512,9 +1519,9 @@ export class VirtualIbanService {
     for (const intent of pairIntents) {
       if (winnerIntent != null && intent.id === winnerIntent.id) continue;
 
-      // PENDING / IN_FLIGHT / FAILED: permanently mark merge-superseded so runPhase1StuckIntents never
-      // reopens a pre-merge failure under a retired userDataId. COMPLETED non-winner historical rows
-      // are left untouched (reconciliation never loads Completed).
+      // PENDING / IN_FLIGHT / FAILED: permanently mark merge-superseded so runPhase1StuckIntents
+      // excludes the retired userDataId from its alert-only checks. COMPLETED non-winner historical
+      // rows are left untouched (reconciliation never loads Completed).
       if (
         intent.status === VirtualIbanIssuanceIntentStatus.PENDING ||
         intent.status === VirtualIbanIssuanceIntentStatus.IN_FLIGHT ||

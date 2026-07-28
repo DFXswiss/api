@@ -51,9 +51,8 @@ export interface FrickTransactionsFetchResult {
 export interface FrickVirtualIbansFetchResult {
   virtualIbans: FrickVirtualIban[];
   // False when at least one list entry failed per-entry validation and was dropped. Callers that
-  // treat "not listed" as proof of absence (reconciliation empty-listing resets, clean Phase-2
-  // checks) must treat fullyValidated=false as an incomplete check, not as a clean empty result.
-  // Well-formed entries are still returned and may be used for positive matches.
+  // inspect listing misses must treat fullyValidated=false as an incomplete check, never as proof of
+  // absence. Reconciliation is alert-only; well-formed entries may still prove positive matches.
   fullyValidated: boolean;
   /** Local instant immediately before the first page request was dispatched. */
   listingStartedAt: Date;

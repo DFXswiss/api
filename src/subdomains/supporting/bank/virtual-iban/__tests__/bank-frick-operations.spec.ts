@@ -1,10 +1,16 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { newDb } from 'pg-mem';
 
 describe('Bank Frick operations runbook', () => {
   const runbook = readFileSync(resolve(__dirname, '../../../../../../docs/bank-frick-operations.md'), 'utf8');
   const deploymentGuide = readFileSync(resolve(__dirname, '../../../../../../infrastructure/README.md'), 'utf8');
   const serviceSource = readFileSync(resolve(__dirname, '../virtual-iban.service.ts'), 'utf8');
+  const frickServiceSource = readFileSync(
+    resolve(__dirname, '../../../../../../src/integration/bank/services/frick.service.ts'),
+    'utf8',
+  );
+  const frickCoverageConfig = readFileSync(resolve(__dirname, '../../../../../../jest.frick.config.js'), 'utf8');
   const compactRunbook = runbook.replace(/\s+/g, ' ');
 
   it('includes preflight in the 120-second local window without treating it as a Frick deadline', () => {
@@ -37,6 +43,24 @@ describe('Bank Frick operations runbook', () => {
     expect(runbook).not.toContain('non-authoritative listing miss will arm automatic retry');
   });
 
+  it('keeps code comments aligned with alert-only reconciliation', () => {
+    expect(serviceSource).not.toContain('Reconciliation is the only');
+    expect(serviceSource).not.toContain('reconciliation would reopen');
+    expect(frickServiceSource).not.toContain('reconciliation empty-listing resets');
+    expect(frickCoverageConfig).not.toContain('stuck-intent reopen');
+    expect(frickServiceSource).toContain('Reconciliation is alert-only');
+  });
+
+  it('states exactly what listingCompletedAt validation establishes', () => {
+    expect(compactRunbook).toContain(
+      '`listingCompletedAt` is checked only for a valid `Date` and for not preceding `listingStartedAt`',
+    );
+    expect(compactRunbook).toContain(
+      'it is not compared with `latestPossibleCreateProcessedAt` and establishes no temporal coverage',
+    );
+    expect(compactRunbook).not.toContain('validated when deciding whether a miss is fully covered');
+  });
+
   it('documents the Frick-only intent/scanner boundary and immutable reference-account snapshot', () => {
     expect(runbook).toContain("provider = 'Bank Frick'");
     expect(runbook).toContain('Yapeal retains its pre-feature direct create/save flow');
@@ -59,8 +83,35 @@ describe('Bank Frick operations runbook', () => {
     expect(document).toContain('provider-aware');
     expect(document).toContain('FRICK_VBAN_API_URL');
     expect(document).toContain('FROM virtual_iban AS vi');
-    expect(document).toContain('INNER JOIN bank AS b ON b.id = vi."bankId"');
-    expect(document).toContain("WHERE b.name = 'Bank Frick'");
+    expect(document).toContain('INNER JOIN virtual_iban_issuance_event AS vie ON vie."nextVirtualIbanId" = vi.id');
+    expect(document).toContain("WHERE vie.provider = 'Bank Frick'");
+    expect(document).not.toContain('INNER JOIN bank AS b ON b.id = vi."bankId"');
+    expect(document).not.toContain("WHERE b.name = 'Bank Frick'");
     expect(document).toContain('frickPersonalIbanHasExisted');
+  });
+
+  it.each([
+    ['operations runbook', runbook],
+    ['infrastructure deployment guide', deploymentGuide],
+  ])('rollback-floor query in the %s survives a Bank-row replacement', (_name, document) => {
+    const query = document.match(/```sql\n(SELECT EXISTS \([\s\S]*?AS "frickPersonalIbanHasExisted";)\n```/)?.[1];
+    expect(query).toBeDefined();
+
+    const db = newDb();
+    db.public.none(`
+      CREATE TABLE bank (id integer PRIMARY KEY, name text NOT NULL);
+      CREATE TABLE virtual_iban (id integer PRIMARY KEY, "bankId" integer NOT NULL);
+      CREATE TABLE virtual_iban_issuance_event (
+        id integer PRIMARY KEY,
+        "nextVirtualIbanId" integer,
+        provider text NOT NULL
+      );
+      INSERT INTO bank (id, name) VALUES (99, 'Replacement Bank');
+      INSERT INTO virtual_iban (id, "bankId") VALUES (42, 99);
+      INSERT INTO virtual_iban_issuance_event (id, "nextVirtualIbanId", provider)
+      VALUES (7, 42, 'Bank Frick');
+    `);
+
+    expect(db.public.one(query!).frickPersonalIbanHasExisted).toBe(true);
   });
 });
