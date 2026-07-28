@@ -208,7 +208,7 @@ export class CustodyAccountService {
     const ownerId = custodyAccount.owner.id;
 
     // Owner already holds every Safe row; multi-account ambiguity only matters for grantees.
-    if (ownerId === callerAccountId) {
+    if (custodyAccount.isOwnedBy(callerAccountId)) {
       return ownerId;
     }
 
@@ -446,7 +446,7 @@ export class CustodyAccountService {
     account: CustodyAccount,
     newLevel: CustodyAccessLevel,
   ): void {
-    const isOwnGrant = access.userData.id === account.owner.id;
+    const isOwnGrant = account.isOwnedBy(access.userData.id);
     const isElevation = access.accessLevel === CustodyAccessLevel.READ && newLevel === CustodyAccessLevel.WRITE;
 
     if (!isOwnGrant && isElevation && account.status !== CustodyAccountStatus.ACTIVE) {
@@ -461,7 +461,7 @@ export class CustodyAccountService {
    * account without an owner row and make the level unrecordable, so it stays refused.
    */
   private rejectOwnerGrantRevocation(access: CustodyAccountAccess, account: CustodyAccount): void {
-    if (access.userData.id === account.owner.id) {
+    if (account.isOwnedBy(access.userData.id)) {
       throw new BadRequestException("Cannot revoke the account owner's access grant");
     }
   }
