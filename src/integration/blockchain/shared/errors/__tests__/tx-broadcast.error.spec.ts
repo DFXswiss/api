@@ -96,6 +96,78 @@ describe('toBroadcastBoundaryError', () => {
     expect(toBroadcastBoundaryError(error, [])).toBeInstanceOf(TxBroadcastError);
   });
 
+  it('keeps a (code, message) pair plain only when the client allowlists exactly that pair', () => {
+    const rpcError = Object.assign(new Error('failed to get output distribution'), {
+      code: -4,
+      message: 'failed to get output distribution',
+    });
+
+    expect(toBroadcastBoundaryError(rpcError, [], [{ code: -4, message: 'failed to get output distribution' }])).toBe(
+      rpcError,
+    );
+    expect(toBroadcastBoundaryError(rpcError, [])).toBeInstanceOf(TxBroadcastError);
+  });
+
+  it('does not match a message allowlist entry with the wrong code (guards against generic code aliasing)', () => {
+    const rpcError = Object.assign(new Error('failed to get output distribution'), {
+      code: -1,
+      message: 'failed to get output distribution',
+    });
+
+    expect(
+      toBroadcastBoundaryError(rpcError, [], [{ code: -4, message: 'failed to get output distribution' }]),
+    ).toBeInstanceOf(TxBroadcastError);
+  });
+
+  it('does not substring-match a message allowlist entry (exact match only)', () => {
+    const rpcError = Object.assign(new Error('boundary'), {
+      code: -4,
+      message: 'transfer failed: failed to get output distribution (retrying)',
+    });
+
+    expect(
+      toBroadcastBoundaryError(rpcError, [], [{ code: -4, message: 'failed to get output distribution' }]),
+    ).toBeInstanceOf(TxBroadcastError);
+  });
+
+  it('requires the allowlisted code and message on the SAME error node', () => {
+    // The safety-critical invariant of the pair allowlist. If the matcher were allowed to collect the
+    // code from one node and the message from another, an unrelated post-broadcast code (-4 covers
+    // tx_rejected too) could be paired with a benign message from anywhere in the cause chain and
+    // silently become retryable.
+    const splitAcrossNodes = Object.assign(new Error('outer'), {
+      code: -4,
+      cause: { message: 'failed to get output distribution' },
+    });
+
+    expect(
+      toBroadcastBoundaryError(splitAcrossNodes, [], [{ code: -4, message: 'failed to get output distribution' }]),
+    ).toBeInstanceOf(TxBroadcastError);
+  });
+
+  it('finds an allowlisted (code, message) pair nested behind a cause', () => {
+    // The production shape from MoneroClient.mapSendTransfer: the parsed JSON-RPC error object is
+    // attached as the cause of the thrown Error, so the walk has to reach it.
+    const parsed = { code: -4, message: 'failed to get output distribution' };
+    const wrapped = new Error('Monero RPC send failed', { cause: parsed });
+
+    expect(toBroadcastBoundaryError(wrapped, [], [{ code: -4, message: 'failed to get output distribution' }])).toBe(
+      wrapped,
+    );
+  });
+
+  it('does not classify an allowlisted pair found only in a raw transport response', () => {
+    // Mirrors the existing numeric-code guard: response/data payloads are transport details and must
+    // never introduce a classifiable pair.
+    const axiosError = Object.assign(new Error('Request failed with status code 500'), {
+      response: { status: 500, data: { error: { code: -4, message: 'failed to get output distribution' } } },
+    });
+
+    expect(
+      toBroadcastBoundaryError(axiosError, [], [{ code: -4, message: 'failed to get output distribution' }]),
+    ).toBeInstanceOf(TxBroadcastError);
+  });
+
   it('keeps a throwing-getter error fail-closed (classifier defaults closed on its own failures)', () => {
     const error = {};
     Object.defineProperty(error, 'code', {

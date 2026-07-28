@@ -25,13 +25,24 @@ type ErrorShape = {
   syscall?: unknown;
 };
 
+// Narrow (code, message) pairs for daemon-fault error classes that are provably pre-broadcast
+// but share their numeric code with post-broadcast failures — so the code alone cannot be
+// allowlisted. Currently Monero-only (see MONERO_PRE_BROADCAST_RPC_MESSAGES for the citation).
+export type PreBroadcastRpcMessage = { code: number; message: string };
+
 // Send-boundary classification is deliberately fail-closed:
 // - Class A: connection-establishment failures are plain errors because the request never reached the node.
 // - Class B: only parsed numeric RPC codes that prove funding failed before tx creation are plain. Bitcoin Core
 //   delivers JSON-RPC errors over HTTP 500, but a client-parsed error body is still a deterministic node answer.
+// - Class B': a narrow (code, message) allowlist for daemon-fault classes that share a generic code with
+//   post-broadcast failures — the exact upstream what() message discriminates.
 // - Class C: bare transport errors carry no parsed numeric RPC code; timeouts, resets and every unknown/ambiguous
 //   shape therefore stay TxBroadcastError.
-export function toBroadcastBoundaryError(e: unknown, preBroadcastRpcCodes: number[]): Error {
+export function toBroadcastBoundaryError(
+  e: unknown,
+  preBroadcastRpcCodes: number[],
+  preBroadcastRpcMessages: PreBroadcastRpcMessage[] = [],
+): Error {
   if (e instanceof TxBroadcastError) return e;
 
   // A soundness classifier defaults closed: if walking/normalizing the error itself throws
@@ -52,8 +63,18 @@ export function toBroadcastBoundaryError(e: unknown, preBroadcastRpcCodes: numbe
       e,
       (value) => typeof value.code === 'number' && preBroadcastRpcCodes.includes(value.code),
     );
+    // Message matching stays exact (===). A substring / regex match would erode the guarantee
+    // that only the specific pre-signing wallet exception surfaces; a rewording upstream should
+    // fail closed on the next release rather than silently expand the allowlist.
+    const isPreBroadcastRpcMessage = walkErrorShape(
+      e,
+      (value) =>
+        typeof value.code === 'number' &&
+        typeof value.message === 'string' &&
+        preBroadcastRpcMessages.some((m) => m.code === value.code && m.message === value.message),
+    );
 
-    if (isPreBroadcastSyscall || isPreBroadcastRpcError) return asError(e);
+    if (isPreBroadcastSyscall || isPreBroadcastRpcError || isPreBroadcastRpcMessage) return asError(e);
 
     const error = asError(e);
     return new TxBroadcastError(error.message, { cause: e });

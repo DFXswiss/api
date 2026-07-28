@@ -18,6 +18,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
+import { CreateCustodyOrderInternalDto } from '../../dto/input/create-custody-order.dto';
 import { GetCustodyInfoDto } from '../../dto/input/get-custody-info.dto';
 import { CustodyOrder } from '../../entities/custody-order.entity';
 import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
@@ -280,6 +281,64 @@ describe('CustodyOrderService', () => {
         order.id,
         expect.objectContaining({ status: CustodyOrderStatus.CONFIRMED }),
       );
+    });
+  });
+
+  describe('updateCustodyOrderInternal', () => {
+    beforeEach(() => {
+      custodyOrderRepo.save.mockImplementation(async (e) => e as CustodyOrder);
+    });
+
+    it('sets completedAt when an order transitions to Completed', async () => {
+      const entity = custodyOrder({ status: CustodyOrderStatus.IN_PROGRESS });
+
+      await service.updateCustodyOrderInternal(entity, { status: CustodyOrderStatus.COMPLETED });
+
+      expect(entity.completedAt).toBeInstanceOf(Date);
+    });
+
+    it('does not overwrite completedAt on a re-save of an already-Completed order', async () => {
+      const originalCompletedAt = new Date('2026-01-01T00:00:00.000Z');
+      const entity = custodyOrder({ status: CustodyOrderStatus.COMPLETED, completedAt: originalCompletedAt });
+
+      await service.updateCustodyOrderInternal(entity, { status: CustodyOrderStatus.COMPLETED });
+
+      expect(entity.completedAt).toEqual(originalCompletedAt);
+    });
+
+    it('does not set completedAt when the order does not transition to Completed', async () => {
+      const entity = custodyOrder({ status: CustodyOrderStatus.IN_PROGRESS });
+
+      await service.updateCustodyOrderInternal(entity, { inputAmount: 200 });
+
+      expect(entity.completedAt).toBeUndefined();
+    });
+  });
+
+  describe('createOrderInternal', () => {
+    beforeEach(() => {
+      custodyOrderRepo.save.mockImplementation(async (e) => e as CustodyOrder);
+    });
+
+    it('sets completedAt when creating an order directly with status Completed', async () => {
+      const dto = { status: CustodyOrderStatus.COMPLETED } as CreateCustodyOrderInternalDto;
+      const created = custodyOrder({ status: CustodyOrderStatus.COMPLETED });
+      custodyOrderRepo.create.mockReturnValue(created);
+
+      await service.createOrderInternal(dto);
+
+      expect(created.completedAt).toBeInstanceOf(Date);
+    });
+
+    it('does not overwrite completedAt if the created entity already has one', async () => {
+      const originalCompletedAt = new Date('2026-01-01T00:00:00.000Z');
+      const dto = { status: CustodyOrderStatus.COMPLETED } as CreateCustodyOrderInternalDto;
+      const created = custodyOrder({ status: CustodyOrderStatus.COMPLETED, completedAt: originalCompletedAt });
+      custodyOrderRepo.create.mockReturnValue(created);
+
+      await service.createOrderInternal(dto);
+
+      expect(created.completedAt).toEqual(originalCompletedAt);
     });
   });
 });

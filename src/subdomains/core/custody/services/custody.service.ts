@@ -4,6 +4,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -12,7 +13,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { In } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
@@ -37,6 +38,8 @@ interface DailyFiatValue {
 
 @Injectable()
 export class CustodyService {
+  private readonly logger = new DfxLogger(CustodyService);
+
   constructor(
     private readonly userService: UserService,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
@@ -90,7 +93,37 @@ export class CustodyService {
 
     const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
-    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances);
+
+    const savingBalance = custodyBalances.find((b) => b.asset.uniqueName === Config.custody.savingAsset);
+    const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+    if (savingBalance) {
+      try {
+        // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
+        const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
+        // Keyed by asset.name, not asset.id: the mapper groups custody balances by asset.name (one
+        // position can span multiple chains under the same symbol — see Util.groupByAccessor
+        // below), so this lookup key must be the same identity the mapper groups by. The Asset
+        // itself travels along too, so the mapper prices interestValue with the asset the interest
+        // actually accrued on, never with an arbitrary same-named group representative.
+        interestByAssetName.set(savingBalance.asset.name, { interest, asset: savingBalance.asset });
+      } catch (e) {
+        // calculateAccruedInterest() throws deliberately for data errors (missing completedAt,
+        // non-finite amount/year-fraction/tranche/total) — that is still correct, the
+        // calculation itself must not silently paper over a broken value. But interest is a
+        // display-only add-on that never books anything, so a broken interest for this one
+        // position must not take the customer's entire balance response down with it — the
+        // same reasoning already applied to the negative-total case below. Omit the interest
+        // fields for this position (the DTO already allows that) and surface the data problem
+        // to Ops instead of the customer.
+        this.logger.error(
+          `Failed to calculate accrued interest for user(s) ${custodyUserIds.join(', ')}, asset ` +
+            `${savingBalance.asset.uniqueName}:`,
+          e,
+        );
+      }
+    }
+
+    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
 
     const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur, 0);
     const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf, 0);
@@ -223,6 +256,124 @@ export class CustodyService {
     }
 
     return { totalValue };
+  }
+
+  /**
+   * Accrued simple interest for an interest-bearing custody position.
+   * dueDate is a parameter (not new Date() inside) so the method is deterministically testable.
+   * Order type is intentionally not filtered — any completed order that moves the asset counts.
+   * Value date is order.completedAt, an immutable timestamp set exactly once when an order
+   * becomes Completed — see CustodyOrder.applyCompletedAt(), the single source of truth used
+   * by CustodyOrderService.createOrderInternal(), updateCustodyOrderInternal(), and
+   * CustodyOrder.complete(). order.updated cannot serve this role: it is a TypeORM
+   * @UpdateDateColumn overwritten on every .save(), including harmless re-saves of an
+   * already-Completed order — that would silently push the interest start date forward.
+   * A negative result is clamped to 0 and logged (see below) rather than returned as-is or
+   * thrown. A non-finite result is a different failure class — it throws instead of being
+   * clamped, checked before the negative-total guard (see accrueTranche() and the check right
+   * after the loop below for why).
+   */
+  private async calculateAccruedInterest(userIds: number[], asset: Asset, dueDate: Date): Promise<number> {
+    // Exclude NULL amounts at the query level — mirrors updateCustodyBalance()'s SQL SUM(),
+    // which silently skips NULLs; interest and balance must be derived from the same order
+    // set, or they drift apart.
+    const orders = await this.custodyOrderRepo.find({
+      where: [
+        {
+          user: { id: In(userIds) },
+          status: CustodyOrderStatus.COMPLETED,
+          inputAsset: { id: asset.id },
+          inputAmount: Not(IsNull()),
+        },
+        {
+          user: { id: In(userIds) },
+          status: CustodyOrderStatus.COMPLETED,
+          outputAsset: { id: asset.id },
+          outputAmount: Not(IsNull()),
+        },
+      ],
+    });
+
+    let interest = 0;
+    const rate = Config.custody.savingInterestRate;
+
+    for (const order of orders) {
+      if (order.inputAsset?.id === asset.id && order.inputAmount != null) {
+        interest += this.accrueTranche(order, order.inputAmount, dueDate, rate);
+      }
+      if (order.outputAsset?.id === asset.id && order.outputAmount != null) {
+        interest += this.accrueTranche(order, -order.outputAmount, dueDate, rate);
+      }
+    }
+
+    // Each tranche is individually checked for finiteness (accrueTranche), but the running sum
+    // can still overflow to a non-finite value across several very large (yet individually
+    // valid) tranches. Checked BEFORE the negative-total guard below: -Infinity is genuinely
+    // less than 0, so without this check it would be misclassified as a negative-balance data
+    // anomaly (clamped to 0, logged as "negative") instead of being rejected as non-finite;
+    // +Infinity and NaN would simply slip past `interest < 0` (false for both) and be returned
+    // to the customer as-is.
+    if (!Number.isFinite(interest)) {
+      throw new Error(
+        `Non-finite accrued interest total for user(s) ${userIds.join(', ')}, asset ${asset.uniqueName}: ` +
+          `computed ${interest}`,
+      );
+    }
+
+    // A negative running balance should never occur (updateCustodyBalance() sums Σ input − Σ
+    // output over Completed orders), but has been observed in prod — from a deleted or
+    // retroactively altered order. Showing a negative interest figure to the customer would be
+    // wrong, and throwing would take down their entire balance response for an unrelated data
+    // issue elsewhere — so this clamps to 0 and logs the anomaly with enough context (users,
+    // asset, computed value) for Ops to find the underlying data problem.
+    if (interest < 0) {
+      this.logger.error(
+        `Negative accrued interest for user(s) ${userIds.join(', ')}, asset ${asset.uniqueName}: ` +
+          `computed ${interest}, clamping to 0 (likely a negative custody balance from a deleted ` +
+          `or retroactively altered order)`,
+      );
+      return 0;
+    }
+
+    return interest;
+  }
+
+  /**
+   * Interest for a single tranche. Fails loud instead of silently skipping or falling back: a
+   * Completed order without completedAt is a data error (backfill/transition bug). The amount,
+   * the year fraction, and the computed tranche result are each checked for finiteness — a
+   * non-finite amount (NaN/Infinity — `float`/`double precision` columns allow both) is one
+   * source, an Invalid Date completedAt is another (it is truthy, so it passes the check above,
+   * but Util.yearsDiff() then returns NaN for it — and since every comparison with NaN is
+   * false, an unchecked NaN year fraction would silently fall into the `years >= 0 ? … : 0`
+   * zero-branch instead of failing loud), and even finite inputs can still overflow to a
+   * non-finite product once multiplied together. Any of these would otherwise poison the
+   * running sum without a trace.
+   */
+  private accrueTranche(order: CustodyOrder, amount: number, dueDate: Date, rate: number): number {
+    if (!order.completedAt) {
+      throw new Error(`CustodyOrder ${order.id} is Completed but has no completedAt — cannot calculate interest`);
+    }
+    if (!Number.isFinite(amount)) {
+      throw new Error(`CustodyOrder ${order.id} has a non-finite amount (${amount}) — cannot calculate interest`);
+    }
+
+    const years = Util.yearsDiff(order.completedAt, dueDate);
+    if (!Number.isFinite(years)) {
+      throw new Error(
+        `CustodyOrder ${order.id} has an invalid completedAt (non-finite year fraction) — cannot calculate interest`,
+      );
+    }
+
+    const tranche = years >= 0 ? amount * rate * years : 0;
+
+    if (!Number.isFinite(tranche)) {
+      throw new Error(
+        `CustodyOrder ${order.id} produced a non-finite tranche interest (${tranche}) — cannot calculate interest`,
+      );
+    }
+
+    return tranche;
   }
 
   /**

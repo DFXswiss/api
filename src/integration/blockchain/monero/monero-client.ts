@@ -8,7 +8,11 @@ import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
-import { TxBroadcastError, toBroadcastBoundaryError } from '../shared/errors/tx-broadcast.error';
+import {
+  PreBroadcastRpcMessage,
+  TxBroadcastError,
+  toBroadcastBoundaryError,
+} from '../shared/errors/tx-broadcast.error';
 import { BlockchainClient, CoinOnly } from '../shared/util/blockchain-client';
 import {
   AddressResultDto,
@@ -26,9 +30,55 @@ import {
 } from './dto/monero.dto';
 import { MoneroHelper } from './monero-helper';
 
+// Codes cited from Monero src/wallet/wallet_rpc_server_error_codes.h; the mapping happens in
+// wallet_rpc_server::handle_rpc_exception (src/wallet/wallet_rpc_server.cpp). Both entries below are
+// pre-funding checks that run before the transaction is constructed at all, so a plain error safely
+// rolls back for auto-retry.
 const MONERO_PRE_BROADCAST_RPC_CODES = [
-  -17, // WALLET_RPC_ERROR_CODE_NOT_ENOUGH_MONEY (Monero src/wallet/wallet_rpc_server_error_codes.h)
-  -37, // WALLET_RPC_ERROR_CODE_NOT_ENOUGH_UNLOCKED_MONEY (Monero src/wallet/wallet_rpc_server_error_codes.h)
+  -17, // WALLET_RPC_ERROR_CODE_NOT_ENOUGH_MONEY
+  -37, // WALLET_RPC_ERROR_CODE_NOT_ENOUGH_UNLOCKED_MONEY
+];
+
+// DELIBERATELY NOT ALLOWLISTED: -38 WALLET_RPC_ERROR_CODE_NO_DAEMON_CONNECTION.
+//
+// It is tempting (the message reads "no connection to daemon", which sounds pre-broadcast) and it is
+// the most frequent flavour we see in production, but it is not safe by code:
+//
+//   - handle_rpc_exception's catch for tools::error::no_connection_to_daemon is UNCONDITIONAL, so every
+//     throw site collapses onto -38 regardless of phase.
+//   - The relay itself throws it. wallet2::commit_tx invokes /sendrawtransaction and immediately runs
+//     THROW_ON_RPC_RESPONSE_ERROR (wallet2.cpp ~7103-7104); that macro's helper throw_on_rpc_response_error
+//     (wallet2.cpp ~15134-15139) raises no_connection_to_daemon whenever the HTTP call returns false or
+//     the status is empty — i.e. exactly when the daemon accepted the tx but the response was lost.
+//     (The submit_raw_tx site is light-wallet-only and does not apply to us; the generic helper does.)
+//   - what() is a fixed string for all of those sites, and the discriminating request name
+//     ("sendrawtransaction" vs "get_output_distribution") lives only in to_string()/m_request, which the
+//     RPC server never calls. So there is no message-based rescue for -38 either.
+//
+// Retrying is actively harmful here, not merely uncertain: commit_tx writes its local bookkeeping only
+// AFTER the relay call returns (add_unconfirmed_tx ~7128, set_spent ~7139). A lost response therefore
+// leaves no pending entry and no reserved key images, so a retry re-selects the same inputs and builds a
+// second transaction over the same key images — a real double-spend race whose winner may be a txid the
+// order never learned. That is the invariant #4238 exists to protect.
+//
+// Structural remedy (follow-up, not this PR): split the atomic call — `transfer` with
+// do_not_relay + get_tx_metadata, persist the returned tx_hash, then relay via the separate `relay_tx`
+// RPC. Every build-phase failure is then provably pre-broadcast, and every relay-phase failure arrives
+// with a durable txid, turning recovery into a lookup instead of an inference.
+//
+// Daemon faults that fall through to GENERIC_TRANSFER_ERROR (-4) — handle_rpc_exception has no dedicated
+// catch for them — are discriminated by their exact what() string instead, since -4 is also the code for
+// genuinely post-broadcast failures (e.g. tools::error::tx_rejected, "transaction was rejected by daemon").
+//
+// - "failed to get output distribution": tools::error::get_output_distribution. Note this is NOT the
+//   transport-failure case (a dead connection while fetching the distribution throws -38 via the helper
+//   above); -4 is reached only when the daemon ANSWERED with a non-OK status, or answered with a
+//   distribution that failed validation. That makes it a deterministic node answer — #4238's Class B
+//   rationale — and every throw site sits in wallet2::get_outs during decoy selection, called from
+//   transfer_selected{,_rct} before inputs are prepared and before anything is signed. The what() string
+//   is hard-coded in the class constructor (src/wallet/wallet_errors.h) and is unique in the tree.
+const MONERO_PRE_BROADCAST_RPC_MESSAGES: PreBroadcastRpcMessage[] = [
+  { code: -4, message: 'failed to get output distribution' },
 ];
 
 export class MoneroClient extends BlockchainClient implements CoinOnly {
@@ -268,13 +318,17 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
       // result.error would otherwise be a plain error and self-heal a possibly-relayed transfer.
       return this.mapSendTransfer(result);
     } catch (e) {
-      throw toBroadcastBoundaryError(e, MONERO_PRE_BROADCAST_RPC_CODES);
+      throw toBroadcastBoundaryError(e, MONERO_PRE_BROADCAST_RPC_CODES, MONERO_PRE_BROADCAST_RPC_MESSAGES);
     }
   }
 
   private mapSendTransfer(sendTransferResult: GetSendTransferResultDto): MoneroTransferDto {
     if (sendTransferResult.error)
-      throw toBroadcastBoundaryError(sendTransferResult.error, MONERO_PRE_BROADCAST_RPC_CODES);
+      throw toBroadcastBoundaryError(
+        sendTransferResult.error,
+        MONERO_PRE_BROADCAST_RPC_CODES,
+        MONERO_PRE_BROADCAST_RPC_MESSAGES,
+      );
     if (!sendTransferResult.result) throw new TxBroadcastError('No result after send transfer');
     // Empty tx_hash after a resolved transfer is ambiguous (wallet may already have relayed).
     if (!sendTransferResult.result.tx_hash) {

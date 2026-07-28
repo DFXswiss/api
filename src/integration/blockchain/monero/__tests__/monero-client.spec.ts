@@ -97,6 +97,46 @@ describe('MoneroClient - broadcast boundary', () => {
       await expect(client.sendTransfers(payout)).rejects.not.toBeInstanceOf(TxBroadcastError);
     });
 
+    it('keeps a (code -4, message "failed to get output distribution") pair plain (pre-signing daemon fault)', async () => {
+      // Real prod failure (order 112451, 2026-07-18 06:03:07): wallet_rpc_server::handle_rpc_exception
+      // has no dedicated catch for error::get_output_distribution, so it falls through to the transfer
+      // default (GENERIC_TRANSFER_ERROR = -4) while carrying the fixed what() message from the
+      // struct's constructor (src/wallet/wallet_errors.h). The exception is constructed in
+      // wallet2::get_outs during decoy selection — called from transfer_selected{,_rct} before inputs
+      // are prepared and before anything is signed — so it is safe to roll back for auto-retry.
+      mockPost.mockResolvedValue({
+        error: { code: -4, message: 'failed to get output distribution' },
+      });
+
+      // Assert the message too: `not.toBeInstanceOf` alone would also pass for an unrelated TypeError
+      // from a refactor, which would look like a successful classification while being a bug.
+      await expect(client.sendTransfers(payout)).rejects.not.toBeInstanceOf(TxBroadcastError);
+      await expect(client.sendTransfers(payout)).rejects.toThrow('failed to get output distribution');
+    });
+
+    it('keeps an unrelated code -4 message fail-closed (only the exact daemon-fault message is allowlisted)', async () => {
+      mockPost.mockResolvedValueOnce({
+        error: { code: -4, message: 'Failed to send tx' },
+      });
+
+      await expect(client.sendTransfers(payout)).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it('keeps a bare code -38 fail-closed (the relay path emits -38 too)', async () => {
+      // Regression guard. -38 WALLET_RPC_ERROR_CODE_NO_DAEMON_CONNECTION is tempting — it is the most
+      // frequent flavour in production and its message reads pre-broadcast — but wallet2::commit_tx runs
+      // THROW_ON_RPC_RESPONSE_ERROR right after /sendrawtransaction, and that helper raises
+      // no_connection_to_daemon whenever the HTTP call returns false or the status is empty: precisely
+      // the case where the daemon accepted the tx and only the response was lost. Since commit_tx writes
+      // add_unconfirmed_tx / set_spent only AFTER that call, a retry would re-spend the same key images.
+      // Only the (code, message) pair for the pre-signing decoy-selection path stays plain.
+      mockPost.mockResolvedValueOnce({
+        error: { code: -38, message: 'no connection to daemon' },
+      });
+
+      await expect(client.sendTransfers(payout)).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+
     it('wraps a non-Error rejection into a TxBroadcastError via String(e)', async () => {
       mockPost.mockRejectedValueOnce('gateway timeout');
 
