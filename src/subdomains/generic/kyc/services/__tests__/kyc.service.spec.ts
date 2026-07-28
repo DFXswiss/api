@@ -17,6 +17,7 @@ import { UserStatus } from '../../../user/models/user/user.enum';
 import { IdentDocument } from '../../dto/ident.dto';
 import { KycError } from '../../dto/kyc-error.enum';
 import { FileType, KycFileBlob } from '../../dto/kyc-file.dto';
+import { SumSubLevelName } from '../../dto/sum-sub.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
@@ -580,25 +581,30 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
 });
 
 // The ident file sync only works for Sumsub steps - it throws on any other ident type - and it runs
-// BEFORE the status is persisted. A manual ident therefore used to lose its MANUAL_REVIEW transition
-// and stay in INTERNAL_REVIEW, so the every-minute review re-processed and re-failed it forever.
+// BEFORE the status is persisted, so a failing sync keeps the step in INTERNAL_REVIEW for the next
+// run. A manual ident therefore used to lose its MANUAL_REVIEW transition and stay in
+// INTERNAL_REVIEW, where the every-minute review re-processed and re-failed it forever.
 describe('KycService reviewIdentSteps file sync', () => {
   let service: KycService;
   let kycStepRepo: jest.Mocked<KycStepRepository>;
   let userDataService: jest.Mocked<UserDataService>;
-  let syncIdentFiles: jest.SpyInstance;
+  let syncIdentFilesInternalSpy: jest.SpyInstance;
+  // the status as seen by the repo, not as read after the run: manualReview() mutates the entity
+  // in memory before the sync, so asserting on the entity afterwards would pass either way
+  let savedStatus: ReviewStatus;
 
   // resultData is read per ident type, so each type needs its own result shape
   const identResult: { [t in KycStepType]?: object } = {
     [KycStepType.MANUAL]: { firstName: 'Max', lastName: 'Muster', birthday: '1990-01-01' },
     [KycStepType.SUMSUB_AUTO]: {
       data: { info: { idDocs: [{ firstNameEn: 'Max', lastNameEn: 'Muster', dob: '1990-01-01' }] } },
-      webhook: { levelName: 'basic-kyc-level' },
+      webhook: { levelName: SumSubLevelName.CH_STANDARD },
     },
   };
 
   const identStep = (type: KycStepType): KycStep => {
     const userData = createCustomUserData({ id: 42, kycFiles: [], users: [] });
+    // mirrors the finder's WHERE clause: the account has a completed nationality step
     userData.getStepsWith = jest.fn().mockReturnValue([createMock<KycStep>({ isCompleted: true })]);
 
     return Object.assign(new KycStep(), {
@@ -611,16 +617,18 @@ describe('KycService reviewIdentSteps file sync', () => {
     });
   };
 
-  beforeAll(() => {
-    new ConfigService(new Configuration());
-  });
-
   beforeEach(() => {
+    savedStatus = undefined;
     kycStepRepo = createMock<KycStepRepository>();
     kycStepRepo.findBy.mockResolvedValue([]);
+    (kycStepRepo.save as jest.Mock).mockImplementation(async (step: KycStep) => {
+      savedStatus = step.status;
+      return step;
+    });
     userDataService = createMock<UserDataService>();
     userDataService.getUserDataByBirthday.mockResolvedValue([]);
 
+    // reviewIdentSteps only touches these deps; avoid wiring all constructor deps
     service = Object.create(KycService.prototype);
     (service as any).kycStepRepo = kycStepRepo;
     (service as any).userDataService = userDataService;
@@ -629,23 +637,22 @@ describe('KycService reviewIdentSteps file sync', () => {
 
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
     // the check itself is not under test here - a plain, non-ignoring error puts every step into
-    // manual review, so the two cases differ only in the ident type
+    // manual review, so the cases differ only in the ident type
     jest.spyOn(service as any, 'getIdentCheckErrors').mockReturnValue([KycError.FIRST_NAME_NOT_MATCHING]);
     jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
-    syncIdentFiles = jest.spyOn(service as any, 'syncIdentFilesInternal').mockResolvedValue(undefined);
+    syncIdentFilesInternalSpy = jest.spyOn(service as any, 'syncIdentFilesInternal').mockResolvedValue(undefined);
   });
 
   it('persists a manual ident step as manual review without touching the Sumsub file sync', async () => {
     const step = identStep(KycStepType.MANUAL);
     kycStepRepo.find.mockResolvedValue([step]);
     // mirror the real implementation: it rejects a non-Sumsub step, which would skip the save below
-    syncIdentFiles.mockRejectedValue(new Error(`Invalid ident step type ${KycStepType.MANUAL}`));
+    syncIdentFilesInternalSpy.mockRejectedValue(new Error(`Invalid ident step type ${KycStepType.MANUAL}`));
 
     await service.reviewIdentSteps();
 
-    expect(syncIdentFiles).not.toHaveBeenCalled();
-    expect(step.status).toBe(ReviewStatus.MANUAL_REVIEW);
-    expect(kycStepRepo.save).toHaveBeenCalledWith(step);
+    expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+    expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 
   it('still syncs the files of a Sumsub ident step that has no ident report yet', async () => {
@@ -654,7 +661,20 @@ describe('KycService reviewIdentSteps file sync', () => {
 
     await service.reviewIdentSteps();
 
-    expect(syncIdentFiles).toHaveBeenCalledWith(step);
-    expect(kycStepRepo.save).toHaveBeenCalledWith(step);
+    expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
+    expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
+  });
+
+  // the sync deliberately runs before the save: a Sumsub step whose files could not be fetched has
+  // to keep its INTERNAL_REVIEW status so the next run retries it instead of advancing without files
+  it('leaves a Sumsub ident step unsaved when its file sync fails, so the next run retries it', async () => {
+    const step = identStep(KycStepType.SUMSUB_AUTO);
+    kycStepRepo.find.mockResolvedValue([step]);
+    syncIdentFilesInternalSpy.mockRejectedValue(new Error('blob is immutable'));
+
+    await service.reviewIdentSteps();
+
+    expect(kycStepRepo.save).not.toHaveBeenCalled();
+    expect(savedStatus).toBeUndefined();
   });
 });
