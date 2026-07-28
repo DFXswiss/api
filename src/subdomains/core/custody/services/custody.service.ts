@@ -13,7 +13,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { In, IsNull, LessThanOrEqual, MoreThanOrEqual, Not } from 'typeorm';
+import { In, IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
@@ -141,12 +141,13 @@ export class CustodyService {
 
   /**
    * Cheap existence check used by CustodyAccountService to decide whether the legacy Safe
-   * entry is empty. Compares against the same precision the customer-facing balance display
-   * uses (`Util.floor(balance, 8)` in CustodyAssetBalanceDtoMapper) — a residual below
-   * 10^-8 displays as 0 to the customer and must count as empty too, or the hide decision
-   * would disagree with what they see. The threshold applies symmetrically: a negative
-   * balance beyond it does not count as empty either — production has real negative custody
-   * balances, and those must stay visible.
+   * entry is empty. The two sides are deliberately asymmetric: Util.floor() (used by the
+   * customer-facing balance display, CustodyAssetBalanceDtoMapper) rounds toward negative
+   * infinity, not toward zero. A small positive residual below 10^-8 therefore displays as
+   * 0, but ANY negative balance — however tiny — floors to at most -10^-8 and always
+   * displays as non-zero. So the positive side keeps the 10^-8 display threshold, while the
+   * negative side treats every negative balance as non-empty, matching what Util.floor()
+   * actually shows.
    */
   async hasNonZeroCustodyBalance(custodyUserIds: number[]): Promise<boolean> {
     if (!custodyUserIds.length) return false;
@@ -156,7 +157,7 @@ export class CustodyService {
     return this.custodyBalanceRepo.exists({
       where: [
         { user: { id: In(custodyUserIds) }, balance: MoreThanOrEqual(displayThreshold) },
-        { user: { id: In(custodyUserIds) }, balance: LessThanOrEqual(-displayThreshold) },
+        { user: { id: In(custodyUserIds) }, balance: LessThan(0) },
       ],
     });
   }
