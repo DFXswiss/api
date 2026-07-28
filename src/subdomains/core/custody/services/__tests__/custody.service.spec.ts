@@ -392,8 +392,8 @@ describe('CustodyService', () => {
       await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/8/);
     });
 
-    it('clamps a negative total to 0 and logs a warning instead of returning a negative value', async () => {
-      const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+    it('clamps a negative total to 0 and logs an error instead of returning a negative value', async () => {
+      const loggerErrorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
 
       custodyOrderRepo.find.mockResolvedValue([
         interestOrder({ id: 1, completedAt: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 1000 }),
@@ -403,7 +403,7 @@ describe('CustodyService', () => {
       const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
 
       expect(result).toBe(0);
-      expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Negative accrued interest'));
+      expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Negative accrued interest'));
     });
   });
 });

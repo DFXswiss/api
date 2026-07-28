@@ -12,9 +12,10 @@
  * re-saving a completed order) — a silent re-save would push the interest start date
  * forward and shrink the reported balance without a trace.
  *
- * `completedAt` is set exactly once, the first time an order becomes Completed (see
- * CustodyOrder.complete() and CustodyOrderService.updateCustodyOrderInternal()), and is
- * never overwritten afterward.
+ * `completedAt` is set exactly once, the first time an order becomes Completed. The single
+ * source of truth is CustodyOrder.applyCompletedAt(), called from
+ * CustodyOrderService.createOrderInternal(), updateCustodyOrderInternal(), and
+ * CustodyOrder.complete() — never overwritten afterward.
  *
  * Backfills existing Completed orders with their current `updated` value: for historical
  * rows this is the best available approximation of the true completion time (no better

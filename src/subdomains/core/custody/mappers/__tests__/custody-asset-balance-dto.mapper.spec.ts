@@ -93,6 +93,10 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(result).toHaveLength(1);
       expect(result[0].asset.name).toBe('sZCHF');
       expect(result[0].balance).toBe(1000);
+      // value is priced with the group representative (g[0].asset = szchfOtherChain, price 2),
+      // NOT the interest-source asset (szchfEthereum, price 1) — the other half of the same
+      // pricing guarantee: 1000 × 2 = 2000.
+      expect(result[0].value).toEqual({ chf: 2000, eur: 2000, usd: 2000 });
       expect(result[0].interest).toBe(interest);
       expect(result[0].interestValue).toEqual({ chf: interest, eur: interest, usd: interest });
     });

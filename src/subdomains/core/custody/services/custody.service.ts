@@ -294,7 +294,7 @@ export class CustodyService {
     // issue elsewhere — so this clamps to 0 and logs the anomaly with enough context (users,
     // asset, computed value) for Ops to find the underlying data problem.
     if (interest < 0) {
-      this.logger.warn(
+      this.logger.error(
         `Negative accrued interest for user(s) ${userIds.join(', ')}, asset ${asset.uniqueName}: ` +
           `computed ${interest}, clamping to 0 (likely a negative custody balance from a deleted ` +
           `or retroactively altered order)`,
