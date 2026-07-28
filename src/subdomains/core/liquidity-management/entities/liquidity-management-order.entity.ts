@@ -1,7 +1,7 @@
 import { Active } from 'src/shared/models/active';
-import { Util } from 'src/shared/utils/util';
-import { IEntity } from 'src/shared/models/entity';
 import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
+import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementOrderStatus } from '../enums';
