@@ -41,7 +41,14 @@ export class CustomAdapter implements LiquidityBalanceIntegration {
             this.exchangeRegistry.get('Binance').getAvailableBalance(asset.name),
             this.orderRepo.sum('inputAmount', {
               action: { system: In([LiquidityManagementSystem.KRAKEN, LiquidityManagementSystem.BINANCE]) },
-              status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
+              // UNCERTAIN too: the generic quarantine in startNewOrders is not Scrypt-specific, so a
+              // Kraken/Binance order can land there — and neither adapter can resolve it, so it would stay
+              // put and silently drop its amount out of this balance for as long as it remains unresolved.
+              status: In([
+                LiquidityManagementOrderStatus.CREATED,
+                LiquidityManagementOrderStatus.IN_PROGRESS,
+                LiquidityManagementOrderStatus.UNCERTAIN,
+              ]),
               inputAsset: asset.name,
             }),
           ]);
