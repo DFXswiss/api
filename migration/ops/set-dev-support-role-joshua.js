@@ -2,7 +2,8 @@ const { Client } = require('pg');
 
 const ACCOUNT_ID = 4770;
 const EXPECTED_MAIL = 'joshua.krueger@dfx.swiss';
-const WALLET_ADDRESS = '0x3e0004935eAD42cefB1ecf461847bdB1591f337f';
+// Verified via GET /v2/user on DEV: account 4770 has exactly one (active) address, this one.
+const WALLET_ADDRESS = '0xB6cA05F0e3e71B1C5568BD423A6682dc78469Ae8';
 const TARGET_ROLE = 'Support';
 
 // Mirrors UserActiveGuard defaults (user-active.guard.ts) — values that yield 403 on staff endpoints.
