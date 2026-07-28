@@ -93,8 +93,10 @@ export class ExchangeTxConsumer {
     let lastProcessedId = watermark.lastProcessedId;
     for (const tx of batch) {
       try {
-        const spec = await this.buildSpec(tx, marks, fillIndexMap);
-        if (spec) await this.bookingService.bookTx(spec);
+        if (!(await this.alreadyBooked(tx, fillIndexMap))) {
+          const spec = await this.buildSpec(tx, marks, fillIndexMap);
+          if (spec) await this.bookingService.bookTx(spec);
+        }
         lastProcessedId = tx.id;
       } catch (e) {
         this.logger.error(`Failed to book exchange_tx ${tx.id}:`, e);
@@ -314,23 +316,7 @@ export class ExchangeTxConsumer {
       }
     }
 
-    const seq = fillIndexMap.get(tx.id) ?? 0;
-    const order = tx.order;
-    // Major B3: the composite trade sourceId MUST carry the exchange prefix `${exchange}:${order}`, matching the
-    // `${exchange}|${order}` fill-ranking key (buildFillIndexMap). Without it, the SAME order string on two different
-    // exchanges collapses to one sourceId → two distinct fills claim the same (sourceType, sourceId, seq) → UNIQUE
-    // collision on the second booker → permanent wedge. `${tx.id}` stays the fallback for an order-less trade.
-    const sourceId = order ? `${tx.exchange}:${order}` : `${tx.id}`;
-    const sourceType = order ? TRADE_SOURCE_TYPE : SOURCE_TYPE;
-
-    return {
-      sourceType,
-      sourceId,
-      seq: order ? seq : 0,
-      bookingDate,
-      valueDate: bookingDate,
-      legs,
-    };
+    return { ...this.bookingKey(tx, fillIndexMap), bookingDate, valueDate: bookingDate, legs };
   }
 
   // --- ROUTE DISAMBIGUATION (§4.3a/§4.3b) --- //
@@ -456,17 +442,69 @@ export class ExchangeTxConsumer {
     return map;
   }
 
+  // --- BOOKING IDENTITY --- //
+
+  /**
+   * The (sourceType, sourceId, seq) a row books at, derived from immutable row fields ONLY — no leg build, no account
+   * or mark lookup. A trade with BOTH an order and a resolvable symbol books under the composite trade key; every
+   * other row — deposits, withdrawals, order-less trades and unattributable ones (parseSymbol undefined → the
+   * SUSPENSE `singleSpec` branch) — books at the per-row key.
+   *
+   * Single source of truth for BOTH spec builders: tradeSpec returns this verbatim and singleSpec derives its identity
+   * from `rowKey` (the same non-composite branch), so the pre-book guard can never drift from the key the booking
+   * actually lands on — a drift there would silently reopen the wedge this guard closes.
+   *
+   * Major B3: the composite trade sourceId MUST carry the exchange prefix `${exchange}:${order}`, matching the
+   * `${exchange}|${order}` fill-ranking key (buildFillIndexMap). Without it, the SAME order string on two different
+   * exchanges collapses to one sourceId → two distinct fills claim the same (sourceType, sourceId, seq) → UNIQUE
+   * collision on the second booker → permanent wedge. The per-row key stays the fallback for an order-less trade.
+   */
+  private bookingKey(
+    tx: ExchangeTx,
+    fillIndexMap: Map<number, number>,
+  ): { sourceType: string; sourceId: string; seq: number } {
+    const isCompositeTrade = tx.type === ExchangeTxType.TRADE && !!tx.order && !!this.parseSymbol(tx);
+
+    return isCompositeTrade
+      ? {
+          sourceType: TRADE_SOURCE_TYPE,
+          sourceId: `${tx.exchange}:${tx.order}`,
+          seq: fillIndexMap.get(tx.id) ?? 0,
+        }
+      : this.rowKey(tx);
+  }
+
+  // the non-composite booking identity: one exchange_tx row → one tx at seq0. Shared by bookingKey's fallback branch
+  // and singleSpec so the guard and the booking cannot diverge on the deposit/withdrawal/unattributable-trade paths.
+  private rowKey(tx: ExchangeTx): { sourceType: string; sourceId: string; seq: number } {
+    return { sourceType: SOURCE_TYPE, sourceId: `${tx.id}`, seq: 0 };
+  }
+
+  /**
+   * Crash-recovery guard for the forward scan (sibling convention, e.g. bank-tx.consumer.ts `alreadyBooked`).
+   *
+   * `bookTx` commits its own transaction but the id-watermark is written ONCE at the end of the batch, and the §4.12
+   * content-change scan books the very same rows through `reconcileBooking` while advancing only its own (updated, id)
+   * cursor. Either path can leave `lastProcessedId` BEHIND a row that is already booked. Without this guard the next
+   * forward run re-books that row, collides on the (sourceType, sourceId, seq) UNIQUE constraint, breaks out of the
+   * batch, and the watermark never advances again — the source wedges permanently and every later row stops booking.
+   *
+   * Checked BEFORE buildSpec so an already-booked row is treated as done regardless of what a fresh leg re-derivation
+   * would do (it can itself throw or defer). The guard only ever fires where the unguarded call would have thrown:
+   * `hasAnyTxAt` is true exactly when an append-only bookTx at that key is impossible. Correcting an already-committed
+   * booking stays the content-change scan's job (§4.12).
+   */
+  private alreadyBooked(tx: ExchangeTx, fillIndexMap: Map<number, number>): Promise<boolean> {
+    const { sourceType, sourceId, seq } = this.bookingKey(tx, fillIndexMap);
+
+    return this.bookingService.hasAnyTxAt(sourceType, sourceId, seq);
+  }
+
   // --- HELPERS --- //
 
+  // only ever reached on non-composite rows (deposit/withdrawal/unattributable trade) → rowKey is their identity
   private singleSpec(tx: ExchangeTx, bookingDate: Date, legs: LedgerLegInput[]): LedgerTxInput {
-    return {
-      sourceType: SOURCE_TYPE,
-      sourceId: `${tx.id}`,
-      seq: 0,
-      bookingDate,
-      valueDate: bookingDate,
-      legs,
-    };
+    return { ...this.rowKey(tx), bookingDate, valueDate: bookingDate, legs };
   }
 
   // §4.3 amountChf null fallback (Minor R9-4): persisted amountChf (stage 1) ?? mark × amount (stage 2) ?? needsMark
