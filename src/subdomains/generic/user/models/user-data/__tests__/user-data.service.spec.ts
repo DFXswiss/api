@@ -57,6 +57,7 @@ import {
   MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER,
   MERGE_POST_COMMIT_EFFECT_FAILED_MARKER,
   MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER,
+  MailVerificationMaxTryCount,
   MergedPrefix,
   UserDataService,
 } from '../user-data.service';
@@ -425,14 +426,41 @@ describe('UserDataService', () => {
       expect(userDataRepo.update).not.toHaveBeenCalled();
     });
 
+    it('still accepts the correct code on the last allowed attempt', async () => {
+      const userData = buildUserData();
+
+      await startMailChange(userData);
+
+      for (let i = 0; i < MailVerificationMaxTryCount - 1; i++) {
+        await expect(service.verifyUserMail(userData, '000000')).rejects.toBeInstanceOf(ForbiddenException);
+      }
+
+      await service.verifyUserMail(userData, secret);
+
+      expect(userDataRepo.update).toHaveBeenCalledWith(userData.id, { mail: 'new@example.com' });
+    });
+
     it('stops accepting the correct code after the try count is exhausted', async () => {
       const userData = buildUserData();
 
       await startMailChange(userData);
 
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < MailVerificationMaxTryCount; i++) {
         await expect(service.verifyUserMail(userData, '000000')).rejects.toBeInstanceOf(ForbiddenException);
       }
+
+      await expect(service.verifyUserMail(userData, secret)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('drops a pending change when the current address is re-submitted', async () => {
+      const userData = buildUserData();
+
+      await startMailChange(userData);
+
+      await expect(service.updateUserMail(userData, { mail: 'old@example.com' }, '1.2.3.4')).resolves.toBe(
+        UpdateMailStatus.Ok,
+      );
 
       await expect(service.verifyUserMail(userData, secret)).rejects.toBeInstanceOf(ForbiddenException);
       expect(userDataRepo.update).not.toHaveBeenCalled();

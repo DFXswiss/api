@@ -79,7 +79,7 @@ export const MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER = 'postCommitEffectsPendin
 export const MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER = 'postCommitEffectCompleted=';
 export const MERGE_POST_COMMIT_EFFECT_FAILED_MARKER = 'postCommitEffectFailed=';
 
-const MailVerificationMaxTryCount = 5;
+export const MailVerificationMaxTryCount = 5;
 
 interface SecretCacheEntry {
   secret: string;
@@ -784,7 +784,12 @@ export class UserDataService {
     // Re-submitting the address the account already has is a no-op, not a change. The 2FA gate
     // below guards a change of mail; demanding it for an unchanged address turns a client retry
     // into a dead end. Runs after checkMail so a merged account still gets its master-code redirect.
-    if (Util.equalsIgnoreCase(userData.mail, dto.mail)) return UpdateMailStatus.Ok;
+    // Any pending change is dropped: this call states the address should stay as it is, and the Ok
+    // below would otherwise report a terminal state that an outstanding code could still overturn.
+    if (Util.equalsIgnoreCase(userData.mail, dto.mail)) {
+      this.secretCache.delete(userData.id);
+      return UpdateMailStatus.Ok;
+    }
 
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
