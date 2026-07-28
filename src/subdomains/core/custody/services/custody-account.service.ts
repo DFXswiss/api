@@ -289,13 +289,14 @@ export class CustodyAccountService {
     ownerAccountId: number,
     accessLevel: CustodyAccessLevel,
   ): Promise<CustodyAccountAccess> {
-    const account = await this.requireOwner(custodyAccountId, ownerAccountId);
+    // Authorise before touching any grant row. The owner may re-level any grant including
+    // their own — see rejectOwnerGrantRevocation for why only revoking stays refused.
+    await this.requireOwner(custodyAccountId, ownerAccountId);
 
     // Read + deactivate + insert under one transaction with a row lock so concurrent
     // update/revoke cannot leave a superseded active grant behind a false revoke success.
     return this.custodyAccountAccessRepo.manager.transaction(async (manager) => {
       const access = await this.lockActiveAccessGrant(manager, custodyAccountId, accessId);
-      this.rejectOwnerGrantMutation(access, account, 'modify');
 
       if (access.accessLevel === accessLevel) {
         return access;
@@ -319,7 +320,7 @@ export class CustodyAccountService {
 
     await this.custodyAccountAccessRepo.manager.transaction(async (manager) => {
       const access = await this.lockActiveAccessGrant(manager, custodyAccountId, accessId);
-      this.rejectOwnerGrantMutation(access, account, 'revoke');
+      this.rejectOwnerGrantRevocation(access, account);
 
       await manager.update(CustodyAccountAccess, ...access.deactivate());
     });
@@ -361,17 +362,40 @@ export class CustodyAccountService {
     return custodyAccount;
   }
 
-  private rejectOwnerGrantMutation(
-    access: CustodyAccountAccess,
-    account: CustodyAccount,
-    action: 'modify' | 'revoke',
-  ): void {
+  /**
+   * Refuses acting for an owner who limited themselves to inspection.
+   *
+   * Orders address a whole Safe, not a single account — balances and orders carry no account
+   * today. So any own account narrowed to READ blocks acting: the order could touch exactly
+   * those holdings, and serving it would act past the authorisation. Fail closed rather than
+   * guess which account an order belongs to.
+   *
+   * Without a narrowing grant this passes, which is every account in production today.
+   */
+  async requireActingAllowed(accountId: number): Promise<void> {
+    const narrowed = await this.custodyAccountAccessRepo.findOne({
+      where: {
+        userData: { id: accountId },
+        account: { owner: { id: accountId }, status: CustodyAccountStatus.ACTIVE },
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      },
+    });
+
+    if (narrowed) {
+      throw new ForbiddenException('This Safe is limited to inspection, acting is not permitted');
+    }
+  }
+
+  /**
+   * The owner's own grant may be re-levelled but never revoked. Re-levelling is how an owner
+   * limits themselves to inspection and hands acting to someone else — and how they take it
+   * back, since only the owner reaches this path (requireOwner). Revoking would leave the
+   * account without an owner row and make the level unrecordable, so it stays refused.
+   */
+  private rejectOwnerGrantRevocation(access: CustodyAccountAccess, account: CustodyAccount): void {
     if (access.userData.id === account.owner.id) {
-      throw new BadRequestException(
-        action === 'revoke'
-          ? "Cannot revoke the account owner's access grant"
-          : "Cannot modify the account owner's access grant",
-      );
+      throw new BadRequestException("Cannot revoke the account owner's access grant");
     }
   }
 

@@ -42,6 +42,7 @@ import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
+import { CustodyAccountService } from './custody-account.service';
 import { CustodyService } from './custody.service';
 
 @Injectable()
@@ -53,6 +54,7 @@ export class CustodyOrderService {
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
     private readonly custodyService: CustodyService,
+    private readonly custodyAccountService: CustodyAccountService,
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     @Inject(forwardRef(() => BuyService))
@@ -68,6 +70,10 @@ export class CustodyOrderService {
   async createOrder(jwt: JwtPayload, dto: GetCustodyInfoDto): Promise<CustodyOrderDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true, custodyBalances: true });
     if (!user) throw new NotFoundException('User not found');
+
+    // An owner who limited themselves to inspection must not act, and this route is how acting
+    // reaches the Safe — the account guards do not cover it.
+    await this.custodyAccountService.requireActingAllowed(user.userData.id);
 
     const orderDto: CreateCustodyOrderInternalDto = { user, type: dto.type };
 
@@ -262,11 +268,15 @@ export class CustodyOrderService {
   async confirmOrder(userId: number, orderId: number): Promise<void> {
     const order = await this.custodyOrderRepo.findOne({
       where: { id: orderId },
-      relations: { user: true },
+      relations: { user: { userData: true } },
     });
 
     if (!order) throw new NotFoundException('Order not found');
     if (userId != order.user.id) throw new ForbiddenException('Order is not from current user');
+
+    // Confirming is the step that releases an order, so it needs the same check as creating —
+    // otherwise a narrowing that took effect in between would not hold.
+    await this.custodyAccountService.requireActingAllowed(order.user.userData.id);
 
     await this.custodyOrderRepo.update(...order.confirm());
   }

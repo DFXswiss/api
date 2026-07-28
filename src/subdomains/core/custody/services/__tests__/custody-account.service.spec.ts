@@ -1,8 +1,8 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FindOneOptions, FindManyOptions } from 'typeorm';
+import { EntityManager, FindOneOptions, FindManyOptions } from 'typeorm';
 import { CustodyAccountAccess } from '../../entities/custody-account-access.entity';
 import { CustodyAccount } from '../../entities/custody-account.entity';
 import { CustodyAccessLevel, CustodyAccountStatus } from '../../enums/custody';
@@ -132,6 +132,50 @@ describe('CustodyAccountService', () => {
           }
           return true;
         });
+      },
+    );
+  }
+
+  /**
+   * Mirrors the repository where clause for requireActingAllowed:
+   * `{ userData: { id }, account: { owner: { id }, status: ACTIVE }, accessLevel: READ, active: true }`.
+   * Only a grant that matches every condition is returned.
+   */
+  function mockFindOneActingGrant(grant: CustodyAccountAccess | undefined): void {
+    custodyAccountAccessRepo.findOne.mockImplementation(
+      async (options: FindOneOptions<CustodyAccountAccess>): Promise<CustodyAccountAccess | null> => {
+        const where = options.where as {
+          userData?: { id?: number };
+          account?: { owner?: { id?: number }; status?: CustodyAccountStatus };
+          accessLevel?: CustodyAccessLevel;
+          active?: boolean;
+        };
+
+        if (!grant) {
+          return null;
+        }
+
+        if (where.userData?.id !== undefined && grant.userData.id !== where.userData.id) {
+          return null;
+        }
+
+        if (where.account?.owner?.id !== undefined && grant.account.owner.id !== where.account.owner.id) {
+          return null;
+        }
+
+        if (where.account?.status !== undefined && grant.account.status !== where.account.status) {
+          return null;
+        }
+
+        if (where.accessLevel !== undefined && grant.accessLevel !== where.accessLevel) {
+          return null;
+        }
+
+        if (where.active === true && !grant.active) {
+          return null;
+        }
+
+        return grant;
       },
     );
   }
@@ -344,6 +388,350 @@ describe('CustodyAccountService', () => {
       // Own account must not appear a second time as "shared"
       const ownOccurrences = result.filter((dto) => dto.id === ownAccountId);
       expect(ownOccurrences).toHaveLength(1);
+    });
+
+    it("filters out inactive grants, another user's grants, and grants on non-active accounts", async () => {
+      const account = ownCustodyAccount();
+      const legitimateGrant = accessGrant({
+        id: 10,
+        account,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+
+      // Noise: inactive grant for the caller on an otherwise qualifying foreign account
+      const inactiveNoiseAccount = foreignCustodyAccount({ id: 3 });
+      const inactiveGrant = accessGrant({
+        id: 11,
+        account: inactiveNoiseAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: false,
+      });
+
+      // Noise: active grant belonging to a different userData
+      const strangerGrantAccount = foreignCustodyAccount({ id: 4 });
+      const strangerGrant = accessGrant({
+        id: 12,
+        account: strangerGrantAccount,
+        userData: strangerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+
+      // Noise: active grant for the caller on a non-ACTIVE account
+      const blockedAccount = foreignCustodyAccount({ id: 5, status: CustodyAccountStatus.BLOCKED });
+      const blockedGrant = accessGrant({
+        id: 13,
+        account: blockedAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ custodyAccounts: [account] }));
+      mockFindActiveGrants([legitimateGrant, inactiveGrant, strangerGrant, blockedGrant]);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(1);
+      expect(result.map((dto) => dto.id).sort()).toEqual([ownAccountId]);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: ownAccountId,
+          accessLevel: CustodyAccessLevel.READ,
+          isLegacy: false,
+        }),
+      );
+    });
+  });
+
+  describe('updateAccess', () => {
+    const accessId = 10;
+
+    let accessQuery: {
+      innerJoinAndSelect: jest.Mock;
+      where: jest.Mock;
+      andWhere: jest.Mock;
+      setLock: jest.Mock;
+      getOne: jest.Mock;
+    };
+    let txManager: {
+      createQueryBuilder: jest.Mock;
+      update: jest.Mock;
+      create: jest.Mock;
+      save: jest.Mock;
+    };
+
+    beforeEach(() => {
+      accessQuery = {
+        innerJoinAndSelect: jest.fn(),
+        where: jest.fn(),
+        andWhere: jest.fn(),
+        setLock: jest.fn(),
+        getOne: jest.fn(),
+      };
+      for (const method of ['innerJoinAndSelect', 'where', 'andWhere', 'setLock'] as const) {
+        accessQuery[method].mockReturnValue(accessQuery);
+      }
+
+      txManager = {
+        createQueryBuilder: jest.fn().mockReturnValue(accessQuery),
+        update: jest.fn(),
+        create: jest.fn(
+          (_entityClass: unknown, plain: Partial<CustodyAccountAccess>): CustodyAccountAccess =>
+            Object.assign(new CustodyAccountAccess(), plain),
+        ),
+        save: jest.fn(async (entity: CustodyAccountAccess): Promise<CustodyAccountAccess> => entity),
+      };
+
+      Object.defineProperty(custodyAccountAccessRepo, 'manager', {
+        value: {
+          transaction: jest.fn(<T>(cb: (manager: EntityManager) => Promise<T>) =>
+            cb(txManager as unknown as EntityManager),
+          ),
+        },
+        configurable: true,
+      });
+
+      custodyAccountRepo.findOne.mockResolvedValue(ownCustodyAccount());
+    });
+
+    it("narrows the owner's own grant from write to read", async () => {
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: ownCustodyAccount(),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.WRITE,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      const result = await service.updateAccess(ownAccountId, accessId, ownerId, CustodyAccessLevel.READ);
+
+      expect(custodyAccountRepo.findOne).toHaveBeenCalled();
+      expect(txManager.update).toHaveBeenCalledTimes(1);
+      expect(txManager.create).toHaveBeenCalledTimes(1);
+      expect(txManager.create).toHaveBeenCalledWith(
+        CustodyAccountAccess,
+        expect.objectContaining({
+          accessLevel: CustodyAccessLevel.READ,
+          active: true,
+        }),
+      );
+      expect(txManager.save).toHaveBeenCalledTimes(1);
+      expect(txManager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accessLevel: CustodyAccessLevel.READ,
+          active: true,
+        }),
+      );
+      expect(result.accessLevel).toBe(CustodyAccessLevel.READ);
+    });
+
+    it("restores the owner's own grant from read back to write", async () => {
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: ownCustodyAccount(),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      const result = await service.updateAccess(ownAccountId, accessId, ownerId, CustodyAccessLevel.WRITE);
+
+      expect(txManager.update).toHaveBeenCalledTimes(1);
+      expect(txManager.create).toHaveBeenCalledTimes(1);
+      expect(txManager.save).toHaveBeenCalledTimes(1);
+      expect(result.accessLevel).toBe(CustodyAccessLevel.WRITE);
+    });
+
+    it('does nothing when the requested level already matches (short-circuit)', async () => {
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: ownCustodyAccount(),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      const result = await service.updateAccess(ownAccountId, accessId, ownerId, CustodyAccessLevel.READ);
+
+      expect(result).toBe(lockedGrant);
+      expect(txManager.update).not.toHaveBeenCalled();
+      expect(txManager.create).not.toHaveBeenCalled();
+      expect(txManager.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects updateAccess from a non-owner', async () => {
+      await expect(service.updateAccess(ownAccountId, accessId, strangerId, CustodyAccessLevel.READ)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      expect(txManager.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('revokeAccess', () => {
+    const accessId = 10;
+
+    let accessQuery: {
+      innerJoinAndSelect: jest.Mock;
+      where: jest.Mock;
+      andWhere: jest.Mock;
+      setLock: jest.Mock;
+      getOne: jest.Mock;
+    };
+    let txManager: {
+      createQueryBuilder: jest.Mock;
+      update: jest.Mock;
+      create: jest.Mock;
+      save: jest.Mock;
+    };
+
+    beforeEach(() => {
+      accessQuery = {
+        innerJoinAndSelect: jest.fn(),
+        where: jest.fn(),
+        andWhere: jest.fn(),
+        setLock: jest.fn(),
+        getOne: jest.fn(),
+      };
+      for (const method of ['innerJoinAndSelect', 'where', 'andWhere', 'setLock'] as const) {
+        accessQuery[method].mockReturnValue(accessQuery);
+      }
+
+      txManager = {
+        createQueryBuilder: jest.fn().mockReturnValue(accessQuery),
+        update: jest.fn(),
+        create: jest.fn(
+          (_entityClass: unknown, plain: Partial<CustodyAccountAccess>): CustodyAccountAccess =>
+            Object.assign(new CustodyAccountAccess(), plain),
+        ),
+        save: jest.fn(async (entity: CustodyAccountAccess): Promise<CustodyAccountAccess> => entity),
+      };
+
+      Object.defineProperty(custodyAccountAccessRepo, 'manager', {
+        value: {
+          transaction: jest.fn(<T>(cb: (manager: EntityManager) => Promise<T>) =>
+            cb(txManager as unknown as EntityManager),
+          ),
+        },
+        configurable: true,
+      });
+
+      custodyAccountRepo.findOne.mockResolvedValue(ownCustodyAccount());
+    });
+
+    it("rejects revoking the owner's own access grant", async () => {
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: ownCustodyAccount(),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.WRITE,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      await expect(service.revokeAccess(ownAccountId, accessId, ownerId)).rejects.toThrow(BadRequestException);
+      expect(txManager.update).not.toHaveBeenCalled();
+    });
+
+    it("revokes a foreign grantee's access", async () => {
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: ownCustodyAccount(),
+        userData: strangerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      await expect(service.revokeAccess(ownAccountId, accessId, ownerId)).resolves.toBeUndefined();
+      expect(txManager.update).toHaveBeenCalledTimes(1);
+      expect(txManager.update).toHaveBeenCalledWith(
+        CustodyAccountAccess,
+        accessId,
+        expect.objectContaining({ active: false }),
+      );
+    });
+
+    it('rejects revokeAccess from a non-owner', async () => {
+      await expect(service.revokeAccess(ownAccountId, accessId, strangerId)).rejects.toThrow(ForbiddenException);
+      expect(txManager.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requireActingAllowed', () => {
+    it('allows acting when no grant is configured', async () => {
+      mockFindOneActingGrant(undefined);
+
+      await expect(service.requireActingAllowed(ownerId)).resolves.toBeUndefined();
+    });
+
+    it('rejects acting when the owner has an active read grant on their own account', async () => {
+      const grant = accessGrant({
+        account: ownCustodyAccount(),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      mockFindOneActingGrant(grant);
+
+      await expect(service.requireActingAllowed(ownerId)).rejects.toThrow(
+        new ForbiddenException('This Safe is limited to inspection, acting is not permitted'),
+      );
+    });
+
+    it('allows acting when the owner has an active write grant on their own account', async () => {
+      const grant = accessGrant({
+        account: ownCustodyAccount(),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.WRITE,
+        active: true,
+      });
+      mockFindOneActingGrant(grant);
+
+      await expect(service.requireActingAllowed(ownerId)).resolves.toBeUndefined();
+    });
+
+    it('allows acting on the own safe when the owner holds a read grant only on a foreign account', async () => {
+      const grant = accessGrant({
+        account: foreignCustodyAccount(),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      mockFindOneActingGrant(grant);
+
+      await expect(service.requireActingAllowed(ownerId)).resolves.toBeUndefined();
+    });
+
+    it('allows acting when the owner read grant on their own account is inactive', async () => {
+      const grant = accessGrant({
+        account: ownCustodyAccount(),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: false,
+      });
+      mockFindOneActingGrant(grant);
+
+      await expect(service.requireActingAllowed(ownerId)).resolves.toBeUndefined();
+    });
+
+    it('allows acting when the own account with a read grant is not active', async () => {
+      const grant = accessGrant({
+        account: ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED }),
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      mockFindOneActingGrant(grant);
+
+      await expect(service.requireActingAllowed(ownerId)).resolves.toBeUndefined();
     });
   });
 });
