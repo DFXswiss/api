@@ -170,10 +170,12 @@ describe('LiquidityManagementPipelineService', () => {
     }
 
     /** An order somebody has released as never sent — accepted, but not yet in effect. */
-    function releasePendingOrder(): LiquidityManagementOrder {
+    const RELEASED_AT = new Date(Date.now() - 5 * 60 * 1000);
+
+    function releasePendingOrder(releasedAt = RELEASED_AT): LiquidityManagementOrder {
       return uncertainOrder({
         errorMessage: 'Scrypt did not answer (released by account 42: venue checked — ticket OPS-42)',
-        notSentRecheckDue: new Date('2026-07-27T20:00:00Z'),
+        notSentRecheckDue: releasedAt,
       });
     }
 
@@ -237,7 +239,7 @@ describe('LiquidityManagementPipelineService', () => {
         {
           id: 9,
           status: LiquidityManagementOrderStatus.UNCERTAIN,
-          notSentRecheckDue: new Date('2026-07-27T20:00:00Z'),
+          notSentRecheckDue: RELEASED_AT,
         },
         expect.objectContaining({ status: LiquidityManagementOrderStatus.FAILED, notSentRecheckDue: null }),
       );
@@ -256,7 +258,7 @@ describe('LiquidityManagementPipelineService', () => {
 
       await expect(service['resolveUncertainOrders']()).resolves.toBe(false);
 
-      expect(update.mock.calls[0][0]).toMatchObject({ notSentRecheckDue: new Date('2026-07-27T20:00:00Z') });
+      expect(update.mock.calls[0][0]).toMatchObject({ notSentRecheckDue: RELEASED_AT });
     });
 
     it('does not release an unreleased order on the same inconclusive answer', async () => {
@@ -268,6 +270,20 @@ describe('LiquidityManagementPipelineService', () => {
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    it('lets a verified release through once the venue has been unreachable for an hour', async () => {
+      // a check nobody can perform must not hold an order somebody has verified by hand out of reach for
+      // good — nothing is concluded from the silence, the person who released it concluded it
+      const order = releasePendingOrder(new Date(Date.now() - 120 * 60 * 1000));
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      stubIntegration(UncertainOrderResolution.UNAVAILABLE);
+
+      await expect(service['resolveUncertainOrders']()).resolves.toBe(true);
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(order.errorMessage).toContain('could not be reached');
     });
 
     it('overrules a pending release the moment the venue confirms the order', async () => {
@@ -293,7 +309,7 @@ describe('LiquidityManagementPipelineService', () => {
       await expect(service['resolveUncertainOrders']()).resolves.toBe(true);
 
       expect(update).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 9, notSentRecheckDue: new Date('2026-07-27T20:00:00Z') }),
+        expect.objectContaining({ id: 9, notSentRecheckDue: RELEASED_AT }),
         expect.objectContaining({ status: LiquidityManagementOrderStatus.FAILED }),
       );
     });

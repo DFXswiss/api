@@ -22,6 +22,17 @@ import { LiquidityManagementPipelineRepository } from '../repositories/liquidity
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementService } from './liquidity-management.service';
 
+/**
+ * How long a release waits for a venue that cannot be reached before taking effect anyway.
+ *
+ * A liveness bound, not a safety one — the distinction matters here. The wait exists to catch a confirmation
+ * that is in flight RIGHT NOW; after an hour of a venue that answers nothing there is none in flight, and a
+ * check nobody can perform must not hold an order somebody has verified by hand out of reach for good.
+ * Nothing is concluded from silence: the person who released the order concluded it, and this only stops an
+ * unreachable venue from vetoing them forever.
+ */
+const UNREACHABLE_VENUE_RELEASE_MINUTES = 60;
+
 @Injectable()
 export class LiquidityManagementPipelineService {
   private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
@@ -342,9 +353,13 @@ export class LiquidityManagementPipelineService {
           // checked independently and released the order on that basis. Two negatives, one of them from a
           // person who looked: that is what this release was waiting for.
           if (await this.completeNotSentRelease(order, 'the venue has no record of it either')) anyChanged = true;
+        } else if (releasePending && this.venueHasBeenSilentTooLong(order)) {
+          // Nobody has been able to ask this venue anything for an hour. Waiting longer does not make an
+          // answer more likely; it only keeps an order a person has verified by hand out of reach.
+          if (await this.completeNotSentRelease(order, 'the venue could not be reached for an hour')) anyChanged = true;
         }
-        // UNAVAILABLE, or UNRESOLVED with nobody having released it: nothing changes, and the order keeps
-        // blocking. No question was answered that could end it.
+        // Otherwise — a venue that cannot be asked yet, or an inconclusive answer with nobody having
+        // released the order — nothing changes and it keeps blocking.
       } catch (e) {
         // a failing lookup must never promote the order out of quarantine
         this.logger.error(`Error in resolving uncertain liquidity order ${order.id}:`, e);
@@ -405,6 +420,11 @@ export class LiquidityManagementPipelineService {
     await this.blockConfirmedOrder(order);
 
     return false;
+  }
+
+  /** Whether a pending release has been waiting on an unreachable venue longer than is any use. */
+  private venueHasBeenSilentTooLong(order: LiquidityManagementOrder): boolean {
+    return Util.minutesDiff(order.notSentRecheckDue) > UNREACHABLE_VENUE_RELEASE_MINUTES;
   }
 
   /**

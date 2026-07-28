@@ -5,10 +5,10 @@ import {
   ScryptTransactionType,
 } from '../../dto/scrypt.dto';
 import {
+  ScryptAmendRejectedError,
   ScryptMessageType,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
-  ScryptAmendRejectedError,
   ScryptVenueRejectionError,
   ScryptWebSocketConnection,
 } from '../scrypt-websocket-connection';
