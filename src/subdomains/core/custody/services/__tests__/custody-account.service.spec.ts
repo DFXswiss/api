@@ -487,9 +487,9 @@ describe('CustodyAccountService', () => {
       );
     });
 
-    it('drops the empty legacy entry when the user already sees another account', async () => {
+    it('keeps the legacy entry when the only other visible account is read-only', async () => {
       const foreignAccount = foreignCustodyAccount();
-      const sharedGrant = accessGrant({
+      const readOnlyGrant = accessGrant({
         account: foreignAccount,
         userData: ownerUserData(),
         accessLevel: CustodyAccessLevel.READ,
@@ -497,7 +497,28 @@ describe('CustodyAccountService', () => {
       });
       const custodyUserId = 55;
       userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
-      mockFindActiveGrants([sharedGrant]);
+      mockFindActiveGrants([readOnlyGrant]);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(2);
+      expect(result.some((dto) => dto.isLegacy)).toBe(true);
+      // A read-only grant elsewhere cannot substitute for the legacy Safe — checkAccess()
+      // rejects any write on a Read account, so the balance is never even queried here.
+      expect(custodyService.hasNonZeroCustodyBalance).not.toHaveBeenCalled();
+    });
+
+    it('drops the empty legacy entry when the user has write access elsewhere', async () => {
+      const foreignAccount = foreignCustodyAccount();
+      const writeGrant = accessGrant({
+        account: foreignAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.WRITE,
+        active: true,
+      });
+      const custodyUserId = 55;
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
+      mockFindActiveGrants([writeGrant]);
       custodyService.hasNonZeroCustodyBalance.mockResolvedValue(false);
 
       const result = await service.getCustodyAccountsForUser(ownerId);
@@ -520,23 +541,24 @@ describe('CustodyAccountService', () => {
       );
     });
 
-    it('keeps the legacy entry when it is not empty, even if the user has another visible account', async () => {
+    it('keeps the legacy entry when it is not empty, even with write access elsewhere', async () => {
       const foreignAccount = foreignCustodyAccount();
-      const sharedGrant = accessGrant({
+      const writeGrant = accessGrant({
         account: foreignAccount,
         userData: ownerUserData(),
-        accessLevel: CustodyAccessLevel.READ,
+        accessLevel: CustodyAccessLevel.WRITE,
         active: true,
       });
       const custodyUserId = 55;
       userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
-      mockFindActiveGrants([sharedGrant]);
+      mockFindActiveGrants([writeGrant]);
       custodyService.hasNonZeroCustodyBalance.mockResolvedValue(true);
 
       const result = await service.getCustodyAccountsForUser(ownerId);
 
       expect(result).toHaveLength(2);
       expect(result.some((dto) => dto.isLegacy)).toBe(true);
+      expect(custodyService.hasNonZeroCustodyBalance).toHaveBeenCalledWith([custodyUserId]);
     });
 
     it('does not query the custody balance when there are no other accounts to compare against', async () => {

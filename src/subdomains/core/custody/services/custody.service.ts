@@ -13,7 +13,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { In, IsNull, Not } from 'typeorm';
+import { In, IsNull, LessThanOrEqual, MoreThanOrEqual, Not } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
@@ -141,13 +141,24 @@ export class CustodyService {
 
   /**
    * Cheap existence check used by CustodyAccountService to decide whether the legacy Safe
-   * entry is empty: a `0` balance counts as empty, a negative one does not — production has
-   * real negative custody balances, and those must not be treated as an empty Safe.
+   * entry is empty. Compares against the same precision the customer-facing balance display
+   * uses (`Util.floor(balance, 8)` in CustodyAssetBalanceDtoMapper) — a residual below
+   * 10^-8 displays as 0 to the customer and must count as empty too, or the hide decision
+   * would disagree with what they see. The threshold applies symmetrically: a negative
+   * balance beyond it does not count as empty either — production has real negative custody
+   * balances, and those must stay visible.
    */
   async hasNonZeroCustodyBalance(custodyUserIds: number[]): Promise<boolean> {
     if (!custodyUserIds.length) return false;
 
-    return this.custodyBalanceRepo.exists({ where: { user: { id: In(custodyUserIds) }, balance: Not(0) } });
+    const displayThreshold = 1e-8;
+
+    return this.custodyBalanceRepo.exists({
+      where: [
+        { user: { id: In(custodyUserIds) }, balance: MoreThanOrEqual(displayThreshold) },
+        { user: { id: In(custodyUserIds) }, balance: LessThanOrEqual(-displayThreshold) },
+      ],
+    });
   }
 
   async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {

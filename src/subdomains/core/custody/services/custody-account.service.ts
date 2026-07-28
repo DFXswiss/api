@@ -87,16 +87,17 @@ export class CustodyAccountService {
     ];
 
     // Legacy Safe = absence of any owned account row; independent of shared grants. Hidden
-    // only when it is both empty AND the customer already sees at least one other account —
-    // someone whose only Safe is this empty legacy one must keep it, or they would have no
-    // entry left and no way to reach the deposit flow. A non-empty legacy Safe always stays.
+    // only when it is both empty AND the customer already has write access on another entry
+    // — a Read-only grant elsewhere cannot substitute for it: checkAccess() rejects any write
+    // on a Read account, so someone with no writable account left would lose their only path
+    // to a deposit. A non-empty legacy Safe always stays, regardless of what else is writable.
     if (allOwnedAccounts.length === 0) {
       const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
       if (custodyUserIds.length > 0) {
-        // The balance check only runs when a legacy entry is actually in play AND the customer
-        // already sees at least one other account — every other case stays cheap, no query.
-        const hideLegacy =
-          custodyAccounts.length > 0 && !(await this.custodyService.hasNonZeroCustodyBalance(custodyUserIds));
+        // The balance check only runs when a legacy entry is actually in play AND the
+        // customer already has write access elsewhere — every other case stays cheap, no query.
+        const hasWriteElsewhere = custodyAccounts.some((ca) => ca.accessLevel === CustodyAccessLevel.WRITE);
+        const hideLegacy = hasWriteElsewhere && !(await this.custodyService.hasNonZeroCustodyBalance(custodyUserIds));
         if (!hideLegacy) custodyAccounts.push(CustodyAccountDtoMapper.toLegacyDto(account));
       }
     }

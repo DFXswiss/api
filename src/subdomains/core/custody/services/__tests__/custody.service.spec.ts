@@ -500,4 +500,31 @@ describe('CustodyService', () => {
       );
     });
   });
+
+  describe('hasNonZeroCustodyBalance', () => {
+    it('returns false without querying when there are no custody user ids', async () => {
+      const result = await service.hasNonZeroCustodyBalance([]);
+
+      expect(result).toBe(false);
+      expect(custodyBalanceRepo.exists).not.toHaveBeenCalled();
+    });
+
+    it('checks for a balance at or beyond the display threshold in either direction', async () => {
+      custodyBalanceRepo.exists.mockResolvedValue(true);
+
+      const result = await service.hasNonZeroCustodyBalance([7, 8]);
+
+      expect(result).toBe(true);
+      expect(custodyBalanceRepo.exists).toHaveBeenCalledTimes(1);
+
+      const call = custodyBalanceRepo.exists.mock.calls[0][0];
+      const where = call.where as { user: { id: unknown }; balance: { type: string; value: number } }[];
+
+      expect(where).toHaveLength(2);
+      expect(where[0].balance.type).toBe('moreThanOrEqual');
+      expect(where[0].balance.value).toBe(1e-8);
+      expect(where[1].balance.type).toBe('lessThanOrEqual');
+      expect(where[1].balance.value).toBe(-1e-8);
+    });
+  });
 });
