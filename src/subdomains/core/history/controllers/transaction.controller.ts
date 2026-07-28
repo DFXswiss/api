@@ -526,7 +526,7 @@ export class TransactionController {
         }
 
         const buy = await this.buyService.get(jwt.account, request.routeId);
-        const bankInfo = await this.buyService.getBankInfo(
+        const bankInfo = await this.buyService.getBankInfoForRequest(
           {
             amount: request.amount,
             currency: currency.name,
@@ -534,6 +534,9 @@ export class TransactionController {
             userData: request.userData,
           },
           buy,
+          !request.isComplete,
+          request.bankId,
+          request.virtualIbanId,
           buy?.asset,
           buy?.user?.wallet,
         );

@@ -1,8 +1,9 @@
 # Bank Frick — Operations Runbook
 
 Operational notes for the Bank Frick statement import (`BankTxFrickService`), payout rail
-(`FiatOutputFrickService`), registry placeholders and cryptographic activation. Bank Frick must
-remain disabled until every activation check below has passed.
+(`FiatOutputFrickService`), registry placeholders and cryptographic activation. The production
+migration enables the rail; if the activation evidence below is incomplete, Operations must
+disable it immediately rather than treating the checklist as an automatic deployment gate.
 
 ## 1. Bank Frick watermark backfill
 
@@ -17,15 +18,15 @@ update uses a transaction-scoped PostgreSQL advisory lock and a monotonic compar
 worker cannot move the value backwards. Duplicate re-fetches inside the overlap window are
 expected and are absorbed by the existing `accountServiceRef` uniqueness check.
 
-Bank Frick does not expose an ingestion cursor. If an entry becomes visible with a booking date
-**older than the overlap window already covered**, the watermark will not pick it up on its own —
-this requires a manual rewind. Conversely, an idle account whose first fetch is empty retains its
+This integration has no bank-provided ingestion cursor. If an entry becomes visible with a booking
+date **older than the overlap window already covered**, the watermark will not pick it up on its own
+— this requires a manual rewind. Conversely, an idle account whose first fetch is empty retains its
 seeded value; this is deliberate and is why initial seeding is mandatory.
 
 ### When to intervene
 
-- Support/Finance reports a booking that is missing from `bank_tx` and its booking date is
-  older than `now − FRICK_WATERMARK_OVERLAP_DAYS` relative to when it was first pollable.
+- Support/Finance reports a booking that is missing from `bank_tx` and its booking date is older
+  than the currently stored watermark.
 - A Bank Frick account was inactive/misconfigured for a period and needs its history
   re-imported once fixed.
 - Before activating polling for a **newly added** Bank Frick account (initial seed, see below).
@@ -44,11 +45,11 @@ seeded value; this is deliberate and is why initial seeding is mandatory.
    If the key does not exist yet, insert it instead of updating.
 4. Let the next scheduled poll run (or trigger it manually in a lower environment first if
    unsure). The service re-fetches everything from the new watermark forward.
-5. **Watch for duplicate-conflict volume** on the affected account for the next few poll
-   cycles — every entry between the rewound watermark and the original one will be re-fetched
-   and is expected to hit the `create()` dedup (`ConflictException`, logged as handled, not as
-   an error). A spike here right after a rewind is normal; it should die down once the
-   watermark catches back up to where it was.
+5. Expect every entry between the rewound watermark and the original one to be re-fetched. Existing
+   rows hit the `create()` dedup (`ConflictException`) and the Frick import loop silently treats that
+   exception as handled; this path exposes no dedicated duplicate-conflict counter or per-conflict
+   log. Do not interpret the absence of an error log as evidence that no duplicates were fetched.
+   Instead, verify that no duplicate rows appear and that the watermark catches back up.
 6. If genuinely new `bank_tx` rows are created, verify them against the source statement and
    hand off to Finance/Support as usual.
 7. Do not rewind further back than necessary — a very old watermark on a busy account causes a
@@ -78,102 +79,72 @@ this fallback:
 
 No monitoring or manual cleanup pass is required for either bank as a result of this change.
 
-## 3. Registry and default-off activation
+## 3. Registry and production activation
 
-The migration never creates, updates or deletes a `bank` row. The only prior migration that ever
-inserted one (Yapeal EUR) was reverted (`f897b98a2 chore: remove migration (already inserted
-manually)`) because the row is a manual production step, not something a schema migration should
-own. The two new Bank Frick account rows are created the same way, manually, as part of this
-runbook. The local seed (`migration/seed/bank.csv`) keeps clearly synthetic, checksum-valid
-IBANs/ids for a fresh local database only - it is never applied to production (`migration/seed/
-seed.js` hard-blocks any non-local host/environment).
+Production activation is code-owned by
+`migration/1784400000000-ActivateBankFrick.js`. That migration is guarded by
+`ENVIRONMENT === 'prd'` and is a complete no-op in local, development and CI environments. Local
+databases continue to use the synthetic rows in `migration/seed/bank.csv`.
 
-### 3.1 Manually insert the two new Bank Frick accounts
+### 3.1 What the production migration does
 
-The real Bank Frick CT account IBANs for the new account:
+The migration:
 
-- **EUR: `LI75088110105923K000E`**
-- **CHF: `LI32088110105923K000C`**
+1. advances the named `bank_id_seq` beyond the current maximum `Bank.id`;
+2. upserts the EUR account `LI75088110105923K000E` and CHF account
+   `LI32088110105923K000C`, both with BIC `BFRILI22`;
+3. sets both rows to `receive=true`, `send=true`, `sctInst=false`, `amlEnabled=true`, and
+   `sendPriority=2000`;
+4. renames dormant legacy rows to `Bank Frick (legacy)`;
+5. seeds `lastBankFrickDate:<bankId>` to the current UTC time when the key is absent; and
+6. removes `FiatOutputFrickTransmission` and `FiatOutputFrickStatusCheck` from
+   `disabledProcess`.
 
-Run manually against production. BIC is `BFRILI22` for both rows (it identifies Bank Frick itself,
-not the individual account, so it is the same as the existing legacy rows' BIC):
+The upsert and watermark seed are idempotent. `sendPriority=2000` is worse than the incumbent banks'
+backfilled `1000`, but the automatic payout-bank selector excludes Bank Frick regardless of priority.
+Activation therefore makes the Frick processes available for outputs explicitly assigned to a Frick
+account; it does not make Frick an automatic fallback. The migration deliberately enables the two
+payout processes; this runbook must not describe them as default-off after that migration has run.
 
-```sql
--- Defensive: this INSERT relies on bank_id_seq via the identity column. Explicit-id inserts
--- elsewhere in this codebase (see migration/seed/seed.js) are a known source of a lagging
--- sequence; bump it first so this insert can never collide with a not-yet-advanced sequence.
-SELECT setval('bank_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM "bank"), (SELECT last_value FROM bank_id_seq)));
+The later production-only `migration/1784500000000-AddBankFrickCustodyAssets.js` creates the
+`Frick/EUR` and `Frick/CHF` custody assets, fills only null `Bank.assetId` links on active Frick rows,
+checks that no active Frick row remains unlinked, and adds active observe-only liquidity rules. Those
+rules refresh balances but have no configured fund-moving action.
 
-INSERT INTO "bank"
-  ("updated", "created", "name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled", "sendPriority")
-VALUES
-  (NOW(), NOW(), 'Bank Frick', 'LI75088110105923K000E', 'BFRILI22', 'EUR', FALSE, FALSE, FALSE, TRUE, 2000),
-  (NOW(), NOW(), 'Bank Frick', 'LI32088110105923K000C', 'BFRILI22', 'CHF', FALSE, FALSE, FALSE, TRUE, 2000);
-```
+### 3.2 Verification and rollback boundary
 
-`receive`, `send` and `sctInst` all start `FALSE` and `sendPriority` starts at `2000` (worse than
-every pre-existing row's backfilled `1000`), so inserting these rows changes nothing about current
-routing by itself - Ops must deliberately flip flags/lower the priority per the steps below.
+After deployment, verify both rows, their non-epoch watermark keys, the two process settings, each
+row's expected custody-asset link, and a successful balance refresh before treating the rail as
+operational. A Frick row with `send=true` must also have `receive=true`; otherwise its booked debit
+cannot reconcile and release reserved liquidity.
+`sctInst=false` prevents generic instant-bank selection, but the payout selector excludes Frick
+regardless; it does not block an explicitly assigned Frick output whose `isInstant=true`, which the
+Frick service maps to `SEPA_INSTANT`.
 
-### 3.2 Retire the legacy Bank Frick rows
+The migration's `down()` is suitable only before the new rows have been used. It re-adds both
+disabled-process sentinels, restores dormant legacy names, deletes the seeded watermarks, and
+deletes the two new bank rows. Existing foreign-key references make that final delete fail loudly.
+If an account has routed production traffic, rollback is an Operations reconciliation procedure,
+not a plain migration revert.
 
-Bank Frick was integrated once before and removed; three legacy `Bank Frick` rows (the old
-account's IBANs, `receive=false`/`send=false`) were never cleaned up. Once the new rows above
-exist, `(name, currency)` would match two rows each for EUR/CHF unless the legacy rows are
-retired. **Decision: rename, not delete** (keeps history/audit trail intact). Run manually against
-production, immediately after 3.1:
+The custody-asset migration's `down()` removes its rules, unlinks the bank rows and deletes the two
+assets. The final delete fails if liquidity-balance, ledger or other foreign-key rows already use an
+asset; after use, rolling back that wiring is likewise an Operations procedure.
 
-```sql
-UPDATE "bank"
-SET "name" = 'Bank Frick (legacy)'
-WHERE "name" = 'Bank Frick'
-  AND "receive" = FALSE AND "send" = FALSE
-  AND "iban" NOT IN ('LI75088110105923K000E', 'LI32088110105923K000C');
-```
+### 3.3 Sender assignment boundary
 
-This is scoped so it can never match the two new rows inserted in 3.1 (excluded by IBAN) or any
-row that is actually live - `receive`/`send` both `FALSE` only matches the dormant legacy rows
-today. To roll back (rename the legacy rows back), reverse the `SET`:
+Do not lower `Bank.sendPriority` expecting that to cut automatic traffic over to Frick.
+`FiatOutputService.selectPayoutBank` unconditionally removes Bank Frick rows (and Frick personal
+IBANs) from automatic selection; priority ranks the remaining incumbent senders, and equal incumbent
+priorities retain their existing order rather than failing as a tie. A Frick payout must already have
+its `accountIban` / `bank` explicitly assigned at creation or by an operator. If new Frick payout
+creation is later stopped, keep status polling enabled until existing orders are terminal or
+reconciled.
 
-```sql
-UPDATE "bank" SET "name" = 'Bank Frick' WHERE "name" = 'Bank Frick (legacy)';
-```
-
-As defense in depth independent of this cleanup step, `BankService.getBankInternal`/
-`loadIbanCache` now deterministically prefer the highest `Bank.id` per `(name, currency)` - the
-newest row always wins a name/currency collision even before (or if ever again after) this cleanup
-runs.
-
-### 3.3 Activate
-
-1. Set `receive`, `send` and `sctInst` from the confirmed account-role matrix. Never infer these
-   flags from currency. **A Frick row used for `send=true` must also have `receive=true`** - a
-   send-only Frick row can never see its own booked debit come back on a statement, so it can never
-   reach `isComplete` and its reserved liquidity silently never releases. This combination is
-   checked and logged loudly on every `BankTxFrickService` poll cycle, but must not be relied upon
-   as the primary safeguard - set the flags correctly up front.
-   Before setting `send=true`, link the row to the correctly configured custody/liquidity asset and
-   verify that its balance is refreshed; payout readiness deliberately requires that balance.
-   Instant outputs additionally require `sctInst=true`; a row without that confirmed capability is
-   excluded from instant routing.
-2. Seed `lastBankFrickDate:<bankId>` before setting `receive=true`.
-3. Leave `FiatOutputFrickTransmission` and `FiatOutputFrickStatusCheck` in the `disabledProcess`
-   setting until the sandbox checklist below is complete. The migration adds both without
-   removing or duplicating existing process switches.
-4. Enable the status process before (or in the same controlled change as) transmission. If new
-   payout creation is later stopped, keep status polling enabled until all existing Frick orders
-   are terminal or reconciled.
-5. Set `Bank.sendPriority` deliberately before enabling a Frick `send` flag. Lower value is tried
-   first; every pre-existing row defaults to `1000` and the new Frick rows are inserted at `2000`
-   (3.1), so enabling Frick's `send` flag changes nothing by default - Frick coexists with, but
-   loses ties against, the incumbent (Olkypay/Yapeal) until Ops explicitly lowers its priority
-   below `1000` to cut traffic over. Two eligible banks sharing the exact same priority for a
-   currency is treated as a genuine misconfiguration and leaves the output unassigned until Ops
-   resolves the tie.
-
-The API also refuses to assign or ready a new Frick payout while creation is unavailable. If
-another eligible sender bank exists it is selected instead; otherwise the output remains
-unassigned, not stranded inside a disabled Frick rail.
+`BankService.getBankInternal` orders duplicate `(name, currency)` rows newest-first but prefers an
+asset-linked row because that link owns bank-transaction attribution. Only when no row is
+asset-linked does the newest row win. This is deterministic defense in depth; the production
+migration's legacy-row rename remains the primary collision removal.
 
 ## 4. Required cryptographic configuration
 
@@ -185,21 +156,55 @@ All values remain blank in `.env.example`. Deployment must provide:
   obtain it from Bank Frick through the authenticated onboarding channel
 - `FRICK_PAYOUT_ENABLED=true` only after inbound verification
 - `FRICK_APPROVE_WITHOUT_TAN=true` only after Bank Frick confirms backend exemption
-- `FRICK_VBAN_BASE_URL` — base URL of Bank Frick's separate VBAN API (test
+- `FRICK_VBAN_API_URL` — base URL of Bank Frick's separate VBAN API (test
   `https://api-test.bankfrick.li/vban`, production `https://api.bankfrick.li/vban`), used to issue
   EUR personal IBANs; opt-in — when unset, the Frick virtual-IBAN provider is unavailable and there
   is no behaviour change
 
-`BankFrickService.isAvailable()` requires both keys. Every request signs the exact serialized
-body. Every response remains raw text until its detached `Signature` and `algorithm` headers have
-been verified (`rsa-sha512`, `rsa-sha384` or `rsa-sha256`); only then is JSON parsed. A missing key,
-header, unsupported algorithm or signature mismatch fails closed.
+`BankFrickService.isAvailable()` requires the base URL, API key, customer identifier, private signing
+key and server verification key. Every request signs the exact serialized body. Every response
+remains raw text until its detached `Signature` and `algorithm` headers have been verified
+(`rsa-sha512`, `rsa-sha384` or `rsa-sha256`); only then is JSON parsed. A missing configuration
+value or response header, unsupported algorithm or signature mismatch fails closed.
+
+### 4.1 Personal-IBAN API rollback floor
+
+Before enabling `FRICK_VBAN_API_URL`, record the API revision that includes both provider-aware
+virtual-IBAN lookup and provider-aware recipient rendering. From the moment the first Bank Frick
+personal IBAN has been persisted, the API must not be rolled back below that revision. Older API
+revisions select an active virtual IBAN without excluding Bank Frick and render the customer as its
+account holder. Clearing `FRICK_VBAN_API_URL` only stops new issuance; it does not hide rows already
+stored in `virtual_iban`.
+
+Run this read-only query before any API rollback. A `true` result means the rollback floor is active
+and the target revision must carry the provider-aware lookup and recipient rendering:
+
+```sql
+SELECT EXISTS (
+  SELECT 1
+  FROM virtual_iban AS vi
+  INNER JOIN virtual_iban_issuance_event AS vie ON vie."nextVirtualIbanId" = vi.id
+  WHERE vie.provider = 'Bank Frick'
+) AS "frickPersonalIbanHasExisted";
+```
+
+The query proves that at least one currently persisted `virtual_iban` row is linked to an immutable
+issuance event whose provider snapshot is Bank Frick. It deliberately includes inactive and
+deactivated rows and remains true if the mutable `bank` row was renamed, reclassified or replaced.
+It does **not** prove that the linked vIBAN is currently active, that its current bank row is Frick,
+or that a `false` result means Frick was never used. Manual deletion/archival, missing historical
+issuance events or damaged audit data can all remove that evidence. In those cases use the
+deployment/audit record and keep the rollback floor unless absence can be established. This is an
+irreversible deployment boundary, not a check that an older revision happens to be safe for the
+currently active subset.
 
 ## 5. Payout and reconciliation decisions
 
 - EUR uses `SEPA` or `SEPA_INSTANT`; instant is never sent for non-EUR.
-- EUR creation additionally requires a SEPA-country creditor IBAN and the existing automated-bank
-  country allowlist (`Country.yapealEnable`). Unsupported routes fail before a bank order is created.
+- EUR creation requires a SEPA-country creditor IBAN. The automated-bank country allowlist
+  (`Country.yapealEnable`) is applied while selecting an incumbent sender, but that selector excludes
+  Frick; an explicitly assigned Frick output is not rechecked against that allowlist before creation.
+  A non-SEPA creditor route fails before a Bank Frick order is created.
 - CHF uses Bank Frick `FOREIGN` because that is the selected JSON contract. A missing creditor BIC
   is resolved through SepaTools and accepted only when exactly one unique candidate exists. The
   default charge is `SHA`; an explicit `BEN`/`OUR`/`SHA` value is preserved.
@@ -207,17 +212,20 @@ header, unsupported algorithm or signature mismatch fails closed.
   remittance text follows the stable identifier, so the statement echo remains unique.
 - Approval uses a safely representable Bank Frick `orderId` where available. It falls back to the
   OpenAPI `customIds` selector when JSON cannot represent the int64 safely.
-- With `FRICK_APPROVE_WITHOUT_TAN=false`, a created order deliberately remains `PREPARED` until an
-  operator approves it in the Bank Frick portal; the independent status poll continues tracking it.
-  Enable automatic approval only after Bank Frick has confirmed the backend TAN exemption.
-- Reconciliation accepts exactly one debit transaction with the same source account, amount,
-  currency, readiness window and reference/end-to-end ID. Zero matches wait; multiple matches fail
-  closed and never mark the output complete.
+- With `FRICK_APPROVE_WITHOUT_TAN=false`, the application does not call the automatic approval
+  endpoint. Any order that remains `PREPARED` is tracked by the independent status poll and requires
+  operator approval in the Bank Frick portal. Enable automatic approval only after Bank Frick has
+  confirmed the backend TAN exemption.
+- Reconciliation accepts exactly one debit transaction with the same normalized source account and
+  currency, a net-of-charge amount within `0.005`, creation no earlier than the output's
+  `isReadyDate`, and either the space-normalized bank reference or exact end-to-end ID. Zero matches
+  wait; multiple matches fail closed and never mark the output complete.
 
 ## 6. Mandatory sandbox checklist
 
-Do not remove the default process switches until all items are evidenced with Bank Frick test or
-sandbox credentials:
+The production migration removes the two process switches; it does not verify external Bank Frick
+behaviour. Retain evidence for every item below. If any prerequisite is unverified or fails,
+restore the process switches immediately and keep the rail disabled until it is resolved:
 
 1. Verify authorize, accounts and camt.053 responses with the environment-specific server key.
 2. Import an official-shape camt.053 containing offset dates, `Pty` wrappers and entry-level bank
@@ -228,10 +236,14 @@ sandbox credentials:
    automatic approval disabled if this has not been confirmed.
 5. Confirm the booked statement echoes the full `DFX-FO-<id> ...` reference and that the strict
    reconciliation query completes exactly one fiat output.
-6. Exercise 401 re-authorization, invalid response signature, ambiguous BIC, ambiguous bank match,
-   empty statement and import-persistence failure; each must leave money/cursors unchanged.
-7. Enable `FiatOutputFrickStatusCheck`, observe clean polling, then enable
-   `FiatOutputFrickTransmission` in a separate controlled step.
+6. Exercise 401 re-authorization and invalid response signatures on read-only calls, plus ambiguous
+   BIC, ambiguous bank match, empty statement and import-persistence failure; verify that the relevant
+   local monetary state and cursors remain unchanged. Do not infer from an invalid response signature
+   after a mutating request that Bank Frick rejected the mutation: reconcile that request by its
+   stable identifier before retrying.
+7. For a future reactivation, enable `FiatOutputFrickStatusCheck`, observe clean polling, then
+   enable `FiatOutputFrickTransmission` in a separate controlled step. The initial production
+   migration enables both together, so verify both processes immediately after deployment.
 8. Verify with a real camt.053 sample that Bank Frick books a charged debit **gross**
    (`Ntry/Amt` inclusive of `Chrgs`), matching what the #8 net-of-charge reconciliation fix
    (`bank-tx-outgoing-match.service.ts`) assumes. If Bank Frick ever books net instead while still
@@ -252,15 +264,320 @@ sandbox credentials:
 `jest.frick.config.js`'s `coverageThreshold` holds `src/integration/bank/services/iso20022.service.ts`
 to 100% even though this file is shared with Yapeal/Raiffeisen parsing, not Frick-only. This is a
 deliberate trade-off, not an oversight: the money-critical fixes in this PR (malformed-entry
-rejection, the missing-bank-reference guard, and bank-charge parsing) live in exactly this file,
-and 100% branch coverage is the only mechanical guarantee that a future change cannot silently
-regress them. The cost - a future, unrelated Yapeal/Raiffeisen-only change could fail CI on an
-uncovered branch it didn't intend to touch - is accepted deliberately in exchange for that
-protection. If this ever becomes a real blocker, the long-term fix is to split the Frick-specific
-strict-mode parsing into its own file with its own gate, not to lower this threshold.
+rejection, the missing-bank-reference guard, and bank-charge parsing) live in exactly this file.
+The branch-coverage gate mechanically requires tests to execute every instrumented branch; it does
+not by itself prove the asserted behavior is correct. The cost - a future, unrelated
+Yapeal/Raiffeisen-only change could fail CI on an uncovered branch it didn't intend to touch - is
+accepted deliberately in exchange for that protection. If this ever becomes a real blocker, the
+long-term fix is to split the Frick-specific strict-mode parsing into its own file with its own gate,
+not to lower this threshold.
 
 The `test:frick:cov` gate compiles with full type information (`tsconfig.coverage.json`, which sets
 `isolatedModules: false`), unlike the main test run. The main suite uses ts-jest transpile-only
-(`isolatedModules`) for speed, but transpile-only emits the `emitDecoratorMetadata` helpers
-differently and adds phantom uncovered branches on dependency-injected constructors, which would red
-this 100% gate. Compiling the coverage run the same way as the production build keeps the gate exact.
+(`isolatedModules`) for speed. That mode has two known consequences:
+
+1. **Coverage counting:** transpile-only emits the `emitDecoratorMetadata` helpers differently and
+   adds phantom uncovered branches on dependency-injected constructors, which would red this 100%
+   gate. Compiling the coverage run the same way as the production build keeps the gate exact.
+2. **Entity column reflection (runtime, not just coverage):** when a TypeORM `@Column` TypeScript
+   type is a non-primitive imported from another file (e.g. an enum) and the decorator has no
+   explicit `type:`, TypeORM relies on `design:type` from `emitDecoratorMetadata`. Transpile-only
+   cannot reliably resolve cross-file value-vs-type imports and may emit `Object` instead of the
+   real enum reference — which then crashes Postgres DataSource init with
+   `DataTypeNotSupportedError: Data type "Object" … is not supported`. Entity columns whose
+   TypeScript type is a cross-file non-primitive **must always declare an explicit `type:`**
+   (e.g. `type: 'varchar'`), independent of `length` / Reflection. Same-file enums are safer under
+   transpile-only but should still use explicit `type:` for consistency if the enum might later
+   move.
+
+## 8. Periodic Frick vIBAN issuance reconciliation
+
+### Provider boundary: this protocol is Frick-only
+
+The durable issuance intent, issuance-event retirement markers, merge-time intent reconciliation,
+and both hourly orphan-reconciliation phases apply only to `provider = 'Bank Frick'`. Implicit CHF
+issuance through Yapeal retains its pre-feature direct create/save flow: it does not acquire a
+Frick issuance lock, create an intent/event, write a retired-reference marker, or enter the Frick
+scanner. Both phases group work by the immutable
+`[provider, referenceAccountIban, referenceAccountReceive]` snapshot and validate that the snapshot
+is Frick, has a non-empty reference-account IBAN and was receive-enabled before any Frick API call.
+They do not load the current `Bank` row. Renaming, reclassifying or replacing that row therefore
+does not change the reference account against which an already-created intent or event is
+reconciled; finalization has a separate current-row check described below.
+
+Yapeal still has the pre-existing weakness that an external create cannot be undone and has no
+reference-based reconciliation protocol. This change intentionally does not introduce a second
+recovery design for that provider; restoring pre-feature customer behavior takes precedence.
+
+### Request path is fail-closed (no self-heal)
+
+On the customer request path, an empty Frick recovery listing is **not** treated as proof of
+non-existence (a concurrent create may still be mid-flight at Bank Frick). `VirtualIbanService`
+therefore **never** resets the intent, rotates `requestReference`, or re-enters issuance after an
+empty listing: it fails the call (`ServiceUnavailableException`) and leaves the intent row
+exactly as the create attempt left it (`InFlight` / `Failed`). The hourly reconciliation job also
+leaves it non-retryable; a human must reconcile ambiguous outcomes.
+
+Automatic retry still exists where the evidence is conclusive. A failed preflight occurs before
+the create call and may reset the intent to `Pending`; a classified `VibanNotCreatedError` means the
+create was definitely rejected or definitely not dispatched (pre-dispatch/setup failure, selected
+pre-connect transport failures, or a non-408 HTTP 4xx) and may also reset the same reference to
+`Pending`. Timeouts, connection resets, activation failures, recovery-listing failures, and every
+listing miss are ambiguous and never arm an automatic retry.
+
+### Two-phase hourly job
+
+`VirtualIbanFrickIssuanceReconciliationService.reconcileRetiredIssuanceReferences`
+(`@DfxCron` process `VirtualIbanFrickIssuanceReconciliation`) is an alert-only check for stuck
+intents and retired references. A complete, fully validated, reference-account-scoped listing
+across **all lifecycle states** is useful positive evidence when it contains the exact
+`description`, but absence is **not authoritative proof of non-creation** and causes no mutation:
+
+- **Schedule:** every hour (`CronExpression.EVERY_HOUR`)
+- **Rail guard:** silent no-op when `FrickVibanProvider.isAvailable()` is false (vIBAN rail not
+  configured)
+- **`timeout: 1800` (resumption, not abort):** LockClass (`src/shared/utils/lock.ts`) treats 1800s
+  as a _resumption threshold_, not a hard abort of a still-running previous tick. A run older than
+  1800s no longer blocks a new hour-tick, so two overlapping invocations are possible. Both phases
+  are read-only with respect to issuance intents; overlap can duplicate an alert but cannot arm a
+  retry.
+- **Shared listing cache:** both phases list Frick vIBANs for each immutable reference-account
+  snapshot (not a single hardcoded EUR account). Successful results share a per-run
+  `referenceAccountIban → listing` cache across both phases, so different bank IDs with the same
+  snapshotted IBAN reuse that result. Failed listing calls are not cached and can be attempted again.
+- **On unhandled phase failure:** the job attempts a fail-closed `ERROR_MONITORING` alert that the
+  check itself could not run; alert-delivery failure is logged. Absence of a match alert is **not**
+  evidence of a clean state. Phases are independent try/catch blocks so a Phase-1 failure still
+  allows Phase 2 to run (and vice versa).
+
+Kill-switch: disable process `VirtualIbanFrickIssuanceReconciliation` via the standard disabled-
+processes setting.
+
+#### Phase 1 — inspect stuck InFlight/Failed intents (alert-only)
+
+1. Load Bank Frick issuance intents (`provider = 'Bank Frick'`) with status `InFlight` or `Failed`,
+   then **exclude** permanently merge-superseded intents (`error` contains
+   `MERGE_SUPERSEDED_MARKER`) — those are permanently retired.
+2. Group remaining intents by the immutable
+   `[provider, referenceAccountIban, referenceAccountReceive]` snapshot and list Frick vIBANs for
+   that snapshotted reference-account IBAN (`FrickVibanProvider.listByReferenceAccount`).
+3. For each eligible intent, compare the listing's `description` set to the intent's current
+   `requestReference`:
+   - **Listing match** (object already exists under the current reference) → collect for an
+     `ERROR_MONITORING` alert; **change nothing** on the intent. Manual operator follow-through
+     required (no auto-cleanup at Bank Frick).
+   - **Not found, fully validated, and older than the safety threshold** → keep the intent
+     `InFlight`/`Failed`, keep the same reference, and send
+     `Frick vIBAN reconciliation Phase 1: listing does not prove create absence`. Manual
+     reconciliation is required; no automatic retry is enabled, even when the listing started
+     after the locally bounded HTTP window.
+   - **Not found but still fresh** (`intent.updated` younger than the threshold) → skip until a
+     later run.
+   - **Listing not fully validated** (per-entry validation drops) → treat as **inconclusive** for
+     that snapshot group: still surface any positive matches (they are evidence), leave every
+     unmatched intent non-retryable, and send a separate incomplete-listing alert. Once an
+     unmatched intent in such a group passes the 30-minute safety threshold, also send the chronic
+     incomplete-listing alert on each run where the intent is still eligible and that snapshot
+     group's listing is again incomplete. Absence of a match alert is not a clean state.
+
+The listing result carries `listingStartedAt` (captured immediately before page 0 is dispatched)
+and `listingCompletedAt` (captured after the final page validates). In Phase 1, invalid/reversed
+timestamps fail that snapshot group for the run. For each intent, the code computes
+`latestPossibleCreateProcessedAt = intent.updated + FRICK_CREATE_MAX_PROCESSING_MS`. The absence
+alert includes `listingStartedAt` and `latestPossibleCreateProcessedAt`. `listingCompletedAt` is
+checked only for a valid `Date` and for not preceding `listingStartedAt`; it is not compared with
+`latestPossibleCreateProcessedAt` and establishes no temporal coverage of the create window. These
+times are not an automatic-retry precondition: even a correctly ordered listing miss remains
+non-authoritative because Bank Frick provides no authoritative “this create did not happen”
+operation.
+
+`FRICK_CREATE_MAX_PROCESSING_MS = 120_000` is derived from
+`BankFrickService.HTTP_TIMEOUT_MS = 30_000`:
+
+- authorization preflight before the create call can consume 30s;
+- the locally bounded create HTTP attempt then lasts at most 90s: original request (30s) +
+  `/authorize` re-auth after 401 (30s) + one-shot retried request (30s). `requestSigned` has no
+  further internal retry beyond that.
+- **120s is not an upper bound on Bank Frick processing or on when its create side effect can
+  occur.** Bank Frick may queue or finish work after the local HTTP attempt has ended.
+
+The separate 30-minute `FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS` remains as a conservative delay
+before escalating a listing miss to Operations. It does not change the intent.
+
+#### Phase 2 — retired-reference orphan scan (alert-only)
+
+Phase 2 scans only event rows whose durable provider snapshot is `Bank Frick`, then checks their
+previously **retired** references and alerts when Bank Frick still shows an object under one. It is
+**alert-only**: it never mutates intents or Bank Frick state.
+
+**Where retired references come from** (writers of the durable markers in `nextError`):
+
+1. **Historical Phase 1 resets from older builds** — parser-only legacy format:
+   `reconciliation: strongest available post-create listing found no match (non-authoritative); previousRequestReference=<old>; newRequestReference=<new>`
+2. **Deactivation-reopen** (`mergeUserLevelVirtualIbans` → private `deactivateVirtualIbanLocked`) —
+   merge-conflict deactivation of a Frick-backed `virtual_iban` that still has a `Completed`
+   intent pointing at it:
+   `virtual IBAN <id> deactivated; previousRequestReference=<old>; newRequestReference=<new>`
+3. **Historical recovery-path events** from older builds (parser-only; request path no longer
+   writes this shape):
+   `recovery listing found no match under requestReference=<old>; …`
+4. **Account-merge supersede** (`resolveIssuanceIntentsForMergeLocked` / `resolveMergedVirtualIbanPairLocked`
+   via `failFrickIntentLocked`) — permanently retires a non-terminal intent when merge consolidates
+   the (currency, bank) pair. Embeds both `MERGE_SUPERSEDED_MARKER` (so finalize and Phase 1 refuse
+   revival) and `CREATE_PATH_REFERENCE_MARKER` (so Phase 2 still scans the retired reference):
+   `Superseded by account merge of userData <slaveId> into <masterId>; merge-superseded; previousRequestReference=<old>`
+
+Markers (shared constants on `VirtualIbanService`):
+
+- `CREATE_PATH_REFERENCE_MARKER` = `previousRequestReference=` — current writer format
+  (deactivation-reopen + merge supersede) and historical Phase-1 reset format
+- `RECOVERY_PATH_REFERENCE_MARKER` = `recovery listing found no match under requestReference=` —
+  retained so Phase 2 still parses any historical events from older builds
+- `MERGE_SUPERSEDED_MARKER` = `merge-superseded` — permanent retirement marker written only by the
+  merge-fail path; `finalizeFrickIssuance` and Phase 1 refuse to complete/reopen over it
+
+The **request path never retires references** and never writes these markers.
+
+**No rolling lookback window:** every matching issuance-event transition is loaded and kept under
+scan indefinitely. A still-unresolved abandoned reference must keep being checked and (on match)
+alerted; silent-forgetting after a day count is intentionally not used. These events are expected
+to be rare recovery / deactivation / merge artifacts.
+
+Per immutable snapshot group (using Phase 1's reference-account-IBAN cache): if the listing is fully
+validated, any abandoned reference whose `description` appears is a match; if the listing is not
+fully validated, positive matches are still alerted but unmatched abandoned references are **not**
+treated as clean (incomplete-listing alert).
+
+On a match: one `ERROR_MONITORING` alert listing each hit with `abandonedReference` / `eventId` /
+`intentId` / `userDataId` / `currencyId` / `bankId` / event `created`. **No auto-cleanup** of Bank
+Frick or local state — **manual operator follow-through is required**.
+
+### What the job looks for (Phase 2 SQL)
+
+It queries `virtual_iban_issuance_event` for Bank Frick transitions whose `nextError` text contains
+either marker — **no `nextStatus` gate and no time bound**. Provider plus marker identifies a Frick
+reference-retirement event: historical Phase-1 and current deactivation-reopen writers use
+`nextStatus = Pending`;
+merge-supersede uses `nextStatus = Failed` with the same `previousRequestReference=` marker so
+permanently retired references stay under scan.
+
+```sql
+SELECT id, created, intentId, userDataId, currencyId, bankId, provider,
+       previousStatus, nextStatus, nextError
+FROM virtual_iban_issuance_event
+WHERE provider = 'Bank Frick'
+  AND (
+    nextError LIKE '%previousRequestReference=%'
+    OR nextError LIKE '%recovery listing found no match under requestReference=%'
+  )
+ORDER BY created DESC;
+```
+
+Extract each abandoned reference from the `nextError` text (`previousRequestReference=…` or
+`under requestReference=…`, value ends at the next `;` or end of string). A row that matches the
+LIKE clause but has an empty value after the marker (e.g. `previousRequestReference=;…`) cannot be
+parsed — that candidate is alerted via `sendUnresolvedAbandonedReferenceAlert` (see below), not
+treated as a Frick listing match. When Phase 2 finds a listing match, `sendMatchAlert` already puts
+the exact extracted `abandonedReference` into the alert email body
+(`abandonedReference=…; eventId=…`) — operators do **not** need DB access for the normal orphan
+alert path. Direct DB access to `nextError` / `previousError` (or an equivalent privileged tool) is
+the fallback for **ad-hoc** investigation and for unextractable-marker rows (where the free-form
+`nextError` text itself must be inspected). `/gs/debug` deliberately does **not** allowlist those
+free-form columns, so the debug endpoint is not that fallback.
+
+### What it reconciles against
+
+Both phases list Bank Frick virtual IBANs **per immutable reference-account snapshot and across
+every lifecycle state**, not against one hardcoded EUR reference account. Every intent captures
+`referenceAccountIban` and `referenceAccountReceive` when it is created; every issuance event copies
+the same values. Preflight, create, request recovery, finalization checks, Phase 1, and Phase 2 all
+use that snapshot. Reconciliation never switches an in-flight or historical issuance to a newly
+edited `Bank.iban`.
+Comparison is exact equality of listed `description` to the intent's current `requestReference`
+(Phase 1) or the extracted abandoned reference (Phase 2). A missing IBAN, a receive-disabled
+snapshot or a non-Frick provider snapshot throws inside that snapshot group's processing and is
+caught by the group-level `try/catch` in both phases. That group is skipped and contributes to the
+aggregate `sendPerBankFailureAlert`; every other snapshot group in the same run continues normally.
+Absence of a match alert for a skipped group is **not** evidence of a clean state.
+
+Before changing a Frick reference-account IBAN or disabling its receive state, Operations must:
+
+1. stop new Frick personal-IBAN issuance;
+2. wait for the 120-second local create window to drain;
+3. reconcile every `Pending`, `InFlight`, and `Failed` intent against its stored
+   `referenceAccountIban`, including Phase-2 retired references;
+4. confirm incoming-payment monitoring remains active for every snapshotted reference account;
+5. only then change the Bank row and re-enable issuance.
+
+Finalization reloads the Bank row and refuses to expose a newly finalized vIBAN if provider, IBAN,
+or receive-enabled state differs from the intent snapshot. The old snapshot remains the
+reconciliation authority even after such a refusal.
+
+### What to do on a match (operator follow-up)
+
+Applies to **Phase 1 listing matches** (stuck intent already present at Frick under the current
+reference) and **Phase 2 orphan matches** (Frick still holds a vIBAN under a retired reference).
+In both cases the job does **not** deactivate, delete, or auto-bind anything at Bank Frick —
+and Phase 1 never reopens the local intent.
+
+1. From the alert (or the same event/intent row), note `userDataId`, `currencyId`, `bankId` (and
+   `intentId`) to identify which customer / currency / bank the reference belongs to.
+2. Decide the manual reconciliation path (same fail-closed, hands-on style as section 1
+   watermark rewinds and section 5 multi-match payouts):
+   - If the customer already has a correct local `virtual_iban` for that currency/bank,
+     ask Bank Frick to deactivate the stray object through an approved portal/API procedure and
+     verify its resulting lifecycle state. If deactivation is unavailable or does not prevent
+     receipt, keep the snapshotted reference account monitored and escalate; the application has no
+     automatic revocation path.
+   - If local state is incomplete and the Frick-side vIBAN is the only live receiving
+     account, use an approved, audited repair to bind it to the correct local record (or complete
+     issuance under support supervision) rather than leaving an unmonitored IBAN live.
+3. Do not invent a second automated recovery path here; treat every match as an ops incident
+   until local and Frick state agree, then record what was done for audit.
+
+### Residual risk: committed account merge can lose a post-commit effect
+
+The atomic merge transaction contains the account reassignment, slave `Merged` state, KYC-step
+reassignment/cancellation, virtual-IBAN ownership/deduplication, issuance-intent reconciliation,
+volumes, and merge logs. It does **not** contain the KYC approval continuation. That continuation
+can reach Sumsub, merge-request mail, and KYC notifications, so it runs only after commit together
+with document copying, account/KYC webhooks, and user notifications. A failure in any of those
+effects cannot roll the database merge back.
+
+The merge transaction writes two durable `KycLog` start rows whose `result` contains
+`postCommitEffectsPending=<comma-separated effect names>`. After each effect succeeds, the service
+writes a second pair of durable rows in one database transaction with
+`postCommitEffectCompleted=<effect name>`. Application logs are observability only; they are not
+used as the completion record. A failed effect instead receives
+`postCommitEffectFailed=<effect name>`; it never receives a completion marker. Effect-marker rows
+contain only the master/slave account IDs and the marker, not customer email addresses or names.
+
+Operator procedure:
+
+1. Find the master/slave start rows and read `postCommitEffectsPending=`.
+2. For the same merge, collect the durable `postCommitEffectCompleted=` rows from both accounts.
+   A completion counts only when the matching marker exists on both accounts; the pair is written
+   atomically, so a one-sided marker is an integrity incident.
+3. Collect `postCommitEffectFailed=` rows. They are explicit failed attempts, remain unresolved,
+   and do not count as completion.
+4. For each effect still pending, verify the target system first: inspect the destination document
+   store, webhook receiver, notification/mail provider, or KYC provider as applicable.
+5. Replay only when target-system evidence is sufficient to conclude the effect did not complete.
+   If the target cannot establish that, keep the effect classified as ambiguous and require an
+   idempotent replay mechanism or specific operational approval. A process can die after the
+   external system accepted an effect but before the durable completion transaction, so a
+   missing durable marker is evidence of an unresolved effect, not proof that replay is safe.
+
+Effect failures and durable-marker failures are logged at critical severity with `masterId`,
+`slaveId`, and the exact effect name; remaining effects are still attempted. The committed merge
+returns success because replaying the merge itself is impossible once the slave is `Merged`.
+
+### Automatic retry boundary
+
+The product-approved automatic retry remains, but only for conclusive evidence: preflight failure
+before any create call, or a classified definite create rejection or definitely non-dispatched
+create outcome. An ambiguous create or activation outcome stays non-retryable. Phase 1 listing
+matches are alert-only.
+Phase 1 listing misses are alert-only; keep the existing `requestReference`. Require the manual
+reconciliation procedure above. This prevents a non-authoritative listing miss from causing a second
+irreversible Bank Frick account.

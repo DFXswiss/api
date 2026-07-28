@@ -173,7 +173,7 @@ export class BuyController {
     const user = await this.userService.getUser(jwt.user, { wallet: true });
     const buy = await this.buyService.get(jwt.account, request.routeId);
     const currency = await this.fiatService.getFiat(request.sourceId);
-    const bankInfo = await this.buyService.getBankInfo(
+    const bankInfo = await this.buyService.getBankInfoForRequest(
       {
         amount: request.amount,
         currency: currency.name,
@@ -181,6 +181,9 @@ export class BuyController {
         userData: request.userData,
       },
       buy,
+      true,
+      request.bankId,
+      request.virtualIbanId,
       buy.asset,
       user.wallet,
     );

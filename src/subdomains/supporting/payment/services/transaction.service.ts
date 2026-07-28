@@ -8,7 +8,7 @@ import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repo
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, Brackets, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import { Between, Brackets, EntityManager, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
@@ -316,8 +316,12 @@ export class TransactionService {
   async getAllTransactionsForUserData(
     userDataId: number,
     relations: FindOptionsRelations<Transaction> = {},
+    manager?: EntityManager,
   ): Promise<Transaction[]> {
-    return this.repo.find({ where: { userData: { id: userDataId } }, relations });
+    return (manager?.getRepository(Transaction) ?? this.repo).find({
+      where: { userData: { id: userDataId } },
+      relations,
+    });
   }
 
   async completeTransaction(transactionId: number, outputDate: Date): Promise<void> {

@@ -12,6 +12,11 @@ import { WebhookNotificationService } from './webhook-notification.service';
 import { Webhook } from './webhook.entity';
 import { WebhookRepository } from './webhook.repository';
 
+enum WebhookDeliveryMode {
+  BEST_EFFORT = 'BestEffort',
+  STRICT = 'Strict',
+}
+
 @Injectable()
 export class WebhookService {
   constructor(
@@ -23,48 +28,68 @@ export class WebhookService {
 
   // --- KYC WEBHOOKS --- //
   async kycChanged(userData: UserData): Promise<void> {
+    return this.sendKycChanged(userData, WebhookDeliveryMode.BEST_EFFORT);
+  }
+
+  async kycChangedStrict(userData: UserData): Promise<void> {
+    return this.sendKycChanged(userData, WebhookDeliveryMode.STRICT);
+  }
+
+  private async sendKycChanged(userData: UserData, deliveryMode: WebhookDeliveryMode): Promise<void> {
     const payload = WebhookDataMapper.mapKycData(userData);
     const users = await this.getUsers(userData);
 
-    await this.sendWebhooks(WebhookType.KYC_CHANGED, payload, userData, users);
+    await this.sendWebhooks(WebhookType.KYC_CHANGED, payload, userData, users, deliveryMode);
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
     const payload = WebhookDataMapper.mapKycData(userData);
     const users = await this.getUsers(userData);
 
-    await this.sendWebhooks(WebhookType.KYC_FAILED, payload, userData, users, reason);
+    await this.sendWebhooks(WebhookType.KYC_FAILED, payload, userData, users, WebhookDeliveryMode.BEST_EFFORT, reason);
   }
 
   async accountChanged(master: UserData, slave: UserData): Promise<void> {
+    return this.sendAccountChanged(master, slave, WebhookDeliveryMode.BEST_EFFORT);
+  }
+
+  async accountChangedStrict(master: UserData, slave: UserData): Promise<void> {
+    return this.sendAccountChanged(master, slave, WebhookDeliveryMode.STRICT);
+  }
+
+  private async sendAccountChanged(
+    master: UserData,
+    slave: UserData,
+    deliveryMode: WebhookDeliveryMode,
+  ): Promise<void> {
     const payload = WebhookDataMapper.mapAccountMergeData(master);
 
-    await this.sendWebhooks(WebhookType.ACCOUNT_CHANGED, payload, slave, []);
+    await this.sendWebhooks(WebhookType.ACCOUNT_CHANGED, payload, slave, [], deliveryMode);
   }
 
   // --- PAYMENT WEBHOOKS --- //
   async fiatCryptoUpdate(user: User, userData: UserData, payment: BuyCryptoExtended): Promise<void> {
     const payload = WebhookDataMapper.mapFiatCryptoData(payment);
 
-    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user]);
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user], WebhookDeliveryMode.BEST_EFFORT);
   }
 
   async cryptoCryptoUpdate(user: User, userData: UserData, payment: BuyCryptoExtended): Promise<void> {
     const payload = WebhookDataMapper.mapCryptoCryptoData(payment);
 
-    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user]);
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user], WebhookDeliveryMode.BEST_EFFORT);
   }
 
   async cryptoFiatUpdate(user: User, userData: UserData, payment: BuyFiatExtended): Promise<void> {
     const payload = WebhookDataMapper.mapCryptoFiatData(payment);
 
-    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user]);
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user], WebhookDeliveryMode.BEST_EFFORT);
   }
 
   async fiatFiatUpdate(user: User, userData: UserData, payment: BuyFiatExtended): Promise<void> {
     const payload = WebhookDataMapper.mapFiatFiatData(payment);
 
-    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user]);
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user], WebhookDeliveryMode.BEST_EFFORT);
   }
 
   // --- HELPER METHODS --- //
@@ -73,6 +98,7 @@ export class WebhookService {
     payload: object,
     userData: UserData,
     users: User[],
+    deliveryMode: WebhookDeliveryMode,
     reason?: string,
   ): Promise<void> {
     // load wallets
@@ -98,28 +124,49 @@ export class WebhookService {
     }
 
     for (const client of webhooks) {
-      await this.createAndSendWebhook(client);
+      await this.createAndSendWebhook(client, deliveryMode);
     }
   }
 
-  private async createAndSendWebhook(dto: CreateWebhookInput): Promise<Webhook | undefined> {
-    const exists = await this.webhookRepo.existsBy({
+  private async createAndSendWebhook(
+    dto: CreateWebhookInput,
+    deliveryMode: WebhookDeliveryMode,
+  ): Promise<Webhook | undefined> {
+    const identity = {
       identifier: dto.identifier,
       type: dto.type,
       reason: dto.reason,
       userData: { id: dto.userData.id },
       wallet: { id: dto.wallet.id },
-    });
-    if (exists) return;
+    };
+
+    if (deliveryMode === WebhookDeliveryMode.BEST_EFFORT) {
+      if (await this.webhookRepo.existsBy(identity)) return;
+    } else {
+      const existing = await this.webhookRepo.findOne({ where: identity, order: { id: 'DESC' } });
+      if (existing?.isComplete) return existing;
+      if (existing) return this.deliverWebhook(existing, deliveryMode);
+    }
 
     // no repo.create: TypeORM's plain-object transformer recurses through the relation graph without a
     // cycle guard and overflows the stack on circular entities (e.g. userData.kycSteps[i].userData === userData)
     const entity = Object.assign(new Webhook(), dto);
+    return this.deliverWebhook(entity, deliveryMode);
+  }
 
+  private async deliverWebhook(entity: Webhook, deliveryMode: WebhookDeliveryMode): Promise<Webhook> {
     // try to send the webhook
     const result = await this.webhookNotificationService.triggerWebhook(entity);
-    entity.sentWebhook(result);
+    if (result && deliveryMode === WebhookDeliveryMode.STRICT) {
+      entity.failedWebhookForRetry(result);
+      await this.webhookRepo.save(entity);
+      throw new Error(
+        `Strict webhook delivery failed ` +
+          `(userDataId=${entity.userData.id}, walletId=${entity.wallet.id}, type=${entity.type})`,
+      );
+    }
 
+    entity.sentWebhook(result);
     return this.webhookRepo.save(entity);
   }
 

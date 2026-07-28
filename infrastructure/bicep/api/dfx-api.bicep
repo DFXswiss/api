@@ -1250,8 +1250,17 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: frickApproveWithoutTan
         }
         {
-          name: 'FRICK_VBAN_BASE_URL'
+          name: 'FRICK_VBAN_API_URL'
           value: frickVbanBaseUrl
+        }
+        // Pin the retired name to empty so a stale/unversioned FRICK_VBAN_BASE_URL from
+        // outside this template can never reach the container and reactivate older production
+        // code that still treats Bank Frick as a generic EUR vIBAN provider when that env is
+        // set (see src/config/frick.config.ts: FRICK_VBAN_API_URL rename rationale). Safe to
+        // remove once every production deploy no longer reads FRICK_VBAN_BASE_URL.
+        {
+          name: 'FRICK_VBAN_BASE_URL'
+          value: ''
         }
         {
           name: 'COIN_GECKO_API_KEY'

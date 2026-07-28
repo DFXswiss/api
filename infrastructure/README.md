@@ -1,5 +1,29 @@
 # Infrastructure Deployment
 
+## Critical API rollback floor
+
+Before deploying or rolling back the API, check for persisted Bank Frick personal-IBAN rows using
+the immutable provider snapshot on their issuance events:
+
+```sql
+SELECT EXISTS (
+  SELECT 1
+  FROM virtual_iban AS vi
+  INNER JOIN virtual_iban_issuance_event AS vie ON vie."nextVirtualIbanId" = vi.id
+  WHERE vie.provider = 'Bank Frick'
+) AS "frickPersonalIbanHasExisted";
+```
+
+Once this returns `true`, do not roll the API back below the revision that contains provider-aware
+virtual-IBAN lookup and recipient rendering. Emptying `FRICK_VBAN_API_URL` does not make an older
+revision safe because existing rows remain selectable. A `true` result proves that a currently
+persisted vIBAN is linked to an immutable Bank Frick issuance event even if its mutable bank row was
+renamed, reclassified or replaced. It does not prove current activity or current bank classification,
+and `false` does not prove Frick was never used: deletion/archival, missing historical issuance events
+or damaged audit data can remove the evidence. In those cases treat the deployment/audit record as
+authoritative and retain the rollback floor unless absence can be established. See
+[`docs/bank-frick-operations.md`](../docs/bank-frick-operations.md#41-personal-iban-api-rollback-floor).
+
 1. Update parameter files
 1. Temp: Update JWT secret
 1. Do deployment: `az deployment group create -g rg-dfx-api-{env} -f infrastructure/bicep/dfx-api.bicep -p infrastructure/bicep/parameters/{env}.json`

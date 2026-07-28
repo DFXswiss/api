@@ -50,7 +50,7 @@ import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
 import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/tx-statement-details.dto';
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
-import { Transaction } from '../entities/transaction.entity';
+import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 import { TransactionService } from './transaction.service';
 
@@ -264,6 +264,7 @@ export class TransactionHelper implements OnModuleInit {
     specialCodes: string[] = [],
     ibanCountry?: string,
     country?: string,
+    bankInOverride?: CardBankName | IbanBankName,
   ): Promise<TransactionDetails> {
     const priceValidity = exactPrice ? PriceValidity.PREFER_VALID : PriceValidity.ANY;
 
@@ -273,7 +274,7 @@ export class TransactionHelper implements OnModuleInit {
     const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, PriceValidity.ANY);
     const txAmountChf = chfPrice.convert(txAmount);
 
-    const bankIn = await this.getBankIn(from, paymentMethodIn, user?.userData);
+    const bankIn = bankInOverride ?? (await this.getBankIn(from, paymentMethodIn, user?.userData));
     const bankOut = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodOut);
 
     const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
@@ -548,21 +549,31 @@ export class TransactionHelper implements OnModuleInit {
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       const buy = transaction.buyCrypto.buy;
-      const isCardPayment = transaction.buyCrypto.paymentMethodIn === FiatPaymentMethod.CARD;
+      const isCardPayment = transaction.sourceType === TransactionSourceType.CHECKOUT_TX;
+      const bankSelector = {
+        amount: transaction.buyCrypto.inputAmount,
+        currency: fiat.name,
+        paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+        userData: transaction.userData,
+      };
+      // INVOICE with an existing targetEntity: payment was already registered/matched
+      // (BuyCryptoService.createEntity runs on payment match). Liveness of the personal IBAN is
+      // therefore not required — requireLiveVirtualIban=false even if payout is still pending.
+      // (Do not use targetEntity.isComplete here: that flag means payout completion, not receipt.)
       const bankInfo =
-        statementType === TxStatementType.INVOICE &&
-        !isCardPayment &&
-        (await this.buyService.getBankInfo(
-          {
-            amount: transaction.buyCrypto.outputAmount,
-            currency: fiat.name,
-            paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-            userData: transaction.userData,
-          },
-          buy,
-          buy?.asset,
-          buy?.user?.wallet,
-        ));
+        statementType !== TxStatementType.INVOICE || isCardPayment
+          ? undefined
+          : transaction.request
+            ? await this.buyService.getBankInfoForRequest(
+                bankSelector,
+                buy,
+                false,
+                transaction.request.bankId,
+                transaction.request.virtualIbanId,
+                buy?.asset,
+                buy?.user?.wallet,
+              )
+            : await this.buyService.getBankInfo(bankSelector, buy, buy?.asset, buy?.user?.wallet);
 
       return {
         statementType,
@@ -627,7 +638,10 @@ export class TransactionHelper implements OnModuleInit {
 
     const currency = await this.fiatService.getFiat(request.sourceId);
     const buy = await this.buyService.get(transaction.userData.id, request.routeId);
-    const bankInfo = await this.buyService.getBankInfo(
+    // Still-open path (pending or refunded-after-payment): always require live bank/vIBAN.
+    // Refunded-after-payment is intentionally treated as "check liveness" here — this helper
+    // specifically serves the not-yet-fully-settled path.
+    const bankInfo = await this.buyService.getBankInfoForRequest(
       {
         amount: request.amount,
         currency: currency.name,
@@ -635,6 +649,9 @@ export class TransactionHelper implements OnModuleInit {
         userData: transaction.userData,
       },
       buy,
+      true,
+      request.bankId,
+      request.virtualIbanId,
       buy?.asset,
       buy?.user?.wallet,
     );

@@ -87,5 +87,33 @@ describe('AccountMerge processing state', () => {
       expect(updates).not.toContainEqual(expect.objectContaining({ isCompleted: true }));
       expect(request.isProcessing).toBe(false);
     });
+
+    it('completes the request when the committed merge returns after internally accounting for effect failures', async () => {
+      const master = Object.assign(new UserData(), { id: 1, kycLevel: 20, mail: 'm@test.com' });
+      const slave = Object.assign(new UserData(), { id: 2, kycLevel: 10, mail: 's@test.com' });
+      const request = Object.assign(new AccountMerge(), {
+        id: 5,
+        code: 'code-5',
+        master,
+        slave,
+        isCompleted: false,
+        expiration: Util.daysAfter(1),
+      });
+      const update = jest.fn();
+      const mergeUserData = jest.fn().mockResolvedValue(undefined);
+      const service = new AccountMergeService(
+        { findOne: jest.fn().mockResolvedValue(request), update } as unknown as AccountMergeRepository,
+        {} as unknown as NotificationService,
+        { createMergeLog: jest.fn() } as unknown as KycLogService,
+        { mergeUserData } as unknown as UserDataService,
+      );
+
+      await expect(service.executeMerge('code-5')).resolves.toBe(request);
+
+      expect(mergeUserData).toHaveBeenCalledWith(master.id, slave.id, slave.mail);
+      expect(update.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({ isCompleted: true }));
+      expect(request.isCompleted).toBe(true);
+      expect(request.isProcessing).toBe(false);
+    });
   });
 });
