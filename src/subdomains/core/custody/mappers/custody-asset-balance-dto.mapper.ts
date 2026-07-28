@@ -33,7 +33,15 @@ export class CustodyAssetBalanceDtoMapper {
     // the list visibly reshuffling for no reason. Largest position first is both stable and the
     // order someone reading a portfolio expects; equal values fall back to the name so the
     // result is fully determined.
-    return balances.sort((a, b) => b.value.chf - a.value.chf || a.asset.name.localeCompare(b.asset.name));
+    //
+    // A non-finite value is ranked last rather than compared: NaN makes every difference falsy,
+    // which would send the pair to the name comparison and cost the ordering its transitivity —
+    // the very unpredictability this sort exists to remove. It is not thrown for the same reason
+    // a broken interest figure is not: one damaged position must not take the customer's whole
+    // balance response down with it.
+    const rank = (value: number): number => (Number.isFinite(value) ? value : -Infinity);
+
+    return balances.sort((a, b) => rank(b.value.chf) - rank(a.value.chf) || a.asset.name.localeCompare(b.asset.name));
   }
 
   private static map(asset: Asset, balance: number, interestInfo?: CustodyInterestInfo): CustodyAssetBalanceDto {

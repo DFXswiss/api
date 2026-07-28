@@ -224,5 +224,90 @@ describe('CustodyAssetBalanceDtoMapper', () => {
         secondResult.map((balance) => balance.asset.name),
       );
     });
+
+    it('sorts negative CHF values after all positive values', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 50,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 51,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 52,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: -50 }),
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 500 }),
+      ];
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(result.map((balance) => [balance.asset.name, balance.value.chf])).toEqual([
+        ['BBB', 500],
+        ['CCC', 100],
+        ['AAA', -50],
+      ]);
+    });
+
+    it('places a non-finite CHF value last regardless of input order', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 60,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 61,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 62,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: NaN }),
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 300 }),
+      ];
+      const firstInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+      const secondInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const firstResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, firstInterestByAssetName);
+      const secondResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(
+        [...balances].reverse(),
+        secondInterestByAssetName,
+      );
+
+      expect(firstResult.map((balance) => balance.asset.name)).toEqual(
+        secondResult.map((balance) => balance.asset.name),
+      );
+      expect(firstResult[firstResult.length - 1].asset.name).toBe('BBB');
+      expect(secondResult[secondResult.length - 1].asset.name).toBe('BBB');
+      expect(firstResult[firstResult.length - 1].value.chf).toBeNaN();
+      expect(secondResult[secondResult.length - 1].value.chf).toBeNaN();
+    });
   });
 });
