@@ -9,7 +9,7 @@ import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/use
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
-import { DataSource, EntityManager, IsNull, Not } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Not } from 'typeorm';
 import { Bank } from '../bank/bank.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
@@ -307,6 +307,8 @@ export class VirtualIbanService {
    * Acquires every Frick/currency lock that can issue onto either side of an account merge.
    * Yapeal retains its merge-base behavior and never enters this Frick recovery protocol.
    * Keys are globally sorted to make concurrent/reversed merge attempts deadlock-safe.
+   * After every key is held, an InFlight intent on either account blocks the merge: its caller has
+   * already committed the claim and may be between provider preflight and the irreversible create.
    */
   async lockUserLevelIssuanceForMerge(masterId: number, slaveId: number, manager: EntityManager): Promise<void> {
     const keys = [
@@ -323,6 +325,24 @@ export class VirtualIbanService {
 
     for (const { namespace, owner } of keys) {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [namespace, owner]);
+    }
+
+    const inFlightIntent = await manager.findOne(VirtualIbanIssuanceIntent, {
+      where: {
+        userDataId: In([masterId, slaveId]),
+        provider: IbanBankName.FRICK,
+        status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+      },
+      order: { id: 'ASC' },
+    });
+    if (inFlightIntent) {
+      this.logger.info(
+        `Account merge deferred for in-flight Bank Frick personal IBAN issuance ` +
+          `(intentId=${inFlightIntent.id}, masterId=${masterId}, slaveId=${slaveId})`,
+      );
+      throw new ServiceUnavailableException(
+        'Account merge is temporarily blocked by in-flight personal IBAN issuance; retry after issuance reconciliation',
+      );
     }
   }
 

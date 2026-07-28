@@ -132,7 +132,10 @@ describe('VirtualIbanService', () => {
 
   describe('lockUserLevelIssuanceForMerge', () => {
     it('locks only Frick issuance keys for both accounts in deterministic order', async () => {
-      const mergeManager = { query: jest.fn().mockResolvedValue([]) } as unknown as EntityManager;
+      const mergeManager = {
+        query: jest.fn().mockResolvedValue([]),
+        findOne: jest.fn().mockResolvedValue(null),
+      } as unknown as EntityManager;
 
       await service.lockUserLevelIssuanceForMerge(20, 10, mergeManager);
 
@@ -140,6 +143,37 @@ describe('VirtualIbanService', () => {
         ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:EUR', '10']],
         ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:EUR', '20']],
       ]);
+      expect(mergeManager.findOne).toHaveBeenCalledWith(VirtualIbanIssuanceIntent, {
+        where: {
+          userDataId: expect.any(FindOperator),
+          provider: IbanBankName.FRICK,
+          status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+        },
+        order: { id: 'ASC' },
+      });
+    });
+
+    it.each([
+      ['master', 20],
+      ['slave', 10],
+    ])('returns a retriable error when the %s account has an InFlight Frick intent', async (_side, userDataId) => {
+      const inFlightIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 301,
+        userDataId,
+        provider: IbanBankName.FRICK,
+        status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+      });
+      const mergeManager = {
+        query: jest.fn().mockResolvedValue([]),
+        findOne: jest.fn().mockResolvedValue(inFlightIntent),
+      } as unknown as EntityManager;
+
+      await expect(service.lockUserLevelIssuanceForMerge(20, 10, mergeManager)).rejects.toThrow(
+        new ServiceUnavailableException(
+          'Account merge is temporarily blocked by in-flight personal IBAN issuance; retry after issuance reconciliation',
+        ),
+      );
+      expect(mergeManager.query).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -509,6 +543,58 @@ describe('VirtualIbanService', () => {
         VirtualIban,
         expect.objectContaining({ userData, bank: frickBank, currency: eur, buy: null }),
       );
+    });
+
+    it('does not let a merge commit past a caller paused before the Bank Frick create POST', async () => {
+      let enterPreflight: () => void;
+      const preflightEntered = new Promise<void>((resolve) => {
+        enterPreflight = resolve;
+      });
+      let releasePreflight: () => void;
+      const preflightRelease = new Promise<void>((resolve) => {
+        releasePreflight = resolve;
+      });
+      let mergeCommitted = false;
+
+      (frickVibanProvider.prepareVibanReservation as jest.Mock).mockImplementation(async () => {
+        enterPreflight();
+        await preflightRelease;
+        // In the vulnerable implementation the merge commits while this caller is paused, so
+        // resolving the deferred continues into reserveViban. The fixed merge cannot commit; make
+        // the issuing request exit through its existing preflight-failure path after that proof.
+        if (!mergeCommitted) throw new Error('Test preflight canceled after merge refusal');
+      });
+      jest.spyOn(frickVibanProvider, 'reserveViban').mockResolvedValue(reserved);
+
+      const issuance = service.getOrCreateFrickForUser(userData, 'EUR');
+      await preflightEntered;
+      expect(currentIntent.status).toBe(VirtualIbanIssuanceIntentStatus.IN_FLIGHT);
+
+      const mergeError = await dataSource
+        .transaction(async (mergeManager) => {
+          await service.lockUserLevelIssuanceForMerge(userData.id, 8, mergeManager);
+          currentIntent.status = VirtualIbanIssuanceIntentStatus.FAILED;
+          currentIntent.error = `${MERGE_SUPERSEDED_MARKER}; ${CREATE_PATH_REFERENCE_MARKER}${currentIntent.requestReference}`;
+          mergeCommitted = true;
+        })
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+
+      releasePreflight();
+      const issuanceError = await issuance.then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      expect(mergeError).toBeInstanceOf(ServiceUnavailableException);
+      expect((mergeError as ServiceUnavailableException).message).toContain(
+        'Account merge is temporarily blocked by in-flight personal IBAN issuance',
+      );
+      expect(mergeCommitted).toBe(false);
+      expect(issuanceError).toBeInstanceOf(ServiceUnavailableException);
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
     it.each([

@@ -3,6 +3,7 @@ import { resolve } from 'path';
 
 describe('Bank Frick operations runbook', () => {
   const runbook = readFileSync(resolve(__dirname, '../../../../../../docs/bank-frick-operations.md'), 'utf8');
+  const deploymentGuide = readFileSync(resolve(__dirname, '../../../../../../infrastructure/README.md'), 'utf8');
   const serviceSource = readFileSync(resolve(__dirname, '../virtual-iban.service.ts'), 'utf8');
   const compactRunbook = runbook.replace(/\s+/g, ' ');
 
@@ -49,5 +50,17 @@ describe('Bank Frick operations runbook', () => {
   it('documents park-swap ownership moves as event-logged transitions', () => {
     expect(serviceSource).toContain('Each intermediate and final ownership move appends its');
     expect(serviceSource).not.toContain('Plain ownership moves only — no event log');
+  });
+
+  it.each([
+    ['operations runbook', runbook],
+    ['infrastructure deployment guide', deploymentGuide],
+  ])('documents the irreversible personal-IBAN API rollback floor in the %s', (_name, document) => {
+    expect(document).toContain('provider-aware');
+    expect(document).toContain('FRICK_VBAN_API_URL');
+    expect(document).toContain('FROM virtual_iban AS vi');
+    expect(document).toContain('INNER JOIN bank AS b ON b.id = vi."bankId"');
+    expect(document).toContain("WHERE b.name = 'Bank Frick'");
+    expect(document).toContain('frickPersonalIbanHasExisted');
   });
 });

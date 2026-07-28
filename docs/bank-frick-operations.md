@@ -167,6 +167,34 @@ remains raw text until its detached `Signature` and `algorithm` headers have bee
 (`rsa-sha512`, `rsa-sha384` or `rsa-sha256`); only then is JSON parsed. A missing configuration
 value or response header, unsupported algorithm or signature mismatch fails closed.
 
+### 4.1 Personal-IBAN API rollback floor
+
+Before enabling `FRICK_VBAN_API_URL`, record the API revision that includes both provider-aware
+virtual-IBAN lookup and provider-aware recipient rendering. From the moment the first Bank Frick
+personal IBAN has been persisted, the API must not be rolled back below that revision. Older API
+revisions select an active virtual IBAN without excluding Bank Frick and render the customer as its
+account holder. Clearing `FRICK_VBAN_API_URL` only stops new issuance; it does not hide rows already
+stored in `virtual_iban`.
+
+Run this read-only query before any API rollback. A `true` result means the rollback floor is active
+and the target revision must carry the provider-aware lookup and recipient rendering:
+
+```sql
+SELECT EXISTS (
+  SELECT 1
+  FROM virtual_iban AS vi
+  INNER JOIN bank AS b ON b.id = vi."bankId"
+  WHERE b.name = 'Bank Frick'
+) AS "frickPersonalIbanHasExisted";
+```
+
+The query deliberately includes inactive and deactivated rows. The application retains those rows,
+so under the supported lifecycle it detects whether first use has occurred. A `false` result is not
+proof that first use never occurred if rows were manually deleted or archived; in that case use the
+deployment/audit record and keep the rollback floor unless absence can be established. This is an
+irreversible deployment boundary, not a check that an older revision happens to be safe for the
+currently active subset.
+
 ## 5. Payout and reconciliation decisions
 
 - EUR uses `SEPA` or `SEPA_INSTANT`; instant is never sent for non-EUR.
