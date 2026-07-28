@@ -340,22 +340,23 @@ export class CustodyAccountService {
   }
 
   /**
-   * Owner-only authorisation for grant management. Missing, non-active and foreign
-   * accounts all yield the same Forbidden so callers cannot probe existence (403 vs 404).
-   * NotFound for missing grant rows stays downstream after ownership is established.
+   * Owner-only authorisation for grant management. Missing and foreign accounts yield the same
+   * Forbidden so callers cannot probe existence (403 vs 404). NotFound for missing grant rows
+   * stays downstream after ownership is established.
+   *
+   * Status is deliberately not required here, unlike on the data paths. Blocking an account
+   * governs what may be done with it, not who decides that. Requiring ACTIVE would strand every
+   * grant on a blocked account: the owner could neither lift a narrowing they placed on it nor
+   * withdraw a stranger's access, and since a narrowing blocks the owner's whole Safe
+   * (requireActingAllowed), one blocked account would freeze all their others with no way back.
    */
   private async requireOwner(custodyAccountId: number, accountId: number): Promise<CustodyAccount> {
-    let custodyAccount: CustodyAccount;
-    try {
-      custodyAccount = await this.getCustodyAccountById(custodyAccountId);
-    } catch (e) {
-      if (e instanceof NotFoundException) {
-        throw new ForbiddenException('Only the account owner can manage access grants');
-      }
-      throw e;
-    }
+    const custodyAccount = await this.custodyAccountRepo.findOne({
+      where: { id: custodyAccountId },
+      relations: { owner: true },
+    });
 
-    if (custodyAccount.owner.id !== accountId) {
+    if (!custodyAccount || custodyAccount.owner.id !== accountId) {
       throw new ForbiddenException('Only the account owner can manage access grants');
     }
 

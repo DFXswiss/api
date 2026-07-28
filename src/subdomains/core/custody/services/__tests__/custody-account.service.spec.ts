@@ -2,7 +2,7 @@ import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { EntityManager, FindOneOptions, FindManyOptions } from 'typeorm';
+import { EntityManager, FindManyOptions, FindOneOptions } from 'typeorm';
 import { CustodyAccountAccess } from '../../entities/custody-account-access.entity';
 import { CustodyAccount } from '../../entities/custody-account.entity';
 import { CustodyAccessLevel, CustodyAccountStatus } from '../../enums/custody';
@@ -138,8 +138,10 @@ describe('CustodyAccountService', () => {
 
   /**
    * Mirrors the repository where clause for requireActingAllowed:
-   * `{ userData: { id }, account: { owner: { id }, status: ACTIVE }, accessLevel: READ, active: true }`.
-   * Only a grant that matches every condition is returned.
+   * `{ userData: { id }, account: { owner: { id } }, accessLevel: READ, active: true }`.
+   * Account status is deliberately absent there — blocking must not shed a narrowing — so the
+   * status branch below never fires for that query; it stays to keep the mock honest if the
+   * clause ever changes.
    */
   function mockFindOneActingGrant(grant: CustodyAccountAccess | undefined): void {
     custodyAccountAccessRepo.findOne.mockImplementation(
@@ -528,6 +530,30 @@ describe('CustodyAccountService', () => {
         }),
       );
       expect(result.accessLevel).toBe(CustodyAccessLevel.READ);
+    });
+
+    it('lets the owner lift a narrowing on a blocked account so one block cannot freeze their Safe', async () => {
+      // A narrowing blocks the owner's whole Safe (requireActingAllowed) and does not care about
+      // account status. If grant management required an ACTIVE account, blocking one account
+      // would freeze every other one of theirs with no way back.
+      const blockedOwnAccount = ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED });
+      custodyAccountRepo.findOne.mockResolvedValue(blockedOwnAccount);
+
+      const lockedGrant = accessGrant({
+        id: accessId,
+        account: blockedOwnAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      accessQuery.getOne.mockResolvedValue(lockedGrant);
+
+      const result = await service.updateAccess(ownAccountId, accessId, ownerId, CustodyAccessLevel.WRITE);
+
+      expect(result.accessLevel).toBe(CustodyAccessLevel.WRITE);
+      expect(txManager.save).toHaveBeenCalledWith(
+        expect.objectContaining({ accessLevel: CustodyAccessLevel.WRITE, active: true }),
+      );
     });
 
     it("restores the owner's own grant from read back to write", async () => {
