@@ -5,6 +5,7 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { RealUnitComplianceService } from '../realunit-compliance.service';
 import { RealUnitJobService } from '../realunit-job.service';
 import { RealUnitService } from '../realunit.service';
 
@@ -47,6 +48,7 @@ describe('RealUnitJobService', () => {
         RealUnitJobService,
         { provide: RealUnitService, useValue: realunitService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
+        { provide: RealUnitComplianceService, useValue: createMock<RealUnitComplianceService>() },
 
         TestUtil.provideConfig(),
       ],

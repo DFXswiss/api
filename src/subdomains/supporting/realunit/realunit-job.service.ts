@@ -6,6 +6,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { HistoryEventDto } from './dto/realunit.dto';
+import { RealUnitComplianceService } from './realunit-compliance.service';
 import { RealUnitService } from './realunit.service';
 
 @Injectable()
@@ -15,7 +16,15 @@ export class RealUnitJobService {
   constructor(
     private readonly realunitService: RealUnitService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly complianceService: RealUnitComplianceService,
   ) {}
+
+  // Keeps the compliance dashboard's REALU holder balance cache warm, so the paginated indexer
+  // sweep runs in this background job instead of inside the customer-list request.
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.REALUNIT_HOLDER_CACHE_WARMUP, timeout: 300 })
+  async warmHolderBalances(): Promise<void> {
+    await this.complianceService.warmHolderBalances();
+  }
 
   // Completes open REALU buy quotes as soon as the shares arrive on-chain. Share allocations
   // triggered outside the DFX payment flow (e.g. booked manually by the issuer) would otherwise

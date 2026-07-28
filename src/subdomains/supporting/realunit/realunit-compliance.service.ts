@@ -62,7 +62,8 @@ export const REALUNIT_VISIBLE_TX_ASSETS: string[] = ['REALU', 'ZCHF'];
 export class RealUnitComplianceService {
   private readonly logger = new DfxLogger(RealUnitComplianceService);
 
-  // address (lowercase) -> raw REALU balance from the ponder indexer; refreshed lazily every 5 minutes
+  // address (lowercase) -> raw REALU balance from the ponder indexer; proactively refreshed by the
+  // warm-up job (see warmHolderBalances), lazily at most every 5 minutes as fallback
   private readonly holderBalanceCache = new AsyncCache<Map<string, string>>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(
@@ -319,43 +320,57 @@ export class RealUnitComplianceService {
     }
   }
 
-  private async getHolderBalances(): Promise<Map<string, string>> {
-    return this.holderBalanceCache.get('holders', async () => {
-      const map = new Map<string, string>();
-      const seenCursors = new Set<string>();
-      const maxPages = 100;
+  // Called by RealUnitJobService every minute. The forced refresh keeps the cache entry younger than
+  // its 5-minute validity, so no dashboard request ever awaits the holder sweep itself. Without this,
+  // the request that first misses the expired cache pays the full paginated indexer sweep before the
+  // customer list returns. The 5-minute validity stays as lazy fallback when the job is disabled.
+  async warmHolderBalances(): Promise<void> {
+    await this.getHolderBalances(true);
+  }
 
-      let after: string | undefined;
-      let complete = false;
-      for (let i = 0; i < maxPages; i++) {
-        const page = await this.realUnitService.getHolders(1000, undefined, after);
-        for (const holder of page.holders) map.set(holder.address.toLowerCase(), holder.balance);
+  private async getHolderBalances(forceRefresh = false): Promise<Map<string, string>> {
+    return this.holderBalanceCache.get(
+      'holders',
+      () => this.fetchHolderBalances(),
+      forceRefresh ? () => true : undefined,
+    );
+  }
 
-        if (!page.pageInfo?.hasNextPage) {
-          complete = true;
-          break;
-        }
+  private async fetchHolderBalances(): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    const seenCursors = new Set<string>();
+    const maxPages = 100;
 
-        // A next page without a fresh cursor would silently truncate the sweep and cache the partial set as if
-        // complete (undercounting real holders). The sibling clients (deuro/juice) return the partial set here;
-        // balance correctness requires failing closed instead, so the dashboard shows "unknown", not an undercount.
-        const endCursor = page.pageInfo.endCursor;
-        if (!endCursor || seenCursors.has(endCursor)) throw new Error('RealUnit holder pagination stalled');
-        seenCursors.add(endCursor);
-        after = endCursor;
+    let after: string | undefined;
+    let complete = false;
+    for (let i = 0; i < maxPages; i++) {
+      const page = await this.realUnitService.getHolders(1000, undefined, after);
+      for (const holder of page.holders) map.set(holder.address.toLowerCase(), holder.balance);
+
+      if (!page.pageInfo?.hasNextPage) {
+        complete = true;
+        break;
       }
 
-      // Never cache a partial sweep as authoritative: exhausting the page cap means the full holder set could
-      // not be read, so treat it as unresolved rather than undercounting.
-      if (!complete) throw new Error(`RealUnit holder pagination exceeded ${maxPages} pages`);
+      // A next page without a fresh cursor would silently truncate the sweep and cache the partial set as if
+      // complete (undercounting real holders). The sibling clients (deuro/juice) return the partial set here;
+      // balance correctness requires failing closed instead, so the dashboard shows "unknown", not an undercount.
+      const endCursor = page.pageInfo.endCursor;
+      if (!endCursor || seenCursors.has(endCursor)) throw new Error('RealUnit holder pagination stalled');
+      seenCursors.add(endCursor);
+      after = endCursor;
+    }
 
-      // An empty holder set means the indexer could not answer (a resyncing / cold-starting Ponder returns HTTP
-      // 200 with no accounts): treat it as unresolved rather than caching an authoritative zero — that would
-      // render real shareholders as a definitive 0 for the whole 5-minute cache window.
-      if (!map.size) throw new Error('RealUnit indexer returned no holders');
+    // Never cache a partial sweep as authoritative: exhausting the page cap means the full holder set could
+    // not be read, so treat it as unresolved rather than undercounting.
+    if (!complete) throw new Error(`RealUnit holder pagination exceeded ${maxPages} pages`);
 
-      return map;
-    });
+    // An empty holder set means the indexer could not answer (a resyncing / cold-starting Ponder returns HTTP
+    // 200 with no accounts): treat it as unresolved rather than caching an authoritative zero — that would
+    // render real shareholders as a definitive 0 for the whole 5-minute cache window.
+    if (!map.size) throw new Error('RealUnit indexer returned no holders');
+
+    return map;
   }
 
   // ZIP entry paths must not carry traversal payloads from customer-influenced file names.
