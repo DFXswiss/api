@@ -57,7 +57,6 @@ import {
   MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER,
   MERGE_POST_COMMIT_EFFECT_FAILED_MARKER,
   MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER,
-  MailVerificationMaxTryCount,
   MergedPrefix,
   UserDataService,
 } from '../user-data.service';
@@ -323,6 +322,31 @@ describe('UserDataService', () => {
       expect(userDataRepo.update).not.toHaveBeenCalled();
     });
 
+    // pins the ordering the unchanged-address short-circuit depends on: it sits after checkMail, so
+    // a merged account still gets its master-code redirect instead of a silent Ok (#4092)
+    it('redirects a merged account even when the submitted address is the one already stored', async () => {
+      const master = Object.assign(new UserData(), {
+        id: 398950,
+        kycHash: 'F1D96261-F27E-4772-B2E1-47B356F4D7A5',
+        status: UserDataStatus.ACTIVE,
+      });
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.MERGED,
+        firstname: `${MergedPrefix}${master.id}`,
+        mail: 'same@example.com',
+        users: [],
+      });
+
+      userDataRepo.findOne.mockResolvedValue(master);
+
+      await expect(service.updateUserMail(userData, { mail: 'same@example.com' }, '1.2.3.4')).rejects.toMatchObject({
+        status: 401,
+        response: expect.objectContaining({ switchToCode: master.kycHash }),
+      });
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+    });
+
     it('still demands 2FA when the address actually changes', async () => {
       const userData = Object.assign(new UserData(), {
         id: 397899,
@@ -426,12 +450,14 @@ describe('UserDataService', () => {
       expect(userDataRepo.update).not.toHaveBeenCalled();
     });
 
-    it('still accepts the correct code on the last allowed attempt', async () => {
+    // literal counts, not the service constant: expressing the loops in terms of the constant would
+    // keep both tests green if the cap were lowered to 1, which would lock a user out on one typo
+    it('still accepts the correct code on the fifth and last allowed attempt', async () => {
       const userData = buildUserData();
 
       await startMailChange(userData);
 
-      for (let i = 0; i < MailVerificationMaxTryCount - 1; i++) {
+      for (let i = 0; i < 4; i++) {
         await expect(service.verifyUserMail(userData, '000000')).rejects.toBeInstanceOf(ForbiddenException);
       }
 
@@ -440,12 +466,12 @@ describe('UserDataService', () => {
       expect(userDataRepo.update).toHaveBeenCalledWith(userData.id, { mail: 'new@example.com' });
     });
 
-    it('stops accepting the correct code after the try count is exhausted', async () => {
+    it('stops accepting the correct code after five wrong attempts', async () => {
       const userData = buildUserData();
 
       await startMailChange(userData);
 
-      for (let i = 0; i < MailVerificationMaxTryCount; i++) {
+      for (let i = 0; i < 5; i++) {
         await expect(service.verifyUserMail(userData, '000000')).rejects.toBeInstanceOf(ForbiddenException);
       }
 

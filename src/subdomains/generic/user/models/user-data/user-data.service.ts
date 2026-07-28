@@ -79,7 +79,7 @@ export const MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER = 'postCommitEffectsPendin
 export const MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER = 'postCommitEffectCompleted=';
 export const MERGE_POST_COMMIT_EFFECT_FAILED_MARKER = 'postCommitEffectFailed=';
 
-export const MailVerificationMaxTryCount = 5;
+const MailVerificationMaxTryCount = 5;
 
 interface SecretCacheEntry {
   secret: string;
