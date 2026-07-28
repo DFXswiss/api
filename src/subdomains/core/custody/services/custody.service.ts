@@ -139,6 +139,28 @@ export class CustodyService {
     };
   }
 
+  /**
+   * Cheap existence check used by CustodyAccountService to decide whether the legacy Safe
+   * entry is empty. This answers "is there a balance row with a non-zero value", not "would
+   * the customer-facing display show a non-zero number" — the display groups balance rows by
+   * asset name and sums them before rounding (CustodyAssetBalanceDtoMapper), while this check
+   * looks at each row independently. Mirroring the display's rounding or its grouping here
+   * would mean rebuilding that aggregation in the query, and every extra layer of mimicry is
+   * one more place where the two can drift apart (this happened twice already: a sign
+   * asymmetry, then a rounding-vs-aggregation mismatch). So this is a deliberate simplification,
+   * not an oversight: a leftover computational residual, or two balances that cancel each other
+   * out in the display, both keep the Safe entry visible under this check. That's the safe
+   * direction — a Safe shown when it's actually empty is harmless, a Safe hidden when it isn't
+   * is not.
+   */
+  async hasNonZeroCustodyBalance(custodyUserIds: number[]): Promise<boolean> {
+    if (!custodyUserIds.length) return false;
+
+    return this.custodyBalanceRepo.exists({
+      where: { user: { id: In(custodyUserIds) }, balance: Not(0) },
+    });
+  }
+
   async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {
     const entity = this.custodyBalanceRepo.create({ user, asset, balance });
 
