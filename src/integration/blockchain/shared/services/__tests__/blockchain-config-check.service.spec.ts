@@ -156,11 +156,14 @@ describe('BlockchainConfigCheckService', () => {
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });
 
-  // the sweep tells "no service registered" apart from a real failure by the message the registry throws, and
-  // matches it with startsWith - so the assertion is anchored, a wrapped message would break the sweep
+  // the sweep tells "no service registered" apart from a real failure by the message getClient throws, and
+  // matches it with startsWith - so this pins both halves: that it throws at all, and the exact text. A
+  // getClient that returned undefined instead would report all 16 service-less enum members every tick
   it('skips exactly the chains for which the registry reports no service', () => {
-    const getService = BlockchainRegistryService.prototype.getService;
+    const { getClient, getService } = BlockchainRegistryService.prototype;
 
-    expect(() => getService.call({}, Blockchain.LIGHTNING)).toThrow(/^No service found for blockchain Lightning$/);
+    expect(() => getClient.call({ getService }, Blockchain.LIGHTNING)).toThrow(
+      /^No service found for blockchain Lightning$/,
+    );
   });
 });
