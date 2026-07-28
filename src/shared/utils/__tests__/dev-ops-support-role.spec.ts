@@ -37,7 +37,6 @@ const {
   findBlockingStatus,
   maskAddress,
   run,
-  main,
 } = ops;
 
 type UserRow = {
