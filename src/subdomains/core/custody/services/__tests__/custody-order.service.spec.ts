@@ -18,6 +18,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
+import { CreateCustodyOrderInternalDto } from '../../dto/input/create-custody-order.dto';
 import { GetCustodyInfoDto } from '../../dto/input/get-custody-info.dto';
 import { CustodyOrder } from '../../entities/custody-order.entity';
 import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
@@ -311,6 +312,29 @@ describe('CustodyOrderService', () => {
       await service.updateCustodyOrderInternal(entity, { inputAmount: 200 });
 
       expect(entity.completedAt).toBeUndefined();
+    });
+  });
+
+  describe('createOrderInternal', () => {
+    it('sets completedAt when creating an order directly with status Completed', async () => {
+      const dto = { status: CustodyOrderStatus.COMPLETED } as CreateCustodyOrderInternalDto;
+      const created = order(CustodyOrderStatus.COMPLETED);
+      custodyOrderRepo.create.mockReturnValue(created);
+
+      await service.createOrderInternal(dto);
+
+      expect(created.completedAt).toBeInstanceOf(Date);
+    });
+
+    it('does not overwrite completedAt if the created entity already has one', async () => {
+      const originalCompletedAt = new Date('2026-01-01T00:00:00.000Z');
+      const dto = { status: CustodyOrderStatus.COMPLETED } as CreateCustodyOrderInternalDto;
+      const created = order(CustodyOrderStatus.COMPLETED, originalCompletedAt);
+      custodyOrderRepo.create.mockReturnValue(created);
+
+      await service.createOrderInternal(dto);
+
+      expect(created.completedAt).toEqual(originalCompletedAt);
     });
   });
 });

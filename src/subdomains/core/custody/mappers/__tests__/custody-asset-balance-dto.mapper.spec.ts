@@ -1,3 +1,4 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { CustodyBalance } from '../../entities/custody-balance.entity';
 import { CustodyAssetBalanceDtoMapper } from '../custody-asset-balance-dto.mapper';
@@ -29,7 +30,9 @@ describe('CustodyAssetBalanceDtoMapper', () => {
 
       // Two decimals so FIAT roundReadable leaves the value unchanged (same as convert at price 1).
       const interest = 12.34;
-      const interestByAssetName = new Map<string, number>([[szchfAsset.name, interest]]);
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>([
+        [szchfAsset.name, { interest, asset: szchfAsset }],
+      ]);
 
       const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
 
@@ -53,7 +56,7 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(btcDto.interestValue).toBeUndefined();
     });
 
-    it('attaches interest by asset.name, not array position, for same-named assets', () => {
+    it('prices interestValue with the interest-source asset, not the same-named group representative', () => {
       const szchfEthereum = createCustomAsset({
         id: 10,
         name: 'sZCHF',
@@ -66,22 +69,24 @@ describe('CustodyAssetBalanceDtoMapper', () => {
         id: 11,
         name: 'sZCHF',
         uniqueName: 'Citrea/sZCHF',
-        approxPriceChf: 1,
-        approxPriceEur: 1,
-        approxPriceUsd: 1,
+        approxPriceChf: 2,
+        approxPriceEur: 2,
+        approxPriceUsd: 2,
       });
 
-      // The non-Ethereum sZCHF balance is listed first — Util.groupByAccessor groups by
-      // asset.name, so the group's representative (g[0].asset) is szchfOtherChain, not the
-      // interest-bearing one. A lookup keyed by asset.id would miss the interest here; keyed
-      // by asset.name (the same identity the grouping itself uses) it still matches.
+      // The non-Ethereum sZCHF balance is listed first (becomes g[0], the group representative
+      // used for `value`/`balance`) AND has a different price. If interestValue were priced off
+      // g[0].asset instead of the asset the interest actually accrued on, it would silently come
+      // out double (price 2 instead of 1).
       const balances = [
         Object.assign(new CustodyBalance(), { asset: szchfOtherChain, balance: 200 }),
         Object.assign(new CustodyBalance(), { asset: szchfEthereum, balance: 800 }),
       ];
 
       const interest = 12.34;
-      const interestByAssetName = new Map<string, number>([['sZCHF', interest]]);
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>([
+        ['sZCHF', { interest, asset: szchfEthereum }],
+      ]);
 
       const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
 

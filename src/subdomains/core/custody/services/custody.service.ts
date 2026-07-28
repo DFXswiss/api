@@ -4,6 +4,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -37,6 +38,8 @@ interface DailyFiatValue {
 
 @Injectable()
 export class CustodyService {
+  private readonly logger = new DfxLogger(CustodyService);
+
   constructor(
     private readonly userService: UserService,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
@@ -92,16 +95,16 @@ export class CustodyService {
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
 
     const savingBalance = custodyBalances.find((b) => b.asset.uniqueName === Config.custody.savingAsset);
-    const interestByAssetName = new Map<string, number>();
+    const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
     if (savingBalance) {
       // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
       const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
       // Keyed by asset.name, not asset.id: the mapper groups custody balances by asset.name (one
       // position can span multiple chains under the same symbol — see Util.groupByAccessor
-      // below), so this lookup key must be the same identity the mapper groups by. Keying by id
-      // would break as soon as a second same-named asset exists: the mapper's group
-      // representative (g[0].asset) is not guaranteed to be this specific chain-asset.
-      interestByAssetName.set(savingBalance.asset.name, interest);
+      // below), so this lookup key must be the same identity the mapper groups by. The Asset
+      // itself travels along too, so the mapper prices interestValue with the asset the interest
+      // actually accrued on, never with an arbitrary same-named group representative.
+      interestByAssetName.set(savingBalance.asset.name, { interest, asset: savingBalance.asset });
     }
 
     const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
@@ -244,10 +247,12 @@ export class CustodyService {
    * dueDate is a parameter (not new Date() inside) so the method is deterministically testable.
    * Order type is intentionally not filtered — any completed order that moves the asset counts.
    * Value date is order.completedAt, an immutable timestamp set exactly once when an order
-   * becomes Completed (see CustodyOrder.complete() / CustodyOrderService.updateCustodyOrderInternal()).
-   * order.updated cannot serve this role: it is a TypeORM @UpdateDateColumn overwritten on every
-   * .save(), including harmless re-saves of an already-Completed order — that would silently
-   * push the interest start date forward.
+   * becomes Completed — see CustodyOrder.applyCompletedAt(), the single source of truth used
+   * by CustodyOrderService.createOrderInternal(), updateCustodyOrderInternal(), and
+   * CustodyOrder.complete(). order.updated cannot serve this role: it is a TypeORM
+   * @UpdateDateColumn overwritten on every .save(), including harmless re-saves of an
+   * already-Completed order — that would silently push the interest start date forward.
+   * A negative result is clamped to 0 and logged (see below) rather than returned as-is or thrown.
    */
   private async calculateAccruedInterest(userIds: number[], asset: Asset, dueDate: Date): Promise<number> {
     // Exclude NULL amounts at the query level — mirrors updateCustodyBalance()'s SQL SUM(),
@@ -280,6 +285,21 @@ export class CustodyService {
       if (order.outputAsset?.id === asset.id && order.outputAmount != null) {
         interest += this.accrueTranche(order, -order.outputAmount, dueDate, rate);
       }
+    }
+
+    // A negative running balance should never occur (updateCustodyBalance() sums Σ input − Σ
+    // output over Completed orders), but has been observed in prod — from a deleted or
+    // retroactively altered order. Showing a negative interest figure to the customer would be
+    // wrong, and throwing would take down their entire balance response for an unrelated data
+    // issue elsewhere — so this clamps to 0 and logs the anomaly with enough context (users,
+    // asset, computed value) for Ops to find the underlying data problem.
+    if (interest < 0) {
+      this.logger.warn(
+        `Negative accrued interest for user(s) ${userIds.join(', ')}, asset ${asset.uniqueName}: ` +
+          `computed ${interest}, clamping to 0 (likely a negative custody balance from a deleted ` +
+          `or retroactively altered order)`,
+      );
+      return 0;
     }
 
     return interest;

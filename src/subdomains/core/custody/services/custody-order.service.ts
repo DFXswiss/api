@@ -242,21 +242,21 @@ export class CustodyOrderService {
 
     if (dto.transactionRequestId) order.transactionRequest = { id: dto.transactionRequestId } as TransactionRequest;
 
+    // Enforces the completedAt invariant — see CustodyOrder.applyCompletedAt() for the full
+    // rationale. A caller creating an order directly with status: Completed must not end up
+    // with a Completed order that has no valuta timestamp.
+    order.applyCompletedAt();
+
     return this.custodyOrderRepo.save(order);
   }
 
   async updateCustodyOrderInternal(entity: CustodyOrder, dto: UpdateCustodyOrderInternalDto): Promise<CustodyOrder> {
     Object.assign(entity, dto);
 
-    // completedAt is set once, the first time the order becomes Completed, and never touched
-    // again by later saves — unlike `updated` (a TypeORM @UpdateDateColumn overwritten on
-    // every .save()), it is the immutable valuta timestamp
-    // CustodyService.calculateAccruedInterest() relies on. This is the only path in production
-    // that actually transitions a CustodyOrder to Completed (CustodyOrder.complete() is not
-    // called for CustodyOrder anywhere in the codebase today).
-    if (entity.status === CustodyOrderStatus.COMPLETED && !entity.completedAt) {
-      entity.completedAt = new Date();
-    }
+    // Enforces the completedAt invariant — see CustodyOrder.applyCompletedAt() for the full
+    // rationale (single source of truth, shared with createOrderInternal() and
+    // CustodyOrder.complete()).
+    entity.applyCompletedAt();
 
     entity = await this.custodyOrderRepo.save(entity);
 
