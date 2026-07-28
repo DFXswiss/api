@@ -121,7 +121,7 @@ describe('AmlHelperService - Scorechain gate', () => {
     // A BuyFiat entity that on its own produces no AML errors, so the only error is the Scorechain one.
     // user/wallet/userData are getters over `transaction`, and userData is a plain object to bypass the
     // UserData getters (which would otherwise need many backing fields).
-    const cleanEntity = () =>
+    const cleanEntity = (verifiedCountryFatfEnable = true) =>
       createCustomBuyFiat({
         inputAsset: 'BTC',
         inputReferenceAmount: 1000,
@@ -153,7 +153,7 @@ describe('AmlHelperService - Scorechain gate', () => {
             hasBankTxVerification: true,
             isRiskBuyFiatBlocked: false,
             mail: 'test@test.com',
-            verifiedCountry: { fatfEnable: true },
+            verifiedCountry: { fatfEnable: verifiedCountryFatfEnable },
           },
         } as any,
         cryptoInput: {
@@ -165,11 +165,14 @@ describe('AmlHelperService - Scorechain gate', () => {
       });
 
     const inputAsset = createCustomAsset({ name: 'BTC', amlRuleFrom: AmlRule.DEFAULT, sellable: true });
-    const ibanCountry = { symbol: 'DE', fatfEnable: true, amlRule: AmlRule.DEFAULT } as any;
+    const ibanCountry = (fatfEnable = true) => ({ symbol: 'DE', fatfEnable, amlRule: AmlRule.DEFAULT }) as any;
 
-    const collect = (scorechainOutcome: ScorechainOutcome): AmlError[] =>
+    const collect = (
+      scorechainOutcome: ScorechainOutcome,
+      opts: { verifiedCountryFatfEnable?: boolean; ibanFatfEnable?: boolean } = {},
+    ): AmlError[] =>
       AmlHelperService.getAmlErrors(
-        cleanEntity(),
+        cleanEntity(opts.verifiedCountryFatfEnable ?? true),
         inputAsset,
         0, // minVolume
         0, // amountInChf
@@ -180,7 +183,7 @@ describe('AmlHelperService - Scorechain gate', () => {
         [], // blacklist
         [], // phoneCallList
         [], // banks
-        ibanCountry,
+        ibanCountry(opts.ibanFatfEnable ?? true),
         undefined, // refUser
         undefined, // ipLogCountries
         undefined, // virtualIban
@@ -201,6 +204,25 @@ describe('AmlHelperService - Scorechain gate', () => {
     it('adds SCORECHAIN_UNAVAILABLE (not SCORECHAIN_HIGH_RISK) when screening was unavailable', () => {
       expect(collect(ScorechainOutcome.UNAVAILABLE)).toContain(AmlError.SCORECHAIN_UNAVAILABLE);
       expect(collect(ScorechainOutcome.UNAVAILABLE)).not.toContain(AmlError.SCORECHAIN_HIGH_RISK);
+    });
+
+    it('sets VERIFIED_COUNTRY_NOT_ALLOWED when verifiedCountry.fatfEnable is false', () => {
+      const errors = collect(ScorechainOutcome.PASS, { verifiedCountryFatfEnable: false });
+      expect(errors).toContain(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
+    });
+
+    it('sets IBAN_COUNTRY_FATF_NOT_ALLOWED when ibanCountry.fatfEnable is false', () => {
+      const errors = collect(ScorechainOutcome.PASS, { ibanFatfEnable: false });
+      expect(errors).toContain(AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED);
+    });
+
+    it('sets neither FATF country error when fatfEnable is true on both countries', () => {
+      const errors = collect(ScorechainOutcome.PASS, {
+        verifiedCountryFatfEnable: true,
+        ibanFatfEnable: true,
+      });
+      expect(errors).not.toContain(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
+      expect(errors).not.toContain(AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED);
     });
   });
 });
