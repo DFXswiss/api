@@ -27,6 +27,12 @@
 //
 // deepLink unstoppable.money: is a registered URL scheme on both platforms, so the frontend
 // open-app action works. iconUrl already hosts on dfx.swiss and returns HTTP 200.
+//
+// down() ownership: DELETE matches name AND the characteristic values this migration wrote
+// (deepLink + blockchains). A row that was hand-created or later edited with different
+// values is not ours — up() would have skipped it via the SELECT guard — so a bare
+// name-only DELETE would destroy foreign data on an up/down cycle. Same exact-value idiom as
+// SetRealUnitHasActionDeepLink (and PopulateNativeCoinDecimals).
 
 /**
  * @typedef {import('typeorm').MigrationInterface} MigrationInterface
@@ -49,6 +55,9 @@ module.exports = class AddUnstoppableWalletApp1785400000000 {
   }
 
   async down(queryRunner) {
-    await queryRunner.query(`DELETE FROM "wallet_app" WHERE "name" = 'Unstoppable Wallet'`);
+    // Only remove the row this migration created. See header comment on ownership.
+    await queryRunner.query(
+      `DELETE FROM "wallet_app" WHERE "name" = 'Unstoppable Wallet' AND "deepLink" = 'unstoppable.money:' AND "blockchains" = 'Ethereum;BinanceSmartChain;Polygon;Arbitrum;Optimism;Base;Bitcoin;Solana;Tron;Zano;Monero'`,
+    );
   }
 };
