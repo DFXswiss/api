@@ -68,12 +68,12 @@ export class CustodyAccountService {
       },
       relations: { account: { owner: true } },
     });
-    const sharedAccounts = activeGrants.filter((a) => a.account.owner.id !== accountId);
+    const sharedAccounts = activeGrants.filter((a) => !a.account.isOwnedBy(accountId));
 
     // A grant on an own account narrows the owner's level — see checkAccess. Without this the
     // list would offer WRITE where the authorisation only grants inspection.
     const ownLevelByAccount = new Map(
-      activeGrants.filter((a) => a.account.owner.id === accountId).map((a) => [a.account.id, a.accessLevel]),
+      activeGrants.filter((a) => a.account.isOwnedBy(accountId)).map((a) => [a.account.id, a.accessLevel]),
     );
 
     const custodyAccounts: CustodyAccountDto[] = [
@@ -157,7 +157,7 @@ export class CustodyAccountService {
     // owner's own grant is the only way to express that, so it must not be overridden here.
     // Managing grants stays with the owner regardless (requireOwner), so this cannot lock
     // anyone out of their own account.
-    if (custodyAccount.owner.id === accountId && !access) {
+    if (custodyAccount.isOwnedBy(accountId) && !access) {
       return { custodyAccount, isLegacy: false };
     }
 
@@ -384,7 +384,7 @@ export class CustodyAccountService {
       relations: { owner: true },
     });
 
-    if (!custodyAccount || custodyAccount.owner.id !== accountId) {
+    if (!custodyAccount || !custodyAccount.isOwnedBy(accountId)) {
       throw new ForbiddenException('Only the account owner can manage access grants');
     }
 

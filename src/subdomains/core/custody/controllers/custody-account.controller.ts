@@ -113,7 +113,7 @@ export class CustodyAccountController {
     return CustodyAccountDtoMapper.toDto(
       custodyAccount,
       CustodyAccessLevel.WRITE,
-      custodyAccount.owner.id === jwt.account,
+      custodyAccount.isOwnedBy(jwt.account),
     );
   }
 
