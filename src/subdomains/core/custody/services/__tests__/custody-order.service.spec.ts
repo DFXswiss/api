@@ -316,9 +316,13 @@ describe('CustodyOrderService', () => {
   });
 
   describe('createOrderInternal', () => {
+    beforeEach(() => {
+      custodyOrderRepo.save.mockImplementation(async (e) => e as CustodyOrder);
+    });
+
     it('sets completedAt when creating an order directly with status Completed', async () => {
       const dto = { status: CustodyOrderStatus.COMPLETED } as CreateCustodyOrderInternalDto;
-      const created = order(CustodyOrderStatus.COMPLETED);
+      const created = custodyOrder({ status: CustodyOrderStatus.COMPLETED });
       custodyOrderRepo.create.mockReturnValue(created);
 
       await service.createOrderInternal(dto);
@@ -329,7 +333,7 @@ describe('CustodyOrderService', () => {
     it('does not overwrite completedAt if the created entity already has one', async () => {
       const originalCompletedAt = new Date('2026-01-01T00:00:00.000Z');
       const dto = { status: CustodyOrderStatus.COMPLETED } as CreateCustodyOrderInternalDto;
-      const created = order(CustodyOrderStatus.COMPLETED, originalCompletedAt);
+      const created = custodyOrder({ status: CustodyOrderStatus.COMPLETED, completedAt: originalCompletedAt });
       custodyOrderRepo.create.mockReturnValue(created);
 
       await service.createOrderInternal(dto);
