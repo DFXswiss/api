@@ -50,17 +50,15 @@ module.exports = class AddSavingZchfAsset1785192244267 {
     await queryRunner.query(`SELECT pg_advisory_xact_lock(1785192244267)`);
 
     // Idempotent: assets are keyed by the stable uniqueName (ids are env-specific).
-    const existing = (
-      await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Ethereum/sZCHF'`)
-    ).at(0);
+    const existing = (await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Ethereum/sZCHF'`)).at(0);
     if (existing) return;
 
     // Fail-loud price-source guard: sZCHF has exactly one price source (Ethereum/ZCHF, 1:1).
     // No COALESCE fallback — an insert without a real price source would silently mask a
     // missing/renamed source asset.
-    const priceSource = (
-      await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Ethereum/ZCHF'`)
-    ).at(0);
+    const priceSource = (await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Ethereum/ZCHF'`)).at(
+      0,
+    );
     if (!priceSource) {
       throw new Error('Cannot create Ethereum/sZCHF custody asset: price source Ethereum/ZCHF not found');
     }
