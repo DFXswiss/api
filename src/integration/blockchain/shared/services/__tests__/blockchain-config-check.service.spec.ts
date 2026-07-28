@@ -17,7 +17,9 @@ jest.mock('src/integration/blockchain/shared/util/blockchain.util', () => {
   try {
     return jest.requireActual('src/integration/blockchain/shared/util/blockchain.util');
   } finally {
-    process.env.ENVIRONMENT = environment;
+    // assigning undefined would leave the string 'undefined' behind
+    if (environment == null) delete process.env.ENVIRONMENT;
+    else process.env.ENVIRONMENT = environment;
   }
 });
 
@@ -112,10 +114,15 @@ describe('BlockchainConfigCheckService', () => {
     expect(warnSpy).toHaveBeenCalledWith('Blockchain client not configured: Firo');
   });
 
+  // the null default client would also make the chain sweep report a bare 'Bitcoin', so this pins that
+  // bitcoin is reported per node type only
   it('reports the bitcoin output node, which the default client lookup skips', async () => {
     await setup(Environment.PRD);
     const warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation(() => undefined);
-    mockClients({}, { [BitcoinNodeType.BTC_INPUT]: { isConfigured: true }, [BitcoinNodeType.BTC_OUTPUT]: null });
+    mockClients(
+      { [Blockchain.BITCOIN]: null },
+      { [BitcoinNodeType.BTC_INPUT]: { isConfigured: true }, [BitcoinNodeType.BTC_OUTPUT]: null },
+    );
 
     service.logUnconfiguredClients();
 
@@ -149,10 +156,11 @@ describe('BlockchainConfigCheckService', () => {
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });
 
-  // the sweep tells "no service registered" apart from a real failure by the message the registry throws
+  // the sweep tells "no service registered" apart from a real failure by the message the registry throws, and
+  // matches it with startsWith - so the assertion is anchored, a wrapped message would break the sweep
   it('skips exactly the chains for which the registry reports no service', () => {
     const getService = BlockchainRegistryService.prototype.getService;
 
-    expect(() => getService.call({}, Blockchain.LIGHTNING)).toThrow('No service found for blockchain Lightning');
+    expect(() => getService.call({}, Blockchain.LIGHTNING)).toThrow(/^No service found for blockchain Lightning$/);
   });
 });
