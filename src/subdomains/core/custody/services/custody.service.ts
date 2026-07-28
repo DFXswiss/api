@@ -92,14 +92,19 @@ export class CustodyService {
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
 
     const savingBalance = custodyBalances.find((b) => b.asset.uniqueName === Config.custody.savingAsset);
-    const interestByAssetId = new Map<number, number>();
+    const interestByAssetName = new Map<string, number>();
     if (savingBalance) {
       // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
       const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
-      interestByAssetId.set(savingBalance.asset.id, interest);
+      // Keyed by asset.name, not asset.id: the mapper groups custody balances by asset.name (one
+      // position can span multiple chains under the same symbol — see Util.groupByAccessor
+      // below), so this lookup key must be the same identity the mapper groups by. Keying by id
+      // would break as soon as a second same-named asset exists: the mapper's group
+      // representative (g[0].asset) is not guaranteed to be this specific chain-asset.
+      interestByAssetName.set(savingBalance.asset.name, interest);
     }
 
-    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetId);
+    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
 
     const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur, 0);
     const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf, 0);
@@ -238,9 +243,11 @@ export class CustodyService {
    * Accrued simple interest for an interest-bearing custody position.
    * dueDate is a parameter (not new Date() inside) so the method is deterministically testable.
    * Order type is intentionally not filtered — any completed order that moves the asset counts.
-   * Value date is order.updated (not created): for a Completed order, updated is the completion
-   * timestamp from which the amount is in the custody position — the same valuta semantics as
-   * getUserCustodyHistory() (order: { updated: 'ASC' }, Util.isoDate(order.updated)).
+   * Value date is order.completedAt, an immutable timestamp set exactly once when an order
+   * becomes Completed (see CustodyOrder.complete() / CustodyOrderService.updateCustodyOrderInternal()).
+   * order.updated cannot serve this role: it is a TypeORM @UpdateDateColumn overwritten on every
+   * .save(), including harmless re-saves of an already-Completed order — that would silently
+   * push the interest start date forward.
    */
   private async calculateAccruedInterest(userIds: number[], asset: Asset, dueDate: Date): Promise<number> {
     // Exclude NULL amounts at the query level — mirrors updateCustodyBalance()'s SQL SUM(),
@@ -267,19 +274,33 @@ export class CustodyService {
     const rate = Config.custody.savingInterestRate;
 
     for (const order of orders) {
-      // Amount is checked in JS too (not just in the query above): this method must never
-      // propagate NaN regardless of what the caller/repo returns.
       if (order.inputAsset?.id === asset.id && order.inputAmount != null) {
-        const days = Util.daysDiff(order.updated, dueDate);
-        if (days >= 0) interest += (order.inputAmount * rate * days) / 365;
+        interest += this.accrueTranche(order, order.inputAmount, dueDate, rate);
       }
       if (order.outputAsset?.id === asset.id && order.outputAmount != null) {
-        const days = Util.daysDiff(order.updated, dueDate);
-        if (days >= 0) interest += (-order.outputAmount * rate * days) / 365;
+        interest += this.accrueTranche(order, -order.outputAmount, dueDate, rate);
       }
     }
 
     return interest;
+  }
+
+  /**
+   * Interest for a single tranche. Fails loud instead of silently skipping or falling back:
+   * a Completed order without completedAt is a data error (backfill/transition bug), and a
+   * non-finite amount (NaN/Infinity — `float`/`double precision` columns allow both) would
+   * otherwise poison the whole sum without a trace.
+   */
+  private accrueTranche(order: CustodyOrder, amount: number, dueDate: Date, rate: number): number {
+    if (!order.completedAt) {
+      throw new Error(`CustodyOrder ${order.id} is Completed but has no completedAt — cannot calculate interest`);
+    }
+    if (!Number.isFinite(amount)) {
+      throw new Error(`CustodyOrder ${order.id} has a non-finite amount (${amount}) — cannot calculate interest`);
+    }
+
+    const years = Util.yearsDiff(order.completedAt, dueDate);
+    return years >= 0 ? amount * rate * years : 0;
   }
 
   /**

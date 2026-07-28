@@ -11,14 +11,14 @@ export class CustodyAssetBalanceDtoMapper {
 
   static mapCustodyBalances(
     custodyBalances: CustodyBalance[],
-    interestByAssetId: Map<number, number>,
+    interestByAssetName: Map<string, number>,
   ): CustodyAssetBalanceDto[] {
     const groups = Util.groupByAccessor(custodyBalances, (b) => b.asset.name);
 
     return Array.from(groups.values()).map((g) => {
       const asset = g[0].asset;
       const balance = Util.sumObjValue(g, 'balance');
-      const interest = interestByAssetId.get(asset.id);
+      const interest = interestByAssetName.get(asset.name);
 
       return this.map(asset, balance, interest);
     });

@@ -21,6 +21,9 @@ export class CustodyOrder extends IEntity {
   @Column({ nullable: false, default: CustodyOrderStatus.CREATED })
   status: CustodyOrderStatus;
 
+  @Column({ type: 'timestamp', nullable: true })
+  completedAt?: Date;
+
   @Column({ type: 'float', nullable: true })
   inputAmount?: number;
 
@@ -90,6 +93,7 @@ export class CustodyOrder extends IEntity {
   complete(): UpdateResult<CustodyOrder> {
     return Util.updateEntity<CustodyOrder>(this, {
       status: CustodyOrderStatus.COMPLETED,
+      ...(this.completedAt ? {} : { completedAt: new Date() }),
     });
   }
 

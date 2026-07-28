@@ -282,4 +282,35 @@ describe('CustodyOrderService', () => {
       );
     });
   });
+
+  describe('updateCustodyOrderInternal', () => {
+    beforeEach(() => {
+      custodyOrderRepo.save.mockImplementation(async (e) => e as CustodyOrder);
+    });
+
+    it('sets completedAt when an order transitions to Completed', async () => {
+      const entity = custodyOrder({ status: CustodyOrderStatus.IN_PROGRESS });
+
+      await service.updateCustodyOrderInternal(entity, { status: CustodyOrderStatus.COMPLETED });
+
+      expect(entity.completedAt).toBeInstanceOf(Date);
+    });
+
+    it('does not overwrite completedAt on a re-save of an already-Completed order', async () => {
+      const originalCompletedAt = new Date('2026-01-01T00:00:00.000Z');
+      const entity = custodyOrder({ status: CustodyOrderStatus.COMPLETED, completedAt: originalCompletedAt });
+
+      await service.updateCustodyOrderInternal(entity, { status: CustodyOrderStatus.COMPLETED });
+
+      expect(entity.completedAt).toEqual(originalCompletedAt);
+    });
+
+    it('does not set completedAt when the order does not transition to Completed', async () => {
+      const entity = custodyOrder({ status: CustodyOrderStatus.IN_PROGRESS });
+
+      await service.updateCustodyOrderInternal(entity, { inputAmount: 200 });
+
+      expect(entity.completedAt).toBeUndefined();
+    });
+  });
 });

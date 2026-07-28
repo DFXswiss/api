@@ -15,7 +15,7 @@ describe('AddSavingZchfAsset migration (SQL content)', () => {
     AddSavingZchfAsset = require('../../../../../migration/1785192244267-AddSavingZchfAsset');
   });
 
-  it('is idempotent: aborts without further queries when Ethereum/sZCHF already exists', async () => {
+  it('is idempotent: acquires the advisory lock, then aborts when sZCHF exists', async () => {
     const migration = new AddSavingZchfAsset();
     const queryRunner = {
       query: jest.fn(async (sql: string) => {
@@ -30,9 +30,10 @@ describe('AddSavingZchfAsset migration (SQL content)', () => {
     await migration.up(queryRunner as unknown as QueryRunner);
 
     const calls = queryRunner.query.mock.calls as [string, unknown[]?][];
-    // Only the idempotency check must run — no price-source lookup, no INSERT.
-    expect(calls).toHaveLength(1);
-    expect(calls[0][0].toLowerCase()).toContain(`'ethereum/szchf'`);
+    // Only the advisory lock and the idempotency check must run — no price-source lookup, no INSERT.
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0].toLowerCase()).toContain('pg_advisory_xact_lock');
+    expect(calls[1][0].toLowerCase()).toContain(`'ethereum/szchf'`);
   });
 
   it('inserts sZCHF priced 1:1 off Ethereum/ZCHF via subquery, no COALESCE, no on-chain columns', async () => {
@@ -62,6 +63,7 @@ describe('AddSavingZchfAsset migration (SQL content)', () => {
       expect(call).toHaveLength(1);
     }
 
+    expect(sql).toContain('pg_advisory_xact_lock(1785192244267)');
     expect(sql).toContain(`'sZCHF'`);
     expect(sql).toContain(`'Ethereum/sZCHF'`);
     expect(sql).toContain(`'Saving ZCHF'`);
@@ -119,9 +121,10 @@ describeDb('AddSavingZchfAsset migration (real Postgres)', () => {
     await queryRunner.query(`CREATE SCHEMA "${SCHEMA}"`);
     await queryRunner.query(`SET search_path TO "${SCHEMA}"`);
 
-    // Minimal fixture table — the columns the migration touches, plus decimals/chainId/
-    // sortOrder/amlRuleFrom/amlRuleTo so the post-condition NULL checks below have columns
-    // to assert against (the migration itself never sets them).
+    // Minimal fixture table — the columns the migration touches, plus decimals/chainId/sortOrder
+    // (nullable, matching the real schema) so the post-condition NULL checks below have columns
+    // to assert against. amlRuleFrom/amlRuleTo are modeled as the real schema has them
+    // (asset.entity.ts): NOT NULL DEFAULT 0 — omitting them from an INSERT yields 0, not NULL.
     await queryRunner.query(`
       CREATE TABLE "asset" (
         "id" SERIAL PRIMARY KEY,
@@ -154,8 +157,8 @@ describeDb('AddSavingZchfAsset migration (real Postgres)', () => {
         "approxPriceChf" double precision,
         "approxPriceEur" double precision,
         "approxPriceUsd" double precision,
-        "amlRuleFrom" integer,
-        "amlRuleTo" integer
+        "amlRuleFrom" integer NOT NULL DEFAULT 0,
+        "amlRuleTo" integer NOT NULL DEFAULT 0
       )
     `);
 
@@ -184,7 +187,7 @@ describeDb('AddSavingZchfAsset migration (real Postgres)', () => {
     if (dataSource?.isInitialized) await dataSource.destroy();
   });
 
-  it('creates Ethereum/sZCHF priced 1:1 off Ethereum/ZCHF, all flags false, no on-chain columns', async () => {
+  it('creates Ethereum/sZCHF priced 1:1 off Ethereum/ZCHF, flags false, amlRule cols 0', async () => {
     const migration = new AddSavingZchfAsset();
     await migration.up(queryRunner);
 
@@ -192,7 +195,8 @@ describeDb('AddSavingZchfAsset migration (real Postgres)', () => {
       `SELECT "name", "uniqueName", "description", "type", "category", "blockchain", "dexName", "financialType",
               "buyable", "sellable", "cardBuyable", "cardSellable", "instantBuyable", "instantSellable",
               "paymentEnabled", "refEnabled", "refundEnabled", "ikna", "personalIbanEnabled", "comingSoon",
-              "decimals", "chainId", "sortOrder", "priceRuleId", "approxPriceChf", "approxPriceEur", "approxPriceUsd"
+              "decimals", "chainId", "sortOrder", "priceRuleId", "approxPriceChf", "approxPriceEur",
+              "approxPriceUsd", "amlRuleFrom", "amlRuleTo"
        FROM "asset" WHERE "uniqueName" = 'Ethereum/sZCHF'`,
     );
 
@@ -222,6 +226,8 @@ describeDb('AddSavingZchfAsset migration (real Postgres)', () => {
       approxPriceChf: 1,
       approxPriceEur: 1.076714309,
       approxPriceUsd: 1.268227427,
+      amlRuleFrom: 0,
+      amlRuleTo: 0,
     });
     expect(rows[0].decimals).toBeNull();
     expect(rows[0].chainId).toBeNull();

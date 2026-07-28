@@ -14,6 +14,7 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { RefService } from '../../../referral/process/ref.service';
+import { CustodyBalance } from '../../entities/custody-balance.entity';
 import { CustodyOrder } from '../../entities/custody-order.entity';
 import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
 import { CustodyBalanceRepository } from '../../repositories/custody-balance.repository';
@@ -24,6 +25,7 @@ describe('CustodyService', () => {
   let service: CustodyService;
   let userDataService: DeepMocked<UserDataService>;
   let custodyOrderRepo: DeepMocked<CustodyOrderRepository>;
+  let custodyBalanceRepo: DeepMocked<CustodyBalanceRepository>;
   let assetPricesService: DeepMocked<AssetPricesService>;
 
   const asset = createCustomAsset({ id: 42, name: 'BTC' });
@@ -35,6 +37,7 @@ describe('CustodyService', () => {
   beforeEach(() => {
     userDataService = createMock<UserDataService>();
     custodyOrderRepo = createMock<CustodyOrderRepository>();
+    custodyBalanceRepo = createMock<CustodyBalanceRepository>();
     assetPricesService = createMock<AssetPricesService>();
 
     service = new CustodyService(
@@ -44,7 +47,7 @@ describe('CustodyService', () => {
       createMock<RefService>(),
       createMock<AuthService>(),
       custodyOrderRepo,
-      createMock<CustodyBalanceRepository>(),
+      custodyBalanceRepo,
       assetPricesService,
       createMock<AssetService>(),
     );
@@ -52,6 +55,10 @@ describe('CustodyService', () => {
     userDataService.getUserData.mockResolvedValue(
       Object.assign(new UserData(), { id: accountId, users: [custodyUser] }),
     );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   function depositOrder(updated: Date, amount: number): CustodyOrder {
@@ -153,6 +160,75 @@ describe('CustodyService', () => {
     });
   });
 
+  describe('getUserCustodyBalance', () => {
+    it('throws when the account is missing', async () => {
+      userDataService.getUserData.mockResolvedValue(null);
+
+      await expect(service.getUserCustodyBalance(accountId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('attaches interest and interestValue only to the saving position; totalValue stays unchanged', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-28T00:00:00.000Z'));
+
+      const savingAsset = createCustomAsset({
+        id: 60,
+        name: 'sZCHF',
+        uniqueName: Config.custody.savingAsset,
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const otherAsset = createCustomAsset({
+        id: 61,
+        name: 'BTC',
+        uniqueName: 'Bitcoin/BTC',
+        approxPriceChf: 50000,
+        approxPriceEur: 46000,
+        approxPriceUsd: 55000,
+      });
+
+      custodyBalanceRepo.findBy.mockResolvedValue([
+        Object.assign(new CustodyBalance(), { asset: savingAsset, balance: 1000, user: custodyUser }),
+        Object.assign(new CustodyBalance(), { asset: otherAsset, balance: 0.1, user: custodyUser }),
+      ]);
+
+      custodyOrderRepo.find.mockResolvedValue([
+        Object.assign(new CustodyOrder(), {
+          id: 1,
+          type: CustodyOrderType.DEPOSIT,
+          status: CustodyOrderStatus.COMPLETED,
+          inputAmount: 99500,
+          inputAsset: savingAsset,
+          user: custodyUser,
+          updated: new Date('2026-01-28T00:00:00.000Z'),
+          completedAt: new Date('2026-01-28T00:00:00.000Z'),
+        }),
+      ]);
+
+      const result = await service.getUserCustodyBalance(accountId);
+
+      const szchfDto = result.balances.find((b) => b.asset.name === 'sZCHF');
+      const btcDto = result.balances.find((b) => b.asset.name === 'BTC');
+
+      expect(szchfDto.value).toEqual({ chf: 1000, eur: 1000, usd: 1000 });
+      expect(szchfDto.interest).toBeCloseTo(1726.94, 2);
+      expect(szchfDto.interestValue).toEqual({
+        chf: expect.closeTo(1726.94, 2),
+        eur: expect.closeTo(1726.94, 2),
+        usd: expect.closeTo(1726.94, 2),
+      });
+
+      expect(btcDto.value).toEqual({ chf: 5000, eur: 4600, usd: 5500 });
+      expect(btcDto.interest).toBeUndefined();
+      expect(btcDto.interestValue).toBeUndefined();
+
+      // totalValue must reflect only booked balances (curr.value), never the accrued interest —
+      // getUserCustodyHistory() has no notion of interest, so including it here would make the
+      // displayed figure jump against the history chart.
+      expect(result.totalValue).toEqual({ chf: 6000, eur: 5600, usd: 6500 });
+    });
+  });
+
   describe('calculateAccruedInterest', () => {
     let rate: number;
 
@@ -164,7 +240,7 @@ describe('CustodyService', () => {
     const userIds = [custodyUser.id];
 
     function interestOrder(params: {
-      updated: Date;
+      completedAt: Date;
       inputAmount?: number | null;
       outputAmount?: number | null;
       id?: number;
@@ -178,13 +254,14 @@ describe('CustodyService', () => {
         outputAmount: params.outputAmount,
         outputAsset: params.outputAmount !== undefined ? asset : undefined,
         user: custodyUser,
-        updated: params.updated,
+        updated: params.completedAt,
+        completedAt: params.completedAt,
       });
     }
 
     it('calculates simple interest for a single tranche over 181 days', async () => {
       custodyOrderRepo.find.mockResolvedValue([
-        interestOrder({ updated: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 99500 }),
+        interestOrder({ completedAt: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 99500 }),
       ]);
 
       const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
@@ -195,18 +272,17 @@ describe('CustodyService', () => {
     it('sums interest across two tranches with different value dates', async () => {
       const amount1 = 50000;
       const amount2 = 25000;
-      const updated1 = new Date('2026-01-28T00:00:00.000Z');
-      const updated2 = new Date('2026-04-01T00:00:00.000Z');
+      const completedAt1 = new Date('2026-01-28T00:00:00.000Z');
+      const completedAt2 = new Date('2026-04-01T00:00:00.000Z');
       custodyOrderRepo.find.mockResolvedValue([
-        interestOrder({ id: 1, updated: updated1, inputAmount: amount1 }),
-        interestOrder({ id: 2, updated: updated2, inputAmount: amount2 }),
+        interestOrder({ id: 1, completedAt: completedAt1, inputAmount: amount1 }),
+        interestOrder({ id: 2, completedAt: completedAt2, inputAmount: amount2 }),
       ]);
 
       const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
 
       const expected =
-        (amount1 * rate * Util.daysDiff(updated1, dueDate)) / 365 +
-        (amount2 * rate * Util.daysDiff(updated2, dueDate)) / 365;
+        amount1 * rate * Util.yearsDiff(completedAt1, dueDate) + amount2 * rate * Util.yearsDiff(completedAt2, dueDate);
 
       expect(result).toBeCloseTo(expected, 2);
     });
@@ -214,19 +290,19 @@ describe('CustodyService', () => {
     it('reduces interest for a negative tranche from its own value date', async () => {
       const depositAmount = 99500;
       const withdrawalAmount = 20000;
-      const depositUpdated = new Date('2026-01-28T00:00:00.000Z');
-      const withdrawalUpdated = new Date('2026-04-01T00:00:00.000Z');
+      const depositCompletedAt = new Date('2026-01-28T00:00:00.000Z');
+      const withdrawalCompletedAt = new Date('2026-04-01T00:00:00.000Z');
       custodyOrderRepo.find.mockResolvedValue([
-        interestOrder({ id: 1, updated: depositUpdated, inputAmount: depositAmount }),
-        interestOrder({ id: 2, updated: withdrawalUpdated, outputAmount: withdrawalAmount }),
+        interestOrder({ id: 1, completedAt: depositCompletedAt, inputAmount: depositAmount }),
+        interestOrder({ id: 2, completedAt: withdrawalCompletedAt, outputAmount: withdrawalAmount }),
       ]);
 
       const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
 
-      const depositDays = Util.daysDiff(depositUpdated, dueDate);
-      const withdrawalDays = Util.daysDiff(withdrawalUpdated, dueDate);
-      const expected = (depositAmount * rate * depositDays) / 365 + (-withdrawalAmount * rate * withdrawalDays) / 365;
-      const depositOnly = (depositAmount * rate * depositDays) / 365;
+      const depositYears = Util.yearsDiff(depositCompletedAt, dueDate);
+      const withdrawalYears = Util.yearsDiff(withdrawalCompletedAt, dueDate);
+      const expected = depositAmount * rate * depositYears - withdrawalAmount * rate * withdrawalYears;
+      const depositOnly = depositAmount * rate * depositYears;
 
       expect(result).toBeCloseTo(expected, 2);
       expect(result).toBeLessThan(depositOnly);
@@ -234,7 +310,7 @@ describe('CustodyService', () => {
 
     it('ignores orders with value date after dueDate', async () => {
       const afterDueDate = new Date('2026-07-29T00:00:00.000Z');
-      custodyOrderRepo.find.mockResolvedValue([interestOrder({ updated: afterDueDate, inputAmount: 99500 })]);
+      custodyOrderRepo.find.mockResolvedValue([interestOrder({ completedAt: afterDueDate, inputAmount: 99500 })]);
 
       const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
 
@@ -243,7 +319,7 @@ describe('CustodyService', () => {
 
     it('passes COMPLETED status filter in both where conditions', async () => {
       custodyOrderRepo.find.mockResolvedValue([
-        interestOrder({ updated: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 1000 }),
+        interestOrder({ completedAt: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 1000 }),
       ]);
 
       await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
@@ -259,10 +335,10 @@ describe('CustodyService', () => {
     });
 
     it('excludes COMPLETED orders with null amounts from interest', async () => {
-      const validOrder = interestOrder({ updated: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 1000 });
+      const validOrder = interestOrder({ completedAt: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 1000 });
       const nullAmountOrder = interestOrder({
         id: 2,
-        updated: new Date('2026-01-28T00:00:00.000Z'),
+        completedAt: new Date('2026-01-28T00:00:00.000Z'),
         inputAmount: null,
       });
 
@@ -274,6 +350,32 @@ describe('CustodyService', () => {
 
       expect(withNull).toBe(withoutNull);
       expect(withNull).not.toBeNaN();
+    });
+
+    it('throws when a Completed order has no completedAt', async () => {
+      const orderWithoutCompletedAt = Object.assign(new CustodyOrder(), {
+        id: 7,
+        type: CustodyOrderType.DEPOSIT,
+        status: CustodyOrderStatus.COMPLETED,
+        inputAmount: 1000,
+        inputAsset: asset,
+        user: custodyUser,
+        updated: new Date('2026-01-28T00:00:00.000Z'),
+      });
+      custodyOrderRepo.find.mockResolvedValue([orderWithoutCompletedAt]);
+
+      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/7/);
+    });
+
+    it('throws when an order amount is not finite (NaN/Infinity)', async () => {
+      const nonFiniteOrder = interestOrder({
+        id: 8,
+        completedAt: new Date('2026-01-28T00:00:00.000Z'),
+        inputAmount: Infinity,
+      });
+      custodyOrderRepo.find.mockResolvedValue([nonFiniteOrder]);
+
+      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/8/);
     });
   });
 });
