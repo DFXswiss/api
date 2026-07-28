@@ -12,7 +12,8 @@ import { IbanBankName } from '../../bank/dto/bank.dto';
 import { FrickVibanProvider } from '../providers/frick-viban.provider';
 import { VirtualIbanFrickIssuanceReconciliationService } from '../virtual-iban-frick-issuance-reconciliation.service';
 import { VirtualIbanIssuanceEvent } from '../virtual-iban-issuance-event.entity';
-import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from '../virtual-iban-issuance-intent.entity';
+import { VirtualIbanIssuanceIntentStatus } from '../virtual-iban-issuance-intent-status.enum';
+import { VirtualIbanIssuanceIntent } from '../virtual-iban-issuance-intent.entity';
 import { CREATE_PATH_REFERENCE_MARKER, MERGE_SUPERSEDED_MARKER, VirtualIbanService } from '../virtual-iban.service';
 
 describe('VirtualIbanFrickIssuanceReconciliationService', () => {
@@ -22,7 +23,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
   let frickVibanProvider: FrickVibanProvider;
   let bankService: BankService;
   let notificationService: NotificationService;
-  let virtualIbanService: VirtualIbanService;
+  let legacyReopener: { resetStuckFrickIntentForReconciliationOnly: jest.Mock };
 
   const referenceAccountIban = 'LI32088110105923K000C';
   const bankId = 50;
@@ -91,14 +92,13 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
     frickVibanProvider = createMock<FrickVibanProvider>();
     bankService = createMock<BankService>();
     notificationService = createMock<NotificationService>();
-    virtualIbanService = createMock<VirtualIbanService>();
+    legacyReopener = { resetStuckFrickIntentForReconciliationOnly: jest.fn().mockResolvedValue(true) };
 
     jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
     jest
       .spyOn(bankService, 'getBankByIdUncached')
       .mockResolvedValue({ id: bankId, iban: referenceAccountIban, name: IbanBankName.FRICK } as any);
     jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined as any);
-    jest.spyOn(virtualIbanService, 'resetStuckFrickIntentForReconciliationOnly').mockResolvedValue(true);
 
     const dataSource = {
       getRepository: jest.fn((entity) => {
@@ -115,7 +115,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
         { provide: FrickVibanProvider, useValue: frickVibanProvider },
         { provide: BankService, useValue: bankService },
         { provide: NotificationService, useValue: notificationService },
-        { provide: VirtualIbanService, useValue: virtualIbanService },
+        { provide: VirtualIbanService, useValue: legacyReopener },
       ],
     }).compile();
 
@@ -245,7 +245,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
       expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
@@ -260,7 +259,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       expect(mailArg.input.errors[0]).toContain(`bankId=${bankId}`);
     });
 
-    it('skips intents younger than the safety threshold and does not reset', async () => {
+    it('skips intents younger than the safety threshold', async () => {
       intentRepo.find.mockResolvedValue([
         intent({
           id: 102,
@@ -272,11 +271,10 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
       expect(notificationService.sendMail).not.toHaveBeenCalled();
     });
 
-    it('resets past-threshold intents with empty fully-validated listing via VirtualIbanService', async () => {
+    it('leaves an old intent non-retryable and alerts on an empty fully validated listing', async () => {
       const pastThresholdUpdated = new Date(
         Date.now() - VirtualIbanFrickIssuanceReconciliationService.FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS - 5_000,
       );
@@ -291,26 +289,17 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).toHaveBeenCalledTimes(1);
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).toHaveBeenCalledWith(
-        103,
-        stuckRequestReference,
-        { listingStartedAt: expect.any(Date) },
-      );
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
         context: MailContext.MONITORING,
         input: {
-          subject: 'Frick vIBAN reconciliation Phase 1: non-authoritative listing miss will arm automatic retry',
-          errors: [
-            expect.stringContaining('operatorAction=check the Bank Frick portal/API across every lifecycle state'),
-          ],
+          subject: 'Frick vIBAN reconciliation Phase 1: listing does not prove create absence',
+          errors: [expect.stringContaining('intentId=103')],
         },
       });
-      const riskAlert = (notificationService.sendMail as jest.Mock).mock.calls[0][0].input.errors[0] as string;
-      expect(riskAlert).toContain(`requestReference=${stuckRequestReference}`);
-      expect(riskAlert).toContain('listing absence is not authoritative');
-      expect(riskAlert).toContain('worstCase=a second non-revocable external account');
+      const alert = (notificationService.sendMail as jest.Mock).mock.calls[0][0].input.errors[0] as string;
+      expect(alert).not.toContain(stuckRequestReference);
+      expect(legacyReopener.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
     });
 
     it('leaves an old intent non-retryable and alerts when the listing began before create processing could end', async () => {
@@ -336,7 +325,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
         context: MailContext.MONITORING,
@@ -359,8 +347,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       });
 
       await service.reconcileRetiredIssuanceReferences();
-
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
     });
 
     it('does not reset when listing is not fully validated, and alerts incomplete check', async () => {
@@ -374,7 +360,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
       const subjects = (notificationService.sendMail as jest.Mock).mock.calls.map((c) => c[0].input.subject);
       expect(subjects).toContain('Frick vIBAN reconciliation Phase 1: listing not fully validated');
       // Default fixture intent is past the safety threshold → escalated chronic signal too.
@@ -402,7 +387,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
       const subjects = (notificationService.sendMail as jest.Mock).mock.calls.map((c) => c[0].input.subject);
       expect(subjects).toContain('Frick vIBAN reconciliation Phase 1: stuck intent(s) already exist at Bank Frick');
       expect(subjects).toContain('Frick vIBAN reconciliation Phase 1: listing not fully validated');
@@ -478,10 +462,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).toHaveBeenCalledTimes(1);
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).toHaveBeenCalledWith(111, healthyRef, {
-        listingStartedAt: expect.any(Date),
-      });
+      expect(legacyReopener.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
       expect(notificationService.sendMail).toHaveBeenCalledWith({
         type: MailType.ERROR_MONITORING,
         context: MailContext.MONITORING,
@@ -494,7 +475,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       expect(subjects).not.toContain('Frick vIBAN retired-reference reconciliation: check could not run');
     });
 
-    it('never resets a merge-superseded FAILED intent even past threshold with empty listing', async () => {
+    it('filters merge-superseded FAILED intents and leaves other listing misses non-retryable', async () => {
       const mergeRetiredReference = 'dfx-viban-mergesuperseded000000000001';
       const eligibleReference = 'dfx-viban-eligibleforreset000000000001';
       intentRepo.find.mockResolvedValue([
@@ -517,15 +498,13 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).toHaveBeenCalledTimes(1);
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).toHaveBeenCalledWith(
-        121,
-        eligibleReference,
-        { listingStartedAt: expect.any(Date) },
-      );
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalledWith(
-        120,
-        mergeRetiredReference,
+      expect(legacyReopener.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
+      expect(notificationService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            subject: 'Frick vIBAN reconciliation Phase 1: listing does not prove create absence',
+          }),
+        }),
       );
     });
 
@@ -544,9 +523,9 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      // Filtered out before bank grouping — no listing fetch and no reset work.
+      // Filtered out before bank grouping — no listing or reopening work.
       expect(frickVibanProvider.listByReferenceAccount).not.toHaveBeenCalled();
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
+      expect(legacyReopener.resetStuckFrickIntentForReconciliationOnly).not.toHaveBeenCalled();
       expect(notificationService.sendMail).not.toHaveBeenCalled();
     });
   });
@@ -1052,23 +1031,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       expect(frickVibanProvider.listByReferenceAccount).toHaveBeenCalledTimes(1);
       expect(bankService.getBankByIdUncached).toHaveBeenCalledTimes(1);
-    });
-
-    it('does not count a concurrent no-op reset as a successful reset', async () => {
-      intentRepo.find.mockResolvedValue([intent({ id: 201, requestReference: stuckRequestReference })]);
-      jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([], true));
-      jest.spyOn(virtualIbanService, 'resetStuckFrickIntentForReconciliationOnly').mockResolvedValue(false);
-
-      await service.reconcileRetiredIssuanceReferences();
-
-      expect(virtualIbanService.resetStuckFrickIntentForReconciliationOnly).toHaveBeenCalled();
-      expect(notificationService.sendMail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: expect.objectContaining({
-            subject: 'Frick vIBAN reconciliation Phase 1: non-authoritative listing miss will arm automatic retry',
-          }),
-        }),
-      );
     });
 
     it('extracts marker value when there is no trailing semicolon', () => {

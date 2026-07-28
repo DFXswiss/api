@@ -44,6 +44,7 @@ import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.servi
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -75,6 +76,7 @@ import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
 export const MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER = 'postCommitEffectsPending=';
+export const MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER = 'postCommitEffectCompleted=';
 
 interface SecretCacheEntry {
   secret: string;
@@ -1257,6 +1259,7 @@ export class UserDataService {
       master: UserData;
       slave: UserData;
       effects: { name: string; run: () => Promise<void> }[];
+      durableMergeLog: string;
     };
     try {
       mergeResult = await this.userDataRepo.manager.transaction(async (manager: EntityManager) => {
@@ -1283,7 +1286,7 @@ export class UserDataService {
           relations: { userData: true, wallet: true },
         });
         master.bankDatas = await this.bankDataService.getAllBankDatasForUser(masterId, manager);
-        master.virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(masterId, manager);
+        master.virtualIbans = await this.virtualIbanService.getFrickVirtualIbansForAccount(masterId, manager);
         master.kycSteps = await this.kycAdminService.getKycSteps(masterId, {}, manager);
 
         const slave = await userDataRepo.findOne({
@@ -1303,7 +1306,7 @@ export class UserDataService {
           relations: { userData: true, wallet: true },
         });
         slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId, manager);
-        slave.virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(slaveId, manager);
+        slave.virtualIbans = await this.virtualIbanService.getFrickVirtualIbansForAccount(slaveId, manager);
         slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId, {}, manager);
 
         master.checkIfMergePossibleWith(slave);
@@ -1409,7 +1412,10 @@ export class UserDataService {
         // Deactivations run first inside that single transaction so intent ownership resolution sees
         // the loser's intent already reopened to Pending rather than Completed-pointing-at-a-dead-IBAN.
         const isActiveUserLevelVirtualIban = (v: VirtualIban): boolean =>
-          v.active === true && v.status === VirtualIbanStatus.ACTIVE && v.buy == null;
+          v.bank.name === IbanBankName.FRICK &&
+          v.active === true &&
+          v.status === VirtualIbanStatus.ACTIVE &&
+          v.buy == null;
         const virtualIbanPairKey = (v: VirtualIban): string => `${v.currency.id}:${v.bank.id}`;
 
         const masterActiveByPair = new Map<string, VirtualIban[]>();
@@ -1591,34 +1597,52 @@ export class UserDataService {
         await this.kycLogService.createMergeLog(master, durableMergeLog, manager);
         await this.kycLogService.createMergeLog(slave, durableMergeLog, manager);
 
-        return { master, slave, effects };
+        return { master, slave, effects, durableMergeLog };
       });
     } catch (error) {
       await this.virtualIbanService.reportIntegrityError(error);
       throw error;
     }
-    const { master, slave, effects } = mergeResult;
+    const { master, slave, effects, durableMergeLog } = mergeResult;
 
     this.virtualIbanService.invalidateCacheAfterMerge();
 
     // The start marker is already durable in both KYC merge-log rows because it was written inside
-    // the merge transaction. Per-effect application-log markers identify which work completed.
+    // the merge transaction. Each successful effect gets a second durable marker pair below.
     this.logger.info(
       `UserData merge committed; starting post-commit effects ` +
         `(masterId=${master.id}, slaveId=${slave.id}, effects=${effects.map((effect) => effect.name).join(',')})`,
     );
     const failedEffects: string[] = [];
+    const unrecordedCompletedEffects: string[] = [];
     for (const effect of effects) {
       try {
         await effect.run();
+      } catch (error) {
+        failedEffects.push(effect.name);
+        this.logger.critical(
+          `UserData merge committed but post-commit effect failed; manual reconciliation required ` +
+            `(masterId=${master.id}, slaveId=${slave.id}, effect=${effect.name})`,
+          error instanceof Error ? error : undefined,
+        );
+        continue;
+      }
+
+      try {
+        await this.kycLogService.createMergeEffectCompletionLogs(
+          master,
+          slave,
+          `${durableMergeLog}; ${MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER}${effect.name}`,
+        );
         this.logger.info(
           `UserData merge post-commit effect completed ` +
             `(masterId=${master.id}, slaveId=${slave.id}, effect=${effect.name})`,
         );
       } catch (error) {
-        failedEffects.push(effect.name);
+        unrecordedCompletedEffects.push(effect.name);
         this.logger.critical(
-          `UserData merge committed but post-commit effect failed; manual replay required ` +
+          `UserData merge post-commit effect completed but its durable completion marker failed; ` +
+            `verify the target system before any replay ` +
             `(masterId=${master.id}, slaveId=${slave.id}, effect=${effect.name})`,
           error instanceof Error ? error : undefined,
         );
@@ -1628,6 +1652,11 @@ export class UserDataService {
       this.logger.critical(
         `UserData merge completed with failed post-commit effects ` +
           `(masterId=${master.id}, slaveId=${slave.id}, failedEffects=${failedEffects.join(',')})`,
+      );
+    if (unrecordedCompletedEffects.length)
+      this.logger.critical(
+        `UserData merge completed with unrecorded durable completion markers ` +
+          `(masterId=${master.id}, slaveId=${slave.id}, effects=${unrecordedCompletedEffects.join(',')})`,
       );
   }
 

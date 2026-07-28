@@ -23,7 +23,7 @@ function virtualIban(
     createdBy: 'synthetic',
     activationApprovals: [],
     deactivationApprovals: [],
-    ...(overrides.description && { description: overrides.description }),
+    description: overrides.description ?? 'dfx-viban-technical-reference',
   };
 }
 
@@ -71,7 +71,7 @@ describe('FrickVibanProvider', () => {
   it('throws ServiceUnavailableException and never calls createViban when not available', async () => {
     bankFrickService.isVibanAvailable.mockReturnValue(false);
 
-    await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(
+    await expect(provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference')).rejects.toThrow(
       new ServiceUnavailableException('Bank Frick virtual IBAN service is not available'),
     );
     expect(bankFrickService.createViban).not.toHaveBeenCalled();
@@ -106,11 +106,52 @@ describe('FrickVibanProvider', () => {
     const created = virtualIban({ vban: 'LI11ACTIVE00000000001', state: FrickVirtualIbanState.ACTIVE });
     bankFrickService.createViban.mockResolvedValue(created);
 
-    await expect(provider.reserveViban('LI32088110105923K000C')).resolves.toEqual({
+    await expect(provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference')).resolves.toEqual({
       iban: 'LI11ACTIVE00000000001',
       providerAccountRef: 'LI11ACTIVE00000000001',
     });
     expect(bankFrickService.approveVibanActivation).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: 'reference account',
+      response: virtualIban({
+        state: FrickVirtualIbanState.ACTIVE,
+        referenceAccountIban: 'LI99088110105923K999C',
+      }),
+    },
+    {
+      name: 'issuance description',
+      response: virtualIban({
+        state: FrickVirtualIbanState.ACTIVE,
+        description: 'dfx-viban-different-request',
+      }),
+    },
+  ])('fails closed when the create response belongs to a different $name', async ({ response }) => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    bankFrickService.createViban.mockResolvedValue(response);
+
+    await expect(provider.reserveViban('li32 0881 1010 5923 k000c', 'dfx-viban-technical-reference')).rejects.toThrow(
+      new ServiceUnavailableException('Bank Frick virtual IBAN create response binding mismatch'),
+    );
+    expect(bankFrickService.approveVibanActivation).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the activation response belongs to a different issuance request', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const created = virtualIban({ state: FrickVirtualIbanState.PREPARED });
+    const activated = virtualIban({
+      vban: created.vban,
+      state: FrickVirtualIbanState.ACTIVE,
+      description: 'dfx-viban-different-request',
+    });
+    bankFrickService.createViban.mockResolvedValue(created);
+    bankFrickService.approveVibanActivation.mockResolvedValue(activated);
+
+    await expect(provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference')).rejects.toThrow(
+      new ServiceUnavailableException('Bank Frick virtual IBAN activation response binding mismatch'),
+    );
   });
 
   it('passes the non-PII issuance reference as the exact Frick description', async () => {
@@ -133,7 +174,7 @@ describe('FrickVibanProvider', () => {
 
     let caught: unknown;
     try {
-      await provider.reserveViban('LI32088110105923K000C');
+      await provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference');
     } catch (error) {
       caught = error;
     }
@@ -148,7 +189,7 @@ describe('FrickVibanProvider', () => {
     const cause = new Error('socket closed');
     bankFrickService.createViban.mockRejectedValue(cause);
 
-    await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(
+    await expect(provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference')).rejects.toThrow(
       new ServiceUnavailableException('Bank Frick virtual IBAN creation failed'),
     );
     expect(loggerError).toHaveBeenCalledWith('Bank Frick virtual IBAN creation failed', cause);
@@ -161,7 +202,7 @@ describe('FrickVibanProvider', () => {
     bankFrickService.createViban.mockResolvedValue(created);
     bankFrickService.approveVibanActivation.mockResolvedValue(activated);
 
-    await expect(provider.reserveViban('LI32088110105923K000C')).resolves.toEqual({
+    await expect(provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference')).resolves.toEqual({
       iban: 'LI22PREPARED00000001',
       providerAccountRef: 'LI22PREPARED00000001',
     });
@@ -180,7 +221,7 @@ describe('FrickVibanProvider', () => {
 
     let message = '';
     try {
-      await provider.reserveViban('LI32088110105923K000C');
+      await provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference');
     } catch (error) {
       message = error instanceof Error ? error.message : String(error);
     }
@@ -197,7 +238,7 @@ describe('FrickVibanProvider', () => {
 
     let message = '';
     try {
-      await provider.reserveViban('LI32088110105923K000C');
+      await provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference');
     } catch (error) {
       message = error instanceof Error ? error.message : String(error);
     }
@@ -217,7 +258,7 @@ describe('FrickVibanProvider', () => {
     const cause = new Error('upstream unavailable');
     bankFrickService.approveVibanActivation.mockRejectedValue(cause);
 
-    await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(
+    await expect(provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference')).rejects.toThrow(
       new ServiceUnavailableException('Bank Frick virtual IBAN activation failed'),
     );
     expect(loggerError).toHaveBeenCalledWith('Bank Frick virtual IBAN activation failed', cause);
@@ -341,9 +382,9 @@ describe('FrickVibanProvider', () => {
     bankFrickService.isVibanAvailable.mockReturnValue(false);
     const prepared = virtualIban({ state: FrickVirtualIbanState.PREPARED });
 
-    await expect(provider.adoptAndActivate(prepared)).rejects.toThrow(
-      new ServiceUnavailableException('Bank Frick virtual IBAN service is not available'),
-    );
+    await expect(
+      provider.adoptAndActivate(prepared, 'LI32088110105923K000C', 'dfx-viban-technical-reference'),
+    ).rejects.toThrow(new ServiceUnavailableException('Bank Frick virtual IBAN service is not available'));
     expect(bankFrickService.approveVibanActivation).not.toHaveBeenCalled();
   });
 
@@ -354,7 +395,9 @@ describe('FrickVibanProvider', () => {
       virtualIban({ vban: 'LI44ADOPT00000000001', state: FrickVirtualIbanState.ACTIVE }),
     );
 
-    await expect(provider.adoptAndActivate(prepared)).resolves.toEqual({
+    await expect(
+      provider.adoptAndActivate(prepared, 'LI32088110105923K000C', 'dfx-viban-technical-reference'),
+    ).resolves.toEqual({
       iban: 'LI44ADOPT00000000001',
       providerAccountRef: 'LI44ADOPT00000000001',
     });
@@ -443,7 +486,7 @@ describe('FrickVibanProvider', () => {
     bankFrickService.isVibanAvailable.mockReturnValue(true);
     bankFrickService.createViban.mockRejectedValue('raw-create-failure');
 
-    await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(
+    await expect(provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference')).rejects.toThrow(
       new ServiceUnavailableException('Bank Frick virtual IBAN creation failed'),
     );
     expect(loggerError).toHaveBeenCalledWith('Bank Frick virtual IBAN creation failed', undefined);
@@ -474,7 +517,7 @@ describe('FrickVibanProvider', () => {
     bankFrickService.createViban.mockResolvedValue(virtualIban({ state: FrickVirtualIbanState.PREPARED }));
     bankFrickService.approveVibanActivation.mockRejectedValue('raw-activation-failure');
 
-    await expect(provider.reserveViban('LI32088110105923K000C')).rejects.toThrow(
+    await expect(provider.reserveViban('LI32088110105923K000C', 'dfx-viban-technical-reference')).rejects.toThrow(
       new ServiceUnavailableException('Bank Frick virtual IBAN activation failed'),
     );
     expect(loggerError).toHaveBeenCalledWith('Bank Frick virtual IBAN activation failed', undefined);

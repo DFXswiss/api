@@ -38,6 +38,8 @@ export class FrickVibanProvider implements VibanProvider {
 
   async reserveViban(baseAccountIban: string, description?: string): Promise<ReservedViban> {
     if (!this.isAvailable()) throw new ServiceUnavailableException('Bank Frick virtual IBAN service is not available');
+    if (typeof description !== 'string' || !description.trim())
+      throw new ServiceUnavailableException('Bank Frick virtual IBAN issuance reference is missing');
 
     let created: FrickVirtualIban;
     try {
@@ -49,7 +51,7 @@ export class FrickVibanProvider implements VibanProvider {
       this.logger.error('Bank Frick virtual IBAN creation failed', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Bank Frick virtual IBAN creation failed');
     }
-    return this.ensureActive(created);
+    return this.ensureActive(created, baseAccountIban, description);
   }
 
   /**
@@ -116,12 +118,23 @@ export class FrickVibanProvider implements VibanProvider {
     return matches[0];
   }
 
-  async adoptAndActivate(viban: FrickVirtualIban): Promise<ReservedViban> {
+  async adoptAndActivate(
+    viban: FrickVirtualIban,
+    expectedReferenceAccountIban: string,
+    expectedDescription: string,
+  ): Promise<ReservedViban> {
     if (!this.isAvailable()) throw new ServiceUnavailableException('Bank Frick virtual IBAN service is not available');
-    return this.ensureActive(viban);
+    return this.ensureActive(viban, expectedReferenceAccountIban, expectedDescription);
   }
 
-  private async ensureActive(created: FrickVirtualIban): Promise<ReservedViban> {
+  private async ensureActive(
+    created: FrickVirtualIban,
+    expectedReferenceAccountIban: string,
+    expectedDescription: string,
+  ): Promise<ReservedViban> {
+    const normalizedReferenceAccountIban = expectedReferenceAccountIban.replace(/\s/g, '').toUpperCase();
+    this.assertResponseBinding(created, normalizedReferenceAccountIban, expectedDescription, 'create');
+
     let activated: FrickVirtualIban;
     try {
       activated =
@@ -133,7 +146,6 @@ export class FrickVibanProvider implements VibanProvider {
       throw new ServiceUnavailableException('Bank Frick virtual IBAN activation failed');
     }
 
-    // Fail-closed identity check: never trust an activation response that describes a different vIBAN.
     if (activated.vban !== created.vban) {
       this.logger.error(
         `Bank Frick virtual IBAN activation identity mismatch (createdLength=${created.vban.length}, activatedLength=${activated.vban.length})`,
@@ -142,6 +154,7 @@ export class FrickVibanProvider implements VibanProvider {
         `Bank Frick virtual IBAN activation identity mismatch (createdLength=${created.vban.length}, activatedLength=${activated.vban.length})`,
       );
     }
+    this.assertResponseBinding(activated, normalizedReferenceAccountIban, expectedDescription, 'activation');
 
     if (activated.state !== FrickVirtualIbanState.ACTIVE)
       throw new ServiceUnavailableException(
@@ -149,5 +162,22 @@ export class FrickVibanProvider implements VibanProvider {
       );
 
     return { iban: activated.vban, providerAccountRef: activated.vban };
+  }
+
+  private assertResponseBinding(
+    response: FrickVirtualIban,
+    expectedReferenceAccountIban: string,
+    expectedDescription: string,
+    phase: 'create' | 'activation',
+  ): void {
+    if (
+      response.referenceAccountIban === expectedReferenceAccountIban &&
+      response.description === expectedDescription
+    ) {
+      return;
+    }
+
+    this.logger.error(`Bank Frick virtual IBAN ${phase} response binding mismatch`);
+    throw new ServiceUnavailableException(`Bank Frick virtual IBAN ${phase} response binding mismatch`);
   }
 }

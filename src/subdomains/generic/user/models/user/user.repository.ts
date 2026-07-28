@@ -25,7 +25,7 @@ export class UserRepository extends BaseRepository<User> {
     }
   }
 
-  private async getNextRef(repo: Repository<User> = this): Promise<string> {
+  private async getNextRef(repo: Repository<User>): Promise<string> {
     // get highest numerical ref
     const nextRef = await repo
       .findOne({

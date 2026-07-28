@@ -1,7 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
-import { VirtualIbanIssuanceIntentStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent.entity';
+import { VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent-status.enum';
 
 /**
  * Append-only audit record written before every issuance-intent snapshot transition.

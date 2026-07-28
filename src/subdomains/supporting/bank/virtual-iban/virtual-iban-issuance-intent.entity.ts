@@ -1,13 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
-
-export enum VirtualIbanIssuanceIntentStatus {
-  PENDING = 'Pending',
-  IN_FLIGHT = 'InFlight',
-  COMPLETED = 'Completed',
-  FAILED = 'Failed',
-}
+import { VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent-status.enum';
 
 @Entity()
 @Index((intent: VirtualIbanIssuanceIntent) => [intent.userDataId, intent.currencyId, intent.bankId], {
@@ -35,15 +29,14 @@ export class VirtualIbanIssuanceIntent extends IEntity {
   @Column({ type: 'integer' })
   bankId: number;
 
-  @Column({ type: 'varchar', length: 256, default: IbanBankName.FRICK })
-  provider: IbanBankName = IbanBankName.FRICK;
+  @Column({ type: 'varchar', length: 256 })
+  provider: IbanBankName;
 
   @Index()
   @Column({ type: 'integer', nullable: true })
   buyId: number | null;
 
-  // Explicit type even though the enum is same-file today: keeps the column independent of
-  // emitDecoratorMetadata if the enum is ever moved (same trap as previousStatus/nextStatus).
+  // Explicit type because imported enums otherwise depend on emitDecoratorMetadata at runtime.
   @Column({ type: 'varchar', length: 32 })
   status: VirtualIbanIssuanceIntentStatus;
 

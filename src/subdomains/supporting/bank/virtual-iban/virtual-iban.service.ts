@@ -18,7 +18,8 @@ import { VibanAccountHolder } from './providers/viban-account-holder.enum';
 import { ReservedViban, VibanNotCreatedError, VibanProvider } from './providers/viban-provider.interface';
 import { YapealVibanProvider } from './providers/yapeal-viban.provider';
 import { VirtualIbanIssuanceEvent } from './virtual-iban-issuance-event.entity';
-import { VirtualIbanIssuanceIntent, VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent.entity';
+import { VirtualIbanIssuanceIntentStatus } from './virtual-iban-issuance-intent-status.enum';
+import { VirtualIbanIssuanceIntent } from './virtual-iban-issuance-intent.entity';
 import { VirtualIbanLifecycleEvent } from './virtual-iban-lifecycle-event.entity';
 import { VirtualIban, VirtualIbanStatus } from './virtual-iban.entity';
 import { VirtualIbanRepository } from './virtual-iban.repository';
@@ -124,15 +125,10 @@ export class VirtualIbanService {
         userData: { id: userData.id },
         currency: { name: currencyName },
         bank: { name: Not(IbanBankName.FRICK) },
-        // User-level and buy-bound personal IBANs are deliberately disjoint pools: a buy-bound vIBAN
-        // is scoped to one specific Buy route and must never be silently reused as "the" user-level
-        // personal IBAN, and vice versa.
-        buy: IsNull(),
         active: true,
         status: VirtualIbanStatus.ACTIVE,
       },
       relations: { bank: true },
-      order: { id: 'ASC' },
     });
   }
 
@@ -519,7 +515,7 @@ export class VirtualIbanService {
     const match = await this.frickVibanProvider.findRecoverableByDescription(intent.requestReference, bank.iban);
     if (!match) return FrickRecoveryNotFound;
 
-    const reserved = await this.frickVibanProvider.adoptAndActivate(match);
+    const reserved = await this.frickVibanProvider.adoptAndActivate(match, bank.iban, intent.requestReference);
     return this.finalizeFrickIssuance(intent.id, intent.requestReference, userData, bank, currency, reserved);
   }
 
@@ -786,87 +782,7 @@ export class VirtualIbanService {
   }
 
   /**
-   * Sole product-approved automatic reopener of stuck Frick issuance intents after the strongest
-   * available Bank Frick listing miss. Listing absence is not authoritative; the reconciliation
-   * caller alerts operators before invoking this method and Phase 2 scans the retired reference.
-   *
-   * ONLY {@link VirtualIbanFrickIssuanceReconciliationService} Phase 1 may call this — never the
-   * request path. Rotates `requestReference` under a pessimistic row lock after re-checking that
-   * status is still InFlight/Failed and the reference is still the expected (pre-reset) value.
-   *
-   * @returns true when this call performed the reset; false when a concurrent transition already moved
-   *          the row (second job run, VibanNotCreatedError reset, or completion).
-   */
-  async resetStuckFrickIntentForReconciliationOnly(
-    intentId: number,
-    expectedRequestReference: string,
-    bestAvailableAbsenceEvidence: { listingStartedAt: Date },
-  ): Promise<boolean> {
-    try {
-      return await this.dataSource.transaction(async (manager) => {
-        const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
-        if (intent.requestReference !== expectedRequestReference) return false;
-
-        // Merge-driven fail does not rotate requestReference. A concurrent account merge can mark this
-        // intent FAILED with MERGE_SUPERSEDED_MARKER between the caller's unguarded pre-filter and this
-        // locked recheck. Return false (no reset) — runPhase1StuckIntents already treats that marker as
-        // "skip silently"; no new alert is warranted on this race.
-        if (
-          intent.status === VirtualIbanIssuanceIntentStatus.FAILED &&
-          intent.error != null &&
-          intent.error.includes(MERGE_SUPERSEDED_MARKER)
-        ) {
-          return false;
-        }
-
-        const listingStartedAtMs = bestAvailableAbsenceEvidence.listingStartedAt.getTime();
-        if (!Number.isFinite(listingStartedAtMs)) {
-          throw new Error(`Invalid Frick absence-evidence timestamp (intentId=${intent.id})`);
-        }
-        const latestPossibleCreateProcessedAtMs =
-          intent.updated.getTime() + VirtualIbanService.FRICK_CREATE_MAX_PROCESSING_MS;
-        if (listingStartedAtMs <= latestPossibleCreateProcessedAtMs) {
-          this.logger.error(
-            `Bank Frick reconciliation reset refused: absence evidence became stale under lock ` +
-              `(intentId=${intent.id}, userDataId=${intent.userDataId}, currencyId=${intent.currencyId}, ` +
-              `bankId=${intent.bankId})`,
-          );
-          throw new IssuanceIntegrityError(
-            'reset: listing no longer proves create absence under lock',
-            {
-              intentId: intent.id,
-              userDataId: intent.userDataId,
-              currencyId: intent.currencyId,
-              bankId: intent.bankId,
-            },
-            new Error('Reset refused because listing evidence became stale'),
-          );
-        }
-
-        const newRequestReference = this.newFrickRequestReference();
-        const message = (
-          `reconciliation: strongest available post-create listing found no match (non-authoritative); ` +
-          `${CREATE_PATH_REFERENCE_MARKER}${intent.requestReference}; newRequestReference=${newRequestReference}`
-        ).slice(0, 2000);
-
-        return this.resetFrickIntentToPendingLocked(
-          manager,
-          intent,
-          [VirtualIbanIssuanceIntentStatus.IN_FLIGHT, VirtualIbanIssuanceIntentStatus.FAILED],
-          message,
-          true,
-          newRequestReference,
-        );
-      });
-    } catch (error) {
-      await this.reportIntegrityError(error);
-      if (error instanceof IssuanceIntegrityError) return false;
-      throw error;
-    }
-  }
-
-  /**
-   * Shared reset-to-Pending for Frick issuance intents (request path, reconciliation, deactivation).
+   * Shared reset-to-Pending for Frick issuance intents (request path and deactivation).
    *
    * - Only transitions when the current status is in `allowedSourceStatuses` (callers pass the set
    *   appropriate to their path: InFlight; InFlight|Failed; Completed; …).
@@ -1214,11 +1130,7 @@ export class VirtualIbanService {
     });
   }
 
-  /**
-   * Buy-bound pool only (`buy: { id }`): complementary to the user-level pool filtered with
-   * `buy: IsNull()` in {@link getActiveForUserAndCurrency} / {@link findActiveForUserCurrencyAndBank}.
-   * The two pools are deliberately disjoint.
-   */
+  /** Exact buy-bound lookup retained from the implicit Yapeal path. */
   async getActiveForBuyAndCurrency(buyId: number, currencyName: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
       where: {
@@ -1275,6 +1187,13 @@ export class VirtualIbanService {
         relations: { userData: true, currency: true, bank: true, buy: true },
       });
     return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
+  }
+
+  async getFrickVirtualIbansForAccount(userDataId: number, manager: EntityManager): Promise<VirtualIban[]> {
+    return manager.find(VirtualIban, {
+      where: { userData: { id: userDataId }, bank: { name: IbanBankName.FRICK } },
+      relations: { userData: true, currency: true, bank: true, buy: true },
+    });
   }
 
   private async deactivateVirtualIbanLocked(
@@ -1506,8 +1425,7 @@ export class VirtualIbanService {
       winner.userData = { id: masterId } as UserData;
     }
 
-    // Generic/Yapeal conflict resolution ends with the ordinary VirtualIban ownership move above.
-    // Only a Frick winner can have the recoverable intent whose ownership/retirement is handled below.
+    // Only Frick rows enter account-merge virtual-IBAN handling.
     if (winner.bank.name !== IbanBankName.FRICK) return;
 
     const masterIntent = await manager.findOne(VirtualIbanIssuanceIntent, {
@@ -1517,8 +1435,7 @@ export class VirtualIbanService {
       where: { userDataId: slaveId, currencyId, bankId, provider: IbanBankName.FRICK, buyId: IsNull() },
     });
 
-    // Winner-side intent is the one that legitimately completed onto the surviving vIBAN (whichever
-    // account originally owned it). Missing intent rows (e.g. Yapeal) are a natural no-op.
+    // Winner-side intent is the one that legitimately completed onto the surviving Frick vIBAN.
     const pairIntents = [masterIntent, slaveIntent].filter(
       (intent): intent is VirtualIbanIssuanceIntent => intent != null,
     );
@@ -1587,7 +1504,9 @@ export class VirtualIbanService {
       }
     >();
 
-    for (const deactivation of deactivations) {
+    for (const deactivation of deactivations.filter(
+      ({ virtualIban }) => virtualIban.bank?.name === IbanBankName.FRICK,
+    )) {
       const { virtualIban } = deactivation;
       let currencyId = virtualIban.currency?.id;
       let bankId = virtualIban.bank?.id;
@@ -1624,8 +1543,8 @@ export class VirtualIbanService {
     }
 
     const survivingSlaveVirtualIbans = await manager.find(VirtualIban, {
-      where: { userData: { id: slaveId } },
-      relations: { userData: true },
+      where: { userData: { id: slaveId }, bank: { name: IbanBankName.FRICK } },
+      relations: { userData: true, bank: true },
     });
     for (const surviving of survivingSlaveVirtualIbans) {
       await this.recordVirtualIbanLifecycleEventLocked(

@@ -45,15 +45,16 @@ describe('Bank Frick personal-IBAN migrations against a real schema', () => {
     provider?: string | null;
     status?: string | null;
   }): void => {
-    const provider =
-      values.provider === undefined ? `'Bank Frick'` : values.provider === null ? 'NULL' : `'${values.provider}'`;
+    const providerColumn = values.provider === undefined ? '' : ', "provider"';
+    const providerValue =
+      values.provider === undefined ? '' : values.provider === null ? ', NULL' : `, '${values.provider}'`;
     const status = values.status === undefined ? `'Pending'` : values.status === null ? 'NULL' : `'${values.status}'`;
     db.public.none(
       `INSERT INTO "virtual_iban_issuance_intent"
-        ("requestReference", "userDataId", "currencyId", "bankId", "provider", "buyId", "status")
+        ("requestReference", "userDataId", "currencyId", "bankId"${providerColumn}, "buyId", "status")
        VALUES (
          '${values.requestReference}', ${values.userDataId}, ${values.currencyId}, ${values.bankId},
-         ${provider}, ${values.buyId ?? 'NULL'}, ${status}
+         ${providerValue ? `${providerValue.slice(2)},` : ''} ${values.buyId ?? 'NULL'}, ${status}
        )`,
     );
   };
@@ -66,6 +67,7 @@ describe('Bank Frick personal-IBAN migrations against a real schema', () => {
       userDataId: 999001,
       currencyId: 999002,
       bankId: 999003,
+      provider: 'Bank Frick',
     });
     expect(() =>
       insertIntent({
@@ -73,6 +75,7 @@ describe('Bank Frick personal-IBAN migrations against a real schema', () => {
         userDataId: 999001,
         currencyId: 999002,
         bankId: 999003,
+        provider: 'Bank Frick',
       }),
     ).toThrow(/unique/i);
 
@@ -85,6 +88,14 @@ describe('Bank Frick personal-IBAN migrations against a real schema', () => {
       buyId: 7001,
       provider: 'Yapeal',
     });
+    expect(() =>
+      insertIntent({
+        requestReference: 'missing-provider',
+        userDataId: 8,
+        currencyId: 9,
+        bankId: 10,
+      }),
+    ).toThrow(/null/i);
     expect(() =>
       insertIntent({
         requestReference: 'buy-claim-duplicate',
@@ -111,6 +122,7 @@ describe('Bank Frick personal-IBAN migrations against a real schema', () => {
         userDataId: 4,
         currencyId: 5,
         bankId: 6,
+        provider: 'Bank Frick',
         status: null,
       }),
     ).toThrow(/null/i);
@@ -131,6 +143,7 @@ describe('Bank Frick personal-IBAN migrations against a real schema', () => {
       userDataId: 1,
       currencyId: 2,
       bankId: 3,
+      provider: 'Bank Frick',
     });
 
     await expect(new AddPersonalIbanProviderFrick().down({ query })).rejects.toThrow(

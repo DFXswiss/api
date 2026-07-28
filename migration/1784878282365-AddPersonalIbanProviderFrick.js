@@ -40,7 +40,7 @@ module.exports = class AddPersonalIbanProviderFrick1784878282365 {
         "userDataId" integer NOT NULL,
         "currencyId" integer NOT NULL,
         "bankId" integer NOT NULL,
-        "provider" character varying(256) NOT NULL DEFAULT 'Bank Frick',
+        "provider" character varying(256) NOT NULL,
         "buyId" integer,
         "status" character varying(32) NOT NULL,
         "externalIban" character varying(34),
