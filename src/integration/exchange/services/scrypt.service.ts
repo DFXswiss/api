@@ -27,7 +27,21 @@ import {
   ScryptWithdrawStatus,
 } from '../dto/scrypt.dto';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
-import { ScryptMessageType, ScryptWebSocketConnection } from './scrypt-websocket-connection';
+import {
+  isVenueRejection,
+  ScryptAmendRejectedError,
+  ScryptMessageType,
+  ScryptOrderNotFoundError,
+  ScryptUnconfirmedWriteError,
+  ScryptVenueRejectionError,
+  ScryptWebSocketConnection,
+} from './scrypt-websocket-connection';
+
+/**
+ * After this long without a usable answer, an order the venue once acknowledged is treated as lost rather
+ * than merely slow. Shared by the "cannot be found" and the "stuck pending" paths so both give up together.
+ */
+const ORDER_LOST_AFTER_MINUTES = 60;
 
 @Injectable()
 export class ScryptService extends PricingProvider {
@@ -120,6 +134,16 @@ export class ScryptService extends PricingProvider {
 
   private isTerminalExecutionReport(r: ScryptExecutionReport): boolean {
     return [ScryptOrderStatus.FILLED, ScryptOrderStatus.CANCELED, ScryptOrderStatus.REJECTED].includes(r.OrdStatus);
+  }
+
+  /**
+   * Drop what we believe about an order, so the next lookup has to ask the venue.
+   *
+   * A non-terminal cached report is never replaced by a fetch, which is right while it is trustworthy and
+   * wrong the moment an unconfirmed write may have changed the order underneath it.
+   */
+  private forgetExecutionReport(clOrdId: string): void {
+    this.executionReports.delete(clOrdId);
   }
 
   private cacheExecutionReport(r: ScryptExecutionReport): void {
@@ -215,8 +239,12 @@ export class ScryptService extends PricingProvider {
     amount: number,
     address: string,
     memo?: string,
+    // See placeOrder: the caller persists this before calling, so a timed-out withdrawal stays traceable.
+    // Two withdrawals (205'589.77 USDT on 15.07.2026, 553'823.67 USDT on 20.07.2026) executed at the venue
+    // while being recorded as failed here, because the generated id never left this stack frame.
+    reservedClReqId?: string,
   ): Promise<ScryptWithdrawResponse> {
-    const clReqId = randomUUID();
+    const clReqId = reservedClReqId ?? randomUUID();
 
     const withdrawData = {
       Quantity: amount.toString(),
@@ -241,7 +269,7 @@ export class ScryptService extends PricingProvider {
     );
 
     if (transaction.Status === ScryptTransactionStatus.REJECTED) {
-      throw new Error(
+      throw new ScryptVenueRejectionError(
         `Scrypt withdrawal rejected: ${transaction.RejectText ?? transaction.RejectReason ?? 'Unknown reason'}`,
       );
     }
@@ -341,7 +369,7 @@ export class ScryptService extends PricingProvider {
     return side === ScryptOrderSide.BUY ? price : 1 / price;
   }
 
-  async sell(from: string, to: string, amount: number): Promise<string> {
+  async sell(from: string, to: string, amount: number, reservedClOrdId?: string): Promise<string> {
     const { symbol, side } = await this.getTradePair(from, to);
     const price = await this.getOrderBookPrice(symbol, side);
     const sizeIncrement = await this.getSizeIncrement(symbol);
@@ -352,10 +380,10 @@ export class ScryptService extends PricingProvider {
     const rawQty = side === ScryptOrderSide.SELL ? amount : amount / price;
     const orderQty = Util.floorToValue(rawQty, sizeIncrement);
 
-    return this.placeAndReturnId(symbol, side, orderQty, price);
+    return this.placeAndReturnId(symbol, side, orderQty, price, reservedClOrdId);
   }
 
-  async buy(from: string, to: string, amount: number): Promise<string> {
+  async buy(from: string, to: string, amount: number, reservedClOrdId?: string): Promise<string> {
     const { symbol, side } = await this.getTradePair(from, to);
     const price = await this.getOrderBookPrice(symbol, side);
     const sizeIncrement = await this.getSizeIncrement(symbol);
@@ -366,7 +394,7 @@ export class ScryptService extends PricingProvider {
     const rawQty = side === ScryptOrderSide.BUY ? amount : amount / price;
     const orderQty = Util.floorToValue(rawQty, sizeIncrement);
 
-    return this.placeAndReturnId(symbol, side, orderQty, price);
+    return this.placeAndReturnId(symbol, side, orderQty, price, reservedClOrdId);
   }
 
   private async getSizeIncrement(symbol: string): Promise<number> {
@@ -379,6 +407,7 @@ export class ScryptService extends PricingProvider {
     side: ScryptOrderSide,
     orderQty: number,
     price: number,
+    reservedClOrdId?: string,
   ): Promise<string> {
     const response = await this.placeOrder(
       symbol,
@@ -387,8 +416,37 @@ export class ScryptService extends PricingProvider {
       ScryptOrderType.LIMIT,
       ScryptTimeInForce.GOOD_TILL_CANCEL,
       price,
+      reservedClOrdId,
     );
     return response.id;
+  }
+
+  /**
+   * Reconciliation lookup: does the venue know this withdrawal reference at all?
+   *
+   * Distinct from `getWithdrawalStatus`, which answers from the live push cache only. After a timeout that
+   * cache is exactly what cannot be trusted — the push may be what went missing — so this falls back to the
+   * venue's own history. A `null` result therefore means "the venue has no record", not "we have not seen it".
+   */
+  async findWithdrawal(clReqId: string): Promise<ScryptBalanceTransaction | null> {
+    const cached = this.balanceTransactions.get(clReqId);
+    // A terminal record cannot change; a non-terminal one may be stale because the terminal push was the
+    // thing that went missing, so it must not shortcut the lookup.
+    if (cached && this.isTerminalBalanceTransaction(cached)) return cached;
+
+    const transactions = await this.connection.fetchAll<ScryptBalanceTransaction>(
+      ScryptMessageType.BALANCE_TRANSACTION,
+    );
+
+    const found = transactions.find((t) => t.ClReqID === clReqId);
+    if (!found) return cached ?? null;
+
+    // Feed the recovery back into the live cache. `getWithdrawalStatus` reads only from there, so an order
+    // that leaves quarantine on the strength of this lookup would otherwise poll a reference the cache still
+    // does not know and never complete.
+    this.cacheBalanceTransaction(found);
+
+    return found;
   }
 
   async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
@@ -425,14 +483,28 @@ export class ScryptService extends PricingProvider {
     };
   }
 
-  async checkTrade(clOrdId: string, from: string, to: string, orderCreated?: Date): Promise<boolean> {
+  /**
+   * @param replacementClOrdId reference to use if this check has to amend or restart the order. Must be
+   * reproducible from the order row by the caller, so a timed-out replacement stays findable.
+   */
+  async checkTrade(
+    clOrdId: string,
+    from: string,
+    to: string,
+    orderCreated?: Date,
+    replacementClOrdId?: string,
+    // Invoked immediately before a replacement is sent, so the caller can make the reference durable first.
+    // Without that, a replacement whose confirmation is lost is neither the current reference nor a spent
+    // one, and the next pass derives it a second time.
+    claimReplacement?: () => Promise<void>,
+  ): Promise<boolean> {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
       // If the order is older than 1 hour and still not found, it's lost
       const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
-      if (ageMinutes > 60) {
-        throw new Error(
-          `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — likely completed or cancelled outside of tracked state`,
+      if (ageMinutes > ORDER_LOST_AFTER_MINUTES) {
+        throw new ScryptOrderNotFoundError(
+          `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — it may have completed or been cancelled outside of tracked state`,
         );
       }
 
@@ -451,19 +523,52 @@ export class ScryptService extends PricingProvider {
           this.logger.verbose(`Order ${clOrdId}: price changed ${orderInfo.price} -> ${currentPrice}, updating order`);
 
           try {
-            const newId = await this.editOrder(clOrdId, from, to, orderInfo.remainingQuantity, currentPrice);
+            await claimReplacement?.();
+
+            const newId = await this.editOrder(
+              clOrdId,
+              from,
+              to,
+              orderInfo.remainingQuantity,
+              currentPrice,
+              replacementClOrdId,
+            );
             this.logger.verbose(`Order ${clOrdId} changed to ${newId}`);
             throw new TradeChangedException(newId);
           } catch (e) {
             if (e instanceof TradeChangedException) throw e;
 
-            // If edit fails, try to cancel and let it restart
+            // The amend is a write. Unless the venue explicitly rejected it, we do not know whether a
+            // replacement order now exists under `replacementClOrdId` — cancelling and carrying on would
+            // leave it live and untracked, which is how an amend turns into a duplicate position.
+            if (!isVenueRejection(e))
+              throw new ScryptUnconfirmedWriteError(
+                `Scrypt gave no confirmed outcome for the amend of order ${clOrdId}: ${e.message}`,
+                replacementClOrdId,
+              );
+
+            // Rejected by the venue: nothing was created, so the cancel-and-restart fallback is safe.
             this.logger.verbose(`Could not update order ${clOrdId}, attempting cancel: ${e.message}`);
+            let cancelConfirmed = true;
             try {
               await this.cancelOrder(clOrdId, from, to);
             } catch (cancelError) {
-              this.logger.verbose(`Cancel also failed: ${cancelError.message}`);
+              // The cancel is a write too. Unconfirmed, it may well have taken effect at the venue while the
+              // cached report still shows the order open — and a non-terminal entry is never refreshed, so
+              // every later check would keep waiting on a picture that cannot change. Drop it instead and
+              // let the next lookup ask the venue.
+              cancelConfirmed = false;
+              this.forgetExecutionReport(clOrdId);
+              this.logger.warn(`Cancel of order ${clOrdId} went unconfirmed: ${cancelError.message}`);
             }
+
+            // Surface the refusal so the caller can note the spent reference. Without that the next tick
+            // derives the very same one, the venue refuses it as a duplicate, and the pair loops.
+            throw new ScryptAmendRejectedError(
+              `Scrypt refused the amend of order ${clOrdId}: ${e.message}` +
+                (cancelConfirmed ? '' : ' (the follow-up cancel went unconfirmed)'),
+              replacementClOrdId,
+            );
           }
         } else {
           this.logger.verbose(`Order ${clOrdId} open, price is still ${currentPrice}`);
@@ -489,6 +594,10 @@ export class ScryptService extends PricingProvider {
 
         this.logger.verbose(`Order ${clOrdId} cancelled, restarting with remaining ${remaining} (base currency)`);
 
+        await claimReplacement?.();
+
+        // Same write boundary as the amend above: an unconfirmed restart may have created a live order under
+        // `replacementClOrdId`, so the caller has to quarantine rather than see a retryable transport error.
         const response = await this.placeOrder(
           symbol,
           side,
@@ -496,7 +605,15 @@ export class ScryptService extends PricingProvider {
           ScryptOrderType.LIMIT,
           ScryptTimeInForce.GOOD_TILL_CANCEL,
           price,
-        );
+          replacementClOrdId,
+        ).catch((e) => {
+          if (isVenueRejection(e)) throw e;
+
+          throw new ScryptUnconfirmedWriteError(
+            `Scrypt gave no confirmed outcome for the restart of order ${clOrdId}: ${e.message}`,
+            replacementClOrdId,
+          );
+        });
 
         this.logger.verbose(`Order ${clOrdId} changed to ${response.id}`);
         throw new TradeChangedException(response.id);
@@ -507,11 +624,18 @@ export class ScryptService extends PricingProvider {
         return true;
 
       case ScryptOrderStatus.REJECTED:
-        throw new Error(`Order ${clOrdId} has been rejected: ${orderInfo.rejectReason ?? 'unknown reason'}`);
+        throw new ScryptVenueRejectionError(
+          `Order ${clOrdId} has been rejected: ${orderInfo.rejectReason ?? 'unknown reason'}`,
+        );
 
       case ScryptOrderStatus.PENDING_NEW:
       case ScryptOrderStatus.PENDING_CANCEL:
       case ScryptOrderStatus.PENDING_REPLACE:
+        // Deliberately just waits, however old the order is. A pending report is an OBSERVATION — we know
+        // where the order stands — so it is not an unknown outcome and must not be quarantined: reconciliation
+        // would find the reference, hand the order straight back, and the next completion check would
+        // quarantine it again. An order that stays pending too long is a stuck order, which the monitoring
+        // counter surfaces; it is not an unresolved one.
         this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
         return false;
     }
@@ -535,8 +659,12 @@ export class ScryptService extends PricingProvider {
     orderType: ScryptOrderType = ScryptOrderType.LIMIT,
     timeInForce: ScryptTimeInForce = ScryptTimeInForce.GOOD_TILL_CANCEL,
     price?: number,
+    // Caller-supplied reference, persisted by the caller BEFORE this call. Without it the id only exists on
+    // the stack and is lost on timeout — leaving a possibly live venue order nobody can look up. Falls back
+    // to a fresh id so ad-hoc callers keep working; the venue requires daily uniqueness and <36 chars.
+    reservedClOrdId?: string,
   ): Promise<ScryptOrderResponse> {
-    const clOrdId = randomUUID();
+    const clOrdId = reservedClOrdId ?? randomUUID();
 
     // Price is required for LIMIT orders
     if (orderType === ScryptOrderType.LIMIT && price === undefined) {
@@ -565,7 +693,9 @@ export class ScryptService extends PricingProvider {
     );
 
     if (report.OrdStatus === ScryptOrderStatus.REJECTED) {
-      throw new Error(`Scrypt order rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`);
+      throw new ScryptVenueRejectionError(
+        `Scrypt order rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`,
+      );
     }
 
     return {
@@ -601,9 +731,13 @@ export class ScryptService extends PricingProvider {
     to: string,
     newQuantity: number,
     newPrice: number,
+    // See placeOrder. A cancel-replace creates a NEW venue order, so its reference needs the same
+    // reproducibility as the initial one — otherwise an amend that times out leaves a live order that
+    // nothing can look up.
+    reservedClOrdId?: string,
   ): Promise<string> {
     const { symbol } = await this.getTradePair(from, to);
-    const newClOrdId = randomUUID();
+    const newClOrdId = reservedClOrdId ?? randomUUID();
 
     const editData = {
       OrigClOrdID: clOrdId,
@@ -622,7 +756,9 @@ export class ScryptService extends PricingProvider {
     );
 
     if (report.OrdStatus === ScryptOrderStatus.REJECTED) {
-      throw new Error(`Scrypt order edit rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`);
+      throw new ScryptVenueRejectionError(
+        `Scrypt order edit rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`,
+      );
     }
 
     return newClOrdId;

@@ -40,7 +40,14 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
     const system = Object.values(LiquidityManagementSystem).find((s) => s.toString() === context.toString());
     const query = {
       action: { system },
-      status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
+      // UNCERTAIN counts as pending: the venue may be holding or may already have moved these funds. This
+      // gate is what stops a sibling rule on the same exchange from acting on a balance whose true state is
+      // still unknown, so an unresolved order has to block here just as a running one does.
+      status: In([
+        LiquidityManagementOrderStatus.CREATED,
+        LiquidityManagementOrderStatus.IN_PROGRESS,
+        LiquidityManagementOrderStatus.UNCERTAIN,
+      ]),
     };
 
     return system

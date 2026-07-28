@@ -50,6 +50,81 @@ export function isTransientWsError(e: Error): boolean {
   return TRANSIENT_WS_ERROR_MARKERS.some((m) => e.message?.toLowerCase().includes(m.toLowerCase()));
 }
 
+/**
+ * A request was sent but no answer arrived within its deadline.
+ *
+ * Deliberately its own type rather than another entry in TRANSIENT_WS_ERROR_MARKERS: those markers describe
+ * a socket that demonstrably dropped the request, so retrying is safe for anything. A timeout describes
+ * silence — the venue may or may not have acted. Only idempotent reads may retry it; every write path must
+ * translate it into an unknown outcome. Matching on the message text instead would make that distinction
+ * impossible to enforce, because both kinds of timeout would read the same.
+ */
+export class ScryptRequestTimeoutError extends Error {}
+
+/**
+ * A write that may or may not have taken effect at the venue — raised where an order was created, amended or
+ * restarted and no reply confirmed the outcome.
+ *
+ * Distinct from {@link ScryptRequestTimeoutError}, which describes only *how* the call ended: the same
+ * dropped socket is harmless on a read and unresolved on a write, so the distinction that matters to the
+ * caller is the side effect, not the transport. Anything carrying this type must be quarantined and
+ * reconciled, never repeated.
+ */
+export class ScryptUnconfirmedWriteError extends Error {
+  constructor(
+    message: string,
+    readonly reference: string | undefined,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * An order the venue once acknowledged can no longer be found in its state.
+ *
+ * Not a failure: the order may have completed or been cancelled outside our view, and we cannot tell which.
+ * Treating it as failed would release the rule to open a second position against the same funds.
+ */
+export class ScryptOrderNotFoundError extends Error {}
+
+/**
+ * An amend the venue refused. The replacement was never created, so the ORIGINAL order is still live — and
+ * its reference is spent, because the venue requires references to be unique. Carries it so the caller can
+ * record it and derive a fresh one next time instead of reusing a burnt reference forever.
+ */
+export class ScryptAmendRejectedError extends Error {
+  constructor(
+    message: string,
+    readonly spentReference: string | undefined,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * The venue sent an explicit error in reply to one specific request.
+ *
+ * Deliberately NOT a rejection: `unknown reqid` arrives the same way and means the venue lost our request
+ * context, which for a mutation is as open as silence. Callers that can tell the two apart narrow it; callers
+ * that cannot must keep treating it as an unresolved outcome.
+ */
+export class ScryptErrorResponseError extends Error {}
+
+/**
+ * The venue replied and refused the request. This is the ONLY evidence that a write did not take effect —
+ * everything else leaves the outcome open.
+ *
+ * A type rather than a set of message patterns: a rejection is now impossible to miss by phrasing a message
+ * differently, and impossible to fake by a transport error that happens to contain the word. Every path that
+ * turns a venue refusal into an exception must use this type, or the caller will retry a settled outcome
+ * forever.
+ */
+export class ScryptVenueRejectionError extends Error {}
+
+export function isVenueRejection(e: Error): boolean {
+  return e instanceof ScryptVenueRejectionError;
+}
+
 interface ScryptRequest {
   reqid?: number;
   type: ScryptRequestType | ScryptMessageType;
@@ -120,7 +195,7 @@ export class ScryptWebSocketConnection {
       }
     };
 
-    return this.retryOnTransientWsError(doFetch, `fetch ${streamName}`);
+    return this.retryIdempotentRead(doFetch, `fetch ${streamName}`);
   }
 
   async fetchAll<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
@@ -155,7 +230,7 @@ export class ScryptWebSocketConnection {
       }
     };
 
-    return this.retryOnTransientWsError(doFetch, `fetchAll ${streamName}`);
+    return this.retryIdempotentRead(doFetch, `fetchAll ${streamName}`);
   }
 
   // Register a callback fired after a successful RE-connect (not the first connect). Used to re-fetch state that
@@ -164,11 +239,19 @@ export class ScryptWebSocketConnection {
     this.reconnectCallbacks.push(callback);
   }
 
-  private async retryOnTransientWsError<T>(operation: () => Promise<T>, label: string): Promise<T> {
+  /**
+   * Retry wrapper for IDEMPOTENT READS ONLY — `fetch` and `fetchAll`. Never widen this to a call that can
+   * create, amend or cancel an order, or move funds: it retries on timeout, and a timed-out write may
+   * already have been executed by the venue. Write paths must surface the timeout so the caller can treat
+   * the outcome as unknown (see OrderOutcomeUnknownException in the liquidity-management subdomain).
+   */
+  private async retryIdempotentRead<T>(operation: () => Promise<T>, label: string): Promise<T> {
     try {
       return await operation();
     } catch (error) {
-      if (isTransientWsError(error)) {
+      // A read that went unanswered is safe to repeat: re-subscribing to a snapshot stream has no side
+      // effect at the venue. Without this, a single silent 30s window ends the whole liquidity order.
+      if (isTransientWsError(error) || error instanceof ScryptRequestTimeoutError) {
         this.logger.warn(`Retrying ${label} after transient error: ${error.message}`);
         return operation();
       }
@@ -186,7 +269,7 @@ export class ScryptWebSocketConnection {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         unsubscribe();
-        reject(new Error(`Timeout waiting for ${streamName} update after ${timeoutMs}ms`));
+        reject(new ScryptRequestTimeoutError(`Timeout waiting for ${streamName} update after ${timeoutMs}ms`));
       }, timeoutMs);
 
       const unsubscribe = this.subscribe(streamName, (data) => {
@@ -440,7 +523,7 @@ export class ScryptWebSocketConnection {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(reqId);
-        reject(new Error(`Request timeout after ${timeoutMs}ms`));
+        reject(new ScryptRequestTimeoutError(`Request timeout after ${timeoutMs}ms`));
       }, timeoutMs);
 
       this.pendingRequests.set(reqId, { resolve, reject, timeout });
@@ -459,7 +542,11 @@ export class ScryptWebSocketConnection {
 
     if (message.type === ScryptMessageType.ERROR) {
       const errorMsg = typeof message.error === 'object' ? JSON.stringify(message.error) : message.error;
-      request.reject(new Error(`Scrypt error: ${errorMsg}`));
+      // The venue answered this specific request negatively. Whether that settles the outcome depends on the
+      // reason — a malformed order is settled, a lost session is not — and Scrypt does not document its
+      // codes, so this stays a distinct type and the caller decides. Never silently a plain Error: that is
+      // what let a refusal look like a transport hiccup.
+      request.reject(new ScryptErrorResponseError(`Scrypt error: ${errorMsg}`));
     } else {
       request.resolve(message);
     }

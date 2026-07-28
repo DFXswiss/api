@@ -4,6 +4,7 @@ import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
 import { OrderNotNecessaryException } from '../../../exceptions/order-not-necessary.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
+import { OrderOutcomeUnknownException } from '../../../exceptions/order-outcome-unknown.exception';
 import { Command, CorrelationId, LiquidityActionIntegration } from '../../../interfaces';
 
 export abstract class LiquidityActionAdapter implements LiquidityActionIntegration {
@@ -30,7 +31,14 @@ export abstract class LiquidityActionAdapter implements LiquidityActionIntegrati
     try {
       return await this.commands.get(command)(order);
     } catch (e) {
-      if (e instanceof OrderNotProcessableException || e instanceof OrderNotNecessaryException) throw e;
+      if (
+        e instanceof OrderNotProcessableException ||
+        e instanceof OrderNotNecessaryException ||
+        // must survive the catch-all below: collapsing an unknown outcome into OrderFailedException is
+        // what makes the pipeline retry a request that may already have executed
+        e instanceof OrderOutcomeUnknownException
+      )
+        throw e;
 
       throw new OrderFailedException(e.message);
     }

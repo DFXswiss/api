@@ -4,7 +4,14 @@ import {
   ScryptTransactionStatus,
   ScryptTransactionType,
 } from '../../dto/scrypt.dto';
-import { ScryptMessageType, ScryptWebSocketConnection } from '../scrypt-websocket-connection';
+import {
+  ScryptAmendRejectedError,
+  ScryptMessageType,
+  ScryptRequestTimeoutError,
+  ScryptUnconfirmedWriteError,
+  ScryptVenueRejectionError,
+  ScryptWebSocketConnection,
+} from '../scrypt-websocket-connection';
 import { ScryptService } from '../scrypt.service';
 
 jest.mock('src/config/config', () => {
@@ -544,6 +551,99 @@ describe('ScryptService', () => {
           TxHashes: [{ TxHash: '0xabc' }, { TxHash: '0xdef' }],
         },
       ]);
+    });
+  });
+  describe('checkTrade — the amend write boundary', () => {
+    function stubAmendPath(editOutcome: Error): void {
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PARTIALLY_FILLED,
+        price: 1,
+        remainingQuantity: 5,
+      });
+      jest.spyOn(service as any, 'getTradePrice').mockResolvedValue(2);
+      jest.spyOn(service as any, 'editOrder').mockRejectedValue(editOutcome);
+      jest.spyOn(service as any, 'cancelOrder').mockResolvedValue(undefined);
+    }
+
+    it('propagates an unconfirmed amend instead of swallowing it', async () => {
+      // Regression guard: the amend used to be wrapped in a catch that cancelled and returned false, so the
+      // caller never learned that a replacement order might be live at the venue under the reserved id.
+      stubAmendPath(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toBeInstanceOf(
+        ScryptUnconfirmedWriteError,
+      );
+      expect((service as any).cancelOrder).not.toHaveBeenCalled();
+    });
+
+    it('carries the reserved replacement reference on the raised error', async () => {
+      stubAmendPath(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toMatchObject({
+        reference: 'dfx-lm-7-1',
+      });
+    });
+
+    it('forgets a cached open order when the follow-up cancel goes unconfirmed', async () => {
+      // the cancel is a write as well: unconfirmed, it may have taken effect while the cached report still
+      // shows the order open — and a non-terminal entry is never refreshed, so every later check would wait
+      // on a picture that cannot change
+      stubAmendPath(new ScryptVenueRejectionError('Scrypt order edit rejected: price out of band'));
+      jest.spyOn(service as any, 'cancelOrder').mockRejectedValue(new ScryptRequestTimeoutError('Request timeout'));
+      (service as any).executionReports.set('dfx-lm-7', { ClOrdID: 'dfx-lm-7', OrdStatus: ScryptOrderStatus.NEW });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toMatchObject({
+        message: expect.stringContaining('cancel went unconfirmed'),
+      });
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
+    });
+
+    it('keeps the cached order when the cancel is confirmed', async () => {
+      stubAmendPath(new ScryptVenueRejectionError('Scrypt order edit rejected: price out of band'));
+      (service as any).executionReports.set('dfx-lm-7', { ClOrdID: 'dfx-lm-7', OrdStatus: ScryptOrderStatus.NEW });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toBeInstanceOf(
+        ScryptAmendRejectedError,
+      );
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(true);
+    });
+
+    it('keeps waiting on a pending order however old it is — pending is observed, not unknown', async () => {
+      // quarantining it would make reconciliation find the reference, hand the order back, and the next
+      // completion check quarantine it again: a loop, not a resolution
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 120 * 60 * 1000))).resolves.toBe(
+        false,
+      );
+    });
+
+    it('keeps waiting on a pending order that is still young', async () => {
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+    });
+
+    it('cancels on an explicit rejection, but reports the refusal and the spent reference', async () => {
+      // A rejection is a reply: nothing was created, so cancelling is safe. The caller still has to learn
+      // about it — the replacement reference is burnt at the venue and must not be derived again.
+      stubAmendPath(new ScryptVenueRejectionError('Scrypt order edit rejected: price out of band'));
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toMatchObject({
+        spentReference: 'dfx-lm-7-1',
+      });
+      expect((service as any).cancelOrder).toHaveBeenCalled();
     });
   });
 });
