@@ -590,16 +590,20 @@ describe('KycService reviewIdentSteps file sync', () => {
   let userDataService: jest.Mocked<UserDataService>;
   let syncIdentFilesInternalSpy: jest.SpyInstance;
   // the status as seen by the repo, not as read after the run: manualReview() mutates the entity
-  // in memory before the sync, so asserting on the entity afterwards would pass either way
-  let savedStatus: ReviewStatus;
+  // in memory before the sync, so asserting on the entity afterwards would pass either way -
+  // undefined means the step was never saved
+  let savedStatus: ReviewStatus | undefined;
 
   // resultData is read per ident type, so each type needs its own result shape
+  const sumsubResult = {
+    data: { info: { idDocs: [{ firstNameEn: 'Max', lastNameEn: 'Muster', dob: '1990-01-01' }] } },
+    webhook: { levelName: SumSubLevelName.CH_STANDARD },
+  };
+
   const identResult: { [t in KycStepType]?: object } = {
     [KycStepType.MANUAL]: { firstName: 'Max', lastName: 'Muster', birthday: '1990-01-01' },
-    [KycStepType.SUMSUB_AUTO]: {
-      data: { info: { idDocs: [{ firstNameEn: 'Max', lastNameEn: 'Muster', dob: '1990-01-01' }] } },
-      webhook: { levelName: SumSubLevelName.CH_STANDARD },
-    },
+    [KycStepType.SUMSUB_AUTO]: sumsubResult,
+    [KycStepType.SUMSUB_VIDEO]: sumsubResult,
   };
 
   const identStep = (type: KycStepType): KycStep => {
@@ -628,7 +632,8 @@ describe('KycService reviewIdentSteps file sync', () => {
     userDataService = createMock<UserDataService>();
     userDataService.getUserDataByBirthday.mockResolvedValue([]);
 
-    // reviewIdentSteps only touches these deps; avoid wiring all constructor deps
+    // with getIdentCheckErrors, createStepLog and syncIdentFilesInternal stubbed below, the review
+    // path only touches these deps; avoid wiring all constructor deps
     service = Object.create(KycService.prototype);
     (service as any).kycStepRepo = kycStepRepo;
     (service as any).userDataService = userDataService;
@@ -655,8 +660,12 @@ describe('KycService reviewIdentSteps file sync', () => {
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 
-  it('still syncs the files of a Sumsub ident step that has no ident report yet', async () => {
-    const step = identStep(KycStepType.SUMSUB_AUTO);
+  // both Sumsub types can sync, so both have to be covered - a guard narrowed to one of them would
+  // otherwise leave the other completing without any file, silently
+  const sumsubTypes = [KycStepType.SUMSUB_AUTO, KycStepType.SUMSUB_VIDEO];
+
+  it.each(sumsubTypes)('still syncs the files of a %s ident step that has no ident report yet', async (type) => {
+    const step = identStep(type);
     kycStepRepo.find.mockResolvedValue([step]);
 
     await service.reviewIdentSteps();
@@ -667,13 +676,15 @@ describe('KycService reviewIdentSteps file sync', () => {
 
   // the sync deliberately runs before the save: a Sumsub step whose files could not be fetched has
   // to keep its INTERNAL_REVIEW status so the next run retries it instead of advancing without files
-  it('leaves a Sumsub ident step unsaved when its file sync fails, so the next run retries it', async () => {
-    const step = identStep(KycStepType.SUMSUB_AUTO);
+  it.each(sumsubTypes)('leaves a %s ident step unsaved when its file sync fails, for a retry', async (type) => {
+    const step = identStep(type);
     kycStepRepo.find.mockResolvedValue([step]);
     syncIdentFilesInternalSpy.mockRejectedValue(new Error('blob is immutable'));
 
     await service.reviewIdentSteps();
 
+    // the sync has to be reached, otherwise the two absence assertions below hold for the wrong reason
+    expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
     expect(kycStepRepo.save).not.toHaveBeenCalled();
     expect(savedStatus).toBeUndefined();
   });
