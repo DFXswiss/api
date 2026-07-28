@@ -13,7 +13,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { In, IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
@@ -141,24 +141,23 @@ export class CustodyService {
 
   /**
    * Cheap existence check used by CustodyAccountService to decide whether the legacy Safe
-   * entry is empty. The two sides are deliberately asymmetric: Util.floor() (used by the
-   * customer-facing balance display, CustodyAssetBalanceDtoMapper) rounds toward negative
-   * infinity, not toward zero. A small positive residual below 10^-8 therefore displays as
-   * 0, but ANY negative balance — however tiny — floors to at most -10^-8 and always
-   * displays as non-zero. So the positive side keeps the 10^-8 display threshold, while the
-   * negative side treats every negative balance as non-empty, matching what Util.floor()
-   * actually shows.
+   * entry is empty. This answers "is there any balance row here at all", not "would the
+   * customer-facing display show a non-zero number" — the display groups balance rows by
+   * asset name and sums them before rounding (CustodyAssetBalanceDtoMapper), while this check
+   * looks at each row independently. Mirroring the display's rounding or its grouping here
+   * would mean rebuilding that aggregation in the query, and every extra layer of mimicry is
+   * one more place where the two can drift apart (this happened twice already: a sign
+   * asymmetry, then a rounding-vs-aggregation mismatch). So this is a deliberate simplification,
+   * not an oversight: a leftover computational residual, or two balances that cancel each other
+   * out in the display, both keep the Safe entry visible under this check. That's the safe
+   * direction — a Safe shown when it's actually empty is harmless, a Safe hidden when it isn't
+   * is not.
    */
   async hasNonZeroCustodyBalance(custodyUserIds: number[]): Promise<boolean> {
     if (!custodyUserIds.length) return false;
 
-    const displayThreshold = 1e-8;
-
     return this.custodyBalanceRepo.exists({
-      where: [
-        { user: { id: In(custodyUserIds) }, balance: MoreThanOrEqual(displayThreshold) },
-        { user: { id: In(custodyUserIds) }, balance: LessThan(0) },
-      ],
+      where: { user: { id: In(custodyUserIds) }, balance: Not(0) },
     });
   }
 
