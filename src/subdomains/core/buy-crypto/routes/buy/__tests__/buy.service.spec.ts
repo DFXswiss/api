@@ -15,6 +15,7 @@ import { BankRepository } from 'src/subdomains/supporting/bank/bank/bank.reposit
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VibanAccountHolder } from 'src/subdomains/supporting/bank/virtual-iban/providers/viban-account-holder.enum';
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
+import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -486,7 +487,7 @@ describe('BuyService', () => {
       const bankRepo = createMock<BankRepository>();
       jest.spyOn(bankRepo, 'findOneCachedBy').mockResolvedValue(frickBank as any);
       jest.spyOn(bankRepo, 'findOneBy').mockResolvedValue(nonReceiveBank as any);
-      const readThroughBankService = new BankService(bankRepo);
+      const readThroughBankService = new BankService(bankRepo, createMock<VirtualIbanRepository>());
       (service as unknown as { bankService: BankService }).bankService = readThroughBankService;
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
 
