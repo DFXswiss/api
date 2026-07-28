@@ -606,7 +606,9 @@ describe('KycService reviewIdentSteps file sync', () => {
     identificationprocess: { companyid, result: 'SUCCESS' },
   });
 
-  const identResult: { [t in KycStepType]?: object } = {
+  // fully mapped on purpose: a new ident type then fails to compile instead of silently arriving here
+  // without a result
+  const identResult: { [t in KycStepType]: object } = {
     [KycStepType.MANUAL]: { firstName: 'Max', lastName: 'Muster', birthday: '1990-01-01' },
     [KycStepType.AUTO]: idNowResult('dfxauto'),
     [KycStepType.VIDEO]: idNowResult('dfxvideo'),
@@ -620,7 +622,7 @@ describe('KycService reviewIdentSteps file sync', () => {
     userData.getStepsWith = jest.fn().mockReturnValue([createMock<KycStep>({ isCompleted: true })]);
 
     return Object.assign(new KycStep(), {
-      id: 816853,
+      id: 1,
       name: KycStepName.IDENT,
       type,
       status: ReviewStatus.INTERNAL_REVIEW,
