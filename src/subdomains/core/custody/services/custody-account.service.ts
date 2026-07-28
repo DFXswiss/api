@@ -76,10 +76,9 @@ export class CustodyAccountService {
 
     const custodyAccounts: CustodyAccountDto[] = [
       ...ownedAccounts.map((ca) => {
-        const grantedLevel = ownLevelByAccount.get(ca.id);
         // No grant on an own account means the owner keeps full disposal — that is the rule,
         // not a fallback for a missing value.
-        const level = grantedLevel === undefined ? CustodyAccessLevel.WRITE : grantedLevel;
+        const level = ownLevelByAccount.get(ca.id) ?? CustodyAccessLevel.WRITE;
         return CustodyAccountDtoMapper.toDto(ca, level);
       }),
       ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel)),
@@ -280,6 +279,10 @@ export class CustodyAccountService {
     // covers taking rights away, not handing them out. Widening the circle of authorised people
     // during a hold is exactly what a hold is meant to prevent, and it is no way out of one
     // either. Withdrawing and re-levelling stay open.
+    //
+    // The status is read outside the write, so a hold placed in that instant would not be seen
+    // here. Nothing sets a non-active status yet; whatever introduces one must deactivate the
+    // account's grants as part of the same change, which closes this on its own.
     if (account.status !== CustodyAccountStatus.ACTIVE) {
       throw new BadRequestException('Cannot grant access on an account that is not active');
     }
@@ -420,6 +423,13 @@ export class CustodyAccountService {
    * that becomes effective the moment the account is unblocked, which is exactly what a hold is
    * meant to prevent; lowering them stays open, as does anything on the owner's own row, which
    * is their way out of a narrowing.
+   *
+   * Elevation is recognised by comparing the two levels there are. A third level would have to
+   * turn this into an ordering comparison — an equality check would let a raise slip past.
+   *
+   * The status comes from the account read before the write, so a hold placed in that instant
+   * would not be seen. Nothing sets a non-active status yet; whatever introduces one must
+   * deactivate the account's grants as part of the same change, which closes this on its own.
    */
   private rejectElevationWhileNotActive(
     access: CustodyAccountAccess,

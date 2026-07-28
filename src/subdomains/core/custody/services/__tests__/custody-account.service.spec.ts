@@ -1,5 +1,5 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { EntityManager, FindManyOptions, FindOneOptions } from 'typeorm';
@@ -570,6 +570,18 @@ describe('CustodyAccountService', () => {
       );
       expect(userDataService.getUsersByMail).not.toHaveBeenCalled();
       expect(txManager.findOne).not.toHaveBeenCalled();
+    });
+
+    it('rejects granting write on a blocked own account just the same', async () => {
+      // The refusal must not depend on the level asked for: inspection is no more grantable
+      // during a hold than acting is.
+      const blockedOwnAccount = ownCustodyAccount({ status: CustodyAccountStatus.BLOCKED });
+      mockFindOneAccountForOwnerCheck(blockedOwnAccount);
+
+      await expect(service.grantAccess(ownAccountId, ownerId, mail, CustodyAccessLevel.WRITE)).rejects.toThrow(
+        new BadRequestException('Cannot grant access on an account that is not active'),
+      );
+      expect(userDataService.getUsersByMail).not.toHaveBeenCalled();
     });
 
     it('rejects a non-owner', async () => {
