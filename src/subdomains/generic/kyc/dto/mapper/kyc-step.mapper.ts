@@ -8,6 +8,7 @@ import {
   KycStepDto,
   KycStepReason,
   KycStepSessionDto,
+  KycStepSubmitDto,
 } from '../output/kyc-info.dto';
 
 export class KycStepMapper {
@@ -28,6 +29,16 @@ export class KycStepMapper {
     };
 
     return Object.assign(new KycStepSessionDto(), dto);
+  }
+
+  static toStepSubmit(kycStep: KycStep, complete: boolean, missingFields: string[]): KycStepSubmitDto {
+    const dto: KycStepSubmitDto = {
+      ...KycStepMapper.toStepBase(kycStep),
+      complete,
+      missingFields,
+    };
+
+    return Object.assign(new KycStepSubmitDto(), dto);
   }
 
   static toStepBase(kycStep: KycStep): KycStepBase {

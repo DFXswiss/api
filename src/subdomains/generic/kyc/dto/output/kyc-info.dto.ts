@@ -74,7 +74,7 @@ export class KycStepSubmitDto extends KycStepBase {
 
   @ApiProperty({
     description:
-      'Keys of missing required fields when complete is false; empty when complete is true. Financial: unanswered applicable question keys; personal data: missing requiredKycFields names.',
+      'Request field paths still missing when complete is false; empty when complete is true. Financial: unanswered applicable question keys. Personal data: KycPersonalData paths (e.g. firstName, address.street, organizationAddress.city). mail is never listed on personal data (ContactData step).',
     type: String,
     isArray: true,
   })

@@ -71,6 +71,7 @@ import { FileSubType, FileType, KycFileBlob, KycFileDataDto } from '../dto/kyc-f
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
+import { toPersonalDataMissingFields } from '../dto/mapper/personal-data-missing-fields';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto, KycStepBase, KycStepSubmitDto } from '../dto/output/kyc-info.dto';
 import {
@@ -626,8 +627,8 @@ export class KycService {
 
     user = await this.userDataService.updatePersonalData(user, data);
 
-    const missingFields = user.missingKycFields;
-    const complete = missingFields.length === 0;
+    const complete = user.isDataComplete;
+    const missingFields = toPersonalDataMissingFields(user.missingKycFields);
     if (complete) {
       await this.kycStepRepo.update(...kycStep.complete(data));
       await this.createStepLog(user, kycStep);
@@ -635,7 +636,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return { ...KycStepMapper.toStepBase(kycStep), complete, missingFields };
+    return KycStepMapper.toStepSubmit(kycStep, complete, missingFields);
   }
 
   async updateKycStep(
@@ -891,7 +892,7 @@ export class KycService {
 
     await this.verify2fa(user, ip);
 
-    await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
+    await this.kycStepRepo.update(...kycStep.update(kycStep.status, data.responses, undefined, kycStep.sequenceNumber));
 
     const missingFields = FinancialService.getMissingFields(data.responses, user.accountType);
     const complete = missingFields.length === 0;
@@ -902,7 +903,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return { ...KycStepMapper.toStepBase(kycStep), complete, missingFields };
+    return KycStepMapper.toStepSubmit(kycStep, complete, missingFields);
   }
 
   async updatePaymentData(kycHash: string, stepId: number, data: PaymentDataDto): Promise<KycStepBase> {
