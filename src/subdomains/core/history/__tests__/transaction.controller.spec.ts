@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -7,14 +8,19 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { createDefaultBank } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { createCustomTransactionRequest } from 'src/subdomains/supporting/payment/__mocks__/transaction-request.entity.mock';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -125,5 +131,77 @@ describe('TransactionController', () => {
     jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(createDefaultBank());
 
     await expect(controller.getTransactionRefund(jwt, 1)).resolves.toBeDefined();
+  });
+
+  describe('generateInvoiceFromTransaction (UID / TransactionRequest path)', () => {
+    const uid = 'Q186C06388387A6FD';
+    const userData = createCustomUserData({
+      id: 1,
+      accountType: AccountType.PERSONAL,
+      firstname: 'Test',
+      surname: 'User',
+    });
+    const buy = {
+      id: 42,
+      asset: { id: 10 },
+      user: { wallet: { id: 3 } },
+    } as any;
+    const bankInfo = { iban: 'LI75088110105923K000E', reference: 'ABCD-EFGH-IJKL' } as any;
+
+    function setupUidRequest(isComplete: boolean) {
+      Config.invoice.currencies = ['EUR', 'CHF'];
+      const request = createCustomTransactionRequest({
+        uid,
+        amount: 100,
+        bankId: 19,
+        virtualIbanId: 501,
+        isValid: true,
+        isComplete,
+        routeId: 42,
+        sourceId: 2,
+        sourcePaymentMethod: FiatPaymentMethod.BANK,
+        user: createCustomUser({ userData }),
+      });
+      jest.spyOn(transactionRequestService, 'getTransactionRequestByUid').mockResolvedValue(request);
+      jest.spyOn(fiatService, 'getFiat').mockResolvedValue({ id: 2, name: 'EUR' } as any);
+      jest.spyOn(buyService, 'get').mockResolvedValue(buy);
+      jest.spyOn(buyService, 'getBankInfoForRequest').mockResolvedValue(bankInfo);
+      jest.spyOn(swissQrService, 'createInvoiceFromRequest').mockResolvedValue('pdf-data');
+      return request;
+    }
+
+    it('passes requireLiveVirtualIban=false for a completed UID-resolved TransactionRequest', async () => {
+      const request = setupUidRequest(true);
+
+      await expect(controller.generateInvoiceFromTransaction(jwt, uid)).resolves.toEqual({ pdfData: 'pdf-data' });
+
+      expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 100, currency: 'EUR', userData }),
+        buy,
+        false,
+        request.bankId,
+        request.virtualIbanId,
+        buy.asset,
+        buy.user.wallet,
+      );
+      expect(transactionHelper.getTxStatementDetails).not.toHaveBeenCalled();
+    });
+
+    it('passes requireLiveVirtualIban=true for an incomplete UID-resolved TransactionRequest', async () => {
+      const request = setupUidRequest(false);
+
+      await expect(controller.generateInvoiceFromTransaction(jwt, uid)).resolves.toEqual({ pdfData: 'pdf-data' });
+
+      expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 100, currency: 'EUR', userData }),
+        buy,
+        true,
+        request.bankId,
+        request.virtualIbanId,
+        buy.asset,
+        buy.user.wallet,
+      );
+      expect(transactionHelper.getTxStatementDetails).not.toHaveBeenCalled();
+    });
   });
 });

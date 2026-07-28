@@ -20,7 +20,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
+import { EntityManager, FindOptionsRelations, FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
 import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycType, UserDataStatus } from '../user-data/user-data.enum';
@@ -240,9 +240,10 @@ export class BankDataService {
     return this.updateBankDataInternal(bankData, dto);
   }
 
-  async updateBankDataInternal(bankData: BankData, dto: UpdateBankDataDto): Promise<BankData> {
+  async updateBankDataInternal(bankData: BankData, dto: UpdateBankDataDto, manager?: EntityManager): Promise<BankData> {
+    const repo = manager?.getRepository(BankData) ?? this.bankDataRepo;
     if (dto.approved) {
-      const activeBankData = await this.bankDataRepo.findOneBy({
+      const activeBankData = await repo.findOneBy({
         id: Not(bankData.id),
         iban: bankData.iban,
         approved: true,
@@ -256,7 +257,7 @@ export class BankDataService {
     }
 
     if (dto.label || dto.preferredCurrency)
-      await this.bankDataRepo.update(
+      await repo.update(
         { userData: { id: bankData.userData.id }, iban: bankData.iban },
         { label: dto.label, preferredCurrency: dto.preferredCurrency },
       );
@@ -267,7 +268,11 @@ export class BankDataService {
       dto.approved = false;
     }
 
-    return this.bankDataRepo.saveWithUniqueDefault({ ...bankData, ...dto });
+    const updated = { ...bankData, ...dto };
+    if (!manager) return this.bankDataRepo.saveWithUniqueDefault(updated);
+    if (updated.default)
+      await repo.update({ userData: { id: updated.userData.id }, default: true }, { default: false });
+    return repo.save(updated);
   }
 
   async getBankData(id: number): Promise<BankData> {
@@ -353,8 +358,11 @@ export class BankDataService {
       .then((l) => (ibansOnly ? l.filter((b) => IbanTools.validateIBAN(b.iban).valid) : l));
   }
 
-  async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
-    return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
+  async getAllBankDatasForUser(userDataId: number, manager?: EntityManager): Promise<BankData[]> {
+    return (manager?.getRepository(BankData) ?? this.bankDataRepo).find({
+      where: { userData: { id: userDataId } },
+      relations: { userData: true },
+    });
   }
 
   async getIdentBankDataForUser(userDataId: number): Promise<BankData> {

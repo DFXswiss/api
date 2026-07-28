@@ -7,8 +7,9 @@ import { User } from '../../../models/user/user.entity';
 import { UserRepository } from '../../../models/user/user.repository';
 import { Wallet, WebhookConfigOption } from '../../../models/wallet/wallet.entity';
 import { WalletService } from '../../../models/wallet/wallet.service';
-import { WebhookNotificationService } from '../webhook-notification.service';
+import { WebhookType } from '../dto/webhook.dto';
 import { Webhook } from '../webhook.entity';
+import { WebhookNotificationService } from '../webhook-notification.service';
 import { WebhookRepository } from '../webhook.repository';
 import { WebhookService } from '../webhook.service';
 
@@ -25,6 +26,7 @@ describe('WebhookService', () => {
   beforeEach(() => {
     webhookRepo = {
       existsBy: jest.fn().mockResolvedValue(false),
+      findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
       save: jest.fn().mockImplementation((e) => Promise.resolve(e)),
     };
@@ -90,6 +92,55 @@ describe('WebhookService', () => {
       await service.kycChanged(userData);
 
       expect(webhookRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('persists a retryable failure and rejects strict delivery when the HTTP path returns an error', async () => {
+      const userData = buildCircularUserData();
+      webhookNotificationService.triggerWebhook.mockResolvedValue('connect ECONNREFUSED');
+
+      await expect(service.kycChangedStrict(userData)).rejects.toThrow('Strict webhook delivery failed');
+
+      expect(webhookRepo.save).toHaveBeenCalledTimes(1);
+      const failed = webhookRepo.save.mock.calls[0][0] as Webhook;
+      expect(failed).toMatchObject({
+        isComplete: false,
+        lastTryDate: null,
+        error: 'connect ECONNREFUSED',
+      });
+    });
+
+    it('keeps best-effort delivery behavior while recording the same returned HTTP failure', async () => {
+      const userData = buildCircularUserData();
+      webhookNotificationService.triggerWebhook.mockResolvedValue('connect ECONNREFUSED');
+
+      await expect(service.kycChanged(userData)).resolves.toBeUndefined();
+
+      const failed = webhookRepo.save.mock.calls[0][0] as Webhook;
+      expect(failed.isComplete).toBe(false);
+      expect(failed.lastTryDate).toBeInstanceOf(Date);
+    });
+
+    it('retries an existing incomplete strict webhook instead of treating its row as delivery', async () => {
+      const userData = buildCircularUserData();
+      const existing = Object.assign(new Webhook(), {
+        id: 77,
+        identifier: 'existing',
+        type: WebhookType.KYC_CHANGED,
+        userData,
+        user: userData.users[0],
+        wallet: userData.users[0].wallet,
+        isComplete: false,
+        lastTryDate: null,
+      });
+      webhookRepo.findOne.mockResolvedValue(existing);
+      webhookNotificationService.triggerWebhook.mockResolvedValue('upstream unavailable');
+
+      await expect(service.kycChangedStrict(userData)).rejects.toThrow('Strict webhook delivery failed');
+
+      expect(webhookNotificationService.triggerWebhook).toHaveBeenCalledWith(existing);
+      expect(webhookRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 77, isComplete: false, lastTryDate: null, error: 'upstream unavailable' }),
+      );
     });
   });
 });

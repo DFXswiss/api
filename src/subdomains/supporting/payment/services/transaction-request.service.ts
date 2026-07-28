@@ -110,6 +110,7 @@ export class TransactionRequestService {
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
     userId: number,
+    bankSelection?: { bankId: number; virtualIbanId?: number },
   ): Promise<TransactionRequest | undefined> {
     try {
       const uid = Util.createUid(Config.prefixes.quoteUidPrefix);
@@ -151,6 +152,8 @@ export class TransactionRequestService {
           transactionRequest.sourceId = buyResponse.currency.id;
           transactionRequest.targetId = buyResponse.asset.id;
           transactionRequest.paymentLink = buyResponse.paymentLink;
+          transactionRequest.bankId = bankSelection?.bankId;
+          transactionRequest.virtualIbanId = bankSelection?.virtualIbanId;
           sourceCurrencyName = buyResponse.currency.name;
           targetCurrencyName = buyResponse.asset.name;
           blockchain = buyResponse.asset.blockchain;
@@ -204,9 +207,7 @@ export class TransactionRequestService {
       return transactionRequest;
     } catch (e) {
       this.logger.error(
-        `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
-          request,
-        )}, response was ${JSON.stringify(response)}:`,
+        `Failed to store ${type} transaction request ` + `(routeId=${response.routeId}, userId=${userId}):`,
         e,
       );
       throw e;

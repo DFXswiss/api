@@ -75,6 +75,7 @@ describe('ExchangeTxConsumer', () => {
       return Promise.resolve({} as any);
     });
     jest.spyOn(bookingService, 'nextSeq').mockResolvedValue(0);
+    jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(false); // nothing booked yet (tests opt in)
 
     jest.spyOn(accountService, 'findByName').mockImplementation((name: string) => Promise.resolve(accounts.get(name)));
     jest
@@ -334,6 +335,34 @@ describe('ExchangeTxConsumer', () => {
     expect(cents(booked[0].legs)).toBe(0);
   });
 
+  it('books an unattributable Trade THAT HAS an order at the per-row key, and guards it there too', async () => {
+    // the load-bearing branch of bookingKey's `&& !!parseSymbol(tx)` conjunct: an unresolvable symbol returns early
+    // through singleSpec, so even WITH an order the row books at (exchange_tx, `${id}`, 0) — never the composite
+    // trade key. Dropping that conjunct moves only the GUARD: singleSpec derives its identity from rowKey and is
+    // untouched, so the booking stays at the per-row key while alreadyBooked starts querying (ExchangeTrade,
+    // `${exchange}:${order}`, rank). The guard then never sees the row it books → re-book → UNIQUE → wedge reopens.
+    // Hence the call-args assertion below, not the booked-key ones, is what actually pins the conjunct.
+    const hasAnyTxAtSpy = jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(false);
+    mockBatch([
+      exchangeTx({
+        id: 5,
+        type: ExchangeTxType.TRADE,
+        symbol: null,
+        side: null,
+        order: 'O-7',
+        amount: 100,
+        amountChf: 90,
+      }),
+    ]);
+
+    await consumer.process();
+
+    expect(booked[0].sourceType).toBe('exchange_tx');
+    expect(booked[0].sourceId).toBe('5');
+    expect(booked[0].seq).toBe(0);
+    expect(hasAnyTxAtSpy).toHaveBeenCalledWith('exchange_tx', '5', 0); // guard queried the key it actually books at
+  });
+
   it('assigns batch-stable, re-run-idempotent fill_index per (exchange, order)', async () => {
     const f1 = exchangeTx({
       id: 10,
@@ -364,11 +393,12 @@ describe('ExchangeTxConsumer', () => {
   });
 
   // the watermark does not persist in this spec (getObj → undefined, set → no-op), so a naive second process()
-  // re-selects the same rows. The real backstop against double-booking is the DB UNIQUE(sourceType, sourceId, seq)
-  // constraint + the forward loop's failure-isolation: here bookTx enforces UNIQUE, and buildFillIndexMap re-derives
-  // the SAME 0-based ranks, so the re-run's identical keys collide and no second booking lands. If fill_index were NOT
-  // reproduced (e.g. run 2 produced seq 2,3) booked.length would be 4; the `=== 2` assertion is what discriminates.
-  it('is re-run idempotent: a second run reproduces the same fill_index and does not double-book (UNIQUE backstop)', async () => {
+  // re-selects the same rows. The primary guard against double-booking is the pre-book `alreadyBooked` check:
+  // buildFillIndexMap re-derives the SAME 0-based ranks, so the re-run recomputes identical keys, finds them booked
+  // and skips them — the DB UNIQUE(sourceType, sourceId, seq) constraint stays only as the residual backstop and is
+  // no longer reached on the re-run. If fill_index were NOT reproduced (e.g. run 2 produced seq 2,3) booked.length
+  // would be 4; the `=== 2` assertion is what discriminates that, the set-call count discriminates skip from wedge.
+  it('is re-run idempotent: a second run reproduces the same fill_index and does not double-book (alreadyBooked guard)', async () => {
     const keys = new Set<string>();
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       const key = `${input.sourceType}:${input.sourceId}:${input.seq}`;
@@ -377,6 +407,14 @@ describe('ExchangeTxConsumer', () => {
       booked.push(input);
       return Promise.resolve({} as any);
     });
+    // the real ledger_tx table backs hasAnyTxAt — the guard must see what bookTx committed, else the re-run would hit
+    // the UNIQUE backstop instead of skipping (that IS the wedge: prod exchange_tx 145715)
+    jest
+      .spyOn(bookingService, 'hasAnyTxAt')
+      .mockImplementation((sourceType: string, sourceId: string, seq: number) =>
+        Promise.resolve(keys.has(`${sourceType}:${sourceId}:${seq}`)),
+      );
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     const f1 = exchangeTx({
       id: 10,
       type: ExchangeTxType.TRADE,
@@ -402,11 +440,46 @@ describe('ExchangeTxConsumer', () => {
     await consumer.process();
     await consumer.process(); // re-run: forward re-selects, buildFillIndexMap re-derives the same 0-based ranks
 
-    // no double-booking: the re-run's identical (sourceId, seq) keys collided with the UNIQUE backstop → still 2 txs
+    // no double-booking: the re-run's identical (sourceId, seq) keys were skipped by the alreadyBooked guard → 2 txs
     expect(booked).toHaveLength(2);
     // deterministic, reproduced fill_index
     expect(booked.map((b) => b.seq).sort((a, b) => a - b)).toEqual([0, 1]);
     expect(booked.every((b) => b.sourceType === 'ExchangeTrade' && b.sourceId === 'Scrypt:O-9')).toBe(true); // B3
+    // and the re-run still ADVANCES the watermark past both rows — an already-booked row is a completed row, not a
+    // failure. Hitting the UNIQUE backstop instead breaks the batch on the FIRST row, so the second run writes no
+    // watermark at all (only the first run's call is recorded) and the source stays wedged there forever.
+    expect(setSpy).toHaveBeenCalledTimes(2);
+    expect(setSpy.mock.calls.map((c) => JSON.parse(c[1]).lastProcessedId)).toEqual([11, 11]);
+  });
+
+  it('skips a forward row already booked by the content-change scan and advances the watermark past it', async () => {
+    // prod wedge (exchange_tx 145715): the §4.12 content-change scan booked the row through reconcileBooking, which
+    // advances only the (updated, id) cursor — the id-watermark stayed BEHIND it. The next forward run re-selects the
+    // row; without the guard its bookTx collides on the UNIQUE constraint, breaks the batch, and NO later row ever
+    // books again. `hasAnyTxAt` true → treat as done, keep draining the batch.
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest
+      .spyOn(bookingService, 'hasAnyTxAt')
+      .mockImplementation((_type: string, sourceId: string) => Promise.resolve(sourceId === 'Binance:O-1'));
+    const bookedByScan = exchangeTx({
+      id: 20,
+      exchange: ExchangeName.BINANCE,
+      type: ExchangeTxType.TRADE,
+      symbol: 'BTC/USDT',
+      side: 'sell',
+      order: 'O-1',
+      amount: 1,
+      amountChf: 100,
+      cost: 100,
+    });
+    const next = exchangeTx({ id: 21, type: ExchangeTxType.DEPOSIT, currency: 'EUR', amount: 50, amountChf: 47.5 });
+    mockBatch([bookedByScan, next]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(1); // only the un-booked row
+    expect(booked[0].sourceId).toBe('21');
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(21); // drained past the already-booked row
   });
 
   it('advances the watermark after a successful batch', async () => {

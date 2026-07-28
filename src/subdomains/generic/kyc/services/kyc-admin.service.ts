@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { FindOptionsRelations } from 'typeorm';
+import { EntityManager, FindOptionsRelations } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
@@ -32,8 +32,13 @@ export class KycAdminService {
     private readonly nameCheckService: NameCheckService,
   ) {}
 
-  async getKycSteps(userDataId: number, relations: FindOptionsRelations<KycStep> = {}): Promise<KycStep[]> {
-    return this.kycStepRepo.find({ where: { userData: { id: userDataId } }, relations });
+  async getKycSteps(
+    userDataId: number,
+    relations: FindOptionsRelations<KycStep> = {},
+    manager?: EntityManager,
+  ): Promise<KycStep[]> {
+    const repo = manager?.getRepository(KycStep) ?? this.kycStepRepo;
+    return repo.find({ where: { userData: { id: userDataId } }, relations });
   }
 
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
@@ -112,8 +117,8 @@ export class KycAdminService {
     }
   }
 
-  async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {
-    await this.kycStepRepo.update(...dto);
+  async updateKycStepInternal(dto: UpdateResult<KycStep>, manager?: EntityManager): Promise<void> {
+    await (manager?.getRepository(KycStep) ?? this.kycStepRepo).update(...dto);
   }
 
   async resetKyc(userData: UserData, comment: KycError): Promise<void> {

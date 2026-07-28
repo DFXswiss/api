@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { Config } from 'src/config/config';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -9,6 +10,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -72,5 +74,43 @@ describe('BuyController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('passes the persisted bank and virtual-IBAN IDs into invoice bank resolution', async () => {
+    Config.invoice.currencies = ['EUR'];
+    const userData = { id: 7, isInvoiceDataComplete: true } as any;
+    const request = {
+      id: 99,
+      userData,
+      isValid: true,
+      isComplete: false,
+      routeId: 42,
+      sourceId: 2,
+      amount: 100,
+      sourcePaymentMethod: FiatPaymentMethod.BANK,
+      bankId: 19,
+      virtualIbanId: 501,
+    } as any;
+    const buy = { id: 42, asset: { id: 10 } } as any;
+    const bankInfo = { iban: 'LI75088110105923K000E', reference: 'ABCD-EFGH-IJKL' } as any;
+    jest.spyOn(transactionRequestService, 'getOrThrow').mockResolvedValue(request);
+    jest.spyOn(userService, 'getUser').mockResolvedValue({ wallet: {} } as any);
+    jest.spyOn(buyService, 'get').mockResolvedValue(buy);
+    jest.spyOn(fiatService, 'getFiat').mockResolvedValue({ id: 2, name: 'EUR' } as any);
+    jest.spyOn(buyService, 'getBankInfoForRequest').mockResolvedValue(bankInfo);
+    jest.spyOn(swissQrService, 'createInvoiceFromRequest').mockResolvedValue('pdf-data');
+
+    await expect(controller.generateInvoicePDF({ user: 1, account: 7 } as any, 99)).resolves.toEqual({
+      pdfData: 'pdf-data',
+    });
+    expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ userData, currency: 'EUR' }),
+      buy,
+      true,
+      19,
+      501,
+      buy.asset,
+      {},
+    );
   });
 });

@@ -18,6 +18,9 @@ export function buildFrickConfig(env: NodeJS.ProcessEnv): FrickConfig {
     customer: env.FRICK_CUSTOMER,
     payoutEnabled: env.FRICK_PAYOUT_ENABLED === 'true',
     approveWithoutTan: env.FRICK_APPROVE_WITHOUT_TAN === 'true',
-    vbanBaseUrl: env.FRICK_VBAN_BASE_URL,
+    // Named FRICK_VBAN_API_URL (not FRICK_VBAN_BASE_URL) so older production code that
+    // treats Bank Frick as a generic EUR vIBAN provider can never be activated by
+    // setting this env alone before this PR is live or after a rollback.
+    vbanBaseUrl: env.FRICK_VBAN_API_URL,
   };
 }

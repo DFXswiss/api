@@ -43,6 +43,16 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'integer' })
   targetId: number;
 
+  /** Resolved deposit bank id at quote time (scalar; no FK). */
+  @Index()
+  @Column({ type: 'integer', nullable: true })
+  bankId?: number;
+
+  /** Resolved personal virtual IBAN id at quote time (scalar; no FK). */
+  @Index()
+  @Column({ type: 'integer', nullable: true })
+  virtualIbanId?: number;
+
   @Column({ type: 'float' })
   amount: number;
 

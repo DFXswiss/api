@@ -20,7 +20,7 @@ export class Webhook extends IEntity {
   reason?: string;
 
   @Column({ type: 'timestamp', nullable: true })
-  lastTryDate?: Date;
+  lastTryDate?: Date | null;
 
   @Column({ type: 'text', nullable: true })
   error?: string;
@@ -41,10 +41,22 @@ export class Webhook extends IEntity {
   @ManyToOne(() => Wallet, { nullable: false, eager: true })
   wallet: Wallet;
 
-  sentWebhook(error: string): UpdateResult<Webhook> {
+  sentWebhook(error?: string): UpdateResult<Webhook> {
     const update: Partial<Webhook> = {
       lastTryDate: new Date(),
       isComplete: !error,
+      error,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  failedWebhookForRetry(error: string): UpdateResult<Webhook> {
+    const update: Partial<Webhook> = {
+      lastTryDate: null,
+      isComplete: false,
       error,
     };
 

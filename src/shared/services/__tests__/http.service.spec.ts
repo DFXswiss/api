@@ -1,5 +1,5 @@
 import { HttpService as NestHttpService } from '@nestjs/axios';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { Environment } from 'src/config/config';
 import { HttpService } from '../http.service';
 
@@ -101,6 +101,83 @@ describe('HttpService signed responses', () => {
 
     await expect(service.request({ url: 'https://synthetic.example/unsigned' })).resolves.toBe(parsed);
     expect(nestHttp.request.mock.calls[0][0].transformResponse).toBeUndefined();
+  });
+
+  it('verifies a signed error response body and re-throws the original axios error when the signature is valid', async () => {
+    const errorBody = Buffer.from('{"error":"unauthorized"}');
+    const headers = { signature: 'synthetic-signature', algorithm: 'rsa-sha512' };
+    const originalError = Object.assign(new Error('Request failed with status code 401'), {
+      response: { status: 401, data: errorBody, headers },
+      isAxiosError: true,
+    });
+    nestHttp.request.mockReturnValue(throwError(() => originalError));
+    const responseVerifier = jest.fn();
+
+    await expect(service.request({ url: 'https://synthetic.example/signed', responseVerifier })).rejects.toBe(
+      originalError,
+    );
+
+    expect(responseVerifier).toHaveBeenCalledWith(errorBody, headers);
+    expect(originalError.response.status).toBe(401);
+  });
+
+  it('propagates the verifier error instead of the original axios error when the error-response signature is invalid', async () => {
+    const errorBody = Buffer.from('{"error":"unauthorized"}');
+    const headers = { signature: 'bad', algorithm: 'rsa-sha512' };
+    const originalError = Object.assign(new Error('Request failed with status code 401'), {
+      response: { status: 401, data: errorBody, headers },
+      isAxiosError: true,
+    });
+    const verifierError = new Error('synthetic signature mismatch on error body');
+    nestHttp.request.mockReturnValue(throwError(() => originalError));
+
+    const rejected = service.request({
+      url: 'https://synthetic.example/signed',
+      responseVerifier: () => {
+        throw verifierError;
+      },
+    });
+    await expect(rejected).rejects.toBe(verifierError);
+    await expect(rejected).rejects.not.toBe(originalError);
+  });
+
+  it('does not call responseVerifier on pure transport failures without an HTTP response', async () => {
+    const transportError = Object.assign(new Error('connect ECONNREFUSED'), {
+      code: 'ECONNREFUSED',
+      isAxiosError: true,
+    });
+    nestHttp.request.mockReturnValue(throwError(() => transportError));
+    const responseVerifier = jest.fn();
+
+    await expect(service.request({ url: 'https://synthetic.example/signed', responseVerifier })).rejects.toBe(
+      transportError,
+    );
+
+    expect(responseVerifier).not.toHaveBeenCalled();
+  });
+
+  it('rejects a signed error response whose body is not a raw byte buffer without treating it as verified', async () => {
+    const originalError = Object.assign(new Error('Request failed with status code 400'), {
+      response: { status: 400, data: { already: 'parsed' }, headers: {} },
+      isAxiosError: true,
+    });
+    nestHttp.request.mockReturnValue(throwError(() => originalError));
+    const responseVerifier = jest.fn();
+
+    const rejected = service.request({ url: 'https://synthetic.example/signed', responseVerifier });
+    await expect(rejected).rejects.toThrow('Signed HTTP error response body is not a raw byte buffer');
+    await expect(rejected).rejects.not.toBe(originalError);
+    expect(responseVerifier).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the exact original axios error when no responseVerifier is configured', async () => {
+    const originalError = Object.assign(new Error('Request failed with status code 500'), {
+      response: { status: 500, data: 'plain error body', headers: {} },
+      isAxiosError: true,
+    });
+    nestHttp.request.mockReturnValue(throwError(() => originalError));
+
+    await expect(service.request({ url: 'https://synthetic.example/unsigned' })).rejects.toBe(originalError);
   });
 });
 

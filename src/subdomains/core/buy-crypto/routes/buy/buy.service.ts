@@ -25,8 +25,11 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { VibanAccountHolder } from 'src/subdomains/supporting/bank/virtual-iban/providers/viban-account-holder.enum';
+import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
@@ -37,7 +40,7 @@ import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { GetBuyPaymentInfoDto, PersonalIbanProvider } from './dto/get-buy-payment-info.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
@@ -139,6 +142,9 @@ export class BuyService {
 
   async createBuyPaymentInfo(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    if (dto.personalIbanProvider === PersonalIbanProvider.FRICK && dto.paymentMethod !== FiatPaymentMethod.BANK) {
+      throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
+    }
     dto = await this.paymentInfoService.buyCheck(dto, jwt, user);
     const buy = await Util.retry(
       () => this.createBuy(user, jwt.address, dto, true),
@@ -264,6 +270,44 @@ export class BuyService {
       wallet: true,
     });
 
+    // Explicit personal-IBAN selector dispatch is exhaustive and fail-closed. Frick resolves the
+    // deposit destination before fee calculation so bankInOverride can pass the Frick bank name
+    // (Frick is excluded from getBankIn()'s user-level pool).
+    //
+    // Every other path: merge-base order — getTxDetails first (bankInOverride undefined so getBankIn()
+    // resolves fees itself), then resolveBankInfo with the amount from getTxDetails. That way a failed
+    // quote never creates an external account (createForUser / createForBuy) for non-selector customers.
+    // Assigned exactly once: FRICK path before getTxDetails, all other paths after.
+    let resolvedBank!: {
+      bankInfo: BankInfoDto & { isPersonalIban: boolean; reference?: string };
+      bankId: number;
+      virtualIbanId?: number;
+      bankName: IbanBankName;
+    };
+    let bankInOverride: IbanBankName | undefined;
+
+    switch (dto.personalIbanProvider) {
+      case undefined:
+        break;
+      case PersonalIbanProvider.FRICK:
+        resolvedBank = await this.resolveBankInfo(
+          {
+            amount: dto.amount,
+            currency: dto.currency.name,
+            paymentMethod: dto.paymentMethod,
+            userData: user.userData,
+          },
+          buy,
+          dto.asset,
+          user.wallet,
+          dto.personalIbanProvider,
+        );
+        bankInOverride = resolvedBank.bankName;
+        break;
+      default:
+        throw new BadRequestException(QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED);
+    }
+
     const {
       timestamp,
       minVolume,
@@ -289,19 +333,28 @@ export class BuyService {
       CryptoPaymentMethod.CRYPTO,
       dto.exactPrice,
       user,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      bankInOverride,
     );
 
-    const bankInfo = await this.getBankInfo(
-      {
-        amount: amount,
-        currency: dto.currency.name,
-        paymentMethod: dto.paymentMethod,
-        userData: user.userData,
-      },
-      buy,
-      dto.asset,
-      user.wallet,
-    );
+    if (dto.personalIbanProvider === undefined) {
+      resolvedBank = await this.resolveBankInfo(
+        {
+          amount: amount,
+          currency: dto.currency.name,
+          paymentMethod: dto.paymentMethod,
+          userData: user.userData,
+        },
+        buy,
+        dto.asset,
+        user.wallet,
+      );
+    }
+
+    const bankInfo = resolvedBank.bankInfo;
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
@@ -346,7 +399,11 @@ export class BuyService {
           : undefined,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id);
+    const bankSelection =
+      dto.personalIbanProvider === PersonalIbanProvider.FRICK
+        ? { bankId: resolvedBank.bankId, virtualIbanId: resolvedBank.virtualIbanId }
+        : undefined;
+    await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id, bankSelection);
 
     return buyDto;
   }
@@ -357,6 +414,88 @@ export class BuyService {
     asset?: Asset,
     wallet?: Wallet,
   ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
+    return this.resolveBankInfo(selector, buy, asset, wallet).then((resolved) => resolved.bankInfo);
+  }
+
+  /**
+   * Rebuilds invoice bank data from the exact IDs persisted with a new transaction request.
+   * Dynamic legacy selection is permitted only when both IDs are absent.
+   *
+   * @param requireLiveVirtualIban When true (still-open / unpaid quote), also verify that the
+   * stored personal IBAN is active and the bank still accepts payments. When false (historical
+   * completed lookup / receipt), skip liveness and serve the stored data as-is.
+   */
+  async getBankInfoForRequest(
+    selector: BankSelectorInput,
+    buy: Buy,
+    requireLiveVirtualIban: boolean,
+    bankId?: number,
+    virtualIbanId?: number,
+    asset?: Asset,
+    wallet?: Wallet,
+  ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
+    if (bankId == null && virtualIbanId == null) return this.getBankInfo(selector, buy, asset, wallet);
+    if (bankId == null) throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_SELECTION_INCOMPLETE);
+
+    // Stored request liveness is a correctness boundary: receive/IBAN changes made by Operations
+    // must be visible immediately, so this deliberately reads through to the DB.
+    const bank = await this.bankService.getBankByIdUncached(bankId);
+    if (!bank) throw new BadRequestException(QuoteError.STORED_TRANSACTION_REQUEST_BANK_NO_LONGER_EXISTS);
+
+    if (virtualIbanId != null) {
+      const virtualIban = await this.virtualIbanService.getByIdForUser(virtualIbanId, selector.userData.id);
+      if (!virtualIban) throw new BadRequestException(QuoteError.STORED_PERSONAL_IBAN_USER_MISMATCH);
+      if (
+        virtualIban.bank.id !== bankId ||
+        virtualIban.currency.name !== selector.currency ||
+        (virtualIban.buy && virtualIban.buy.id !== buy.id)
+      )
+        throw new BadRequestException(QuoteError.STORED_PERSONAL_IBAN_TRANSACTION_REQUEST_MISMATCH);
+
+      if (requireLiveVirtualIban) {
+        if (!virtualIban.active || virtualIban.status !== VirtualIbanStatus.ACTIVE)
+          throw new BadRequestException(QuoteError.STORED_PERSONAL_IBAN_IS_NO_LONGER_ACTIVE);
+        if (!bank.receive) throw new BadRequestException(QuoteError.STORED_BANK_NO_LONGER_ACCEPTS_PAYMENTS);
+      }
+
+      return this.buildVirtualIbanResponse(virtualIban, selector.userData, virtualIban.buy ? undefined : buy.bankUsage);
+    }
+
+    if (requireLiveVirtualIban && !bank.receive)
+      throw new BadRequestException(QuoteError.STORED_BANK_NO_LONGER_ACCEPTS_PAYMENTS);
+
+    return this.buildBankResponse(bank, buy.bankUsage);
+  }
+
+  private async resolveBankInfo(
+    selector: BankSelectorInput,
+    buy?: Buy,
+    asset?: Asset,
+    wallet?: Wallet,
+    personalIbanProvider?: PersonalIbanProvider,
+  ): Promise<{
+    bankInfo: BankInfoDto & { isPersonalIban: boolean; reference?: string };
+    bankId: number;
+    virtualIbanId?: number;
+    bankName: IbanBankName;
+  }> {
+    if (personalIbanProvider === PersonalIbanProvider.FRICK) {
+      if (selector.currency !== 'EUR') throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
+      if (selector.paymentMethod !== FiatPaymentMethod.BANK)
+        throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
+
+      const virtualIban = await this.virtualIbanService.getOrCreateFrickForUser(selector.userData, selector.currency);
+      if (!virtualIban.bank.receive || virtualIban.bank.name !== IbanBankName.FRICK)
+        throw new BadRequestException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+
+      return {
+        bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
+        bankId: virtualIban.bank.id,
+        virtualIbanId: virtualIban.id,
+        bankName: virtualIban.bank.name,
+      };
+    }
+
     // asset-specific personal IBAN
     if (
       buy &&
@@ -377,7 +516,12 @@ export class BuyService {
       }
 
       if (virtualIban?.bank.receive) {
-        return this.buildVirtualIbanResponse(virtualIban, selector.userData);
+        return {
+          bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData),
+          bankId: virtualIban.bank.id,
+          virtualIbanId: virtualIban.id,
+          bankName: virtualIban.bank.name,
+        };
       }
     }
 
@@ -390,7 +534,12 @@ export class BuyService {
     }
 
     if (virtualIban?.bank.receive) {
-      return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
+      return {
+        bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
+        bankId: virtualIban.bank.id,
+        virtualIbanId: virtualIban.id,
+        bankName: virtualIban.bank.name,
+      };
     }
 
     // normal bank selection
@@ -399,13 +548,24 @@ export class BuyService {
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
     return {
+      bankInfo: this.buildBankResponse(bank, buy?.bankUsage),
+      bankId: bank.id,
+      bankName: bank.name,
+    };
+  }
+
+  private buildBankResponse(
+    bank: Awaited<ReturnType<BankService['getBank']>>,
+    reference?: string,
+  ): BankInfoDto & { isPersonalIban: boolean; reference?: string } {
+    return {
       ...Config.bank.dfxAddress,
       bank: bank.name,
       iban: bank.iban,
       bic: bank.bic,
       sepaInstant: bank.sctInst,
       isPersonalIban: false,
-      reference: buy?.bankUsage,
+      reference,
     };
   }
 
@@ -414,14 +574,29 @@ export class BuyService {
     userData: UserData,
     reference?: string,
   ): BankInfoDto & { isPersonalIban: boolean; reference?: string } {
+    // Bank Frick issues the personal IBAN as a routing sub-account of DFX's own account, not an account
+    // opened in the customer's name (see FrickCreateVirtualIbanRequest — the create request never sends
+    // name/address). Yapeal genuinely opens the account in the customer's own name. Showing the wrong
+    // holder as recipient makes the payer's bank flag/reject the SEPA name<->IBAN match, defeating the
+    // point of a "verified" personal IBAN. VirtualIbanService.getAccountHolder is the single source of
+    // truth for which case applies (see its doc comment for why the lookup lives there, not on this
+    // entity: this function only has the persisted row, never the issuing provider instance).
+    const accountHolder = this.virtualIbanService.getAccountHolder(virtualIban.bank.name);
     const { address } = userData;
+    const recipient =
+      accountHolder === VibanAccountHolder.CUSTOMER
+        ? {
+            name: userData.completeName,
+            street: address.street,
+            ...(address.houseNumber && { number: address.houseNumber }),
+            zip: address.zip,
+            city: address.city,
+            country: address.country?.name,
+          }
+        : { ...Config.bank.dfxAddress };
+
     return {
-      name: userData.completeName,
-      street: address.street,
-      ...(address.houseNumber && { number: address.houseNumber }),
-      zip: address.zip,
-      city: address.city,
-      country: address.country?.name,
+      ...recipient,
       bank: virtualIban.bank.name,
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,

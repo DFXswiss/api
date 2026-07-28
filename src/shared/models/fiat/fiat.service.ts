@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { FiatRepository } from 'src/shared/models/fiat/fiat.repository';
-import { Equal } from 'typeorm';
+import { EntityManager, Equal } from 'typeorm';
 import { Fiat } from './fiat.entity';
 
 @Injectable()
@@ -27,8 +27,10 @@ export class FiatService {
     return this.fiatRepo.findOneCachedBy(id, { id: Equal(id) });
   }
 
-  async getFiatByName(name: string): Promise<Fiat> {
-    return this.fiatRepo.findOneCachedBy(name, { name: Equal(name) });
+  async getFiatByName(name: string, manager?: EntityManager): Promise<Fiat> {
+    return manager
+      ? manager.findOne(Fiat, { where: { name: Equal(name) } })
+      : this.fiatRepo.findOneCachedBy(name, { name: Equal(name) });
   }
 
   async updatePrice(fiatId: number, chfPrice: number) {
