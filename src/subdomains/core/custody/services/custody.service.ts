@@ -141,8 +141,8 @@ export class CustodyService {
 
   /**
    * Cheap existence check used by CustodyAccountService to decide whether the legacy Safe
-   * entry is empty. This answers "is there any balance row here at all", not "would the
-   * customer-facing display show a non-zero number" — the display groups balance rows by
+   * entry is empty. This answers "is there a balance row with a non-zero value", not "would
+   * the customer-facing display show a non-zero number" — the display groups balance rows by
    * asset name and sums them before rounding (CustodyAssetBalanceDtoMapper), while this check
    * looks at each row independently. Mirroring the display's rounding or its grouping here
    * would mean rebuilding that aggregation in the query, and every extra layer of mimicry is
