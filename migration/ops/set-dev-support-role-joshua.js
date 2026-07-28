@@ -89,7 +89,11 @@ async function run(client) {
           ' hat auf DEV keinen User. Einmal mit dieser Wallet auf dev.app.dfx.swiss ' +
           'einloggen (das legt den User an), danach dieses Skript erneut ausführen.',
       };
-      console.warn(JSON.stringify(result));
+      // This script runs in the container as `node <script> && exec node dist/src/main` and
+      // shares stdout with the API that starts after it. Its output is diagnostic only and is
+      // not machine-read, so every message goes to stderr — keeping the one-shot ops line
+      // distinguishable from the API's regular stdout logging.
+      console.error(JSON.stringify(result));
       return result;
     }
 
@@ -120,7 +124,7 @@ async function run(client) {
         status: 'already Support, no change',
         user: before,
       };
-      console.log(JSON.stringify(result));
+      console.error(JSON.stringify(result));
       return result;
     }
 
@@ -130,7 +134,7 @@ async function run(client) {
         status: 'role already satisfies Support, no change',
         user: before,
       };
-      console.log(JSON.stringify(result));
+      console.error(JSON.stringify(result));
       return result;
     }
 
@@ -150,7 +154,7 @@ async function run(client) {
           blocked.value +
           ' would keep Support endpoints returning 403. Status values are left unchanged.',
       };
-      console.warn(JSON.stringify(result));
+      console.error(JSON.stringify(result));
       return result;
     }
 
@@ -182,7 +186,7 @@ async function run(client) {
       before,
       after,
     };
-    console.log(JSON.stringify(result));
+    console.error(JSON.stringify(result));
     return result;
   } catch (error) {
     try {

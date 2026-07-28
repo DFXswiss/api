@@ -143,19 +143,13 @@ function hadRoleUpdate(client: FakeClient): boolean {
 }
 
 describe('set-dev-support-role-joshua ops script', () => {
-  let logSpy: jest.SpyInstance;
-  let warnSpy: jest.SpyInstance;
   let errorSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
-    logSpy.mockRestore();
-    warnSpy.mockRestore();
     errorSpy.mockRestore();
   });
 
