@@ -1,3 +1,4 @@
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { toPersonalDataMissingFields } from '../personal-data-missing-fields';
 
 describe('toPersonalDataMissingFields', () => {
@@ -35,7 +36,21 @@ describe('toPersonalDataMissingFields', () => {
     ]);
   });
 
-  it('omits mail because it is not settable on the personal-data endpoint', () => {
+  it('omits mail as a known non-reportable field without treating it as unknown', () => {
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
     expect(toPersonalDataMissingFields(['mail', 'firstname', 'phone'])).toEqual(['firstName', 'phone']);
+    expect(errorSpy).not.toHaveBeenCalled();
+
+    errorSpy.mockRestore();
+  });
+
+  it('logs unknown entity fields instead of silently dropping them', () => {
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+    expect(toPersonalDataMissingFields(['notARealField', 'phone'])).toEqual(['phone']);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('notARealField'));
+
+    errorSpy.mockRestore();
   });
 });

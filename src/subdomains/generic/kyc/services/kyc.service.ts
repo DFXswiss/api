@@ -892,7 +892,7 @@ export class KycService {
 
     await this.verify2fa(user, ip);
 
-    await this.kycStepRepo.update(...kycStep.update(kycStep.status, data.responses, undefined, kycStep.sequenceNumber));
+    await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
 
     const missingFields = FinancialService.getMissingFields(data.responses, user.accountType);
     const complete = missingFields.length === 0;

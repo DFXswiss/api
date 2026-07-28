@@ -866,4 +866,40 @@ describe('KycService submit completeness feedback', () => {
       expect(service['createStepLog']).toHaveBeenCalled();
     });
   });
+
+  describe('updateFileData', () => {
+    it('preserves sequenceNumber in the response when only status and result are updated', async () => {
+      // OWNER_DIRECTORY is in KycStepIdentRequiredForReview; with high kycLevel the step goes MANUAL_REVIEW
+      // without changing sequenceNumber — previously update() wiped sequenceNumber when omitted.
+      const kycStep = Object.assign(new KycStep(), {
+        id: 13,
+        name: KycStepName.OWNER_DIRECTORY,
+        status: ReviewStatus.IN_PROGRESS,
+        sequenceNumber: 3,
+        userData: createCustomUserData({ kycLevel: 50 }),
+      });
+      const user = userWithPendingStep(kycStep);
+      jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+
+      const documentService = createMock<KycDocumentService>();
+      documentService.uploadUserFile.mockResolvedValue({ url: 'https://example.com/file.pdf' } as never);
+      (service as any).documentService = documentService;
+
+      const result = await service.updateFileData(
+        'hash',
+        13,
+        KycStepName.OWNER_DIRECTORY,
+        {
+          file: 'data:application/pdf;base64,eA==',
+          fileName: 'register.pdf',
+        } as any,
+        FileType.STOCK_REGISTER,
+      );
+
+      expect(kycStep.sequenceNumber).toBe(3);
+      expect(result.sequenceNumber).toBe(3);
+      expect(result.status).toBe(KycStepStatus.IN_REVIEW);
+      expect(kycStep.status).toBe(ReviewStatus.MANUAL_REVIEW);
+    });
+  });
 });

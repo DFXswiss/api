@@ -74,7 +74,7 @@ export class KycStepSubmitDto extends KycStepBase {
 
   @ApiProperty({
     description:
-      'Request field paths still missing when complete is false; empty when complete is true. Financial: unanswered applicable question keys. Personal data: KycPersonalData paths (e.g. firstName, address.street, organizationAddress.city). mail is never listed on personal data (ContactData step).',
+      'Request field paths still missing when complete is false; empty when complete is true. Financial: unanswered applicable question keys. Personal data: KycPersonalData paths (e.g. firstName, address.street, organizationAddress.city). The list may be empty while complete is false when the blocking field belongs to another KYC step (e.g. mail via ContactData).',
     type: String,
     isArray: true,
   })

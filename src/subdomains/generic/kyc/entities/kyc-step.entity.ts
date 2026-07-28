@@ -219,12 +219,16 @@ export class KycStep extends IEntity {
     comment?: string,
     sequenceNumber?: number,
   ): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = {
-      status,
-      result: this.setResult(result),
-      comment: this.addComment(comment),
-      sequenceNumber,
-    };
+    // Drop undefined so callers can omit status/sequenceNumber without wiping in-memory or DB values
+    // (Object.assign copies undefined; TypeORM skips it on write, the entity would still lose the field).
+    const update = Object.fromEntries(
+      Object.entries({
+        status,
+        result: this.setResult(result),
+        comment: this.addComment(comment),
+        sequenceNumber,
+      }).filter(([, v]) => v !== undefined),
+    ) as Partial<KycStep>;
 
     Object.assign(this, update);
 

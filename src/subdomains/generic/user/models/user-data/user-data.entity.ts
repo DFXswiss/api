@@ -50,6 +50,32 @@ import {
   UserDataStatus,
 } from './user-data.enum';
 
+/** Base required KYC fields for every account type (entity property names). */
+export const PersonalRequiredKycFields = [
+  'accountType',
+  'mail',
+  'phone',
+  'firstname',
+  'surname',
+  'street',
+  'location',
+  'zip',
+  'country',
+] as const;
+
+/** Extra required fields for non-personal accounts. */
+export const OrganizationRequiredKycFields = [
+  'organizationName',
+  'organizationStreet',
+  'organizationLocation',
+  'organizationZip',
+  'organizationCountry',
+] as const;
+
+export type RequiredKycField =
+  | (typeof PersonalRequiredKycFields)[number]
+  | (typeof OrganizationRequiredKycFields)[number];
+
 @Entity()
 @Index(
   (userData: UserData) => [userData.identDocumentId, userData.nationality, userData.accountType, userData.kycType],
@@ -856,15 +882,11 @@ export class UserData extends IEntity {
     }
   }
 
-  get requiredKycFields(): string[] {
-    return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
-      this.isPersonalAccount
-        ? []
-        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
-    );
+  get requiredKycFields(): RequiredKycField[] {
+    return [...PersonalRequiredKycFields, ...(this.isPersonalAccount ? [] : OrganizationRequiredKycFields)];
   }
 
-  get missingKycFields(): string[] {
+  get missingKycFields(): RequiredKycField[] {
     return this.requiredKycFields.filter((f) => !this[f]);
   }
 
