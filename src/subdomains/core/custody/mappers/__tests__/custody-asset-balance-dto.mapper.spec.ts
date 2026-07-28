@@ -100,5 +100,129 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(result[0].interest).toBe(interest);
       expect(result[0].interestValue).toEqual({ chf: interest, eur: interest, usd: interest });
     });
+
+    it('returns balances ordered by descending CHF value regardless of input order', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 20,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 21,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 22,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 50 }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 500 }),
+      ];
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(result.map((balance) => [balance.asset.name, balance.value.chf])).toEqual([
+        ['BBB', 500],
+        ['AAA', 100],
+        ['CCC', 50],
+      ]);
+    });
+
+    it('falls back to alphabetical asset name when CHF values are equal', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 30,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 31,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 32,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 100 }),
+      ];
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(result.map((balance) => balance.asset.name)).toEqual(['AAA', 'BBB', 'CCC']);
+    });
+
+    it('returns the same order regardless of input order', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 40,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 41,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 42,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const dddAsset: Asset = createCustomAsset({
+        id: 43,
+        name: 'DDD',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: dddAsset, balance: 50 }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 200 }),
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 100 }),
+      ];
+      const firstInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+      const secondInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const firstResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, firstInterestByAssetName);
+      const secondResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(
+        [...balances].reverse(),
+        secondInterestByAssetName,
+      );
+
+      expect(firstResult.map((balance) => balance.asset.name)).toEqual(
+        secondResult.map((balance) => balance.asset.name),
+      );
+    });
   });
 });

@@ -20,13 +20,20 @@ export class CustodyAssetBalanceDtoMapper {
   ): CustodyAssetBalanceDto[] {
     const groups = Util.groupByAccessor(custodyBalances, (b) => b.asset.name);
 
-    return Array.from(groups.values()).map((g) => {
+    const balances = Array.from(groups.values()).map((g) => {
       const asset = g[0].asset;
       const balance = Util.sumObjValue(g, 'balance');
       const interestInfo = interestByAssetName.get(asset.name);
 
       return this.map(asset, balance, interestInfo);
     });
+
+    // The balances arrive in whatever order the database returned them — nothing orders that
+    // query — so the same holdings could come back in a different order on every request, with
+    // the list visibly reshuffling for no reason. Largest position first is both stable and the
+    // order someone reading a portfolio expects; equal values fall back to the name so the
+    // result is fully determined.
+    return balances.sort((a, b) => b.value.chf - a.value.chf || a.asset.name.localeCompare(b.asset.name));
   }
 
   private static map(asset: Asset, balance: number, interestInfo?: CustodyInterestInfo): CustodyAssetBalanceDto {
