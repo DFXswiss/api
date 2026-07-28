@@ -79,10 +79,13 @@ export const MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER = 'postCommitEffectsPendin
 export const MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER = 'postCommitEffectCompleted=';
 export const MERGE_POST_COMMIT_EFFECT_FAILED_MARKER = 'postCommitEffectFailed=';
 
+const MailVerificationMaxTryCount = 5;
+
 interface SecretCacheEntry {
   secret: string;
   mail: string;
   expiryDate: Date;
+  tryCount: number;
 }
 
 @Injectable()
@@ -778,6 +781,11 @@ export class UserDataService {
 
     await this.checkMail(userData, dto.mail);
 
+    // Re-submitting the address the account already has is a no-op, not a change. The 2FA gate
+    // below guards a change of mail; demanding it for an unchanged address turns a client retry
+    // into a dead end. Runs after checkMail so a merged account still gets its master-code redirect.
+    if (userData.mail.toLowerCase() === dto.mail.toLowerCase()) return UpdateMailStatus.Ok;
+
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
     // mail verification
@@ -788,6 +796,7 @@ export class UserDataService {
       secret,
       mail: dto.mail,
       expiryDate: Util.minutesAfter(codeExpiryMinutes),
+      tryCount: 0,
     });
 
     // send mail
@@ -803,12 +812,34 @@ export class UserDataService {
 
   async verifyUserMail(userData: UserData, token: string): Promise<UserData> {
     const cacheEntry = this.secretCache.get(userData.id);
-    if (token !== cacheEntry?.secret) throw new ForbiddenException('Invalid or expired mail verification token');
+
+    // The code is a 6-digit number, so the guessing window has to be bounded on both axes: a try
+    // count (mirroring the 2FA flow) and the expiry that was so far only stored, never enforced.
+    const isUsable =
+      cacheEntry && cacheEntry.tryCount < MailVerificationMaxTryCount && cacheEntry.expiryDate > new Date();
+    if (cacheEntry && !isUsable) this.secretCache.delete(userData.id);
+
+    if (!isUsable || token !== cacheEntry.secret) {
+      if (isUsable) cacheEntry.tryCount++;
+      throw new ForbiddenException('Invalid or expired mail verification token');
+    }
+
     this.secretCache.delete(userData.id);
 
     await this.checkMail(userData, cacheEntry.mail);
 
     return this.doUpdateUserMail(userData, cacheEntry.mail);
+  }
+
+  @DfxCron(CronExpression.EVERY_MINUTE)
+  processCleanupMailSecretCache(): void {
+    const now = new Date();
+
+    const keysToBeDeleted = Array.from(this.secretCache.entries())
+      .filter(([_, v]) => v.expiryDate < now)
+      .map(([k, _]) => k);
+
+    keysToBeDeleted.forEach((k) => this.secretCache.delete(k));
   }
 
   async trySetUserMail(userData: UserData, mail: string): Promise<UserData> {
@@ -844,6 +875,8 @@ export class UserDataService {
 
   private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
     mail = mail?.toLowerCase();
+    // captured before the assign below overwrites it — otherwise the change log sees old === new
+    const oldMail = userData.mail;
     await this.userDataRepo.update(userData.id, { mail });
     Object.assign(userData, { mail });
 
@@ -858,7 +891,7 @@ export class UserDataService {
       this.siftService.updateAccount(updateSiftAccount);
     }
 
-    await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
+    await this.kycLogService.createMailChangeLog(userData, oldMail, mail);
 
     try {
       await this.kycService.initializeProcess(userData);

@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { DataType, newDb } from 'pg-mem';
 import {
   Column,
@@ -35,7 +35,9 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { OrganizationService } from 'src/subdomains/generic/user/models/organization/organization.service';
-import { TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
+import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
+import { TfaRequiredException } from 'src/subdomains/generic/kyc/exceptions/tfa-required.exception';
+import { Util } from 'src/shared/utils/util';
 import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import {
@@ -103,6 +105,7 @@ describe('UserDataService', () => {
   let kycService: jest.Mocked<KycService>;
   let userDataNotificationService: jest.Mocked<UserDataNotificationService>;
   let webhookService: jest.Mocked<WebhookService>;
+  let tfaService: jest.Mocked<TfaService>;
   let mergeManager: EntityManager;
 
   beforeEach(async () => {
@@ -160,6 +163,7 @@ describe('UserDataService', () => {
     kycService = module.get(KycService);
     userDataNotificationService = module.get(UserDataNotificationService);
     webhookService = module.get(WebhookService);
+    tfaService = module.get(TfaService);
   });
 
   describe('getUsersByMail', () => {
@@ -295,6 +299,118 @@ describe('UserDataService', () => {
 
       expect(result).toBe(UpdateMailStatus.Ok);
       expect(userDataRepo.update).toHaveBeenCalledWith(userData.id, { mail: 'new@mail.com' });
+    });
+
+    it('accepts a re-submit of the address already on the account without demanding 2FA', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.ACTIVE,
+        mail: 'user@example.com',
+        users: [],
+      });
+
+      userDataRepo.find.mockResolvedValue([userData]);
+
+      // mixed case: legacy rows predate the lowercase-on-write normalization
+      const result = await service.updateUserMail(userData, { mail: 'User@Example.com' }, '1.2.3.4');
+
+      expect(result).toBe(UpdateMailStatus.Ok);
+      expect(tfaService.checkVerification).not.toHaveBeenCalled();
+      expect(tfaService.sendVerificationMail).not.toHaveBeenCalled();
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('still demands 2FA when the address actually changes', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.ACTIVE,
+        mail: 'old@example.com',
+        users: [],
+      });
+
+      userDataRepo.find.mockResolvedValue([]);
+      tfaService.checkVerification.mockRejectedValue(new TfaRequiredException(TfaLevel.BASIC));
+
+      await expect(service.updateUserMail(userData, { mail: 'new@example.com' }, '1.2.3.4')).rejects.toMatchObject({
+        status: 403,
+        response: expect.objectContaining({ code: 'TFA_REQUIRED', level: 'basic' }),
+      });
+      expect(tfaService.checkVerification).toHaveBeenCalledWith(userData, '1.2.3.4', TfaLevel.BASIC);
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('mail change log', () => {
+    it('logs the previous address instead of old === new', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.ACTIVE,
+        mail: 'old@example.com',
+        users: [],
+      });
+
+      userDataRepo.find.mockResolvedValue([]);
+
+      await service.trySetUserMail(userData, 'new@example.com');
+
+      expect(kycLogService.createMailChangeLog).toHaveBeenCalledWith(userData, 'old@example.com', 'new@example.com');
+    });
+  });
+
+  describe('verifyUserMail', () => {
+    const secret = '123456';
+
+    // the Util spies below are on a static class and would otherwise leak into the next test
+    afterEach(() => jest.restoreAllMocks());
+
+    const startMailChange = async (userData: UserData): Promise<void> => {
+      userDataRepo.find.mockResolvedValue([]);
+      jest.spyOn(Util, 'randomIdString').mockReturnValue(secret);
+
+      await expect(service.updateUserMail(userData, { mail: 'new@example.com' }, '1.2.3.4')).resolves.toBe(
+        UpdateMailStatus.Accepted,
+      );
+    };
+
+    const buildUserData = (): UserData =>
+      Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.ACTIVE,
+        mail: 'old@example.com',
+        users: [],
+      });
+
+    it('rejects a code whose stored expiry has passed', async () => {
+      const userData = buildUserData();
+      jest.spyOn(Util, 'minutesAfter').mockReturnValue(new Date(Date.now() - 1000));
+
+      await startMailChange(userData);
+
+      await expect(service.verifyUserMail(userData, secret)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('stops accepting the correct code after the try count is exhausted', async () => {
+      const userData = buildUserData();
+
+      await startMailChange(userData);
+
+      for (let i = 0; i < 5; i++) {
+        await expect(service.verifyUserMail(userData, '000000')).rejects.toBeInstanceOf(ForbiddenException);
+      }
+
+      await expect(service.verifyUserMail(userData, secret)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('applies the change for a valid code within the window', async () => {
+      const userData = buildUserData();
+
+      await startMailChange(userData);
+
+      await service.verifyUserMail(userData, secret);
+
+      expect(userDataRepo.update).toHaveBeenCalledWith(userData.id, { mail: 'new@example.com' });
     });
   });
 

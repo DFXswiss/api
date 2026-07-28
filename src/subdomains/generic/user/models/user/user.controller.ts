@@ -25,8 +25,10 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { AllowTfaPending } from 'src/shared/auth/allow-tfa-pending.decorator';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -294,7 +296,8 @@ export class UserV2Controller {
 
   @Post('mail/verify')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @UseGuards(RateLimitGuard, AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @Throttle(10, 60)
   @ApiCreatedResponse({ description: 'Email verification successful' })
   @ApiForbiddenResponse({ description: 'Invalid or expired mail verification token' })
   @ApiUnauthorizedResponse({
