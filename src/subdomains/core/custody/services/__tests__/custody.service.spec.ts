@@ -227,6 +227,67 @@ describe('CustodyService', () => {
       // displayed figure jump against the history chart.
       expect(result.totalValue).toEqual({ chf: 6000, eur: 5600, usd: 6500 });
     });
+
+    it('keeps all positions with correct value, drops interest, and logs when it throws', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-28T00:00:00.000Z'));
+
+      const savingAsset = createCustomAsset({
+        id: 60,
+        name: 'sZCHF',
+        uniqueName: Config.custody.savingAsset,
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const otherAsset = createCustomAsset({
+        id: 61,
+        name: 'BTC',
+        uniqueName: 'Bitcoin/BTC',
+        approxPriceChf: 50000,
+        approxPriceEur: 46000,
+        approxPriceUsd: 55000,
+      });
+
+      custodyBalanceRepo.findBy.mockResolvedValue([
+        Object.assign(new CustodyBalance(), { asset: savingAsset, balance: 1000, user: custodyUser }),
+        Object.assign(new CustodyBalance(), { asset: otherAsset, balance: 0.1, user: custodyUser }),
+      ]);
+
+      // Completed order for the saving asset without completedAt is a real data error —
+      // calculateAccruedInterest() throws on it (see accrueTranche()).
+      custodyOrderRepo.find.mockResolvedValue([
+        Object.assign(new CustodyOrder(), {
+          id: 1,
+          type: CustodyOrderType.DEPOSIT,
+          status: CustodyOrderStatus.COMPLETED,
+          inputAmount: 99500,
+          inputAsset: savingAsset,
+          user: custodyUser,
+          updated: new Date('2026-01-28T00:00:00.000Z'),
+        }),
+      ]);
+
+      const loggerErrorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+
+      const result = await service.getUserCustodyBalance(accountId);
+
+      const szchfDto = result.balances.find((b) => b.asset.name === 'sZCHF');
+      const btcDto = result.balances.find((b) => b.asset.name === 'BTC');
+
+      expect(szchfDto.value).toEqual({ chf: 1000, eur: 1000, usd: 1000 });
+      expect(szchfDto.interest).toBeUndefined();
+      expect(szchfDto.interestValue).toBeUndefined();
+
+      expect(btcDto.value).toEqual({ chf: 5000, eur: 4600, usd: 5500 });
+      expect(btcDto.interest).toBeUndefined();
+      expect(btcDto.interestValue).toBeUndefined();
+
+      expect(result.totalValue).toEqual({ chf: 6000, eur: 5600, usd: 6500 });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to calculate accrued interest'),
+        expect.any(Error),
+      );
+    });
   });
 
   describe('calculateAccruedInterest', () => {
@@ -381,7 +442,7 @@ describe('CustodyService', () => {
       await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/7/);
     });
 
-    it('throws when an order amount is not finite (NaN/Infinity)', async () => {
+    it('throws when an order amount is not finite (Infinity)', async () => {
       const nonFiniteOrder = interestOrder({
         id: 8,
         completedAt: new Date('2026-01-28T00:00:00.000Z'),
@@ -390,6 +451,18 @@ describe('CustodyService', () => {
       custodyOrderRepo.find.mockResolvedValue([nonFiniteOrder]);
 
       await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/8/);
+    });
+
+    it('throws when completedAt is an Invalid Date instead of silently yielding zero interest', async () => {
+      const invalidDateOrder = interestOrder({
+        completedAt: new Date('not-a-real-date'),
+        inputAmount: 1000,
+      });
+      custodyOrderRepo.find.mockResolvedValue([invalidDateOrder]);
+
+      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(
+        /invalid completedAt/i,
+      );
     });
 
     it('clamps a negative total to 0 and logs an error instead of returning a negative value', async () => {

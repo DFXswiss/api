@@ -97,14 +97,30 @@ export class CustodyService {
     const savingBalance = custodyBalances.find((b) => b.asset.uniqueName === Config.custody.savingAsset);
     const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
     if (savingBalance) {
-      // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
-      const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
-      // Keyed by asset.name, not asset.id: the mapper groups custody balances by asset.name (one
-      // position can span multiple chains under the same symbol — see Util.groupByAccessor
-      // below), so this lookup key must be the same identity the mapper groups by. The Asset
-      // itself travels along too, so the mapper prices interestValue with the asset the interest
-      // actually accrued on, never with an arbitrary same-named group representative.
-      interestByAssetName.set(savingBalance.asset.name, { interest, asset: savingBalance.asset });
+      try {
+        // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
+        const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
+        // Keyed by asset.name, not asset.id: the mapper groups custody balances by asset.name (one
+        // position can span multiple chains under the same symbol — see Util.groupByAccessor
+        // below), so this lookup key must be the same identity the mapper groups by. The Asset
+        // itself travels along too, so the mapper prices interestValue with the asset the interest
+        // actually accrued on, never with an arbitrary same-named group representative.
+        interestByAssetName.set(savingBalance.asset.name, { interest, asset: savingBalance.asset });
+      } catch (e) {
+        // calculateAccruedInterest() throws deliberately for data errors (missing completedAt,
+        // non-finite amount/year-fraction/tranche/total) — that is still correct, the
+        // calculation itself must not silently paper over a broken value. But interest is a
+        // display-only add-on that never books anything, so a broken interest for this one
+        // position must not take the customer's entire balance response down with it — the
+        // same reasoning already applied to the negative-total case below. Omit the interest
+        // fields for this position (the DTO already allows that) and surface the data problem
+        // to Ops instead of the customer.
+        this.logger.error(
+          `Failed to calculate accrued interest for user(s) ${custodyUserIds.join(', ')}, asset ` +
+            `${savingBalance.asset.uniqueName}:`,
+          e,
+        );
+      }
     }
 
     const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
@@ -291,10 +307,12 @@ export class CustodyService {
     }
 
     // Each tranche is individually checked for finiteness (accrueTranche), but the running sum
-    // can still overflow to Infinity across several very large (yet individually valid)
-    // tranches. Checked BEFORE the negative-total guard below: every comparison with NaN is
-    // false, so a non-finite total would otherwise silently slip past `interest < 0` and be
-    // returned to the customer as-is.
+    // can still overflow to a non-finite value across several very large (yet individually
+    // valid) tranches. Checked BEFORE the negative-total guard below: -Infinity is genuinely
+    // less than 0, so without this check it would be misclassified as a negative-balance data
+    // anomaly (clamped to 0, logged as "negative") instead of being rejected as non-finite;
+    // +Infinity and NaN would simply slip past `interest < 0` (false for both) and be returned
+    // to the customer as-is.
     if (!Number.isFinite(interest)) {
       throw new Error(
         `Non-finite accrued interest total for user(s) ${userIds.join(', ')}, asset ${asset.uniqueName}: ` +
@@ -321,12 +339,16 @@ export class CustodyService {
   }
 
   /**
-   * Interest for a single tranche. Fails loud instead of silently skipping or falling back:
-   * a Completed order without completedAt is a data error (backfill/transition bug). Both the
-   * input amount and the computed tranche result are checked for finiteness — a non-finite
-   * amount (NaN/Infinity — `float`/`double precision` columns allow both) is one source, but
-   * even a finite amount can overflow to a non-finite product once multiplied by rate and
-   * years; either would otherwise poison the running sum without a trace.
+   * Interest for a single tranche. Fails loud instead of silently skipping or falling back: a
+   * Completed order without completedAt is a data error (backfill/transition bug). The amount,
+   * the year fraction, and the computed tranche result are each checked for finiteness — a
+   * non-finite amount (NaN/Infinity — `float`/`double precision` columns allow both) is one
+   * source, an Invalid Date completedAt is another (it is truthy, so it passes the check above,
+   * but Util.yearsDiff() then returns NaN for it — and since every comparison with NaN is
+   * false, an unchecked NaN year fraction would silently fall into the `years >= 0 ? … : 0`
+   * zero-branch instead of failing loud), and even finite inputs can still overflow to a
+   * non-finite product once multiplied together. Any of these would otherwise poison the
+   * running sum without a trace.
    */
   private accrueTranche(order: CustodyOrder, amount: number, dueDate: Date, rate: number): number {
     if (!order.completedAt) {
@@ -337,6 +359,12 @@ export class CustodyService {
     }
 
     const years = Util.yearsDiff(order.completedAt, dueDate);
+    if (!Number.isFinite(years)) {
+      throw new Error(
+        `CustodyOrder ${order.id} has an invalid completedAt (non-finite year fraction) — cannot calculate interest`,
+      );
+    }
+
     const tranche = years >= 0 ? amount * rate * years : 0;
 
     if (!Number.isFinite(tranche)) {
