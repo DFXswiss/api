@@ -1,7 +1,9 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { EntityManager, FindManyOptions, FindOneOptions } from 'typeorm';
 import { CustodyAccountAccess } from '../../entities/custody-account-access.entity';
 import { CustodyAccount } from '../../entities/custody-account.entity';
@@ -9,12 +11,14 @@ import { CustodyAccessLevel, CustodyAccountStatus } from '../../enums/custody';
 import { CustodyAccountAccessRepository } from '../../repositories/custody-account-access.repository';
 import { CustodyAccountRepository } from '../../repositories/custody-account.repository';
 import { CustodyAccountService } from '../custody-account.service';
+import { CustodyService } from '../custody.service';
 
 describe('CustodyAccountService', () => {
   let service: CustodyAccountService;
   let custodyAccountRepo: DeepMocked<CustodyAccountRepository>;
   let custodyAccountAccessRepo: DeepMocked<CustodyAccountAccessRepository>;
   let userDataService: DeepMocked<UserDataService>;
+  let custodyService: DeepMocked<CustodyService>;
 
   const ownerId = 100;
   const strangerId = 200;
@@ -53,6 +57,10 @@ describe('CustodyAccountService', () => {
       accessGrants: [],
       ...overrides,
     });
+  }
+
+  function custodyRoleUser(id: number): User {
+    return Object.assign(new User(), { id, role: UserRole.CUSTODY });
   }
 
   function accessGrant(params: {
@@ -216,8 +224,9 @@ describe('CustodyAccountService', () => {
     custodyAccountRepo = createMock<CustodyAccountRepository>();
     custodyAccountAccessRepo = createMock<CustodyAccountAccessRepository>();
     userDataService = createMock<UserDataService>();
+    custodyService = createMock<CustodyService>();
 
-    service = new CustodyAccountService(custodyAccountRepo, custodyAccountAccessRepo, userDataService);
+    service = new CustodyAccountService(custodyAccountRepo, custodyAccountAccessRepo, userDataService, custodyService);
   });
 
   describe('checkAccess', () => {
@@ -476,6 +485,92 @@ describe('CustodyAccountService', () => {
           isLegacy: false,
         }),
       );
+    });
+
+    it('keeps the legacy entry when the only other visible account is read-only', async () => {
+      const foreignAccount = foreignCustodyAccount();
+      const readOnlyGrant = accessGrant({
+        account: foreignAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      const custodyUserId = 55;
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
+      mockFindActiveGrants([readOnlyGrant]);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(2);
+      expect(result.some((dto) => dto.isLegacy)).toBe(true);
+      // A read-only grant elsewhere cannot substitute for the legacy Safe — checkAccess()
+      // rejects any write on a Read account, so the balance is never even queried here.
+      expect(custodyService.hasNonZeroCustodyBalance).not.toHaveBeenCalled();
+    });
+
+    it('drops the empty legacy entry when the user has write access elsewhere', async () => {
+      const foreignAccount = foreignCustodyAccount();
+      const writeGrant = accessGrant({
+        account: foreignAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.WRITE,
+        active: true,
+      });
+      const custodyUserId = 55;
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
+      mockFindActiveGrants([writeGrant]);
+      custodyService.hasNonZeroCustodyBalance.mockResolvedValue(false);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(1);
+      expect(result.some((dto) => dto.isLegacy)).toBe(false);
+      expect(custodyService.hasNonZeroCustodyBalance).toHaveBeenCalledWith([custodyUserId]);
+    });
+
+    it('keeps the legacy entry when the user has no other visible account, even if it is empty', async () => {
+      const custodyUserId = 55;
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
+      mockFindActiveGrants([]);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(
+        expect.objectContaining({ id: null, isLegacy: true, accessLevel: CustodyAccessLevel.WRITE }),
+      );
+    });
+
+    it('keeps the legacy entry when it is not empty, even with write access elsewhere', async () => {
+      const foreignAccount = foreignCustodyAccount();
+      const writeGrant = accessGrant({
+        account: foreignAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.WRITE,
+        active: true,
+      });
+      const custodyUserId = 55;
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
+      mockFindActiveGrants([writeGrant]);
+      custodyService.hasNonZeroCustodyBalance.mockResolvedValue(true);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(2);
+      expect(result.some((dto) => dto.isLegacy)).toBe(true);
+      expect(custodyService.hasNonZeroCustodyBalance).toHaveBeenCalledWith([custodyUserId]);
+    });
+
+    it('does not query the custody balance when there are no other accounts to compare against', async () => {
+      const custodyUserId = 55;
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
+      mockFindActiveGrants([]);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].isLegacy).toBe(true);
+      expect(custodyService.hasNonZeroCustodyBalance).not.toHaveBeenCalled();
     });
   });
 

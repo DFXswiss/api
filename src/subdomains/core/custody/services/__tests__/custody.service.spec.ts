@@ -500,4 +500,44 @@ describe('CustodyService', () => {
       );
     });
   });
+
+  describe('hasNonZeroCustodyBalance', () => {
+    it('returns false without querying when there are no custody user ids', async () => {
+      const result = await service.hasNonZeroCustodyBalance([]);
+
+      expect(result).toBe(false);
+      expect(custodyBalanceRepo.exists).not.toHaveBeenCalled();
+    });
+
+    it('returns false when no balance row is non-zero', async () => {
+      custodyBalanceRepo.exists.mockResolvedValue(false);
+
+      const result = await service.hasNonZeroCustodyBalance([7]);
+
+      expect(result).toBe(false);
+    });
+
+    it('returns true when a non-zero balance exists', async () => {
+      custodyBalanceRepo.exists.mockResolvedValue(true);
+
+      const result = await service.hasNonZeroCustodyBalance([7]);
+
+      expect(result).toBe(true);
+      expect(custodyBalanceRepo.exists).toHaveBeenCalledTimes(1);
+    });
+
+    it('builds a sign-agnostic Not(0) condition, not a separate negative branch (shape only)', async () => {
+      await service.hasNonZeroCustodyBalance([7]);
+
+      const call = custodyBalanceRepo.exists.mock.calls[0][0];
+      const balanceCondition = call.where as { user: { id: unknown }; balance: { type: string; value: number } };
+
+      // Not(0) matches any value that isn't exactly 0, positive or negative alike — there is no
+      // separate branch for negative balances, so this single condition already covers them.
+      // This only checks the shape of the query condition; no real negative value is evaluated
+      // here (the method just assembles a query and passes the DB result through).
+      expect(balanceCondition.balance.type).toBe('not');
+      expect(balanceCondition.balance.value).toBe(0);
+    });
+  });
 });

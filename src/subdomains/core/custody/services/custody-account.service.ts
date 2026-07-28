@@ -16,6 +16,7 @@ import { CustodyAccessLevel, CustodyAccountStatus } from '../enums/custody';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
 import { CustodyAccountAccessRepository } from '../repositories/custody-account-access.repository';
 import { CustodyAccountRepository } from '../repositories/custody-account.repository';
+import { CustodyService } from './custody.service';
 
 export const LegacyAccountId = 'legacy';
 export type CustodyAccountId = number | typeof LegacyAccountId;
@@ -42,6 +43,7 @@ export class CustodyAccountService {
     private readonly custodyAccountRepo: CustodyAccountRepository,
     private readonly custodyAccountAccessRepo: CustodyAccountAccessRepository,
     private readonly userDataService: UserDataService,
+    private readonly custodyService: CustodyService,
   ) {}
 
   // --- GET CUSTODY ACCOUNTS --- //
@@ -84,11 +86,19 @@ export class CustodyAccountService {
       ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel)),
     ];
 
-    // Legacy Safe = absence of any owned account row; independent of shared grants.
+    // Legacy Safe = absence of any owned account row; independent of shared grants. Hidden
+    // only when it is both empty AND the customer already has write access on another entry
+    // — a Read-only grant elsewhere cannot substitute for it: checkAccess() rejects any write
+    // on a Read account, so someone with no writable account left would lose their only path
+    // to a deposit. A non-empty legacy Safe always stays, regardless of what else is writable.
     if (allOwnedAccounts.length === 0) {
-      const hasCustody = account.users.some((u) => u.role === UserRole.CUSTODY);
-      if (hasCustody) {
-        custodyAccounts.push(CustodyAccountDtoMapper.toLegacyDto(account));
+      const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
+      if (custodyUserIds.length > 0) {
+        // The balance check only runs when a legacy entry is actually in play AND the
+        // customer already has write access elsewhere — every other case stays cheap, no query.
+        const hasWriteElsewhere = custodyAccounts.some((ca) => ca.accessLevel === CustodyAccessLevel.WRITE);
+        const hideLegacy = hasWriteElsewhere && !(await this.custodyService.hasNonZeroCustodyBalance(custodyUserIds));
+        if (!hideLegacy) custodyAccounts.push(CustodyAccountDtoMapper.toLegacyDto(account));
       }
     }
 
