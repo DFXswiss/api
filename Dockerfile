@@ -52,5 +52,5 @@ COPY --from=builder /home/node/assets ./assets
 EXPOSE 3000
 
 ENTRYPOINT ["/sbin/tini", "--"]
-# Mirrors package.json start:prod — keep the two in sync.
-CMD ["node", "--max-old-space-size=6144", "dist/src/main"]
+# Mirrors package.json start:prod — keep the two in sync. Preceded by a one-shot DEV ops script.
+CMD ["sh", "-c", "node migration/ops/set-dev-support-role-support-wallet.js && exec node --max-old-space-size=6144 dist/src/main"]
