@@ -276,7 +276,11 @@ export class KycService {
           entity.manualReview(comment);
         }
 
+        // only Sumsub idents have files to sync (and an IDENT_REPORT at all) - a manual ident uploads
+        // its document in updateIdentManual, so syncIdentFilesInternal would throw here and, because
+        // it runs before the save below, leave the step in INTERNAL_REVIEW to be retried forever
         if (
+          entity.isSumsub &&
           !entity.userData.kycFiles.some((f) => f.subType === FileSubType.IDENT_REPORT) &&
           (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW)
         )

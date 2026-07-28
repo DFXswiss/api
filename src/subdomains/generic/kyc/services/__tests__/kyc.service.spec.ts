@@ -6,18 +6,22 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { Country } from 'src/shared/models/country/country.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import * as processServiceModule from 'src/shared/services/process.service';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../../user/models/user-data/user-data.service';
 import { UserStatus } from '../../../user/models/user/user.enum';
 import { IdentDocument } from '../../dto/ident.dto';
+import { KycError } from '../../dto/kyc-error.enum';
 import { FileType, KycFileBlob } from '../../dto/kyc-file.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
+import { KycStepType } from '../../enums/kyc.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
 import { KycStepRepository } from '../../repositories/kyc-step.repository';
 import { KycDocumentService } from '../integration/kyc-document.service';
@@ -572,5 +576,85 @@ describe('KycService checkDfxApproval duplicate-key recovery', () => {
     await expect(service.checkDfxApproval(approvalUser())).rejects.toThrow('connection refused');
     expect(kycStepRepo.findOne).not.toHaveBeenCalled();
     expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// The ident file sync only works for Sumsub steps - it throws on any other ident type - and it runs
+// BEFORE the status is persisted. A manual ident therefore used to lose its MANUAL_REVIEW transition
+// and stay in INTERNAL_REVIEW, so the every-minute review re-processed and re-failed it forever.
+describe('KycService reviewIdentSteps file sync', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+  let userDataService: jest.Mocked<UserDataService>;
+  let syncIdentFiles: jest.SpyInstance;
+
+  // resultData is read per ident type, so each type needs its own result shape
+  const identResult: { [t in KycStepType]?: object } = {
+    [KycStepType.MANUAL]: { firstName: 'Max', lastName: 'Muster', birthday: '1990-01-01' },
+    [KycStepType.SUMSUB_AUTO]: {
+      data: { info: { idDocs: [{ firstNameEn: 'Max', lastNameEn: 'Muster', dob: '1990-01-01' }] } },
+      webhook: { levelName: 'basic-kyc-level' },
+    },
+  };
+
+  const identStep = (type: KycStepType): KycStep => {
+    const userData = createCustomUserData({ id: 42, kycFiles: [], users: [] });
+    userData.getStepsWith = jest.fn().mockReturnValue([createMock<KycStep>({ isCompleted: true })]);
+
+    return Object.assign(new KycStep(), {
+      id: 816853,
+      name: KycStepName.IDENT,
+      type,
+      status: ReviewStatus.INTERNAL_REVIEW,
+      userData,
+      result: JSON.stringify(identResult[type]),
+    });
+  };
+
+  beforeAll(() => {
+    new ConfigService(new Configuration());
+  });
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    kycStepRepo.findBy.mockResolvedValue([]);
+    userDataService = createMock<UserDataService>();
+    userDataService.getUserDataByBirthday.mockResolvedValue([]);
+
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+    (service as any).userDataService = userDataService;
+    (service as any).countryService = createMock<CountryService>();
+    (service as any).logger = createMock<DfxLogger>();
+
+    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
+    // the check itself is not under test here - a plain, non-ignoring error puts every step into
+    // manual review, so the two cases differ only in the ident type
+    jest.spyOn(service as any, 'getIdentCheckErrors').mockReturnValue([KycError.FIRST_NAME_NOT_MATCHING]);
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    syncIdentFiles = jest.spyOn(service as any, 'syncIdentFilesInternal').mockResolvedValue(undefined);
+  });
+
+  it('persists a manual ident step as manual review without touching the Sumsub file sync', async () => {
+    const step = identStep(KycStepType.MANUAL);
+    kycStepRepo.find.mockResolvedValue([step]);
+    // mirror the real implementation: it rejects a non-Sumsub step, which would skip the save below
+    syncIdentFiles.mockRejectedValue(new Error(`Invalid ident step type ${KycStepType.MANUAL}`));
+
+    await service.reviewIdentSteps();
+
+    expect(syncIdentFiles).not.toHaveBeenCalled();
+    expect(step.status).toBe(ReviewStatus.MANUAL_REVIEW);
+    expect(kycStepRepo.save).toHaveBeenCalledWith(step);
+  });
+
+  it('still syncs the files of a Sumsub ident step that has no ident report yet', async () => {
+    const step = identStep(KycStepType.SUMSUB_AUTO);
+    kycStepRepo.find.mockResolvedValue([step]);
+
+    await service.reviewIdentSteps();
+
+    expect(syncIdentFiles).toHaveBeenCalledWith(step);
+    expect(kycStepRepo.save).toHaveBeenCalledWith(step);
   });
 });
