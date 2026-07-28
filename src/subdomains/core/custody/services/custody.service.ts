@@ -252,7 +252,10 @@ export class CustodyService {
    * CustodyOrder.complete(). order.updated cannot serve this role: it is a TypeORM
    * @UpdateDateColumn overwritten on every .save(), including harmless re-saves of an
    * already-Completed order — that would silently push the interest start date forward.
-   * A negative result is clamped to 0 and logged (see below) rather than returned as-is or thrown.
+   * A negative result is clamped to 0 and logged (see below) rather than returned as-is or
+   * thrown. A non-finite result is a different failure class — it throws instead of being
+   * clamped, checked before the negative-total guard (see accrueTranche() and the check right
+   * after the loop below for why).
    */
   private async calculateAccruedInterest(userIds: number[], asset: Asset, dueDate: Date): Promise<number> {
     // Exclude NULL amounts at the query level — mirrors updateCustodyBalance()'s SQL SUM(),
@@ -287,6 +290,18 @@ export class CustodyService {
       }
     }
 
+    // Each tranche is individually checked for finiteness (accrueTranche), but the running sum
+    // can still overflow to Infinity across several very large (yet individually valid)
+    // tranches. Checked BEFORE the negative-total guard below: every comparison with NaN is
+    // false, so a non-finite total would otherwise silently slip past `interest < 0` and be
+    // returned to the customer as-is.
+    if (!Number.isFinite(interest)) {
+      throw new Error(
+        `Non-finite accrued interest total for user(s) ${userIds.join(', ')}, asset ${asset.uniqueName}: ` +
+          `computed ${interest}`,
+      );
+    }
+
     // A negative running balance should never occur (updateCustodyBalance() sums Σ input − Σ
     // output over Completed orders), but has been observed in prod — from a deleted or
     // retroactively altered order. Showing a negative interest figure to the customer would be
@@ -307,9 +322,11 @@ export class CustodyService {
 
   /**
    * Interest for a single tranche. Fails loud instead of silently skipping or falling back:
-   * a Completed order without completedAt is a data error (backfill/transition bug), and a
-   * non-finite amount (NaN/Infinity — `float`/`double precision` columns allow both) would
-   * otherwise poison the whole sum without a trace.
+   * a Completed order without completedAt is a data error (backfill/transition bug). Both the
+   * input amount and the computed tranche result are checked for finiteness — a non-finite
+   * amount (NaN/Infinity — `float`/`double precision` columns allow both) is one source, but
+   * even a finite amount can overflow to a non-finite product once multiplied by rate and
+   * years; either would otherwise poison the running sum without a trace.
    */
   private accrueTranche(order: CustodyOrder, amount: number, dueDate: Date, rate: number): number {
     if (!order.completedAt) {
@@ -320,7 +337,15 @@ export class CustodyService {
     }
 
     const years = Util.yearsDiff(order.completedAt, dueDate);
-    return years >= 0 ? amount * rate * years : 0;
+    const tranche = years >= 0 ? amount * rate * years : 0;
+
+    if (!Number.isFinite(tranche)) {
+      throw new Error(
+        `CustodyOrder ${order.id} produced a non-finite tranche interest (${tranche}) — cannot calculate interest`,
+      );
+    }
+
+    return tranche;
   }
 
   /**

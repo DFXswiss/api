@@ -405,5 +405,26 @@ describe('CustodyService', () => {
       expect(result).toBe(0);
       expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Negative accrued interest'));
     });
+
+    it('throws when a single tranche overflows to a non-finite value', async () => {
+      custodyOrderRepo.find.mockResolvedValue([
+        interestOrder({ completedAt: new Date('1900-01-01T00:00:00.000Z'), inputAmount: Number.MAX_VALUE }),
+      ]);
+
+      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(
+        /non-finite tranche/i,
+      );
+    });
+
+    it('throws when individually finite tranches sum to a non-finite total', async () => {
+      custodyOrderRepo.find.mockResolvedValue([
+        interestOrder({ id: 1, completedAt: new Date('2000-01-01T00:00:00.000Z'), inputAmount: Number.MAX_VALUE }),
+        interestOrder({ id: 2, completedAt: new Date('2000-01-01T00:00:00.000Z'), inputAmount: Number.MAX_VALUE }),
+      ]);
+
+      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(
+        /non-finite accrued interest total/i,
+      );
+    });
   });
 });
