@@ -536,6 +536,22 @@ describe('LiquidityManagementPipelineService', () => {
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
       });
 
+      it('measures the cooldown from the end of the lookup, not its start', async () => {
+        // a lookup can be slow — a stamp taken at its start would already be half-expired by the time it
+        // finishes, letting the next pass re-enter immediately
+        const resolveUncertainOrder = stubResolver();
+        resolveUncertainOrder.mockImplementation(async () => {
+          jest.advanceTimersByTime(120_000); // a lookup that outlives the one-minute floor
+          return UncertainOrderResolution.UNAVAILABLE;
+        });
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([uncertainOrder({ created: new Date() })]);
+
+        await service['resolveUncertainOrders']();
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+      });
+
       it('starts the cooldown even when the venue lookup throws', async () => {
         // a dead connection is exactly the regime the cooldown exists for — stamping only successful
         // lookups would re-ask a venue that cannot answer on every pass, at full fetch cost each time
@@ -556,6 +572,24 @@ describe('LiquidityManagementPipelineService', () => {
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([releasePendingOrder()]);
 
         await service['resolveUncertainOrders']();
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
+      });
+
+      it('starts a fresh cooldown when an order re-enters quarantine after leaving it', async () => {
+        // the stamp's lifetime is one quarantine episode: a venue verdict releases the order, and when the
+        // completion check quarantines it anew moments later, the NEW episode's first lookup must not
+        // inherit the previous episode's wait
+        const resolveUncertainOrder = stubResolver();
+        resolveUncertainOrder.mockResolvedValueOnce(UncertainOrderResolution.NOT_SENT);
+        jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+        const findBy = jest.spyOn(orderRepo, 'findBy');
+
+        findBy.mockResolvedValueOnce([uncertainOrder({ created: new Date() })]);
+        await service['resolveUncertainOrders']();
+
+        findBy.mockResolvedValueOnce([uncertainOrder({ created: new Date() })]);
         await service['resolveUncertainOrders']();
 
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);

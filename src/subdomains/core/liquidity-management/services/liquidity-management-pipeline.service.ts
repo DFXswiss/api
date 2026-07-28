@@ -58,8 +58,10 @@ export class LiquidityManagementPipelineService {
    *
    * The end of the attempt, not its start: a slow lookup that finishes just before the next pass must not
    * permit immediate re-entry. In memory like `unappliedObservations`, and safe there for the same reason —
-   * losing it on a restart only means one extra lookup per order, never a wrong conclusion. Pruned against
-   * the freshly loaded quarantine set each pass, so orders that leave quarantine do not leak entries.
+   * losing it on a restart only means one extra lookup per order, never a wrong conclusion. A stamp lives
+   * for one quarantine episode: it is cleared when the order's exit write lands, so a re-quarantined order
+   * starts fresh, with the per-pass prune against the loaded quarantine set as the safety net for orders
+   * that leave any other way.
    */
   private readonly uncertainResolveAttempts = new Map<number, Date>(); // orderId -> last attempt END
 
@@ -592,6 +594,10 @@ export class LiquidityManagementPipelineService {
       this.logger.info(`Uncertain liquidity order ${order.id} was already resolved elsewhere, skipping`);
       return false;
     }
+
+    // A landed write ends the quarantine episode, and the cooldown stamp's lifetime is exactly one episode:
+    // an order quarantined anew must get its first lookup immediately, not inherit an old wait.
+    this.uncertainResolveAttempts.delete(order.id);
 
     return true;
   }
