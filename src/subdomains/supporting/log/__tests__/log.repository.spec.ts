@@ -232,15 +232,9 @@ describe('LogRepository', () => {
 
       const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
       // Exact path→alias bindings: swapping plus/minus (or hard-coding btc) in the projection must fail.
-      expect(sql).toContain(
-        `(message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8 AS "totalBalanceChf"`,
-      );
-      expect(sql).toContain(
-        `(message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8 AS "plusBalanceChf"`,
-      );
-      expect(sql).toContain(
-        `(message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8 AS "minusBalanceChf"`,
-      );
+      expect(sql).toContain(`(message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8 AS "totalBalanceChf"`);
+      expect(sql).toContain(`(message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8 AS "plusBalanceChf"`);
+      expect(sql).toContain(`(message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8 AS "minusBalanceChf"`);
       expect(sql).toContain(`(message::jsonb -> 'assets' -> $5::text ->> 'priceChf')::float8 AS "btcPriceChf"`);
       expect(sql).toContain(`message::jsonb -> 'balancesByFinancialType' AS "balancesByFinancialType"`);
       expect(sql).not.toContain("-> 'tradings'");
