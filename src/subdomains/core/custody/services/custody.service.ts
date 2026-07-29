@@ -144,12 +144,14 @@ export class CustodyService {
     const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
 
     // Plain sum over each position's value. Accrued interest is already folded into the
-    // interest-bearing position's own `value` above (CustodyAssetBalanceDtoMapper.map()), so it
-    // must not be added a second time here — that was exactly the previous bug: the total counted
-    // the interest via this reduce AND via the position value, so it disagreed with the sum of the
-    // rows the customer sees underneath it. getUserCustodyHistory() already values its interest-
-    // bearing day balances the same way (withAccruedInterest() folds interest in before pricing),
-    // so both sides now agree through the same rule instead of two different ones.
+    // interest-bearing position's own `value` above (CustodyAssetBalanceDtoMapper), so it must
+    // not be added again here. Before this PR the position `value` did not include interest at
+    // all; the total added interest once on top of those interest-free position values, so the
+    // total no longer matched the sum of the rows the customer sees underneath it — a mismatch
+    // between total and line items, not a double-count of the interest amount. getUserCustodyHistory()
+    // already values its interest-bearing day balances the same way (withAccruedInterest() folds
+    // interest in before pricing), so both sides now agree through the same rule instead of two
+    // different ones.
     const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur, 0);
     const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf, 0);
     const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.value.usd, 0);
@@ -410,7 +412,7 @@ export class CustodyService {
    * That figure is never booked and never paid out, so carrying it once the position is closed
    * would leave a Safe showing a residue forever, for holdings it no longer has. The same guard
    * applies before interest is folded into the position's balance in getUserCustodyBalance()
-   * (CustodyAssetBalanceDtoMapper.map()) — it no longer feeds a separate total there, since
+   * (CustodyAssetBalanceDtoMapper.mapCustodyBalances()) — it no longer feeds a separate total there, since
    * totalValue is now the plain sum of the already-interest-inclusive position values.
    */
   private withAccruedInterest(
