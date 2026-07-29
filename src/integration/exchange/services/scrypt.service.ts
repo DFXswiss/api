@@ -943,7 +943,13 @@ export class ScryptService extends PricingProvider {
     // in OrigClOrdID — while every lookup here is keyed on ClOrdID alone. Left as it arrives, the terminal
     // state would be filed under an id nothing ever asks about, and the cancelled order would keep
     // answering with whatever non-terminal report preceded it. So file it under the order it settles.
-    if (report.OrigClOrdID === clOrdId) this.cacheExecutionReport({ ...report, ClOrdID: clOrdId });
+    //
+    // Only a real cancellation, though. A refusal comes back on the same channel carrying the order's
+    // LAST KNOWN state — for a reference the venue never had, that reads as a live New order. Filing that
+    // would invent one: the next lookup would find it, call the order sent, and point the row back at a
+    // reference that never executed. Only a terminal Canceled says something about this order.
+    if (report.OrigClOrdID === clOrdId && report.OrdStatus === ScryptOrderStatus.CANCELED)
+      this.cacheExecutionReport({ ...report, ClOrdID: clOrdId });
 
     return report;
   }

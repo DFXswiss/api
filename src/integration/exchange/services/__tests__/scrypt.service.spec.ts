@@ -880,6 +880,18 @@ describe('ScryptService', () => {
       );
     });
 
+    it('files nothing when the cancel was refused — a refusal carries the last known state, not a verdict', async () => {
+      // for a reference the venue never had, that state reads as a live New order. Filing it would invent
+      // one, and the next lookup would call the order sent against a reference that never executed.
+      stubCancel(
+        cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'UnknownOrder' }),
+      );
+
+      await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
+    });
+
     it('files the confirmation under the order it settles, not under the cancel request', async () => {
       // the venue tags it with the cancel request's id; every lookup here is keyed on the order's own
       stubCancel(cancelReport({ CumQty: '40' }));
