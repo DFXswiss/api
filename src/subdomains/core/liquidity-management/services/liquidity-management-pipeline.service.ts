@@ -459,7 +459,7 @@ export class LiquidityManagementPipelineService {
    * to be the mechanism that unblocks it.
    */
   private async abandonUnresolvableOrder(order: LiquidityManagementOrder): Promise<boolean> {
-    const because = 'the venue has had no record of it for hours and nobody released it';
+    const because = 'the venue has had no record of it past the point its request could still be live';
 
     order.abandonAsUnresolvable(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
 

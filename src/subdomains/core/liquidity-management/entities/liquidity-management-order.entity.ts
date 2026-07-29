@@ -34,13 +34,39 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  * therefore only has to outlast the window in which an execution could still be in flight and unreflected in
  * the balance.
  *
- * Set to six times `RELEASE_WITHOUT_VENUE_MINUTES`, the existing liveness bound for a silent venue, because
- * this case is strictly weaker evidence: there the venue says nothing, here it answers and simply has no
- * record. Balances refresh every few minutes, so six hours is many refresh cycles, not a marginal one. The
- * multiple is a deliberate choice for headroom, not a measured threshold — it is the number to revisit if an
- * order is ever abandoned while its execution was still genuinely in flight.
+ * The bound therefore has to outlast the window in which this order could still be in flight — and that
+ * window differs by an order of magnitude between kinds of request, so one bound for both would be either
+ * useless or unsafe. Both values below are anchored on what completed Scrypt orders actually took over the
+ * 30 days to 2026-07-29, measured in prod:
+ *
+ *   trades (n=55):      median 9.6s   p95 19.8s   max 57.1s
+ *   withdrawals (n=49): median 7.7min p95 82min   max 5.6h
+ *
+ * Balances refresh every minute and the pipeline runs every 10 seconds, so neither bound is limited by how
+ * quickly an abandonment can be noticed — only by how long the request itself may still be alive.
  */
-const ABANDON_UNRESOLVED_MINUTES = 6 * RELEASE_WITHOUT_VENUE_MINUTES;
+const ABANDON_UNRESOLVED_MINUTES = {
+  /**
+   * Settled inside the venue, no network leg. Five minutes is roughly five times the slowest such order
+   * observed, which leaves room for a market phase that keeps one open longer than anything on record.
+   */
+  TRADE: 5,
+  /**
+   * Everything else: transfers, withdrawals, bridges, mints. Twice the slowest withdrawal observed, because
+   * the tail here is genuinely long — a bound near the median would abandon orders that are simply still
+   * running, and reissuing those is what actually moves funds twice.
+   */
+  TRANSFER: 12 * 60,
+};
+
+/**
+ * Commands that settle inside a venue rather than moving funds across one.
+ *
+ * An allowlist, not a denylist: anything unrecognised — a new adapter, a renamed command — gets the long
+ * bound. Being slow to abandon costs a rule some minutes; being fast to abandon a transfer that is still in
+ * flight is what duplicates it.
+ */
+const VENUE_INTERNAL_COMMANDS = ['buy', 'sell', 'purchase'];
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -279,7 +305,13 @@ export class LiquidityManagementOrder extends IEntity {
     // every order whose `created` was not loaded. Absent evidence this must hold the order, never drop it.
     if (!this.created) return false;
 
-    return Util.minutesDiff(this.created) > ABANDON_UNRESOLVED_MINUTES;
+    // Unknown or unloaded command falls to the long bound, for the same reason.
+    const command = this.action?.command?.toLowerCase();
+    const bound = VENUE_INTERNAL_COMMANDS.includes(command)
+      ? ABANDON_UNRESOLVED_MINUTES.TRADE
+      : ABANDON_UNRESOLVED_MINUTES.TRANSFER;
+
+    return Util.minutesDiff(this.created) > bound;
   }
 
   /**

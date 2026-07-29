@@ -218,31 +218,64 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(expectedStatus);
     });
 
-    /** Older than ABANDON_UNRESOLVED_MINUTES (6h), so its clock has run out. */
-    const LONG_AGO = new Date(Date.now() - 7 * 60 * 60 * 1000);
-    /** Well inside the window. */
-    const RECENTLY = new Date(Date.now() - 10 * 60 * 1000);
+    function agedOrder(minutes: number, command = 'sell'): LiquidityManagementOrder {
+      return uncertainOrder({
+        created: new Date(Date.now() - minutes * 60 * 1000),
+        action: { id: 233, system: 'Scrypt', command } as LiquidityManagementOrder['action'],
+      });
+    }
 
-    it('abandons an order the venue has had no record of for hours, so its rule is not blocked forever', async () => {
-      // the failure this prevents: nobody releases the order by hand, so it stays UNCERTAIN indefinitely
-      // and the rule behind it never plans again — the venue silently stops being served
-      const order = uncertainOrder({ created: LONG_AGO });
+    function expectResolution(order: LiquidityManagementOrder, resolution: UncertainOrderResolution): void {
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
       jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-      stubIntegration(UncertainOrderResolution.UNRESOLVED);
+      stubIntegration(resolution);
+    }
+
+    it('abandons a trade the venue has had no record of past its bound, so its rule is not blocked forever', async () => {
+      // the failure this prevents: nobody releases the order by hand, so it stays UNCERTAIN indefinitely
+      // and the rule behind it never plans again — the venue silently stops being served
+      const order = agedOrder(30);
+      expectResolution(order, UncertainOrderResolution.UNRESOLVED);
 
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
       // the record must not claim an observation nobody made
-      expect(order.errorMessage).toContain('no record of it for hours');
+      expect(order.errorMessage).toContain('no record of it');
     });
 
-    it('keeps a recent unresolved order quarantined — the clock has not run out', async () => {
-      const order = uncertainOrder({ created: RECENTLY });
-      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
-      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-      stubIntegration(UncertainOrderResolution.UNRESOLVED);
+    it('keeps a trade quarantined inside its bound — the slowest observed trade took under a minute', async () => {
+      const order = agedOrder(1);
+      expectResolution(order, UncertainOrderResolution.UNRESOLVED);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    it('holds a withdrawal far longer than a trade — its p95 alone is over an hour', async () => {
+      // a withdrawal at 30 minutes is entirely normal; abandoning it here would reissue a live transfer
+      const order = agedOrder(30, 'withdraw');
+      expectResolution(order, UncertainOrderResolution.UNRESOLVED);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    it('abandons a withdrawal once even its long bound has run out', async () => {
+      const order = agedOrder(13 * 60, 'withdraw');
+      expectResolution(order, UncertainOrderResolution.UNRESOLVED);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+    });
+
+    it('gives an unrecognised command the long bound, not the short one', async () => {
+      // allowlist, not denylist: a new adapter must not inherit the trade bound by accident
+      const order = agedOrder(30, 'some-new-bridge-command');
+      expectResolution(order, UncertainOrderResolution.UNRESOLVED);
 
       await service['resolveUncertainOrders']();
 
@@ -251,10 +284,8 @@ describe('LiquidityManagementPipelineService', () => {
 
     it('never abandons on an unreachable venue, however old the order', async () => {
       // UNAVAILABLE is the absence of an answer, not an answer — no amount of waiting turns it into one
-      const order = uncertainOrder({ created: LONG_AGO });
-      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
-      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-      stubIntegration(UncertainOrderResolution.UNAVAILABLE);
+      const order = agedOrder(30 * 60);
+      expectResolution(order, UncertainOrderResolution.UNAVAILABLE);
 
       await service['resolveUncertainOrders']();
 
@@ -264,9 +295,7 @@ describe('LiquidityManagementPipelineService', () => {
     it('never abandons an order whose creation date is missing', async () => {
       // Util.minutesDiff reads a missing date as the epoch; unguarded that abandons instantly
       const order = uncertainOrder({ created: undefined });
-      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
-      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-      stubIntegration(UncertainOrderResolution.UNRESOLVED);
+      expectResolution(order, UncertainOrderResolution.UNRESOLVED);
 
       await service['resolveUncertainOrders']();
 

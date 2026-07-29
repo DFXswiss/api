@@ -44,7 +44,8 @@ export enum LiquidityManagementOrderStatus {
   // what happened and moves it on to IN_PROGRESS or FAILED. See OrderOutcomeUnknownException.
   //
   // Always time-bounded: an order the venue keeps having no record of is abandoned to FAILED once it has
-  // waited out ABANDON_UNRESOLVED_MINUTES, so quarantine can never strand a rule permanently.
+  // outlived the window in which its request could still be in flight (ABANDON_UNRESOLVED_MINUTES, which
+  // differs for venue-internal trades and for transfers), so quarantine can never strand a rule permanently.
   UNCERTAIN = 'Uncertain',
 }
 
