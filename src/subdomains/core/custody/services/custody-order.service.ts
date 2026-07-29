@@ -227,12 +227,20 @@ export class CustodyOrderService {
   }
 
   async getOrdersByUserData(userDataId: number): Promise<CustodyOrderHistoryDto[]> {
-    const orders = await this.custodyOrderRepo.find({
-      where: { user: { userData: { id: userDataId } }, status: Not(CustodyOrderStatus.CREATED) },
-      relations: { inputAsset: true, outputAsset: true, transactionRequest: true },
-      order: { created: 'DESC' },
-      take: 100,
-    });
+    const orders = await this.custodyOrderRepo
+      .createQueryBuilder('custodyOrder')
+      .leftJoinAndSelect('custodyOrder.inputAsset', 'inputAsset')
+      .leftJoinAndSelect('custodyOrder.outputAsset', 'outputAsset')
+      .leftJoinAndSelect('custodyOrder.transactionRequest', 'transactionRequest')
+      .innerJoin('custodyOrder.user', 'user')
+      .innerJoin('user.userData', 'userData')
+      .where('userData.id = :userDataId', { userDataId })
+      .andWhere('custodyOrder.status != :createdStatus', { createdStatus: CustodyOrderStatus.CREATED })
+      // The list shows completedAt where the order is completed, created otherwise. Sorting by
+      // created alone would put rows out of order against the dates the reader can see.
+      .orderBy('COALESCE("custodyOrder"."completedAt", "custodyOrder"."created")', 'DESC')
+      .take(100)
+      .getMany();
 
     return CustodyOrderHistoryDtoMapper.mapList(orders);
   }
