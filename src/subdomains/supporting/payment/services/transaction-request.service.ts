@@ -316,15 +316,24 @@ export class TransactionRequestService {
     });
   }
 
-  async getUsedSettlements(userId: number): Promise<{ settlementTxId: string; settlementEventId?: string }[]> {
+  // every event id already consumed by a completed request. The column is globally unique, so this
+  // set is global too — a user-local view would let two accounts sharing one on-chain address pick
+  // the same event and dead-lock the second one against the unique index
+  async getConsumedSettlementEventIds(): Promise<string[]> {
+    return this.transactionRequestRepo
+      .find({ where: { settlementEventId: Not(IsNull()) }, select: { settlementEventId: true } })
+      .then((requests) => requests.map((r) => r.settlementEventId));
+  }
+
+  // settlement txs of requests completed before the event id was recorded. Per user, because a batch
+  // tx may pay out to several users and only this user's share of it is unaccountable
+  async getLegacySettlementTxIds(userId: number): Promise<string[]> {
     return this.transactionRequestRepo
       .find({
-        where: { user: { id: userId }, settlementTxId: Not(IsNull()) },
-        select: { settlementTxId: true, settlementEventId: true },
+        where: { user: { id: userId }, settlementTxId: Not(IsNull()), settlementEventId: IsNull() },
+        select: { settlementTxId: true },
       })
-      .then((requests) =>
-        requests.map((r) => ({ settlementTxId: r.settlementTxId, settlementEventId: r.settlementEventId })),
-      );
+      .then((requests) => requests.map((r) => r.settlementTxId));
   }
 
   async updateEstimatedAmount(id: number, estimatedAmount: number): Promise<void> {

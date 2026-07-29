@@ -8,6 +8,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
+import { IsNull, Not } from 'typeorm';
 import { FiatPaymentMethod } from '../../dto/payment-method.enum';
 import {
   TransactionRequest,
@@ -163,22 +164,34 @@ describe('TransactionRequestService settlement persistence', () => {
     expect(payload).not.toHaveProperty('settlementEventId');
   });
 
-  it('returns the settlement pairing of a user for deduplication', async () => {
+  it('returns consumed settlement event ids across all users', async () => {
     const repo = createMock<TransactionRequestRepository>();
     jest.spyOn(repo, 'find').mockResolvedValue([
-      { settlementTxId: '0xTxA', settlementEventId: 'history-1-2-to' },
-      { settlementTxId: '0xTxB', settlementEventId: undefined },
+      { settlementEventId: 'history-1-2-to' },
+      { settlementEventId: 'history-3-4-to' },
     ] as any);
     const service = await createService(repo);
 
-    const result = await service.getUsedSettlements(42);
+    const result = await service.getConsumedSettlementEventIds();
 
-    expect(result).toEqual([
-      { settlementTxId: '0xTxA', settlementEventId: 'history-1-2-to' },
-      { settlementTxId: '0xTxB', settlementEventId: undefined },
-    ]);
-    expect(repo.find).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ user: { id: 42 } }) }),
-    );
+    expect(result).toEqual(['history-1-2-to', 'history-3-4-to']);
+    expect(repo.find).toHaveBeenCalledWith({
+      where: { settlementEventId: Not(IsNull()) },
+      select: { settlementEventId: true },
+    });
+  });
+
+  it('returns only the legacy settlement txs of one user', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    jest.spyOn(repo, 'find').mockResolvedValue([{ settlementTxId: '0xTxA' }, { settlementTxId: '0xTxB' }] as any);
+    const service = await createService(repo);
+
+    const result = await service.getLegacySettlementTxIds(42);
+
+    expect(result).toEqual(['0xTxA', '0xTxB']);
+    expect(repo.find).toHaveBeenCalledWith({
+      where: { user: { id: 42 }, settlementTxId: Not(IsNull()), settlementEventId: IsNull() },
+      select: { settlementTxId: true },
+    });
   });
 });

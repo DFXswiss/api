@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -8,21 +9,17 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { HistoryEventDto } from './dto/realunit.dto';
 import { RealUnitService } from './realunit.service';
 
-// settlement transfers of a user that are no longer available: exact event ids of completed
-// requests, plus the tx hashes of requests completed before the event id was recorded
-interface ConsumedSettlements {
-  eventIds: Set<string>;
-  legacyTxHashes: Set<string>;
-}
-
 @Injectable()
 export class RealUnitJobService {
   private readonly logger = new DfxLogger(RealUnitJobService);
+  private readonly brokerbotAddress: string;
 
   constructor(
     private readonly realunitService: RealUnitService,
     private readonly transactionRequestService: TransactionRequestService,
-  ) {}
+  ) {
+    this.brokerbotAddress = GetConfig().blockchain.realunit.brokerbotAddress;
+  }
 
   // Completes open REALU buy quotes as soon as the shares arrive on-chain. Share allocations
   // triggered outside the DFX payment flow (e.g. booked manually by the issuer) would otherwise
@@ -34,10 +31,12 @@ export class RealUnitJobService {
     if (!openQuotes.length) return;
 
     const historyCache = new Map<string, HistoryEventDto[]>();
-    // per user: settlement transfers already consumed by completed requests (persisted) or earlier in
-    // this run. The issuer may settle multiple purchases in a single tx (one transfer event each), so
-    // consumption is tracked per transfer event via its indexer event id, not per tx.
-    const consumedByUser = new Map<number, ConsumedSettlements>();
+    // event ids consumed by completed requests (of any user - the column is globally unique) or
+    // earlier in this run. The issuer may settle multiple purchases in a single tx, one transfer
+    // event each, so consumption is tracked per transfer event via its indexer event id, not per tx
+    const consumedEventIds = new Set(await this.transactionRequestService.getConsumedSettlementEventIds());
+    // per user: settlement txs of requests completed before event ids were recorded
+    const legacyTxIdsByUser = new Map<number, Set<string>>();
 
     for (const quote of openQuotes) {
       try {
@@ -50,17 +49,24 @@ export class RealUnitJobService {
           historyCache.set(address, history);
         }
 
-        let consumed = consumedByUser.get(quote.user.id);
-        if (!consumed) {
-          consumed = await this.getConsumedSettlements(quote.user.id);
-          consumedByUser.set(quote.user.id, consumed);
+        let legacyTxIds = legacyTxIdsByUser.get(quote.user.id);
+        if (!legacyTxIds) {
+          legacyTxIds = await this.getLegacySettlementTxIds(quote.user.id);
+          legacyTxIdsByUser.set(quote.user.id, legacyTxIds);
         }
 
         // quotes are ordered oldest-first, so match the oldest unconsumed settlement transfer
-        const settlement = this.findUnconsumedSettlement(history, consumed, address, expectedShares, quote.created);
+        const settlement = this.findUnconsumedSettlement(
+          history,
+          consumedEventIds,
+          legacyTxIds,
+          address,
+          expectedShares,
+          quote.created,
+        );
         if (!settlement) continue;
 
-        consumed.eventIds.add(settlement.id);
+        consumedEventIds.add(settlement.id);
         await this.transactionRequestService.complete(quote.id, {
           txId: settlement.txHash,
           eventId: settlement.id,
@@ -88,25 +94,21 @@ export class RealUnitJobService {
 
   // --- HELPER METHODS --- //
 
-  private async getConsumedSettlements(userId: number): Promise<ConsumedSettlements> {
-    const settlements = await this.transactionRequestService.getUsedSettlements(userId);
+  private async getLegacySettlementTxIds(userId: number): Promise<Set<string>> {
+    const txIds = await this.transactionRequestService.getLegacySettlementTxIds(userId);
 
-    return {
-      eventIds: new Set(settlements.filter((s) => s.settlementEventId).map((s) => s.settlementEventId)),
-      // requests completed before the event id existed recorded only the tx hash. Which of its transfer
-      // events they consumed is not recoverable, so the whole tx stays blocked for them — a settlement
-      // assigned twice is worse than one that needs a manual completion
-      legacyTxHashes: new Set(
-        settlements.filter((s) => !s.settlementEventId).map((s) => s.settlementTxId.toLowerCase()),
-      ),
-    };
+    // which transfer event of such a tx the request consumed is not recoverable, so the whole tx
+    // stays blocked for this user - a settlement assigned twice is worse than one that needs a
+    // manual completion
+    return new Set(txIds.map((txId) => txId.toLowerCase()));
   }
 
   // Matches the oldest incoming transfer that carries the expected share amount, was mined after the
   // quote was created and has not been consumed by another request.
   private findUnconsumedSettlement(
     history: HistoryEventDto[],
-    consumed: ConsumedSettlements,
+    consumedEventIds: Set<string>,
+    legacyTxIds: Set<string>,
     address: string,
     expectedShares: number,
     minTimestamp: Date,
@@ -116,18 +118,19 @@ export class RealUnitJobService {
         (e) =>
           e.transfer &&
           Util.equalsIgnoreCase(e.transfer.to, address) &&
-          // a self-transfer is written to this account's history twice (…-to and …-from), both rows
-          // carrying the same transfer, so matching on the receiver alone would settle two requests
-          // from one physical transfer. A settlement always comes from the issuer, never from the buyer
-          !Util.equalsIgnoreCase(e.transfer.from, address),
+          // a settlement is paid out by the issuer. Without this the buyer could complete an open
+          // quote by sending the shares from a second wallet of their own, and a self-transfer -
+          // which the indexer writes to this account's history twice, once as …-to and once as
+          // …-from - would even settle two quotes from one physical transfer
+          Util.equalsIgnoreCase(e.transfer.from, this.brokerbotAddress),
       ),
       'timestamp',
     );
 
     return incomingTransfers.find(
       (e) =>
-        !consumed.eventIds.has(e.id) &&
-        !consumed.legacyTxHashes.has(e.txHash.toLowerCase()) &&
+        !consumedEventIds.has(e.id) &&
+        !legacyTxIds.has(e.txHash.toLowerCase()) &&
         Number(e.transfer.value) === expectedShares &&
         e.timestamp >= minTimestamp,
     );
