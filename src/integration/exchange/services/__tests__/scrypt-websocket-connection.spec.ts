@@ -1004,6 +1004,118 @@ describe('ScryptWebSocketConnection', () => {
     expect(cb).toHaveBeenCalledTimes(1);
   });
 
+  describe('failed first connect (#4310 finding A)', () => {
+    it('keeps the streams and schedules a reconnect when the very first connect never opens', async () => {
+      const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const deadWs = latestWs();
+
+      // Black-hole handshake on the FIRST attempt: nothing was ever CONNECTED, so no close event with
+      // wasConnected=true will arrive to arm handleDisconnection's loop.
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      expect(deadWs.terminate).toHaveBeenCalled();
+      expect(subscribeMessages(deadWs)).toHaveLength(0);
+      // The stream must survive the failure — dropping it is what made this permanent.
+      expect([...(connection as any).activeStreams]).toEqual([ScryptMessageType.BALANCE_TRANSACTION]);
+      expect((connection as any).isReconnecting).toBe(true);
+      expect(scheduleSpy).toHaveBeenCalledWith(0, expect.any(Number));
+
+      await fireReconnectAttempt(0);
+      const healedWs = latestWs();
+      expect(healedWs).not.toBe(deadWs);
+      healedWs.open();
+      await flushPromises();
+
+      expect((connection as any).connectionState).toBe('connected');
+      expect(subscribeMessages(healedWs)).toHaveLength(1);
+      expect(subscribeMessages(healedWs)[0]).toEqual(
+        expect.objectContaining({
+          type: 'subscribe',
+          streams: [expect.objectContaining({ name: ScryptMessageType.BALANCE_TRANSACTION })],
+        }),
+      );
+    });
+
+    it('fires onReconnect callbacks once a failed first connect finally heals', async () => {
+      const onReconnect = jest.fn();
+      connection.onReconnect(onReconnect);
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE, () => undefined);
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      expect(onReconnect).not.toHaveBeenCalled();
+
+      await fireReconnectAttempt(0);
+      latestWs().open();
+      await flushPromises();
+
+      // The constructor warm-up died with the failed attempt, so the caches are owed the same catch-up a
+      // drop would owe — without this the streams come back live over permanently empty caches.
+      expect(onReconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends exactly one SUBSCRIBE per stream when a subscribe lands mid-reconnect', async () => {
+      const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+      firstWs.remoteClose(1006, 'gone');
+
+      await fireReconnectAttempt(0); // new socket exists but is still CONNECTING
+      connection.subscribeToStream(ScryptMessageType.SECURITY, () => undefined);
+
+      const reconnectedWs = latestWs();
+      reconnectedWs.open();
+      await flushPromises();
+
+      const names = subscribeMessages(reconnectedWs).map((msg: any) => msg.streams[0].name);
+      expect(names).toHaveLength(2); // restored stream + the newly subscribed one, neither doubled
+      expect([...names].sort()).toEqual([ScryptMessageType.BALANCE_TRANSACTION, ScryptMessageType.SECURITY].sort());
+    });
+
+    it('does not start a reconnect loop when a failed connect owes no streams', async () => {
+      const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+
+      const settled = (connection as any).connect().then(
+        () => 'resolved',
+        () => 'rejected',
+      );
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      await expect(settled).resolves.toBe('rejected');
+      // Nothing to restore: the caller retries on its own, a loop would reconnect for nobody.
+      expect(scheduleSpy).not.toHaveBeenCalled();
+      expect((connection as any).isReconnecting).toBe(false);
+    });
+
+    it('replays the subscription filters when a stream is restored', async () => {
+      connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined, {
+        StartDate: '2026-01-01T00:00:00.000000Z',
+      });
+
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      await fireReconnectAttempt(0);
+      const healedWs = latestWs();
+      healedWs.open();
+      await flushPromises();
+
+      expect(subscribeMessages(healedWs)[0]).toEqual(
+        expect.objectContaining({
+          streams: [
+            expect.objectContaining({
+              name: ScryptMessageType.EXECUTION_REPORT,
+              StartDate: '2026-01-01T00:00:00.000000Z',
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
   describe('unanswered requests', () => {
     const REQUEST_TIMEOUT_MS = 30000;
 
