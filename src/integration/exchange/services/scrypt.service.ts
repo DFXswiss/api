@@ -984,25 +984,12 @@ export class ScryptService extends PricingProvider {
       60000,
     );
 
-    // The venue tags a cancel confirmation with the CANCEL request's id and only names the cancelled order
-    // in OrigClOrdID — while every lookup here is keyed on ClOrdID alone. Left as it arrives, the terminal
-    // state would be filed under an id nothing ever asks about, and the cancelled order would keep
-    // answering with whatever non-terminal report preceded it. So file it under the order it settles.
-    //
-    // Only a real cancellation, though. A refusal comes back on the same channel carrying the order's
-    // LAST KNOWN state — for a reference the venue never had, that reads as a live New order. Filing that
-    // would invent one: the next lookup would find it, call the order sent, and point the row back at a
-    // reference that never executed. Only a terminal Canceled says something about this order.
-    // Not cached when the filled quantity is unreadable: readers derive it with `parseFloat(...) || 0`, so
-    // an unreadable value would enter the cache as an untouched order and every later lookup would repeat
-    // that reading. Better no entry than one that quietly claims nothing was filled.
-    if (
-      report.OrigClOrdID === clOrdId &&
-      report.OrdStatus === ScryptOrderStatus.CANCELED &&
-      Number.isFinite(Number(report.CumQty)) &&
-      !!report.CumQty?.trim()
-    )
-      this.cacheExecutionReport({ ...report, ClOrdID: clOrdId });
+    // Deliberately not cached under the cancelled order's own id. The venue tags a cancel confirmation with
+    // the CANCEL request's id, so filing it under the order would make a later status lookup read that
+    // order as terminally cancelled — and a cleanup cancellation says nothing about the order as a whole:
+    // its sibling references may still be unsettled and live. A lookup that then reports the order as known
+    // would take it out of quarantine and let the completion check open a replacement beside them, which is
+    // the double execution this path exists to prevent.
 
     return report;
   }

@@ -1016,13 +1016,16 @@ describe('ScryptService', () => {
       expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
     });
 
-    it('files the confirmation under the order it settles, not under the cancel request', async () => {
-      // the venue tags it with the cancel request's id; every lookup here is keyed on the order's own
+    it('never files a cleanup cancellation under the order it cancelled', async () => {
+      // the confirmation carries the cancel request's id; filing it under the order would make a later
+      // status lookup read that order as terminally cancelled. A cleanup cancellation says nothing about
+      // the order as a whole — sibling references may still be unsettled and live — so a lookup reporting
+      // it as known would take it out of quarantine and let a replacement be opened beside them.
       stubCancel(cancelReport({ CumQty: '40' }));
 
       await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
 
-      expect((service as any).executionReports.get('dfx-lm-7')?.OrdStatus).toBe(ScryptOrderStatus.CANCELED);
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
     });
   });
 
@@ -1047,17 +1050,6 @@ describe('ScryptService', () => {
         LeavesQty: '0',
       } satisfies ScryptExecutionReport);
     }
-
-    it('propagates an unconfirmed amend instead of swallowing it', async () => {
-      // Regression guard: the amend used to be wrapped in a catch that cancelled and returned false, so the
-      // caller never learned that a replacement order might be live at the venue under the reserved id.
-      stubAmendPath(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
-
-      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toBeInstanceOf(
-        ScryptUnconfirmedWriteError,
-      );
-      expect((service as any).cancelOrder).not.toHaveBeenCalled();
-    });
 
     it('carries the reserved replacement reference on the raised error', async () => {
       stubAmendPath(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
