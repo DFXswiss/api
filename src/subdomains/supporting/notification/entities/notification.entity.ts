@@ -8,6 +8,7 @@ export interface NotificationOptions {
   debounce?: number; // debounce time in milliseconds
 }
 
+@Index('IDX_notification_suppress_lookup', ['context', 'correlationId', 'id'])
 @Entity()
 export class Notification extends IEntity {
   @Column({ length: 256 })

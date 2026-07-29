@@ -110,7 +110,9 @@ describe('AccountMerge processing state', () => {
 
       await expect(service.executeMerge('code-5')).resolves.toBe(request);
 
-      expect(mergeUserData).toHaveBeenCalledWith(master.id, slave.id, slave.mail);
+      expect(mergeUserData).toHaveBeenCalledWith(master.id, slave.id, slave.mail, false, {
+        awaitPostCommitEffects: false,
+      });
       expect(update.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({ isCompleted: true }));
       expect(request.isCompleted).toBe(true);
       expect(request.isProcessing).toBe(false);

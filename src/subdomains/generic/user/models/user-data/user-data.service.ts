@@ -1289,8 +1289,16 @@ export class UserDataService {
   }
 
   // --- MERGING --- //
-  async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
+  async mergeUserData(
+    masterId: number,
+    slaveId: number,
+    mail?: string,
+    notifyUser = false,
+    options: { awaitPostCommitEffects?: boolean } = {},
+  ): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
+
+    const awaitPostCommitEffects = options.awaitPostCommitEffects !== false;
 
     // Atomic boundary: this transaction owns every database mutation that reassigns the two
     // accounts, their KYC steps, vIBANs/intents, volumes, and merge logs. KYC approval continuation
@@ -1654,6 +1662,27 @@ export class UserDataService {
 
     this.virtualIbanService.invalidateCacheAfterMerge();
 
+    if (awaitPostCommitEffects) {
+      await this.runPostCommitMergeEffects(master, slave, effects, mergeCorrelation);
+    } else {
+      // Fire-and-forget: HTTP / caller returns after the DB transaction. Pending markers in
+      // kyc_log remain the durable audit trail if the process dies mid-effects.
+      void this.runPostCommitMergeEffects(master, slave, effects, mergeCorrelation).catch((error) => {
+        this.logger.critical(
+          `UserData merge post-commit effects task failed ` +
+            `(masterId=${master.id}, slaveId=${slave.id})`,
+          error instanceof Error ? error : undefined,
+        );
+      });
+    }
+  }
+
+  private async runPostCommitMergeEffects(
+    master: UserData,
+    slave: UserData,
+    effects: { name: string; run: () => Promise<void> }[],
+    mergeCorrelation: string,
+  ): Promise<void> {
     // The start marker is already durable in both KYC merge-log rows because it was written inside
     // the merge transaction. Each successful effect gets a second durable marker pair below.
     this.logger.info(
@@ -1721,21 +1750,26 @@ export class UserDataService {
   }
 
   private async updateBankTxTime(userDataId: number, manager?: EntityManager): Promise<void> {
+    // ID-only join query — the previous find()+relations materialised full BankTx graphs and
+    // showed multi-second SELECTs on the merge path under load (Tempo GET /v1/auth/mail/confirm).
     const repo = manager?.getRepository(BankTx) ?? this.repos.bankTx;
-    const txList = await repo.find({
-      select: { id: true },
-      where: [
-        { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
-        { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
-      ],
-      relations: { buyCrypto: { buy: { user: { userData: true } } }, buyFiats: { sell: { user: { userData: true } } } },
-    });
+    const rows = await repo
+      .createQueryBuilder('bankTx')
+      .select('DISTINCT bankTx.id', 'id')
+      .leftJoin('bankTx.buyCrypto', 'buyCrypto')
+      .leftJoin('buyCrypto.buy', 'buy')
+      .leftJoin('buy.user', 'buyUser')
+      .leftJoin('bankTx.buyFiats', 'buyFiat')
+      .leftJoin('buyFiat.sell', 'sell')
+      .leftJoin('sell.user', 'sellUser')
+      .where('buyUser.userDataId = :userDataId', { userDataId })
+      .orWhere('sellUser.userDataId = :userDataId', { userDataId })
+      .getRawMany<{ id: string | number }>();
 
-    if (txList.length != 0)
-      await repo.update(
-        txList.map((tx) => tx.id),
-        { updated: new Date() },
-      );
+    const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id) && id > 0);
+    if (ids.length === 0) return;
+
+    await repo.update(ids, { updated: new Date() });
   }
 
   // --- KYC FILE STATISTICS --- //

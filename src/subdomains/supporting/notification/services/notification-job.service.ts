@@ -33,10 +33,15 @@ export class NotificationJobService {
     private readonly mailService: MailService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MAIL_RETRY, timeout: 7200 })
+  // Every 30s so async-enqueued mails (awaitSend:false) leave the outbox quickly; still
+  // gated by Process.MAIL_RETRY. Only rows older than a few seconds are claimed so a concurrent
+  // awaitSend:true path can finish first without racing the job on the same row.
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.MAIL_RETRY, timeout: 7200 })
   async resendUncompletedMails(): Promise<void> {
     const uncompletedMails = await this.notificationRepo.find({
-      where: { isComplete: false, created: LessThanOrEqual(Util.minutesBefore(1)) },
+      where: { isComplete: false, created: LessThanOrEqual(Util.secondsBefore(5)) },
+      order: { id: 'ASC' },
+      take: 50,
     });
 
     for (const notification of uncompletedMails) {
@@ -54,7 +59,8 @@ export class NotificationJobService {
       Object.assign(mail, notification);
 
       const isSuppressed = await this.notificationService.isSuppressed(mail);
-      if (isSuppressed) return;
+      // continue — never abort the whole batch on one suppressed row
+      if (isSuppressed) continue;
 
       try {
         await this.mailService.send(mail);
@@ -68,3 +74,4 @@ export class NotificationJobService {
     }
   }
 }
+

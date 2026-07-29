@@ -76,4 +76,46 @@ describe('NotificationService', () => {
     expect((request.input as any).wallet).toBe(accountWallet);
     expect(userRepo.findOne).not.toHaveBeenCalled();
   });
+
+  it('skips the suppress SELECT when neither suppressRecurring nor debounce is set', async () => {
+    const mailEntity = {
+      to: 'a@b.c',
+      suppressRecurring: false,
+      debounce: undefined,
+      correlationId: 'login:7',
+      context: MailContext.LOGIN,
+    };
+    jest.spyOn(mailFactory, 'createMail').mockReturnValue(mailEntity as any);
+    jest.spyOn(notificationRepo, 'save').mockResolvedValue(mailEntity as any);
+    const findOne = jest.spyOn(notificationRepo, 'findOne');
+
+    await service.sendMail(
+      {
+        type: MailType.USER_V2,
+        context: MailContext.LOGIN,
+        correlationId: 'login:7',
+        input: { userData: createCustomUserData({ id: 7 }), wallet: createCustomWallet({ name: 'DFX' }) },
+      } as unknown as MailRequest,
+      { awaitSend: false },
+    );
+
+    expect(findOne).not.toHaveBeenCalled();
+    expect(notificationRepo.save).toHaveBeenCalled();
+    expect(mailService.send).not.toHaveBeenCalled();
+  });
+
+  it('enqueues without SMTP when awaitSend is false', async () => {
+    const mailEntity = {
+      to: 'a@b.c',
+      suppressRecurring: false,
+      debounce: undefined,
+    };
+    jest.spyOn(mailFactory, 'createMail').mockReturnValue(mailEntity as any);
+    jest.spyOn(notificationRepo, 'save').mockResolvedValue(mailEntity as any);
+
+    await service.sendMail(userMailRequest({ userData: createCustomUserData({ id: 1 }) }), { awaitSend: false });
+
+    expect(notificationRepo.save).toHaveBeenCalled();
+    expect(mailService.send).not.toHaveBeenCalled();
+  });
 });

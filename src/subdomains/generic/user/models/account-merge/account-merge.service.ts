@@ -132,7 +132,12 @@ export class AccountMergeService {
     await this.accountMergeRepo.update(...request.startProcessing());
 
     try {
-      await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+      // Public confirm path: do not block HTTP on MinIO copy / webhooks / KYC mails.
+      // Durable post-commit markers stay in kyc_log for crash recovery; effects run
+      // without awaiting the caller (see UserDataService.mergeUserData options).
+      await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail, false, {
+        awaitPostCommitEffects: false,
+      });
     } catch (e) {
       // clear the processing marker so a failed merge does not leave the client stuck on a
       // never-ending waiting state (isProcessing would otherwise stay true until expiration)

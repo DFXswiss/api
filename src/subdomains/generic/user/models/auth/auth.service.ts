@@ -331,34 +331,39 @@ export class AuthService {
       walletName: loginWallet?.name,
     });
 
-    // send notification
-    await this.notificationService.sendMail({
-      type: MailType.USER_V2,
-      context: MailContext.LOGIN,
-      input: {
-        userData,
-        wallet: loginWallet,
-        title: `${MailTranslationKey.LOGIN}.title`,
-        salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
-        texts: [
-          { key: MailKey.SPACE, params: { value: '1' } },
-          {
-            key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl, button: 'true' },
-          },
-          {
-            key: `${MailTranslationKey.LOGIN}.message`,
-            params: {
-              url: loginUrl,
-              urlText: loginUrl,
-              expiration: `${Config.auth.mailLoginExpiresIn}`,
+    // Enqueue login mail without waiting for SMTP. NotificationJobService delivers pending
+    // rows every 30s; correlationId scopes suppress lookups per account when debounce is used.
+    await this.notificationService.sendMail(
+      {
+        type: MailType.USER_V2,
+        context: MailContext.LOGIN,
+        correlationId: `login:${userData.id}`,
+        input: {
+          userData,
+          wallet: loginWallet,
+          title: `${MailTranslationKey.LOGIN}.title`,
+          salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
+          texts: [
+            { key: MailKey.SPACE, params: { value: '1' } },
+            {
+              key: `${MailTranslationKey.GENERAL}.button`,
+              params: { url: loginUrl, button: 'true' },
             },
-          },
-          { key: MailKey.SPACE, params: { value: '2' } },
-          { key: MailKey.DFX_TEAM_CLOSING },
-        ],
+            {
+              key: `${MailTranslationKey.LOGIN}.message`,
+              params: {
+                url: loginUrl,
+                urlText: loginUrl,
+                expiration: `${Config.auth.mailLoginExpiresIn}`,
+              },
+            },
+            { key: MailKey.SPACE, params: { value: '2' } },
+            { key: MailKey.DFX_TEAM_CLOSING },
+          ],
+        },
       },
-    });
+      { awaitSend: false },
+    );
   }
 
   async completeSignInByMail(code: string, ip: string): Promise<string> {

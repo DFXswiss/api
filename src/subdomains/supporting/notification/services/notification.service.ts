@@ -21,7 +21,15 @@ export class NotificationService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async sendMail(request: MailRequest): Promise<void> {
+  /**
+   * Persist and deliver a mail.
+   * @param options.awaitSend when false, only enqueues (isComplete=false) and returns after save;
+   *   delivery is left to NotificationJobService / a later awaitSend:true call. Default true
+   *   keeps existing callers synchronous.
+   */
+  async sendMail(request: MailRequest, options: { awaitSend?: boolean } = {}): Promise<void> {
+    const awaitSend = options.awaitSend !== false;
+
     await this.resolveMailWallet(request);
 
     const mail = this.mailFactory.createMail(request);
@@ -33,6 +41,8 @@ export class NotificationService {
     if (isSuppressed) return;
 
     await this.notificationRepo.save(mail);
+
+    if (!awaitSend) return;
 
     try {
       await this.mailService.send(mail);
@@ -102,6 +112,11 @@ export class NotificationService {
   }
 
   public async isSuppressed(newNotification: Notification): Promise<boolean> {
+    // Without suppressRecurring or debounce the DB hit cannot change the outcome (isSuppressed
+    // would always be false even if a matching row exists). Skip the SELECT — login mails and
+    // other one-shot notifications used to pay multi-second suppress lookups under DB load.
+    if (!newNotification.suppressRecurring && !newNotification.debounce) return false;
+
     const { correlationId, context } = newNotification;
 
     const existingNotification = await this.notificationRepo.findOne({
