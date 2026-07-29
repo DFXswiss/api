@@ -25,7 +25,6 @@ import {
   yapealEUR,
   olkyEUR,
   frickEUR,
-  frickCHF,
 } from '../__mocks__/bank.entity.mock';
 import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
