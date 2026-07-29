@@ -508,8 +508,7 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       // an interest asset with the right name but an id absent from the name group. The guard must
       // reject that input because otherwise interest would increase balance without contributing
       // to the value of any priced asset sub-group.
-      const mapBalances = () =>
-        CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+      const mapBalances = () => CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
 
       expect(mapBalances).toThrow(/has no matching balance sub-group/);
       expect(mapBalances).toThrow(/Citrea\/sZCHF/);

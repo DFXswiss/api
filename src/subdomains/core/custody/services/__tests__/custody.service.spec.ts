@@ -585,9 +585,7 @@ describe('CustodyService', () => {
       ]);
 
       const mappingError = new Error('Interest has no matching balance sub-group');
-      const mapCustodyBalances = CustodyAssetBalanceDtoMapper.mapCustodyBalances.bind(
-        CustodyAssetBalanceDtoMapper,
-      );
+      const mapCustodyBalances = CustodyAssetBalanceDtoMapper.mapCustodyBalances.bind(CustodyAssetBalanceDtoMapper);
       const mapperSpy = jest
         .spyOn(CustodyAssetBalanceDtoMapper, 'mapCustodyBalances')
         .mockImplementationOnce(() => {
@@ -616,9 +614,7 @@ describe('CustodyService', () => {
       expect(btcDto.value).toEqual({ chf: 5000, eur: 4600, usd: 5500 });
       expect(result.totalValue).toEqual({ chf: 6000, eur: 5600, usd: 6500 });
       expect(loggerErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `Failed to map custody balances with interest for user(s) ${custodyUser.id}`,
-        ),
+        expect.stringContaining(`Failed to map custody balances with interest for user(s) ${custodyUser.id}`),
         mappingError,
       );
     });
