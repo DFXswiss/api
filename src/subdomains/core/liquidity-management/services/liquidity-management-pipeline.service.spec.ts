@@ -630,8 +630,10 @@ describe('LiquidityManagementPipelineService', () => {
       });
 
       it('caps the cooldown interval at thirty minutes no matter how old the order is', async () => {
-        // Pins the cap from both sides. An 8-hour-old order's uncapped wait would be 48 minutes, so a lookup
-        // at 30 min 1 s can only come from the cap — and the check at 29 min 59 s rules out a cap set too low.
+        // Pins the cap from both sides, and on its exact boundary. An 8-hour-old order's uncapped wait
+        // would be 48 minutes, so a lookup at exactly 30 minutes can only come from the cap — the check
+        // at 29 min 59 s rules out a cap set too low, and landing the second check ON the boundary rather
+        // than past it also pins `<` against `<=`, which differ only at that single millisecond.
         const resolveUncertainOrder = stubResolver();
         const order = uncertainOrder({ created: new Date(Date.now() - 8 * 60 * 60_000) });
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
@@ -642,7 +644,7 @@ describe('LiquidityManagementPipelineService', () => {
         await service['resolveUncertainOrders']();
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
 
-        jest.advanceTimersByTime(2_000);
+        jest.advanceTimersByTime(1_000);
         await service['resolveUncertainOrders']();
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
       });
