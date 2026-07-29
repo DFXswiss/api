@@ -16,6 +16,7 @@ import { createCustomVirtualIban } from 'src/subdomains/supporting/bank/virtual-
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FindOptionsWhere } from 'typeorm';
 import {
   createCustomBank,
   createDefaultBanks,
@@ -44,6 +45,19 @@ function createBankSelectorInput(
     paymentMethod,
     userData,
   };
+}
+
+function mockFindCachedByForBanks(bankRepo: BankRepository, banks: Bank[]): void {
+  jest
+    .spyOn(bankRepo, 'findCachedBy')
+    .mockImplementation(async (_key: number | string, where: FindOptionsWhere<Bank> | FindOptionsWhere<Bank>[]) => {
+      // getReceiveBanks always supplies one object; fail visibly if that contract changes.
+      if (Array.isArray(where)) throw new Error('mockFindCachedByForBanks does not support array filters');
+
+      const receive = where.receive;
+      if (typeof receive === 'boolean') return banks.filter((bank) => bank.receive === receive);
+      return banks;
+    });
 }
 
 describe('BankService', () => {
@@ -154,11 +168,10 @@ describe('BankService', () => {
   });
 
   it('keeps the incumbent deposit bank while every row carries the default receivePriority, even with Frick listed first', async () => {
-    // Deploy-safety invariant with the REAL production ids: as long as Ops has not lowered any
-    // priority, Frick must not take over a currency merely by being listed first. This is no longer a
-    // bank-name exclusion - Frick becomes selectable the moment its receivePriority is lowered (see
-    // the dedicated test below); here every row still sits at the neutral default, so ascending id
-    // decides and the incumbents (Olkypay id 4, Yapeal id 15) keep their currencies.
+    // Ordering guarantee with the REAL production ids, for the case where every candidate is already
+    // eligible: being listed first must not win a currency. This is NOT what protects Frick's
+    // production rows - those stay NULL and are filtered out entirely (see the NULL tests below);
+    // this case covers the day Ops gives Frick a priority equal to an incumbent's.
     // A preceding test disables the shared olkyEUR mock in place (createDefaultDisabledBanks mutates it),
     // so restore its natural receive state here to exercise the priority ordering rather than that
     // leaked state.
@@ -172,10 +185,7 @@ describe('BankService', () => {
       createCustomBank({ ...yapealEUR, id: 16 }),
       createCustomBank({ ...yapealCHF, id: 15 }),
     ];
-    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
-      if (filter?.receive !== undefined) return frickFirst.filter((b) => b.receive === filter.receive);
-      return frickFirst;
-    });
+    mockFindCachedByForBanks(bankRepo, frickFirst);
 
     const eur = await service.getBank(createBankSelectorInput('EUR'));
     expect(eur.name).toBe(IbanBankName.OLKY);
@@ -206,11 +216,7 @@ describe('BankService', () => {
       bic: 'HIGHERBIC',
     });
     // Higher id listed first so only the sort (not input order) can pick the lower id.
-    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
-      const banks = [higherId, lowerId];
-      if (filter?.receive !== undefined) return banks.filter((b) => b.receive === filter.receive);
-      return banks;
-    });
+    mockFindCachedByForBanks(bankRepo, [higherId, lowerId]);
 
     const result = await service.getBank(createBankSelectorInput('EUR'));
     expect(result.id).toBe(4);
@@ -237,11 +243,7 @@ describe('BankService', () => {
       bic: 'LOSEBIC',
     });
     // Winner listed last so only receivePriority (not input order or id) can select it.
-    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
-      const banks = [highPriorityLowId, lowPriorityHighId];
-      if (filter?.receive !== undefined) return banks.filter((b) => b.receive === filter.receive);
-      return banks;
-    });
+    mockFindCachedByForBanks(bankRepo, [highPriorityLowId, lowPriorityHighId]);
 
     const result = await service.getBank(createBankSelectorInput('EUR'));
     expect(result.id).toBe(50);
@@ -267,11 +269,7 @@ describe('BankService', () => {
       iban: 'FRICK-EUR',
       bic: 'FRICKBIC',
     });
-    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
-      const banks = [olky, frick];
-      if (filter?.receive !== undefined) return banks.filter((b) => b.receive === filter.receive);
-      return banks;
-    });
+    mockFindCachedByForBanks(bankRepo, [olky, frick]);
 
     const result = await service.getBank(createBankSelectorInput('EUR'));
     expect(result.name).toBe(IbanBankName.FRICK);
@@ -299,11 +297,7 @@ describe('BankService', () => {
       iban: 'INST-WINNER',
       bic: 'WINBIC',
     });
-    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
-      const banks = [highPriorityInst, lowPriorityInst];
-      if (filter?.receive !== undefined) return banks.filter((b) => b.receive === filter.receive);
-      return banks;
-    });
+    mockFindCachedByForBanks(bankRepo, [highPriorityInst, lowPriorityInst]);
 
     const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
     expect(result.iban).toBe('INST-WINNER');
@@ -330,16 +324,95 @@ describe('BankService', () => {
       bic: 'WINBIC',
     });
     // No GBP bank: currency fallback must still prefer the higher-priority EUR candidate.
-    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
-      const banks = [eurLoser, eurWinner];
-      if (filter?.receive !== undefined) return banks.filter((b) => b.receive === filter.receive);
-      return banks;
-    });
+    mockFindCachedByForBanks(bankRepo, [eurLoser, eurWinner]);
 
     const result = await service.getBank(createBankSelectorInput('GBP'));
     expect(result.currency).toBe('EUR');
     expect(result.iban).toBe('EUR-FALLBACK-WINNER');
     expect(result.id).toBe(19);
+  });
+
+  it('does not select a bank with NULL receivePriority when it is the only receive bank for the currency', async () => {
+    const ineligibleOnlyBank = createCustomBank({
+      id: 19,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      receive: true,
+      receivePriority: null,
+      iban: 'INELIGIBLE-ONLY-EUR',
+      bic: 'INELIGIBLEBIC',
+    });
+    mockFindCachedByForBanks(bankRepo, [ineligibleOnlyBank]);
+
+    await expect(service.getBank(createBankSelectorInput('EUR'))).resolves.toBeUndefined();
+  });
+
+  it('does not select a NULL-priority bank when the established currency receiver has receive=false', async () => {
+    const disabledIncumbent = createCustomBank({
+      id: 4,
+      name: IbanBankName.OLKY,
+      currency: 'EUR',
+      receive: false,
+      receivePriority: 1000,
+      iban: 'DISABLED-INCUMBENT-EUR',
+      bic: 'DISABLEDBIC',
+    });
+    const ineligibleRemainingBank = createCustomBank({
+      id: 19,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      receive: true,
+      receivePriority: null,
+      iban: 'INELIGIBLE-REMAINING-EUR',
+      bic: 'INELIGIBLEBIC',
+    });
+    mockFindCachedByForBanks(bankRepo, [disabledIncumbent, ineligibleRemainingBank]);
+
+    await expect(service.getBank(createBankSelectorInput('EUR'))).resolves.toBeUndefined();
+  });
+
+  it('does not select a NULL-priority bank through the INSTANT fallback', async () => {
+    const ineligibleFallbackBank = createCustomBank({
+      id: 19,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      receive: true,
+      sctInst: false,
+      receivePriority: null,
+      iban: 'INELIGIBLE-INSTANT-FALLBACK',
+      bic: 'INELIGIBLEBIC',
+    });
+    mockFindCachedByForBanks(bankRepo, [ineligibleFallbackBank]);
+
+    await expect(
+      service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT)),
+    ).resolves.toBeUndefined();
+  });
+
+  it('selects receivePriority zero ahead of a higher numeric priority', async () => {
+    const zeroPriorityBank = createCustomBank({
+      id: 19,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      receive: true,
+      receivePriority: 0,
+      iban: 'ZERO-PRIORITY-WINNER',
+      bic: 'ZEROBIC',
+    });
+    const higherPriorityBank = createCustomBank({
+      id: 4,
+      name: IbanBankName.OLKY,
+      currency: 'EUR',
+      receive: true,
+      receivePriority: 500,
+      iban: 'HIGHER-PRIORITY-LOSER',
+      bic: 'HIGHERBIC',
+    });
+    mockFindCachedByForBanks(bankRepo, [higherPriorityBank, zeroPriorityBank]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR'));
+    expect(result).toBe(zeroPriorityBank);
+    expect(result.receivePriority).toBe(0);
   });
 });
 

@@ -89,11 +89,13 @@ export class BankService implements OnModuleInit {
     const fallBackCurrency = 'EUR';
 
     // Deposit-target selection is an operational input (Bank.receivePriority), not a hardcoded
-    // bank-name preference: lower value wins, ties broken by ascending id so the choice is stable
-    // and a newly added bank row can never silently take over an existing one.
-    const banks = [...(await this.getReceiveBanks())].sort(
-      (a, b) => a.receivePriority - b.receivePriority || a.id - b.id,
-    );
+    // bank-name preference. A NULL priority is not eligible at all - that is what keeps a bank which
+    // must receive and reconcile money from ever being advertised to a customer, even when it is the
+    // only remaining candidate for a currency. Among eligible banks the lower value wins, ties broken
+    // by ascending id so a newly added row can never silently take over an existing choice.
+    const banks = [...(await this.getReceiveBanks())]
+      .filter((bank) => bank.receivePriority != null)
+      .sort((a, b) => a.receivePriority - b.receivePriority || a.id - b.id);
 
     // select the matching bank account
     let account: Bank;

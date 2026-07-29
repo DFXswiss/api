@@ -36,11 +36,13 @@ export class Bank extends IEntity {
   @Column({ type: 'int', default: 1000 })
   sendPriority: number = 1000;
 
-  // Deterministic receiver tie-breaker for currencies with more than one eligible receive=true bank:
-  // lower value is tried first. An operational input (set by Ops), never inferred from bank name in
-  // code. Ties are broken by ascending id, so adding a bank never silently changes an existing choice.
-  @Column({ type: 'int', default: 1000 })
-  receivePriority: number = 1000;
+  // Deposit-target eligibility AND order in one operational input: NULL means this bank is never
+  // offered to a customer as a deposit target, any number makes it eligible with lower tried first.
+  // Ties are broken by ascending id, so adding a bank never silently changes an existing choice.
+  // Eligibility is deliberately NOT derived from `receive`: a bank can need to accept and reconcile
+  // incoming money without ever being advertised to customers.
+  @Column({ type: 'int', nullable: true })
+  receivePriority?: number;
 
   @OneToOne(() => Asset, (asset) => asset.bank, { nullable: true })
   @JoinColumn()
