@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { FinanceLog } from 'src/subdomains/supporting/log/dto/log.dto';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
+import { FinancialLogAssetPrice } from 'src/subdomains/supporting/log/log.repository';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 
 interface MarkPoint {
@@ -80,6 +81,8 @@ export class LedgerMarkService {
   }
 
   // bounded, memoized youngest-mark map (≤ now). Ascending by created → the last finite write per asset wins → youngest.
+  // Stays on full getFinancialLogs (not the price projection): does not use buildMarkMap / preload pagination and only
+  // needs a flat Map<assetId, priceChf> over a short daily-sampled window.
   private async getLatestMarks(): Promise<Map<number, number>> {
     const now = Date.now();
     if (this.latestMarks && now - this.latestMarks.loadedAt < LATEST_MARK_TTL_MS) return this.latestMarks.map;
@@ -138,46 +141,108 @@ export class LedgerMarkService {
   /**
    * Bounded preload (§5.2, Hard Constraint #4): always limited by (batchStartDate, to) and maxRows.
    * Order is fixed — dailySample decision FIRST (avoids loading the full minute-tick), THEN upper-bound
-   * trimming, THEN the maxRows pagination backstop (keyset over id; created resolved in-DB).
+   * trimming, THEN the maxRows pagination backstop (keyset over log id; created resolved in-DB).
+   *
+   * Hot path (dailySample=false): SQL projects priceChf only (getFinancialLogAssetPrices).
+   * Rare long-window path (dailySample=true): still getFinancialLogs + local expansion to the same projection type.
    */
   async preload(batchStartDate: Date, to: Date): Promise<LedgerMarkCache> {
     const spanDays = Util.daysDiff(batchStartDate, to);
     const dailySample = spanDays > Config.ledger.markPreloadDailySampleThresholdDays;
     const maxRows = this.getMarkPreloadMaxRows();
 
-    // +1 so probeRows.length > maxRows can still detect overflow when SQL already caps at maxRows
-    const probeRows = await this.logService.getFinancialLogs(batchStartDate, dailySample, to, maxRows + 1);
+    // +1 so unique log-id count > maxRows can still detect overflow when SQL already caps at maxRows log rows
+    const probeRows = await this.loadAssetPrices(batchStartDate, to, dailySample, maxRows + 1);
 
     const rows =
-      probeRows.length > maxRows
-        ? await this.paginate(batchStartDate, to, dailySample, probeRows.slice(0, maxRows))
+      this.uniqueLogIds(probeRows).length > maxRows
+        ? await this.paginate(batchStartDate, to, dailySample, this.takeCompleteLogGroups(probeRows, maxRows))
         : probeRows;
 
     return new LedgerMarkCache(this.buildMarkMap(rows));
   }
 
-  // Keyset pages over id; never load everything into one heap (§5.2 step 3).
-  // `firstPage` reuses the rows preload() already read via the overflow probe (the same maxRows-sized
-  // first page a from-scratch pagination would produce, since both share the same filters/order/limit=
-  // maxRows and deterministic ORDER BY created ASC, id ASC) — so the probe read is not thrown away and
-  // re-fetched. Halves the data read on overflow, result set stays identical to full re-pagination.
-  private async paginate(batchStartDate: Date, to: Date, dailySample: boolean, firstPage: Log[]): Promise<Log[]> {
+  // Keyset pages over log id; never load everything into one heap (§5.2 step 3).
+  // Overflow/page sizes are measured in distinct logId groups (one FinancialDataLog snapshot), not flattened
+  // asset-result length — slicing by array index would cut mid-snapshot and drop assets silently.
+  // `firstPage` reuses the complete log groups preload() already read via the overflow probe.
+  private async paginate(
+    batchStartDate: Date,
+    to: Date,
+    dailySample: boolean,
+    firstPage: FinancialLogAssetPrice[],
+  ): Promise<FinancialLogAssetPrice[]> {
     const maxRows = this.getMarkPreloadMaxRows();
-    const result: Log[] = [...firstPage];
-    let after: number | undefined = firstPage[firstPage.length - 1]?.id;
+    const result: FinancialLogAssetPrice[] = [...firstPage];
+    const firstPageLogIds = this.uniqueLogIds(firstPage);
+    let after: number | undefined = firstPageLogIds[firstPageLogIds.length - 1];
 
-    // Keyset continuation: each page starts strictly after the last returned id.
+    // Keyset continuation: each page starts strictly after the last returned log id.
     while (true) {
-      const window = await this.logService.getFinancialLogs(batchStartDate, dailySample, to, maxRows, after);
+      const window = await this.loadAssetPrices(batchStartDate, to, dailySample, maxRows, after);
       if (!window.length) break;
 
       result.push(...window);
-      if (window.length < maxRows) break;
+      const windowLogIds = this.uniqueLogIds(window);
+      if (windowLogIds.length < maxRows) break;
 
-      after = window[window.length - 1].id;
+      after = windowLogIds[windowLogIds.length - 1];
     }
 
     return result;
+  }
+
+  // Hot path: SQL projection. dailySample path: full logs (day-group SQL not reimplemented) expanded locally.
+  private async loadAssetPrices(
+    from: Date,
+    to: Date,
+    dailySample: boolean,
+    limit?: number,
+    after?: number,
+  ): Promise<FinancialLogAssetPrice[]> {
+    if (dailySample) {
+      const logs = await this.logService.getFinancialLogs(from, true, to, limit, after);
+      return logs.flatMap((row) => this.rowToAssetPrices(row));
+    }
+    return this.logService.getFinancialLogAssetPrices(from, to, limit, after);
+  }
+
+  // Expand one Log into the same projection shape as getFinancialLogAssetPrices (dailySample adapter only).
+  private rowToAssetPrices(row: Log): FinancialLogAssetPrice[] {
+    const assets = this.parseAssets(row.message);
+    if (!assets) return [];
+
+    const result: FinancialLogAssetPrice[] = [];
+    for (const [assetIdKey, assetLog] of Object.entries(assets)) {
+      const priceChf = assetLog?.priceChf;
+      if (!Number.isFinite(priceChf)) continue;
+
+      result.push({
+        created: row.created,
+        assetId: +assetIdKey,
+        priceChf,
+        logId: row.id,
+      });
+    }
+    return result;
+  }
+
+  // Distinct logIds in first-seen order (SQL keeps all assets of one log contiguous).
+  private uniqueLogIds(rows: FinancialLogAssetPrice[]): number[] {
+    const ids: number[] = [];
+    const seen = new Set<number>();
+    for (const row of rows) {
+      if (seen.has(row.logId)) continue;
+      seen.add(row.logId);
+      ids.push(row.logId);
+    }
+    return ids;
+  }
+
+  // Keep every projected asset belonging to the first `maxLogRows` distinct logIds (no mid-group cut).
+  private takeCompleteLogGroups(rows: FinancialLogAssetPrice[], maxLogRows: number): FinancialLogAssetPrice[] {
+    const allowed = new Set(this.uniqueLogIds(rows).slice(0, maxLogRows));
+    return rows.filter((row) => allowed.has(row.logId));
   }
 
   // Fail loud on a non-positive / non-integer markPreloadMaxRows (e.g. LEDGER_MARK_PRELOAD_MAX_ROWS=0 or
@@ -190,26 +255,19 @@ export class LedgerMarkService {
     return value;
   }
 
-  private buildMarkMap(rows: Log[]): Map<number, MarkPoint[]> {
+  private buildMarkMap(rows: FinancialLogAssetPrice[]): Map<number, MarkPoint[]> {
     const marks = new Map<number, MarkPoint[]>();
 
     for (const row of rows) {
-      // tolerate parse/shape issues defensively — never throw, mirrors log-job getJsonValue
-      const assets = this.parseAssets(row.message);
-      if (!assets) continue;
+      // Repo already drops non-finite values; keep the guard as a defensive double-check.
+      if (!Number.isFinite(row.priceChf)) continue;
 
-      for (const [assetIdKey, assetLog] of Object.entries(assets)) {
-        const priceChf = assetLog?.priceChf;
-        if (!Number.isFinite(priceChf)) continue;
-
-        const assetId = +assetIdKey;
-        const points = marks.get(assetId) ?? [];
-        points.push({ created: row.created, priceChf });
-        marks.set(assetId, points);
-      }
+      const points = marks.get(row.assetId) ?? [];
+      points.push({ created: row.created, priceChf: row.priceChf });
+      marks.set(row.assetId, points);
     }
 
-    // rows arrive ascending by created (getFinancialLogs order); keep lists sorted for binary search
+    // rows arrive ascending by created (repository order); keep lists sorted for binary search
     for (const points of marks.values()) {
       points.sort((a, b) => a.created.getTime() - b.created.getTime());
     }

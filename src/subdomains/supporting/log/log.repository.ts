@@ -19,6 +19,15 @@ import {
   MAX_VALIDITY_SWEEP_ROWS,
 } from './log.entity';
 
+/** One asset priceChf projected from a FinancialDataLog snapshot (no full message JSON). */
+export interface FinancialLogAssetPrice {
+  created: Date;
+  assetId: number;
+  priceChf: number;
+  /** id of the underlying log row — keyset cursor / overflow counts use this, not result-row index. */
+  logId: number;
+}
+
 @Injectable()
 export class LogRepository extends BaseRepository<Log> {
   constructor(manager: EntityManager) {
@@ -213,6 +222,83 @@ export class LogRepository extends BaseRepository<Log> {
     }
 
     const rows = await query.getMany();
+    if (!rows.length && after != null) await this.assertEmptyResultIsEndOfData(after);
+    return rows;
+  }
+
+  /**
+   * SQL-side projection of priceChf per asset from FinancialDataLog snapshots.
+   * LIMIT/keyset apply to log rows (inner subquery), not to the expanded asset result — same page semantics as
+   * getFinancialLogs. Callers that only need marks avoid shipping/parsing the full message JSON.
+   */
+  async getFinancialLogAssetPrices(
+    from?: Date,
+    to?: Date,
+    limit?: number,
+    after?: number, // id of the last LOG row of the previous page; same cursor semantics as getFinancialLogs
+  ): Promise<FinancialLogAssetPrice[]> {
+    const params: unknown[] = [];
+    let i = 1;
+    const conditions = [`system = $${i++}`, `subsystem = $${i++}`, `severity = $${i++}`, `valid = $${i++}`];
+    params.push('LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true);
+
+    if (from) {
+      conditions.push(`created >= $${i++}`);
+      params.push(from);
+    }
+    if (to) {
+      conditions.push(`created <= $${i++}`);
+      params.push(to);
+    }
+    if (after != null) {
+      // Same row-value keyset as getFinancialLogs: created resolved in-DB at full precision.
+      conditions.push(`(created, id) > ((SELECT c.created FROM log c WHERE c.id = $${i}), $${i + 1})`);
+      params.push(after, after);
+      i += 2;
+    }
+
+    let limitClause = '';
+    if (limit != null) {
+      limitClause = `LIMIT $${i++}`;
+      params.push(limit);
+    }
+
+    const sql = `
+SELECT l.created AS "created",
+       (kv.key)::int AS "assetId",
+       (kv.value->>'priceChf')::float8 AS "priceChf",
+       l.id AS "logId"
+FROM (
+  SELECT id, created, message
+  FROM log
+  WHERE ${conditions.join(' AND ')}
+  ORDER BY created ASC, id ASC
+  ${limitClause}
+) l,
+LATERAL jsonb_each(l.message::jsonb -> 'assets') kv
+WHERE kv.value->>'priceChf' IS NOT NULL
+ORDER BY l.created ASC, l.id ASC`;
+
+    const raw = (await this.query(sql, params)) as {
+      created: Date | string;
+      assetId: number | string;
+      priceChf: number | string;
+      logId: number | string;
+    }[];
+
+    const rows: FinancialLogAssetPrice[] = [];
+    for (const r of raw) {
+      const priceChf = Number(r.priceChf);
+      if (!Number.isFinite(priceChf)) continue;
+
+      rows.push({
+        created: r.created instanceof Date ? r.created : new Date(r.created),
+        assetId: Number(r.assetId),
+        priceChf,
+        logId: Number(r.logId),
+      });
+    }
+
     if (!rows.length && after != null) await this.assertEmptyResultIsEndOfData(after);
     return rows;
   }

@@ -5,6 +5,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
 import { createCustomLog } from 'src/subdomains/supporting/log/__mocks__/log.entity.mock';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
+import { FinancialLogAssetPrice } from 'src/subdomains/supporting/log/log.repository';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { LedgerMarkService } from '../ledger-mark.service';
 
@@ -57,6 +58,49 @@ function fakeGetFinancialLogs(allRows: Log[]): FakeGetFinancialLogs {
     if (limit != null) rows = rows.slice(0, limit);
 
     return rows;
+  };
+}
+
+/** Matches `LogService.getFinancialLogAssetPrices` signature. */
+type FakeGetFinancialLogAssetPrices = (
+  from?: Date,
+  to?: Date,
+  limit?: number,
+  after?: number,
+) => Promise<FinancialLogAssetPrice[]>;
+
+/** Expand a Log fixture into the SQL projection shape (same filters as the repository path). */
+function logToAssetPrices(row: Log): FinancialLogAssetPrice[] {
+  try {
+    const assets = (JSON.parse(row.message) as { assets?: Record<string, { priceChf?: number }> }).assets;
+    if (!assets) return [];
+
+    const out: FinancialLogAssetPrice[] = [];
+    for (const [assetIdKey, assetLog] of Object.entries(assets)) {
+      const priceChf = assetLog?.priceChf;
+      if (!Number.isFinite(priceChf)) continue;
+      out.push({
+        created: row.created,
+        assetId: +assetIdKey,
+        priceChf,
+        logId: row.id,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fake `getFinancialLogAssetPrices`: filters/limits LOG rows first (same as SQL subquery LIMIT), then expands.
+ * Cursor is the underlying log id — not a flat result-row index.
+ */
+function fakeGetFinancialLogAssetPrices(allRows: Log[]): FakeGetFinancialLogAssetPrices {
+  const filterLogs = fakeGetFinancialLogs(allRows);
+  return async (from?: Date, to?: Date, limit?: number, after?: number): Promise<FinancialLogAssetPrice[]> => {
+    const logs = await filterLogs(from, false, to, limit, after);
+    return logs.flatMap(logToAssetPrices);
   };
 }
 
@@ -142,7 +186,15 @@ describe('LedgerMarkService', () => {
 
       await service.getMarkAtWidened(5, asOf, 90);
 
-      expect(spy).toHaveBeenCalledWith(Util.daysBefore(90, asOf), true, asOf, Config.ledger.markPreloadMaxRows + 1);
+      // trailing undefined: the first page carries no cursor yet — asserted explicitly so a
+      // dropped or reordered cursor argument still fails this test.
+      expect(spy).toHaveBeenCalledWith(
+        Util.daysBefore(90, asOf),
+        true,
+        asOf,
+        Config.ledger.markPreloadMaxRows + 1,
+        undefined,
+      );
     });
 
     it('never returns a mark created after asOf', async () => {
@@ -207,12 +259,14 @@ describe('LedgerMarkService', () => {
 
   it('returns the priceChf of the latest mark ≤ bookingDate (stage 2)', async () => {
     jest
-      .spyOn(logService, 'getFinancialLogs')
-      .mockResolvedValue([
-        financialLog(new Date('2026-06-01'), { '5': { priceChf: 50000 } }),
-        financialLog(new Date('2026-06-02'), { '5': { priceChf: 51000 } }),
-        financialLog(new Date('2026-06-03'), { '5': { priceChf: 52000 } }),
-      ]);
+      .spyOn(logService, 'getFinancialLogAssetPrices')
+      .mockImplementation(
+        fakeGetFinancialLogAssetPrices([
+          financialLog(new Date('2026-06-01'), { '5': { priceChf: 50000 } }),
+          financialLog(new Date('2026-06-02'), { '5': { priceChf: 51000 } }),
+          financialLog(new Date('2026-06-03'), { '5': { priceChf: 52000 } }),
+        ]),
+      );
 
     const cache = await service.preload(new Date('2026-06-01'), new Date('2026-06-03'));
 
@@ -222,8 +276,10 @@ describe('LedgerMarkService', () => {
 
   it('returns undefined when no log row ≤ bookingDate exists (stage 3 → needsMark)', async () => {
     jest
-      .spyOn(logService, 'getFinancialLogs')
-      .mockResolvedValue([financialLog(new Date('2026-06-05'), { '5': { priceChf: 50000 } })]);
+      .spyOn(logService, 'getFinancialLogAssetPrices')
+      .mockImplementation(
+        fakeGetFinancialLogAssetPrices([financialLog(new Date('2026-06-05'), { '5': { priceChf: 50000 } })]),
+      );
 
     const cache = await service.preload(new Date('2026-06-05'), new Date('2026-06-05'));
 
@@ -232,8 +288,10 @@ describe('LedgerMarkService', () => {
 
   it('returns undefined when a log row exists but its assets JSON lacks the assetId (Minor R5-5)', async () => {
     jest
-      .spyOn(logService, 'getFinancialLogs')
-      .mockResolvedValue([financialLog(new Date('2026-06-01'), { '7': { priceChf: 1.0 } })]);
+      .spyOn(logService, 'getFinancialLogAssetPrices')
+      .mockImplementation(
+        fakeGetFinancialLogAssetPrices([financialLog(new Date('2026-06-01'), { '7': { priceChf: 1.0 } })]),
+      );
 
     const cache = await service.preload(new Date('2026-06-01'), new Date('2026-06-01'));
 
@@ -242,8 +300,10 @@ describe('LedgerMarkService', () => {
 
   it('skips non-finite priceChf entries (no phantom 0 mark)', async () => {
     jest
-      .spyOn(logService, 'getFinancialLogs')
-      .mockResolvedValue([financialLog(new Date('2026-06-01'), { '5': { priceChf: NaN } })]);
+      .spyOn(logService, 'getFinancialLogAssetPrices')
+      .mockImplementation(
+        fakeGetFinancialLogAssetPrices([financialLog(new Date('2026-06-01'), { '5': { priceChf: NaN } })]),
+      );
 
     const cache = await service.preload(new Date('2026-06-01'), new Date('2026-06-01'));
 
@@ -251,9 +311,12 @@ describe('LedgerMarkService', () => {
   });
 
   it('never throws on malformed message JSON (defensive parse)', async () => {
+    // Hot path no longer parses message in the service; projection fake yields no prices for unparseable rows.
     jest
-      .spyOn(logService, 'getFinancialLogs')
-      .mockResolvedValue([createCustomLog({ created: new Date('2026-06-01'), message: 'not-json' })]);
+      .spyOn(logService, 'getFinancialLogAssetPrices')
+      .mockImplementation(
+        fakeGetFinancialLogAssetPrices([createCustomLog({ created: new Date('2026-06-01'), message: 'not-json' })]),
+      );
 
     const cache = await service.preload(new Date('2026-06-01'), new Date('2026-06-01'));
 
@@ -272,39 +335,88 @@ describe('LedgerMarkService', () => {
       true,
       new Date('2026-06-10'),
       Config.ledger.markPreloadMaxRows + 1,
+      undefined, // first page carries no cursor
     );
   });
 
   it('uses the full minute-tick for fresh windows within the threshold', async () => {
-    const spy = jest
-      .spyOn(logService, 'getFinancialLogs')
-      .mockResolvedValue([financialLog(new Date('2026-06-01'), { '5': { priceChf: 50000 } })]);
+    const spy = jest.spyOn(logService, 'getFinancialLogAssetPrices').mockResolvedValue([
+      {
+        created: new Date('2026-06-01'),
+        assetId: 5,
+        priceChf: 50000,
+        logId: 1,
+      },
+    ]);
 
     await service.preload(new Date('2026-06-01'), new Date('2026-06-01T06:00:00Z')); // < 2 days
 
     expect(spy).toHaveBeenCalledWith(
       new Date('2026-06-01'),
-      false,
       new Date('2026-06-01T06:00:00Z'),
       Config.ledger.markPreloadMaxRows + 1,
+      undefined, // first page carries no cursor
     );
   });
 
   it('passes to and limit (maxRows + 1) on the preload trigger read', async () => {
     const to = new Date('2026-06-02');
-    const spy = jest
-      .spyOn(logService, 'getFinancialLogs')
-      .mockResolvedValue([financialLog(new Date('2026-06-01'), { '5': { priceChf: 50000 } })]);
+    const spy = jest.spyOn(logService, 'getFinancialLogAssetPrices').mockResolvedValue([
+      {
+        created: new Date('2026-06-01'),
+        assetId: 5,
+        priceChf: 50000,
+        logId: 1,
+      },
+    ]);
 
     await service.preload(new Date('2026-06-01'), to);
 
     // Upper bound and row cap are enforced in SQL (no post-load JS filter); +1 keeps overflow detectable.
-    expect(spy).toHaveBeenCalledWith(new Date('2026-06-01'), false, to, Config.ledger.markPreloadMaxRows + 1);
+    expect(spy).toHaveBeenCalledWith(new Date('2026-06-01'), to, Config.ledger.markPreloadMaxRows + 1, undefined);
   });
 
-  // §5.2 step 3 pagination backstop: when the first bounded read returns more than markPreloadMaxRows rows the service
-  // continues via keyset pages over id (created resolved in-DB). With markPreloadMaxRows=1 the first read (2 rows)
-  // trips the backstop; the probe's first maxRows rows are reused as page 1.
+  // Projection → same mark map semantics as the former full-Log path (assets, prices, order).
+  it('buildMarkMap from the asset-price projection yields the same marks as full log rows would', async () => {
+    const t0 = new Date('2026-06-01T00:00:00Z');
+    const t1 = new Date('2026-06-01T01:00:00Z');
+    const projection: FinancialLogAssetPrice[] = [
+      { created: t0, assetId: 5, priceChf: 50000, logId: 10 },
+      { created: t0, assetId: 6, priceChf: 1.5, logId: 10 },
+      { created: t1, assetId: 5, priceChf: 51000, logId: 11 },
+    ];
+
+    jest.spyOn(logService, 'getFinancialLogAssetPrices').mockResolvedValue(projection);
+
+    const cache = await service.preload(t0, t1);
+
+    expect(cache.getMarkAt(5, t0)).toBe(50000);
+    expect(cache.getMarkAt(6, t0)).toBe(1.5);
+    expect(cache.getMarkAt(5, t1)).toBe(51000);
+    expect(cache.getMarkAt(5, new Date('2026-06-01T00:30:00Z'))).toBe(50000);
+  });
+
+  it('omits assets with missing or non-finite projected prices (no 0-mark)', async () => {
+    const t = new Date('2026-06-01T00:00:00Z');
+    // Repo/fake normally drop non-finite rows; inject them here so buildMarkMap's guard is covered too.
+    jest.spyOn(logService, 'getFinancialLogAssetPrices').mockResolvedValue([
+      { created: t, assetId: 5, priceChf: 42, logId: 1 },
+      { created: t, assetId: 6, priceChf: NaN, logId: 1 },
+      { created: t, assetId: 7, priceChf: Infinity, logId: 1 },
+      // asset 8 absent entirely → no mark
+    ]);
+
+    const cache = await service.preload(t, t);
+
+    expect(cache.getMarkAt(5, t)).toBe(42);
+    expect(cache.getMarkAt(6, t)).toBeUndefined();
+    expect(cache.getMarkAt(7, t)).toBeUndefined();
+    expect(cache.getMarkAt(8, t)).toBeUndefined();
+  });
+
+  // §5.2 step 3 pagination backstop: when the first bounded read returns more than markPreloadMaxRows log rows the
+  // service continues via keyset pages over log id. With markPreloadMaxRows=1 the first read (2 log rows) trips the
+  // backstop; the probe's first maxRows complete log groups are reused as page 1.
   describe('pagination backstop (rows > markPreloadMaxRows)', () => {
     let pagedService: LedgerMarkService;
 
@@ -327,11 +439,13 @@ describe('LedgerMarkService', () => {
       const w1b = financialLog(new Date('2026-06-01T01:00:00Z'), { '5': { priceChf: 51000 } });
       const w2 = financialLog(new Date('2026-06-01T02:00:00Z'), { '5': { priceChf: 52000 } });
 
-      const spy = jest.spyOn(logService, 'getFinancialLogs').mockImplementation(fakeGetFinancialLogs([w1a, w1b, w2]));
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogAssetPrices')
+        .mockImplementation(fakeGetFinancialLogAssetPrices([w1a, w1b, w2]));
 
       const cache = await pagedService.preload(new Date('2026-06-01T00:00:00Z'), new Date('2026-06-01T03:00:00Z'));
 
-      // the continuation windows were used (>1 getFinancialLogs call beyond the trigger read)
+      // the continuation windows were used (>1 projection call beyond the trigger read)
       expect(spy.mock.calls.length).toBeGreaterThan(1);
       // all three marks made it into the cache built from the paginated rows
       expect(cache.getMarkAt(5, new Date('2026-06-01T00:30:00Z'))).toBe(50000);
@@ -344,7 +458,7 @@ describe('LedgerMarkService', () => {
       const r1 = financialLog(new Date('2026-06-01T00:00:00Z'), { '5': { priceChf: 50000 } });
       const r2 = financialLog(new Date('2026-06-01T01:00:00Z'), { '5': { priceChf: 51000 } });
 
-      jest.spyOn(logService, 'getFinancialLogs').mockImplementation(fakeGetFinancialLogs([r1, r2]));
+      jest.spyOn(logService, 'getFinancialLogAssetPrices').mockImplementation(fakeGetFinancialLogAssetPrices([r1, r2]));
 
       const cache = await pagedService.preload(new Date('2026-06-01T00:00:00Z'), new Date('2026-06-01T03:00:00Z'));
 
@@ -372,7 +486,9 @@ describe('LedgerMarkService', () => {
         message: JSON.stringify({ assets: { '6': { priceChf: 51000 } } }),
       });
 
-      jest.spyOn(logService, 'getFinancialLogs').mockImplementation(fakeGetFinancialLogs([rowA, rowB]));
+      jest
+        .spyOn(logService, 'getFinancialLogAssetPrices')
+        .mockImplementation(fakeGetFinancialLogAssetPrices([rowA, rowB]));
 
       const cache = await pagedService.preload(t0, new Date('2026-06-01T03:00:00Z'));
 
@@ -387,8 +503,8 @@ describe('LedgerMarkService', () => {
       const to = new Date('2026-06-01T03:00:00Z');
 
       const spy = jest
-        .spyOn(logService, 'getFinancialLogs')
-        .mockImplementation(fakeGetFinancialLogs([inRange, alsoInRange, afterTo]));
+        .spyOn(logService, 'getFinancialLogAssetPrices')
+        .mockImplementation(fakeGetFinancialLogAssetPrices([inRange, alsoInRange, afterTo]));
 
       const cache = await pagedService.preload(new Date('2026-06-01T00:00:00Z'), to);
 
@@ -397,19 +513,47 @@ describe('LedgerMarkService', () => {
       // too-late row must not leak into the cache (lookup at/after its created still shows the last in-range mark)
       expect(cache.getMarkAt(5, afterTo.created)).toBe(51000);
       expect(cache.getMarkAt(5, afterTo.created)).not.toBe(99999);
-      // every call passes the same upper bound
+      // every call passes the same upper bound (arg index 1 = `to` on getFinancialLogAssetPrices)
       for (const call of spy.mock.calls) {
-        expect(call[2]).toEqual(to);
+        expect(call[1]).toEqual(to);
       }
     });
 
     it('returns an empty cache when no financial logs fall in the window', async () => {
-      const spy = jest.spyOn(logService, 'getFinancialLogs').mockImplementation(fakeGetFinancialLogs([]));
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogAssetPrices')
+        .mockImplementation(fakeGetFinancialLogAssetPrices([]));
 
       const cache = await pagedService.preload(new Date('2026-06-01T00:00:00Z'), new Date('2026-06-01T03:00:00Z'));
 
       expect(spy).toHaveBeenCalledTimes(1); // trigger only — empty, no pagination
       expect(cache.getMarkAt(5, new Date('2026-06-01T00:30:00Z'))).toBeUndefined();
+    });
+
+    // Multi-asset log rows: overflow/page boundaries must cut on logId groups, never mid-snapshot by array index.
+    it('keeps every asset of a multi-asset log when maxRows=1 (no mid-group cut on logId)', async () => {
+      const r1 = financialLog(new Date('2026-06-01T00:00:00Z'), {
+        '5': { priceChf: 1 },
+        '6': { priceChf: 2 },
+      });
+      const r2 = financialLog(new Date('2026-06-01T01:00:00Z'), { '7': { priceChf: 3 } });
+
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogAssetPrices')
+        .mockImplementation(fakeGetFinancialLogAssetPrices([r1, r2]));
+
+      const cache = await pagedService.preload(new Date('2026-06-01T00:00:00Z'), new Date('2026-06-01T03:00:00Z'));
+
+      // both logs fully present — slicing the flat projection at maxRows=1 would have dropped asset 6
+      expect(cache.getMarkAt(5, new Date('2026-06-01T00:30:00Z'))).toBe(1);
+      expect(cache.getMarkAt(6, new Date('2026-06-01T00:30:00Z'))).toBe(2);
+      expect(cache.getMarkAt(7, new Date('2026-06-01T01:30:00Z'))).toBe(3);
+      expect(spy.mock.calls.length).toBeGreaterThan(1);
+      // continuation cursor is a log id (number), not a flat result index
+      for (const call of spy.mock.calls) {
+        const afterArg = call[3];
+        if (afterArg !== undefined) expect(typeof afterArg).toBe('number');
+      }
     });
 
     // §5.2 precision fix: log.created is timestamp(6) in Postgres (microsecond precision) but JS `Date`
@@ -433,7 +577,9 @@ describe('LedgerMarkService', () => {
 
         // pagedService here = the pagination-backstop describe-block's service instance with
         // markPreloadMaxRows = 1 (see that block's beforeEach) - reuse it, do not rebuild a separate module.
-        const spy = jest.spyOn(logService, 'getFinancialLogs').mockImplementation(fakeGetFinancialLogs(rows));
+        const spy = jest
+          .spyOn(logService, 'getFinancialLogAssetPrices')
+          .mockImplementation(fakeGetFinancialLogAssetPrices(rows));
 
         const cache = await pagedService.preload(new Date(sameMs), new Date(sameMs));
 
@@ -442,10 +588,9 @@ describe('LedgerMarkService', () => {
         expect(cache.getMarkAt(7, new Date(sameMs))).toBe(3);
         expect(spy.mock.calls.length).toBeLessThan(10); // terminates - no infinite loop
 
-        // structural guarantee: the cursor argument passed to getFinancialLogs is always a plain id
-        // (number), never a Date - so there is no JS-truncated timestamp for the DB to compare at all.
+        // structural guarantee: the cursor argument is always a plain log id (number), never a Date
         for (const call of spy.mock.calls) {
-          const afterArg = call[4];
+          const afterArg = call[3];
           if (afterArg !== undefined) expect(typeof afterArg).toBe('number');
         }
       });
@@ -480,7 +625,9 @@ describe('LedgerMarkService', () => {
       const r3 = financialLog(sameCreated, { '7': { priceChf: 3 } });
       const r4 = financialLog(new Date('2026-06-01T18:00:00Z'), { '8': { priceChf: 4 } });
 
-      const spy = jest.spyOn(logService, 'getFinancialLogs').mockImplementation(fakeGetFinancialLogs([r1, r2, r3, r4]));
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogAssetPrices')
+        .mockImplementation(fakeGetFinancialLogAssetPrices([r1, r2, r3, r4]));
 
       const cache = await pagedService.preload(batchStart, to);
 
@@ -493,7 +640,7 @@ describe('LedgerMarkService', () => {
       expect(spy.mock.calls.length).toBeLessThan(10);
     });
 
-    // Overflow reuse: probe reads maxRows+1, reuses first maxRows as page 1, continues from that last id.
+    // Overflow reuse: probe reads maxRows+1, reuses first maxRows complete log groups as page 1, continues from that last logId.
     // Without reuse: 1 probe + 3 pages = 4 calls. With reuse: 1 probe + 2 continuation pages = 3.
     it('reuses the overflow probe as page 1 (no double-read of the first maxRows rows)', async () => {
       const batchStart = new Date('2026-06-01T00:00:00Z');
@@ -505,8 +652,8 @@ describe('LedgerMarkService', () => {
       const r5 = financialLog(new Date('2026-06-01T05:00:00Z'), { '5': { priceChf: 50 } });
 
       const spy = jest
-        .spyOn(logService, 'getFinancialLogs')
-        .mockImplementation(fakeGetFinancialLogs([r1, r2, r3, r4, r5]));
+        .spyOn(logService, 'getFinancialLogAssetPrices')
+        .mockImplementation(fakeGetFinancialLogAssetPrices([r1, r2, r3, r4, r5]));
 
       const cache = await pagedService.preload(batchStart, to);
 
@@ -522,7 +669,8 @@ describe('LedgerMarkService', () => {
   });
 
   // dailySample=true pagination path: span > threshold so both getFinancialLogs branches' cursor logic is exercised
-  // under overflow (maxRows small enough that multi-page keyset runs).
+  // under overflow (maxRows small enough that multi-page keyset runs). Stays on getFinancialLogs (no dailySample
+  // parameter on getFinancialLogAssetPrices) — rare long-window path only.
   describe('pagination with dailySample=true (span > markPreloadDailySampleThresholdDays)', () => {
     let pagedService: LedgerMarkService;
 
