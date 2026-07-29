@@ -3,9 +3,11 @@ import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Ma
 import { GsTriggerType } from 'src/subdomains/generic/gs/dto/gs-trigger-type.enum';
 
 export class DbQueryBaseDto {
-  // The character class rejects control characters at the edge, so they can never reach a
-  // Postgres error, a stack trace or any log line that bypasses `Util.sanitizeLogValue` —
-  // `table` is interpolated into the query builder, so its value can surface in DB errors.
+  // The character class keeps control characters out of `table`, which is interpolated into
+  // the query builder and can therefore surface in a Postgres error — and from there in a
+  // stack trace, which the logger appends without sanitizing. Note this does not close that
+  // path in general: `sortColumn`, `select`, `where` and `join` reach the same builder and
+  // carry SQL fragments, so they cannot be restricted the same way.
   @IsNotEmpty()
   @IsString()
   @MaxLength(256)
