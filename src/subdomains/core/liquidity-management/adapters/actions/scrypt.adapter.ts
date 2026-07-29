@@ -42,8 +42,8 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
  * How long an acknowledged order may stay unobservable before it is quarantined rather than polled again.
  *
  * Matches the age at which the venue lookup itself gives up on finding an order, so both routes out of a
- * silent order agree. Quarantine is not a verdict — the order is still not declared failed — it only moves it
- * somewhere a human can act on.
+ * silent order agree. Quarantine is not a verdict — the order is still not declared failed here — it only
+ * moves it somewhere a human can act on, or where the caller's own abandon bound eventually gives it up.
  */
 const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 60;
 
@@ -419,8 +419,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    *
    * Ordered by the attempt suffix rather than by storage order, so it does not depend on how the list was
    * assembled. Deliberately does NOT include the next reference: that one has not been sent, and looking for
-   * it would stop the search on an absence that means nothing — leaving the reference that WAS sent unchecked
-   * and the order quarantined for good.
+   * it would stop the search on an absence that means nothing — leaving the reference that WAS sent
+   * unchecked, and the order quarantined until its abandon bound gives up on a request that may well be
+   * live.
    */
   private attemptedReferencesNewestFirst(order: LiquidityManagementOrder): CorrelationId[] {
     return [...order.allCorrelationIds].sort((a, b) => this.attemptNumber(order, b) - this.attemptNumber(order, a));
@@ -585,17 +586,20 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     // acted on them. Both become unknown outcomes.
     //
     // Over-classifying costs an operator a look at the venue; under-classifying is what moved money without
-    // a record. Since absence at the venue is not proof, such an order waits for a human rather than
-    // resolving itself — deliberately the expensive direction, because the cheap one is the dangerous one.
+    // a record. Since absence at the venue is not proof, such an order waits — for a human, or for its
+    // abandon bound to run out — rather than resolving itself here, deliberately the expensive direction,
+    // because the cheap one is the dangerous one.
     return new OrderOutcomeUnknownException(`Scrypt gave no confirmed outcome for the ${description}: ${e.message}`);
   }
 
   /**
    * Ask Scrypt what happened to a quarantined order. Observes only — never re-sends.
    *
-   * Can only ever confirm a positive: Scrypt has no terminal "this reference was never accepted" reply, so
-   * a missing record leaves the order quarantined — released by a human if one looks, and otherwise given
-   * up automatically once the caller's bound decides the request can no longer be live.
+   * An absence can only ever confirm a positive: Scrypt has no terminal "this reference was never accepted"
+   * reply, so a missing record leaves the order quarantined — released by a human if one looks, and
+   * otherwise given up automatically once the caller's bound decides the request can no longer be live. An
+   * explicit rejection of every attempted reference is the one negative that does settle, and returns
+   * NOT_SENT.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
     const { correlationId } = order;

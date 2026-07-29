@@ -411,8 +411,8 @@ export class LiquidityManagementPipelineService {
             anyChanged = true;
         } else if (resolution === UncertainOrderResolution.UNRESOLVED && order.unresolvableTooLong()) {
           // The venue has been answering "no record" past the point this request could still be live, and no
-          // operator has released the order. The
-          // original design waited here indefinitely, which is only safe if somebody eventually looks — where
+          // operator has released the order. The original design waited here indefinitely, which is only
+          // safe if somebody eventually looks — where
           // nobody does, the rule never runs again and the venue stops being served entirely. Abandoning is
           // the lesser failure, and it is safe for a reason that has nothing to do with this order: the rule
           // replans from the venue's current balance, so an execution that did happen is already reflected
@@ -464,8 +464,8 @@ export class LiquidityManagementPipelineService {
    * had no record rather than that nothing was sent: the row must not claim an observation nobody made.
    *
    * Logged as a warning, not an info. Nothing here is routine — an order reaching this point means the venue
-   * lost track of a request for hours — and the entry is what makes that visible without an operator having
-   * to be the mechanism that unblocks it.
+   * lost track of a request past its bound, minutes for a trade and hours for a transfer — and the entry is
+   * what makes that visible without an operator having to be the mechanism that unblocks it.
    */
   private async abandonUnresolvableOrder(order: LiquidityManagementOrder): Promise<boolean> {
     const because = 'the venue has had no record of it past the point its request could still be live';
@@ -686,9 +686,11 @@ export class LiquidityManagementPipelineService {
    * Release a quarantined order by hand, after somebody checked the venue directly.
    *
    * Reconciliation can only ever confirm that a reference exists; it never concludes the opposite, because
-   * no venue reply proves "this was never accepted". Without this path a genuinely unsent request would
-   * block its rule forever. Guarded like the payout subdomain's retry: the caller must assert the check and
-   * name where it happened, and the assertion is recorded on the order.
+   * no venue reply proves "this was never accepted". An order that can at least be looked up is given up on
+   * its own once its bound expires, so this path is what keeps the rest moving: orders no integration can
+   * look up, and venues that never answer, which nothing here would otherwise release. Guarded like the
+   * payout subdomain's retry: the caller must assert the check and name where it happened, and the
+   * assertion is recorded on the order.
    */
   async resolveUncertainOrderManually(
     orderId: number,

@@ -234,17 +234,37 @@ describe('LiquidityManagementPipelineService', () => {
       stubIntegration(resolution);
     }
 
-    it('abandons a trade the venue has had no record of past its bound, so its rule is not blocked forever', async () => {
-      // the failure this prevents: nobody releases the order by hand, so it stays UNCERTAIN indefinitely
-      // and the rule behind it never plans again — the venue silently stops being served
+    // both allowlist entries, so dropping or mistyping either one is caught
+    it.each(['sell', 'buy'])(
+      'abandons a %s the venue has had no record of past its bound, so its rule is not blocked forever',
+      async (command) => {
+        // the failure this prevents: nobody releases the order by hand, so it stays UNCERTAIN indefinitely
+        // and the rule behind it never plans again — the venue silently stops being served
+        const order = agedOrder(30, command);
+        expectResolution(order, UncertainOrderResolution.UNRESOLVED);
+
+        await service['resolveUncertainOrders']();
+
+        expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+        // the record must not claim an observation nobody made
+        expect(order.errorMessage).toContain('no record of it');
+      },
+    );
+
+    it('lets a human release win over the clock when both would apply', async () => {
+      // an operator checked the venue and recorded why; the abandon knows nothing and would overwrite that
+      // reason with an anonymous one. The branch order guarantees the release wins — assert it, so that
+      // reordering the chain later cannot silently swap an audited verdict for a clock.
       const order = agedOrder(30);
+      order.notSentRecheckDue = RELEASED_AT;
+      order.errorMessage = 'Scrypt did not answer (released by account 42: venue checked — ticket OPS-42)';
       expectResolution(order, UncertainOrderResolution.UNRESOLVED);
 
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
-      // the record must not claim an observation nobody made
-      expect(order.errorMessage).toContain('no record of it');
+      expect(order.errorMessage).toContain('the venue has no record of it either');
+      expect(order.errorMessage).not.toContain('abandoned');
     });
 
     it('keeps a trade quarantined inside its bound — the slowest observed trade took under a minute', async () => {
