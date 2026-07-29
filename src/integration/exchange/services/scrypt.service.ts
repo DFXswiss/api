@@ -886,9 +886,11 @@ export class ScryptService extends PricingProvider {
       // the order's LAST KNOWN state, so a partially filled order that could not be cancelled reports a
       // fill while remaining wide open — reading the fill alone would call that finished and let the
       // caller walk away from a reference that can still trade.
-      const terminal = report.OrdStatus === ScryptOrderStatus.CANCELED || report.OrdStatus === ScryptOrderStatus.FILLED;
-
-      if (terminal) {
+      //
+      // Which states are terminal is decided in one place for this venue, not restated here: a rejected
+      // order is just as final as a cancelled one, and a second list would be free to disagree with the
+      // first — leaving an order that provably cannot trade stuck for want of being recognised.
+      if (this.isTerminalExecutionReport(report)) {
         if (filled > 0) {
           this.logger.warn(
             `Cancel of order ${clOrdId} came back terminal with ${report.CumQty} already filled — it executed, and the fill has to be reconciled against the venue balance`,

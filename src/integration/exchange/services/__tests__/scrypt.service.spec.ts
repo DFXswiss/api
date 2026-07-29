@@ -864,6 +864,17 @@ describe('ScryptService', () => {
       );
     });
 
+    it.each([
+      ['nothing filled', '0', ScryptCancellation.SETTLED],
+      ['a fill', '40', ScryptCancellation.EXECUTED],
+    ])('treats a rejected order with %s as terminal too', async (_label, cumQty, expected) => {
+      // a rejected order is as final as a cancelled one; a second opinion on what counts as terminal would
+      // be free to disagree with the first and leave such an order stuck
+      stubCancel(cancelReport({ OrdStatus: ScryptOrderStatus.REJECTED, CumQty: cumQty }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(expected);
+    });
+
     it('settles nothing when a refused cancel reports a fill — the order is still open', async () => {
       // a refusal carries the order's last known state, so a partially filled order that could NOT be
       // cancelled reports a fill while remaining live. Reading the fill alone would call it finished and
