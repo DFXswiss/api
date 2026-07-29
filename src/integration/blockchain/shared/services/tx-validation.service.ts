@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BigNumber, ethers } from 'ethers';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { SolanaTransactionDto } from '../../solana/dto/solana.dto';
 import { EvmUtil } from '../evm/evm.util';
 
 export interface TxValidationResult {
@@ -78,6 +79,40 @@ export class TxValidationService {
     const amount = parsedTx.value;
 
     return { recipient, amount };
+  }
+
+  // Solana transfer verification: match at least one destination in the tx that pays the expected
+  // owner + asset + amount. `SolanaTransactionDto.destinations[].to` carries the recipient's wallet
+  // OWNER address for both native SOL and SPL transfers (SolanaClient.getTokenInstructions +
+  // updateTokenInstruction resolve to `owner`, not the ATA), so the same owner-equality check
+  // works for both. The mint disambiguates SPL from SOL and enforces the correct asset. Overpayment
+  // is accepted (mirrors validateParsedTransaction); underpayment / wrong owner / wrong mint fails.
+  // Fixes BUG-1260 (Solana anon payment completion accepted any finalized tx).
+  validateSolanaTransaction(
+    tx: SolanaTransactionDto,
+    expectedOwner: string,
+    expectedAmount: number,
+    expectedAsset: Asset,
+  ): TxValidationResult {
+    try {
+      const isCoin = expectedAsset.type === AssetType.COIN;
+      const expectedMint = isCoin ? undefined : expectedAsset.chainId;
+
+      if (!isCoin && !expectedMint) throw new Error('Asset has no chainId (mint address)');
+
+      const match = tx.destinations.find((d) => {
+        if (isCoin) return !d.tokenInfo && d.to === expectedOwner;
+        return d.tokenInfo?.address === expectedMint && d.to === expectedOwner;
+      });
+
+      if (!match) throw new Error(`No transfer to ${expectedOwner} for ${expectedAsset.name} found`);
+      if (match.amount < expectedAmount)
+        throw new Error(`Insufficient amount: expected ${expectedAmount}, got ${match.amount}`);
+
+      return { isValid: true, sender: tx.from?.[0] };
+    } catch (e) {
+      return { isValid: false, error: e.message };
+    }
   }
 
   private parseErc20Transfer(
