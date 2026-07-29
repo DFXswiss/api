@@ -118,16 +118,12 @@ export class PaymentLinkPaymentService {
     });
   }
 
-  async getPaymentByExternalId(externalPaymentId: string): Promise<PaymentLinkPayment | null> {
+  // externalPaymentId is a merchant-supplied reconciliation identifier and is NOT unique across
+  // merchants; scope the lookup to a link the caller has already been authorized against, or the
+  // response leaks foreign merchants' payment records (BUG-1289).
+  async getPaymentByExternalId(linkId: number, externalPaymentId: string): Promise<PaymentLinkPayment | null> {
     return this.paymentLinkPaymentRepo.findOne({
-      where: { externalId: externalPaymentId },
-    });
-  }
-
-  async getAllPaymentsByExternalLinkId(externalPaymentId: string): Promise<PaymentLinkPayment[]> {
-    return this.paymentLinkPaymentRepo.find({
-      where: { externalId: externalPaymentId },
-      relations: { link: { route: { user: { userData: true } } } },
+      where: { externalId: externalPaymentId, link: { id: linkId } },
     });
   }
 

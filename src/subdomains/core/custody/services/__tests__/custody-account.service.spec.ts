@@ -530,7 +530,7 @@ describe('CustodyAccountService', () => {
       );
     });
 
-    it('keeps the legacy entry when the only other visible account is read-only', async () => {
+    it('drops the empty legacy entry when the only other visible account is read-only', async () => {
       const foreignAccount = foreignCustodyAccount();
       const readOnlyGrant = accessGrant({
         account: foreignAccount,
@@ -541,14 +541,37 @@ describe('CustodyAccountService', () => {
       const custodyUserId = 55;
       userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
       mockFindActiveGrants([readOnlyGrant]);
+      custodyService.hasNonZeroCustodyBalance.mockResolvedValue(false);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      // The operator-side viewer: read access on someone else's account, own Safe empty. The
+      // empty entry goes, and with it the only writable one — see the note on the branch.
+      expect(result).toHaveLength(1);
+      expect(result.some((dto) => dto.isLegacy)).toBe(false);
+      expect(custodyService.hasNonZeroCustodyBalance).toHaveBeenCalledWith([custodyUserId]);
+    });
+
+    it('keeps the legacy entry when the only other visible account is read-only but the Safe holds a balance', async () => {
+      const foreignAccount = foreignCustodyAccount();
+      const readOnlyGrant = accessGrant({
+        account: foreignAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.READ,
+        active: true,
+      });
+      const custodyUserId = 55;
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
+      mockFindActiveGrants([readOnlyGrant]);
+      custodyService.hasNonZeroCustodyBalance.mockResolvedValue(true);
 
       const result = await service.getCustodyAccountsForUser(ownerId);
 
       expect(result).toHaveLength(2);
       expect(result.some((dto) => dto.isLegacy)).toBe(true);
-      // A read-only grant elsewhere cannot substitute for the legacy Safe — checkAccess()
-      // rejects any write on a Read account, so the balance is never even queried here.
-      expect(custodyService.hasNonZeroCustodyBalance).not.toHaveBeenCalled();
+      // Asserting the call is what makes this test about the fix: without it the case would
+      // pass under the old write-access rule too, where the balance was never consulted here.
+      expect(custodyService.hasNonZeroCustodyBalance).toHaveBeenCalledWith([custodyUserId]);
     });
 
     it('drops the empty legacy entry when the user has write access elsewhere', async () => {
