@@ -514,6 +514,8 @@ describe('ScryptAdapter', () => {
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(true);
+      // an abandoned order books no output, so the reference that filled has to be named somewhere
+      expect(order.errorMessage).toContain('dfx-lm-4711-1');
     });
 
     it('never cancels a withdrawal — there is no such thing at this venue', async () => {

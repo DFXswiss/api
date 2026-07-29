@@ -859,18 +859,19 @@ export class ScryptService extends PricingProvider {
    * Three outcomes, because a cancel does not only ever mean "nothing happened":
    *  - SETTLED — cancelled with nothing filled, or the venue does not know the reference at all. Both mean
    *    nothing can execute under it, which is the certainty the caller needs to give the order up.
-   *  - EXECUTED — it filled, in whole or in part. A partially filled order cancels with a terminal status
-   *    AND a CumQty above zero, and calling that settled would drop a real fill: the order has to be
-   *    completed for what it did, not abandoned as if it had done nothing.
+   *  - EXECUTED — it reached a terminal state with something filled. Like a cancelled reference it cannot
+   *    trade further, so the caller may give the order up; the fill has already moved the venue balance
+   *    that the rule replans from. Reported separately from SETTLED because "something happened here" is
+   *    worth seeing in a log and worth reconciling against.
+   *
+   *    Terminal is the operative word: a refused cancel carries the order's last known state, so a
+   *    partially filled order that could NOT be cancelled reports a fill while staying wide open.
    *  - UNCONFIRMED — no usable answer. Nothing may be concluded from it.
    */
   async cancelIfOutstanding(clOrdId: string, from: string, to: string): Promise<ScryptCancellation> {
     try {
       const report = await this.cancelOrder(clOrdId, from, to);
 
-      // A fill is a fill, whatever the order's final state says. Checked before the status, because the
-      // partially-filled case reports BOTH a terminal Canceled and a non-zero fill, and the fill is the
-      // half that moves money.
       const filled = Number(report.CumQty);
 
       // An unreadable quantity is not a zero one. Concluding "nothing filled" from a value that could not
@@ -881,15 +882,23 @@ export class ScryptService extends PricingProvider {
         return ScryptCancellation.UNCONFIRMED;
       }
 
-      if (filled > 0) {
-        this.logger.warn(
-          `Cancel of order ${clOrdId} came back with ${report.CumQty} already filled — it executed and cannot be abandoned`,
-        );
+      // Only a terminal state answers the question this method asks. A refused cancel comes back carrying
+      // the order's LAST KNOWN state, so a partially filled order that could not be cancelled reports a
+      // fill while remaining wide open — reading the fill alone would call that finished and let the
+      // caller walk away from a reference that can still trade.
+      const terminal = report.OrdStatus === ScryptOrderStatus.CANCELED || report.OrdStatus === ScryptOrderStatus.FILLED;
 
-        return ScryptCancellation.EXECUTED;
+      if (terminal) {
+        if (filled > 0) {
+          this.logger.warn(
+            `Cancel of order ${clOrdId} came back terminal with ${report.CumQty} already filled — it executed, and the fill has to be reconciled against the venue balance`,
+          );
+
+          return ScryptCancellation.EXECUTED;
+        }
+
+        return ScryptCancellation.SETTLED;
       }
-
-      if (report.OrdStatus === ScryptOrderStatus.CANCELED) return ScryptCancellation.SETTLED;
 
       // The venue answers a refused cancel with an execution report rather than a separate message. It
       // does not know this reference, so there is nothing under it that could ever execute — every other

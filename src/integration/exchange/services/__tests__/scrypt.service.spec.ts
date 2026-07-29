@@ -864,6 +864,31 @@ describe('ScryptService', () => {
       );
     });
 
+    it('settles nothing when a refused cancel reports a fill — the order is still open', async () => {
+      // a refusal carries the order's last known state, so a partially filled order that could NOT be
+      // cancelled reports a fill while remaining live. Reading the fill alone would call it finished and
+      // let the caller walk away from a reference that can still trade.
+      stubCancel(
+        cancelReport({
+          OrdStatus: ScryptOrderStatus.PARTIALLY_FILLED,
+          ExecType: 'CancelRejected',
+          CxlRejReason: 'TooLateToCancel',
+          CumQty: '40',
+          LeavesQty: '60',
+        }),
+      );
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('reports a fully filled order as executed', async () => {
+      stubCancel(cancelReport({ OrdStatus: ScryptOrderStatus.FILLED, CumQty: '100', LeavesQty: '0' }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.EXECUTED);
+    });
+
     it('settles nothing when the filled size cannot be read — that is not a zero', async () => {
       stubCancel(cancelReport({ CumQty: undefined as unknown as string }));
 

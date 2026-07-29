@@ -273,6 +273,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * quarantined, because the funds a rule would get back are the same funds that reference could still
    * spend. Withdrawals are not cancellable this way and are left alone — they take the caller's ordinary
    * route instead.
+   *
+   * The replan that follows reads the venue's balance, which is pushed rather than polled, so a fill that
+   * has only just landed may not be in it yet. In practice that push follows a fill within seconds and the
+   * abandoned order is the slower half of the race, but it is a window rather than a guarantee — worth
+   * knowing if a rule is ever seen planning against a balance that looks one fill stale.
    */
   async cancelOutstanding(order: LiquidityManagementOrder): Promise<boolean> {
     if (order.action.command === ScryptAdapterCommands.WITHDRAW) return false;
@@ -288,14 +293,23 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const asset = order.pipeline.rule.targetAsset.dexName;
     const [from, to] = order.action.command === ScryptAdapterCommands.SELL ? [asset, tradeAsset] : [tradeAsset, asset];
 
+    const executed: CorrelationId[] = [];
+
     for (const reference of references) {
       const outcome = await this.scryptService.cancelIfOutstanding(reference, from, to);
 
       // Cancelled and executed both answer the only question that matters here: can this reference still
-      // execute? It cannot — one because it was called off, the other because it already ran. An order that
-      // filled is not a reason to hold on; the fill is in the venue's balance, and the balance is what the
-      // rule replans from, so it plans for what is actually left rather than for what this row believed.
-      if (outcome === ScryptCancellation.SETTLED || outcome === ScryptCancellation.EXECUTED) continue;
+      // execute? It cannot — one because it was called off, the other because it ran to a terminal state.
+      // A fill is not a reason to hold on: it is already in the venue's balance, and that balance is what
+      // the rule replans from, so it plans for what is actually left rather than for what this row
+      // believed. Which reference filled is recorded on the order below, since the row itself no longer
+      // carries that after being abandoned.
+      if (outcome === ScryptCancellation.SETTLED) continue;
+
+      if (outcome === ScryptCancellation.EXECUTED) {
+        executed.push(reference);
+        continue;
+      }
 
       this.logger.warn(
         `Order ${order.id}: Scrypt would not settle ${reference}, so it may still execute — keeping the order quarantined`,
@@ -304,7 +318,16 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return false;
     }
 
-    this.logger.info(`Order ${order.id}: Scrypt confirmed none of its references can execute any more`);
+    // Which reference filled is the one thing an abandoned order can no longer say for itself — its status
+    // becomes FAILED and it books no output. The venue's own transaction record carries the money side, but
+    // tying that back to this row afterwards needs the reference named somewhere, so name it here.
+    if (executed.length) order.errorMessage = `${order.errorMessage} (executed at Scrypt under ${executed.join(', ')})`;
+
+    this.logger.info(
+      `Order ${order.id}: Scrypt confirmed none of its references can execute any more${
+        executed.length ? `; ${executed.join(', ')} had filled` : ''
+      }`,
+    );
 
     return true;
   }

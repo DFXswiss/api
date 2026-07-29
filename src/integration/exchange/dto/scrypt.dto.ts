@@ -115,14 +115,18 @@ export enum ScryptOrderSide {
 /**
  * What asking the venue to cancel a reference established about it.
  *
- * Three outcomes, not two, because "cancelled" does not mean "nothing happened": the venue reports a
- * partially filled order that gets cancelled with a terminal Canceled status AND a CumQty above zero, and
- * treating that as settled would drop a real fill on the floor.
+ * Three outcomes, not two, because "cancelled" does not mean "nothing happened": a partially filled order
+ * is cancelled with a terminal status AND a fill, and that fill is worth naming rather than folding into
+ * the same answer as an untouched one.
  */
 export enum ScryptCancellation {
   /** Nothing can execute under this reference any more: cancelled with nothing filled, or unknown here. */
   SETTLED = 'Settled',
-  /** It executed, in whole or in part. The order is not "never sent" and must be completed, not abandoned. */
+  /**
+   * It reached a terminal state with something filled. Like a cancelled reference it cannot trade further,
+   * so the order may be given up — the fill already moved the venue balance the rule replans from. Kept
+   * distinct from SETTLED because a fill is worth seeing in a log and worth reconciling against.
+   */
   EXECUTED = 'Executed',
   /** No usable answer. Nothing may be concluded, least of all that the reference is safe to walk away from. */
   UNCONFIRMED = 'Unconfirmed',
