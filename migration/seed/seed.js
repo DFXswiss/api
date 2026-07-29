@@ -323,6 +323,10 @@ async function main() {
   ]);
 
   // Bank (required for payment processing)
+  // receivePriority must be seeded: the deposit selector skips any bank left at NULL, so omitting it
+  // here would leave a freshly seeded database without a single eligible deposit target. An empty CSV
+  // cell seeds NULL, which is how the dormant Bank Frick rows stay ineligible - the same split the
+  // AddBankReceivePriority migration applies to an existing database.
   const bankData = parseCSV(path.join(seedDir, 'bank.csv'));
   await seedTable(client, 'bank', bankData, [
     'id',
@@ -334,6 +338,7 @@ async function main() {
     'send',
     'sctInst',
     'amlEnabled',
+    'receivePriority',
   ]);
 
   // Fix fiat priceRuleId links (always run to ensure consistency)
