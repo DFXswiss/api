@@ -381,6 +381,22 @@ describe('UserDataService', () => {
       expect(kycLogService.createMailChangeLog).toHaveBeenCalledWith(userData, 'old@example.com', 'new@example.com');
     });
 
+    it('writes no log when the stored address differs only in case', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.ACTIVE,
+        mail: 'User@Example.com',
+        users: [],
+      });
+
+      userDataRepo.find.mockResolvedValue([]);
+
+      await service.trySetUserMail(userData, 'user@example.com');
+
+      expect(kycLogService.createMailChangeLog).not.toHaveBeenCalled();
+      expect(userDataRepo.update).toHaveBeenCalledWith(userData.id, { mail: 'user@example.com' });
+    });
+
     it('writes no log for an initial assignment, which is not a change', async () => {
       const userData = Object.assign(new UserData(), {
         id: 397899,
@@ -497,6 +513,46 @@ describe('UserDataService', () => {
       await service.verifyUserMail(userData, secret);
 
       expect(userDataRepo.update).toHaveBeenCalledWith(userData.id, { mail: 'new@example.com' });
+    });
+  });
+
+  describe('processCleanupMailSecretCache', () => {
+    const buildUserData = (): UserData =>
+      Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.ACTIVE,
+        mail: 'old@example.com',
+        users: [],
+      });
+
+    // the Util spies below are on a static class and would otherwise leak into the next test
+    afterEach(() => jest.restoreAllMocks());
+
+    it('evicts an entry whose expiry has passed', async () => {
+      const userData = buildUserData();
+      jest.spyOn(Util, 'minutesAfter').mockReturnValue(new Date(Date.now() - 1000));
+      userDataRepo.find.mockResolvedValue([]);
+      jest.spyOn(Util, 'randomIdString').mockReturnValue('123456');
+
+      await service.updateUserMail(userData, { mail: 'new@example.com' }, '1.2.3.4');
+
+      expect(service['secretCache'].size).toBe(1);
+
+      service.processCleanupMailSecretCache();
+
+      expect(service['secretCache'].size).toBe(0);
+    });
+
+    it('keeps an entry that is still within its window', async () => {
+      const userData = buildUserData();
+      userDataRepo.find.mockResolvedValue([]);
+      jest.spyOn(Util, 'randomIdString').mockReturnValue('123456');
+
+      await service.updateUserMail(userData, { mail: 'new@example.com' }, '1.2.3.4');
+
+      service.processCleanupMailSecretCache();
+
+      expect(service['secretCache'].size).toBe(1);
     });
   });
 

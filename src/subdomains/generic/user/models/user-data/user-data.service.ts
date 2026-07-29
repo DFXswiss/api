@@ -879,9 +879,11 @@ export class UserDataService {
     mail = mail?.toLowerCase();
 
     // Logged before the column is overwritten, so a failed log write leaves the old address in place
-    // (CONTRIBUTING, "Auditable mutations"). A null oldMail is an initial assignment, not a change.
+    // (CONTRIBUTING, "Auditable mutations"). A null oldMail is an initial assignment, and a legacy
+    // row that differs only in case is a normalisation — neither is a change worth logging.
     const oldMail = userData.mail;
-    if (oldMail) await this.kycLogService.createMailChangeLog(userData, oldMail, mail);
+    if (oldMail && !Util.equalsIgnoreCase(oldMail, mail))
+      await this.kycLogService.createMailChangeLog(userData, oldMail, mail);
 
     await this.userDataRepo.update(userData.id, { mail });
     Object.assign(userData, { mail });
