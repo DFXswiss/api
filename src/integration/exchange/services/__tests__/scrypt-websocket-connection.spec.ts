@@ -461,7 +461,7 @@ describe('ScryptWebSocketConnection', () => {
     expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/closed.*scheduling reconnect/));
   });
 
-  it('disconnect() resets hasEverConnected so a later re-subscribe sends only one SUBSCRIBE (finding 2 — no double-send on reuse)', async () => {
+  it('disconnect() clears activeStreams so a later re-subscribe sends only one SUBSCRIBE (finding 2 — no double-send on reuse)', async () => {
     const streamName = ScryptMessageType.BALANCE_TRANSACTION;
     await firstConnectWithStream(streamName);
 
@@ -1147,10 +1147,30 @@ describe('ScryptWebSocketConnection', () => {
       await flushPromises();
       expect((connection as any).isReconnecting).toBe(true);
 
+      const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
       await fireReconnectAttempt(0);
 
       expect(loggerInfo).not.toHaveBeenCalledWith(expect.stringMatching(/reconnected/));
-      expect((connection as any).isReconnecting).toBe(true); // still armed rather than falsely healed
+      expect((connection as any).isReconnecting).toBe(true);
+      // Staying armed is not enough: the loop must actually have a live timer. Dropping the reschedule here
+      // would leave isReconnecting true with nothing pending, and no path re-arms it — a permanent outage
+      // that "still armed" alone cannot tell apart from a healthy loop.
+      expect(scheduleSpy).toHaveBeenCalledWith(1, expect.any(Number));
+      expect(jest.getTimerCount()).toBe(1);
+
+      // And it heals for real once the close event finally lands.
+      ws.remoteClose(1006, 'late close');
+      await fireReconnectAttempt(1);
+      const healedWs = latestWs();
+      healedWs.open();
+      await flushPromises();
+
+      expect((connection as any).isReconnecting).toBe(false);
+      expect(
+        subscribeMessages(healedWs)
+          .map((msg: any) => msg.streams[0].name)
+          .sort(),
+      ).toEqual([ScryptMessageType.BALANCE_TRANSACTION, ScryptMessageType.SECURITY].sort());
     });
 
     it('keeps a live subscribe claim when an overlapping earlier call settles', async () => {
@@ -1174,6 +1194,30 @@ describe('ScryptWebSocketConnection', () => {
 
       expect(subscribeMessages(secondWs)).toHaveLength(1);
       expect(onReconnect).not.toHaveBeenCalled();
+    });
+
+    it('a claim left behind by disconnect() does not suppress a later restore', async () => {
+      connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const abandonedWs = latestWs(); // never opens; its subscribe() stays in flight behind the handshake timeout
+
+      await connection.disconnect();
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const liveWs = latestWs();
+      liveWs.open();
+      await flushPromises();
+      expect(subscribeMessages(liveWs)).toHaveLength(1);
+
+      // Drop the live socket well inside the abandoned attempt's 15s handshake timeout, so its claim would
+      // still be outstanding if disconnect() had left it behind.
+      liveWs.remoteClose(1006, 'gone');
+      await fireReconnectAttempt(0);
+      const restoredWs = latestWs();
+      expect(restoredWs).not.toBe(abandonedWs);
+      restoredWs.open();
+      await flushPromises();
+
+      expect(subscribeMessages(restoredWs)).toHaveLength(1); // restored, not skipped as "someone else's"
     });
 
     it('does not schedule reconnects for a URL it cannot parse', async () => {

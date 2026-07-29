@@ -926,10 +926,18 @@ describe('ScryptService', () => {
         .results[0].value as { subscribeToStream: jest.Mock; fetchAll: jest.Mock; onReconnect: jest.Mock };
 
       expect(unconfigured.isConfigured).toBe(false);
-      // Every connect attempt would die synchronously in new URL() and the backoff loop would retry it forever.
+      // Nothing is opened at all: no warm-up fetch, no subscriptions, no reconnect machinery.
       expect(connection.subscribeToStream).not.toHaveBeenCalled();
       expect(connection.fetchAll).not.toHaveBeenCalled();
       expect(connection.onReconnect).not.toHaveBeenCalled();
+    });
+
+    it('is false for a non-empty url the client could never dial', () => {
+      scryptConfig.wsUrl = 'scrypt.example.com/ws'; // no scheme — new URL() throws on it
+
+      // Must take the loud "not configured" skip rather than registering everything and then failing
+      // identically on every attempt with nothing able to repair it.
+      expect(service.isConfigured).toBe(false);
     });
 
     it('is true when url and credentials are present', () => {

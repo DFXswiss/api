@@ -28,6 +28,7 @@ import {
 } from '../dto/scrypt.dto';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import {
+  isParseableWsUrl,
   isVenueRejection,
   ScryptAmendRejectedError,
   ScryptMessageType,
@@ -88,12 +89,13 @@ export class ScryptService extends PricingProvider {
 
   readonly name: string = 'Scrypt';
 
-  // wsUrl counts as configuration, not just the credentials: without it every connect attempt dies synchronously
-  // in `new URL()`, and since a failed attempt now arms the backoff loop that would retry forever without ever
-  // being able to succeed. An environment missing any of the three is unconfigured and must skip entirely.
+  // A dialable wsUrl counts as configuration, not just the credentials: an environment without one can never
+  // connect, so it skips warm-up and subscriptions entirely instead of registering everything and then failing
+  // identically on every attempt. Uses the same parse test as the connection, so "configured" cannot claim a
+  // URL the client would refuse to dial.
   get isConfigured(): boolean {
     const { wsUrl, apiKey, apiSecret } = GetConfig().scrypt;
-    return !!wsUrl && !!apiKey && !!apiSecret;
+    return isParseableWsUrl(wsUrl) && !!apiKey && !!apiSecret;
   }
 
   constructor() {

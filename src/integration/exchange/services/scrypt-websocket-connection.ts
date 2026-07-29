@@ -44,6 +44,21 @@ enum ScryptRequestType {
   CANCEL = 'cancel',
 }
 
+/**
+ * A URL the client can actually dial. Shared with ScryptService.isConfigured so that "configured" and
+ * "connectable" cannot drift apart: a non-empty but unparseable URL would otherwise pass the config guard,
+ * register every subscription, and then fail identically on every attempt with nothing able to fix it.
+ */
+export function isParseableWsUrl(url: string | undefined): boolean {
+  if (!url) return false;
+
+  try {
+    return !!new URL(url).host;
+  } catch {
+    return false;
+  }
+}
+
 export const TRANSIENT_WS_ERROR_MARKERS = ['Connection closed', 'unknown reqid'];
 
 export function isTransientWsError(e: Error): boolean {
@@ -169,9 +184,11 @@ export class ScryptWebSocketConnection {
   // Streams whose own subscribe() call is still awaiting connect(): it sends its SUBSCRIBE as soon as the
   // connect resolves, so establishConnection must NOT restore those (that would double-send). Everything else
   // in activeStreams is orphaned — nobody is waiting to send it — and only we can put it back on the socket.
-  // Counted, not a plain set: two calls can hold the same stream at once (one dying, one live), and a bare
-  // delete in the loser's finally would hand the winner's stream to resubscribeToStreams and double-send it.
-  private pendingOwnerSubscribes: Map<ScryptMessageType, number> = new Map();
+  // Claims are per CALL, not per stream: two calls can hold the same stream at once (one dying, one live), so
+  // each releases only its own token. A shared flag or count would let the loser's release free the winner's
+  // stream — resubscribeToStreams would then restore a stream whose owner is about to send it too.
+  private pendingOwnerSubscribes: Map<ScryptMessageType, Set<number>> = new Map();
+  private subscribeClaimSeq = 0;
   // Filters belong to the stream, not to the one call that first sent it: restoring a stream without them would
   // silently widen the subscription (#4310 finding H). Harmless while every subscription is unfiltered, but
   // restoring is now also the healing path for a first subscribe, so the trap is one filtered caller away.
@@ -322,9 +339,10 @@ export class ScryptWebSocketConnection {
     this.pendingRequests.clear();
     this.subscriptions.clear();
     this.activeStreams.clear();
-    // pendingOwnerSubscribes is deliberately NOT cleared: each claim is released by its own sendSubscription's
-    // finally. Dropping the counts here would let a call that outlives this disconnect lose its claim to a
-    // later one and have its stream sent twice. With activeStreams empty a lingering claim is inert anyway.
+    // Claims of superseded calls go with them. Leaving them would suppress the restore of a stream that a new
+    // subscribe re-registers before the old call finishes settling — which can take until its handshake times
+    // out. Safe because each call releases only its own token, so this cannot free a newer call's claim.
+    this.pendingOwnerSubscribes.clear();
     this.streamFilters.clear();
 
     if (this.ws) {
@@ -380,20 +398,21 @@ export class ScryptWebSocketConnection {
   }
 
   private isWsUrlParseable(): boolean {
-    try {
-      return !!new URL(this.wsUrl).host;
-    } catch {
-      return false;
-    }
+    return isParseableWsUrl(this.wsUrl);
   }
 
   // Streams that are supposed to be on the socket but have no subscribe() call waiting to send them.
   private hasOrphanedStreams(): boolean {
     for (const streamName of this.activeStreams) {
-      if (!this.pendingOwnerSubscribes.has(streamName)) return true;
+      if (!this.isStreamClaimed(streamName)) return true;
     }
 
     return false;
+  }
+
+  // True while at least one subscribe() call is still awaiting a connect for this stream and will send it itself.
+  private isStreamClaimed(streamName: ScryptMessageType): boolean {
+    return (this.pendingOwnerSubscribes.get(streamName)?.size ?? 0) > 0;
   }
 
   // Full readiness. Everything awaiting connect()/connectionPromise waits for ALL of this, so no caller can send
@@ -701,14 +720,20 @@ export class ScryptWebSocketConnection {
 
   private async sendSubscription(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<void> {
     // Claim the stream for the duration of the connect so a concurrent establishConnection leaves it to us.
-    this.pendingOwnerSubscribes.set(streamName, (this.pendingOwnerSubscribes.get(streamName) ?? 0) + 1);
+    const claim = ++this.subscribeClaimSeq;
+    const claims = this.pendingOwnerSubscribes.get(streamName) ?? new Set<number>();
+    claims.add(claim);
+    this.pendingOwnerSubscribes.set(streamName, claims);
+
     try {
       await this.ensureConnected();
       this.sendSubscriptionOnSocket(streamName, filters);
     } finally {
-      const held = this.pendingOwnerSubscribes.get(streamName) ?? 0;
-      if (held <= 1) this.pendingOwnerSubscribes.delete(streamName);
-      else this.pendingOwnerSubscribes.set(streamName, held - 1);
+      // Release only our own token: disconnect() may have dropped this claim and a newer call may have
+      // re-registered the same stream in the meantime.
+      const held = this.pendingOwnerSubscribes.get(streamName);
+      held?.delete(claim);
+      if (held && held.size === 0) this.pendingOwnerSubscribes.delete(streamName);
     }
   }
 
@@ -755,7 +780,7 @@ export class ScryptWebSocketConnection {
 
   private async resubscribeToStreams(): Promise<void> {
     for (const streamName of this.activeStreams) {
-      if (this.pendingOwnerSubscribes.has(streamName)) continue; // its subscribe() sends once this connect resolves
+      if (this.isStreamClaimed(streamName)) continue; // its subscribe() sends once this connect resolves
       try {
         // throws if the socket isn't open; caught + logged, kept for retry
         this.sendSubscriptionOnSocket(streamName, this.streamFilters.get(streamName));
