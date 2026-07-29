@@ -1669,8 +1669,7 @@ export class UserDataService {
       // kyc_log remain the durable audit trail if the process dies mid-effects.
       void this.runPostCommitMergeEffects(master, slave, effects, mergeCorrelation).catch((error) => {
         this.logger.critical(
-          `UserData merge post-commit effects task failed ` +
-            `(masterId=${master.id}, slaveId=${slave.id})`,
+          `UserData merge post-commit effects task failed ` + `(masterId=${master.id}, slaveId=${slave.id})`,
           error instanceof Error ? error : undefined,
         );
       });
