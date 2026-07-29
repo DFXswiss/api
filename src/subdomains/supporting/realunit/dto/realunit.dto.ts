@@ -86,7 +86,10 @@ export class AddressTypeUpdateDto {
 }
 
 export class HistoryEventDto {
-  @ApiProperty({ description: 'Unique id of the history event' })
+  // Derived from block number and log index, so it carries no information the already exposed txHash
+  // does not. Deliberately public: it is the stable key for deduplicating events across paginated
+  // pages. Treat it as opaque — the indexer, not this API, defines its format.
+  @ApiProperty({ description: 'Opaque unique id of the history event, stable across pages' })
   id: string;
 
   @ApiProperty({ description: 'Timestamp of the event' })

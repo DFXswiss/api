@@ -102,7 +102,12 @@ describe('RealUnitJobService', () => {
   it('should ignore non-transfer events', async () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
     mockHistory([
-      { id: 'history-25631176-470-approval', txHash: '0xApprovalTx', timestamp: settlementEvent.timestamp, approval: { value: '72' } },
+      {
+        id: 'history-25631176-470-approval',
+        txHash: '0xApprovalTx',
+        timestamp: settlementEvent.timestamp,
+        approval: { value: '72' },
+      },
     ]);
 
     await service.completeSettledQuotes();

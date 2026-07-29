@@ -12,7 +12,9 @@
  *
  * The column is set once by the settlement job together with `settlementTxId` (kept for the
  * block explorer link). A partial unique index enforces that each history event settles at most
- * one request, so a matching bug cannot assign the same event twice.
+ * one request, so a matching bug cannot assign the same event twice. Its name is the one
+ * TypeORM's DefaultNamingStrategy derives from table, column and WHERE clause, so a later schema
+ * diff recognizes the index declared on the entity instead of proposing a drop/recreate.
  *
  * There is intentionally no backfill. Requests completed before this change recorded only the
  * settlement tx hash; which transfer event of a batch tx they consumed is no longer recoverable.
@@ -23,19 +25,17 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddTransactionRequestSettlementEventId1785400000000 {
-  name = 'AddTransactionRequestSettlementEventId1785400000000';
+module.exports = class AddTransactionRequestSettlementEventId1785410000000 {
+  name = 'AddTransactionRequestSettlementEventId1785410000000';
 
   /**
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+    await queryRunner.query(`ALTER TABLE "transaction_request" ADD "settlementEventId" character varying(256)`);
     await queryRunner.query(
-      `ALTER TABLE "transaction_request" ADD "settlementEventId" character varying(256)`,
-    );
-    await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_transaction_request_settlementEventId" ON "transaction_request" ("settlementEventId") WHERE "settlementEventId" IS NOT NULL`,
+      `CREATE UNIQUE INDEX "IDX_5f35c62743bc1cb8919a615767" ON "transaction_request" ("settlementEventId") WHERE "settlementEventId" IS NOT NULL`,
     );
   }
 
@@ -44,7 +44,7 @@ module.exports = class AddTransactionRequestSettlementEventId1785400000000 {
    */
   async down(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "IDX_transaction_request_settlementEventId"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_5f35c62743bc1cb8919a615767"`);
     await queryRunner.query(`ALTER TABLE "transaction_request" DROP COLUMN "settlementEventId"`);
   }
 };
