@@ -102,6 +102,19 @@ describe('RealignStalePriceSourceConfig migration', () => {
     insertRule(42, null, 'islamic-coin', 'tether', 0.03);
   };
 
+  // A cross-check re-pointed by hand after this migration was written. Each case deviates from the
+  // expected configuration in exactly one column, so every predicate of the guard is load-bearing:
+  // drop any one of them and the corresponding case starts matching.
+  const singleColumnDeviations = (
+    asset: string,
+    reference: string,
+    limit: number,
+  ): { label: string; asset: string; reference: string; limit: number }[] => [
+    { label: 'a re-pointed check asset', asset: `${asset}X`, reference, limit },
+    { label: 'a re-pointed check reference', asset, reference: `${reference}X`, limit },
+    { label: 'a widened check tolerance', asset, reference, limit: limit + 0.02 },
+  ];
+
   const expectNoCheck = (id: number): void => {
     expect(rule(id).check1Source).toBeNull();
     expect(rule(id).check1Asset).toBeNull();
@@ -135,11 +148,16 @@ describe('RealignStalePriceSourceConfig migration', () => {
 
     it('is idempotent — a second run changes nothing', async () => {
       await migration.up({ query });
+      // Reset the timestamps the first run bumped, so the assertion cannot pass merely because both
+      // runs resolved NOW() to the same instant — an unguarded second run would rewrite them.
+      db.public.none(`UPDATE "price_rule" SET "updated" = '${EPOCH.toISOString()}'`);
       const afterFirst = rules();
 
       await migration.up({ query });
 
       expect(rules()).toEqual(afterFirst);
+      expect(rule(17).updated.getTime()).toBe(EPOCH.getTime());
+      expect(rule(42).updated.getTime()).toBe(EPOCH.getTime());
     });
 
     it('restores the original configuration on down', async () => {
@@ -178,6 +196,22 @@ describe('RealignStalePriceSourceConfig migration', () => {
       await migration.up({ query });
       await migration.down({ query });
 
+      expect(rules()).toEqual(before);
+    });
+  });
+
+  describe.each([
+    { id: 17, source: 'Binance', asset: 'MKR', reference: 'USDT', limit: 0.03 },
+    { id: 42, source: 'Kucoin', asset: 'ISLM', reference: 'USDT', limit: 0.03 },
+  ])('against a hand-modified rule $id', ({ id, source, asset, reference, limit }) => {
+    it.each(singleColumnDeviations(asset, reference, limit))('is left untouched when it has $label', async (d) => {
+      insertRule(id, source, d.asset, d.reference, d.limit);
+      const before = rules();
+
+      await migration.up({ query });
+      expect(rules()).toEqual(before);
+
+      await migration.down({ query });
       expect(rules()).toEqual(before);
     });
   });
