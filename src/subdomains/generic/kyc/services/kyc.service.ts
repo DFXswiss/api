@@ -276,7 +276,14 @@ export class KycService {
           entity.manualReview(comment);
         }
 
+        // Running the sync before the save is intentional: a Sumsub step whose files could not be
+        // fetched must keep its INTERNAL_REVIEW status so the next run retries it, instead of
+        // advancing with an incomplete document set. That makes the type guard mandatory - only
+        // Sumsub idents have files to sync (and an IDENT_REPORT at all), a manual ident uploads its
+        // document in updateIdentManual, and syncIdentFilesInternal throws on every other type. An
+        // unguarded call therefore wedged manual idents in INTERNAL_REVIEW to be retried forever.
         if (
+          entity.isSumsub &&
           !entity.userData.kycFiles.some((f) => f.subType === FileSubType.IDENT_REPORT) &&
           (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW)
         )
