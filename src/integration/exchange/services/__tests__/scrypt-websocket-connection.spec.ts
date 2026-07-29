@@ -705,12 +705,22 @@ describe('ScryptWebSocketConnection', () => {
     jest.clearAllTimers(); // drop the live loop's timer so only the stale one below can fire
     const connectSpy = jest.spyOn(connection as any, 'connect');
 
+    const socketsBefore = WebSocket.instances.length;
     (connection as any).scheduleReconnect(0, (connection as any).reconnectEpoch - 1);
     jest.advanceTimersByTime(5000);
     await flushPromises();
 
-    // Without the epoch guard a superseded loop would run a second connect alongside the live one.
+    // Without the epoch guard a superseded loop would run a second connect alongside the live one. Assert the
+    // observable effect too, so renaming connect() fails this loudly instead of passing on a silent spy.
     expect(connectSpy).not.toHaveBeenCalled();
+    expect(WebSocket.instances.length).toBe(socketsBefore);
+
+    // Control: the same timer at the CURRENT epoch does connect, so the assertions above are not vacuous.
+    (connection as any).scheduleReconnect(0, (connection as any).reconnectEpoch);
+    jest.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(WebSocket.instances.length).toBe(socketsBefore + 1);
   });
 
   it('does not re-arm (or restart the backoff) when the loop is already armed', async () => {
@@ -743,6 +753,61 @@ describe('ScryptWebSocketConnection', () => {
     expect((connection as any).isReconnecting).toBe(false);
     expect(scheduleSpy).not.toHaveBeenCalled();
     expect(loggerWarn).not.toHaveBeenCalledWith(expect.stringMatching(/closed \(code:/));
+  });
+
+  it('a superseded loop whose attempt rejects neither logs nor reschedules', async () => {
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+    const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+    firstWs.remoteClose(1006, 'gone');
+    const epochA = scheduleSpy.mock.calls[0][1] as number;
+
+    // Hold loop A's attempt in flight, then supersede it before letting it reject.
+    let rejectConnectA!: (e: Error) => void;
+    const gate = new Promise<void>((_, reject) => {
+      rejectConnectA = reject;
+    });
+    const connectSpy = jest.spyOn(connection as any, 'connect').mockImplementation(() => gate);
+
+    await fireReconnectAttempt(0);
+    connectSpy.mockRestore();
+
+    (connection as any).reconnectEpoch = epochA + 1; // a newer loop took over
+    const liveTimer = (connection as any).reconnectTimer;
+    const warnsBefore = loggerWarn.mock.calls.length;
+    const schedulesBefore = scheduleSpy.mock.calls.length;
+
+    rejectConnectA(new Error('superseded attempt failed'));
+    await flushPromises();
+
+    // Without the epoch guard in .catch, a dead loop would log a retry for itself and overwrite
+    // reconnectTimer with its own stale handle — so a later disconnect() would cancel the wrong timer.
+    expect(loggerWarn.mock.calls.length).toBe(warnsBefore);
+    expect(scheduleSpy.mock.calls.length).toBe(schedulesBefore);
+    expect((connection as any).reconnectTimer).toBe(liveTimer);
+  });
+
+  it('arms the loop when the SUBSCRIBE frame throws after the connect succeeded', async () => {
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+
+    connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+    connection.subscribeToStream(ScryptMessageType.SECURITY, () => undefined);
+    const ws = latestWs();
+
+    // The socket dies between connect resolving and the second SUBSCRIBE going out, so connect() itself
+    // never rejects and only subscribe()'s catch can arm the loop.
+    ws.send.mockImplementationOnce(() => {
+      ws.readyState = WebSocket.CLOSED;
+    });
+    ws.open();
+    await flushPromises();
+
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.stringMatching(/Failed to subscribe to Security:/),
+      expect.anything(),
+    );
+    expect([...(connection as any).activeStreams]).toContain(ScryptMessageType.SECURITY);
+    expect((connection as any).isReconnecting).toBe(true);
+    expect(scheduleSpy).toHaveBeenCalledWith(0, expect.any(Number));
   });
 
   it('stale reconnect loop settle does not disturb a newer loop after disconnect + drop', async () => {
