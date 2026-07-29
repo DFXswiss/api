@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as ConfigModule from 'src/config/config';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
@@ -11,6 +12,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PaymentLinkPayment } from '../../entities/payment-link-payment.entity';
 import { PaymentLink } from '../../entities/payment-link.entity';
 import { PaymentStandard } from '../../enums';
 import { PaymentQuoteRepository } from '../../repositories/payment-quote.repository';
@@ -24,6 +26,7 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
   let assetService: AssetService;
   let pricingService: PricingService;
   let feeService: PaymentLinkFeeService;
+  let paymentQuoteRepo: PaymentQuoteRepository;
 
   const lightningBtc = createCustomAsset({
     id: 1,
@@ -86,9 +89,11 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
 
   beforeAll(() => {
     (ConfigModule as Record<string, unknown>).Config = {
+      prefixes: { paymentQuoteUidPrefix: 'pq' },
       payment: {
         manualMethods: ['TaprootAsset', 'Spark', 'Arkade'],
         forexFee: () => forexFee,
+        quoteTimeout: () => 300,
       },
     };
   });
@@ -101,6 +106,7 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
     assetService = createMock<AssetService>();
     pricingService = createMock<PricingService>();
     feeService = createMock<PaymentLinkFeeService>();
+    paymentQuoteRepo = createMock<PaymentQuoteRepository>();
 
     jest.spyOn(assetService, 'getPaymentAssets').mockResolvedValue([lightningBtc, cardanoAda, tronTrx, solanaSol]);
     jest.spyOn(feeService, 'getMinFee').mockResolvedValue(0);
@@ -113,7 +119,7 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PaymentQuoteService,
-        { provide: PaymentQuoteRepository, useValue: createMock<PaymentQuoteRepository>() },
+        { provide: PaymentQuoteRepository, useValue: paymentQuoteRepo },
         { provide: BlockchainRegistryService, useValue: createMock<BlockchainRegistryService>() },
         { provide: AssetService, useValue: assetService },
         { provide: PricingService, useValue: pricingService },
@@ -210,4 +216,38 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
     expect(cardano?.assets).toEqual([{ asset: 'ADA' }]);
     expect(pricingService.getPrice).not.toHaveBeenCalled();
   });
+
+  it.each([Infinity, -Infinity, NaN])(
+    'fails closed for non-finite Lightning/BTC amount %p without creating or saving a quote',
+    async (nonFiniteAmount) => {
+      jest.spyOn(service, 'createTransferAmounts').mockResolvedValue([
+        {
+          method: Blockchain.LIGHTNING,
+          minFee: 0,
+          assets: [{ asset: 'BTC', amount: nonFiniteAmount }],
+          available: true,
+        },
+      ]);
+
+      const payment = Object.assign(new PaymentLinkPayment(), {
+        amount: invoiceAmount,
+        currency: chf,
+        expiryDate: new Date(Date.now() + 60_000),
+        link: paymentLinkWith([Blockchain.CARDANO]),
+      });
+
+      let caught: unknown;
+      try {
+        await service.createQuote(PaymentStandard.OPEN_CRYPTO_PAY, payment);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeInstanceOf(ServiceUnavailableException);
+      expect((caught as ServiceUnavailableException).getStatus()).toBe(503);
+      expect((caught as ServiceUnavailableException).message).toBe('Lightning payment option unavailable');
+      expect(paymentQuoteRepo.create).not.toHaveBeenCalled();
+      expect(paymentQuoteRepo.save).not.toHaveBeenCalled();
+    },
+  );
 });

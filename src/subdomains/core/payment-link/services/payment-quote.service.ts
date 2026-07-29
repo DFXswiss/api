@@ -276,7 +276,7 @@ export class PaymentQuoteService {
     const lightning = transferAmounts.find((t) => t.method.toLowerCase() === Blockchain.LIGHTNING.toLowerCase());
     const btcAmount = lightning?.assets.find((a) => a.asset.toLowerCase() === 'btc')?.amount;
 
-    if (btcAmount == null || btcAmount <= 0) {
+    if (typeof btcAmount !== 'number' || !Number.isFinite(btcAmount) || btcAmount <= 0) {
       throw new ServiceUnavailableException('Lightning payment option unavailable');
     }
   }
