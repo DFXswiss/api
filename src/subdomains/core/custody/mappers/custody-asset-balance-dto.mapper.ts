@@ -86,8 +86,8 @@ export class CustodyAssetBalanceDtoMapper {
     return balances.sort((a, b) => rank(b.value.chf) - rank(a.value.chf) || a.asset.name.localeCompare(b.asset.name));
   }
 
-  // Keep DTO assembly in one helper so both public mapping paths apply the same fields and
-  // rounding rules; separate construction sites could otherwise drift apart again.
+  // Single assembly point for the DTO so every position gets the same fields and rounding
+  // rules; a second construction site could otherwise drift apart from this one again.
   private static buildDto(
     asset: Asset,
     balance: number,

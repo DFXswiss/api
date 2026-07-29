@@ -612,6 +612,8 @@ describe('CustodyService', () => {
 
       expect(btcDto.balance).toBe(0.1);
       expect(btcDto.value).toEqual({ chf: 5000, eur: 4600, usd: 5500 });
+      expect(btcDto.interest).toBeUndefined();
+      expect(btcDto.interestValue).toBeUndefined();
       expect(result.totalValue).toEqual({ chf: 6000, eur: 5600, usd: 6500 });
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining(`Failed to map custody balances with interest for user(s) ${custodyUser.id}`),
