@@ -1338,17 +1338,27 @@ export class LogJobService {
       if (ref) receiverRefs.add(ref);
     }
 
+    // Refs that actually retired at least one sender in pass 1 — only those are "consumed".
+    const consumedRefs = new Set<string>();
     const unmatchedByRef = recentSenders.filter((s) => {
       const ref = this.getTxReference(s);
-      return !ref || !receiverRefs.has(ref);
+      if (ref && receiverRefs.has(ref)) {
+        consumedRefs.add(ref);
+        return false;
+      }
+      return true;
     });
 
-    // Pass 2 — amount+date fallback for receivers without a usable reference only
-    // (e.g. already-arrived Scrypt EUR deposits with empty txId).
+    // Pass 2 — amount+date fallback for receivers whose reference did not retire a sender in
+    // pass 1. Receivers whose ref already retired (at least) one sender must not be reused for
+    // amount/date matching; all other receivers (ref-less OR referenced-but-unconsumed) take part.
     // Date window: 7 days in ms — mirrors the existing sender recency window.
     const DATE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-    const availableReceivers = receiverTx.filter((r) => !this.getTxReference(r));
+    const availableReceivers = receiverTx.filter((r) => {
+      const ref = this.getTxReference(r);
+      return !ref || !consumedRefs.has(ref);
+    });
     if (!unmatchedByRef.length || !availableReceivers.length) return unmatchedByRef;
 
     // Maximum-cardinality bipartite matching (Kuhn's augmenting-path algorithm).

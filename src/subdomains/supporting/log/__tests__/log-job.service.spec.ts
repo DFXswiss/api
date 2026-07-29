@@ -1489,6 +1489,96 @@ describe('LogJobService', () => {
     expect(result).toEqual([senderNoMatch]);
   });
 
+  // --- getUnmatchedSenders pass-2: receivers with unconsumed (mismatched) references ---
+
+  it('should retire a bank sender against a Scrypt deposit whose txId does not match the payout ref (prod phantom pending)', () => {
+    // Production: Bank->Scrypt sender reference "82101" never equals the deposit txId
+    // (e.g. "2bee731f-cf1f-40f7-ad5e-ffccd22406e2"). Pass 1 finds nothing; previously pass 2
+    // ignored any receiver that still carried a reference, leaving a phantom pending amount.
+    // With the fix, unconsumed receivers participate in amount+date matching.
+    const senderTx = [
+      createCustomBankTx({
+        id: 1,
+        created: Util.hoursBefore(24),
+        valueDate: Util.hoursBefore(24),
+        instructedAmount: 80000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'DFX Payout 82101',
+      }),
+    ];
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(20),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'EUR',
+        amount: 80000,
+        txId: '2bee731f-cf1f-40f7-ad5e-ffccd22406e2',
+      }),
+    ];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  it('should not double-consume a pass-1-matched receiver for a second sender via amount+date', () => {
+    // S1 retires E1 in pass 1 by reference. S2 has a near-identical amount/date to E1 but no
+    // matching reference — E1's ref was consumed in pass 1, so S2 must stay unmatched.
+    const sender1 = createCustomBankTx({
+      id: 1,
+      created: Util.hoursBefore(48),
+      valueDate: Util.hoursBefore(48),
+      instructedAmount: 50000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'DFX Payout 90111',
+    });
+    const sender2 = createCustomBankTx({
+      id: 2,
+      created: Util.hoursBefore(36),
+      valueDate: Util.hoursBefore(36),
+      instructedAmount: 50000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'manual no matching ref',
+    });
+    const receiver1 = createCustomExchangeTx({
+      id: 1,
+      created: Util.hoursBefore(40),
+      amount: 50000,
+      currency: 'EUR',
+      txId: 'DEPOSIT-90111',
+    });
+
+    expect(service.getUnmatchedSenders([sender1, sender2], [receiver1])).toEqual([sender2]);
+  });
+
+  it('should not false-match a referenced-but-unrelated receiver outside amount or date tolerance', () => {
+    // Receiver carries a reference that matches no sender (pass 1 misses). Amount is far outside
+    // the 1%/min-1.0 tolerance, so the expanded pass 2 must not invent a match either.
+    const senderTx = [
+      createCustomBankTx({
+        id: 1,
+        created: Util.hoursBefore(24),
+        valueDate: Util.hoursBefore(24),
+        instructedAmount: 30000,
+        instructedCurrency: 'EUR',
+        remittanceInfo: 'DFX Payout 82200',
+      }),
+    ];
+    const receiverTx = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(20),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'EUR',
+        amount: 35000,
+        txId: 'pmt_unrelated_deposit_ref',
+      }),
+    ];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
+  });
+
   // --- settlement-anchored buy_fiat liability (FinanceLog) ---
 
   // Yapeal CHF payout-bank asset: dexName = currency, bank = settling bank.
