@@ -100,5 +100,279 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(result[0].interest).toBe(interest);
       expect(result[0].interestValue).toEqual({ chf: interest, eur: interest, usd: interest });
     });
+
+    it('returns balances ordered by descending CHF value regardless of input order', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 20,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 21,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 22,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 50 }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 500 }),
+      ];
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(result.map((balance) => [balance.asset.name, balance.value.chf])).toEqual([
+        ['BBB', 500],
+        ['AAA', 100],
+        ['CCC', 50],
+      ]);
+    });
+
+    it('falls back to alphabetical asset name when CHF values are equal', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 30,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 31,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 32,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 100 }),
+      ];
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(result.map((balance) => balance.asset.name)).toEqual(['AAA', 'BBB', 'CCC']);
+    });
+
+    it('returns the same order regardless of input order', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 40,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 41,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 42,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const dddAsset: Asset = createCustomAsset({
+        id: 43,
+        name: 'DDD',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: dddAsset, balance: 50 }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 200 }),
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 100 }),
+      ];
+      const firstInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+      const secondInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const firstResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, firstInterestByAssetName);
+      const secondResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(
+        [...balances].reverse(),
+        secondInterestByAssetName,
+      );
+
+      expect(firstResult.map((balance) => balance.asset.name)).toEqual(
+        secondResult.map((balance) => balance.asset.name),
+      );
+    });
+
+    it('sorts negative CHF values after all positive values', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 50,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 51,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 52,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: -50 }),
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: 100 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 500 }),
+      ];
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(result.map((balance) => [balance.asset.name, balance.value.chf])).toEqual([
+        ['BBB', 500],
+        ['CCC', 100],
+        ['AAA', -50],
+      ]);
+    });
+
+    it('places a non-finite CHF value last regardless of input order', () => {
+      const aaaAsset: Asset = createCustomAsset({
+        id: 60,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 61,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const dddAsset: Asset = createCustomAsset({
+        id: 62,
+        name: 'DDD',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const cccAsset: Asset = createCustomAsset({
+        id: 63,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      // NaN plus two positive values is not enough: the old raw-value comparator and the ranked
+      // comparator happen to return the same order for both forward and reversed input, so the
+      // order-stability assertion cannot catch a regression. This four-value set adds a negative
+      // value: the old comparator returns BBB, CCC, DDD, AAA forward and BBB, AAA, CCC, DDD
+      // reversed, while the ranked comparator returns BBB, DDD, AAA, CCC both ways. Collapsing
+      // this back to three entries silently removes the only thing this test checks, so it must
+      // not be "simplified" later.
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: -5 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 10 }),
+        Object.assign(new CustodyBalance(), { asset: dddAsset, balance: 0 }),
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: NaN }),
+      ];
+      const firstInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+      const secondInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const firstResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, firstInterestByAssetName);
+      const secondResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(
+        [...balances].reverse(),
+        secondInterestByAssetName,
+      );
+
+      expect(firstResult.map((balance) => balance.asset.name)).toEqual(
+        secondResult.map((balance) => balance.asset.name),
+      );
+      expect(firstResult[firstResult.length - 1].asset.name).toBe('CCC');
+      expect(secondResult[secondResult.length - 1].asset.name).toBe('CCC');
+      expect(firstResult[firstResult.length - 1].value.chf).toBeNaN();
+      expect(secondResult[secondResult.length - 1].value.chf).toBeNaN();
+    });
+
+    it('places a positive Infinity CHF value last, the same as a non-finite NaN value', () => {
+      const cccAsset: Asset = createCustomAsset({
+        id: 70,
+        name: 'CCC',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const aaaAsset: Asset = createCustomAsset({
+        id: 71,
+        name: 'AAA',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const bbbAsset: Asset = createCustomAsset({
+        id: 72,
+        name: 'BBB',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      // Infinity is distinct from NaN because it is ordinarily comparable: the old raw-value
+      // comparator sorts it first instead of scrambling the order, so the position assertions
+      // catch the regression here. The order-stability assertion remains for consistency even
+      // though it does not distinguish the old and ranked comparators for this dataset.
+      const balances: CustodyBalance[] = [
+        Object.assign(new CustodyBalance(), { asset: cccAsset, balance: Infinity }),
+        Object.assign(new CustodyBalance(), { asset: aaaAsset, balance: 200 }),
+        Object.assign(new CustodyBalance(), { asset: bbbAsset, balance: 100 }),
+      ];
+      const firstInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+      const secondInterestByAssetName = new Map<string, { interest: number; asset: Asset }>();
+
+      const firstResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, firstInterestByAssetName);
+      const secondResult = CustodyAssetBalanceDtoMapper.mapCustodyBalances(
+        [...balances].reverse(),
+        secondInterestByAssetName,
+      );
+
+      expect(firstResult.map((balance) => balance.asset.name)).toEqual(
+        secondResult.map((balance) => balance.asset.name),
+      );
+      expect(firstResult[firstResult.length - 1].asset.name).toBe('CCC');
+      expect(secondResult[secondResult.length - 1].asset.name).toBe('CCC');
+      expect(firstResult[firstResult.length - 1].value.chf).toBe(Infinity);
+      expect(secondResult[secondResult.length - 1].value.chf).toBe(Infinity);
+    });
   });
 });
