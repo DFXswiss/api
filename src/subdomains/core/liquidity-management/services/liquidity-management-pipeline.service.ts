@@ -401,9 +401,17 @@ export class LiquidityManagementPipelineService {
           // answer likelier; it only keeps an order a person has verified by hand out of reach.
           if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
             anyChanged = true;
+        } else if (resolution === UncertainOrderResolution.UNRESOLVED && order.unresolvableTooLong()) {
+          // The venue has been answering "no record" for hours and no operator has released the order. The
+          // original design waited here indefinitely, which is only safe if somebody eventually looks — where
+          // nobody does, the rule never runs again and the venue stops being served entirely. Abandoning is
+          // the lesser failure, and it is safe for a reason that has nothing to do with this order: the rule
+          // replans from the venue's current balance, so an execution that did happen is already reflected
+          // there and sizes the replan down rather than duplicating it.
+          if (await this.abandonUnresolvableOrder(order)) anyChanged = true;
         }
-        // Otherwise — a venue that cannot be asked yet, or an inconclusive answer with nobody having
-        // released the order — nothing changes and it keeps blocking.
+        // Otherwise — a venue that cannot be asked yet, or an inconclusive answer that has not yet run out
+        // its clock — nothing changes and it keeps blocking.
       } catch (e) {
         // a failing lookup must never promote the order out of quarantine
         this.logger.error(`Error in resolving uncertain liquidity order ${order.id}:`, e);
@@ -416,10 +424,13 @@ export class LiquidityManagementPipelineService {
   /**
    * Put a not-sent conclusion into effect: the order becomes an ordinary failure and its rule may plan anew.
    *
-   * The only place an order leaves quarantine downwards. Everything that reaches here has either a venue
+   * The evidence-based way out of quarantine downwards. Everything that reaches here has either a venue
    * verdict behind it, or a person who checked plus a venue that has no record — never a single judgement on
    * its own. The two exceptions are about liveness, not evidence: a venue nothing can ask, and one that has
    * answered nothing for long enough. Silence there stops vetoing the person who checked; it proves nothing.
+   *
+   * The other way out is {@link abandonUnresolvableOrder}, which rests on no evidence at all and exists only
+   * so that an order nobody releases cannot block its rule forever.
    */
   private async completeNotSentRelease(order: LiquidityManagementOrder, because: string): Promise<boolean> {
     // The release this pass looked at, captured before the entity is mutated. Ending an order is the one
@@ -432,6 +443,29 @@ export class LiquidityManagementPipelineService {
     if (!(await this.leaveQuarantine(order, examined))) return false;
 
     this.logger.info(`Uncertain liquidity order ${order.id} released as never sent: ${because}`);
+
+    return true;
+  }
+
+  /**
+   * Abandon an order the venue has never been able to account for, so its rule runs again.
+   *
+   * The second way out of quarantine downwards, and unlike {@link completeNotSentRelease} it rests on no
+   * conclusion about the request at all — only on the clock. That is why the reason recorded says the venue
+   * had no record rather than that nothing was sent: the row must not claim an observation nobody made.
+   *
+   * Logged as a warning, not an info. Nothing here is routine — an order reaching this point means the venue
+   * lost track of a request for hours — and the entry is what makes that visible without an operator having
+   * to be the mechanism that unblocks it.
+   */
+  private async abandonUnresolvableOrder(order: LiquidityManagementOrder): Promise<boolean> {
+    const because = 'the venue has had no record of it for hours and nobody released it';
+
+    order.abandonAsUnresolvable(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
+
+    if (!(await this.leaveQuarantine(order))) return false;
+
+    this.logger.warn(`Uncertain liquidity order ${order.id} abandoned: ${because}`);
 
     return true;
   }

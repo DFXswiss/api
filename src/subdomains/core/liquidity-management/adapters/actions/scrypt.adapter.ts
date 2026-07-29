@@ -660,8 +660,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
       // Absence is NOT proof. A snapshot without the reference may simply predate the venue registering it,
       // and Scrypt offers no terminal "this was never accepted" acknowledgement to rely on. Concluding
-      // otherwise is what would let the rule reissue a request that later materialises — so the order stays
-      // quarantined for a human, and the rule stays blocked, which is the safe direction.
+      // otherwise is what would let the rule reissue a request that later materialises — so this reports
+      // only what it saw, and never resolves the order on absence alone.
+      //
+      // The caller bounds the wait: an order stuck here long enough is abandoned rather than held for an
+      // operator who may never come. That bound belongs there, not here — this method's job is to report
+      // what the venue said, not to decide how long a rule may stay blocked.
       this.logger.warn(
         `Scrypt still has no record of reference ${correlationId} for order ${order.id} — keeping it quarantined`,
       );

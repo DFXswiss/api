@@ -42,6 +42,9 @@ export enum LiquidityManagementOrderStatus {
   // Quarantine for an order whose request left our side without an observed outcome. Terminal for the
   // pipeline (it never resumes on its own) but not for the order: `resolveUncertainOrders` asks the venue
   // what happened and moves it on to IN_PROGRESS or FAILED. See OrderOutcomeUnknownException.
+  //
+  // Always time-bounded: an order the venue keeps having no record of is abandoned to FAILED once it has
+  // waited out ABANDON_UNRESOLVED_MINUTES, so quarantine can never strand a rule permanently.
   UNCERTAIN = 'Uncertain',
 }
 

@@ -19,6 +19,29 @@ import { LiquidityManagementPipeline } from './liquidity-management-pipeline.ent
  */
 const RELEASE_WITHOUT_VENUE_MINUTES = 60;
 
+/**
+ * How long an order may stay unresolvable before it is abandoned instead of quarantined further.
+ *
+ * The quarantine was built to wait for an operator, on the reasoning that absence at the venue is not proof
+ * of non-execution. That reasoning is sound but incomplete: it assumed the wait ends. Where nobody checks a
+ * venue by hand, it does not — the order stays UNCERTAIN forever and takes its rule with it, so the venue
+ * stops being served at all. A liquidity rule that never runs again is the larger failure, and it is certain,
+ * while the double execution being guarded against is merely possible.
+ *
+ * What makes abandoning safe is not a conclusion about the order: it is that a rule replans from the venue's
+ * CURRENT balance, never from the abandoned order. An order that did execute has already moved that balance,
+ * so the replan sees the moved balance and sizes itself accordingly — or finds nothing left to do. The bound
+ * therefore only has to outlast the window in which an execution could still be in flight and unreflected in
+ * the balance.
+ *
+ * Set to six times `RELEASE_WITHOUT_VENUE_MINUTES`, the existing liveness bound for a silent venue, because
+ * this case is strictly weaker evidence: there the venue says nothing, here it answers and simply has no
+ * record. Balances refresh every few minutes, so six hours is many refresh cycles, not a marginal one. The
+ * multiple is a deliberate choice for headroom, not a measured threshold — it is the number to revisit if an
+ * order is ever abandoned while its execution was still genuinely in flight.
+ */
+const ABANDON_UNRESOLVED_MINUTES = 6 * RELEASE_WITHOUT_VENUE_MINUTES;
+
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
   @Column({ length: 256, nullable: false })
@@ -240,6 +263,37 @@ export class LiquidityManagementOrder extends IEntity {
    */
   releaseWaitedOutVenue(): boolean {
     return this.notSentRecheckDue != null && Util.minutesDiff(this.notSentRecheckDue) > RELEASE_WITHOUT_VENUE_MINUTES;
+  }
+
+  /**
+   * Whether the venue has been answering "no record" for long enough that waiting further serves nobody.
+   *
+   * Distinct from {@link releaseWaitedOutVenue}: that one waits out a venue that says nothing, this one a
+   * venue that answers and keeps having no record. Requires the order to be old enough that any execution
+   * would long since be reflected in the venue's balance, which is what the replan reads. See
+   * {@link ABANDON_UNRESOLVED_MINUTES}.
+   */
+  unresolvableTooLong(): boolean {
+    // Without a creation timestamp there is no clock to run out. Guarded explicitly because Util.minutesDiff
+    // treats a missing date as the epoch and would report tens of millions of minutes — abandoning instantly
+    // every order whose `created` was not loaded. Absent evidence this must hold the order, never drop it.
+    if (!this.created) return false;
+
+    return Util.minutesDiff(this.created) > ABANDON_UNRESOLVED_MINUTES;
+  }
+
+  /**
+   * Give up on an order the venue has never been able to account for, and let the rule move on.
+   *
+   * FAILED rather than a verified non-execution: nothing here establishes that the request never took
+   * effect, and the reason says so, so the record does not claim more than was actually observed.
+   */
+  abandonAsUnresolvable(reason: string): this {
+    this.status = LiquidityManagementOrderStatus.FAILED;
+    this.errorMessage = reason;
+    this.notSentRecheckDue = null;
+
+    return this;
   }
 
   /**
