@@ -478,5 +478,43 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(firstResult[firstResult.length - 1].value.chf).toBe(Infinity);
       expect(secondResult[secondResult.length - 1].value.chf).toBe(Infinity);
     });
+
+    it('throws when interest targets no asset id in the matching balance name group', () => {
+      const balanceAsset = createCustomAsset({
+        id: 10,
+        name: 'sZCHF',
+        uniqueName: 'Ethereum/sZCHF',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const unmatchedInterestAsset = createCustomAsset({
+        id: 99,
+        name: 'sZCHF',
+        uniqueName: 'Citrea/sZCHF',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances = [Object.assign(new CustodyBalance(), { asset: balanceAsset, balance: 1000 })];
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>([
+        ['sZCHF', { interest: 12.34, asset: unmatchedInterestAsset }],
+      ]);
+
+      // The current custody service builds interestByAssetName from assets represented by the
+      // balances it is processing, so its present call path normally cannot create this mismatch.
+      // The mapper's contract is independent of that caller, however: a future caller can supply
+      // an interest asset with the right name but an id absent from the name group. The guard must
+      // reject that input because otherwise interest would increase balance without contributing
+      // to the value of any priced asset sub-group.
+      const mapBalances = () =>
+        CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(mapBalances).toThrow(/has no matching balance sub-group/);
+      expect(mapBalances).toThrow(/Citrea\/sZCHF/);
+      expect(mapBalances).toThrow(/\(id 99\)/);
+      expect(mapBalances).toThrow(/name group 'sZCHF'/);
+    });
   });
 });

@@ -5,6 +5,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
+import { CustodyAssetBalanceDtoMapper } from 'src/subdomains/core/custody/mappers/custody-asset-balance-dto.mapper';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -543,6 +544,82 @@ describe('CustodyService', () => {
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to calculate accrued interest'),
         expect.any(Error),
+      );
+    });
+
+    it('keeps all booked positions and logs when mapping with interest throws', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-28T00:00:00.000Z'));
+
+      const savingAsset = createCustomAsset({
+        id: 60,
+        name: 'sZCHF',
+        uniqueName: Config.custody.savingAsset,
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const otherAsset = createCustomAsset({
+        id: 61,
+        name: 'BTC',
+        uniqueName: 'Bitcoin/BTC',
+        approxPriceChf: 50000,
+        approxPriceEur: 46000,
+        approxPriceUsd: 55000,
+      });
+
+      custodyBalanceRepo.findBy.mockResolvedValue([
+        Object.assign(new CustodyBalance(), { asset: savingAsset, balance: 1000, user: custodyUser }),
+        Object.assign(new CustodyBalance(), { asset: otherAsset, balance: 0.1, user: custodyUser }),
+      ]);
+      custodyOrderRepo.find.mockResolvedValue([
+        Object.assign(new CustodyOrder(), {
+          id: 1,
+          type: CustodyOrderType.DEPOSIT,
+          status: CustodyOrderStatus.COMPLETED,
+          inputAmount: 99500,
+          inputAsset: savingAsset,
+          user: custodyUser,
+          updated: new Date('2026-01-28T00:00:00.000Z'),
+          completedAt: new Date('2026-01-28T00:00:00.000Z'),
+        }),
+      ]);
+
+      const mappingError = new Error('Interest has no matching balance sub-group');
+      const mapCustodyBalances = CustodyAssetBalanceDtoMapper.mapCustodyBalances.bind(
+        CustodyAssetBalanceDtoMapper,
+      );
+      const mapperSpy = jest
+        .spyOn(CustodyAssetBalanceDtoMapper, 'mapCustodyBalances')
+        .mockImplementationOnce(() => {
+          throw mappingError;
+        })
+        .mockImplementation(mapCustodyBalances);
+      const loggerErrorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+
+      const result = await service.getUserCustodyBalance(accountId);
+
+      expect(mapperSpy).toHaveBeenCalledTimes(2);
+      expect(mapperSpy.mock.calls[0][1].size).toBe(1);
+      expect(mapperSpy.mock.calls[1][1].size).toBe(0);
+      mapperSpy.mockRestore();
+
+      expect(result.balances).toHaveLength(2);
+      const szchfDto = result.balances.find((b) => b.asset.name === 'sZCHF');
+      const btcDto = result.balances.find((b) => b.asset.name === 'BTC');
+
+      expect(szchfDto.balance).toBe(1000);
+      expect(szchfDto.value).toEqual({ chf: 1000, eur: 1000, usd: 1000 });
+      expect(szchfDto.interest).toBeUndefined();
+      expect(szchfDto.interestValue).toBeUndefined();
+
+      expect(btcDto.balance).toBe(0.1);
+      expect(btcDto.value).toEqual({ chf: 5000, eur: 4600, usd: 5500 });
+      expect(result.totalValue).toEqual({ chf: 6000, eur: 5600, usd: 6500 });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Failed to map custody balances with interest for user(s) ${custodyUser.id}`,
+        ),
+        mappingError,
       );
     });
   });

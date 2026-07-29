@@ -17,7 +17,12 @@ import { In, IsNull, Not } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
-import { CustodyBalanceDto, CustodyHistoryDto, CustodyHistoryEntryDto } from '../dto/output/custody-balance.dto';
+import {
+  CustodyAssetBalanceDto,
+  CustodyBalanceDto,
+  CustodyHistoryDto,
+  CustodyHistoryEntryDto,
+} from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyOrderStatus } from '../enums/custody';
@@ -141,7 +146,19 @@ export class CustodyService {
       }
     }
 
-    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
+    let balances: CustodyAssetBalanceDto[];
+    try {
+      balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
+    } catch (e) {
+      // CustodyAssetBalanceDtoMapper deliberately fails loudly when interest cannot be matched
+      // to its booked balance sub-group: silently dropping a monetary data error there would
+      // hide an inconsistency from Ops. The effect of that failure must nevertheless remain
+      // limited to the interest display for this position. Otherwise one broken position would
+      // cost the customer their entire portfolio overview, even though every booked balance is
+      // still valid. Log the data error and map the undisputed booked balances without interest.
+      this.logger.error(`Failed to map custody balances with interest for user(s) ${custodyUserIds.join(', ')}:`, e);
+      balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, new Map());
+    }
 
     // Plain sum over each position's value. Accrued interest is already folded into the
     // interest-bearing position's own `value` above (CustodyAssetBalanceDtoMapper), so it must

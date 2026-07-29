@@ -10,14 +10,6 @@ interface CustodyInterestInfo {
 }
 
 export class CustodyAssetBalanceDtoMapper {
-  static mapCustodyBalance(custodyBalance: CustodyBalance): CustodyAssetBalanceDto {
-    return this.buildDto(
-      custodyBalance.asset,
-      custodyBalance.balance,
-      this.convertToFiat(custodyBalance.asset, custodyBalance.balance),
-    );
-  }
-
   static mapCustodyBalances(
     custodyBalances: CustodyBalance[],
     interestByAssetName: Map<string, CustodyInterestInfo>,
