@@ -27,8 +27,11 @@ export class RealUnitJobService {
     if (!openQuotes.length) return;
 
     const historyCache = new Map<string, HistoryEventDto[]>();
-    // per user: settlement txs already consumed by earlier runs (persisted) or earlier in this run
-    const usedTxIdsByUser = new Map<number, Set<string>>();
+    // per user: settlement transfers already consumed by completed requests (persisted) or earlier in this
+    // run. The issuer may settle multiple purchases in a single tx (one transfer event each), so consumption
+    // is tracked per transfer event, not per tx. The history carries no per-event id, so a consumed event is
+    // identified by its (tx hash, share amount) pairing and counted to also cover same-amount settlements.
+    const consumedByUser = new Map<number, Map<string, number>>();
 
     for (const quote of openQuotes) {
       try {
@@ -41,27 +44,18 @@ export class RealUnitJobService {
           historyCache.set(address, history);
         }
 
-        let usedTxIds = usedTxIdsByUser.get(quote.user.id);
-        if (!usedTxIds) {
-          usedTxIds = new Set(await this.transactionRequestService.getUsedSettlementTxIds(quote.user.id));
-          usedTxIdsByUser.set(quote.user.id, usedTxIds);
+        let consumed = consumedByUser.get(quote.user.id);
+        if (!consumed) {
+          consumed = await this.getConsumedSettlements(quote.user.id);
+          consumedByUser.set(quote.user.id, consumed);
         }
 
-        // quotes are ordered oldest-first, so match the oldest unused settlement transfer
-        const settlement = history
-          .filter(
-            (e) =>
-              e.transfer &&
-              !usedTxIds.has(e.txHash) &&
-              Util.equalsIgnoreCase(e.transfer.to, address) &&
-              Number(e.transfer.value) === expectedShares &&
-              e.timestamp >= quote.created,
-          )
-          .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-          .at(0);
+        // quotes are ordered oldest-first, so match the oldest unconsumed settlement transfer
+        const settlement = this.findUnconsumedSettlement(history, consumed, address, expectedShares, quote.created);
         if (!settlement) continue;
 
-        usedTxIds.add(settlement.txHash);
+        const key = this.settlementKey(settlement.txHash, expectedShares);
+        consumed.set(key, (consumed.get(key) ?? 0) + 1);
         await this.transactionRequestService.complete(quote.id, settlement.txHash);
 
         this.logger.info(
@@ -74,6 +68,51 @@ export class RealUnitJobService {
         this.logger.error(`Failed to check quote ${quote.id} for on-chain settlement:`, e);
       }
     }
+  }
+
+  private async getConsumedSettlements(userId: number): Promise<Map<string, number>> {
+    const settlements = await this.transactionRequestService.getUsedSettlements(userId);
+
+    const consumed = new Map<string, number>();
+    for (const settlement of settlements) {
+      const key = this.settlementKey(settlement.settlementTxId, Math.floor(settlement.estimatedAmount));
+      consumed.set(key, (consumed.get(key) ?? 0) + 1);
+    }
+
+    return consumed;
+  }
+
+  // Walks all incoming transfers oldest-first and treats the first n events of each (tx hash, share amount)
+  // pairing as consumed, where n is the number of settlements already recorded for that pairing — so a batch
+  // settlement tx can complete one request per contained transfer event, but never the same event twice.
+  private findUnconsumedSettlement(
+    history: HistoryEventDto[],
+    consumed: Map<string, number>,
+    address: string,
+    expectedShares: number,
+    minTimestamp: Date,
+  ): HistoryEventDto | undefined {
+    const incomingTransfers = history
+      .filter((e) => e.transfer && Util.equalsIgnoreCase(e.transfer.to, address))
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    const seen = new Map<string, number>();
+
+    for (const event of incomingTransfers) {
+      const shares = Number(event.transfer.value);
+      const key = this.settlementKey(event.txHash, shares);
+      const position = (seen.get(key) ?? 0) + 1;
+      seen.set(key, position);
+
+      if (position <= (consumed.get(key) ?? 0)) continue;
+      if (shares === expectedShares && event.timestamp >= minTimestamp) return event;
+    }
+
+    return undefined;
+  }
+
+  private settlementKey(txHash: string, shares: number): string {
+    return `${txHash.toLowerCase()}|${shares}`;
   }
 
   // Resolves RealUnit W2W transfer requests stuck in PROCESSING after a crash/restart between the

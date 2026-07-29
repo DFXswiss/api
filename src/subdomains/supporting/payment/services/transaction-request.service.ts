@@ -316,13 +316,15 @@ export class TransactionRequestService {
     });
   }
 
-  async getUsedSettlementTxIds(userId: number): Promise<string[]> {
+  async getUsedSettlements(userId: number): Promise<{ settlementTxId: string; estimatedAmount: number }[]> {
     return this.transactionRequestRepo
       .find({
         where: { user: { id: userId }, settlementTxId: Not(IsNull()) },
-        select: { settlementTxId: true },
+        select: { settlementTxId: true, estimatedAmount: true },
       })
-      .then((requests) => requests.map((r) => r.settlementTxId));
+      .then((requests) =>
+        requests.map((r) => ({ settlementTxId: r.settlementTxId, estimatedAmount: r.estimatedAmount })),
+      );
   }
 
   async updateEstimatedAmount(id: number, estimatedAmount: number): Promise<void> {
