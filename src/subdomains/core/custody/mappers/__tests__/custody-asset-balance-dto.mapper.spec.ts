@@ -52,8 +52,21 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(szchfDto.interestValue.eur).toBe(szchfDto.interest);
       expect(szchfDto.interestValue.usd).toBe(szchfDto.interest);
 
+      // balance/value now carry the booked amount plus the accrued interest — the fold this PR
+      // introduces. interest/interestValue above stay a breakdown of what is already in here.
+      expect(szchfDto.balance).toBeCloseTo(1000 + interest, 8);
+      expect(szchfDto.value).toEqual({
+        eur: expect.closeTo(1000 + interest, 8),
+        chf: expect.closeTo(1000 + interest, 8),
+        usd: expect.closeTo(1000 + interest, 8),
+      });
+
+      // A position with no interestByAssetName entry is unaffected — plain booked balance/value,
+      // exactly the pre-fix behaviour.
       expect(btcDto.interest).toBeUndefined();
       expect(btcDto.interestValue).toBeUndefined();
+      expect(btcDto.balance).toBe(2);
+      expect(btcDto.value).toEqual({ eur: 2, chf: 2, usd: 2 });
     });
 
     it('prices interestValue with the interest-source asset, not the same-named group representative', () => {
@@ -92,11 +105,16 @@ describe('CustodyAssetBalanceDtoMapper', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].asset.name).toBe('sZCHF');
-      expect(result[0].balance).toBe(1000);
+      expect(result[0].balance).toBeCloseTo(1012.34, 8);
       // value is priced with the group representative (g[0].asset = szchfOtherChain, price 2),
       // NOT the interest-source asset (szchfEthereum, price 1) — the other half of the same
-      // pricing guarantee: 1000 × 2 = 2000.
-      expect(result[0].value).toEqual({ chf: 2000, eur: 2000, usd: 2000 });
+      // pricing guarantee. It also carries the interest now folded into the combined balance:
+      // (1000 + 12.34) × 2 = 2024.68, not 1000 × 2 = 2000.
+      expect(result[0].value).toEqual({
+        chf: expect.closeTo(2024.68, 2),
+        eur: expect.closeTo(2024.68, 2),
+        usd: expect.closeTo(2024.68, 2),
+      });
       expect(result[0].interest).toBe(interest);
       expect(result[0].interestValue).toEqual({ chf: interest, eur: interest, usd: interest });
     });

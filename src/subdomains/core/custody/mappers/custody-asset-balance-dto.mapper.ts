@@ -48,10 +48,19 @@ export class CustodyAssetBalanceDtoMapper {
   }
 
   private static map(asset: Asset, balance: number, interestInfo?: CustodyInterestInfo): CustodyAssetBalanceDto {
+    // Interest is folded into the position BEFORE it is priced, not added to the fiat value
+    // afterwards: convertToFiat() is the one place balance turns into money, and a second,
+    // separate addition on top of it would be a second computation of the same figure — exactly
+    // the drift that used to let the total and the position disagree. `balance`/`value` are what
+    // the position is worth today; `interest`/`interestValue` stay as their own fields so a client
+    // can still see the interest component, but it is a breakdown of `balance`/`value`, not an
+    // addition to them.
+    const totalBalance = interestInfo != null ? balance + interestInfo.interest : balance;
+
     const dto: CustodyAssetBalanceDto = {
       asset: { name: asset.name, description: asset.description },
-      balance: Util.floor(balance, 8),
-      value: this.convertToFiat(asset, balance),
+      balance: Util.floor(totalBalance, 8),
+      value: this.convertToFiat(asset, totalBalance),
     };
 
     if (interestInfo != null) {

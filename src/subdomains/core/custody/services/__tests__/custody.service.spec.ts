@@ -337,7 +337,7 @@ describe('CustodyService', () => {
       await expect(service.getUserCustodyBalance(accountId)).rejects.toThrow(NotFoundException);
     });
 
-    it('attaches interest and interestValue only to the saving position and counts them in totalValue', async () => {
+    it('folds accrued interest into the saving position balance and value; totalValue is the plain sum, not a second add-on', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-07-28T00:00:00.000Z'));
 
       const savingAsset = createCustomAsset({
@@ -380,7 +380,17 @@ describe('CustodyService', () => {
       const szchfDto = result.balances.find((b) => b.asset.name === 'sZCHF');
       const btcDto = result.balances.find((b) => b.asset.name === 'BTC');
 
-      expect(szchfDto.value).toEqual({ chf: 1000, eur: 1000, usd: 1000 });
+      // The saving position's balance/value now carry the booked amount PLUS accrued interest —
+      // this is the fix: the position itself shows what it is worth today, the same figure the
+      // interest-bearing chart in getUserCustodyHistory() already carries.
+      expect(szchfDto.balance).toBeCloseTo(1000 + 1726.94, 2);
+      expect(szchfDto.value).toEqual({
+        chf: expect.closeTo(1000 + 1726.94, 2),
+        eur: expect.closeTo(1000 + 1726.94, 2),
+        usd: expect.closeTo(1000 + 1726.94, 2),
+      });
+      // interest/interestValue stay as their own fields — a breakdown of what is already inside
+      // balance/value, not an amount still to be added.
       expect(szchfDto.interest).toBeCloseTo(1726.94, 2);
       expect(szchfDto.interestValue).toEqual({
         chf: expect.closeTo(1726.94, 2),
@@ -392,14 +402,58 @@ describe('CustodyService', () => {
       expect(btcDto.interest).toBeUndefined();
       expect(btcDto.interestValue).toBeUndefined();
 
-      // Accrued interest counts towards the total: it is what the position is worth today, and
-      // getUserCustodyHistory() now accrues it per day too, so the figure no longer disagrees
-      // with the chart. Booked balances alone would be 6000 / 5600 / 6500.
+      // totalValue is the plain sum of the position values above — NOT position value plus
+      // interestValue a second time. Booked balances alone (ignoring interest) would total
+      // 6000 / 5600 / 6500; double-counting the interest on top of the already-interest-inclusive
+      // position value would total roughly 9453.88 / 9053.88 / 9953.88. Neither is correct — this
+      // is exactly the sum of szchfDto.value and btcDto.value.
       expect(result.totalValue).toEqual({
-        chf: expect.closeTo(7726.94, 2),
-        eur: expect.closeTo(7326.94, 2),
-        usd: expect.closeTo(8226.94, 2),
+        chf: expect.closeTo(szchfDto.value.chf + btcDto.value.chf, 2),
+        eur: expect.closeTo(szchfDto.value.eur + btcDto.value.eur, 2),
+        usd: expect.closeTo(szchfDto.value.usd + btcDto.value.usd, 2),
       });
+      expect(result.totalValue.chf).toBeCloseTo(7726.94, 2);
+      expect(result.totalValue.eur).toBeCloseTo(7326.94, 2);
+      expect(result.totalValue.usd).toBeCloseTo(8226.94, 2);
+    });
+
+    it('sets totalValue to exactly the interest-bearing position value when it is the only holding (not principal + interest twice)', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-28T00:00:00.000Z'));
+
+      const savingAsset = createCustomAsset({
+        id: 60,
+        name: 'sZCHF',
+        uniqueName: Config.custody.savingAsset,
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      custodyBalanceRepo.findBy.mockResolvedValue([
+        Object.assign(new CustodyBalance(), { asset: savingAsset, balance: 99500, user: custodyUser }),
+      ]);
+
+      custodyOrderRepo.find.mockResolvedValue([
+        Object.assign(new CustodyOrder(), {
+          id: 1,
+          type: CustodyOrderType.DEPOSIT,
+          status: CustodyOrderStatus.COMPLETED,
+          inputAmount: 99500,
+          inputAsset: savingAsset,
+          user: custodyUser,
+          updated: new Date('2026-01-28T00:00:00.000Z'),
+          completedAt: new Date('2026-01-28T00:00:00.000Z'),
+        }),
+      ]);
+
+      const result = await service.getUserCustodyBalance(accountId);
+
+      const szchfDto = result.balances.find((b) => b.asset.name === 'sZCHF');
+
+      // 99500 booked + ~1726.94 interest, once — NOT 99500 + 1726.94 + 1726.94.
+      expect(result.totalValue.chf).toBeCloseTo(szchfDto.value.chf, 8);
+      expect(result.totalValue.chf).toBeCloseTo(99500 + 1726.94, 2);
+      expect(result.totalValue.chf).not.toBeCloseTo(99500 + 2 * 1726.94, 2);
     });
 
     it('reports no interest for a saving position that is fully paid out', async () => {
@@ -476,6 +530,7 @@ describe('CustodyService', () => {
       const szchfDto = result.balances.find((b) => b.asset.name === 'sZCHF');
       const btcDto = result.balances.find((b) => b.asset.name === 'BTC');
 
+      expect(szchfDto.balance).toBe(1000);
       expect(szchfDto.value).toEqual({ chf: 1000, eur: 1000, usd: 1000 });
       expect(szchfDto.interest).toBeUndefined();
       expect(szchfDto.interestValue).toBeUndefined();

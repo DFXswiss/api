@@ -17,13 +17,7 @@ import { In, IsNull, Not } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
-import {
-  CustodyAssetBalanceDto,
-  CustodyBalanceDto,
-  CustodyFiatValueDto,
-  CustodyHistoryDto,
-  CustodyHistoryEntryDto,
-} from '../dto/output/custody-balance.dto';
+import { CustodyBalanceDto, CustodyHistoryDto, CustodyHistoryEntryDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyOrderStatus } from '../enums/custody';
@@ -149,20 +143,16 @@ export class CustodyService {
 
     const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
 
-    // Accrued interest counts towards the total. It is what the position is worth today, and
-    // leaving it out understated the Safe by a figure that grows every day. It was previously
-    // excluded to keep this total equal to the value history, which did not carry interest —
-    // getUserCustodyHistory() now accrues it per day, so both sides agree again.
-    //
-    // `interestValue` is absent on every position that bears no interest, and deliberately also
-    // on one whose interest could not be computed (logged above): a broken figure is left out
-    // of the total rather than guessed at.
-    const interestValue = (b: CustodyAssetBalanceDto): CustodyFiatValueDto =>
-      b.interestValue ?? { eur: 0, chf: 0, usd: 0 };
-
-    const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur + interestValue(curr).eur, 0);
-    const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf + interestValue(curr).chf, 0);
-    const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.value.usd + interestValue(curr).usd, 0);
+    // Plain sum over each position's value. Accrued interest is already folded into the
+    // interest-bearing position's own `value` above (CustodyAssetBalanceDtoMapper.map()), so it
+    // must not be added a second time here — that was exactly the previous bug: the total counted
+    // the interest via this reduce AND via the position value, so it disagreed with the sum of the
+    // rows the customer sees underneath it. getUserCustodyHistory() already values its interest-
+    // bearing day balances the same way (withAccruedInterest() folds interest in before pricing),
+    // so both sides now agree through the same rule instead of two different ones.
+    const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur, 0);
+    const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf, 0);
+    const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.value.usd, 0);
 
     return {
       balances,
@@ -419,7 +409,9 @@ export class CustodyService {
    * fully paid out leaves a frozen remainder: the interest earned over the time it was held.
    * That figure is never booked and never paid out, so carrying it once the position is closed
    * would leave a Safe showing a residue forever, for holdings it no longer has. The same guard
-   * applies to the balance total in getUserCustodyBalance().
+   * applies before interest is folded into the position's balance in getUserCustodyBalance()
+   * (CustodyAssetBalanceDtoMapper.map()) — it no longer feeds a separate total there, since
+   * totalValue is now the plain sum of the already-interest-inclusive position values.
    */
   private withAccruedInterest(
     balances: Map<number, number>,
