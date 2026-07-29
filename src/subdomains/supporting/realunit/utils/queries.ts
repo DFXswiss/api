@@ -24,6 +24,7 @@ export const accountHistoryQuery = gql`
       addressType
       history(orderBy: "timestamp", orderDirection: "desc", limit: $limit, before: $before, after: $after) {
         items {
+          id
           timestamp
           eventType
           txHash

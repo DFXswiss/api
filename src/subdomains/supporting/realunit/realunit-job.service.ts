@@ -8,6 +8,13 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { HistoryEventDto } from './dto/realunit.dto';
 import { RealUnitService } from './realunit.service';
 
+// settlement transfers of a user that are no longer available: exact event ids of completed
+// requests, plus the tx hashes of requests completed before the event id was recorded
+interface ConsumedSettlements {
+  eventIds: Set<string>;
+  legacyTxHashes: Set<string>;
+}
+
 @Injectable()
 export class RealUnitJobService {
   private readonly logger = new DfxLogger(RealUnitJobService);
@@ -27,11 +34,10 @@ export class RealUnitJobService {
     if (!openQuotes.length) return;
 
     const historyCache = new Map<string, HistoryEventDto[]>();
-    // per user: settlement transfers already consumed by completed requests (persisted) or earlier in this
-    // run. The issuer may settle multiple purchases in a single tx (one transfer event each), so consumption
-    // is tracked per transfer event, not per tx. The history carries no per-event id, so a consumed event is
-    // identified by its (tx hash, share amount) pairing and counted to also cover same-amount settlements.
-    const consumedByUser = new Map<number, Map<string, number>>();
+    // per user: settlement transfers already consumed by completed requests (persisted) or earlier in
+    // this run. The issuer may settle multiple purchases in a single tx (one transfer event each), so
+    // consumption is tracked per transfer event via its indexer event id, not per tx.
+    const consumedByUser = new Map<number, ConsumedSettlements>();
 
     for (const quote of openQuotes) {
       try {
@@ -54,9 +60,11 @@ export class RealUnitJobService {
         const settlement = this.findUnconsumedSettlement(history, consumed, address, expectedShares, quote.created);
         if (!settlement) continue;
 
-        const key = this.settlementKey(settlement.txHash, expectedShares);
-        consumed.set(key, (consumed.get(key) ?? 0) + 1);
-        await this.transactionRequestService.complete(quote.id, settlement.txHash);
+        consumed.eventIds.add(settlement.id);
+        await this.transactionRequestService.complete(quote.id, {
+          txId: settlement.txHash,
+          eventId: settlement.id,
+        });
 
         this.logger.info(
           `Completed settled quote ${quote.id}: ${expectedShares} shares received from ${settlement.transfer.from} in tx ${settlement.txHash}`,
@@ -80,24 +88,25 @@ export class RealUnitJobService {
 
   // --- HELPER METHODS --- //
 
-  private async getConsumedSettlements(userId: number): Promise<Map<string, number>> {
+  private async getConsumedSettlements(userId: number): Promise<ConsumedSettlements> {
     const settlements = await this.transactionRequestService.getUsedSettlements(userId);
 
-    const consumed = new Map<string, number>();
-    for (const settlement of settlements) {
-      const key = this.settlementKey(settlement.settlementTxId, Math.floor(settlement.estimatedAmount));
-      consumed.set(key, (consumed.get(key) ?? 0) + 1);
-    }
-
-    return consumed;
+    return {
+      eventIds: new Set(settlements.filter((s) => s.settlementEventId).map((s) => s.settlementEventId)),
+      // requests completed before the event id existed recorded only the tx hash. Which of its transfer
+      // events they consumed is not recoverable, so the whole tx stays blocked for them — a settlement
+      // assigned twice is worse than one that needs a manual completion
+      legacyTxHashes: new Set(
+        settlements.filter((s) => !s.settlementEventId).map((s) => s.settlementTxId.toLowerCase()),
+      ),
+    };
   }
 
-  // Walks all incoming transfers oldest-first and treats the first n events of each (tx hash, share amount)
-  // pairing as consumed, where n is the number of settlements already recorded for that pairing — so a batch
-  // settlement tx can complete one request per contained transfer event, but never the same event twice.
+  // Matches the oldest incoming transfer that carries the expected share amount, was mined after the
+  // quote was created and has not been consumed by another request.
   private findUnconsumedSettlement(
     history: HistoryEventDto[],
-    consumed: Map<string, number>,
+    consumed: ConsumedSettlements,
     address: string,
     expectedShares: number,
     minTimestamp: Date,
@@ -107,22 +116,12 @@ export class RealUnitJobService {
       'timestamp',
     );
 
-    const seen = new Map<string, number>();
-
-    for (const event of incomingTransfers) {
-      const shares = Number(event.transfer.value);
-      const key = this.settlementKey(event.txHash, shares);
-      const position = (seen.get(key) ?? 0) + 1;
-      seen.set(key, position);
-
-      if (position <= (consumed.get(key) ?? 0)) continue;
-      if (shares === expectedShares && event.timestamp >= minTimestamp) return event;
-    }
-
-    return undefined;
-  }
-
-  private settlementKey(txHash: string, shares: number): string {
-    return `${txHash.toLowerCase()}|${shares}`;
+    return incomingTransfers.find(
+      (e) =>
+        !consumed.eventIds.has(e.id) &&
+        !consumed.legacyTxHashes.has(e.txHash.toLowerCase()) &&
+        Number(e.transfer.value) === expectedShares &&
+        e.timestamp >= minTimestamp,
+    );
   }
 }

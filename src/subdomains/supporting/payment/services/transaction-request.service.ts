@@ -308,22 +308,22 @@ export class TransactionRequestService {
     return matchingRequest;
   }
 
-  async complete(id: number, settlementTxId?: string): Promise<void> {
+  async complete(id: number, settlement?: { txId: string; eventId: string }): Promise<void> {
     await this.transactionRequestRepo.update(id, {
       isComplete: true,
       status: TransactionRequestStatus.COMPLETED,
-      ...(settlementTxId && { settlementTxId }),
+      ...(settlement && { settlementTxId: settlement.txId, settlementEventId: settlement.eventId }),
     });
   }
 
-  async getUsedSettlements(userId: number): Promise<{ settlementTxId: string; estimatedAmount: number }[]> {
+  async getUsedSettlements(userId: number): Promise<{ settlementTxId: string; settlementEventId?: string }[]> {
     return this.transactionRequestRepo
       .find({
         where: { user: { id: userId }, settlementTxId: Not(IsNull()) },
-        select: { settlementTxId: true, estimatedAmount: true },
+        select: { settlementTxId: true, settlementEventId: true },
       })
       .then((requests) =>
-        requests.map((r) => ({ settlementTxId: r.settlementTxId, estimatedAmount: r.estimatedAmount })),
+        requests.map((r) => ({ settlementTxId: r.settlementTxId, settlementEventId: r.settlementEventId })),
       );
   }
 

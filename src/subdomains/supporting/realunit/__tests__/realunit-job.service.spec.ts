@@ -25,6 +25,7 @@ describe('RealUnitJobService', () => {
   };
 
   const settlementEvent = {
+    id: 'history-25631176-470-to',
     txHash: '0xSettlementTx',
     timestamp: new Date('2026-06-30T09:04:00Z'),
     transfer: { from: '0xBrokerbot', to: userAddress, value: '72' },
@@ -65,7 +66,10 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xSettlementTx');
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+      txId: '0xSettlementTx',
+      eventId: 'history-25631176-470-to',
+    });
   });
 
   it('should not complete a quote when the transfer amount does not match', async () => {
@@ -97,7 +101,9 @@ describe('RealUnitJobService', () => {
 
   it('should ignore non-transfer events', async () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
-    mockHistory([{ txHash: '0xApprovalTx', timestamp: settlementEvent.timestamp, approval: { value: '72' } }]);
+    mockHistory([
+      { id: 'history-25631176-470-approval', txHash: '0xApprovalTx', timestamp: settlementEvent.timestamp, approval: { value: '72' } },
+    ]);
 
     await service.completeSettledQuotes();
 
@@ -112,14 +118,17 @@ describe('RealUnitJobService', () => {
     await service.completeSettledQuotes();
 
     expect(transactionRequestService.complete).toHaveBeenCalledTimes(1);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xSettlementTx');
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+      txId: '0xSettlementTx',
+      eventId: 'history-25631176-470-to',
+    });
   });
 
   it('should not reuse a settlement transfer that already completed a quote in an earlier run', async () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
     jest
       .spyOn(transactionRequestService, 'getUsedSettlements')
-      .mockResolvedValue([{ settlementTxId: '0xSettlementTx', estimatedAmount: 72.123 }]);
+      .mockResolvedValue([{ settlementTxId: '0xSettlementTx', settlementEventId: 'history-25631176-470-to' }]);
     mockHistory([settlementEvent]);
 
     await service.completeSettledQuotes();
@@ -132,15 +141,31 @@ describe('RealUnitJobService', () => {
     const largeQuote = { ...quote, id: 11, estimatedAmount: 22047 };
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([smallQuote, largeQuote] as any);
     mockHistory([
-      { ...settlementEvent, txHash: '0xBatchTx', transfer: { ...settlementEvent.transfer, value: '219' } },
-      { ...settlementEvent, txHash: '0xBatchTx', transfer: { ...settlementEvent.transfer, value: '22047' } },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-219-to',
+        txHash: '0xBatchTx',
+        transfer: { ...settlementEvent.transfer, value: '219' },
+      },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-22047-to',
+        txHash: '0xBatchTx',
+        transfer: { ...settlementEvent.transfer, value: '22047' },
+      },
     ]);
 
     await service.completeSettledQuotes();
 
     expect(transactionRequestService.complete).toHaveBeenCalledTimes(2);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xBatchTx');
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, '0xBatchTx');
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+      txId: '0xBatchTx',
+      eventId: 'history-25631176-219-to',
+    });
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+      txId: '0xBatchTx',
+      eventId: 'history-25631176-22047-to',
+    });
   });
 
   it('should complete a quote from a batch tx whose other transfer already settled an earlier request', async () => {
@@ -148,22 +173,35 @@ describe('RealUnitJobService', () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([largeQuote] as any);
     jest
       .spyOn(transactionRequestService, 'getUsedSettlements')
-      .mockResolvedValue([{ settlementTxId: '0xBatchTx', estimatedAmount: 219.71 }]);
+      .mockResolvedValue([{ settlementTxId: '0xBatchTx', settlementEventId: 'history-25631176-219-to' }]);
     mockHistory([
-      { ...settlementEvent, txHash: '0xBatchTx', transfer: { ...settlementEvent.transfer, value: '219' } },
-      { ...settlementEvent, txHash: '0xBatchTx', transfer: { ...settlementEvent.transfer, value: '22047' } },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-219-to',
+        txHash: '0xBatchTx',
+        transfer: { ...settlementEvent.transfer, value: '219' },
+      },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-22047-to',
+        txHash: '0xBatchTx',
+        transfer: { ...settlementEvent.transfer, value: '22047' },
+      },
     ]);
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, '0xBatchTx');
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+      txId: '0xBatchTx',
+      eventId: 'history-25631176-22047-to',
+    });
   });
 
   it('should not reuse a same-amount transfer within a batch tx across runs', async () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
     jest
       .spyOn(transactionRequestService, 'getUsedSettlements')
-      .mockResolvedValue([{ settlementTxId: '0xBatchTx', estimatedAmount: 72.9 }]);
+      .mockResolvedValue([{ settlementTxId: '0xBatchTx', settlementEventId: 'history-25631176-470-to' }]);
     mockHistory([{ ...settlementEvent, txHash: '0xBatchTx' }]);
 
     await service.completeSettledQuotes();
@@ -175,15 +213,23 @@ describe('RealUnitJobService', () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
     jest
       .spyOn(transactionRequestService, 'getUsedSettlements')
-      .mockResolvedValue([{ settlementTxId: '0xBatchTx', estimatedAmount: 72.9 }]);
+      .mockResolvedValue([{ settlementTxId: '0xBatchTx', settlementEventId: 'history-25631176-470-to' }]);
     mockHistory([
-      { ...settlementEvent, txHash: '0xBatchTx' },
-      { ...settlementEvent, txHash: '0xBatchTx', timestamp: new Date('2026-06-30T09:04:00Z') },
+      { ...settlementEvent, id: 'history-25631176-470-to', txHash: '0xBatchTx' },
+      {
+        ...settlementEvent,
+        id: 'history-25631177-471-to',
+        txHash: '0xBatchTx',
+        timestamp: new Date('2026-06-30T09:04:00Z'),
+      },
     ]);
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xBatchTx');
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+      txId: '0xBatchTx',
+      eventId: 'history-25631177-471-to',
+    });
   });
 
   it('should complete a quote when the consumed transfer is not the first event of the batch tx', async () => {
@@ -191,26 +237,47 @@ describe('RealUnitJobService', () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([largeQuote] as any);
     jest
       .spyOn(transactionRequestService, 'getUsedSettlements')
-      .mockResolvedValue([{ settlementTxId: '0xBatchTx', estimatedAmount: 219.71 }]);
+      .mockResolvedValue([{ settlementTxId: '0xBatchTx', settlementEventId: 'history-25631176-219-to' }]);
     // the consumed transfer is the second event here, so a tx-hash-only match would skip the wrong one
     mockHistory([
-      { ...settlementEvent, txHash: '0xBatchTx', transfer: { ...settlementEvent.transfer, value: '22047' } },
-      { ...settlementEvent, txHash: '0xBatchTx', transfer: { ...settlementEvent.transfer, value: '219' } },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-22047-to',
+        txHash: '0xBatchTx',
+        transfer: { ...settlementEvent.transfer, value: '22047' },
+      },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-219-to',
+        txHash: '0xBatchTx',
+        transfer: { ...settlementEvent.transfer, value: '219' },
+      },
     ]);
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, '0xBatchTx');
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+      txId: '0xBatchTx',
+      eventId: 'history-25631176-22047-to',
+    });
   });
 
   it('should match the oldest unused settlement transfer', async () => {
-    const laterEvent = { ...settlementEvent, txHash: '0xLaterTx', timestamp: new Date('2026-07-01T12:00:00Z') };
+    const laterEvent = {
+      ...settlementEvent,
+      id: 'history-25631200-999-to',
+      txHash: '0xLaterTx',
+      timestamp: new Date('2026-07-01T12:00:00Z'),
+    };
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
     mockHistory([laterEvent, settlementEvent]); // ponder returns newest first
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xSettlementTx');
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+      txId: '0xSettlementTx',
+      eventId: 'history-25631176-470-to',
+    });
   });
 
   it('should fetch the account history only once per address', async () => {
@@ -236,6 +303,57 @@ describe('RealUnitJobService', () => {
     await service.completeSettledQuotes();
 
     expect(transactionRequestService.complete).toHaveBeenCalledTimes(1);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, '0xSettlementTx');
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+      txId: '0xSettlementTx',
+      eventId: 'history-25631176-470-to',
+    });
+  });
+
+  it('should not reuse a settlement tx that completed a request before event ids were recorded', async () => {
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
+    jest
+      .spyOn(transactionRequestService, 'getUsedSettlements')
+      .mockResolvedValue([{ settlementTxId: '0xBatchTx', settlementEventId: null }]);
+    mockHistory([{ ...settlementEvent, id: 'history-25631176-999-to', txHash: '0xBatchTx' }]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+  });
+
+  it('should complete a quote from a tx unrelated to a legacy settlement', async () => {
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
+    jest
+      .spyOn(transactionRequestService, 'getUsedSettlements')
+      .mockResolvedValue([{ settlementTxId: '0xBatchTx', settlementEventId: null }]);
+    mockHistory([{ ...settlementEvent, id: 'history-25631176-999-to', txHash: '0xUnrelatedTx' }]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+      txId: '0xUnrelatedTx',
+      eventId: 'history-25631176-999-to',
+    });
+  });
+
+  it('should distinguish two identical transfers of the same tx by their event id', async () => {
+    const secondQuote = { ...quote, id: 11 };
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote, secondQuote] as any);
+    mockHistory([
+      { ...settlementEvent, id: 'history-25631176-470-to' },
+      { ...settlementEvent, id: 'history-25631176-471-to', timestamp: new Date('2026-06-30T09:05:00Z') },
+    ]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.complete).toHaveBeenCalledTimes(2);
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+      txId: '0xSettlementTx',
+      eventId: 'history-25631176-470-to',
+    });
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+      txId: '0xSettlementTx',
+      eventId: 'history-25631176-471-to',
+    });
   });
 });

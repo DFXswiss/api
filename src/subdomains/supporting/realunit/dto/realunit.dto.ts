@@ -86,6 +86,9 @@ export class AddressTypeUpdateDto {
 }
 
 export class HistoryEventDto {
+  @ApiProperty({ description: 'Unique id of the history event' })
+  id: string;
+
   @ApiProperty({ description: 'Timestamp of the event' })
   timestamp: Date;
 
