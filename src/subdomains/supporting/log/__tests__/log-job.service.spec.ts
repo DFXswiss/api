@@ -1551,7 +1551,7 @@ describe('LogJobService', () => {
     expect(service.getUnmatchedSenders([sender1, sender2], [receiver1])).toEqual([sender2]);
   });
 
-  it('should not false-match a referenced-but-unrelated receiver outside amount or date tolerance', () => {
+  it('should not false-match a referenced-but-unrelated receiver outside the amount tolerance', () => {
     // Receiver carries a reference that matches no sender (pass 1 misses). Amount is far outside
     // the 1%/min-1.0 tolerance, so the expanded pass 2 must not invent a match either.
     const senderTx = [
@@ -1580,11 +1580,12 @@ describe('LogJobService', () => {
   });
 
   it('should not let a receiver whose own sender aged out of the 7-day window retire an unrelated recent sender via amount+date', () => {
-    // S_alt is 8 days old and falls out of recentSenders, but its ref "83001" still matches E's
-    // ref from DEPOSIT-83001. E must count as consumed (consumedRefs built over full senderTx, not
-    // only recentSenders). Otherwise E stays available and would falsely retire S_neu by amount+date
-    // (same 30000 EUR; dateDiff between daysBefore(6) and daysBefore(1) is well under DATE_WINDOW_MS).
-    const sAlt = createCustomBankTx({
+    // senderOld is 8 days old and falls out of recentSenders, but its ref "83001" still matches
+    // receiver's ref from DEPOSIT-83001. receiver must count as consumed (consumedRefs built over
+    // full senderTx, not only recentSenders). Otherwise receiver stays available and would falsely
+    // retire senderNew by amount+date (same 30000 EUR; dateDiff between daysBefore(6) and
+    // daysBefore(1) is well under DATE_WINDOW_MS).
+    const senderOld = createCustomBankTx({
       id: 1,
       created: Util.daysBefore(8),
       valueDate: Util.daysBefore(8),
@@ -1599,7 +1600,7 @@ describe('LogJobService', () => {
       amount: 30000,
       currency: 'EUR',
     });
-    const sNeu = createCustomBankTx({
+    const senderNew = createCustomBankTx({
       id: 2,
       created: Util.daysBefore(1),
       valueDate: Util.daysBefore(1),
@@ -1608,12 +1609,18 @@ describe('LogJobService', () => {
       remittanceInfo: 'DFX Payout 83999',
     });
 
-    expect(service.getUnmatchedSenders([sAlt, sNeu], [receiver])).toEqual([sNeu]);
+    expect(service.getUnmatchedSenders([senderOld, senderNew], [receiver])).toEqual([senderNew]);
   });
 
-  it('should not match a ref-less receiver outside the 7-day date window even when amount and currency match', () => {
-    // Pass-2 amount+date fallback must still enforce DATE_WINDOW_MS: same amount/currency is not
-    // enough when the receiver is more than 7 days away from the sender.
+  it('should not match a referenced-but-unconsumed receiver outside the 7-day date window even when amount and currency match', () => {
+    // The receiver carries a reference ("pmt_far_outside_window") that matches no sender, so it
+    // belongs to the group of receivers this PR newly admits into the amount+date fallback
+    // (previously only ref-less receivers were admitted). Even so, DATE_WINDOW_MS must still
+    // apply independently of that admission: same amount/currency is not enough when the
+    // receiver is more than 7 days away from the sender.
+    // Guard test, not a delta test: this is also green before the fix, because on that code
+    // path the referenced receiver was already excluded from the candidate set before the
+    // date check ever ran.
     const sender = createCustomBankTx({
       id: 1,
       created: Util.daysBefore(2),
@@ -1627,7 +1634,7 @@ describe('LogJobService', () => {
       created: Util.daysBefore(10),
       amount: 15000,
       currency: 'EUR',
-      txId: undefined,
+      txId: 'pmt_far_outside_window',
     });
 
     expect(service.getUnmatchedSenders([sender], [receiver])).toEqual([sender]);
