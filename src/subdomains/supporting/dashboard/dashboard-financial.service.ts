@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
 import { Log } from '../log/log.entity';
+import { FinancialLogSummary } from '../log/log.repository';
 import { LogService } from '../log/log.service';
 import { FinanceLog } from '../log/dto/log.dto';
 import {
@@ -23,16 +24,13 @@ export class DashboardFinancialService {
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
-    const [logs, btcAsset] = await Promise.all([
-      this.logService.getFinancialLogs(from, dailySample),
-      this.assetService.getBtcCoin(),
-    ]);
+    // BTC price is projected in SQL and needs btcAssetId as a parameter, so resolve getBtcCoin first.
+    // One extra sequential roundtrip vs the previous Promise.all, judged negligible against the
+    // eliminated transfer volume of the full message JSON.
+    const btcAsset = await this.assetService.getBtcCoin();
+    const summaries = await this.logService.getFinancialLogSummaries(btcAsset?.id, from, dailySample);
 
-    const btcAssetId = btcAsset?.id;
-    const entries = logs
-      .map((log) => this.mapLogToEntry(log, btcAssetId))
-      .filter((e): e is FinancialLogEntryDto => e != null);
-
+    const entries = summaries.map((summary) => this.mapSummaryToEntry(summary));
     return { entries };
   }
 
@@ -234,34 +232,19 @@ export class DashboardFinancialService {
     return { timestamp: latest.created, byType, byBlockchain };
   }
 
-  private mapLogToEntry(log: Log, btcAssetId?: number): FinancialLogEntryDto | undefined {
-    try {
-      const financeLog: FinanceLog = JSON.parse(log.message);
-
-      const btcPriceChf = this.extractBtcPrice(financeLog, btcAssetId);
-
-      const balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
-      if (financeLog.balancesByFinancialType) {
-        for (const [type, data] of Object.entries(financeLog.balancesByFinancialType)) {
-          balancesByType[type] = {
-            plusBalanceChf: data.plusBalanceChf,
-            minusBalanceChf: data.minusBalanceChf,
-          };
-        }
-      }
-
-      return {
-        timestamp: log.created,
-        totalBalanceChf: financeLog.balancesTotal?.totalBalanceChf ?? 0,
-        plusBalanceChf: financeLog.balancesTotal?.plusBalanceChf ?? 0,
-        minusBalanceChf: financeLog.balancesTotal?.minusBalanceChf ?? 0,
-        fxPnlChf: financeLog.balancesTotal?.fxPnlChf ?? 0,
-        btcPriceChf,
-        balancesByType,
-      };
-    } catch {
-      return undefined;
-    }
+  // Pure mapping over the SQL projection; JSON parse/cast happens in SQL and fails loud there, so
+  // there is nothing left here that can throw on malformed input. Field defaults (`?? 0`) match the
+  // previous mapLogToEntry so the response stays byte-identical for the same underlying data.
+  private mapSummaryToEntry(summary: FinancialLogSummary): FinancialLogEntryDto {
+    return {
+      timestamp: summary.created,
+      totalBalanceChf: summary.totalBalanceChf ?? 0,
+      plusBalanceChf: summary.plusBalanceChf ?? 0,
+      minusBalanceChf: summary.minusBalanceChf ?? 0,
+      fxPnlChf: summary.fxPnlChf ?? 0,
+      btcPriceChf: summary.btcPriceChf,
+      balancesByType: summary.balancesByType,
+    };
   }
 
   private extractBtcPrice(financeLog: FinanceLog, btcAssetId?: number): number {

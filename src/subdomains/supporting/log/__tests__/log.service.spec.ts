@@ -12,7 +12,7 @@ import {
   LogSeverity,
   MAX_VALIDITY_SWEEP_ROWS,
 } from '../log.entity';
-import { LogRepository } from '../log.repository';
+import { FinancialLogSummary, LogRepository } from '../log.repository';
 import { LogService } from '../log.service';
 
 jest.mock('../log.repository');
@@ -267,6 +267,41 @@ describe('LogService', () => {
           max: null,
         })}, reference: ticket SUP-123, affected 1`,
       );
+    });
+  });
+
+  describe('getFinancialLogSummaries', () => {
+    it('delegates to the repository with the same arguments and returns FinancialLogSummary-shaped rows', async () => {
+      const from = new Date('2026-07-01T00:00:00Z');
+      const to = new Date('2026-07-15T00:00:00Z');
+      const summaries: FinancialLogSummary[] = [
+        {
+          created: from,
+          id: 11,
+          totalBalanceChf: 100,
+          plusBalanceChf: 150,
+          minusBalanceChf: 50,
+          fxPnlChf: -12,
+          btcPriceChf: 65000,
+          balancesByType: { Crypto: { plusBalanceChf: 150, minusBalanceChf: 50 } },
+        },
+      ];
+      const spy = jest.spyOn(logRepo, 'getFinancialLogSummaries').mockResolvedValue(summaries);
+
+      await expect(service.getFinancialLogSummaries(7, from, true, to, 25, 10)).resolves.toEqual(summaries);
+
+      expect(spy).toHaveBeenCalledWith(7, from, true, to, 25, 10);
+      // Shape guard: mock returns FinancialLogSummary fields, not a full Log.message.
+      expect(summaries[0]).toEqual(
+        expect.objectContaining({
+          totalBalanceChf: 100,
+          plusBalanceChf: 150,
+          minusBalanceChf: 50,
+          btcPriceChf: 65000,
+          balancesByType: { Crypto: { plusBalanceChf: 150, minusBalanceChf: 50 } },
+        }),
+      );
+      expect(summaries[0]).not.toHaveProperty('message');
     });
   });
 

@@ -40,6 +40,30 @@ export interface FinancialLogAssetPrice {
   logId: number;
 }
 
+/**
+ * Dashboard financial-log chart fields projected from a FinancialDataLog snapshot (no full message JSON).
+ * Contains exactly what mapSummaryToEntry needs so it never touches log.message.
+ */
+export interface FinancialLogSummary {
+  created: Date;
+  id: number;
+  totalBalanceChf: number;
+  plusBalanceChf: number;
+  minusBalanceChf: number;
+  /**
+   * null when absent in the source JSON (first entry has no previous snapshot to diff against, see
+   * BalancesTotal.fxPnlChf) — mapSummaryToEntry keeps its existing `?? 0` default at the call site;
+   * this method must NOT default it itself.
+   */
+  fxPnlChf: number | null;
+  /**
+   * 0 when btcAssetId is undefined or the asset key/price is unusable — computed in SQL only when
+   * btcAssetId is defined.
+   */
+  btcPriceChf: number;
+  balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }>;
+}
+
 @Injectable()
 export class LogRepository extends BaseRepository<Log> {
   constructor(manager: EntityManager) {
@@ -317,6 +341,157 @@ ORDER BY l.created ASC, l.id ASC`;
         // Number.isFinite gate excluded them — never surface as a phantom mark.
         priceChf: priceChf != null && Number.isFinite(priceChf) ? priceChf : null,
         logId: Number(r.logId),
+      };
+    });
+
+    if (!rows.length && after != null) await this.assertEmptyResultIsEndOfData(after);
+    return rows;
+  }
+
+  /**
+   * SQL-side projection of the small FinancialDataLog sub-trees needed by the dashboard financial log chart
+   * (balancesTotal scalars, optional BTC priceChf, balancesByFinancialType). Callers avoid shipping/parsing
+   * the full ~42 KB `message` JSON per row — `assets` and `tradings` are never selected/transferred.
+   *
+   * balancesByFinancialType is selected as a single jsonb sub-object column (not LATERAL-expanded): it is much
+   * smaller than the parent message and excludes assets/tradings; reduced to plus/minus CHF per type in JS.
+   *
+   * Malformed `message` JSON fails loud: `message::jsonb` aborts the whole query — same fail-loud choice as
+   * getFinancialLogAssetPrices (volume-tested against all 31,925 matching rows in production, zero invalid
+   * JSON found; re-stated here, not re-verified).
+   *
+   * Optional `after` keyset cursor and `dailySample` match getFinancialLogs semantics (see that method).
+   */
+  async getFinancialLogSummaries(
+    btcAssetId?: number,
+    from?: Date,
+    dailySample?: boolean,
+    to?: Date,
+    limit?: number,
+    after?: number, // id of the last row of the previous page; NEVER a Date/created value
+  ): Promise<FinancialLogSummary[]> {
+    const params: unknown[] = [];
+    let i = 1;
+
+    // Fixed filter params shared by the main WHERE and (when dailySample) the MAX(id) subquery.
+    const systemParam = `$${i++}`;
+    const subsystemParam = `$${i++}`;
+    const severityParam = `$${i++}`;
+    const validParam = `$${i++}`;
+    params.push('LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true);
+
+    // BTC price: only bind a parameter when btcAssetId is defined; otherwise project a SQL literal 0
+    // (matches extractBtcPrice: if (!financeLog.assets || !btcAssetId) return 0).
+    let btcPriceSelect: string;
+    if (btcAssetId !== undefined) {
+      btcPriceSelect = `(message::jsonb -> 'assets' -> $${i}::text ->> 'priceChf')::float8`;
+      params.push(String(btcAssetId));
+      i++;
+    } else {
+      btcPriceSelect = '0::float8';
+    }
+
+    const conditions: string[] = [];
+    if (dailySample) {
+      // Same daily-sample shape as getFinancialLogs: restrict to MAX(id) per calendar day among valid INFO
+      // FinancialDataLog rows, then apply from/to/after/limit on the outer filtered set.
+      conditions.push(
+        `id IN (SELECT MAX(id) FROM log WHERE system = ${systemParam} AND subsystem = ${subsystemParam} AND severity = ${severityParam} AND valid = ${validParam} GROUP BY CAST(created AS DATE))`,
+      );
+    } else {
+      conditions.push(
+        `system = ${systemParam}`,
+        `subsystem = ${subsystemParam}`,
+        `severity = ${severityParam}`,
+        `valid = ${validParam}`,
+      );
+    }
+
+    if (from) {
+      conditions.push(`created >= $${i++}`);
+      params.push(from);
+    }
+    if (to) {
+      conditions.push(`created <= $${i++}`);
+      params.push(to);
+    }
+    if (after != null) {
+      // Same row-value keyset as getFinancialLogs: created resolved in-DB at full precision.
+      conditions.push(`(created, id) > ((SELECT c.created FROM log c WHERE c.id = $${i}), $${i + 1})`);
+      params.push(after, after);
+      i += 2;
+    }
+
+    let limitClause = '';
+    if (limit != null) {
+      limitClause = `LIMIT $${i++}`;
+      params.push(limit);
+    }
+
+    const sql = `
+SELECT created AS "created",
+       id AS "id",
+       (message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8 AS "totalBalanceChf",
+       (message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8 AS "plusBalanceChf",
+       (message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8 AS "minusBalanceChf",
+       CASE
+         WHEN (message::jsonb -> 'balancesTotal' ->> 'fxPnlChf') IS NOT NULL
+         THEN (message::jsonb -> 'balancesTotal' ->> 'fxPnlChf')::float8
+         ELSE NULL
+       END AS "fxPnlChf",
+       ${btcPriceSelect} AS "btcPriceChf",
+       message::jsonb -> 'balancesByFinancialType' AS "balancesByFinancialType"
+FROM log
+WHERE ${conditions.join(' AND ')}
+ORDER BY created ASC, id ASC
+${limitClause}`;
+
+    const raw = (await this.query(sql, params)) as {
+      created: Date | string;
+      id: number | string;
+      totalBalanceChf: number | string | null;
+      plusBalanceChf: number | string | null;
+      minusBalanceChf: number | string | null;
+      fxPnlChf: number | string | null;
+      btcPriceChf: number | string | null;
+      balancesByFinancialType: unknown;
+    }[];
+
+    const rows: FinancialLogSummary[] = raw.map((r) => {
+      // pg may return numeric columns as strings; coerce with Number(...) like getFinancialLogAssetPrices.
+      // fxPnlChf stays null when absent (do NOT default to 0 here — that belongs to mapSummaryToEntry).
+      // btcPriceChf: absent/unusable path → 0, matching extractBtcPrice's `?.priceChf ?? 0`.
+      const btcPriceChf = r.btcPriceChf == null ? 0 : Number(r.btcPriceChf);
+
+      const balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
+      if (r.balancesByFinancialType != null) {
+        const byType =
+          typeof r.balancesByFinancialType === 'string'
+            ? (JSON.parse(r.balancesByFinancialType) as Record<
+                string,
+                { plusBalanceChf: number | string; minusBalanceChf: number | string }
+              >)
+            : (r.balancesByFinancialType as Record<
+                string,
+                { plusBalanceChf: number | string; minusBalanceChf: number | string }
+              >);
+        for (const [type, data] of Object.entries(byType)) {
+          balancesByType[type] = {
+            plusBalanceChf: Number(data.plusBalanceChf),
+            minusBalanceChf: Number(data.minusBalanceChf),
+          };
+        }
+      }
+
+      return {
+        created: r.created instanceof Date ? r.created : new Date(r.created),
+        id: Number(r.id),
+        totalBalanceChf: Number(r.totalBalanceChf),
+        plusBalanceChf: Number(r.plusBalanceChf),
+        minusBalanceChf: Number(r.minusBalanceChf),
+        fxPnlChf: r.fxPnlChf == null ? null : Number(r.fxPnlChf),
+        btcPriceChf,
+        balancesByType,
       };
     });
 
