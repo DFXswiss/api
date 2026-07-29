@@ -146,25 +146,18 @@ export class BuyService {
       throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
     }
     dto = await this.paymentInfoService.buyCheck(dto, jwt, user);
-    const buy = await this.createBuy(user, jwt.address, dto, true);
-
-    return this.toPaymentInfoDto(jwt.user, buy, dto);
-  }
-
-  // bankUsage is a deterministic hash of the route inputs, so concurrent creates for the same
-  // user and asset produce the same value and all but one lose the unique constraint. Retrying
-  // picks up the route the winner just committed.
-  async createBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
-    return Util.retry(
-      () => this.doCreateBuy(user, userAddress, dto, ignoreExisting),
+    const buy = await Util.retry(
+      () => this.createBuy(user, jwt.address, dto, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
+
+    return this.toPaymentInfoDto(jwt.user, buy, dto);
   }
 
-  private async doCreateBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting: boolean): Promise<Buy> {
+  async createBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {

@@ -190,7 +190,13 @@ export class SwapService {
     dto: GetSwapPaymentInfoDto,
     includeTx = false,
   ): Promise<SwapPaymentInfoDto> {
-    const swap = await this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true);
+    const swap = await Util.retry(
+      () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    );
     return this.toPaymentInfoDto(userId, swap, dto, includeTx);
   }
 
@@ -199,21 +205,6 @@ export class SwapService {
   }
 
   async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {
-    return Util.retry(
-      () => this.doCreateSwap(userId, blockchain, asset, ignoreException),
-      2,
-      0,
-      undefined,
-      (e) => e.message?.includes('duplicate key'),
-    );
-  }
-
-  private async doCreateSwap(
-    userId: number,
-    blockchain: Blockchain,
-    asset: Asset,
-    ignoreException: boolean,
-  ): Promise<Swap> {
     // KYC check
     const userData = await this.userDataService.getUserDataByUser(userId);
     if (userData.status !== UserDataStatus.ACTIVE && userData.kycLevel < KycLevel.LEVEL_30 && !ignoreException)

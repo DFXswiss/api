@@ -148,21 +148,17 @@ export class SellService {
     dto: GetSellPaymentInfoDto,
     includeTx: boolean,
   ): Promise<SellPaymentInfoDto> {
-    const sell = await this.createSell(userId, { ...dto, blockchain: dto.asset.blockchain }, true);
-    return this.toPaymentInfoDto(userId, sell, dto, includeTx);
-  }
-
-  async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
-    return Util.retry(
-      () => this.doCreateSell(userId, dto, ignoreException),
+    const sell = await Util.retry(
+      () => this.createSell(userId, { ...dto, blockchain: dto.asset.blockchain }, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
+    return this.toPaymentInfoDto(userId, sell, dto, includeTx);
   }
 
-  private async doCreateSell(userId: number, dto: CreateSellDto, ignoreException: boolean): Promise<Sell> {
+  async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
     // check user data
     const userData = await this.userDataService.getUserDataByUser(userId);
     if (!userData.isDataComplete && !ignoreException) throw new BadRequestException('Ident data incomplete');
