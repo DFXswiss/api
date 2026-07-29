@@ -476,16 +476,19 @@ describe('ScryptAdapter', () => {
       await expect(adapter.resolveUncertainOrder(ancient)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
 
-    it('reports UNAVAILABLE when the order carries no reference — there was nothing to ask about', async () => {
-      // UNRESOLVED would say the venue answered and had no record, and the caller may abandon an order on
-      // that after its bound. With no reference the venue was never asked at all, so the order must keep
-      // waiting for a person instead of being failed on a lookup that never happened.
-      const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus');
-      const order = createUncertainSellOrder({ correlationId: null, previousCorrelationIds: null });
+    it.each([undefined, null])(
+      'reports UNAVAILABLE when the reference is %p — there was nothing to ask about',
+      async (correlationId) => {
+        // UNRESOLVED would say the venue answered and had no record, and the caller may abandon an order on
+        // that once its bound expires. With no reference the venue was never asked at all, so the order has
+        // to keep waiting for a person rather than be failed on a lookup that never ran.
+        const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus');
+        const order = createUncertainSellOrder({ correlationId, previousCorrelationIds: null });
 
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
-      expect(getOrderStatus).not.toHaveBeenCalled();
-    });
+        await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
+        expect(getOrderStatus).not.toHaveBeenCalled();
+      },
+    );
 
     it('reports UNAVAILABLE when the lookup itself fails — no question reached the venue', async () => {
       jest.spyOn(scryptService, 'getOrderStatus').mockRejectedValue(new Error('Connection closed'));
@@ -493,12 +496,6 @@ describe('ScryptAdapter', () => {
       await expect(adapter.resolveUncertainOrder(createUncertainSellOrder())).resolves.toBe(
         UncertainOrderResolution.UNAVAILABLE,
       );
-    });
-
-    it('stays UNRESOLVED when no reference was ever reserved', async () => {
-      const order = createUncertainSellOrder({ correlationId: undefined });
-
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
 
     it('uses the withdrawal lookup for withdraw orders', async () => {
