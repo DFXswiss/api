@@ -325,11 +325,10 @@ export class LiquidityManagementPipelineService {
    * either confirms it knows the reference (back to IN_PROGRESS, the normal completion check takes over) or
    * demonstrably does not (FAILED, so the rule may plan anew from a fresh balance). Anything inconclusive
    * stays put — but not indefinitely: past the abandon bound for its kind of request it is given up as
-   * FAILED anyway, because a rule parked forever is the worse failure. An incomplete answer — no reference
-   * to ask with, an unreachable venue, or a lookup that stopped with a reference left unasked — waits far
-   * longer, since only a clock stands behind it, but it ends too. The single exception is an order no
-   * integration can look up at all: there the venue is never asked and the balance a replan would read is
-   * not live either, so it keeps waiting for a human.
+   * FAILED anyway, because a rule parked forever is the worse failure — but only after the venue has
+   * confirmed that nothing under this order can still execute. Age decides when it is worth trying to clean
+   * up; the cancellation decides whether giving up is safe. An order no integration can look up, or whose
+   * references the venue will not settle, keeps waiting.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
     // First: anything this process observed and could not write. Retried before new lookups, because an
@@ -419,9 +418,9 @@ export class LiquidityManagementPipelineService {
           if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
             anyChanged = true;
         } else if (order.unresolvableTooLong()) {
-          // The order has outlived the point at which its request could still be live, and nobody has
-          // released it. Waiting on for an operator is not the careful option where nobody performs the
-          // release — the rule then never runs again and the venue stops being served entirely.
+          // Old enough that cleaning it up is worth attempting, and nobody has released it. Waiting on for
+          // an operator is not the careful option where nobody performs the release — the rule then never
+          // runs again and the venue stops being served entirely.
           //
           // What stands in the way of giving up is never the order itself but the possibility of a request
           // still executing: hand the funds back and a late fill spends them twice. So rather than
@@ -479,9 +478,8 @@ export class LiquidityManagementPipelineService {
    * which is why `because` may only ever describe what the lookup did or did not return, never that nothing
    * was sent. The row must not claim an observation nobody made.
    *
-   * Two callers, distinguished only by which clock ran out: a venue that answered and had no record, and
-   * one that never gave a complete answer at all. Both are equally short on evidence and equally deliberate
-   * about ending a wait that would otherwise never end.
+   * Reached only after the venue has confirmed that none of the order's references can execute any more, so
+   * what it ends is a wait, not an open question.
    *
    * Logged as a warning, not an info. Nothing here is routine — an order reaching this point means the venue
    * lost track of a request past its bound — and the entry is what makes that visible without an operator

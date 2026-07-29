@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import {
+  ScryptCancellation,
   ScryptOrderInfo,
   ScryptOrderSide,
   ScryptOrderStatus,
@@ -276,18 +277,40 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   async cancelOutstanding(order: LiquidityManagementOrder): Promise<boolean> {
     if (order.action.command === ScryptAdapterCommands.WITHDRAW) return false;
 
+    const references = this.attemptedReferencesNewestFirst(order);
+
+    // Nothing ever went out under a reference, so the venue cannot confirm anything about this order — and
+    // an empty loop would otherwise fall through to "all settled" without a single question asked. Absent
+    // evidence this must hold the order, never release it.
+    if (!references.length) return false;
+
     const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
     const asset = order.pipeline.rule.targetAsset.dexName;
     const [from, to] = order.action.command === ScryptAdapterCommands.SELL ? [asset, tradeAsset] : [tradeAsset, asset];
 
-    for (const reference of this.attemptedReferencesNewestFirst(order)) {
-      if (!(await this.scryptService.cancelIfOutstanding(reference, from, to))) {
+    for (const reference of references) {
+      const outcome = await this.scryptService.cancelIfOutstanding(reference, from, to);
+
+      if (outcome === ScryptCancellation.SETTLED) continue;
+
+      if (outcome === ScryptCancellation.EXECUTED) {
+        // It filled, in whole or in part, so this order did something and has to be finished for what it
+        // did rather than abandoned as if it had not. Point the row at the reference that executed: the
+        // next reconciliation finds it, reports SENT, and the ordinary completion check books the fill.
         this.logger.warn(
-          `Order ${order.id}: Scrypt would not settle ${reference}, so it may still execute — keeping the order quarantined`,
+          `Order ${order.id}: ${reference} had already executed at Scrypt — completing it instead of giving up`,
         );
+        order.updateCorrelationId(reference);
+        await this.orderRepo.save(order);
 
         return false;
       }
+
+      this.logger.warn(
+        `Order ${order.id}: Scrypt would not settle ${reference}, so it may still execute — keeping the order quarantined`,
+      );
+
+      return false;
     }
 
     this.logger.info(`Order ${order.id}: Scrypt confirmed none of its references can execute any more`);

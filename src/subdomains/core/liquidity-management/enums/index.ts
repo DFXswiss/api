@@ -47,13 +47,9 @@ export enum LiquidityManagementOrderStatus {
   // with no record is abandoned to FAILED once it has outlived the window in which its request could still
   // be in flight (ABANDON_UNCERTAIN_MINUTES, which differs for venue-internal trades and transfers).
   //
-  // Short of a complete answer — no reference to ask with, an unreachable venue, or a lookup that stopped
-  // with a reference left unasked (all UNAVAILABLE) — the wait is far longer, because only a clock stands
-  // behind it. It still ends: an order that resolves only through an operator does not resolve at all
-  // where nobody performs the release.
-  //
-  // The one case that does wait indefinitely is an adapter implementing no `resolveUncertainOrder`, where
-  // the venue is never asked and the balance a replan would read is not live either. That needs
+  // Giving up is never concluded from the clock alone: past the bound the venue is asked to cancel every
+  // reference the order sent, and only its confirmation that none can still execute makes FAILED a fact.
+  // A venue that will not settle them, and an adapter that cannot cancel at all, keep waiting — for
   // `resolveUncertainOrderManually`.
   UNCERTAIN = 'Uncertain',
 }
@@ -77,9 +73,8 @@ export enum UncertainOrderResolution {
    * caller that retires an order's outstanding work on the strength of a completed lookup must not retire it
    * on a failed one.
    *
-   * "Not completely" covers a lookup that stopped with references left unasked — an order superseded by a
-   * replacement the venue cannot see yet leaves its predecessor unchecked, and that predecessor is very
-   * often the live one. Reporting that as an answer would let a caller time it out as never sent.
+   * "Not completely" covers an order with no reference to ask about at all: there is nothing to look up, so
+   * nothing was learned.
    */
   UNAVAILABLE = 'Unavailable',
 }

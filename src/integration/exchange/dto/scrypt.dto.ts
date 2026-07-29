@@ -112,6 +112,22 @@ export enum ScryptOrderSide {
   SELL = 'Sell',
 }
 
+/**
+ * What asking the venue to cancel a reference established about it.
+ *
+ * Three outcomes, not two, because "cancelled" does not mean "nothing happened": the venue reports a
+ * partially filled order that gets cancelled with a terminal Canceled status AND a CumQty above zero, and
+ * treating that as settled would drop a real fill on the floor.
+ */
+export enum ScryptCancellation {
+  /** Nothing can execute under this reference any more: cancelled with nothing filled, or unknown here. */
+  SETTLED = 'Settled',
+  /** It executed, in whole or in part. The order is not "never sent" and must be completed, not abandoned. */
+  EXECUTED = 'Executed',
+  /** No usable answer. Nothing may be concluded, least of all that the reference is safe to walk away from. */
+  UNCONFIRMED = 'Unconfirmed',
+}
+
 export enum ScryptOrderType {
   MARKET = 'Market',
   LIMIT = 'Limit',

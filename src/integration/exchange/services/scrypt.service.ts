@@ -9,6 +9,7 @@ import { PricingProvider } from 'src/subdomains/supporting/pricing/services/inte
 import {
   ScryptBalance,
   ScryptBalanceTransaction,
+  ScryptCancellation,
   ScryptDepositStatus,
   ScryptExecutionReport,
   ScryptMarketDataSnapshot,
@@ -42,6 +43,12 @@ import {
  * than merely slow. Shared by the "cannot be found" and the "stuck pending" paths so both give up together.
  */
 const ORDER_LOST_AFTER_MINUTES = 60;
+
+// The venue answers a refused cancel with an execution report rather than a separate reject message, so the
+// refusal has to be read off these two fields. `UnknownOrder` is the one reason that settles anything: there
+// is no such order, so nothing under that reference can execute.
+const SCRYPT_CANCEL_REJECTED = 'CancelRejected';
+const SCRYPT_UNKNOWN_ORDER = 'UnknownOrder';
 
 // The bulk streams a reconnect catch-up restores; the live subscriptions cover everything else.
 type CatchUpStream = ScryptMessageType.EXECUTION_REPORT | ScryptMessageType.BALANCE_TRANSACTION;
@@ -687,7 +694,8 @@ export class ScryptService extends PricingProvider {
             this.logger.verbose(`Could not update order ${clOrdId}, attempting cancel: ${e.message}`);
             let cancelConfirmed = true;
             try {
-              await this.cancelOrder(clOrdId, from, to);
+              const cancelReport = await this.cancelOrder(clOrdId, from, to);
+              cancelConfirmed = cancelReport.OrdStatus === ScryptOrderStatus.CANCELED;
             } catch (cancelError) {
               // The cancel is a write too. Unconfirmed, it may well have taken effect at the venue while the
               // cached report still shows the order open — and a non-terminal entry is never refreshed, so
@@ -841,28 +849,59 @@ export class ScryptService extends PricingProvider {
   }
 
   /**
-   * Make sure a reference cannot execute any more, and say whether that is now certain.
+   * Ask the venue to make sure a reference cannot execute any more, and report what that established.
    *
    * For giving up on an order whose outcome was never observed. The danger there is never the order itself
    * but a request still live in the book: hand the funds back to a rule while one sits open and a late fill
    * spends them twice. Cancelling removes that possibility outright, which beats estimating when it has
    * passed — and unlike a re-send, a cancel can never create anything.
    *
-   * True means the venue confirmed there is nothing left to execute: either it cancelled the order, or it
-   * refused because it has no such order to cancel. Both settle the question. A cancel that goes
-   * unconfirmed, or an order the venue reports in any other state (a fill above all), returns false — that
-   * is not something to conclude from, and the caller must keep waiting rather than act on it.
+   * Three outcomes, because a cancel does not only ever mean "nothing happened":
+   *  - SETTLED — cancelled with nothing filled, or the venue does not know the reference at all. Both mean
+   *    nothing can execute under it, which is the certainty the caller needs to give the order up.
+   *  - EXECUTED — it filled, in whole or in part. A partially filled order cancels with a terminal status
+   *    AND a CumQty above zero, and calling that settled would drop a real fill: the order has to be
+   *    completed for what it did, not abandoned as if it had done nothing.
+   *  - UNCONFIRMED — no usable answer. Nothing may be concluded from it.
    */
-  async cancelIfOutstanding(clOrdId: string, from: string, to: string): Promise<boolean> {
+  async cancelIfOutstanding(clOrdId: string, from: string, to: string): Promise<ScryptCancellation> {
     try {
-      return await this.cancelOrder(clOrdId, from, to);
+      const report = await this.cancelOrder(clOrdId, from, to);
+
+      // A fill is a fill, whatever the order's final state says. Checked before the status, because the
+      // partially-filled case reports BOTH a terminal Canceled and a non-zero fill, and the fill is the
+      // half that moves money.
+      if (Util.round(Number(report.CumQty), 8) > 0) {
+        this.logger.warn(
+          `Cancel of order ${clOrdId} came back with ${report.CumQty} already filled — it executed and cannot be abandoned`,
+        );
+
+        return ScryptCancellation.EXECUTED;
+      }
+
+      if (report.OrdStatus === ScryptOrderStatus.CANCELED) return ScryptCancellation.SETTLED;
+
+      // The venue answers a refused cancel with an execution report rather than a separate message. It
+      // does not know this reference, so there is nothing under it that could ever execute — every other
+      // reason (too late, rate limited, already pending) settles nothing and has to be waited out.
+      if (report.ExecType === SCRYPT_CANCEL_REJECTED && report.CxlRejReason === SCRYPT_UNKNOWN_ORDER) {
+        this.logger.verbose(`Scrypt has no such order to cancel for ${clOrdId}`);
+
+        return ScryptCancellation.SETTLED;
+      }
+
+      this.logger.warn(
+        `Cancel of order ${clOrdId} left it in state ${report.OrdStatus}${
+          report.CxlRejReason ? ` (${report.CxlRejReason})` : ''
+        } — nothing settled`,
+      );
+
+      return ScryptCancellation.UNCONFIRMED;
     } catch (e) {
       if (isVenueRejection(e)) {
-        // The venue answered and declined: there is no such live order to cancel. That is exactly the
-        // certainty this method exists to establish.
-        this.logger.verbose(`Scrypt has nothing to cancel for ${clOrdId}: ${e.message}`);
+        this.logger.verbose(`Scrypt refused the cancel for ${clOrdId}: ${e.message}`);
 
-        return true;
+        return ScryptCancellation.SETTLED;
       }
 
       // A cancel is a write. Unconfirmed, it may have taken effect at the venue while the cached report
@@ -871,11 +910,11 @@ export class ScryptService extends PricingProvider {
       this.forgetExecutionReport(clOrdId);
       this.logger.warn(`Cancel of order ${clOrdId} went unconfirmed: ${e.message}`);
 
-      return false;
+      return ScryptCancellation.UNCONFIRMED;
     }
   }
 
-  private async cancelOrder(clOrdId: string, from: string, to: string): Promise<boolean> {
+  private async cancelOrder(clOrdId: string, from: string, to: string): Promise<ScryptExecutionReport> {
     const { symbol } = await this.getTradePair(from, to);
     const newClOrdId = randomUUID();
 
@@ -893,7 +932,7 @@ export class ScryptService extends PricingProvider {
       60000,
     );
 
-    return report.OrdStatus === ScryptOrderStatus.CANCELED;
+    return report;
   }
 
   private async editOrder(

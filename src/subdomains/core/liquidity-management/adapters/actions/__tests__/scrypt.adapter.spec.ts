@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import {
   ScryptBalanceTransaction,
+  ScryptCancellation,
   ScryptOrderInfo,
   ScryptOrderStatus,
   ScryptTransactionStatus,
@@ -455,6 +456,64 @@ describe('ScryptAdapter', () => {
 
       order.updateCorrelationId('dfx-lm-4711-1');
       expect(adapter['nextCorrelationId'](order)).toBe('dfx-lm-4711-2');
+    });
+  });
+
+  describe('cancelOutstanding', () => {
+    it('confirms only once the venue has settled every reference the order ever sent', async () => {
+      const cancelIfOutstanding = jest
+        .spyOn(scryptService, 'cancelIfOutstanding')
+        .mockResolvedValue(ScryptCancellation.SETTLED);
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(true);
+      expect(cancelIfOutstanding).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses when a single reference will not settle — that one could still spend the funds', async () => {
+      jest
+        .spyOn(scryptService, 'cancelIfOutstanding')
+        .mockImplementation(async (id: string) =>
+          id === 'dfx-lm-4711' ? ScryptCancellation.UNCONFIRMED : ScryptCancellation.SETTLED,
+        );
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+    });
+
+    it('never confirms an order that has no reference at all — nothing was asked', async () => {
+      // an empty loop would otherwise fall straight through to "all settled", abandoning the order on a
+      // confirmation nobody gave
+      const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+      const order = createUncertainSellOrder({ correlationId: null, previousCorrelationIds: null });
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+      expect(cancelIfOutstanding).not.toHaveBeenCalled();
+    });
+
+    it('adopts a reference that had already executed instead of giving the order up', async () => {
+      // a partial fill is still a fill: the order did something, so it has to be completed for what it did
+      jest
+        .spyOn(scryptService, 'cancelIfOutstanding')
+        .mockImplementation(async (id: string) =>
+          id === 'dfx-lm-4711-1' ? ScryptCancellation.EXECUTED : ScryptCancellation.SETTLED,
+        );
+      const order = createUncertainSellOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+      expect(order.correlationId).toBe('dfx-lm-4711-1');
+      expect(orderRepo.save).toHaveBeenCalled();
+    });
+
+    it('never cancels a withdrawal — there is no such thing at this venue', async () => {
+      const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+      const order = createUncertainSellOrder({ action: withdrawAction() });
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+      expect(cancelIfOutstanding).not.toHaveBeenCalled();
     });
   });
 

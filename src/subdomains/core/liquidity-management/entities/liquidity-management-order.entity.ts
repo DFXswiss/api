@@ -50,10 +50,10 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  *   trades (n=55):      median 9.6s   p95 19.8s   max 57.1s
  *   withdrawals (n=49): median 7.7min p95 82min   max 5.6h
  *
- * Read those as a floor, not a ceiling: they describe orders that finished, so an order that never becomes
- * observable at all is by construction absent from them. That is why the unanswered bound is not derived
- * from the same sample but set far beyond it — and why a lookup that can never complete is repaired at the
- * source rather than waited out.
+ * Read those as a floor, not a ceiling: they describe orders that finished, so one that never becomes
+ * observable at all is by construction absent from them. Which is why nothing is concluded from the clock
+ * alone — it only decides when cleaning up is worth attempting. What makes giving up safe is the venue
+ * confirming that none of the order's references can still execute.
  *
  * Balances refresh every minute and the pipeline runs every 10 seconds, so no bound is limited by how
  * quickly an abandonment can be noticed — only by how long the request itself may still be alive.
@@ -317,11 +317,11 @@ export class LiquidityManagementOrder extends IEntity {
   }
 
   /**
-   * Whether the venue has been answering "no record" for long enough that waiting further serves nobody.
+   * Whether an unresolved order is old enough that cleaning it up is worth attempting.
    *
-   * Distinct from {@link releaseWaitedOutVenue}: that one waits out a venue that says nothing, this one a
-   * venue that answers and keeps having no record. Requires the order to be old enough that any execution
-   * would long since be reflected in the venue's balance, which is what the replan reads. See
+   * Gates both inconclusive outcomes — a venue that answers and has no record, and one that could not be
+   * asked — because neither improves with waiting. Not a safety judgement on its own: what follows is a
+   * cancellation, and only the venue confirming that nothing can execute makes giving up safe. See
    * {@link ABANDON_UNCERTAIN_MINUTES}.
    */
   unresolvableTooLong(): boolean {
