@@ -609,31 +609,41 @@ describe('LiquidityManagementPipelineService', () => {
         expect(service['uncertainResolveAttempts'].size).toBe(0);
       });
 
-      it('scales the cooldown interval with the order age instead of always using the one-minute floor', async () => {
-        // catches a regression that replaces `ageMs / 10` with the flat UNCERTAIN_RESOLVE_MIN_INTERVAL_MS floor:
-        // a 100-minute-old order gets a 10-minute wait, so asking again after 9 minutes must still be inside it
+      it('scales the cooldown interval with the order age, at the rate the formula states', async () => {
+        // Pins `ageMs / 10` from both sides. The wait for a 100-minute-old order is only satisfied once
+        // elapsed >= (100 min + elapsed) / 10, i.e. at 11 min 6.7 s — so 11 minutes is still inside it and
+        // 11 min 20 s is past it. A one-sided assertion would let the rate drift unnoticed: with `ageMs / 5`
+        // the order simply stays in cooldown and a lower-bound-only test keeps passing.
         const resolveUncertainOrder = stubResolver();
         const order = uncertainOrder({ created: new Date(Date.now() - 100 * 60_000) });
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
 
         await service['resolveUncertainOrders']();
-        jest.advanceTimersByTime(9 * 60_000);
-        await service['resolveUncertainOrders']();
 
+        jest.advanceTimersByTime(11 * 60_000);
+        await service['resolveUncertainOrders']();
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(20_000);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
       });
 
       it('caps the cooldown interval at thirty minutes no matter how old the order is', async () => {
-        // catches a regression that removes the Math.min(..., UNCERTAIN_RESOLVE_MAX_INTERVAL_MS) cap: an 8-hour-old
-        // order's uncapped interval would be 48 minutes, so asking again after 31 minutes must already succeed
+        // Pins the cap from both sides. An 8-hour-old order's uncapped wait would be 48 minutes, so a lookup
+        // at 30 min 1 s can only come from the cap — and the check at 29 min 59 s rules out a cap set too low.
         const resolveUncertainOrder = stubResolver();
         const order = uncertainOrder({ created: new Date(Date.now() - 8 * 60 * 60_000) });
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
 
         await service['resolveUncertainOrders']();
-        jest.advanceTimersByTime(31 * 60_000);
-        await service['resolveUncertainOrders']();
 
+        jest.advanceTimersByTime(29 * 60_000 + 59_000);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(2_000);
+        await service['resolveUncertainOrders']();
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
       });
     });
