@@ -246,10 +246,4 @@ export class DashboardFinancialService {
       balancesByType: summary.balancesByType,
     };
   }
-
-  private extractBtcPrice(financeLog: FinanceLog, btcAssetId?: number): number {
-    if (!financeLog.assets || !btcAssetId) return 0;
-
-    return financeLog.assets[btcAssetId]?.priceChf ?? 0;
-  }
 }

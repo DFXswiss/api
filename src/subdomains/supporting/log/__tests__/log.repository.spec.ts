@@ -232,10 +232,19 @@ describe('LogRepository', () => {
 
       const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
       // Exact path→alias bindings: swapping plus/minus (or hard-coding btc) in the projection must fail.
-      expect(sql).toContain(`(message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8 AS "totalBalanceChf"`);
-      expect(sql).toContain(`(message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8 AS "plusBalanceChf"`);
-      expect(sql).toContain(`(message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8 AS "minusBalanceChf"`);
-      expect(sql).toContain(`(message::jsonb -> 'assets' -> $5::text ->> 'priceChf')::float8 AS "btcPriceChf"`);
+      // jsonb_typeof guards (F2/F3) wrap each cast; the path→alias pairing is still asserted.
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'totalBalanceChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8`);
+      expect(sql).toContain(`END AS "totalBalanceChf"`);
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'plusBalanceChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8`);
+      expect(sql).toContain(`END AS "plusBalanceChf"`);
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'minusBalanceChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8`);
+      expect(sql).toContain(`END AS "minusBalanceChf"`);
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'assets' -> $5::text -> 'priceChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'assets' -> $5::text ->> 'priceChf')::float8`);
+      expect(sql).toContain(`AS "btcPriceChf"`);
       expect(sql).toContain(`message::jsonb -> 'balancesByFinancialType' AS "balancesByFinancialType"`);
       expect(sql).not.toContain("-> 'tradings'");
       expect(params).toEqual(['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true, '7']);
@@ -362,6 +371,203 @@ describe('LogRepository', () => {
         10,
         50,
       ]);
+    });
+
+    it('orders by created ASC, id ASC (never DESC) so the chart stays chronological and keyset pagination advances forward', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+
+      await repo.getFinancialLogSummaries();
+
+      const [sql] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain('ORDER BY created ASC, id ASC');
+    });
+
+    describe('parameter position ($N placeholders match their array index)', () => {
+      const from = new Date('2026-01-01T00:00:00Z');
+      const to = new Date('2026-02-01T00:00:00Z');
+
+      it('only from, btcAssetId set', async () => {
+        const repo = new LogRepository({} as EntityManager);
+        const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+
+        await repo.getFinancialLogSummaries(7, from);
+
+        const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+        expect(sql).toContain('$5::text');
+        expect(sql).toContain('created >= $6');
+        expect(params).toEqual(['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true, '7', from]);
+      });
+
+      it('from + to, btcAssetId set', async () => {
+        const repo = new LogRepository({} as EntityManager);
+        const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+
+        await repo.getFinancialLogSummaries(7, from, false, to);
+
+        const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+        expect(sql).toContain('created >= $6');
+        expect(sql).toContain('created <= $7');
+        expect(params).toEqual(['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true, '7', from, to]);
+      });
+
+      it('from + limit, btcAssetId set, dailySample true', async () => {
+        const repo = new LogRepository({} as EntityManager);
+        const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+
+        await repo.getFinancialLogSummaries(7, from, true, undefined, 50);
+
+        const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+        expect(sql).toContain('created >= $6');
+        expect(sql).toContain('LIMIT $7');
+        expect(params).toEqual(['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true, '7', from, 50]);
+      });
+
+      it('from + after + limit, btcAssetId set', async () => {
+        const repo = new LogRepository({} as EntityManager);
+        const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+        jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(financialLogQueryBuilderStub(true) as never);
+
+        await repo.getFinancialLogSummaries(7, from, false, undefined, 50, 10);
+
+        const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+        expect(sql).toContain('created >= $6');
+        expect(sql).toContain('(created, id) > ((SELECT c.created FROM log c WHERE c.id = $7), $8)');
+        expect(sql).toContain('LIMIT $9');
+        expect(params).toEqual([
+          'LogService',
+          FINANCIAL_DATA_LOG_SUBSYSTEM,
+          LogSeverity.INFO,
+          true,
+          '7',
+          from,
+          10,
+          10,
+          50,
+        ]);
+      });
+
+      it('none of from/to/after/limit, btcAssetId set', async () => {
+        const repo = new LogRepository({} as EntityManager);
+        const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+
+        await repo.getFinancialLogSummaries(7);
+
+        const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+        expect(sql).toContain('$5::text');
+        expect(sql).not.toContain('created >=');
+        expect(sql).not.toContain('created <=');
+        expect(sql).not.toContain('(created, id) >');
+        expect(sql).not.toContain('LIMIT');
+        expect(params).toEqual(['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true, '7']);
+      });
+
+      it('btcAssetId undefined, from + after', async () => {
+        const repo = new LogRepository({} as EntityManager);
+        const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+        jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(financialLogQueryBuilderStub(true) as never);
+
+        await repo.getFinancialLogSummaries(undefined, from, false, undefined, undefined, 10);
+
+        const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+        expect(sql).toContain('0::float8');
+        expect(sql).toContain('created >= $5');
+        expect(sql).toContain('(created, id) > ((SELECT c.created FROM log c WHERE c.id = $6), $7)');
+        expect(params).toEqual(['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true, from, 10, 10]);
+      });
+    });
+
+    it('guards all five projected number fields with jsonb_typeof so one bad value nulls only that field (F2/F3)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+
+      await repo.getFinancialLogSummaries(7);
+
+      const [sql] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'totalBalanceChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8`);
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'plusBalanceChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8`);
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'minusBalanceChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8`);
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'fxPnlChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'balancesTotal' ->> 'fxPnlChf')::float8`);
+      expect(sql).toContain(`WHEN jsonb_typeof(message::jsonb -> 'assets' -> $5::text -> 'priceChf') = 'number'`);
+      expect(sql).toContain(`THEN (message::jsonb -> 'assets' -> $5::text ->> 'priceChf')::float8`);
+    });
+
+    it('projects btcPriceChf as SQL literal 0 when btcAssetId is 0 — same falsy branch as undefined (F1)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created: new Date('2026-07-14T00:00:00Z'),
+          id: 1,
+          totalBalanceChf: 1,
+          plusBalanceChf: 1,
+          minusBalanceChf: 0,
+          fxPnlChf: null,
+          btcPriceChf: 0,
+          balancesByFinancialType: null,
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries(0);
+
+      expect(rows[0].btcPriceChf).toBe(0);
+      const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain('0::float8');
+      expect(sql).not.toContain(`-> 'assets'`);
+      expect(params).toEqual(['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true]);
+    });
+
+    it('maps a raw row where balancesTotal is entirely missing (all guards fire) to 0/0/0 and keeps fxPnlChf null, matching the old mapLogToEntry ?? 0 defaults after mapSummaryToEntry', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const created = new Date('2026-07-14T00:00:00Z');
+      jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created,
+          id: 1,
+          totalBalanceChf: null,
+          plusBalanceChf: null,
+          minusBalanceChf: null,
+          fxPnlChf: null,
+          btcPriceChf: '65000.25',
+          balancesByFinancialType: null,
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries(7);
+
+      expect(rows[0].totalBalanceChf).toBe(0);
+      expect(rows[0].plusBalanceChf).toBe(0);
+      expect(rows[0].minusBalanceChf).toBe(0);
+      expect(rows[0].fxPnlChf).toBeNull();
+      expect(rows[0].btcPriceChf).toBe(65000.25);
+    });
+
+    it('maps a raw row with JSON null for only totalBalanceChf/plusBalanceChf (minusBalanceChf/fxPnlChf unaffected) to 0/0, matching the old null ?? 0 default', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const created = new Date('2026-07-14T00:00:00Z');
+      jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created,
+          id: 2,
+          totalBalanceChf: null,
+          plusBalanceChf: null,
+          minusBalanceChf: '500',
+          fxPnlChf: '-12.5',
+          btcPriceChf: '65000.25',
+          balancesByFinancialType: null,
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries(7);
+
+      expect(rows[0].totalBalanceChf).toBe(0);
+      expect(rows[0].plusBalanceChf).toBe(0);
+      expect(rows[0].minusBalanceChf).toBe(500);
+      expect(rows[0].fxPnlChf).toBe(-12.5);
+      expect(rows[0].btcPriceChf).toBe(65000.25);
     });
   });
 });

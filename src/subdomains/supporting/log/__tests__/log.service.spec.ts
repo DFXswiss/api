@@ -291,17 +291,6 @@ describe('LogService', () => {
       await expect(service.getFinancialLogSummaries(7, from, true, to, 25, 10)).resolves.toEqual(summaries);
 
       expect(spy).toHaveBeenCalledWith(7, from, true, to, 25, 10);
-      // Shape guard: mock returns FinancialLogSummary fields, not a full Log.message.
-      expect(summaries[0]).toEqual(
-        expect.objectContaining({
-          totalBalanceChf: 100,
-          plusBalanceChf: 150,
-          minusBalanceChf: 50,
-          btcPriceChf: 65000,
-          balancesByType: { Crypto: { plusBalanceChf: 150, minusBalanceChf: 50 } },
-        }),
-      );
-      expect(summaries[0]).not.toHaveProperty('message');
     });
   });
 

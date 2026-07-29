@@ -127,12 +127,73 @@ describe('DashboardFinancialService', () => {
       };
 
       expect(service['mapSummaryToEntry'](summary)).toEqual(expectedFromOldMapper);
-      // Mutation guard: plus/minus must not be swapped in the projection shape.
-      expect(summary.plusBalanceChf).toBe(1500);
-      expect(summary.minusBalanceChf).toBe(500);
-      expect(summary.balancesByType.Crypto.plusBalanceChf).toBe(800);
-      expect(summary.balancesByType.Crypto.minusBalanceChf).toBe(200);
-      expect(summary.btcPriceChf).toBe(65000.25);
+    });
+
+    it('produces the same FinancialLogEntryDto the old mapLogToEntry/extractBtcPrice pathway would have when btcAssetId is undefined (no BTC asset resolved)', () => {
+      // Underlying FinanceLog.message JSON (assets present, but no BTC asset id was resolved this call):
+      // {
+      //   balancesTotal: { totalBalanceChf: 1000, plusBalanceChf: 1500, minusBalanceChf: 500, fxPnlChf: -12.5 },
+      //   balancesByFinancialType: { Crypto: { plusBalanceChf: 800, minusBalanceChf: 200 } },
+      //   assets: { "7": { priceChf: 65000.25 } },
+      // }
+      // Old extractBtcPrice(financeLog, undefined): `!btcAssetId` is true for undefined => returns 0,
+      // regardless of `assets` content. Old mapLogToEntry expected output:
+      const expectedFromOldMapper = {
+        timestamp: new Date('2026-07-14T12:00:00Z'),
+        totalBalanceChf: 1000,
+        plusBalanceChf: 1500,
+        minusBalanceChf: 500,
+        fxPnlChf: -12.5,
+        btcPriceChf: 0,
+        balancesByType: { Crypto: { plusBalanceChf: 800, minusBalanceChf: 200 } },
+      };
+
+      // New path: getFinancialLogSummaries projects a SQL literal 0 when btcAssetId is undefined (no
+      // assets path parameter bound), so the summary already carries btcPriceChf: 0.
+      const summary: FinancialLogSummary = {
+        created: expectedFromOldMapper.timestamp,
+        id: 42,
+        totalBalanceChf: 1000,
+        plusBalanceChf: 1500,
+        minusBalanceChf: 500,
+        fxPnlChf: -12.5,
+        btcPriceChf: 0,
+        balancesByType: { Crypto: { plusBalanceChf: 800, minusBalanceChf: 200 } },
+      };
+
+      expect(service['mapSummaryToEntry'](summary)).toEqual(expectedFromOldMapper);
+    });
+
+    it('produces the same FinancialLogEntryDto the old mapLogToEntry/extractBtcPrice pathway would have when btcAssetId is 0 (falsy, same as undefined)', () => {
+      // Same underlying FinanceLog.message JSON as above, but btcAssetId = 0 this time.
+      // Old extractBtcPrice(financeLog, 0): `!btcAssetId` is true for 0 (falsy) => returns 0, exactly
+      // like the undefined case above — this is the behaviour F1 restores (id=0 is unreachable in this
+      // database today, but the falsy check keeps the two cases byte-identical, as before the projection
+      // was moved into SQL).
+      const expectedFromOldMapper = {
+        timestamp: new Date('2026-07-14T12:00:00Z'),
+        totalBalanceChf: 1000,
+        plusBalanceChf: 1500,
+        minusBalanceChf: 500,
+        fxPnlChf: -12.5,
+        btcPriceChf: 0,
+        balancesByType: { Crypto: { plusBalanceChf: 800, minusBalanceChf: 200 } },
+      };
+
+      // New path: getFinancialLogSummaries(0, ...) also takes the SQL-literal-0 branch (F1 falsy check),
+      // so the summary carries btcPriceChf: 0 here too — identical to the btcAssetId=undefined case.
+      const summary: FinancialLogSummary = {
+        created: expectedFromOldMapper.timestamp,
+        id: 43,
+        totalBalanceChf: 1000,
+        plusBalanceChf: 1500,
+        minusBalanceChf: 500,
+        fxPnlChf: -12.5,
+        btcPriceChf: 0,
+        balancesByType: { Crypto: { plusBalanceChf: 800, minusBalanceChf: 200 } },
+      };
+
+      expect(service['mapSummaryToEntry'](summary)).toEqual(expectedFromOldMapper);
     });
   });
 

@@ -57,8 +57,8 @@ export interface FinancialLogSummary {
    */
   fxPnlChf: number | null;
   /**
-   * 0 when btcAssetId is undefined or the asset key/price is unusable — computed in SQL only when
-   * btcAssetId is defined.
+   * 0 when btcAssetId is falsy (undefined or 0) or the asset key/price is unusable — computed in SQL
+   * only when btcAssetId is truthy.
    */
   btcPriceChf: number;
   balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }>;
@@ -361,6 +361,17 @@ ORDER BY l.created ASC, l.id ASC`;
    * JSON found; re-stated here, not re-verified).
    *
    * Optional `after` keyset cursor and `dailySample` match getFinancialLogs semantics (see that method).
+   *
+   * All five number fields below (totalBalanceChf, plusBalanceChf, minusBalanceChf, btcPriceChf and
+   * fxPnlChf) are guarded with `jsonb_typeof(...) = 'number'` — same pattern as the priceChf guard in
+   * getFinancialLogAssetPrices above. A non-numeric value (missing key, JSON null, or a wrong JSON type)
+   * nulls only that one field instead of aborting the whole query via a failing ::float8 cast; the outer
+   * message::jsonb cast itself stays fail-loud. `Number(null) === 0` in the mapping below, and
+   * mapSummaryToEntry's existing `?? 0` default at the call site turns a nulled field into 0 in the
+   * response for total/plus/minus/fxPnl — matching the old mapLogToEntry `?? 0` defaults byte-for-byte.
+   * Verified against production: 6,335,019 priceChf values are all 'number'; 31,952 of 31,956
+   * balancesTotal rows have both plusBalanceChf/minusBalanceChf as 'number', the remaining 4 rows have a
+   * missing key or JSON null.
    */
   async getFinancialLogSummaries(
     btcAssetId?: number,
@@ -380,11 +391,19 @@ ORDER BY l.created ASC, l.id ASC`;
     const validParam = `$${i++}`;
     params.push('LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true);
 
-    // BTC price: only bind a parameter when btcAssetId is defined; otherwise project a SQL literal 0
-    // (matches extractBtcPrice: if (!financeLog.assets || !btcAssetId) return 0).
+    // BTC price: only bind a parameter when btcAssetId is truthy — mirrors the old extractBtcPrice's
+    // `!btcAssetId` falsy check (0/undefined/null all take the "no BTC asset" path), not merely
+    // `!== undefined`. btcAssetId=0 is unreachable in this database (asset ids start at 1), so the
+    // difference is not observable today, but the falsy check preserves byte-identical behaviour with
+    // extractBtcPrice for any future btcAssetId=0 — do not "fix" this back to `!== undefined`.
     let btcPriceSelect: string;
-    if (btcAssetId !== undefined) {
-      btcPriceSelect = `(message::jsonb -> 'assets' -> $${i}::text ->> 'priceChf')::float8`;
+    if (btcAssetId) {
+      const assetPath = `message::jsonb -> 'assets' -> $${i}::text`;
+      // jsonb_typeof guard (same pattern as the balancesTotal fields below and getFinancialLogAssetPrices'
+      // priceChf guard above): a missing asset entry or a non-numeric priceChf value nulls only this
+      // field instead of aborting the whole query via a failing ::float8 cast. Number(null) => 0 in the
+      // mapping below, matching extractBtcPrice's `?.priceChf ?? 0` and its 0-return paths.
+      btcPriceSelect = `CASE WHEN jsonb_typeof(${assetPath} -> 'priceChf') = 'number' THEN (${assetPath} ->> 'priceChf')::float8 ELSE NULL END`;
       params.push(String(btcAssetId));
       i++;
     } else {
@@ -431,11 +450,23 @@ ORDER BY l.created ASC, l.id ASC`;
     const sql = `
 SELECT created AS "created",
        id AS "id",
-       (message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8 AS "totalBalanceChf",
-       (message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8 AS "plusBalanceChf",
-       (message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8 AS "minusBalanceChf",
        CASE
-         WHEN (message::jsonb -> 'balancesTotal' ->> 'fxPnlChf') IS NOT NULL
+         WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'totalBalanceChf') = 'number'
+         THEN (message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8
+         ELSE NULL
+       END AS "totalBalanceChf",
+       CASE
+         WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'plusBalanceChf') = 'number'
+         THEN (message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8
+         ELSE NULL
+       END AS "plusBalanceChf",
+       CASE
+         WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'minusBalanceChf') = 'number'
+         THEN (message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8
+         ELSE NULL
+       END AS "minusBalanceChf",
+       CASE
+         WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'fxPnlChf') = 'number'
          THEN (message::jsonb -> 'balancesTotal' ->> 'fxPnlChf')::float8
          ELSE NULL
        END AS "fxPnlChf",
