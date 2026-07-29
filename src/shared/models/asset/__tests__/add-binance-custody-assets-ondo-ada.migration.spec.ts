@@ -352,4 +352,33 @@ describeDb('AddBinanceCustodyAssetsOndoAda migration (real Postgres)', () => {
     expect(ondo[0].c).toBe(1);
     expect(ada[0].c).toBe(0);
   });
+
+  it('target already exists but its price source was removed: up() resolves without throwing and does not insert a duplicate', async () => {
+    // Simulate a pre-existing Binance/ONDO row (as if a previous, successful run already
+    // created it) whose price source has since been renamed/removed.
+    await queryRunner.query(`
+      INSERT INTO "asset"
+        ("name", "uniqueName", "type", "blockchain", "category", "dexName", "financialType",
+         "buyable", "sellable", "cardBuyable", "cardSellable", "instantBuyable", "instantSellable",
+         "paymentEnabled", "refEnabled", "refundEnabled", "ikna", "personalIbanEnabled", "comingSoon",
+         "priceRuleId", "approxPriceChf", "approxPriceEur", "approxPriceUsd")
+      VALUES
+        ('ONDO', 'Binance/ONDO', 'Custody', 'Binance', 'Private', 'ONDO', 'Other',
+         false, false, false, false, false, false,
+         false, false, false, false, false, false,
+         98, 0.8, 0.85, 1.0)
+    `);
+    await queryRunner.query(`DELETE FROM "asset" WHERE "uniqueName" = 'Ethereum/ONDO'`);
+
+    const migration = new AddBinanceCustodyAssetsOndoAda();
+    await expect(migration.up(queryRunner)).resolves.toBeUndefined();
+
+    const ondo = await queryRunner.query(`SELECT COUNT(*)::int AS c FROM "asset" WHERE "uniqueName" = 'Binance/ONDO'`);
+    expect(ondo[0].c).toBe(1);
+
+    // ADA is unaffected by ONDO's missing price source — each asset's existence check and
+    // price-source guard are independent, so ADA is still created normally.
+    const ada = await queryRunner.query(`SELECT COUNT(*)::int AS c FROM "asset" WHERE "uniqueName" = 'Binance/ADA'`);
+    expect(ada[0].c).toBe(1);
+  });
 });

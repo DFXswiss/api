@@ -21,15 +21,18 @@
  * Each asset is priced off a single on-chain source via subquery (no COALESCE fallback):
  *   Binance/ONDO ← Ethereum/ONDO
  *   Binance/ADA  ← Cardano/ADA
- * The fail-loud price-source guards exist purely to prevent a silent-NULL priceRuleId if a
- * source asset is ever renamed/removed; both sources already exist in seed and prod.
+ * The fail-loud price-source guards only check that the source row exists (SELECT "id"); they
+ * do not check whether that row has a priceRuleId. A source with priceRuleId IS NULL is a
+ * legitimate state — migration/seed/asset.csv ships Ethereum/ONDO with an empty priceRuleId —
+ * and the INSERT subquery correctly and silently carries that NULL over, same as the precedent
+ * AddSavingZchfAsset. What the guards actually prevent is a missing or renamed source row.
  *
  * decimals/sortOrder stay NULL (omitted from the INSERT) — same as every existing Custody
  * asset. refundEnabled is false (unlike the entity default of true), matching other live
  * Custody assets in this system.
  *
- * up() acquires a transaction-scoped advisory lock before the price-source guards and
- * idempotency checks: uniqueName is not DB-unique (only (dexName, type, blockchain) is),
+ * up() acquires a transaction-scoped advisory lock before the idempotency checks and
+ * price-source guards: uniqueName is not DB-unique (only (dexName, type, blockchain) is),
  * and this migration has no ENVIRONMENT guard, so it can run concurrently from multiple
  * app instances starting at once. Without the lock, two concurrent runs could both pass
  * the idempotency SELECT before either INSERTs, and the second INSERT would crash on the
@@ -41,7 +44,9 @@
  * UPDATE contending for row locks under load; the advisory lock alone serializes concurrent
  * up() execution.
  *
- * up() is fully idempotent per uniqueName. down() has no lock (rollback is a deliberate
+ * up() is fully idempotent per uniqueName: each asset's existence check runs before its
+ * price-source guard, so a re-run against an already-created row never depends on the source
+ * asset still existing under the same name. down() has no lock (rollback is a deliberate
  * manual Ops action, not a multi-instance boot race) and deletes both rows by uniqueName;
  * the DELETE fails loud (FK violation) if a liquidity_balance / ledger row already
  * references them — intentional: rolling back a used wiring is an Ops procedure, not a
@@ -60,21 +65,23 @@ module.exports = class AddBinanceCustodyAssetsOndoAda1785320000000 {
     await queryRunner.query(`SELECT pg_advisory_xact_lock(1785320000000)`);
 
     // --- Binance/ONDO ---
-    // Fail-loud price-source guard: ONDO has exactly one price source (Ethereum/ONDO).
-    // No COALESCE fallback — an insert without a real price source would silently mask a
-    // missing/renamed source asset.
-    const ondoPriceSource = (
-      await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Ethereum/ONDO'`)
-    ).at(0);
-    if (!ondoPriceSource) {
-      throw new Error('Cannot create Binance/ONDO custody asset: price source Ethereum/ONDO not found');
-    }
-
-    // Idempotent: assets are keyed by the stable uniqueName (ids are env-specific).
+    // Idempotent: assets are keyed by the stable uniqueName (ids are env-specific). Checked
+    // before the price-source guard so a re-run against an already-created row never depends
+    // on the source asset still existing under the same name.
     const ondoExisting = (await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Binance/ONDO'`)).at(
       0,
     );
     if (!ondoExisting) {
+      // Fail-loud price-source guard: ONDO has exactly one price source (Ethereum/ONDO).
+      // No COALESCE fallback — an insert without a real price source would silently mask a
+      // missing/renamed source asset.
+      const ondoPriceSource = (
+        await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Ethereum/ONDO'`)
+      ).at(0);
+      if (!ondoPriceSource) {
+        throw new Error('Cannot create Binance/ONDO custody asset: price source Ethereum/ONDO not found');
+      }
+
       await queryRunner.query(`
         INSERT INTO "asset"
           ("name", "uniqueName", "type", "blockchain", "category", "dexName", "financialType",
@@ -93,18 +100,21 @@ module.exports = class AddBinanceCustodyAssetsOndoAda1785320000000 {
     }
 
     // --- Binance/ADA ---
-    // Fail-loud price-source guard: ADA has exactly one price source (Cardano/ADA).
-    // No COALESCE fallback — an insert without a real price source would silently mask a
-    // missing/renamed source asset.
-    const adaPriceSource = (
-      await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Cardano/ADA'`)
-    ).at(0);
-    if (!adaPriceSource) {
-      throw new Error('Cannot create Binance/ADA custody asset: price source Cardano/ADA not found');
-    }
-
+    // Idempotent: assets are keyed by the stable uniqueName (ids are env-specific). Checked
+    // before the price-source guard so a re-run against an already-created row never depends
+    // on the source asset still existing under the same name.
     const adaExisting = (await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Binance/ADA'`)).at(0);
     if (!adaExisting) {
+      // Fail-loud price-source guard: ADA has exactly one price source (Cardano/ADA).
+      // No COALESCE fallback — an insert without a real price source would silently mask a
+      // missing/renamed source asset.
+      const adaPriceSource = (
+        await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'Cardano/ADA'`)
+      ).at(0);
+      if (!adaPriceSource) {
+        throw new Error('Cannot create Binance/ADA custody asset: price source Cardano/ADA not found');
+      }
+
       await queryRunner.query(`
         INSERT INTO "asset"
           ("name", "uniqueName", "type", "blockchain", "category", "dexName", "financialType",
