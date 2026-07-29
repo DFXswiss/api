@@ -100,9 +100,16 @@ export class CustodyService {
     const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
 
-    const savingBalance = custodyBalances.find((b) => b.asset.uniqueName === Config.custody.savingAsset);
+    // Summed over every row of the position, not just the first: one Safe can hold it across
+    // several custody users, and the guard below has to see the whole position. Interest is only
+    // reported while it is actually open — see withAccruedInterest() for why a closed position
+    // would otherwise keep showing the frozen remainder of what it once earned.
+    const savingBalances = custodyBalances.filter((b) => b.asset.uniqueName === Config.custody.savingAsset);
+    const savingPrincipal = Util.sumObjValue(savingBalances, 'balance');
+    const savingBalance = savingBalances[0];
+
     const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
-    if (savingBalance) {
+    if (savingBalance && savingPrincipal > 0) {
       try {
         // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
         const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
@@ -395,6 +402,13 @@ export class CustodyService {
    * The day's balances with accrued interest folded into the interest-bearing position, so it is
    * valued by exactly the same code path as every other holding. Returns the input untouched
    * when there is nothing to add, which keeps the common case free of a copy.
+   *
+   * Only added while the position is actually open. accrueInterest() sums tranches — a deposit
+   * accrues, a withdrawal accrues negatively from its own value date — so a position that is
+   * fully paid out leaves a frozen remainder: the interest earned over the time it was held.
+   * That figure is never booked and never paid out, so carrying it once the position is closed
+   * would leave a Safe showing a residue forever, for holdings it no longer has. The same guard
+   * applies to the balance total in getUserCustodyBalance().
    */
   private withAccruedInterest(
     balances: Map<number, number>,
@@ -403,8 +417,11 @@ export class CustodyService {
   ): Map<number, number> {
     if (!savingAsset || !interest) return balances;
 
+    const principal = balances.get(savingAsset.id) ?? 0;
+    if (principal <= 0) return balances;
+
     const withInterest = new Map(balances);
-    withInterest.set(savingAsset.id, (withInterest.get(savingAsset.id) ?? 0) + interest);
+    withInterest.set(savingAsset.id, principal + interest);
 
     return withInterest;
   }
@@ -572,10 +589,15 @@ export class CustodyService {
     const value = { chf: 0, eur: 0, usd: 0 };
 
     for (const [assetId, balance] of assetBalancesMap.entries()) {
-      // Skips the no-op only. A non-finite balance keeps poisoning the sum exactly as before,
-      // rather than being quietly dropped here — that is a data fault and belongs where it is
-      // already handled, not hidden behind this loop.
-      if (balance === 0) continue;
+      // Skips what the customer sees as no holding. Balances are accumulated as plain floating
+      // point sums, so a fully closed position rarely lands on exact zero — a deposit and its
+      // matching withdrawal can leave a residue like 1e-16, which is below the eight decimals
+      // the balance is ever displayed with. Comparing against exact zero would carry that dust
+      // into the loop and, on a day without a price, report a closed position as an unpriced
+      // holding. A non-finite balance keeps poisoning the sum exactly as before rather than
+      // being quietly dropped here — that is a data fault and belongs where it is already
+      // handled, not hidden behind this loop.
+      if (Math.abs(balance) < 1e-8) continue;
 
       const price =
         latestPriceByAsset.get(assetId) ?? this.findSubstitutePrice(assetId, substituteByAsset, latestPriceByAsset);
