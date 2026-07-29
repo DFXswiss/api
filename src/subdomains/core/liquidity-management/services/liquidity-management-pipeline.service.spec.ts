@@ -608,6 +608,34 @@ describe('LiquidityManagementPipelineService', () => {
         await service['resolveUncertainOrders']();
         expect(service['uncertainResolveAttempts'].size).toBe(0);
       });
+
+      it('scales the cooldown interval with the order age instead of always using the one-minute floor', async () => {
+        // catches a regression that replaces `ageMs / 10` with the flat UNCERTAIN_RESOLVE_MIN_INTERVAL_MS floor:
+        // a 100-minute-old order gets a 10-minute wait, so asking again after 9 minutes must still be inside it
+        const resolveUncertainOrder = stubResolver();
+        const order = uncertainOrder({ created: new Date(Date.now() - 100 * 60_000) });
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+
+        await service['resolveUncertainOrders']();
+        jest.advanceTimersByTime(9 * 60_000);
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+      });
+
+      it('caps the cooldown interval at thirty minutes no matter how old the order is', async () => {
+        // catches a regression that removes the Math.min(..., UNCERTAIN_RESOLVE_MAX_INTERVAL_MS) cap: an 8-hour-old
+        // order's uncapped interval would be 48 minutes, so asking again after 31 minutes must already succeed
+        const resolveUncertainOrder = stubResolver();
+        const order = uncertainOrder({ created: new Date(Date.now() - 8 * 60 * 60_000) });
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+
+        await service['resolveUncertainOrders']();
+        jest.advanceTimersByTime(31 * 60_000);
+        await service['resolveUncertainOrders']();
+
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
+      });
     });
   });
 
