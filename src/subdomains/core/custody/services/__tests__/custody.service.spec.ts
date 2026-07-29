@@ -186,7 +186,9 @@ describe('CustodyService', () => {
       ]);
 
       const rule = { id: 5 } as any;
-      assetService.getAssetsByIdWith.mockResolvedValue([Object.assign(createCustomAsset({ id: asset.id }), { priceRule: rule })]);
+      assetService.getAssetsByIdWith.mockResolvedValue([
+        Object.assign(createCustomAsset({ id: asset.id }), { priceRule: rule }),
+      ]);
       assetService.getAssetsByPriceRules.mockResolvedValue([
         Object.assign(createCustomAsset({ id: asset.id }), { priceRule: rule }),
         Object.assign(peer, { priceRule: rule }),

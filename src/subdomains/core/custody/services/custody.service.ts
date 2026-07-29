@@ -577,7 +577,8 @@ export class CustodyService {
       // already handled, not hidden behind this loop.
       if (balance === 0) continue;
 
-      const price = latestPriceByAsset.get(assetId) ?? this.findSubstitutePrice(assetId, substituteByAsset, latestPriceByAsset);
+      const price =
+        latestPriceByAsset.get(assetId) ?? this.findSubstitutePrice(assetId, substituteByAsset, latestPriceByAsset);
       if (!price) {
         unpricedAssetIds.add(assetId);
         continue;
