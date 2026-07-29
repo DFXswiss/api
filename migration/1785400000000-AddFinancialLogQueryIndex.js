@@ -16,9 +16,11 @@
  * by an explicit Sort, reading 86270 blocks (~674 MB) from disk per call, discarding 175629 rows
  * per parallel worker at the filter, and taking 86 ms with correspondingly high disk load.
  *
- * Column order (system, subsystem, severity, valid, created) is intentional: four equality
- * predicates first, then the range/sort column `created` last. Postgres can use the index for
- * both filtering and ORDER BY, avoiding the separate Sort step.
+ * Column order (system, subsystem, severity, valid, created, id) is intentional: four equality
+ * predicates first, then the two ORDER BY columns in query order. `id` is part of the index
+ * rather than trailing it: the query orders by `created, id`, so an index ending at `created`
+ * would still need a sort step whenever several rows share a `created` value — which happens,
+ * since the table is written at roughly two rows per minute.
  *
  * What this index does NOT fix: disk I/O and Sort are addressed, but not the transferred payload.
  * The query still returns up to 5001 rows with an average 5.8 KB `message` column (~47 MB per
@@ -29,9 +31,12 @@
  * boot-blockingly (see src/config/config.ts, migrationsRun gated by the SQL_MIGRATE env var).
  * CREATE INDEX CONCURRENTLY is not allowed inside a transaction and would crash the migration.
  *
- * A short SHARE lock during a plain CREATE INDEX is acceptable: reads continue while the index
- * builds; only writes to `log` block briefly. The table grows by about 2900 rows per day
- * (~2 per minute), so a brief write lock is not critical.
+ * Lock behaviour, stated precisely: a plain CREATE INDEX holds a SHARE lock for the ENTIRE build,
+ * not briefly. Reads continue throughout; writes to `log` block for as long as the build runs over
+ * the 1353 MB table. `SET LOCAL lock_timeout` caps only how long we WAIT to acquire that lock, not
+ * how long we hold it. The build duration has not been measured against production data, so no
+ * upper bound is claimed here. This is judged acceptable because `log` takes only about 2900 rows
+ * per day (~2 per minute) and those writes are retried by their jobs, not lost.
  *
  * @class
  * @implements {MigrationInterface}
@@ -45,7 +50,7 @@ module.exports = class AddFinancialLogQueryIndex1785400000000 {
   async up(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(
-      `CREATE INDEX "IDX_log_financial_query" ON "log" ("system", "subsystem", "severity", "valid", "created")`,
+      `CREATE INDEX "IDX_log_financial_query" ON "log" ("system", "subsystem", "severity", "valid", "created", "id")`,
     );
   }
 
@@ -54,6 +59,6 @@ module.exports = class AddFinancialLogQueryIndex1785400000000 {
    */
   async down(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "IDX_log_financial_query"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_log_financial_query"`);
   }
 };
