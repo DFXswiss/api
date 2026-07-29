@@ -916,7 +916,20 @@ export class ScryptService extends PricingProvider {
       // The venue does not know this reference. Taken together with the status lookup that already failed
       // to find it and with the order's age, that is treated as settled — see SCRYPT_UNKNOWN_ORDER for why
       // this is an inference rather than a guarantee.
+      //
+      // Unless the same report also reports a fill, in which case it contradicts itself: an order the venue
+      // has no record of cannot have traded. Nothing may be concluded from a report that disagrees with
+      // itself, least of all that walking away is safe — the sibling branch above shows a refusal really can
+      // carry a filled quantity, so this is not a hypothetical shape.
       if (report.ExecType === SCRYPT_CANCEL_REJECTED && report.CxlRejReason === SCRYPT_UNKNOWN_ORDER) {
+        if (filled > 0) {
+          this.logger.warn(
+            `Cancel of order ${clOrdId} was refused as unknown yet reports ${report.CumQty} filled — the report contradicts itself, settling nothing`,
+          );
+
+          return ScryptCancellation.UNCONFIRMED;
+        }
+
         this.logger.verbose(`Scrypt has no such order to cancel for ${clOrdId}`);
 
         return ScryptCancellation.SETTLED;

@@ -854,6 +854,24 @@ describe('ScryptService', () => {
       await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.SETTLED);
     });
 
+    it('settles nothing when a refusal claims the order is unknown yet reports a fill', async () => {
+      // an order the venue has no record of cannot have traded — the report disagrees with itself, and
+      // nothing may be concluded from that, least of all that walking away is safe
+      stubCancel(
+        cancelReport({
+          OrdStatus: ScryptOrderStatus.PARTIALLY_FILLED,
+          ExecType: 'CancelRejected',
+          CxlRejReason: 'UnknownOrder',
+          CumQty: '40',
+          LeavesQty: '60',
+        }),
+      );
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
     it('settles nothing on any other refusal — too late to cancel means it may yet execute', async () => {
       stubCancel(
         cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'TooLateToCancel' }),
