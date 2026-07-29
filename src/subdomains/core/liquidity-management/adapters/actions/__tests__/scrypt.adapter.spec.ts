@@ -476,6 +476,17 @@ describe('ScryptAdapter', () => {
       await expect(adapter.resolveUncertainOrder(ancient)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
 
+    it('reports UNAVAILABLE when the order carries no reference — there was nothing to ask about', async () => {
+      // UNRESOLVED would say the venue answered and had no record, and the caller may abandon an order on
+      // that after its bound. With no reference the venue was never asked at all, so the order must keep
+      // waiting for a person instead of being failed on a lookup that never happened.
+      const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus');
+      const order = createUncertainSellOrder({ correlationId: null, previousCorrelationIds: null });
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
+      expect(getOrderStatus).not.toHaveBeenCalled();
+    });
+
     it('reports UNAVAILABLE when the lookup itself fails — no question reached the venue', async () => {
       jest.spyOn(scryptService, 'getOrderStatus').mockRejectedValue(new Error('Connection closed'));
 

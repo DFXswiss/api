@@ -595,15 +595,19 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   /**
    * Ask Scrypt what happened to a quarantined order. Observes only — never re-sends.
    *
-   * An absence can only ever confirm a positive: Scrypt has no terminal "this reference was never accepted"
-   * reply, so a missing record leaves the order quarantined — released by a human if one looks, and
-   * otherwise given up automatically once the caller's bound decides the request can no longer be live. An
-   * explicit rejection of every attempted reference is the one negative that does settle, and returns
-   * NOT_SENT.
+   * Only a matched reference can confirm a positive. A missing record confirms nothing on its own — Scrypt
+   * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined, released
+   * by a human if one looks and otherwise given up automatically once the caller's bound decides the request
+   * can no longer be live. An explicit rejection of every attempted reference is the one negative that does
+   * settle, and returns NOT_SENT.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
     const { correlationId } = order;
-    if (!correlationId) return UncertainOrderResolution.UNRESOLVED;
+    // UNAVAILABLE, not UNRESOLVED: with no reference there is nothing to ask about, so the venue was never
+    // asked. UNRESOLVED would mean it answered and had no record — a claim nobody made, and one the caller
+    // is entitled to abandon the order on once its bound expires. Only orders predating the reserve-before-
+    // send guarantee can reach this, and those are exactly the ones that must wait for a person.
+    if (!correlationId) return UncertainOrderResolution.UNAVAILABLE;
 
     let allAttemptsRejected = false;
 
