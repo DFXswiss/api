@@ -44,8 +44,9 @@ enum ScryptRequestType {
   CANCEL = 'cancel',
 }
 
-// Schemes the ws client will actually open. Anything else makes its constructor throw synchronously, which
-// looks identical to an unparseable URL from here and is just as unfixable by retrying.
+// Schemes we accept for a network endpoint. ws additionally supports ws+unix:, which we exclude deliberately —
+// a Scrypt endpoint is remote. Every other scheme makes the ws constructor throw synchronously, which looks
+// identical to an unparseable URL from here and is just as unfixable by retrying.
 const DIALABLE_WS_PROTOCOLS = ['ws:', 'wss:', 'http:', 'https:'];
 
 /**
@@ -53,15 +54,17 @@ const DIALABLE_WS_PROTOCOLS = ['ws:', 'wss:', 'http:', 'https:'];
  * "connectable" cannot drift apart: a URL that merely parses would otherwise pass the config guard, register
  * every subscription, and then fail identically on every attempt with nothing able to fix it.
  *
- * The scheme is the whole test. It rejects both `ftp://host` (parses, but the client refuses the scheme) and
- * a bare `host:443` (parses, but as scheme `host:` with no authority). No separate host check: all four are
- * special schemes, for which the URL parser already rejects an empty host.
+ * Scheme and fragment are the whole test. It rejects `ftp://host` (parses, but the client refuses the scheme),
+ * a bare `host:443` (parses, but as scheme `host:` with no authority) and `wss://host/ws#x` (the ws client
+ * throws on any fragment). No separate host check: all four schemes are special, and for those the URL parser
+ * already rejects an empty host.
  */
-export function isParseableWsUrl(url: string | undefined): boolean {
+export function isDialableWsUrl(url: string | undefined): boolean {
   if (!url) return false;
 
   try {
-    return DIALABLE_WS_PROTOCOLS.includes(new URL(url).protocol);
+    const parsed = new URL(url);
+    return !parsed.hash && DIALABLE_WS_PROTOCOLS.includes(parsed.protocol);
   } catch {
     return false;
   }
@@ -177,7 +180,7 @@ export class ScryptWebSocketConnection {
   private readonly handshakeTimeoutMs = 15000;
   private hasEverConnected = false; // gates the reconnect catch-up callbacks; resubscription is decided by hasOrphanedStreams()
   private isReconnecting = false; // guards against overlapping reconnect loops
-  private loggedUnparseableWsUrl = false; // an unretryable URL is reported once, not on every failed attempt
+  private loggedUndialableWsUrl = false; // an unretryable URL is reported once, not on every failed attempt
   private reconnectEpoch = 0; // bumped on disconnect / new loop so stale scheduleReconnect continuations no-op
   private reconnectTimer?: NodeJS.Timeout;
   private reconnectCallbacks: Array<() => void | Promise<void>> = [];
@@ -392,12 +395,16 @@ export class ScryptWebSocketConnection {
   private ensureReconnectLoop(): void {
     if (this.isReconnecting || this.activeStreams.size === 0) return;
 
-    // A URL we cannot parse fails identically on every attempt, so a loop would warn forever without ever
-    // being able to connect. Say so once and stay down: this needs a config change, not a retry.
-    if (!isParseableWsUrl(this.wsUrl)) {
-      if (!this.loggedUnparseableWsUrl) {
-        this.loggedUnparseableWsUrl = true;
-        this.logger.error('Scrypt WebSocket URL cannot be parsed — not scheduling reconnects');
+    // A URL we cannot dial fails identically on every attempt, so a loop would warn forever without ever being
+    // able to connect. Say so once and stay down: this needs a config change, not a retry. The message names
+    // both causes, because an unsupported scheme parses perfectly and would otherwise send the operator
+    // hunting for a typo.
+    if (!isDialableWsUrl(this.wsUrl)) {
+      if (!this.loggedUndialableWsUrl) {
+        this.loggedUndialableWsUrl = true;
+        this.logger.error(
+          'Scrypt WebSocket URL is not dialable (unparseable or unsupported scheme) — not scheduling reconnects',
+        );
       }
       return;
     }
@@ -560,12 +567,17 @@ export class ScryptWebSocketConnection {
     });
     this.pendingRequests.clear();
 
-    // reconnect
-    if (wasConnected && !this.isReconnecting) {
-      this.isReconnecting = true;
-      const epoch = ++this.reconnectEpoch;
-      this.logger.warn(`Scrypt WebSocket closed (code: ${code}, reason: ${reason}), scheduling reconnect`);
-      this.scheduleReconnect(0, epoch);
+    // Log every close of a live socket, independently of whether it is this event that arms the loop. Since
+    // subscribe() and ensureConnected() can arm first, folding the two together would drop the close code and
+    // reason exactly in the windows where they are armed — and that line is the outage signal on a flapping
+    // connection (finding G).
+    if (wasConnected) {
+      this.logger.warn(`Scrypt WebSocket closed (code: ${code}, reason: ${reason})`);
+
+      if (!this.isReconnecting) {
+        this.isReconnecting = true;
+        this.scheduleReconnect(0, ++this.reconnectEpoch);
+      }
     }
   }
 

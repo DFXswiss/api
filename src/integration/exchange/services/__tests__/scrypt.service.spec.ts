@@ -940,6 +940,18 @@ describe('ScryptService', () => {
       expect(service.isConfigured).toBe(false);
     });
 
+    it('is false without an api key', () => {
+      scryptConfig.apiKey = '';
+
+      expect(service.isConfigured).toBe(false);
+    });
+
+    it('is false without an api secret', () => {
+      scryptConfig.apiSecret = '';
+
+      expect(service.isConfigured).toBe(false);
+    });
+
     it('is true when url and credentials are present', () => {
       expect(service.isConfigured).toBe(true);
     });

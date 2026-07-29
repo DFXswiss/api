@@ -28,7 +28,7 @@ import {
 } from '../dto/scrypt.dto';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import {
-  isParseableWsUrl,
+  isDialableWsUrl,
   isVenueRejection,
   ScryptAmendRejectedError,
   ScryptMessageType,
@@ -95,7 +95,7 @@ export class ScryptService extends PricingProvider {
   // URL the client would refuse to dial.
   get isConfigured(): boolean {
     const { wsUrl, apiKey, apiSecret } = GetConfig().scrypt;
-    return isParseableWsUrl(wsUrl) && !!apiKey && !!apiSecret;
+    return isDialableWsUrl(wsUrl) && !!apiKey && !!apiSecret;
   }
 
   constructor() {

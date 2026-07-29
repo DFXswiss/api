@@ -15,7 +15,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
 
   private readonly ASSET_MAPPINGS = { BTC: ['XBT'] };
 
-  // exchanges already warned about missing credentials, to warn once instead of every cycle
+  // exchanges already warned about incomplete configuration, to warn once instead of every cycle
   private readonly unconfiguredWarned = new Set<string>();
 
   constructor(
@@ -69,12 +69,12 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
   async getForExchange(exchange: string, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     const exchangeService = this.exchangeRegistry.getExchange(exchange);
 
-    // not configured (no API credentials) -> skip, warn once. No balances are reported on purpose:
+    // not configured (missing credentials or endpoint) -> skip, warn once. No balances are reported on purpose:
     // a zero balance would be persisted and could trigger liquidity rules, masking a config error
     if (!exchangeService.isConfigured) {
       if (!this.unconfiguredWarned.has(exchange)) {
         this.unconfiguredWarned.add(exchange);
-        this.logger.warn(`Exchange ${exchange} has no credentials configured — skipping liquidity balance`);
+        this.logger.warn(`Exchange ${exchange} is not configured — skipping liquidity balance`);
       }
 
       return [];
