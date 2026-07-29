@@ -686,6 +686,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // exists at the venue in a cancelled state — checking oldest first would match that, report SENT and
         // leave the live replacement untracked while the completion check polls a superseded reference.
         const candidates = this.attemptedReferencesNewestFirst(order);
+        const currentAttempt = this.attemptNumber(order, order.correlationId);
         let rejectedCount = 0;
 
         // A reference cannot be published before the order that reserved it existed; one day of margin
@@ -699,7 +700,14 @@ export class ScryptAdapter extends LiquidityActionAdapter {
           // Absent, newest first: an accepted replacement may simply not be visible yet, while the order it
           // replaced still is. Falling through to that predecessor would report SENT on a reference the venue
           // has already superseded and leave the live replacement untracked, so stop here instead.
+          //
+          // Only for references NEWER than the one this row names, though. The current reference is the one
+          // the system treats as authoritative — a cancellation that found a fill points the row at it
+          // deliberately — and stopping short of it would leave that finding unreachable, which is how a
+          // real fill ends up never booked.
           if (!info) {
+            if (this.attemptNumber(order, candidate) <= currentAttempt) continue;
+
             this.logger.warn(
               `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
             );

@@ -871,7 +871,17 @@ export class ScryptService extends PricingProvider {
       // A fill is a fill, whatever the order's final state says. Checked before the status, because the
       // partially-filled case reports BOTH a terminal Canceled and a non-zero fill, and the fill is the
       // half that moves money.
-      if (Util.round(Number(report.CumQty), 8) > 0) {
+      const filled = Number(report.CumQty);
+
+      // An unreadable quantity is not a zero one. Concluding "nothing filled" from a value that could not
+      // be parsed is exactly how a real fill gets dropped, so it settles nothing and the caller waits.
+      if (!Number.isFinite(filled)) {
+        this.logger.warn(`Cancel of order ${clOrdId} reported an unreadable filled size (${report.CumQty})`);
+
+        return ScryptCancellation.UNCONFIRMED;
+      }
+
+      if (filled > 0) {
         this.logger.warn(
           `Cancel of order ${clOrdId} came back with ${report.CumQty} already filled — it executed and cannot be abandoned`,
         );
@@ -898,12 +908,9 @@ export class ScryptService extends PricingProvider {
 
       return ScryptCancellation.UNCONFIRMED;
     } catch (e) {
-      if (isVenueRejection(e)) {
-        this.logger.verbose(`Scrypt refused the cancel for ${clOrdId}: ${e.message}`);
-
-        return ScryptCancellation.SETTLED;
-      }
-
+      // No rejection branch here on purpose: this venue answers a refused cancel with an execution report,
+      // not an exception, and that is read above. Anything reaching this catch is a transport failure.
+      //
       // A cancel is a write. Unconfirmed, it may have taken effect at the venue while the cached report
       // still shows the order open — and a non-terminal entry is never refreshed, so every later check
       // would wait on a picture that cannot change. Drop it and let the next lookup ask the venue.
@@ -931,6 +938,12 @@ export class ScryptService extends PricingProvider {
       (reports) => reports.find((r) => r.OrigClOrdID === clOrdId || r.ClOrdID === newClOrdId) ?? null,
       60000,
     );
+
+    // The venue tags a cancel confirmation with the CANCEL request's id and only names the cancelled order
+    // in OrigClOrdID — while every lookup here is keyed on ClOrdID alone. Left as it arrives, the terminal
+    // state would be filed under an id nothing ever asks about, and the cancelled order would keep
+    // answering with whatever non-terminal report preceded it. So file it under the order it settles.
+    if (report.OrigClOrdID === clOrdId) this.cacheExecutionReport({ ...report, ClOrdID: clOrdId });
 
     return report;
   }

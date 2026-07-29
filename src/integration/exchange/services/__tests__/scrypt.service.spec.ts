@@ -1,6 +1,8 @@
 import { Util } from 'src/shared/utils/util';
 import {
   ScryptBalanceTransaction,
+  ScryptCancellation,
+  ScryptExecutionReport,
   ScryptOrderStatus,
   ScryptTransactionStatus,
   ScryptTransactionType,
@@ -805,6 +807,89 @@ describe('ScryptService', () => {
       ]);
     });
   });
+  describe('cancelIfOutstanding', () => {
+    /** A complete report, so the fixture cannot drift from the contract cancelOrder now promises. */
+    function cancelReport(overrides: Partial<ScryptExecutionReport> = {}): ScryptExecutionReport {
+      return {
+        ClOrdID: 'cancel-req-1',
+        OrigClOrdID: 'dfx-lm-7',
+        Symbol: 'EUR/USDT',
+        Side: 'Sell',
+        OrdStatus: ScryptOrderStatus.CANCELED,
+        OrderQty: '100',
+        CumQty: '0',
+        LeavesQty: '0',
+        ...overrides,
+      };
+    }
+
+    function stubCancel(report: ScryptExecutionReport | Error): void {
+      jest.spyOn(service as any, 'getTradePair').mockResolvedValue({ symbol: 'EUR/USDT' });
+      const connection = (service as any).connection;
+      jest
+        .spyOn(connection, 'requestAndWaitForUpdate')
+        .mockImplementation(async () => (report instanceof Error ? Promise.reject(report) : report));
+    }
+
+    it('settles a cancellation that filled nothing', async () => {
+      stubCancel(cancelReport());
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.SETTLED);
+    });
+
+    it('reports a partial fill as executed — a terminal status does not mean nothing happened', async () => {
+      // the venue cancels a partially filled order with BOTH a terminal state and a non-zero filled size;
+      // reading only the state is how a real fill gets dropped
+      stubCancel(cancelReport({ CumQty: '40' }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.EXECUTED);
+    });
+
+    it('settles a refusal that says there is no such order', async () => {
+      // a refused cancel arrives as an execution report, not as an error
+      stubCancel(
+        cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'UnknownOrder' }),
+      );
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.SETTLED);
+    });
+
+    it('settles nothing on any other refusal — too late to cancel means it may yet execute', async () => {
+      stubCancel(
+        cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'TooLateToCancel' }),
+      );
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('settles nothing when the filled size cannot be read — that is not a zero', async () => {
+      stubCancel(cancelReport({ CumQty: undefined as unknown as string }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('settles nothing when the cancel never came back', async () => {
+      stubCancel(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('files the confirmation under the order it settles, not under the cancel request', async () => {
+      // the venue tags it with the cancel request's id; every lookup here is keyed on the order's own
+      stubCancel(cancelReport({ CumQty: '40' }));
+
+      await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
+
+      expect((service as any).executionReports.get('dfx-lm-7')?.OrdStatus).toBe(ScryptOrderStatus.CANCELED);
+    });
+  });
+
   describe('checkTrade — the amend write boundary', () => {
     function stubAmendPath(editOutcome: Error): void {
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
@@ -815,7 +900,16 @@ describe('ScryptService', () => {
       });
       jest.spyOn(service as any, 'getTradePrice').mockResolvedValue(2);
       jest.spyOn(service as any, 'editOrder').mockRejectedValue(editOutcome);
-      jest.spyOn(service as any, 'cancelOrder').mockResolvedValue({ OrdStatus: ScryptOrderStatus.CANCELED });
+      jest.spyOn(service as any, 'cancelOrder').mockResolvedValue({
+        ClOrdID: 'cancel-req-1',
+        OrigClOrdID: 'dfx-lm-7',
+        Symbol: 'EUR/USDT',
+        Side: 'Sell',
+        OrdStatus: ScryptOrderStatus.CANCELED,
+        OrderQty: '5',
+        CumQty: '0',
+        LeavesQty: '0',
+      } satisfies ScryptExecutionReport);
     }
 
     it('propagates an unconfirmed amend instead of swallowing it', async () => {
