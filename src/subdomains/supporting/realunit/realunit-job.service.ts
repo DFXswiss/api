@@ -112,7 +112,15 @@ export class RealUnitJobService {
     minTimestamp: Date,
   ): HistoryEventDto | undefined {
     const incomingTransfers = Util.sort(
-      history.filter((e) => e.transfer && Util.equalsIgnoreCase(e.transfer.to, address)),
+      history.filter(
+        (e) =>
+          e.transfer &&
+          Util.equalsIgnoreCase(e.transfer.to, address) &&
+          // a self-transfer is written to this account's history twice (…-to and …-from), both rows
+          // carrying the same transfer, so matching on the receiver alone would settle two requests
+          // from one physical transfer. A settlement always comes from the issuer, never from the buyer
+          !Util.equalsIgnoreCase(e.transfer.from, address),
+      ),
       'timestamp',
     );
 

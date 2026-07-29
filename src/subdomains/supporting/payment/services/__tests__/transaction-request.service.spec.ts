@@ -9,7 +9,11 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { FiatPaymentMethod } from '../../dto/payment-method.enum';
-import { TransactionRequest, TransactionRequestType } from '../../entities/transaction-request.entity';
+import {
+  TransactionRequest,
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from '../../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../../repositories/transaction-request.repository';
 import { TransactionRequestService } from '../transaction-request.service';
 
@@ -111,5 +115,70 @@ describe('TransactionRequestService bank selection persistence', () => {
     expect(logged).not.toContain(customerIban);
     expect(logged).not.toContain(JSON.stringify(request));
     expect(logged).not.toContain(JSON.stringify(response));
+  });
+});
+
+describe('TransactionRequestService settlement persistence', () => {
+  async function createService(repo: ReturnType<typeof createMock<TransactionRequestRepository>>) {
+    const module = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        TransactionRequestService,
+        { provide: TransactionRequestRepository, useValue: repo },
+        { provide: SiftService, useValue: createMock<SiftService>() },
+        { provide: AssetService, useValue: createMock<AssetService>() },
+        { provide: FiatService, useValue: createMock<FiatService>() },
+        { provide: BuyService, useValue: createMock<BuyService>() },
+        { provide: SellService, useValue: createMock<SellService>() },
+        { provide: SwapService, useValue: createMock<SwapService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    return module.get(TransactionRequestService);
+  }
+
+  it('persists both the settlement tx and the settlement event id on completion', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    const service = await createService(repo);
+
+    await service.complete(7, { txId: '0xTx', eventId: 'history-1-2-to' });
+
+    expect(repo.update).toHaveBeenCalledWith(7, {
+      isComplete: true,
+      status: TransactionRequestStatus.COMPLETED,
+      settlementTxId: '0xTx',
+      settlementEventId: 'history-1-2-to',
+    });
+  });
+
+  it('completes without touching the settlement fields when no settlement is given', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    const service = await createService(repo);
+
+    await service.complete(7);
+
+    const payload = repo.update.mock.calls[0][1];
+    expect(payload).not.toHaveProperty('settlementTxId');
+    expect(payload).not.toHaveProperty('settlementEventId');
+  });
+
+  it('returns the settlement pairing of a user for deduplication', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    jest.spyOn(repo, 'find').mockResolvedValue([
+      { settlementTxId: '0xTxA', settlementEventId: 'history-1-2-to' },
+      { settlementTxId: '0xTxB', settlementEventId: undefined },
+    ] as any);
+    const service = await createService(repo);
+
+    const result = await service.getUsedSettlements(42);
+
+    expect(result).toEqual([
+      { settlementTxId: '0xTxA', settlementEventId: 'history-1-2-to' },
+      { settlementTxId: '0xTxB', settlementEventId: undefined },
+    ]);
+    expect(repo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ user: { id: 42 } }) }),
+    );
   });
 });

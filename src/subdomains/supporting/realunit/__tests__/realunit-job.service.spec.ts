@@ -361,4 +361,27 @@ describe('RealUnitJobService', () => {
       eventId: 'history-25631176-471-to',
     });
   });
+
+  it('should ignore a self-transfer that the indexer records twice for the same account', async () => {
+    const secondQuote = { ...quote, id: 11 };
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote, secondQuote] as any);
+    // from == to, so the ponder writes both a -to and a -from row to this account's history, each
+    // carrying the same transfer — a receiver-only filter would settle both quotes from one transfer
+    mockHistory([
+      {
+        ...settlementEvent,
+        id: 'history-25631176-470-to',
+        transfer: { from: userAddress, to: userAddress, value: '72' },
+      },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-470-from',
+        transfer: { from: userAddress, to: userAddress, value: '72' },
+      },
+    ]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+  });
 });
