@@ -45,8 +45,15 @@ import {
 const ORDER_LOST_AFTER_MINUTES = 60;
 
 // The venue answers a refused cancel with an execution report rather than a separate reject message, so the
-// refusal has to be read off these two fields. `UnknownOrder` is the one reason that settles anything: there
-// is no such order, so nothing under that reference can execute.
+// refusal has to be read off these two fields. `UnknownOrder` is the one reason treated as settling
+// anything.
+//
+// That reading is an inference, not a documented guarantee — the protocol spec lists the reason without
+// defining it, so "never existed" cannot be distinguished from "not processed yet" from the value alone.
+// What it rests on: the caller only cancels an order it has already failed to find via a separate status
+// lookup, and only once that order has outlived the window in which its request could still be in flight.
+// Two independent negative answers plus that age are the strongest evidence this protocol offers. Every
+// other reason (too late, rate limited, already pending) settles nothing and is waited out.
 const SCRYPT_CANCEL_REJECTED = 'CancelRejected';
 const SCRYPT_UNKNOWN_ORDER = 'UnknownOrder';
 
@@ -902,9 +909,9 @@ export class ScryptService extends PricingProvider {
         return ScryptCancellation.SETTLED;
       }
 
-      // The venue answers a refused cancel with an execution report rather than a separate message. It
-      // does not know this reference, so there is nothing under it that could ever execute — every other
-      // reason (too late, rate limited, already pending) settles nothing and has to be waited out.
+      // The venue does not know this reference. Taken together with the status lookup that already failed
+      // to find it and with the order's age, that is treated as settled — see SCRYPT_UNKNOWN_ORDER for why
+      // this is an inference rather than a guarantee.
       if (report.ExecType === SCRYPT_CANCEL_REJECTED && report.CxlRejReason === SCRYPT_UNKNOWN_ORDER) {
         this.logger.verbose(`Scrypt has no such order to cancel for ${clOrdId}`);
 
