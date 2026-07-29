@@ -13,6 +13,8 @@ import { Test } from '@nestjs/testing';
 import * as bodyParser from 'body-parser';
 import request from 'supertest';
 import { GetConfig } from 'src/config/config';
+import { DbQueryDto, DbReturnData } from 'src/subdomains/generic/gs/dto/db-query.dto';
+import { GsTriggerType } from 'src/subdomains/generic/gs/dto/gs-trigger-type.enum';
 import { DebugQueryDto, DebugQueryResult } from '../dto/debug-query.dto';
 import { DebugQueryTreeSizeMiddleware } from '../middleware/debug-query-tree-size.middleware';
 
@@ -64,6 +66,34 @@ class GsControllerTestModule {
       .forRoutes({ path: 'gs/debug', method: RequestMethod.POST, version: GetConfig().defaultVersion });
   }
 }
+
+// Test-only route for the `/gs/db` request pipeline (production file: `gs.controller.ts`). The
+// production `GsController` is NOT bootstrapped here, for the same reason `GsDebugTestController`
+// above isn't: `RoleGuard()` and `UserActiveGuard()` return already-instantiated guard objects
+// baked into `@UseGuards()` at controller-decoration time in `gs.controller.ts`, so calling
+// `RoleGuard()` / `UserActiveGuard()` again in this file creates different instances that
+// `Test.overrideGuard()` cannot match.
+//
+// This controller deliberately does NOT reproduce the trigger-enforcement gate. That gate
+// (`SettingService.getObj('gsTriggerEnforcement', false)`, default-off) is exercised
+// against the REAL `GsController` in the unit test `gs.controller.spec.ts`; duplicating it here
+// would just be two tests for the same logic. This fixture covers the full DbQueryDto /
+// ValidationPipe surface (not only the trigger field) — what only the full NestJS pipeline
+// can prove: that the real `DbQueryDto` decorators (`@IsEnum(GsTriggerType)`,
+// `@MaxLength(256)` on `table`/`identifier`, control-character rejection, etc.) are actually
+// wired into the global `ValidationPipe`.
+@Controller('gs')
+class GsDbQueryDtoTestController {
+  @Post('db')
+  async getDbData(@Body() _query: DbQueryDto): Promise<DbReturnData> {
+    return { keys: ['id'], values: [] };
+  }
+}
+
+@Module({
+  controllers: [GsDbQueryDtoTestController],
+})
+class GsDbQueryDtoTestModule {}
 
 describe('GsController e2e (NestJS pipeline)', () => {
   let app: INestApplication;
@@ -191,5 +221,74 @@ describe('GsController e2e (NestJS pipeline)', () => {
       .expect(201);
 
     expect((handlerState.lastDto as { where: unknown }).where).toBeDefined();
+  });
+});
+
+describe('GsController e2e (db query DTO validation)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [GsDbQueryDtoTestModule],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    app.enableVersioning({ type: VersioningType.URI, defaultVersion: [GetConfig().defaultVersion] });
+    app.use(bodyParser.json({ limit: '20mb' }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transformOptions: { exposeUnsetFields: false },
+      }),
+    );
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('rejects an invalid trigger value via the global ValidationPipe', async () => {
+    await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'asset', trigger: 'Cron' }).expect(400);
+  });
+
+  it('accepts trigger=Manual', async () => {
+    await request(app.getHttpServer())
+      .post('/v1/gs/db')
+      .send({ table: 'asset', trigger: GsTriggerType.MANUAL })
+      .expect(201);
+  });
+
+  it('accepts a request without trigger — the ValidationPipe alone does not enforce it', async () => {
+    await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'asset' }).expect(201);
+  });
+
+  it('rejects an identifier over the 256-char limit via the global ValidationPipe', async () => {
+    await request(app.getHttpServer())
+      .post('/v1/gs/db')
+      .send({ table: 'asset', identifier: 'a'.repeat(257) })
+      .expect(400);
+  });
+
+  it('rejects a table name over the 256-char limit via the global ValidationPipe', async () => {
+    await request(app.getHttpServer())
+      .post('/v1/gs/db')
+      .send({ table: 'a'.repeat(257) })
+      .expect(400);
+  });
+
+  it('rejects a table name with an embedded control character via the global ValidationPipe', async () => {
+    await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'user\ndata' }).expect(400);
+  });
+
+  it('rejects an identifier with an embedded control character via the global ValidationPipe', async () => {
+    await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'asset', identifier: 'x\nforged' }).expect(400);
+  });
+
+  it('accepts a valid identifier with hyphen and underscore via the global ValidationPipe', async () => {
+    await request(app.getHttpServer())
+      .post('/v1/gs/db')
+      .send({ table: 'asset', identifier: 'valid-identifier_123' })
+      .expect(201);
   });
 });
