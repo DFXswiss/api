@@ -65,6 +65,7 @@ import { UserNameDto } from '../user/dto/user-name.dto';
 import { UpdateMailStatus } from '../user/dto/verify-mail.dto';
 import { User } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
+import { WalletService } from '../wallet/wallet.service';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
@@ -129,6 +130,7 @@ export class UserDataService {
     private readonly ipLogService: IpLogService,
     @Inject(forwardRef(() => CustodyService))
     private readonly custodyService: CustodyService,
+    private readonly walletService: WalletService,
   ) {}
 
   // --- GETTERS --- //
@@ -1102,6 +1104,11 @@ export class UserDataService {
     if (dto.nationality) {
       userData.nationality = await this.countryService.getCountry(dto.nationality.id);
       if (!userData.nationality) throw new BadRequestException('Nationality not found');
+    }
+
+    if (dto.wallet) {
+      userData.wallet = await this.walletService.getByIdOrName(dto.wallet.id);
+      if (!userData.wallet) throw new BadRequestException('Wallet not found');
     }
 
     if (dto.organizationCountryId) {
