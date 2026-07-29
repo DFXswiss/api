@@ -2,8 +2,9 @@ import { newDb } from 'pg-mem';
 import { DataSource, QueryRunner } from 'typeorm';
 
 // The reporting block is PL/pgSQL, which pg-mem does not implement, so the suite below covers the
-// guards against pg-mem and the reporting against a real Postgres when one is provided. Without a
-// connection string that second suite skips, keeping CI (which has no DB) green.
+// guards against pg-mem and the reporting against a real Postgres. CI provisions a throwaway
+// Postgres and sets the connection string; without one the second suite skips, so a plain local
+// run still passes.
 const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
 
@@ -103,16 +104,32 @@ describe('RealignStalePriceSourceConfig migration', () => {
   };
 
   // A cross-check re-pointed by hand after this migration was written. Each case deviates from the
-  // expected configuration in exactly one column, so every predicate of the guard is load-bearing:
-  // drop any one of them and the corresponding case starts matching.
+  // expected configuration in exactly one column, so every predicate of the up() guard is
+  // load-bearing: drop any one of them and the corresponding case starts matching.
   const singleColumnDeviations = (
+    source: string,
     asset: string,
     reference: string,
     limit: number,
-  ): { label: string; asset: string; reference: string; limit: number }[] => [
-    { label: 'a re-pointed check asset', asset: `${asset}X`, reference, limit },
-    { label: 'a re-pointed check reference', asset, reference: `${reference}X`, limit },
-    { label: 'a widened check tolerance', asset, reference, limit: limit + 0.02 },
+  ): { label: string; source: string; asset: string; reference: string; limit: number }[] => [
+    { label: 'a re-pointed check source', source: `${source}X`, asset, reference, limit },
+    { label: 'a re-pointed check asset', source, asset: `${asset}X`, reference, limit },
+    { label: 'a re-pointed check reference', source, asset, reference: `${reference}X`, limit },
+    { label: 'a widened check tolerance', source, asset, reference, limit: limit + 0.02 },
+  ];
+
+  // Rows where exactly one check column is still populated. down() must leave every one of them
+  // alone, which is what makes each of its four IS NULL predicates load-bearing.
+  const partiallyClearedStates = (
+    source: string,
+    asset: string,
+    reference: string,
+    limit: number,
+  ): { label: string; row: [string | null, string | null, string | null, number | null] }[] => [
+    { label: 'only a check source', row: [source, null, null, null] },
+    { label: 'only a check asset', row: [null, asset, null, null] },
+    { label: 'only a check reference', row: [null, null, reference, null] },
+    { label: 'only a check tolerance', row: [null, null, null, limit] },
   ];
 
   const expectNoCheck = (id: number): void => {
@@ -204,16 +221,29 @@ describe('RealignStalePriceSourceConfig migration', () => {
     { id: 17, source: 'Binance', asset: 'MKR', reference: 'USDT', limit: 0.03 },
     { id: 42, source: 'Kucoin', asset: 'ISLM', reference: 'USDT', limit: 0.03 },
   ])('against a hand-modified rule $id', ({ id, source, asset, reference, limit }) => {
-    it.each(singleColumnDeviations(asset, reference, limit))('is left untouched when it has $label', async (d) => {
-      insertRule(id, source, d.asset, d.reference, d.limit);
-      const before = rules();
+    it.each(singleColumnDeviations(source, asset, reference, limit))(
+      'up leaves it untouched when it has $label',
+      async (d) => {
+        insertRule(id, d.source, d.asset, d.reference, d.limit);
+        const before = rules();
 
-      await migration.up({ query });
-      expect(rules()).toEqual(before);
+        await migration.up({ query });
 
-      await migration.down({ query });
-      expect(rules()).toEqual(before);
-    });
+        expect(rules()).toEqual(before);
+      },
+    );
+
+    it.each(partiallyClearedStates(source, asset, reference, limit))(
+      'down leaves it untouched when it still has $label',
+      async ({ row }) => {
+        insertRule(id, row[0], row[1], row[2], row[3]);
+        const before = rules();
+
+        await migration.down({ query });
+
+        expect(rules()).toEqual(before);
+      },
+    );
   });
 });
 
@@ -312,5 +342,31 @@ describeDb('RealignStalePriceSourceConfig migration (real Postgres reporting)', 
 
     expect(driftNotices(notices)).toHaveLength(1);
     expect(driftNotices(notices)[0]).toContain('2 of 2 rules still carry a cross-check');
+  });
+
+  it('stays silent on down when both rules are restored', async () => {
+    await qr.query(`
+      INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
+      VALUES (17, 'Binance', 'MKR', 'USDT', 0.03), (42, 'Kucoin', 'ISLM', 'USDT', 0.03)
+    `);
+    await migration.up(qr);
+
+    const notices = await captureNotices(() => migration.down(qr));
+
+    expect(driftNotices(notices)).toEqual([]);
+  });
+
+  it('reports on down the rules it could not restore', async () => {
+    // partially cleared out of band: down()'s all-NULL guard no longer matches, so the rule keeps
+    // no cross-check and must be reported rather than passing as a completed revert
+    await qr.query(`
+      INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
+      VALUES (17, NULL, 'MKR', NULL, NULL), (42, NULL, NULL, 'USDT', NULL)
+    `);
+
+    const notices = await captureNotices(() => migration.down(qr));
+
+    expect(driftNotices(notices)).toHaveLength(1);
+    expect(driftNotices(notices)[0]).toContain('2 of 2 rules still lack a cross-check');
   });
 });
