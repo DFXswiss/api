@@ -685,9 +685,9 @@ describe('ScryptWebSocketConnection', () => {
     await connection.disconnect();
     expect((connection as any).isReconnecting).toBe(false);
 
-    // Re-arm a timer with a STALE epoch. Note this no longer reaches the epoch guard itself: disconnect()
-    // empties activeStreams, so the callback's stand-down check returns first. The stale-epoch guard is
-    // covered separately below, with streams still outstanding.
+    // Re-arm a timer with a STALE epoch. This no longer PINS the epoch guard: disconnect() empties
+    // activeStreams, so deleting the guard would be masked by the stand-down check right behind it, and this
+    // test would still pass. The guard is pinned separately below, with streams still outstanding.
     const staleEpoch = (connection as any).reconnectEpoch - 1;
     (connection as any).scheduleReconnect(0, staleEpoch);
     jest.advanceTimersByTime(60000 * 3);

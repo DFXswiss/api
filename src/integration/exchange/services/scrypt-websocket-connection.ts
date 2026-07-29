@@ -275,9 +275,9 @@ export class ScryptWebSocketConnection {
     return this.retryIdempotentRead(doFetch, `fetchAll ${streamName}`);
   }
 
-  // Register a callback fired after every reconnect, plus a first connect that healed an earlier failed
-  // attempt (but not a clean first connect). Used to re-fetch state that
-  // a bare re-subscribe does not replay (see ScryptService catch-up). Callbacks must not throw / handle their own errors.
+  // Register a callback fired after every reconnect, plus a first connect that healed an earlier failed attempt
+  // (but not a clean first connect). Used to re-fetch state that a bare re-subscribe does not replay (see
+  // ScryptService catch-up). Callbacks must not throw / handle their own errors.
   onReconnect(callback: () => void | Promise<void>): void {
     this.reconnectCallbacks.push(callback);
   }
