@@ -166,10 +166,9 @@ describe('TransactionRequestService settlement persistence', () => {
 
   it('returns consumed settlement event ids across all users', async () => {
     const repo = createMock<TransactionRequestRepository>();
-    jest.spyOn(repo, 'find').mockResolvedValue([
-      { settlementEventId: 'history-1-2-to' },
-      { settlementEventId: 'history-3-4-to' },
-    ] as any);
+    jest
+      .spyOn(repo, 'find')
+      .mockResolvedValue([{ settlementEventId: 'history-1-2-to' }, { settlementEventId: 'history-3-4-to' }] as any);
     const service = await createService(repo);
 
     const result = await service.getConsumedSettlementEventIds();
