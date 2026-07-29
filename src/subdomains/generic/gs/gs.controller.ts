@@ -26,6 +26,8 @@ export class GsController {
   async getDbData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryDto): Promise<DbReturnData> {
     if (DisabledProcess(Process.GS_DB)) throw new ForbiddenException('Endpoint disabled');
 
+    this.logAndCheckTrigger(query, jwt);
+
     try {
       return await this.gsService.getDbData(query, jwt.role);
     } catch (e) {
@@ -40,6 +42,8 @@ export class GsController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getExtendedData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryBaseDto): Promise<DbReturnData> {
     if (DisabledProcess(Process.GS_DB)) throw new ForbiddenException('Endpoint disabled');
+
+    this.logAndCheckTrigger(query, jwt);
 
     return this.gsService.getExtendedDbData(query, jwt.role);
   }
@@ -68,5 +72,19 @@ export class GsController {
     // `JSON.stringify` in the audit log, and the service walker.
 
     return this.gsService.executeDebugQuery(dto, jwt.address ?? `account:${jwt.account}`);
+  }
+
+  // Logs every `/gs/db*` call (table, identifier, trigger, caller role) as the measurement
+  // baseline for the trigger-type rollout, then — only once `Process.GS_TRIGGER_CHECK` is
+  // active — rejects calls that don't declare whether they were triggered manually or by an
+  // automation. `identifier`/`trigger` use the `missing` label (not a value fallback) so
+  // omissions stay visible in the log instead of going blank.
+  private logAndCheckTrigger(query: DbQueryBaseDto, jwt: JwtPayload): void {
+    this.logger.verbose(
+      `GS db call: table=${query.table}, identifier=${query.identifier ?? 'missing'}, trigger=${query.trigger ?? 'missing'}, role=${jwt.role}`,
+    );
+
+    if (!DisabledProcess(Process.GS_TRIGGER_CHECK) && !query.trigger)
+      throw new BadRequestException('Trigger type is required');
   }
 }

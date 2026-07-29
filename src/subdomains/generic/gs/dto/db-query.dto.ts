@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { GsTriggerType } from 'src/subdomains/generic/gs/dto/gs-trigger-type.enum';
 
 export class DbQueryBaseDto {
   @IsNotEmpty()
@@ -33,6 +34,12 @@ export class DbQueryBaseDto {
   @IsOptional()
   @IsString()
   identifier: string;
+
+  // Enforcement of "trigger is required" happens in the controller (behind a process flag),
+  // not here — keeping this optional at the DTO level lets the requirement roll out gradually.
+  @IsOptional()
+  @IsEnum(GsTriggerType)
+  trigger?: GsTriggerType;
 }
 
 export class DbQueryDto extends DbQueryBaseDto {
