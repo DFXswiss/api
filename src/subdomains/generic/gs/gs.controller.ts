@@ -36,7 +36,8 @@ export class GsController {
     try {
       return await this.gsService.getDbData(query, jwt.role);
     } catch (e) {
-      this.logger.verbose(`DB data call for ${query.table} in ${query.identifier} failed:`, e);
+      const { table, identifier } = this.sanitizedLogFields(query);
+      this.logger.verbose(`DB data call for ${table} in ${identifier} failed:`, e);
       throw new BadRequestException(e.message);
     }
   }
@@ -79,26 +80,31 @@ export class GsController {
     return this.gsService.executeDebugQuery(dto, jwt.address ?? `account:${jwt.account}`);
   }
 
-  // Logs every `/gs/db*` call (table, identifier, trigger, caller role) as the measurement
-  // baseline for the trigger-type rollout, then — only once the `gsTriggerEnforcement` setting
-  // is explicitly enabled — rejects calls that don't declare whether they were triggered
-  // manually or by an automation. The setting is default-off so a forgotten config entry can
-  // never self-activate enforcement. `identifier`/`trigger` use the `missing` label (not a
-  // value fallback) so omissions stay visible in the log instead of going blank.
-  // The setting lookup (`getObjCached`) is cached because this path is hot. A change to
-  // `gsTriggerEnforcement` therefore takes effect only after up to 5 minutes (the
-  // `CachedRepository` cache-reset period; see `EVERY_5_MINUTES` in
-  // `src/shared/repositories/cached.repository.ts`) — relevant when turning enforcement
-  // back off during an incident.
+  // Logs every `/gs/db*` handler invocation that passes the guards and the endpoint kill
+  // switch (table, identifier, trigger, caller role) as the measurement baseline for the
+  // trigger-type rollout, then — only once the `gsTriggerEnforcement` setting is explicitly
+  // enabled — rejects calls that don't declare whether they were triggered manually or by an
+  // automation. The setting is default-off so a forgotten config entry can never
+  // self-activate enforcement. `identifier`/`trigger` use the `missing` label (not a value
+  // fallback) so omissions stay visible in the log instead of going blank. The lookup is
+  // intentionally uncached so gate changes take effect immediately and consistently across
+  // all API instances — especially when turning enforcement off during an incident.
   private async logAndCheckTrigger(query: DbQueryBaseDto, jwt: JwtPayload): Promise<void> {
-    const table = Util.sanitizeLogValue(query.table, 64);
-    const identifier = query.identifier ? Util.sanitizeLogValue(query.identifier, 64) : 'missing';
+    const { table, identifier } = this.sanitizedLogFields(query);
 
     this.logger.verbose(
       `GS db call: table=${table}, identifier=${identifier}, trigger=${query.trigger ?? 'missing'}, role=${jwt.role}`,
     );
 
-    const enforced = await this.settingService.getObjCached<boolean>('gsTriggerEnforcement', false);
-    if (enforced && !query.trigger) throw new BadRequestException('Trigger type is required');
+    const enforced = await this.settingService.getObj<boolean>('gsTriggerEnforcement', false);
+    if (enforced === true && !query.trigger) throw new BadRequestException('Trigger type is required');
+  }
+
+  // Client-controlled values must never land raw in any log line.
+  private sanitizedLogFields(query: DbQueryBaseDto): { table: string; identifier: string } {
+    return {
+      table: Util.sanitizeLogValue(query.table, 64),
+      identifier: query.identifier ? Util.sanitizeLogValue(query.identifier, 64) : 'missing',
+    };
   }
 }

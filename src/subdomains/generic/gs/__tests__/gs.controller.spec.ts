@@ -16,8 +16,8 @@ import { GsService } from 'src/subdomains/generic/gs/gs.service';
 // NestJS' HTTP pipeline: `RoleGuard()` / `UserActiveGuard()` bake already-instantiated guard
 // objects into `@UseGuards()` at controller-decoration time, so a fresh `Test.overrideGuard()`
 // call from a test module can't target them. Guards are a framework layer wrapped around the
-// controller, not part of the method itself, so a direct `new GsController(mockService)` plus a
-// plain method call sidesteps that problem entirely and exercises the actual production code
+// controller, not part of the method itself, so a direct `new GsController(service, settingService)` plus
+// a plain method call sidesteps that problem entirely and exercises the actual production code
 // path this feature touches.
 describe('GsController', () => {
   let service: DeepMocked<GsService>;
@@ -30,9 +30,9 @@ describe('GsController', () => {
   // Both handlers check `Process.GS_DB` before trigger enforcement. `Process.GS_DB` must stay
   // enabled (DisabledProcess -> false) here so the pre-existing endpoint-disabled guard never
   // fires and the trigger check is what's actually under test. Enforcement itself is gated by
-  // `SettingService.getObjCached('gsTriggerEnforcement', …)`.
+  // `SettingService.getObj('gsTriggerEnforcement', ...)`.
   function mockTriggerEnforcement(enforced: boolean): void {
-    settingService.getObjCached.mockResolvedValue(enforced);
+    settingService.getObj.mockResolvedValue(enforced);
   }
 
   function query(overrides: Partial<DbQueryDto>): DbQueryDto {
@@ -78,6 +78,7 @@ describe('GsController', () => {
         expect(verboseSpy).toHaveBeenCalledWith(
           'GS db call: table=asset, identifier=missing, trigger=missing, role=Admin',
         );
+        expect(settingService.getObj).toHaveBeenCalledWith('gsTriggerEnforcement', false);
       });
 
       it('accepts trigger=Manual when the check is enabled', async () => {
@@ -129,6 +130,22 @@ describe('GsController', () => {
       expect(identifierPart.length).toBeLessThanOrEqual(64 + 3);
       expect(identifierPart.endsWith('...')).toBe(true);
       expect(identifierPart.startsWith('a'.repeat(64))).toBe(true);
+    });
+
+    it('sanitizes identifier in the getDbData failure log so log lines cannot be forged', async () => {
+      mockTriggerEnforcement(false);
+      service.getDbData.mockRejectedValue(new Error('boom'));
+
+      let caught: unknown;
+      try {
+        await controller.getDbData(jwt, query({ identifier: 'x\nforged', trigger: GsTriggerType.MANUAL }));
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect((caught as BadRequestException).message).toBe('boom');
+      expect(verboseSpy.mock.calls[1][0]).toBe('DB data call for asset in x?forged failed:');
     });
   });
 });
