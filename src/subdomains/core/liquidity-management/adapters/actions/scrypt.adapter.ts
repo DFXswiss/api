@@ -44,7 +44,8 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
  *
  * Matches the age at which the venue lookup itself gives up on finding an order, so both routes out of a
  * silent order agree. Quarantine is not a verdict — the order is still not declared failed here — it only
- * moves it somewhere a human can act on, or where the caller's own abandon bound eventually gives it up.
+ * moves it somewhere a human can act on, or where the caller's bound eventually attempts a cancellation
+ * whose confirmation can end it.
  */
 const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 60;
 

@@ -854,6 +854,36 @@ describe('ScryptService', () => {
       await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.SETTLED);
     });
 
+    it.each([ScryptOrderStatus.CANCELED, ScryptOrderStatus.FILLED])(
+      'settles nothing when a %s report claims the order is unknown yet reports a fill',
+      async (ordStatus) => {
+        // the contradiction is the same whatever status rides along; deciding on the status first would let
+        // it through with a terminal one attached
+        stubCancel(
+          cancelReport({
+            OrdStatus: ordStatus,
+            ExecType: 'CancelRejected',
+            CxlRejReason: 'UnknownOrder',
+            CumQty: '40',
+          }),
+        );
+
+        await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+          ScryptCancellation.UNCONFIRMED,
+        );
+      },
+    );
+
+    it('does not cache a cancellation whose filled size is unreadable', async () => {
+      // readers derive the fill with `parseFloat(...) || 0`, so such an entry would quietly claim nothing
+      // was filled on every later lookup
+      stubCancel(cancelReport({ CumQty: '' }));
+
+      await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
+    });
+
     it('settles nothing when a refusal claims the order is unknown yet reports a fill', async () => {
       // an order the venue has no record of cannot have traded — the report disagrees with itself, and
       // nothing may be concluded from that, least of all that walking away is safe

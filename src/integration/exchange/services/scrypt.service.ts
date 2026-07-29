@@ -895,6 +895,20 @@ export class ScryptService extends PricingProvider {
         return ScryptCancellation.UNCONFIRMED;
       }
 
+      const refusedAsUnknown =
+        report.ExecType === SCRYPT_CANCEL_REJECTED && report.CxlRejReason === SCRYPT_UNKNOWN_ORDER;
+
+      // Checked before anything else: a report claiming the venue has no record of this order while
+      // reporting a fill on it disagrees with itself, and that is true whatever its status says. Deciding
+      // on the status first would let the same contradiction through with a terminal one attached.
+      if (refusedAsUnknown && filled > 0) {
+        this.logger.warn(
+          `Cancel of order ${clOrdId} was refused as unknown yet reports ${report.CumQty} filled — the report contradicts itself, settling nothing`,
+        );
+
+        return ScryptCancellation.UNCONFIRMED;
+      }
+
       // Only a terminal state answers the question this method asks. A refused cancel comes back carrying
       // the order's LAST KNOWN state, so a partially filled order that could not be cancelled reports a
       // fill while remaining wide open — reading the fill alone would call that finished and let the
@@ -918,20 +932,7 @@ export class ScryptService extends PricingProvider {
       // The venue does not know this reference. Taken together with the order's age and its failed status
       // lookup, that is treated as settled — see SCRYPT_UNKNOWN_ORDER for what that evidence covers and
       // why it is an inference rather than a guarantee.
-      //
-      // Unless the same report also reports a fill, in which case it contradicts itself: an order the venue
-      // has no record of cannot have traded. Nothing may be concluded from a report that disagrees with
-      // itself, least of all that walking away is safe — the sibling branch above shows a refusal really can
-      // carry a filled quantity, so this is not a hypothetical shape.
-      if (report.ExecType === SCRYPT_CANCEL_REJECTED && report.CxlRejReason === SCRYPT_UNKNOWN_ORDER) {
-        if (filled > 0) {
-          this.logger.warn(
-            `Cancel of order ${clOrdId} was refused as unknown yet reports ${report.CumQty} filled — the report contradicts itself, settling nothing`,
-          );
-
-          return ScryptCancellation.UNCONFIRMED;
-        }
-
+      if (refusedAsUnknown) {
         this.logger.verbose(`Scrypt has no such order to cancel for ${clOrdId}`);
 
         return ScryptCancellation.SETTLED;
@@ -992,7 +993,15 @@ export class ScryptService extends PricingProvider {
     // LAST KNOWN state — for a reference the venue never had, that reads as a live New order. Filing that
     // would invent one: the next lookup would find it, call the order sent, and point the row back at a
     // reference that never executed. Only a terminal Canceled says something about this order.
-    if (report.OrigClOrdID === clOrdId && report.OrdStatus === ScryptOrderStatus.CANCELED)
+    // Not cached when the filled quantity is unreadable: readers derive it with `parseFloat(...) || 0`, so
+    // an unreadable value would enter the cache as an untouched order and every later lookup would repeat
+    // that reading. Better no entry than one that quietly claims nothing was filled.
+    if (
+      report.OrigClOrdID === clOrdId &&
+      report.OrdStatus === ScryptOrderStatus.CANCELED &&
+      Number.isFinite(Number(report.CumQty)) &&
+      !!report.CumQty?.trim()
+    )
       this.cacheExecutionReport({ ...report, ClOrdID: clOrdId });
 
     return report;

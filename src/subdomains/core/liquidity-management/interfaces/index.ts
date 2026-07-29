@@ -35,7 +35,8 @@ export interface LiquidityActionIntegration {
   resolveUncertainOrder?(order: LiquidityManagementOrder): Promise<UncertainOrderResolution>;
 
   /**
-   * Make sure nothing this order put on the wire can still execute, so it may be given up safely.
+   * Make sure nothing this order has claimed — sent or merely reserved — can still execute, so it may be
+   * given up safely.
    *
    * The one thing that makes abandoning a quarantined order dangerous is a request still live at the venue:
    * give the rule its funds back and a late fill spends them twice. Rather than estimating when that can no

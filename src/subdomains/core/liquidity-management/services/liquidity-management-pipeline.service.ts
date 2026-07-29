@@ -706,9 +706,10 @@ export class LiquidityManagementPipelineService {
    * Release a quarantined order by hand, after somebody checked the venue directly.
    *
    * Reconciliation can only ever confirm that a reference exists; it never concludes the opposite, because
-   * no venue reply proves "this was never accepted". An order that can at least be looked up is given up on
-   * its own once its bound expires, so this path is what keeps the rest moving: orders no integration can
-   * look up, and venues that never answer, which nothing here would otherwise release. Guarded like the
+   * no venue reply proves "this was never accepted". An order that can at least be cancelled is given up
+   * once the venue confirms nothing can still execute, so this path is what keeps the rest moving: orders no
+   * integration can look up, and venues that will not settle them, which nothing here would otherwise
+   * release. Guarded like the
    * payout subdomain's retry: the caller must assert the check and name where it happened, and the
    * assertion is recorded on the order.
    */
