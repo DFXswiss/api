@@ -175,6 +175,26 @@ describe('BankService', () => {
     expect(result).toBe(frick);
   });
 
+  it('selects the highest-id Bank Frick EUR row for a BANK EUR deposit', async () => {
+    const olderFrick = createCustomBank({
+      ...frickEUR,
+      id: 101,
+      receive: true,
+      iban: 'LI75088110105923K0101',
+    });
+    const newerFrick = createCustomBank({
+      ...frickEUR,
+      id: 202,
+      receive: true,
+      iban: 'LI75088110105923K0202',
+    });
+    mockFindCachedByForBanks(bankRepo, [olderFrick, newerFrick]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.BANK));
+    expect(result).toBe(newerFrick);
+    expect(result.iban).toBe('LI75088110105923K0202');
+  });
+
   it('picks the EUR Bank Frick row, not its CHF row, for an EUR deposit', async () => {
     // The CHF row is listed first on purpose: the rule matches on bank name AND currency, and find()
     // takes the first hit. Without the currency check a customer paying in EUR would be handed the
@@ -212,6 +232,21 @@ describe('BankService', () => {
     expect(result).toBe(chf);
   });
 
+  it('does not let a Bank Frick CHF row capture a CHF request', async () => {
+    const frickChf = createCustomBank({
+      name: IbanBankName.FRICK,
+      currency: 'CHF',
+      receive: true,
+      iban: 'LI75088110105923K0CHF',
+      bic: 'BFRILI22',
+    });
+    const chf = createCustomBank({ ...yapealCHF, receive: true });
+    mockFindCachedByForBanks(bankRepo, [frickChf, chf]);
+
+    const result = await service.getBank(createBankSelectorInput('CHF'));
+    expect(result).toBe(chf);
+  });
+
   it('uses an instant-capable EUR bank instead of Bank Frick for INSTANT payments', async () => {
     const frick = createCustomBank({ ...frickEUR, receive: true, sctInst: false });
     const instantBank = createCustomBank({ ...olkyEUR, receive: true, sctInst: true });
@@ -221,16 +256,38 @@ describe('BankService', () => {
     expect(result).toBe(instantBank);
   });
 
-  it('reaches Bank Frick through the normal EUR fallback for an unsupported currency', async () => {
+  it('falls back to an incumbent EUR bank when no EUR bank supports INSTANT', async () => {
+    const frick = createCustomBank({ ...frickEUR, receive: true, sctInst: false });
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true, sctInst: false });
+    mockFindCachedByForBanks(bankRepo, [frick, incumbent]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
+    expect(result).toBe(incumbent);
+    expect(result).not.toBe(frick);
+  });
+
+  it('uses an incumbent EUR bank instead of Bank Frick for CARD payments', async () => {
     const frick = createCustomBank({ ...frickEUR, receive: true });
-    mockFindCachedByForBanks(bankRepo, [frick]);
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true });
+    mockFindCachedByForBanks(bankRepo, [frick, incumbent]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.CARD));
+    expect(result).toBe(incumbent);
+    expect(result).not.toBe(frick);
+  });
+
+  it.each([
+    ['Bank Frick first', true],
+    ['incumbent first', false],
+  ])('uses the incumbent EUR fallback for unsupported currency with %s', async (_description, frickFirst) => {
+    const frick = createCustomBank({ ...frickEUR, receive: true });
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true });
+    const banks = frickFirst ? [frick, incumbent] : [incumbent, frick];
+    mockFindCachedByForBanks(bankRepo, banks);
 
     const result = await service.getBank(createBankSelectorInput('GBP'));
-
-    // This is the normal getMatchingBank fallback to EUR, not special Frick handling: the requested
-    // currency is GBP, while the hardcoded branch only applies when the currency parameter itself is EUR.
-    expect(result).toBe(frick);
-    expect(result.currency).toBe('EUR');
+    expect(result).toBe(incumbent);
+    expect(result).not.toBe(frick);
   });
 });
 

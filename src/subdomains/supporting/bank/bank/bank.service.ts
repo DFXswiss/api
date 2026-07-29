@@ -85,22 +85,28 @@ export class BankService implements OnModuleInit {
   }
 
   // --- BANK SELECTOR --- //
-  // Returns undefined when no receiving (receive=true) bank exists for either the requested currency
-  // or the EUR fallback.
+  // Returns undefined when no eligible receiving (receive=true) bank exists for either the requested
+  // currency or the EUR fallback.
   async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank | undefined> {
     const fallBackCurrency = 'EUR';
 
-    const banks = await this.getReceiveBanks();
+    const receiveBanks = await this.getReceiveBanks();
 
-    // Product decision, deliberately hardcoded: EUR deposits are routed to Bank Frick. Every other
-    // receiving bank stays a fallback below - if the Frick EUR row is not currently receiving, EUR
-    // deposits keep working through the incumbent banks instead of failing outright.
-    // SEPA Instant is deliberately exempt: Bank Frick does not offer it (sctInst=false), so an
-    // INSTANT request must still reach a bank that can actually execute it.
-    if (currency === 'EUR' && paymentMethod !== FiatPaymentMethod.INSTANT) {
-      const frickEur = banks.find((bank) => bank.name === IbanBankName.FRICK && bank.currency === 'EUR');
+    // Product decision, deliberately hardcoded: an EUR bank transfer is routed to Bank Frick. The rule
+    // is scoped to exactly that case - payment method BANK, requested currency EUR - and matches on
+    // name AND currency so a franc row can never answer a euro request. If several rows qualify, the
+    // highest id wins, mirroring how getBankInternal resolves an ambiguous (name, currency) pair.
+    if (currency === 'EUR' && paymentMethod === FiatPaymentMethod.BANK) {
+      const frickEur = receiveBanks
+        .filter((bank) => bank.name === IbanBankName.FRICK && bank.currency === 'EUR')
+        .sort((a, b) => b.id - a.id)[0];
       if (frickEur) return frickEur;
     }
+
+    // Everything below keeps the categorical exclusion the removed bank-name filter provided: Bank
+    // Frick must not win a currency it was never routed to, and must not be reachable through the
+    // instant lookup or the EUR currency fallback either. Only the explicit rule above may return it.
+    const banks = receiveBanks.filter((bank) => bank.name !== IbanBankName.FRICK);
 
     // select the matching bank account
     let account: Bank | undefined;
