@@ -1,6 +1,9 @@
+import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import {
   Body,
+  CanActivate,
   Controller,
+  ExecutionContext,
   INestApplication,
   MiddlewareConsumer,
   Module,
@@ -9,12 +12,19 @@ import {
   ValidationPipe,
   VersioningType,
 } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import * as bodyParser from 'body-parser';
 import request from 'supertest';
 import { GetConfig } from 'src/config/config';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import * as processServiceModule from 'src/shared/services/process.service';
 import { DbQueryDto, DbReturnData } from 'src/subdomains/generic/gs/dto/db-query.dto';
 import { GsTriggerType } from 'src/subdomains/generic/gs/dto/gs-trigger-type.enum';
+import { GsController } from 'src/subdomains/generic/gs/gs.controller';
+import { GsService } from 'src/subdomains/generic/gs/gs.service';
 import { DebugQueryDto, DebugQueryResult } from '../dto/debug-query.dto';
 import { DebugQueryTreeSizeMiddleware } from '../middleware/debug-query-tree-size.middleware';
 
@@ -67,20 +77,10 @@ class GsControllerTestModule {
   }
 }
 
-// Test-only route for the `/gs/db` request pipeline (production file: `gs.controller.ts`). The
-// production `GsController` is NOT bootstrapped here, for the same reason `GsDebugTestController`
-// above isn't: `RoleGuard()` and `UserActiveGuard()` return already-instantiated guard objects
-// baked into `@UseGuards()` at controller-decoration time in `gs.controller.ts`, so calling
-// `RoleGuard()` / `UserActiveGuard()` again in this file creates different instances that
-// `Test.overrideGuard()` cannot match.
-//
-// This controller deliberately does NOT reproduce the trigger-enforcement check. That check is
-// exercised against the REAL `GsController` in the unit test `gs.controller.spec.ts`; duplicating it here
-// would just be two tests for the same logic. This fixture covers the full DbQueryDto /
-// ValidationPipe surface (not only the trigger field) — what only the full NestJS pipeline
-// can prove: that the real `DbQueryDto` decorators (`@IsEnum(GsTriggerType)`,
-// `@MaxLength(256)` on `table`/`identifier`, control-character rejection, etc.) are actually
-// wired into the global `ValidationPipe`.
+// Test-only route that isolates the `DbQueryDto` / ValidationPipe surface from controller
+// behavior. It proves the real DTO decorators (`@IsEnum(GsTriggerType)`, `@MaxLength(256)` on
+// `table`/`identifier`, control-character rejection, etc.) are wired into the global pipe and
+// deliberately leaves trigger enforcement to the real-controller HTTP suite below.
 @Controller('gs')
 class GsDbQueryDtoTestController {
   @Post('db')
@@ -289,5 +289,113 @@ describe('GsController e2e (db query DTO validation)', () => {
       .post('/v1/gs/db')
       .send({ table: 'asset', identifier: 'valid-identifier_123' })
       .expect(201);
+  });
+});
+
+describe('GsController e2e (missing trigger enforcement)', () => {
+  let app: INestApplication;
+  let service: DeepMocked<GsService>;
+  let verboseSpy: jest.SpyInstance;
+
+  const jwt: JwtPayload = { role: UserRole.ADMIN, ip: '1.2.3.4' };
+  const allowAdminGuard: CanActivate = {
+    canActivate(context: ExecutionContext): boolean {
+      context.switchToHttp().getRequest<{ user?: JwtPayload }>().user = jwt;
+      return true;
+    },
+  };
+
+  beforeAll(async () => {
+    service = createMock<GsService>();
+    verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
+
+    const builder = Test.createTestingModule({
+      controllers: [GsController],
+      providers: [{ provide: GsService, useValue: service }],
+    });
+    const handlers = [GsController.prototype.getDbData, GsController.prototype.getExtendedData];
+    const guards = handlers.flatMap((handler) => Reflect.getMetadata(GUARDS_METADATA, handler) as CanActivate[]);
+
+    for (const guard of guards) {
+      if (typeof guard === 'function') {
+        builder.overrideGuard(guard).useValue(allowAdminGuard);
+      } else {
+        jest.spyOn(guard, 'canActivate').mockImplementation(allowAdminGuard.canActivate.bind(allowAdminGuard));
+      }
+    }
+
+    const moduleRef = await builder.compile();
+    app = moduleRef.createNestApplication();
+    app.enableVersioning({ type: VersioningType.URI, defaultVersion: [GetConfig().defaultVersion] });
+    app.use(bodyParser.json({ limit: '20mb' }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transformOptions: { exposeUnsetFields: false },
+      }),
+    );
+    await app.init();
+  });
+
+  afterAll(async () => {
+    try {
+      if (app) await app.close();
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it.each(['/v1/gs/db', '/v1/gs/db/custom'])(
+    'rejects a missing trigger on %s before calling either GS service',
+    async (path) => {
+      const response = await request(app.getHttpServer()).post(path).send({ table: 'asset' }).expect(400);
+
+      expect(response.body.message).toBe('Trigger type is required');
+      expect(verboseSpy).toHaveBeenCalledTimes(1);
+      expect(verboseSpy).toHaveBeenCalledWith(
+        'GS db call: table=asset, identifier=missing, trigger=missing, role=Admin',
+      );
+      expect(service.getDbData).not.toHaveBeenCalled();
+      expect(service.getExtendedDbData).not.toHaveBeenCalled();
+    },
+  );
+
+  it('routes a valid /gs/db request to getDbData only', async () => {
+    const result: DbReturnData = { keys: ['standard'], values: [{ id: 1 }] };
+    service.getDbData.mockResolvedValue(result);
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/gs/db')
+      .send({ table: 'asset', trigger: GsTriggerType.MANUAL })
+      .expect(201);
+
+    expect(response.body).toEqual(result);
+    expect(service.getDbData).toHaveBeenCalledWith(
+      expect.objectContaining({ table: 'asset', trigger: GsTriggerType.MANUAL }),
+      UserRole.ADMIN,
+    );
+    expect(service.getExtendedDbData).not.toHaveBeenCalled();
+  });
+
+  it('routes a valid /gs/db/custom request to getExtendedDbData only', async () => {
+    const result: DbReturnData = { keys: ['custom'], values: [{ id: 2 }] };
+    service.getExtendedDbData.mockResolvedValue(result);
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/gs/db/custom')
+      .send({ table: 'asset', trigger: GsTriggerType.AUTO })
+      .expect(201);
+
+    expect(response.body).toEqual(result);
+    expect(service.getExtendedDbData).toHaveBeenCalledWith(
+      expect.objectContaining({ table: 'asset', trigger: GsTriggerType.AUTO }),
+      UserRole.ADMIN,
+    );
+    expect(service.getDbData).not.toHaveBeenCalled();
   });
 });
