@@ -6,19 +6,27 @@
 /**
  * Remove the cross-check from two price rules whose comparison market no longer trades.
  *
- * A rule only persists a refreshed price once its deviation check clears. Where the configured
- * comparison market has stopped trading it still answers with its last price, frozen at the
- * moment it halted, so the gap against the live primary source widens indefinitely and the check
- * can never clear. The rule is then never written back and its price ages out for every consumer.
+ * A rule only persists a refreshed price once its deviation check clears, so a check that can
+ * never clear stops the rule from being written back at all and its price ages out for every
+ * consumer. Both rules are in that state, by two different routes:
+ *
+ * - One comparison market is halted but still answering. It returns the last price it traded at,
+ *   frozen at the moment it stopped, so the gap against the live primary source widens
+ *   indefinitely and the deviation check never clears.
+ * - The other pair has been delisted outright. Looking it up raises, the surrounding lookup
+ *   rejects, and the rule cannot be resolved at all.
  *
  * The checks are removed rather than widened: the gap is not a tolerance that needs stretching,
  * and no limit wide enough to cover a frozen quote would still reject a wrong one. Rules without
- * a cross-check are an established configuration here. A third rule shows the same symptom but
+ * a cross-check are an established configuration here. A third rule shows a similar symptom but
  * its comparison market is still trading and the deviation it reports is genuine, so that check
  * is deliberately left in place.
  *
- * Both directions are guarded on the exact state they expect, so `up` no-ops where the
- * configuration already differs and `down` only reverses rows that `up` actually changed.
+ * Both directions match on the exact state they expect, so `up` no-ops wherever the configuration
+ * already differs — including freshly seeded environments, where these rules carry a different
+ * shape — and `down` only writes rows that are in exactly the state `up` leaves behind. Each
+ * direction reports how many of the two rules it found in the expected state, so a deploy that
+ * matched nothing is visible in the log rather than silently recorded as applied.
  *
  * @class
  * @implements {MigrationInterface}
@@ -37,7 +45,8 @@ module.exports = class RealignStalePriceSourceConfig1785450000000 {
       SET "check1Source" = NULL,
           "check1Asset" = NULL,
           "check1Reference" = NULL,
-          "check1Limit" = NULL
+          "check1Limit" = NULL,
+          "updated" = NOW()
       WHERE "id" = 17
         AND "check1Source" = 'Binance'
         AND "check1Asset" = 'MKR'
@@ -50,12 +59,24 @@ module.exports = class RealignStalePriceSourceConfig1785450000000 {
       SET "check1Source" = NULL,
           "check1Asset" = NULL,
           "check1Reference" = NULL,
-          "check1Limit" = NULL
+          "check1Limit" = NULL,
+          "updated" = NOW()
       WHERE "id" = 42
         AND "check1Source" = 'Kucoin'
         AND "check1Asset" = 'ISLM'
         AND "check1Reference" = 'USDT'
         AND "check1Limit" = 0.03
+    `);
+
+    await queryRunner.query(`
+      DO $$
+      DECLARE cleared integer;
+      BEGIN
+        SELECT count(*) INTO cleared
+        FROM "price_rule"
+        WHERE "id" IN (17, 42) AND "check1Source" IS NULL;
+        RAISE NOTICE 'RealignStalePriceSourceConfig: % of 2 rules without a cross-check', cleared;
+      END $$
     `);
   }
 
@@ -70,7 +91,8 @@ module.exports = class RealignStalePriceSourceConfig1785450000000 {
       SET "check1Source" = 'Kucoin',
           "check1Asset" = 'ISLM',
           "check1Reference" = 'USDT',
-          "check1Limit" = 0.03
+          "check1Limit" = 0.03,
+          "updated" = NOW()
       WHERE "id" = 42
         AND "check1Source" IS NULL
         AND "check1Asset" IS NULL
@@ -83,12 +105,24 @@ module.exports = class RealignStalePriceSourceConfig1785450000000 {
       SET "check1Source" = 'Binance',
           "check1Asset" = 'MKR',
           "check1Reference" = 'USDT',
-          "check1Limit" = 0.03
+          "check1Limit" = 0.03,
+          "updated" = NOW()
       WHERE "id" = 17
         AND "check1Source" IS NULL
         AND "check1Asset" IS NULL
         AND "check1Reference" IS NULL
         AND "check1Limit" IS NULL
+    `);
+
+    await queryRunner.query(`
+      DO $$
+      DECLARE restored integer;
+      BEGIN
+        SELECT count(*) INTO restored
+        FROM "price_rule"
+        WHERE "id" IN (17, 42) AND "check1Source" IS NOT NULL;
+        RAISE NOTICE 'RealignStalePriceSourceConfig: % of 2 rules with a cross-check', restored;
+      END $$
     `);
   }
 };
