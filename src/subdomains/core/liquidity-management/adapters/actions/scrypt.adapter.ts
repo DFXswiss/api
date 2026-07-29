@@ -291,20 +291,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     for (const reference of references) {
       const outcome = await this.scryptService.cancelIfOutstanding(reference, from, to);
 
-      if (outcome === ScryptCancellation.SETTLED) continue;
-
-      if (outcome === ScryptCancellation.EXECUTED) {
-        // It filled, in whole or in part, so this order did something and has to be finished for what it
-        // did rather than abandoned as if it had not. Point the row at the reference that executed: the
-        // next reconciliation finds it, reports SENT, and the ordinary completion check books the fill.
-        this.logger.warn(
-          `Order ${order.id}: ${reference} had already executed at Scrypt — completing it instead of giving up`,
-        );
-        order.updateCorrelationId(reference);
-        await this.orderRepo.save(order);
-
-        return false;
-      }
+      // Cancelled and executed both answer the only question that matters here: can this reference still
+      // execute? It cannot — one because it was called off, the other because it already ran. An order that
+      // filled is not a reason to hold on; the fill is in the venue's balance, and the balance is what the
+      // rule replans from, so it plans for what is actually left rather than for what this row believed.
+      if (outcome === ScryptCancellation.SETTLED || outcome === ScryptCancellation.EXECUTED) continue;
 
       this.logger.warn(
         `Order ${order.id}: Scrypt would not settle ${reference}, so it may still execute — keeping the order quarantined`,
@@ -686,7 +677,6 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // exists at the venue in a cancelled state — checking oldest first would match that, report SENT and
         // leave the live replacement untracked while the completion check polls a superseded reference.
         const candidates = this.attemptedReferencesNewestFirst(order);
-        const currentAttempt = this.attemptNumber(order, order.correlationId);
         let rejectedCount = 0;
 
         // A reference cannot be published before the order that reserved it existed; one day of margin
@@ -700,14 +690,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
           // Absent, newest first: an accepted replacement may simply not be visible yet, while the order it
           // replaced still is. Falling through to that predecessor would report SENT on a reference the venue
           // has already superseded and leave the live replacement untracked, so stop here instead.
-          //
-          // Only for references NEWER than the one this row names, though. The current reference is the one
-          // the system treats as authoritative — a cancellation that found a fill points the row at it
-          // deliberately — and stopping short of it would leave that finding unreachable, which is how a
-          // real fill ends up never booked.
           if (!info) {
-            if (this.attemptNumber(order, candidate) <= currentAttempt) continue;
-
             this.logger.warn(
               `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
             );

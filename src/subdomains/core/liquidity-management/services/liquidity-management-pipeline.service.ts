@@ -321,7 +321,7 @@ export class LiquidityManagementPipelineService {
   /**
    * Resolve orders quarantined as UNCERTAIN by asking the venue what actually happened.
    *
-   * This only ever observes — it must not re-send anything. An order leaves quarantine when the venue
+   * This only ever observes or cancels — it must never re-send anything. An order leaves quarantine when the venue
    * either confirms it knows the reference (back to IN_PROGRESS, the normal completion check takes over) or
    * demonstrably does not (FAILED, so the rule may plan anew from a fresh balance). Anything inconclusive
    * stays put — but not indefinitely: past the abandon bound for its kind of request it is given up as

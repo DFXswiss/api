@@ -502,8 +502,9 @@ describe('ScryptAdapter', () => {
       expect(cancelIfOutstanding).not.toHaveBeenCalled();
     });
 
-    it('adopts a reference that had already executed instead of giving the order up', async () => {
-      // a partial fill is still a fill: the order did something, so it has to be completed for what it did
+    it('treats an executed reference as settled — it cannot execute again either', async () => {
+      // holding on because something filled would be backwards: the fill is already in the venue's balance,
+      // and that balance is what the rule replans from, so it plans for what is actually left
       jest
         .spyOn(scryptService, 'cancelIfOutstanding')
         .mockImplementation(async (id: string) =>
@@ -512,32 +513,7 @@ describe('ScryptAdapter', () => {
       const order = cancellableOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
-      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
-      expect(order.correlationId).toBe('dfx-lm-4711-1');
-      expect(orderRepo.save).toHaveBeenCalled();
-    });
-
-    it('keeps the executed reference through the next reconciliation pass', async () => {
-      // the chain this whole path exists for: the cancellation finds a fill on the older reference and
-      // points the row at it, and the very next lookup must not walk back to the newer one that never
-      // executed — otherwise the fill is orphaned and nothing ever books it
-      jest
-        .spyOn(scryptService, 'cancelIfOutstanding')
-        .mockImplementation(async (id: string) =>
-          id === 'dfx-lm-4711' ? ScryptCancellation.EXECUTED : ScryptCancellation.SETTLED,
-        );
-      // the venue knows the executed reference and has never heard of the claimed replacement
-      jest
-        .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
-      const order = cancellableOrder();
-      order.recordSpentCorrelationId('dfx-lm-4711-1');
-
-      await adapter.cancelOutstanding(order);
-      expect(order.correlationId).toBe('dfx-lm-4711');
-
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
-      expect(order.correlationId).toBe('dfx-lm-4711');
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(true);
     });
 
     it('never cancels a withdrawal — there is no such thing at this venue', async () => {

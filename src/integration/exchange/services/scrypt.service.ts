@@ -935,7 +935,14 @@ export class ScryptService extends PricingProvider {
       ScryptMessageType.ORDER_CANCEL_REQUEST,
       [cancelData],
       ScryptMessageType.EXECUTION_REPORT,
-      (reports) => reports.find((r) => r.OrigClOrdID === clOrdId || r.ClOrdID === newClOrdId) ?? null,
+      // PendingCancel is the venue saying "working on it", not an answer. Taking the first report that
+      // merely mentions this order would freeze that intermediate state as the result — and since the
+      // waiter unsubscribes on its first match, the real terminal report that follows would never be seen.
+      (reports) =>
+        reports.find(
+          (r) =>
+            (r.OrigClOrdID === clOrdId || r.ClOrdID === newClOrdId) && r.OrdStatus !== ScryptOrderStatus.PENDING_CANCEL,
+        ) ?? null,
       60000,
     );
 
