@@ -85,7 +85,9 @@ export class BankService implements OnModuleInit {
   }
 
   // --- BANK SELECTOR --- //
-  async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank> {
+  // Returns undefined when no eligible bank matches the currency or the EUR fallback - a real outcome
+  // now that eligibility is explicit: a bank left at NULL priority is skipped even as the last candidate.
+  async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank | undefined> {
     const fallBackCurrency = 'EUR';
 
     // Deposit-target selection is an operational input (Bank.receivePriority), not a hardcoded
@@ -98,7 +100,7 @@ export class BankService implements OnModuleInit {
       .sort((a, b) => a.receivePriority - b.receivePriority || a.id - b.id);
 
     // select the matching bank account
-    let account: Bank;
+    let account: Bank | undefined;
 
     // instant bank
     if (!account && paymentMethod === FiatPaymentMethod.INSTANT) {
@@ -118,7 +120,7 @@ export class BankService implements OnModuleInit {
     currencyName: string,
     fallBackCurrencyName: string,
     selector?: (bank: Bank) => boolean,
-  ): Bank {
+  ): Bank | undefined {
     const matchingBanks = selector ? banks.filter(selector) : banks;
 
     return (
