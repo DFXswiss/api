@@ -239,7 +239,11 @@ export class CustodyOrderService {
       // The list shows completedAt where the order is completed, created otherwise. Sorting by
       // created alone would put rows out of order against the dates the reader can see.
       .orderBy('COALESCE("custodyOrder"."completedAt", "custodyOrder"."created")', 'DESC')
-      .take(100)
+      // limit, not take: take() splits the query in two and parses the raw orderBy at every dot,
+      // which turns the expression above into a lookup for an alias named COALESCE("custodyOrder"
+      // and throws on every call. Every relation joined here is to-one, so no row can be
+      // duplicated and limiting rows is the same as limiting entities.
+      .limit(100)
       .getMany();
 
     return CustodyOrderHistoryDtoMapper.mapList(orders);
