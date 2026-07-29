@@ -353,10 +353,41 @@ describeDb('RealignStalePriceSourceConfig migration (real Postgres reporting)', 
     expect(driftNotices(notices)[0]).toContain('2 of 2 rules still carry a cross-check');
   });
 
-  it('reverts without reporting, including in an environment that was only ever seeded', async () => {
-    // down() carries no report: a row it failed to restore looks exactly like a seeded row that
-    // never carried the cross-check. This asserts it stays quiet on the seed shape, which an
-    // end-state check keyed on check1Source alone would wrongly flag as drift.
+  it('reports a single drifted rule as one of the two', async () => {
+    // only rule 17 was hand-edited; 42 still matches. Pins the count, not just its presence.
+    await qr.query(`
+      INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
+      VALUES (17, 'Binance', 'MKR', 'USDT', 0.05), (42, 'Kucoin', 'ISLM', 'USDT', 0.03)
+    `);
+
+    const notices = await captureNotices(() => migration.up(qr));
+
+    expect(driftNotices(notices)).toHaveLength(1);
+    expect(driftNotices(notices)[0]).toContain('1 of 2 rules still carry a cross-check');
+  });
+
+  it('reverts an applied migration without reporting', async () => {
+    await qr.query(`
+      INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
+      VALUES (17, 'Binance', 'MKR', 'USDT', 0.03), (42, 'Kucoin', 'ISLM', 'USDT', 0.03)
+    `);
+    await migration.up(qr);
+
+    const notices = await captureNotices(() => migration.down(qr));
+
+    const restored = await qr.query(
+      `SELECT "id", "check1Source", "check1Asset", "check1Reference", "check1Limit" FROM "price_rule" ORDER BY "id"`,
+    );
+    expect(restored).toEqual([
+      { id: 17, check1Source: 'Binance', check1Asset: 'MKR', check1Reference: 'USDT', check1Limit: 0.03 },
+      { id: 42, check1Source: 'Kucoin', check1Asset: 'ISLM', check1Reference: 'USDT', check1Limit: 0.03 },
+    ]);
+    expect(driftNotices(notices)).toEqual([]);
+  });
+
+  it('stays silent on down in an environment that was only ever seeded', async () => {
+    // down() carries no report precisely because this shape has nothing to revert; an end-state
+    // check keyed on check1Source alone would wrongly flag it as drift.
     await qr.query(`
       INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
       VALUES (17, NULL, 'maker', 'tether', 0.03), (42, NULL, 'islamic-coin', 'tether', 0.03)

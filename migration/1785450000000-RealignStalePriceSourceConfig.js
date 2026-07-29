@@ -29,9 +29,13 @@
  * `up` then checks for rules that still carry a cross-check and reports them. Reaching that end
  * state without changing anything is a legitimate outcome and stays silent; a rule still carrying
  * one means the stored configuration has drifted away from what this migration targets, which
- * would otherwise be recorded as applied with no signal. `down` gets no such check: a row it
- * failed to restore is indistinguishable from a seeded row that never carried the cross-check,
- * and the only predicate that separates them is the one its own statements consume.
+ * would otherwise be recorded as applied with no signal.
+ *
+ * `down` carries no such check. The end state it wants is "restored", which a freshly seeded row
+ * does not satisfy and never did — so any check keyed on the check columns alone reports a revert
+ * in an environment that legitimately has nothing to revert. Excluding that case is possible, but
+ * only by hard-coding the seeded shape here, which pins this migration to seed data that changes
+ * independently of it. A bare `down` was preferred over that coupling.
  *
  * @class
  * @implements {MigrationInterface}
