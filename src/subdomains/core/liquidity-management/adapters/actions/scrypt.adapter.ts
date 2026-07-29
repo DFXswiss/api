@@ -260,6 +260,41 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     return this.checkTradeCompletion(order, tradeAsset, asset);
   }
 
+  /**
+   * Cancel everything this order could still have live, so the caller may give it up.
+   *
+   * Every reference the row ever put on the wire, not just the current one: the whole reason an order gets
+   * here is that at least one of them has an outcome nobody could observe, and an unobserved reference is
+   * precisely the one that might be sitting in the book. These are GTC orders — nothing expires them — so
+   * age is no argument at all, and the only way to know a reference cannot fill is to have the venue say so.
+   *
+   * All-or-nothing on purpose: one reference the venue would not settle is enough to keep the whole order
+   * quarantined, because the funds a rule would get back are the same funds that reference could still
+   * spend. Withdrawals are not cancellable this way and are left alone — they take the caller's ordinary
+   * route instead.
+   */
+  async cancelOutstanding(order: LiquidityManagementOrder): Promise<boolean> {
+    if (order.action.command === ScryptAdapterCommands.WITHDRAW) return false;
+
+    const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
+    const asset = order.pipeline.rule.targetAsset.dexName;
+    const [from, to] = order.action.command === ScryptAdapterCommands.SELL ? [asset, tradeAsset] : [tradeAsset, asset];
+
+    for (const reference of this.attemptedReferencesNewestFirst(order)) {
+      if (!(await this.scryptService.cancelIfOutstanding(reference, from, to))) {
+        this.logger.warn(
+          `Order ${order.id}: Scrypt would not settle ${reference}, so it may still execute — keeping the order quarantined`,
+        );
+
+        return false;
+      }
+    }
+
+    this.logger.info(`Order ${order.id}: Scrypt confirmed none of its references can execute any more`);
+
+    return true;
+  }
+
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
     // Before anything may write again: a previous pass may have had its replacement accepted and then failed
     // to record it, leaving this row pointing at the predecessor the venue has already cancelled. Restarting
@@ -357,10 +392,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * so one the venue does not show may still be live there, and carrying on with the predecessor would put a
    * second request next to it.
    *
-   * That barrier is not permanent, though. A claim the venue ANSWERED about and still does not show past the
-   * age at which this integration already treats an order as lost was never created, and blocking on it for
-   * good would only park the order between quarantine and back again. A claim the venue could not be asked
-   * about keeps blocking however old it is: silence is not an answer, and no clock turns it into one.
+   * The barrier is meant to hold. What eventually ends such an order is not this method giving way, but the
+   * caller cancelling every reference it ever sent — once the venue confirms none of them can execute, the
+   * claim is settled and there is nothing left to block on.
    */
   private async adoptLiveReplacement(order: LiquidityManagementOrder): Promise<boolean> {
     const currentAttempt = this.attemptNumber(order, order.correlationId);
@@ -374,25 +408,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
 
       if (info == null) {
-        // A claim the venue answered about and does not show, for longer than this venue itself waits
-        // before calling an order lost, was never created. Holding the write back forever on it is not
-        // caution: the completion check then quarantines the order, reconciliation hands it back, and the
-        // next check quarantines it again — an order oscillating in place, whose every return also resets
-        // the very clocks meant to end it. Stepping past a claim that answered NULL past that age is what
-        // lets the predecessor finish; the same rule as the reconciliation lookup, so both agree.
-        const answered = info === null;
-
-        if (answered && Util.minutesDiff(order.updated) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES) {
-          this.logger.warn(
-            `Order ${order.id} claimed ${reference}, but the venue has not shown it for over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes — treating it as never created and continuing with ${order.correlationId}`,
-          );
-
-          continue;
-        }
-
         this.logger.warn(
           `Order ${order.id} claimed ${reference}, but the venue ${
-            answered ? 'does not show it' : 'could not be asked about it'
+            info === null ? 'does not show it' : 'could not be asked about it'
           } — holding back every write against ${order.correlationId}`,
         );
 
@@ -617,12 +635,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * Ask Scrypt what happened to a quarantined order. Observes only — never re-sends.
    *
    * Only a matched reference can confirm a positive. A missing record confirms nothing on its own — Scrypt
-   * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined. Both
-   * outcomes are eventually given up by the caller, only on different clocks: a complete answer (UNRESOLVED)
-   * once the request can no longer be live, an incomplete one (UNAVAILABLE: nothing to ask with, an
-   * unreachable venue, or a reference left unasked) after far longer, since only time stands behind it.
-   * Nothing here ends in a permanent wait for an operator. An explicit rejection of every attempted
-   * reference is the one negative that does settle, and returns NOT_SENT.
+   * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined. What
+   * ends it is not this method concluding anything, but the caller cancelling every reference the order ever
+   * sent: once the venue confirms none of them can execute, giving up is a fact rather than a guess. An
+   * explicit rejection of every attempted reference is the one negative that settles here, and returns
+   * NOT_SENT.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
     const { correlationId } = order;
@@ -646,7 +663,6 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // exists at the venue in a cancelled state — checking oldest first would match that, report SENT and
         // leave the live replacement untracked while the completion check polls a superseded reference.
         const candidates = this.attemptedReferencesNewestFirst(order);
-        const currentAttempt = this.attemptNumber(order, order.correlationId);
         let rejectedCount = 0;
 
         // A reference cannot be published before the order that reserved it existed; one day of margin
@@ -654,44 +670,18 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // 30-day window for very old orders.
         const since = new Date(Math.max(Util.daysBefore(30).getTime(), Util.daysBefore(1, order.created).getTime()));
 
-        for (const [index, candidate] of candidates.entries()) {
+        for (const candidate of candidates) {
           const info = await this.scryptService.getOrderStatus(candidate, since);
 
           // Absent, newest first: an accepted replacement may simply not be visible yet, while the order it
           // replaced still is. Falling through to that predecessor would report SENT on a reference the venue
           // has already superseded and leave the live replacement untracked, so stop here instead.
           if (!info) {
-            // Only references at least as current as the adopted one still matter. Anything older was
-            // superseded when that adoption happened, so its absence adds nothing.
-            const unasked = candidates
-              .slice(index + 1)
-              .filter((reference) => this.attemptNumber(order, reference) >= currentAttempt);
-
-            // Nothing left worth asking about: the venue answered about everything that could be live, so
-            // this is a complete answer and the caller's bound may act on it.
-            if (!unasked.length) return UncertainOrderResolution.UNRESOLVED;
-
-            // Something is still unasked, and the predecessor of an invisible replacement is very often the
-            // live one. While that replacement could still surface, stopping here is the safe move and the
-            // incomplete answer says so.
-            if (Util.minutesDiff(order.updated) <= SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES) {
-              this.logger.warn(
-                `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
-              );
-
-              return UncertainOrderResolution.UNAVAILABLE;
-            }
-
-            // Past that age it is not surfacing. Returning here every pass would leave the older reference
-            // unasked forever — a lookup that structurally never completes, which no waiting can fix and
-            // which no bound may abandon on either: these are GTC orders, so an unchecked predecessor can
-            // sit open in the book indefinitely. So treat the invisible replacement as never created and
-            // carry on to the reference that may actually be live, which is the only way this order ever
-            // gets a real answer.
             this.logger.warn(
-              `Scrypt still has no record of ${candidate} for order ${order.id} after ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes — treating it as never created and checking the reference it replaced`,
+              `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
             );
-            continue;
+
+            return UncertainOrderResolution.UNRESOLVED;
           }
 
           // A refused replacement never took effect and leaves its predecessor live. This is the only case

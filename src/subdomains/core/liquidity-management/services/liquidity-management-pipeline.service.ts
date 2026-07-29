@@ -418,27 +418,25 @@ export class LiquidityManagementPipelineService {
           // answer likelier; it only keeps an order a person has verified by hand out of reach.
           if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
             anyChanged = true;
-        } else if (resolution === UncertainOrderResolution.UNRESOLVED && order.unresolvableTooLong()) {
-          // The venue answered that it has no record, and the order is older than the point at which this
-          // request could still be live. Nobody has released it. The original design waited here
-          // indefinitely, which is only safe if somebody eventually looks — where
-          // nobody does, the rule never runs again and the venue stops being served entirely. Abandoning is
-          // the lesser failure, and it is safe for a reason that has nothing to do with this order: the rule
-          // replans from the venue's current balance, so an execution that did happen is already reflected
-          // there and sizes the replan down rather than duplicating it.
-          const because = 'the venue has had no record of it past the point its request could still be live';
-          if (await this.abandonUncertainOrder(order, because)) anyChanged = true;
-        } else if (resolution === UncertainOrderResolution.UNAVAILABLE && order.unobservedTooLong()) {
-          // No answer ever came — the venue could not be asked, or not completely. That is weaker ground
-          // than a plain "no record", which is why this waits far longer. But it does end: an order that
-          // resolves only through an operator does not resolve at all where nobody performs the release,
-          // and its rule dies with it. By this point nothing can still be in flight, so the balance the
-          // rule replans from already reflects whatever really happened.
-          const because = 'no complete answer came back for long past the point its request could be live';
+        } else if (order.unresolvableTooLong()) {
+          // The order has outlived the point at which its request could still be live, and nobody has
+          // released it. Waiting on for an operator is not the careful option where nobody performs the
+          // release — the rule then never runs again and the venue stops being served entirely.
+          //
+          // What stands in the way of giving up is never the order itself but the possibility of a request
+          // still executing: hand the funds back and a late fill spends them twice. So rather than
+          // estimating when that can no longer happen — these are orders nothing expires, so age proves
+          // nothing — the possibility is removed. Cancelling is the opposite of re-sending and cannot create
+          // anything, and once the venue confirms nothing can execute, abandoning is a fact rather than a
+          // guess. Refuses to settle, or cannot be reached? Then nothing changes and the order waits, which
+          // is the same answer as before but reached for a stated reason.
+          if (!(await actionIntegration.cancelOutstanding?.(order))) continue;
+
+          const because = 'the venue confirmed none of its references can execute any more';
           if (await this.abandonUncertainOrder(order, because)) anyChanged = true;
         }
-        // Otherwise — a venue that cannot be asked yet, or an inconclusive answer that has not yet run out
-        // its clock — nothing changes and it keeps blocking.
+        // Otherwise — an order still inside the window in which its request could be live — nothing changes
+        // and it keeps blocking.
       } catch (e) {
         // a failing lookup must never promote the order out of quarantine
         this.logger.error(`Error in resolving uncertain liquidity order ${order.id}:`, e);

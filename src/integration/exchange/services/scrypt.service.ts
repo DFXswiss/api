@@ -840,6 +840,41 @@ export class ScryptService extends PricingProvider {
     };
   }
 
+  /**
+   * Make sure a reference cannot execute any more, and say whether that is now certain.
+   *
+   * For giving up on an order whose outcome was never observed. The danger there is never the order itself
+   * but a request still live in the book: hand the funds back to a rule while one sits open and a late fill
+   * spends them twice. Cancelling removes that possibility outright, which beats estimating when it has
+   * passed — and unlike a re-send, a cancel can never create anything.
+   *
+   * True means the venue confirmed there is nothing left to execute: either it cancelled the order, or it
+   * refused because it has no such order to cancel. Both settle the question. A cancel that goes
+   * unconfirmed, or an order the venue reports in any other state (a fill above all), returns false — that
+   * is not something to conclude from, and the caller must keep waiting rather than act on it.
+   */
+  async cancelIfOutstanding(clOrdId: string, from: string, to: string): Promise<boolean> {
+    try {
+      return await this.cancelOrder(clOrdId, from, to);
+    } catch (e) {
+      if (isVenueRejection(e)) {
+        // The venue answered and declined: there is no such live order to cancel. That is exactly the
+        // certainty this method exists to establish.
+        this.logger.verbose(`Scrypt has nothing to cancel for ${clOrdId}: ${e.message}`);
+
+        return true;
+      }
+
+      // A cancel is a write. Unconfirmed, it may have taken effect at the venue while the cached report
+      // still shows the order open — and a non-terminal entry is never refreshed, so every later check
+      // would wait on a picture that cannot change. Drop it and let the next lookup ask the venue.
+      this.forgetExecutionReport(clOrdId);
+      this.logger.warn(`Cancel of order ${clOrdId} went unconfirmed: ${e.message}`);
+
+      return false;
+    }
+  }
+
   private async cancelOrder(clOrdId: string, from: string, to: string): Promise<boolean> {
     const { symbol } = await this.getTradePair(from, to);
     const newClOrdId = randomUUID();

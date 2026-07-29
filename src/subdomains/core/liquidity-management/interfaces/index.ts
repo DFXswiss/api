@@ -33,6 +33,20 @@ export interface LiquidityActionIntegration {
    * quarantine for a human to resolve.
    */
   resolveUncertainOrder?(order: LiquidityManagementOrder): Promise<UncertainOrderResolution>;
+
+  /**
+   * Make sure nothing this order put on the wire can still execute, so it may be given up safely.
+   *
+   * The one thing that makes abandoning a quarantined order dangerous is a request still live at the venue:
+   * give the rule its funds back and a late fill spends them twice. Rather than estimating when that can no
+   * longer happen, this removes the possibility — cancelling is the opposite of re-sending, so it is the one
+   * write that is always safe against an outcome nobody could observe.
+   *
+   * Returns true only when the venue has CONFIRMED there is nothing left to execute. An unconfirmed cancel
+   * must return false: it may well have taken effect, but "may well" is what quarantine already means.
+   * Integrations that cannot cancel omit this, and their orders keep waiting for a person.
+   */
+  cancelOutstanding?(order: LiquidityManagementOrder): Promise<boolean>;
 }
 
 export interface LiquidityState {

@@ -185,13 +185,15 @@ describe('LiquidityManagementPipelineService', () => {
       });
     }
 
-    function stubIntegration(resolution: UncertainOrderResolution): void {
+    /** `cancelSettles` is what the venue says when asked to make sure nothing can execute any more. */
+    function stubIntegration(resolution: UncertainOrderResolution, cancelSettles = true): void {
       jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
         supportedCommands: ['sell'],
         executeOrder: jest.fn(),
         checkCompletion: jest.fn(),
         validateParams: jest.fn(),
         resolveUncertainOrder: jest.fn().mockResolvedValue(resolution),
+        cancelOutstanding: jest.fn().mockResolvedValue(cancelSettles),
       });
     }
 
@@ -247,7 +249,7 @@ describe('LiquidityManagementPipelineService', () => {
 
         expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
         // the record must not claim an observation nobody made
-        expect(order.errorMessage).toContain('no record of it');
+        expect(order.errorMessage).toContain('none of its references can execute');
       },
     );
 
@@ -279,6 +281,30 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
       expect(order.errorMessage).toContain('the venue has no record of it either');
       expect(order.errorMessage).not.toContain('abandoned');
+    });
+
+    it('does not abandon while the venue will not settle its references', async () => {
+      // the only thing that makes giving up dangerous is a request that can still execute. If the venue
+      // will not confirm that none can — unreachable, or an order it reports in another state — then the
+      // order keeps waiting. Nothing is concluded from that silence, which is the point.
+      const order = agedOrder(30);
+      expectResolution(order, UncertainOrderResolution.UNRESOLVED);
+      stubIntegration(UncertainOrderResolution.UNRESOLVED, false);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    it('abandons an order whose references the venue settled, whatever the lookup said', async () => {
+      // the cancel is what settles it, so an inconclusive lookup is no obstacle: once nothing can execute,
+      // giving up is a fact rather than an estimate
+      const order = agedOrder(30);
+      expectResolution(order, UncertainOrderResolution.UNAVAILABLE);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
     });
 
     it('keeps a trade quarantined inside its bound — the slowest observed trade took under a minute', async () => {
@@ -377,29 +403,6 @@ describe('LiquidityManagementPipelineService', () => {
       const criteria = update.mock.calls[0][0] as { notSentRecheckDue: FindOperator<Date> };
       expect(criteria.notSentRecheckDue).toBeInstanceOf(FindOperator);
       expect(criteria.notSentRecheckDue.type).toBe('isNull');
-    });
-
-    it('keeps an unreachable venue quarantined far longer than an answered one', async () => {
-      // UNAVAILABLE is the absence of an answer, so it must outlast every bound that applies to one —
-      // at 20 hours it would already be abandoned had the venue merely reported no record
-      const order = agedOrder(20 * 60);
-      expectResolution(order, UncertainOrderResolution.UNAVAILABLE);
-
-      await service['resolveUncertainOrders']();
-
-      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
-    });
-
-    it('abandons an unreachable venue too, once even its long clock has run out', async () => {
-      // waiting for an operator who never comes is not caution, it is a rule that never runs again
-      const order = agedOrder(25 * 60);
-      expectResolution(order, UncertainOrderResolution.UNAVAILABLE);
-
-      await service['resolveUncertainOrders']();
-
-      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
-      // the row must still claim only what was observed: nothing was heard, not that nothing was sent
-      expect(order.errorMessage).toContain('no complete answer came back');
     });
 
     it('never abandons an order whose quarantine timestamp is missing', async () => {

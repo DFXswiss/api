@@ -70,21 +70,6 @@ const ABANDON_UNCERTAIN_MINUTES = {
    * running, and reissuing those is what actually moves funds twice.
    */
   TRANSFER: 12 * 60,
-  /**
-   * No complete answer came back: nothing to ask with, or a venue that could not be reached. Weaker ground
-   * than a plain "no record", so this waits far longer — but it does end, because an order that only ever
-   * resolves through an operator does not resolve at all where nobody looks, and its rule stays dead with
-   * it.
-   *
-   * Twenty-four hours: over four times the slowest order ever observed at this venue (5.6h), so anything
-   * still unaccounted for by then has long since stopped being in flight, and the balance the rule replans
-   * from reflects whatever really happened.
-   *
-   * This is a bound on transient silence only. A lookup that can never complete — one stopping at the same
-   * unreachable reference every pass — is not covered by any amount of waiting and is resolved where it
-   * arises, in the adapter, by asking the reference behind it instead.
-   */
-  UNOBSERVED: 24 * 60,
 };
 
 /**
@@ -329,21 +314,6 @@ export class LiquidityManagementOrder extends IEntity {
    */
   releaseWaitedOutVenue(): boolean {
     return this.notSentRecheckDue != null && Util.minutesDiff(this.notSentRecheckDue) > RELEASE_WITHOUT_VENUE_MINUTES;
-  }
-
-  /**
-   * Whether an order the venue could not be asked about — or not completely — has waited long enough to be
-   * given up anyway.
-   *
-   * Separate from {@link unresolvableTooLong} and far more patient, because no answer stands behind it,
-   * only a clock. It exists so that no order ends in a permanent wait for an operator: where nobody performs
-   * the manual release, "wait for a human" and "never resolve" are the same thing, and the rule dies with
-   * the order. See {@link ABANDON_UNCERTAIN_MINUTES.UNOBSERVED}.
-   */
-  unobservedTooLong(): boolean {
-    if (!this.updated) return false;
-
-    return Util.minutesDiff(this.updated) > ABANDON_UNCERTAIN_MINUTES.UNOBSERVED;
   }
 
   /**

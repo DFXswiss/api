@@ -59,30 +59,6 @@ describe('LiquidityManagementOrder', () => {
     });
   });
 
-  describe('unobservedTooLong', () => {
-    function quarantined(minutes?: number): LiquidityManagementOrder {
-      return Object.assign(new LiquidityManagementOrder(), {
-        status: LiquidityManagementOrderStatus.UNCERTAIN,
-        updated: minutes == null ? undefined : minutesAgo(minutes),
-        action: { system: 'Scrypt', command: 'sell' },
-      });
-    }
-
-    it('is false without a quarantine timestamp', () => {
-      expect(quarantined(undefined).unobservedTooLong()).toBe(false);
-    });
-
-    it('outlasts every answered bound — silence is weaker ground than an answer', () => {
-      // still waiting at an age that would long since have expired had the venue actually replied
-      expect(quarantined(13 * 60).unobservedTooLong()).toBe(false);
-      expect(quarantined(23 * 60).unobservedTooLong()).toBe(false);
-    });
-
-    it('is true once its own clock runs out', () => {
-      expect(quarantined(25 * 60).unobservedTooLong()).toBe(true);
-    });
-  });
-
   describe('resolveAsSent / resolveAsNotSent / requestNotSentRelease', () => {
     it('accepts a release without acting on it: the order keeps blocking', () => {
       const order = Object.assign(new LiquidityManagementOrder(), {

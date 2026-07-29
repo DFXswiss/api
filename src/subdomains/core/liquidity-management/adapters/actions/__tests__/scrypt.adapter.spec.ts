@@ -256,36 +256,6 @@ describe('ScryptAdapter', () => {
       expect(orderRepo.save).toHaveBeenCalled();
     });
 
-    it('steps past a claim the venue has answered about and not shown for long enough', async () => {
-      // otherwise the order oscillates forever: reconciliation resolves it to the predecessor, the next
-      // completion check blocks on the same invisible claim and quarantines it again, and every return
-      // resets the very clocks meant to end it. Both paths must apply the same age rule or neither works.
-      jest
-        .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
-      const checkTrade = jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
-      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 2 * 60 * 60 * 1000) });
-      order.recordSpentCorrelationId('dfx-lm-4711-1');
-
-      await adapter['checkTradeCompletion'](order, 'EUR', 'USDT');
-
-      // it kept the predecessor and was allowed to work it, rather than blocking every write
-      expect(order.correlationId).toBe('dfx-lm-4711');
-      expect(checkTrade).toHaveBeenCalled();
-    });
-
-    it('keeps blocking on a claim the venue could not be asked about, however old', async () => {
-      // silence is not an answer, and no clock turns it into one — only an answered absence may be stepped past
-      jest.spyOn(scryptService, 'getOrderStatus').mockRejectedValue(new Error('Connection closed'));
-      const checkTrade = jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
-      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) });
-      order.recordSpentCorrelationId('dfx-lm-4711-1');
-
-      await adapter['checkTradeCompletion'](order, 'EUR', 'USDT');
-
-      expect(checkTrade).not.toHaveBeenCalled();
-    });
-
     it('does not adopt a replacement the venue rejected', async () => {
       jest
         .spyOn(scryptService, 'getOrderStatus')
@@ -590,70 +560,11 @@ describe('ScryptAdapter', () => {
       // an accepted replacement may lag in the venue's view; falling back to the order it replaced would
       // report SENT on a superseded reference and leave the live replacement untracked.
       //
-      // UNAVAILABLE rather than UNRESOLVED, because stopping here leaves the predecessor unasked — and here
-      // it is demonstrably still live. Calling that an answer would let the caller's bound abandon an order
-      // with an open attempt at the venue, which is the duplicate this whole path exists to avoid.
       jest
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
       const order = createUncertainSellOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
-
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
-    });
-
-    it('checks the reference a long-invisible replacement replaced, rather than stopping forever', async () => {
-      // the claimed replacement never reached the venue, so it stays absent on every single pass. Stopping
-      // at it each time would leave the predecessor unasked for good — and these are GTC orders, so that
-      // predecessor can sit open in the book indefinitely. No bound may abandon on that, and no waiting
-      // resolves it, so the only real answer comes from asking the older reference.
-      jest
-        .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
-      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 2 * 60 * 60 * 1000) });
-      order.recordSpentCorrelationId('dfx-lm-4711-1');
-
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
-    });
-
-    it('still waits at the age boundary itself', async () => {
-      jest
-        .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
-      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 59 * 60 * 1000) });
-      order.recordSpentCorrelationId('dfx-lm-4711-1');
-
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
-    });
-
-    it('walks past several invisible replacements to the one the venue does show', async () => {
-      // a chain of failed amends must not stop the search at the first of them
-      jest
-        .spyOn(scryptService, 'getOrderStatus')
-        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
-      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 2 * 60 * 60 * 1000) });
-      order.recordSpentCorrelationId('dfx-lm-4711-1');
-      order.recordSpentCorrelationId('dfx-lm-4711-2');
-
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
-    });
-
-    it('ends in UNRESOLVED when no reference in the chain is visible', async () => {
-      // walking past the invisible ones must terminate in a complete answer, not in a stuck state
-      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
-      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 2 * 60 * 60 * 1000) });
-      order.recordSpentCorrelationId('dfx-lm-4711-1');
-
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
-    });
-
-    it('reports UNRESOLVED when only superseded references remain unasked', async () => {
-      // the replacement was adopted earlier, so the reference it replaced is already established as dead.
-      // Its absence adds nothing, and counting it as unasked would pin the order in UNAVAILABLE for good —
-      // the permanent quarantine this whole path exists to end.
-      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
-      const order = createUncertainSellOrder();
-      order.updateCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
