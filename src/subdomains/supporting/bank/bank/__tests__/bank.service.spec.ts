@@ -389,6 +389,36 @@ describe('BankService', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('does not select a NULL-priority bank as a direct sctInst hit for INSTANT', async () => {
+    // The test above only exercises the general fallback. This one pins that eligibility is filtered
+    // BEFORE the sctInst lookup: were the filter ever moved after it, a NULL bank carrying sctInst
+    // would win the INSTANT branch outright and that regression would otherwise go unnoticed.
+    const ineligibleInstantBank = createCustomBank({
+      id: 19,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      receive: true,
+      sctInst: true,
+      receivePriority: null,
+      iban: 'INELIGIBLE-INSTANT-DIRECT',
+      bic: 'INELIGIBLEBIC',
+    });
+    const eligibleNonInstantBank = createCustomBank({
+      id: 4,
+      name: IbanBankName.OLKY,
+      currency: 'EUR',
+      receive: true,
+      sctInst: false,
+      receivePriority: 1000,
+      iban: 'ELIGIBLE-NON-INSTANT',
+      bic: 'ELIGIBLEBIC',
+    });
+    mockFindCachedByForBanks(bankRepo, [ineligibleInstantBank, eligibleNonInstantBank]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
+    expect(result.iban).toBe('ELIGIBLE-NON-INSTANT');
+  });
+
   it('selects receivePriority zero ahead of a higher numeric priority', async () => {
     const zeroPriorityBank = createCustomBank({
       id: 19,

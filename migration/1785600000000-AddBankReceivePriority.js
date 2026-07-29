@@ -13,8 +13,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddBankReceivePriority1785500000000 {
-  name = 'AddBankReceivePriority1785500000000';
+module.exports = class AddBankReceivePriority1785600000000 {
+  name = 'AddBankReceivePriority1785600000000';
 
   /**
    * @param {QueryRunner} queryRunner
