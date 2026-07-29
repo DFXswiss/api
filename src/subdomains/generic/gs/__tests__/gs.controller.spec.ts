@@ -107,7 +107,7 @@ describe('GsController', () => {
     });
   }
 
-  describe('getDbData log sanitization', () => {
+  describe('getDbData trigger enforcement', () => {
     it('accepts a request without trigger when the setting resolves to a truthy non-boolean (e.g. a hand-written "true" string) — only a real boolean true enforces', async () => {
       mockTriggerEnforcement('true');
 
@@ -115,7 +115,9 @@ describe('GsController', () => {
 
       expect(service.getDbData).toHaveBeenCalled();
     });
+  });
 
+  describe('getDbData log sanitization', () => {
     it('replaces control characters in identifier so log lines cannot be forged', async () => {
       mockTriggerEnforcement(false);
 

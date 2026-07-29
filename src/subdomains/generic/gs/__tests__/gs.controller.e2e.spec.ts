@@ -77,11 +77,13 @@ class GsControllerTestModule {
 // This controller deliberately does NOT reproduce the trigger-enforcement gate. That gate
 // (`SettingService.getObj('gsTriggerEnforcement', false)`, default-off) is exercised
 // against the REAL `GsController` in the unit test `gs.controller.spec.ts`; duplicating it here
-// would just be two tests for the same logic. This file covers what only the full NestJS
-// pipeline can prove: that the real `DbQueryDto` decorators (`@IsEnum(GsTriggerType)`,
-// `@MaxLength(256)` on `table`/`identifier`) are actually wired into the global `ValidationPipe`.
+// would just be two tests for the same logic. This fixture covers the full DbQueryDto /
+// ValidationPipe surface (not only the trigger field) — what only the full NestJS pipeline
+// can prove: that the real `DbQueryDto` decorators (`@IsEnum(GsTriggerType)`,
+// `@MaxLength(256)` on `table`/`identifier`, control-character rejection, etc.) are actually
+// wired into the global `ValidationPipe`.
 @Controller('gs')
-class GsDbTriggerTestController {
+class GsDbQueryDtoTestController {
   @Post('db')
   async getDbData(@Body() _query: DbQueryDto): Promise<DbReturnData> {
     return { keys: ['id'], values: [] };
@@ -89,9 +91,9 @@ class GsDbTriggerTestController {
 }
 
 @Module({
-  controllers: [GsDbTriggerTestController],
+  controllers: [GsDbQueryDtoTestController],
 })
-class GsDbTriggerTestModule {}
+class GsDbQueryDtoTestModule {}
 
 describe('GsController e2e (NestJS pipeline)', () => {
   let app: INestApplication;
@@ -227,7 +229,7 @@ describe('GsController e2e (db query DTO validation)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [GsDbTriggerTestModule],
+      imports: [GsDbQueryDtoTestModule],
     }).compile();
 
     app = moduleRef.createNestApplication();
