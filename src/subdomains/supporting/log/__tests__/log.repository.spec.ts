@@ -187,4 +187,77 @@ describe('LogRepository', () => {
       expect(stub.getExists).toHaveBeenCalled();
     });
   });
+
+  describe('getFinancialDashboardLogEntries', () => {
+    it('projects only dashboard fields in PostgreSQL and normalizes driver values', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          timestamp: '2026-07-29T12:00:00.000Z',
+          totalBalanceChf: '100.5',
+          plusBalanceChf: 120,
+          minusBalanceChf: '19.5',
+          fxPnlChf: '-2.25',
+          btcPriceChf: '91000',
+          balancesByType: {
+            BTC: { plusBalanceChf: '80', minusBalanceChf: 5, ignored: 123 },
+            EUR: { plusBalanceChf: Number.POSITIVE_INFINITY, minusBalanceChf: null },
+            broken: 'not-an-object',
+          },
+        },
+      ] as never);
+      const from = new Date('2026-07-26T12:00:00.000Z');
+
+      await expect(repo.getFinancialDashboardLogEntries(from, false, 7)).resolves.toEqual([
+        {
+          timestamp: new Date('2026-07-29T12:00:00.000Z'),
+          totalBalanceChf: 100.5,
+          plusBalanceChf: 120,
+          minusBalanceChf: 19.5,
+          fxPnlChf: -2.25,
+          btcPriceChf: 91000,
+          balancesByType: {
+            BTC: { plusBalanceChf: 80, minusBalanceChf: 5 },
+            EUR: { plusBalanceChf: 0, minusBalanceChf: 0 },
+          },
+        },
+      ]);
+
+      const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain(`created >= $5`);
+      expect(sql).toContain(`selected.message IS JSON`);
+      expect(sql).toContain(`snapshot.data -> 'balancesByFinancialType'`);
+      expect(sql).toContain(`snapshot.data -> 'assets' -> $6::text -> 'priceChf'`);
+      expect(sql).not.toContain('jsonb_each');
+      expect(params).toEqual(['LogService', 'FinancialDataLog', 'Info', true, from, 7]);
+    });
+
+    it('keeps daily sampling in PostgreSQL and applies the lower bound before grouping', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([] as never);
+      const from = new Date('2026-01-01T00:00:00.000Z');
+
+      await repo.getFinancialDashboardLogEntries(from, true, undefined);
+
+      const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain('SELECT MAX(id)');
+      expect(sql).toContain('GROUP BY CAST(created AS DATE)');
+      expect(sql).toContain('created >= $5');
+      expect(sql).toContain(`snapshot.data -> 'assets' -> $6::text -> 'priceChf'`);
+      expect(params).toEqual(['LogService', 'FinancialDataLog', 'Info', true, from, null]);
+    });
+
+    it('does not add sampling or a date predicate for an unbounded minute-resolution request', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([] as never);
+
+      await repo.getFinancialDashboardLogEntries(undefined, false, 7);
+
+      const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).not.toContain('SELECT MAX(id)');
+      expect(sql).not.toContain('created >=');
+      expect(sql).toContain(`snapshot.data -> 'assets' -> $5::text -> 'priceChf'`);
+      expect(params).toEqual(['LogService', 'FinancialDataLog', 'Info', true, 7]);
+    });
+  });
 });

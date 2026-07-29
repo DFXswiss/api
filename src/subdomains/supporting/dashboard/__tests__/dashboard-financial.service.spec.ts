@@ -8,13 +8,18 @@ import { DashboardFinancialService } from '../dashboard-financial.service';
 
 describe('DashboardFinancialService', () => {
   let service: DashboardFinancialService;
+  let logService: jest.Mocked<LogService>;
+  let assetService: jest.Mocked<AssetService>;
 
   beforeEach(async () => {
+    logService = createMock<LogService>();
+    assetService = createMock<AssetService>();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DashboardFinancialService,
-        { provide: LogService, useValue: createMock<LogService>() },
-        { provide: AssetService, useValue: createMock<AssetService>() },
+        { provide: LogService, useValue: logService },
+        { provide: AssetService, useValue: assetService },
         { provide: RefRewardService, useValue: createMock<RefRewardService>() },
       ],
     }).compile();
@@ -53,24 +58,36 @@ describe('DashboardFinancialService', () => {
     expect(entry.minus.binance).toEqual({ total: 7, withdraw: 1, trading: 6 });
   });
 
-  describe('mapLogToEntry (fxPnlChf exposure)', () => {
-    const logWith = (balancesTotal: object): Log =>
-      ({ created: new Date('2026-07-14T00:00:00Z'), message: JSON.stringify({ balancesTotal }) }) as Log;
+  describe('getFinancialLog', () => {
+    it('uses the compact repository projection instead of loading complete Log entities', async () => {
+      const from = new Date('2026-07-26T10:00:00Z');
+      const projected = [
+        {
+          timestamp: new Date('2026-07-26T10:01:00Z'),
+          totalBalanceChf: 100,
+          plusBalanceChf: 120,
+          minusBalanceChf: 20,
+          fxPnlChf: -3,
+          btcPriceChf: 91_000,
+          balancesByType: { BTC: { plusBalanceChf: 120, minusBalanceChf: 20 } },
+        },
+      ];
+      assetService.getBtcCoin.mockResolvedValue({ id: 7 } as never);
+      logService.getFinancialDashboardLogEntries.mockResolvedValue(projected);
 
-    it('exposes the fxPnlChf written into the log entry, preserving a negative value', () => {
-      const entry = service['mapLogToEntry'](
-        logWith({ totalBalanceChf: 100, plusBalanceChf: 100, minusBalanceChf: 0, fxPnlChf: -3245 }),
-      );
+      await expect(service.getFinancialLog(from, false)).resolves.toEqual({ entries: projected });
 
-      expect(entry?.fxPnlChf).toBe(-3245);
+      expect(logService.getFinancialDashboardLogEntries).toHaveBeenCalledWith(from, false, 7);
+      expect(logService.getFinancialLogs).not.toHaveBeenCalled();
     });
 
-    it('defaults historical entries logged before fxPnlChf existed to 0', () => {
-      const entry = service['mapLogToEntry'](
-        logWith({ totalBalanceChf: 100, plusBalanceChf: 100, minusBalanceChf: 0 }),
-      );
+    it('passes an absent BTC id through so the SQL projection returns the documented zero fallback', async () => {
+      assetService.getBtcCoin.mockResolvedValue(undefined);
+      logService.getFinancialDashboardLogEntries.mockResolvedValue([]);
 
-      expect(entry?.fxPnlChf).toBe(0);
+      await expect(service.getFinancialLog(undefined, true)).resolves.toEqual({ entries: [] });
+
+      expect(logService.getFinancialDashboardLogEntries).toHaveBeenCalledWith(undefined, true, undefined);
     });
   });
 });

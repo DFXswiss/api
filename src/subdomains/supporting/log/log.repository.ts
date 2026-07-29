@@ -40,6 +40,16 @@ export interface FinancialLogAssetPrice {
   logId: number;
 }
 
+export interface FinancialDashboardLogEntry {
+  timestamp: Date;
+  totalBalanceChf: number;
+  plusBalanceChf: number;
+  minusBalanceChf: number;
+  fxPnlChf: number;
+  btcPriceChf: number;
+  balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }>;
+}
+
 @Injectable()
 export class LogRepository extends BaseRepository<Log> {
   constructor(manager: EntityManager) {
@@ -239,6 +249,103 @@ export class LogRepository extends BaseRepository<Log> {
   }
 
   /**
+   * Compact projection for GET /dashboard/financial/log.
+   *
+   * FinancialDataLog.message contains the complete minute snapshot (assets, trades and operational detail), while
+   * the dashboard chart only needs six aggregates and balancesByFinancialType. Project those fields in Postgres so
+   * the API process never receives or JSON.parse()s the full snapshot documents. The existing composite index on
+   * (system, subsystem, severity, valid, created, id) still supplies the filtered rows in response order.
+   *
+   * `message IS JSON` preserves the historical endpoint behaviour of skipping malformed snapshots rather than
+   * failing the complete response. PostgreSQL 16+ supports this SQL-standard predicate.
+   */
+  async getFinancialDashboardLogEntries(
+    from?: Date,
+    dailySample?: boolean,
+    btcAssetId?: number,
+  ): Promise<FinancialDashboardLogEntry[]> {
+    const params: unknown[] = ['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true];
+    const conditions = ['system = $1', 'subsystem = $2', 'severity = $3', 'valid = $4'];
+
+    if (from) {
+      params.push(from);
+      conditions.push(`created >= $${params.length}`);
+    }
+
+    const selector = dailySample
+      ? `id IN (
+          SELECT MAX(id)
+          FROM log
+          WHERE ${conditions.join(' AND ')}
+          GROUP BY CAST(created AS DATE)
+        )`
+      : conditions.join(' AND ');
+
+    params.push(btcAssetId ?? null);
+    const btcAssetIdParam = `$${params.length}`;
+
+    const sql = `
+WITH selected AS (
+  SELECT id, created, message
+  FROM log
+  WHERE ${selector}
+)
+SELECT selected.created AS "timestamp",
+       CASE
+         WHEN jsonb_typeof(snapshot.data #> '{balancesTotal,totalBalanceChf}') = 'number'
+           THEN (snapshot.data #>> '{balancesTotal,totalBalanceChf}')::float8
+         ELSE 0
+       END AS "totalBalanceChf",
+       CASE
+         WHEN jsonb_typeof(snapshot.data #> '{balancesTotal,plusBalanceChf}') = 'number'
+           THEN (snapshot.data #>> '{balancesTotal,plusBalanceChf}')::float8
+         ELSE 0
+       END AS "plusBalanceChf",
+       CASE
+         WHEN jsonb_typeof(snapshot.data #> '{balancesTotal,minusBalanceChf}') = 'number'
+           THEN (snapshot.data #>> '{balancesTotal,minusBalanceChf}')::float8
+         ELSE 0
+       END AS "minusBalanceChf",
+       CASE
+         WHEN jsonb_typeof(snapshot.data #> '{balancesTotal,fxPnlChf}') = 'number'
+           THEN (snapshot.data #>> '{balancesTotal,fxPnlChf}')::float8
+         ELSE 0
+       END AS "fxPnlChf",
+       CASE
+         WHEN jsonb_typeof(snapshot.data -> 'assets' -> ${btcAssetIdParam}::text -> 'priceChf') = 'number'
+           THEN (snapshot.data -> 'assets' -> ${btcAssetIdParam}::text ->> 'priceChf')::float8
+         ELSE 0
+       END AS "btcPriceChf",
+       COALESCE(snapshot.data -> 'balancesByFinancialType', '{}'::jsonb) AS "balancesByType"
+FROM selected
+CROSS JOIN LATERAL (
+  VALUES (CASE WHEN selected.message IS JSON THEN selected.message::jsonb ELSE NULL END)
+) snapshot(data)
+WHERE snapshot.data IS NOT NULL
+ORDER BY selected.created ASC, selected.id ASC`;
+
+    const raw = (await this.query(sql, params)) as {
+      timestamp: Date | string;
+      totalBalanceChf: number | string | null;
+      plusBalanceChf: number | string | null;
+      minusBalanceChf: number | string | null;
+      fxPnlChf: number | string | null;
+      btcPriceChf: number | string | null;
+      balancesByType: unknown;
+    }[];
+
+    return raw.map((row) => ({
+      timestamp: row.timestamp instanceof Date ? row.timestamp : new Date(row.timestamp),
+      totalBalanceChf: this.finiteNumberOrZero(row.totalBalanceChf),
+      plusBalanceChf: this.finiteNumberOrZero(row.plusBalanceChf),
+      minusBalanceChf: this.finiteNumberOrZero(row.minusBalanceChf),
+      fxPnlChf: this.finiteNumberOrZero(row.fxPnlChf),
+      btcPriceChf: this.finiteNumberOrZero(row.btcPriceChf),
+      balancesByType: this.normalizeDashboardBalances(row.balancesByType),
+    }));
+  }
+
+  /**
    * SQL-side projection of priceChf per asset from FinancialDataLog snapshots.
    * LIMIT/keyset apply to log rows (inner subquery), not to the expanded asset result — same page semantics as
    * getFinancialLogs. Callers that only need marks avoid shipping/parsing the full message JSON.
@@ -332,6 +439,30 @@ ORDER BY l.created ASC, l.id ASC`;
   private async assertEmptyResultIsEndOfData(afterId: number): Promise<void> {
     const exists = await this.createQueryBuilder('log').where('log.id = :afterId', { afterId }).getExists();
     if (!exists) throw new Error(`Financial log cursor row ${afterId} no longer exists`);
+  }
+
+  private finiteNumberOrZero(value: number | string | null | undefined): number {
+    const number = Number(value ?? 0);
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  private normalizeDashboardBalances(
+    value: unknown,
+  ): Record<string, { plusBalanceChf: number; minusBalanceChf: number }> {
+    if (value == null || typeof value !== 'object' || Array.isArray(value)) return {};
+
+    const result: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
+    for (const [type, balance] of Object.entries(value)) {
+      if (balance == null || typeof balance !== 'object' || Array.isArray(balance)) continue;
+
+      const fields = balance as Record<string, unknown>;
+      result[type] = {
+        plusBalanceChf: this.finiteNumberOrZero(fields.plusBalanceChf as number | string | null | undefined),
+        minusBalanceChf: this.finiteNumberOrZero(fields.minusBalanceChf as number | string | null | undefined),
+      };
+    }
+
+    return result;
   }
 
   // Resolves the rows the update would change, locking them until the surrounding transaction

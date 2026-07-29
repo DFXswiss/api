@@ -13,7 +13,7 @@ import {
   LogSeverity,
   MAX_VALIDITY_SWEEP_ROWS,
 } from './log.entity';
-import { FinancialLogAssetPrice, LogRepository } from './log.repository';
+import { FinancialDashboardLogEntry, FinancialLogAssetPrice, LogRepository } from './log.repository';
 
 @Injectable()
 export class LogService {
@@ -152,6 +152,14 @@ export class LogService {
     after?: number,
   ): Promise<FinancialLogAssetPrice[]> {
     return this.logRepo.getFinancialLogAssetPrices(from, to, limit, after);
+  }
+
+  async getFinancialDashboardLogEntries(
+    from?: Date,
+    dailySample?: boolean,
+    btcAssetId?: number,
+  ): Promise<FinancialDashboardLogEntry[]> {
+    return this.logRepo.getFinancialDashboardLogEntries(from, dailySample, btcAssetId);
   }
 
   async getLatestFinancialLog(): Promise<Log | undefined> {

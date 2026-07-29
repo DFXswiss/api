@@ -8,7 +8,6 @@ import {
   BalanceByGroupDto,
   FinancialChangesEntryDto,
   FinancialChangesResponseDto,
-  FinancialLogEntryDto,
   FinancialLogResponseDto,
   LatestBalanceResponseDto,
   RefRewardRecipientDto,
@@ -23,15 +22,8 @@ export class DashboardFinancialService {
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
-    const [logs, btcAsset] = await Promise.all([
-      this.logService.getFinancialLogs(from, dailySample),
-      this.assetService.getBtcCoin(),
-    ]);
-
-    const btcAssetId = btcAsset?.id;
-    const entries = logs
-      .map((log) => this.mapLogToEntry(log, btcAssetId))
-      .filter((e): e is FinancialLogEntryDto => e != null);
+    const btcAsset = await this.assetService.getBtcCoin();
+    const entries = await this.logService.getFinancialDashboardLogEntries(from, dailySample, btcAsset?.id);
 
     return { entries };
   }
@@ -232,41 +224,5 @@ export class DashboardFinancialService {
     }
 
     return { timestamp: latest.created, byType, byBlockchain };
-  }
-
-  private mapLogToEntry(log: Log, btcAssetId?: number): FinancialLogEntryDto | undefined {
-    try {
-      const financeLog: FinanceLog = JSON.parse(log.message);
-
-      const btcPriceChf = this.extractBtcPrice(financeLog, btcAssetId);
-
-      const balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
-      if (financeLog.balancesByFinancialType) {
-        for (const [type, data] of Object.entries(financeLog.balancesByFinancialType)) {
-          balancesByType[type] = {
-            plusBalanceChf: data.plusBalanceChf,
-            minusBalanceChf: data.minusBalanceChf,
-          };
-        }
-      }
-
-      return {
-        timestamp: log.created,
-        totalBalanceChf: financeLog.balancesTotal?.totalBalanceChf ?? 0,
-        plusBalanceChf: financeLog.balancesTotal?.plusBalanceChf ?? 0,
-        minusBalanceChf: financeLog.balancesTotal?.minusBalanceChf ?? 0,
-        fxPnlChf: financeLog.balancesTotal?.fxPnlChf ?? 0,
-        btcPriceChf,
-        balancesByType,
-      };
-    } catch {
-      return undefined;
-    }
-  }
-
-  private extractBtcPrice(financeLog: FinanceLog, btcAssetId?: number): number {
-    if (!financeLog.assets || !btcAssetId) return 0;
-
-    return financeLog.assets[btcAssetId]?.priceChf ?? 0;
   }
 }
