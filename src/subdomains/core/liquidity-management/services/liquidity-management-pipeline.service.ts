@@ -453,8 +453,9 @@ export class LiquidityManagementPipelineService {
    * its own. The two exceptions are about liveness, not evidence: a venue nothing can ask, and one that has
    * answered nothing for long enough. Silence there stops vetoing the person who checked; it proves nothing.
    *
-   * The other way out is {@link abandonUncertainOrder}, which rests on no evidence at all and exists only so
-   * that an order nobody releases cannot block its rule forever.
+   * The other way out is {@link abandonUncertainOrder}, which concludes nothing about the send itself and
+   * rests instead on the venue confirming that nothing can still execute — so that an order nobody releases
+   * cannot block its rule forever.
    */
   private async completeNotSentRelease(order: LiquidityManagementOrder, because: string): Promise<boolean> {
     // The release this pass looked at, captured before the entity is mutated. Ending an order is the one
@@ -474,9 +475,12 @@ export class LiquidityManagementPipelineService {
   /**
    * Abandon an order with nothing left outstanding at the venue, so its rule runs again.
    *
-   * The way out of quarantine that rests on no conclusion about the request at all — only on the clock,
-   * which is why `because` may only ever describe what the lookup did or did not return, never that nothing
-   * was sent. The row must not claim an observation nobody made.
+   * The way out of quarantine that rests on no conclusion about whether the request was ever sent — that
+   * stays unknown, which is why `because` may only ever describe what the venue confirmed, never that
+   * nothing was sent. The row must not claim an observation nobody made.
+   *
+   * The clock does not release anything on its own: it only decides when cleaning up is worth attempting.
+   * What permits the release is the venue confirming that none of the order's references can execute.
    *
    * Reached only after the venue has confirmed that none of the order's references can execute any more, so
    * what it ends is a wait, not an open question.

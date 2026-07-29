@@ -371,7 +371,7 @@ describe('LiquidityManagementPipelineService', () => {
     });
 
     it('narrows an abandon on the absent release as SQL NULL, not as a bare null', async () => {
-      // the abandon rests on no evidence at all, so it must not outrank an operator who checked and is
+      // the abandon concludes nothing about the send itself, so it must not outrank an operator who checked and is
       // still owed one venue answer — hence the narrowing. But "no release pending" is the ordinary case
       // here, and a raw null renders as `= NULL`, which matches no row at all: the update would never
       // affect anything and would report itself as a lost race. A mocked repo cannot see that, so assert

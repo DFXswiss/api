@@ -264,7 +264,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   /**
    * Cancel everything this order could still have live, so the caller may give it up.
    *
-   * Every reference the row ever put on the wire, not just the current one: the whole reason an order gets
+   * Every reference the row ever claimed — sent or merely reserved — not just the current one: the reason an order gets
    * here is that at least one of them has an outcome nobody could observe, and an unobserved reference is
    * precisely the one that might be sitting in the book. These are GTC orders — nothing expires them — so
    * age is no argument at all, and the only way to know a reference cannot fill is to have the venue say so.

@@ -908,6 +908,18 @@ describe('ScryptService', () => {
       );
     });
 
+    it.each([
+      ['', 'empty'],
+      ['   ', 'whitespace'],
+    ])('settles nothing when the filled size is %p (%s) — that is missing, not zero', async (cumQty) => {
+      // Number('') is 0, not NaN, so this would otherwise pass a finite check and read as untouched
+      stubCancel(cancelReport({ CumQty: cumQty }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
     it('settles nothing when the cancel never came back', async () => {
       stubCancel(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
 

@@ -62,8 +62,8 @@ export enum UncertainOrderResolution {
   NOT_SENT = 'NotSent',
   /**
    * The venue answered, and the answer settles nothing. Stay in quarantine and look again later — until the
-   * order outlives the abandon bound for its kind of request, at which point the caller gives it up rather
-   * than keep its rule blocked on an answer that never sharpens.
+   * order outlives the abandon bound for its kind of request, at which point the caller tries to cancel
+   * everything it sent. Only that confirmation releases it; the bound alone never does.
    */
   UNRESOLVED = 'Unresolved',
   /**

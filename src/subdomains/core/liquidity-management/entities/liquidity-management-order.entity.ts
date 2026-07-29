@@ -348,11 +348,12 @@ export class LiquidityManagementOrder extends IEntity {
   }
 
   /**
-   * Give up on an order the venue never accounted for, and let the rule move on.
+   * End a quarantined order that has nothing left outstanding at the venue, and let the rule move on.
    *
    * FAILED rather than a verified non-execution: nothing here establishes that the request never took
-   * effect, and the reason says so, so the record does not claim more than was actually observed. Named for
-   * the state it ends, not for the clock that ran out, because both bounds end in exactly this.
+   * effect — a reference may well have executed — and the reason says so, so the record does not claim more
+   * than was actually observed. Named for the state it ends rather than for what ended it, because several
+   * routes arrive here.
    */
   abandonUncertain(reason: string): this {
     this.status = LiquidityManagementOrderStatus.FAILED;

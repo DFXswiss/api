@@ -864,8 +864,9 @@ export class ScryptService extends PricingProvider {
    * passed — and unlike a re-send, a cancel can never create anything.
    *
    * Three outcomes, because a cancel does not only ever mean "nothing happened":
-   *  - SETTLED — cancelled with nothing filled, or the venue does not know the reference at all. Both mean
-   *    nothing can execute under it, which is the certainty the caller needs to give the order up.
+   *  - SETTLED — terminal with nothing filled (cancelled or rejected), or the venue does not know the
+   *    reference at all. Both mean nothing can execute under it, which is the certainty the caller needs to
+   *    give the order up.
    *  - EXECUTED — it reached a terminal state with something filled. Like a cancelled reference it cannot
    *    trade further, so the caller may give the order up; the fill has already moved the venue balance
    *    that the rule replans from. Reported separately from SETTLED because "something happened here" is
@@ -883,7 +884,10 @@ export class ScryptService extends PricingProvider {
 
       // An unreadable quantity is not a zero one. Concluding "nothing filled" from a value that could not
       // be parsed is exactly how a real fill gets dropped, so it settles nothing and the caller waits.
-      if (!Number.isFinite(filled)) {
+      //
+      // Emptiness has to be caught separately: Number('') and Number('   ') are 0, not NaN, so a missing
+      // quantity would otherwise pass the finite check and read as an untouched order.
+      if (!report.CumQty?.trim() || !Number.isFinite(filled)) {
         this.logger.warn(`Cancel of order ${clOrdId} reported an unreadable filled size (${report.CumQty})`);
 
         return ScryptCancellation.UNCONFIRMED;
