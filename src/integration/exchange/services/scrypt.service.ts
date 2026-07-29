@@ -88,9 +88,12 @@ export class ScryptService extends PricingProvider {
 
   readonly name: string = 'Scrypt';
 
+  // wsUrl counts as configuration, not just the credentials: without it every connect attempt dies synchronously
+  // in `new URL()`, and since a failed attempt now arms the backoff loop that would retry forever without ever
+  // being able to succeed. An environment missing any of the three is unconfigured and must skip entirely.
   get isConfigured(): boolean {
-    const { apiKey, apiSecret } = GetConfig().scrypt;
-    return !!apiKey && !!apiSecret;
+    const { wsUrl, apiKey, apiSecret } = GetConfig().scrypt;
+    return !!wsUrl && !!apiKey && !!apiSecret;
   }
 
   constructor() {

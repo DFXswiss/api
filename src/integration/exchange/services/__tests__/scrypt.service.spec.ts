@@ -1,3 +1,4 @@
+import { GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import {
   ScryptBalanceTransaction,
@@ -896,6 +897,43 @@ describe('ScryptService', () => {
         spentReference: 'dfx-lm-7-1',
       });
       expect((service as any).cancelOrder).toHaveBeenCalled();
+    });
+  });
+  describe('isConfigured', () => {
+    const scryptConfig = GetConfig().scrypt as { wsUrl: string; apiKey: string; apiSecret: string };
+    let original: { wsUrl: string; apiKey: string; apiSecret: string };
+
+    beforeEach(() => {
+      original = { ...scryptConfig };
+    });
+
+    afterEach(() => {
+      Object.assign(scryptConfig, original);
+    });
+
+    it('is false without a wsUrl, so an environment with credentials but no endpoint skips entirely', () => {
+      scryptConfig.wsUrl = '';
+
+      expect(service.isConfigured).toBe(false);
+    });
+
+    it('does not open the websocket when the wsUrl is missing', () => {
+      scryptConfig.wsUrl = '';
+      (ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>).mockClear();
+
+      const unconfigured = new ScryptService();
+      const connection = (ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>).mock
+        .results[0].value as { subscribeToStream: jest.Mock; fetchAll: jest.Mock; onReconnect: jest.Mock };
+
+      expect(unconfigured.isConfigured).toBe(false);
+      // Every connect attempt would die synchronously in new URL() and the backoff loop would retry it forever.
+      expect(connection.subscribeToStream).not.toHaveBeenCalled();
+      expect(connection.fetchAll).not.toHaveBeenCalled();
+      expect(connection.onReconnect).not.toHaveBeenCalled();
+    });
+
+    it('is true when url and credentials are present', () => {
+      expect(service.isConfigured).toBe(true);
     });
   });
 });
