@@ -16,7 +16,8 @@
  * Unlike prod-only wiring migrations (e.g. AddBankFrickCustodyAssets), these rows are pure
  * master data with no LiquidityManagementRule, bank link, or external API side effect — they
  * are correct and desired in every environment identically, so there is no ENVIRONMENT guard.
- * Dev/loc/CI also mirror them via migration/seed/asset.csv (ids 413/414).
+ * Only LOC also mirrors them via migration/seed/asset.csv (ids 413/414); DEV/CI/PRD get them
+ * solely via this migration.
  *
  * Each asset is priced off a single on-chain source via subquery (no COALESCE fallback):
  *   Binance/ONDO ← Ethereum/ONDO
