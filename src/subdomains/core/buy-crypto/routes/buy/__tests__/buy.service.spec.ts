@@ -864,4 +864,54 @@ describe('BuyService', () => {
       expect(bankService.getBank).not.toHaveBeenCalled();
     });
   });
+
+  describe('createBuy on a concurrent bankUsage collision', () => {
+    const asset = { id: 10, name: 'BTC', buyable: true } as Asset;
+    const user = { id: 1 } as any;
+    const dto = { asset } as any;
+
+    // the transaction callback runs against this manager, so save() failures roll the route back
+    let manager: { save: jest.Mock };
+
+    beforeEach(() => {
+      manager = { save: jest.fn() };
+      jest.spyOn(buyRepo, 'create').mockImplementation((e: any) => e as Buy);
+      Object.defineProperty(buyRepo, 'manager', {
+        value: { transaction: (cb: any) => cb(manager) },
+        configurable: true,
+      });
+      jest.spyOn(routeService, 'createRoute').mockResolvedValue({ id: 5 } as any);
+    });
+
+    it('creates the route inside the same transaction as the buy', async () => {
+      manager.save.mockResolvedValue({ id: 42, bankUsage: 'ABCD-EFGH-IJKL' } as Buy);
+      jest.spyOn(buyRepo, 'findOne').mockResolvedValue(undefined);
+
+      await service.createBuy(user, '0x123', dto);
+
+      expect(routeService.createRoute).toHaveBeenCalledWith(expect.anything(), manager);
+      expect(manager.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries on a duplicate key and returns the route the winner committed', async () => {
+      const existing = { id: 42, active: true, bankUsage: 'ABCD-EFGH-IJKL', asset } as Buy;
+      manager.save.mockRejectedValue(new Error('duplicate key value violates unique constraint'));
+      jest.spyOn(buyRepo, 'findOne').mockResolvedValueOnce(undefined).mockResolvedValueOnce(existing);
+
+      await expect(service.createBuy(user, '0x123', dto, true)).resolves.toBe(existing);
+
+      // the losing attempt must not commit a route of its own
+      expect(routeService.createRoute).toHaveBeenCalledTimes(1);
+      expect(routeService.createRoute).toHaveBeenCalledWith(expect.anything(), manager);
+    });
+
+    it('gives up after the retry rather than looping', async () => {
+      manager.save.mockRejectedValue(new Error('duplicate key value violates unique constraint'));
+      jest.spyOn(buyRepo, 'findOne').mockResolvedValue(undefined);
+
+      await expect(service.createBuy(user, '0x123', dto, true)).rejects.toThrow('duplicate key');
+
+      expect(manager.save).toHaveBeenCalledTimes(2);
+    });
+  });
 });

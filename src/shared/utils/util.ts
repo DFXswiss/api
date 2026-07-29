@@ -685,7 +685,7 @@ export class Util {
       if (tryCount > 1 && (!retryIf || retryIf(e))) {
         await onError?.();
         await this.delay(delay);
-        return this.retry(action, tryCount - 1, delay);
+        return this.retry(action, tryCount - 1, delay, onError, retryIf);
       }
 
       throw e;

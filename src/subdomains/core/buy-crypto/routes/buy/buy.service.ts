@@ -146,18 +146,25 @@ export class BuyService {
       throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
     }
     dto = await this.paymentInfoService.buyCheck(dto, jwt, user);
-    const buy = await Util.retry(
-      () => this.createBuy(user, jwt.address, dto, true),
+    const buy = await this.createBuy(user, jwt.address, dto, true);
+
+    return this.toPaymentInfoDto(jwt.user, buy, dto);
+  }
+
+  // bankUsage is a deterministic hash of the route inputs, so concurrent creates for the same
+  // user and asset produce the same value and all but one lose the unique constraint. Retrying
+  // picks up the route the winner just committed.
+  async createBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
+    return Util.retry(
+      () => this.doCreateBuy(user, userAddress, dto, ignoreExisting),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
-
-    return this.toPaymentInfoDto(jwt.user, buy, dto);
   }
 
-  async createBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
+  private async doCreateBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting: boolean): Promise<Buy> {
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {
@@ -183,14 +190,17 @@ export class BuyService {
     // create the entity
     const buy = this.buyRepo.create(dto);
     buy.user = user;
-    buy.route = await this.routeService.createRoute({ buy });
 
     // create hash
     const hash = Util.createHash(userAddress + buy.asset.id + (buy.iban ?? '')).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
-    // save
-    const entity = await this.buyRepo.save(buy);
+    // save route and buy together, so that a rejected buy insert does not leave an orphan route
+    const entity = await this.buyRepo.manager.transaction(async (manager) => {
+      buy.route = await this.routeService.createRoute({ buy }, manager);
+
+      return manager.save(buy);
+    });
 
     if (this.cache) this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
 
