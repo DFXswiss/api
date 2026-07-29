@@ -26,10 +26,12 @@
  * already differs — including freshly seeded environments, where these rules carry a different
  * shape — and `down` only writes rows that are in exactly the state `up` leaves behind.
  *
- * Each direction then checks for rules left on the wrong side of its intended end state and
- * reports them. Reaching that end state without changing anything is a legitimate outcome and
- * stays silent; a rule still on the wrong side means the stored configuration has drifted away
- * from what this migration targets, which would otherwise be recorded as applied with no signal.
+ * `up` then checks for rules that still carry a cross-check and reports them. Reaching that end
+ * state without changing anything is a legitimate outcome and stays silent; a rule still carrying
+ * one means the stored configuration has drifted away from what this migration targets, which
+ * would otherwise be recorded as applied with no signal. `down` gets no such check: a row it
+ * failed to restore is indistinguishable from a seeded row that never carried the cross-check,
+ * and the only predicate that separates them is the one its own statements consume.
  *
  * @class
  * @implements {MigrationInterface}
@@ -117,19 +119,6 @@ module.exports = class RealignStalePriceSourceConfig1785450000000 {
         AND "check1Asset" IS NULL
         AND "check1Reference" IS NULL
         AND "check1Limit" IS NULL
-    `);
-
-    await queryRunner.query(`
-      DO $$
-      DECLARE remaining integer;
-      BEGIN
-        SELECT count(*) INTO remaining
-        FROM "price_rule"
-        WHERE "id" IN (17, 42) AND "check1Source" IS NULL;
-        IF remaining > 0 THEN
-          RAISE NOTICE 'RealignStalePriceSourceConfig: % of 2 rules still lack a cross-check; stored configuration differs from the state this migration targets', remaining;
-        END IF;
-      END $$
     `);
   }
 };

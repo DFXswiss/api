@@ -177,8 +177,11 @@ describe('RealignStalePriceSourceConfig migration', () => {
       expect(rule(42).updated.getTime()).toBe(EPOCH.getTime());
     });
 
-    it('restores the original configuration on down', async () => {
+    it('restores the original configuration on down and bumps updated', async () => {
       await migration.up({ query });
+      // clear the timestamps up() set, so the assertion below can only pass if down() sets its own
+      db.public.none(`UPDATE "price_rule" SET "updated" = '${EPOCH.toISOString()}'`);
+
       await migration.down({ query });
 
       expect(rule(17)).toMatchObject({
@@ -193,6 +196,9 @@ describe('RealignStalePriceSourceConfig migration', () => {
         check1Reference: 'USDT',
         check1Limit: 0.03,
       });
+      expect(rule(17).updated.getTime()).toBeGreaterThan(EPOCH.getTime());
+      expect(rule(42).updated.getTime()).toBeGreaterThan(EPOCH.getTime());
+      expect(rule(46).updated.getTime()).toBe(EPOCH.getTime());
     });
   });
 
@@ -310,9 +316,12 @@ describeDb('RealignStalePriceSourceConfig migration (real Postgres reporting)', 
     notices.filter((n) => n.includes('RealignStalePriceSourceConfig:'));
 
   it('stays silent when both rules are brought to the intended state', async () => {
+    // rule 46 is present and keeps its cross-check throughout: the report must be scoped to the
+    // two targeted rules, not to every rule that still has one
     await qr.query(`
       INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
-      VALUES (17, 'Binance', 'MKR', 'USDT', 0.03), (42, 'Kucoin', 'ISLM', 'USDT', 0.03)
+      VALUES (17, 'Binance', 'MKR', 'USDT', 0.03), (42, 'Kucoin', 'ISLM', 'USDT', 0.03),
+             (46, 'Kraken', 'EUR', 'USDT', 0.01)
     `);
 
     const notices = await captureNotices(() => migration.up(qr));
@@ -344,29 +353,17 @@ describeDb('RealignStalePriceSourceConfig migration (real Postgres reporting)', 
     expect(driftNotices(notices)[0]).toContain('2 of 2 rules still carry a cross-check');
   });
 
-  it('stays silent on down when both rules are restored', async () => {
+  it('reverts without reporting, including in an environment that was only ever seeded', async () => {
+    // down() carries no report: a row it failed to restore looks exactly like a seeded row that
+    // never carried the cross-check. This asserts it stays quiet on the seed shape, which an
+    // end-state check keyed on check1Source alone would wrongly flag as drift.
     await qr.query(`
       INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
-      VALUES (17, 'Binance', 'MKR', 'USDT', 0.03), (42, 'Kucoin', 'ISLM', 'USDT', 0.03)
+      VALUES (17, NULL, 'maker', 'tether', 0.03), (42, NULL, 'islamic-coin', 'tether', 0.03)
     `);
-    await migration.up(qr);
 
     const notices = await captureNotices(() => migration.down(qr));
 
     expect(driftNotices(notices)).toEqual([]);
-  });
-
-  it('reports on down the rules it could not restore', async () => {
-    // partially cleared out of band: down()'s all-NULL guard no longer matches, so the rule keeps
-    // no cross-check and must be reported rather than passing as a completed revert
-    await qr.query(`
-      INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
-      VALUES (17, NULL, 'MKR', NULL, NULL), (42, NULL, NULL, 'USDT', NULL)
-    `);
-
-    const notices = await captureNotices(() => migration.down(qr));
-
-    expect(driftNotices(notices)).toHaveLength(1);
-    expect(driftNotices(notices)[0]).toContain('2 of 2 rules still lack a cross-check');
   });
 });
