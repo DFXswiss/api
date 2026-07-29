@@ -92,15 +92,16 @@ export class BankService implements OnModuleInit {
 
     const receiveBanks = await this.getReceiveBanks();
 
-    // Product decision, deliberately hardcoded: an EUR bank transfer is routed to Bank Frick. The rule
-    // is scoped to exactly that case - payment method BANK, requested currency EUR - and matches on
-    // name AND currency so a franc row can never answer a euro request. If several rows qualify, the
-    // highest id wins, mirroring how getBankInternal resolves an ambiguous (name, currency) pair.
+    // Product decision, deliberately hardcoded: an EUR bank transfer is routed to Bank Frick.
+    // Resolved through getBankInternal so the row shown to the customer is the SAME row that owns
+    // attribution: (name, currency) is not unique, and selectAttributionBank prefers the asset-linked
+    // identity that isBankMatching and the booked bank_tx history are keyed on. Picking a different
+    // row here - e.g. the newest one - would let the deposit IBAN drift away from that attribution.
+    // The rule is scoped to exactly EUR + BANK; receive must still hold, since getBankInternal does
+    // not filter on it.
     if (currency === 'EUR' && paymentMethod === FiatPaymentMethod.BANK) {
-      const frickEur = receiveBanks
-        .filter((bank) => bank.name === IbanBankName.FRICK && bank.currency === 'EUR')
-        .sort((a, b) => b.id - a.id)[0];
-      if (frickEur) return frickEur;
+      const frickEur = await this.getBankInternal(IbanBankName.FRICK, 'EUR');
+      if (frickEur?.receive) return frickEur;
     }
 
     // Everything below keeps the categorical exclusion the removed bank-name filter provided: Bank
