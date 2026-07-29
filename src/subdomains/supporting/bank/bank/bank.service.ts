@@ -85,19 +85,22 @@ export class BankService implements OnModuleInit {
   }
 
   // --- BANK SELECTOR --- //
-  // Returns undefined when no eligible bank matches the currency or the EUR fallback - a real outcome
-  // now that eligibility is explicit: a bank left at NULL priority is skipped even as the last candidate.
+  // Returns undefined when no receiving (receive=true) bank exists for either the requested currency
+  // or the EUR fallback.
   async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank | undefined> {
     const fallBackCurrency = 'EUR';
 
-    // Deposit-target selection is an operational input (Bank.receivePriority), not a hardcoded
-    // bank-name preference. A NULL priority is not eligible at all - that is what keeps a bank which
-    // must receive and reconcile money from ever being advertised to a customer, even when it is the
-    // only remaining candidate for a currency. Among eligible banks the lower value wins, ties broken
-    // by ascending id so a newly added row can never silently take over an existing choice.
-    const banks = [...(await this.getReceiveBanks())]
-      .filter((bank) => bank.receivePriority != null)
-      .sort((a, b) => a.receivePriority - b.receivePriority || a.id - b.id);
+    const banks = await this.getReceiveBanks();
+
+    // Product decision, deliberately hardcoded: EUR deposits are routed to Bank Frick. Every other
+    // receiving bank stays a fallback below - if the Frick EUR row is not currently receiving, EUR
+    // deposits keep working through the incumbent banks instead of failing outright.
+    // SEPA Instant is deliberately exempt: Bank Frick does not offer it (sctInst=false), so an
+    // INSTANT request must still reach a bank that can actually execute it.
+    if (currency === 'EUR' && paymentMethod !== FiatPaymentMethod.INSTANT) {
+      const frickEur = banks.find((bank) => bank.name === IbanBankName.FRICK && bank.currency === 'EUR');
+      if (frickEur) return frickEur;
+    }
 
     // select the matching bank account
     let account: Bank | undefined;
