@@ -381,7 +381,7 @@ describe('LiquidityManagementPipelineService', () => {
 
     it('keeps an unreachable venue quarantined far longer than an answered one', async () => {
       // UNAVAILABLE is the absence of an answer, so it must outlast every bound that applies to one —
-      // 30 hours would already be abandoned had the venue merely reported no record
+      // at 20 hours it would already be abandoned had the venue merely reported no record
       const order = agedOrder(20 * 60);
       expectResolution(order, UncertainOrderResolution.UNAVAILABLE);
 
@@ -399,7 +399,7 @@ describe('LiquidityManagementPipelineService', () => {
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
       // the row must still claim only what was observed: nothing was heard, not that nothing was sent
-      expect(order.errorMessage).toContain('could not be asked about it');
+      expect(order.errorMessage).toContain('no complete answer came back');
     });
 
     it('never abandons an order whose quarantine timestamp is missing', async () => {

@@ -608,7 +608,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     // UNAVAILABLE, not UNRESOLVED: with no reference there is nothing to ask about, so the venue was never
     // asked. UNRESOLVED would mean it answered and had no record — a claim nobody made, and one the caller
     // is entitled to abandon the order on once its bound expires. Only orders predating the reserve-before-
-    // send guarantee can reach this, and those are exactly the ones that must wait for a person.
+    // send guarantee can reach this, and they resolve on the unanswered bound rather than on a verdict.
     if (!correlationId) return UncertainOrderResolution.UNAVAILABLE;
 
     let allAttemptsRejected = false;
@@ -644,20 +644,33 @@ export class ScryptAdapter extends LiquidityActionAdapter {
               `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
             );
 
-            // Stopping here leaves the remaining references unasked, and the predecessor of an invisible
-            // replacement is very often the live one. That is an incomplete question rather than a venue
-            // that answered nothing, and the caller must not retire the order on it: UNRESOLVED would let
-            // the bound abandon an order whose earlier attempt is still open at the venue.
-            //
-            // Only references at least as current as the adopted one count. Anything older was already
-            // superseded when that adoption happened, so its absence adds nothing — and counting it would
-            // pin the order in UNAVAILABLE forever, which is the permanent quarantine this all exists to
-            // end.
+            // Only references at least as current as the adopted one still matter. Anything older was
+            // superseded when that adoption happened, so its absence adds nothing.
             const unasked = candidates
               .slice(index + 1)
               .filter((reference) => this.attemptNumber(order, reference) >= currentAttempt);
 
-            return unasked.length ? UncertainOrderResolution.UNAVAILABLE : UncertainOrderResolution.UNRESOLVED;
+            // Nothing left worth asking about: the venue answered about everything that could be live, so
+            // this is a complete answer and the caller's bound may act on it.
+            if (!unasked.length) return UncertainOrderResolution.UNRESOLVED;
+
+            // Something is still unasked, and the predecessor of an invisible replacement is very often the
+            // live one. While that replacement could still surface, stopping here is the safe move and the
+            // incomplete answer says so.
+            if (Util.minutesDiff(order.updated) <= SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
+              return UncertainOrderResolution.UNAVAILABLE;
+
+            // Past that age it is not surfacing. Returning here every pass would leave the older reference
+            // unasked forever — a lookup that structurally never completes, which no waiting can fix and
+            // which no bound may abandon on either: these are GTC orders, so an unchecked predecessor can
+            // sit open in the book indefinitely. So treat the invisible replacement as never created and
+            // carry on to the reference that may actually be live, which is the only way this order ever
+            // gets a real answer.
+            this.logger.warn(
+              `Scrypt still has no record of ${candidate} for order ${order.id} after ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes — treating it as never created and checking the reference it replaced`,
+            );
+            order.recordSpentCorrelationId(candidate);
+            continue;
           }
 
           // A refused replacement never took effect and leaves its predecessor live. This is the only case in

@@ -45,7 +45,7 @@ export enum LiquidityManagementOrderStatus {
   //
   // Time-bounded only where an integration can actually ask the venue: an order whose lookup comes back
   // with no record is abandoned to FAILED once it has outlived the window in which its request could still
-  // be in flight (ABANDON_UNRESOLVED_MINUTES, which differs for venue-internal trades and transfers).
+  // be in flight (ABANDON_UNCERTAIN_MINUTES, which differs for venue-internal trades and transfers).
   //
   // Short of a complete answer — no reference to ask with, an unreachable venue, or a lookup that stopped
   // with a reference left unasked (all UNAVAILABLE) — the wait is far longer, because only a clock stands

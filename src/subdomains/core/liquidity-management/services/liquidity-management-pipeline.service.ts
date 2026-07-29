@@ -426,14 +426,16 @@ export class LiquidityManagementPipelineService {
           // the lesser failure, and it is safe for a reason that has nothing to do with this order: the rule
           // replans from the venue's current balance, so an execution that did happen is already reflected
           // there and sizes the replan down rather than duplicating it.
-          if (await this.abandonUnresolvableOrder(order)) anyChanged = true;
+          const because = 'the venue has had no record of it past the point its request could still be live';
+          if (await this.abandonUncertainOrder(order, because)) anyChanged = true;
         } else if (resolution === UncertainOrderResolution.UNAVAILABLE && order.unobservedTooLong()) {
           // No answer ever came — the venue could not be asked, or not completely. That is weaker ground
           // than a plain "no record", which is why this waits far longer. But it does end: an order that
           // resolves only through an operator does not resolve at all where nobody performs the release,
           // and its rule dies with it. By this point nothing can still be in flight, so the balance the
           // rule replans from already reflects whatever really happened.
-          if (await this.abandonUnobservedOrder(order)) anyChanged = true;
+          const because = 'no complete answer came back for long past the point its request could be live';
+          if (await this.abandonUncertainOrder(order, because)) anyChanged = true;
         }
         // Otherwise — a venue that cannot be asked yet, or an inconclusive answer that has not yet run out
         // its clock — nothing changes and it keeps blocking.
@@ -454,8 +456,8 @@ export class LiquidityManagementPipelineService {
    * its own. The two exceptions are about liveness, not evidence: a venue nothing can ask, and one that has
    * answered nothing for long enough. Silence there stops vetoing the person who checked; it proves nothing.
    *
-   * The other way out is {@link abandonUnresolvableOrder}, which rests on no evidence at all and exists only
-   * so that an order nobody releases cannot block its rule forever.
+   * The other way out is {@link abandonUncertainOrder}, which rests on no evidence at all and exists only so
+   * that an order nobody releases cannot block its rule forever.
    */
   private async completeNotSentRelease(order: LiquidityManagementOrder, because: string): Promise<boolean> {
     // The release this pass looked at, captured before the entity is mutated. Ending an order is the one
@@ -473,19 +475,21 @@ export class LiquidityManagementPipelineService {
   }
 
   /**
-   * Abandon an order the venue has never been able to account for, so its rule runs again.
+   * Abandon an order the venue never accounted for, so its rule runs again.
    *
-   * The second way out of quarantine downwards, and unlike {@link completeNotSentRelease} it rests on no
-   * conclusion about the request at all — only on the clock. That is why the reason recorded says the venue
-   * had no record rather than that nothing was sent: the row must not claim an observation nobody made.
+   * The way out of quarantine that rests on no conclusion about the request at all — only on the clock,
+   * which is why `because` may only ever describe what the lookup did or did not return, never that nothing
+   * was sent. The row must not claim an observation nobody made.
+   *
+   * Two callers, distinguished only by which clock ran out: a venue that answered and had no record, and
+   * one that never gave a complete answer at all. Both are equally short on evidence and equally deliberate
+   * about ending a wait that would otherwise never end.
    *
    * Logged as a warning, not an info. Nothing here is routine — an order reaching this point means the venue
-   * lost track of a request past its bound, minutes for a trade and hours for a transfer — and the entry is
-   * what makes that visible without an operator having to be the mechanism that unblocks it.
+   * lost track of a request past its bound — and the entry is what makes that visible without an operator
+   * having to be the mechanism that unblocks it.
    */
-  private async abandonUnresolvableOrder(order: LiquidityManagementOrder): Promise<boolean> {
-    const because = 'the venue has had no record of it past the point its request could still be live';
-
+  private async abandonUncertainOrder(order: LiquidityManagementOrder, because: string): Promise<boolean> {
     // Always null in practice: a pending release routes to an earlier branch, so this path is only ever
     // reached for an order nobody had released when this pass read it. Narrowing on that absence is exactly
     // the point — an operator may write a release between the read and this write, and that release carries
@@ -493,32 +497,7 @@ export class LiquidityManagementPipelineService {
     // evidence at all, would silently overwrite the one resting on a person.
     const examined = order.notSentRecheckDue ?? null;
 
-    order.abandonAsUnresolvable(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
-
-    if (!(await this.leaveQuarantine(order, examined))) return false;
-
-    this.logger.warn(`Uncertain liquidity order ${order.id} abandoned: ${because}`);
-
-    return true;
-  }
-
-  /**
-   * Give up on an order the venue never answered about at all, so its rule runs again.
-   *
-   * The weakest of the three ways out of quarantine: no venue reply stands behind it, not even a "no
-   * record" — only the clock. It exists because the alternative is not caution but paralysis, since an
-   * order waiting for an operator who never comes is an order that never resolves.
-   *
-   * The reason says the venue was never heard from, never that nothing was sent, so the row still claims
-   * only what was actually observed. Logged as a warning for the same purpose as its sibling: this is not
-   * routine, and it should be visible without anybody having to be the mechanism that unblocks it.
-   */
-  private async abandonUnobservedOrder(order: LiquidityManagementOrder): Promise<boolean> {
-    const because = 'the venue could not be asked about it for long past the point its request could be live';
-
-    const examined = order.notSentRecheckDue ?? null;
-
-    order.abandonAsUnresolvable(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
+    order.abandonUncertain(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
 
     if (!(await this.leaveQuarantine(order, examined))) return false;
 

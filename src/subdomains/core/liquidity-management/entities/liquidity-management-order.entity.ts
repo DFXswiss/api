@@ -20,7 +20,7 @@ import { LiquidityManagementPipeline } from './liquidity-management-pipeline.ent
 const RELEASE_WITHOUT_VENUE_MINUTES = 60;
 
 /**
- * How long an order may stay unresolvable before it is abandoned instead of quarantined further.
+ * How long a quarantined order may go unaccounted for before it is abandoned instead of held further.
  *
  * The quarantine was built to wait for an operator, on the reasoning that absence at the venue is not proof
  * of non-execution. That reasoning is sound but incomplete: it assumed the wait ends. Where nobody checks a
@@ -42,18 +42,23 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  * arrived. Leaving those to an operator sounds like the careful choice, but where nobody performs the
  * manual release it is not caution, it is a rule that never runs again.
  *
- * The bound therefore has to outlast the window in which this order could still be in flight — and that
- * window differs by an order of magnitude between kinds of request, so one bound for both would be either
- * useless or unsafe. Both values below are anchored on what completed Scrypt orders actually took over the
- * 30 days to 2026-07-29, measured in prod:
+ * Each bound has to outlast the window in which its order could still be in flight, and that window differs
+ * by an order of magnitude between kinds of request, so a single value would be either useless or unsafe.
+ * The two answered bounds are anchored on what completed Scrypt orders actually took over the 30 days to
+ * 2026-07-29, measured in prod:
  *
  *   trades (n=55):      median 9.6s   p95 19.8s   max 57.1s
  *   withdrawals (n=49): median 7.7min p95 82min   max 5.6h
  *
- * Balances refresh every minute and the pipeline runs every 10 seconds, so neither bound is limited by how
+ * Read those as a floor, not a ceiling: they describe orders that finished, so an order that never becomes
+ * observable at all is by construction absent from them. That is why the unanswered bound is not derived
+ * from the same sample but set far beyond it — and why a lookup that can never complete is repaired at the
+ * source rather than waited out.
+ *
+ * Balances refresh every minute and the pipeline runs every 10 seconds, so no bound is limited by how
  * quickly an abandonment can be noticed — only by how long the request itself may still be alive.
  */
-const ABANDON_UNRESOLVED_MINUTES = {
+const ABANDON_UNCERTAIN_MINUTES = {
   /**
    * Settled inside the venue, no network leg. Five minutes is roughly five times the slowest such order
    * observed, which leaves room for a market phase that keeps one open longer than anything on record.
@@ -66,14 +71,18 @@ const ABANDON_UNRESOLVED_MINUTES = {
    */
   TRANSFER: 12 * 60,
   /**
-   * The venue could not be asked, or not completely: no reference to ask with, an unreachable venue, or a
-   * lookup that stopped with a reference left unasked. Weaker evidence than a plain "no record", so this
-   * waits far longer — but it does end, because an order that only ever resolves through an operator does
-   * not resolve at all where nobody looks, and its rule stays dead with it.
+   * No complete answer came back: nothing to ask with, or a venue that could not be reached. Weaker ground
+   * than a plain "no record", so this waits far longer — but it does end, because an order that only ever
+   * resolves through an operator does not resolve at all where nobody looks, and its rule stays dead with
+   * it.
    *
    * Twenty-four hours: over four times the slowest order ever observed at this venue (5.6h), so anything
    * still unaccounted for by then has long since stopped being in flight, and the balance the rule replans
    * from reflects whatever really happened.
+   *
+   * This is a bound on transient silence only. A lookup that can never complete — one stopping at the same
+   * unreachable reference every pass — is not covered by any amount of waiting and is resolved where it
+   * arises, in the adapter, by asking the reference behind it instead.
    */
   UNOBSERVED: 24 * 60,
 };
@@ -323,28 +332,28 @@ export class LiquidityManagementOrder extends IEntity {
   }
 
   /**
+   * Whether an order the venue could not be asked about — or not completely — has waited long enough to be
+   * given up anyway.
+   *
+   * Separate from {@link unresolvableTooLong} and far more patient, because no answer stands behind it,
+   * only a clock. It exists so that no order ends in a permanent wait for an operator: where nobody performs
+   * the manual release, "wait for a human" and "never resolve" are the same thing, and the rule dies with
+   * the order. See {@link ABANDON_UNCERTAIN_MINUTES.UNOBSERVED}.
+   */
+  unobservedTooLong(): boolean {
+    if (!this.updated) return false;
+
+    return Util.minutesDiff(this.updated) > ABANDON_UNCERTAIN_MINUTES.UNOBSERVED;
+  }
+
+  /**
    * Whether the venue has been answering "no record" for long enough that waiting further serves nobody.
    *
    * Distinct from {@link releaseWaitedOutVenue}: that one waits out a venue that says nothing, this one a
    * venue that answers and keeps having no record. Requires the order to be old enough that any execution
    * would long since be reflected in the venue's balance, which is what the replan reads. See
-   * {@link ABANDON_UNRESOLVED_MINUTES}.
+   * {@link ABANDON_UNCERTAIN_MINUTES}.
    */
-  /**
-   * Whether an order the venue could not be asked about — or not completely — has waited long enough to be
-   * given up anyway.
-   *
-   * Separate from {@link unresolvableTooLong} and far more patient, because there is no answer behind it,
-   * only a clock. It exists so that no order ends in a permanent wait for an operator: where nobody performs
-   * the manual release, "wait for a human" and "never resolve" are the same thing, and the rule dies with
-   * the order. See {@link ABANDON_UNRESOLVED_MINUTES.UNOBSERVED}.
-   */
-  unobservedTooLong(): boolean {
-    if (!this.updated) return false;
-
-    return Util.minutesDiff(this.updated) > ABANDON_UNRESOLVED_MINUTES.UNOBSERVED;
-  }
-
   unresolvableTooLong(): boolean {
     // Measured from `updated`, not `created`: an order can run normally for a long time and only become
     // UNCERTAIN late, when a completion check amends or restarts it and that write goes unconfirmed. Its
@@ -360,19 +369,20 @@ export class LiquidityManagementOrder extends IEntity {
     // Unknown, unloaded or unlisted action falls to the long bound, for the same reason.
     const action = `${this.action?.system}/${this.action?.command}`.toLowerCase();
     const bound = VENUE_INTERNAL_ACTIONS.includes(action)
-      ? ABANDON_UNRESOLVED_MINUTES.TRADE
-      : ABANDON_UNRESOLVED_MINUTES.TRANSFER;
+      ? ABANDON_UNCERTAIN_MINUTES.TRADE
+      : ABANDON_UNCERTAIN_MINUTES.TRANSFER;
 
     return Util.minutesDiff(this.updated) > bound;
   }
 
   /**
-   * Give up on an order the venue has never been able to account for, and let the rule move on.
+   * Give up on an order the venue never accounted for, and let the rule move on.
    *
    * FAILED rather than a verified non-execution: nothing here establishes that the request never took
-   * effect, and the reason says so, so the record does not claim more than was actually observed.
+   * effect, and the reason says so, so the record does not claim more than was actually observed. Named for
+   * the state it ends, not for the clock that ran out, because both bounds end in exactly this.
    */
-  abandonAsUnresolvable(reason: string): this {
+  abandonUncertain(reason: string): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
     this.errorMessage = reason;
     this.notSentRecheckDue = null;

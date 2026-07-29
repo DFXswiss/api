@@ -572,6 +572,20 @@ describe('ScryptAdapter', () => {
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
     });
 
+    it('checks the reference a long-invisible replacement replaced, rather than stopping forever', async () => {
+      // the claimed replacement never reached the venue, so it stays absent on every single pass. Stopping
+      // at it each time would leave the predecessor unasked for good — and these are GTC orders, so that
+      // predecessor can sit open in the book indefinitely. No bound may abandon on that, and no waiting
+      // resolves it, so the only real answer comes from asking the older reference.
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
+      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 2 * 60 * 60 * 1000) });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
+    });
+
     it('reports UNRESOLVED when only superseded references remain unasked', async () => {
       // the replacement was adopted earlier, so the reference it replaced is already established as dead.
       // Its absence adds nothing, and counting it as unasked would pin the order in UNAVAILABLE for good —
