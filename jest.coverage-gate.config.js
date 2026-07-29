@@ -60,6 +60,7 @@ const PINNED_LOGIC = [
   'src/integration/sift/dto/sift.dto.ts',
   'src/polyfills.ts',
   'src/shared/auth/allow-tfa-pending.decorator.ts',
+  'src/shared/auth/get-jwt.decorator.ts',
   'src/shared/auth/user-role.enum.ts',
   'src/shared/services/typeorm-logger.ts',
   'src/shared/utils/bitbox-ascii.util.ts',
