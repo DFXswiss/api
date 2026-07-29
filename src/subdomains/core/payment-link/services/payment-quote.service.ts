@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
@@ -209,12 +209,16 @@ export class PaymentQuoteService {
 
     const expiryDate = new Date(Math.min(payment.expiryDate.getTime(), Util.secondsAfter(timeoutSeconds).getTime()));
 
+    const transferAmounts = await this.createTransferAmounts(standard, payment.link, payment.amount, payment.currency);
+
+    if (standard === PaymentStandard.OPEN_CRYPTO_PAY) {
+      this.assertLightningBtcTransferAmount(transferAmounts);
+    }
+
     const quote = this.paymentQuoteRepo.create({
       uniqueId: Util.createUniqueId(Config.prefixes.paymentQuoteUidPrefix),
       status: PaymentQuoteStatus.ACTUAL,
-      transferAmounts: await this.createTransferAmounts(standard, payment.link, payment.amount, payment.currency).then(
-        JSON.stringify,
-      ),
+      transferAmounts: JSON.stringify(transferAmounts),
       expiryDate,
       standard,
       payment,
@@ -231,7 +235,8 @@ export class PaymentQuoteService {
   ): Promise<TransferAmount[]> {
     const transferAmounts: TransferAmount[] = [];
 
-    const paymentAssetMap = await this.createOrderedPaymentAssetMap(paymentLink.configObj.blockchains);
+    const blockchains = this.getEffectiveBlockchains(standard, paymentLink.configObj.blockchains);
+    const paymentAssetMap = await this.createOrderedPaymentAssetMap(blockchains);
 
     for (const [blockchain, assets] of paymentAssetMap.entries()) {
       const transferAmount = await this.createTransferAmount(
@@ -256,6 +261,24 @@ export class PaymentQuoteService {
     }
 
     return transferAmounts;
+  }
+
+  // OpenCryptoPay is LNURL-pay and requires Lightning for minSendable/maxSendable.
+  private getEffectiveBlockchains(standard: PaymentStandard, blockchains: Blockchain[]): Blockchain[] {
+    if (standard !== PaymentStandard.OPEN_CRYPTO_PAY || blockchains.includes(Blockchain.LIGHTNING)) {
+      return blockchains;
+    }
+
+    return [Blockchain.LIGHTNING, ...blockchains];
+  }
+
+  private assertLightningBtcTransferAmount(transferAmounts: TransferAmount[]): void {
+    const lightning = transferAmounts.find((t) => t.method.toLowerCase() === Blockchain.LIGHTNING.toLowerCase());
+    const btcAmount = lightning?.assets.find((a) => a.asset.toLowerCase() === 'btc')?.amount;
+
+    if (btcAmount == null || btcAmount <= 0) {
+      throw new ServiceUnavailableException('Lightning payment option unavailable');
+    }
   }
 
   private async createTransferAmount(

@@ -5,6 +5,7 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { merge } from 'lodash';
@@ -275,7 +276,7 @@ export class PaymentLinkService {
     const actualQuote = await this.paymentQuoteService.createQuote(usedStandard, pendingPayment);
 
     const btcTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC');
-    if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
+    if (!btcTransferAmount) throw new ServiceUnavailableException('Lightning payment option unavailable');
 
     const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
 

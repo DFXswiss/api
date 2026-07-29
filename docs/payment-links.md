@@ -557,17 +557,17 @@ If a `route` value doesn't resolve to one of your Lightning routes, the request 
 
 Per link (or per account), the configurable fields and their defaults:
 
-| Field                 | Default             | Meaning                                                          |
-| --------------------- | ------------------- | ---------------------------------------------------------------- |
-| `standards`           | `["OpenCryptoPay"]` | Offered payment standards.                                       |
-| `blockchains`         | all supported       | Which chains appear in `transferAmounts`.                        |
-| `minCompletionStatus` | `TxMempool`         | Completion threshold ([§8.2](#82-when-does-a-payment-complete)). |
-| `displayQr`           | `false`             | Whether the pay UI shows a QR.                                   |
-| `paymentTimeout`      | `60` (s)            | Default invoice expiry when `expiryDate` is omitted.             |
-| `scanTimeout`         | —                   | Optional: drop a shown-but-never-scanned QR after N seconds.     |
-| `cancellable`         | `true`              | Whether the payer may cancel.                                    |
-| `recipient`           | —                   | Payee identity shown to the payer (see below).                   |
-| `fee`                 | `0.002`             | Read-only service fee fraction.                                  |
+| Field                 | Default             | Meaning                                                                                                |
+| --------------------- | ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `standards`           | `["OpenCryptoPay"]` | Offered payment standards.                                                                             |
+| `blockchains`         | all supported       | Which chains appear in `transferAmounts`. OpenCryptoPay always adds Lightning for LNURL compatibility. |
+| `minCompletionStatus` | `TxMempool`         | Completion threshold ([§8.2](#82-when-does-a-payment-complete)).                                       |
+| `displayQr`           | `false`             | Whether the pay UI shows a QR.                                                                         |
+| `paymentTimeout`      | `60` (s)            | Default invoice expiry when `expiryDate` is omitted.                                                   |
+| `scanTimeout`         | —                   | Optional: drop a shown-but-never-scanned QR after N seconds.                                           |
+| `cancellable`         | `true`              | Whether the payer may cancel.                                                                          |
+| `recipient`           | —                   | Payee identity shown to the payer (see below).                                                         |
+| `fee`                 | `0.002`             | Read-only service fee fraction.                                                                        |
 
 Config precedence (later wins): **defaults < account-level config < per-link config**.
 
