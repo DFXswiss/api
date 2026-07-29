@@ -6,8 +6,10 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Util } from 'src/shared/utils/util';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { DebugQueryDto, DebugQueryResult } from './dto/debug-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
@@ -17,7 +19,10 @@ import { GsService } from './gs.service';
 export class GsController {
   private readonly logger = new DfxLogger(GsController);
 
-  constructor(private readonly gsService: GsService) {}
+  constructor(
+    private readonly gsService: GsService,
+    private readonly settingService: SettingService,
+  ) {}
 
   @Post('db')
   @ApiBearerAuth()
@@ -26,10 +31,13 @@ export class GsController {
   async getDbData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryDto): Promise<DbReturnData> {
     if (DisabledProcess(Process.GS_DB)) throw new ForbiddenException('Endpoint disabled');
 
+    await this.logAndCheckTrigger(query, jwt);
+
     try {
       return await this.gsService.getDbData(query, jwt.role);
     } catch (e) {
-      this.logger.verbose(`DB data call for ${query.table} in ${query.identifier} failed:`, e);
+      const { table, identifier } = this.sanitizeLogFields(query);
+      this.logger.verbose(`DB data call for ${table} in ${identifier} failed:`, e);
       throw new BadRequestException(e.message);
     }
   }
@@ -40,6 +48,8 @@ export class GsController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getExtendedData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryBaseDto): Promise<DbReturnData> {
     if (DisabledProcess(Process.GS_DB)) throw new ForbiddenException('Endpoint disabled');
+
+    await this.logAndCheckTrigger(query, jwt);
 
     return this.gsService.getExtendedDbData(query, jwt.role);
   }
@@ -68,5 +78,33 @@ export class GsController {
     // `JSON.stringify` in the audit log, and the service walker.
 
     return this.gsService.executeDebugQuery(dto, jwt.address ?? `account:${jwt.account}`);
+  }
+
+  // Logs every `/gs/db*` handler invocation that passes the guards and the endpoint kill
+  // switch (table, identifier, trigger, caller role) as the measurement baseline for the
+  // trigger-type rollout, then — only once the `gsTriggerEnforcement` setting is explicitly
+  // enabled — rejects calls that don't declare whether they were triggered manually or by an
+  // automation. The setting is default-off so a forgotten config entry can never
+  // self-activate enforcement. `identifier`/`trigger` use the `missing` label (not a value
+  // fallback) so omissions stay visible in the log instead of going blank. The lookup is
+  // intentionally uncached so gate changes take effect immediately and consistently across
+  // all API instances — especially when turning enforcement off during an incident.
+  private async logAndCheckTrigger(query: DbQueryBaseDto, jwt: JwtPayload): Promise<void> {
+    const { table, identifier } = this.sanitizeLogFields(query);
+
+    this.logger.verbose(
+      `GS db call: table=${table}, identifier=${identifier}, trigger=${query.trigger ?? 'missing'}, role=${jwt.role}`,
+    );
+
+    const enforced = await this.settingService.getObj<boolean>('gsTriggerEnforcement', false);
+    if (enforced === true && !query.trigger) throw new BadRequestException('Trigger type is required');
+  }
+
+  // Client-controlled values must never land raw in any log line.
+  private sanitizeLogFields(query: DbQueryBaseDto): { table: string; identifier: string } {
+    return {
+      table: Util.sanitizeLogValue(query.table, 64),
+      identifier: query.identifier ? Util.sanitizeLogValue(query.identifier, 64) : 'missing',
+    };
   }
 }

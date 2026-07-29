@@ -79,10 +79,13 @@ export const MERGE_POST_COMMIT_EFFECTS_PENDING_MARKER = 'postCommitEffectsPendin
 export const MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER = 'postCommitEffectCompleted=';
 export const MERGE_POST_COMMIT_EFFECT_FAILED_MARKER = 'postCommitEffectFailed=';
 
+const MailVerificationMaxTryCount = 5;
+
 interface SecretCacheEntry {
   secret: string;
   mail: string;
   expiryDate: Date;
+  tryCount: number;
 }
 
 @Injectable()
@@ -778,6 +781,14 @@ export class UserDataService {
 
     await this.checkMail(userData, dto.mail);
 
+    // Must stay after checkMail, so a merged account still gets its master-code redirect (#4092).
+    // Drops any pending change: the Ok below would otherwise report a terminal state that an
+    // outstanding verification code could still overturn.
+    if (Util.equalsIgnoreCase(userData.mail, dto.mail)) {
+      this.secretCache.delete(userData.id);
+      return UpdateMailStatus.Ok;
+    }
+
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
     // mail verification
@@ -788,6 +799,7 @@ export class UserDataService {
       secret,
       mail: dto.mail,
       expiryDate: Util.minutesAfter(codeExpiryMinutes),
+      tryCount: 0,
     });
 
     // send mail
@@ -803,12 +815,33 @@ export class UserDataService {
 
   async verifyUserMail(userData: UserData, token: string): Promise<UserData> {
     const cacheEntry = this.secretCache.get(userData.id);
-    if (token !== cacheEntry?.secret) throw new ForbiddenException('Invalid or expired mail verification token');
+
+    // 6-digit code: the guessing window needs both a try count and the expiry actually enforced.
+    const isUsable =
+      cacheEntry && cacheEntry.tryCount < MailVerificationMaxTryCount && cacheEntry.expiryDate > new Date();
+    if (cacheEntry && !isUsable) this.secretCache.delete(userData.id);
+
+    if (!isUsable || token !== cacheEntry.secret) {
+      if (isUsable) cacheEntry.tryCount++;
+      throw new ForbiddenException('Invalid or expired mail verification token');
+    }
+
     this.secretCache.delete(userData.id);
 
     await this.checkMail(userData, cacheEntry.mail);
 
     return this.doUpdateUserMail(userData, cacheEntry.mail);
+  }
+
+  @DfxCron(CronExpression.EVERY_MINUTE)
+  processCleanupMailSecretCache(): void {
+    const now = new Date();
+
+    const keysToBeDeleted = Array.from(this.secretCache.entries())
+      .filter(([_, v]) => v.expiryDate < now)
+      .map(([k, _]) => k);
+
+    keysToBeDeleted.forEach((k) => this.secretCache.delete(k));
   }
 
   async trySetUserMail(userData: UserData, mail: string): Promise<UserData> {
@@ -844,6 +877,14 @@ export class UserDataService {
 
   private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
     mail = mail?.toLowerCase();
+
+    // Logged before the column is overwritten, so a failed log write leaves the old address in place
+    // (CONTRIBUTING, "Auditable mutations"). A null oldMail is an initial assignment, and a legacy
+    // row that differs only in case is a normalisation — neither is a change worth logging.
+    const oldMail = userData.mail;
+    if (oldMail && !Util.equalsIgnoreCase(oldMail, mail))
+      await this.kycLogService.createMailChangeLog(userData, oldMail, mail);
+
     await this.userDataRepo.update(userData.id, { mail });
     Object.assign(userData, { mail });
 
@@ -857,8 +898,6 @@ export class UserDataService {
       updateSiftAccount.$user_id = user.id.toString();
       this.siftService.updateAccount(updateSiftAccount);
     }
-
-    await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
 
     try {
       await this.kycService.initializeProcess(userData);

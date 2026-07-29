@@ -52,11 +52,24 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(szchfDto.interestValue.eur).toBe(szchfDto.interest);
       expect(szchfDto.interestValue.usd).toBe(szchfDto.interest);
 
+      // balance/value now carry the booked amount plus the accrued interest — the fold this PR
+      // introduces. interest/interestValue above stay a breakdown of what is already in here.
+      expect(szchfDto.balance).toBeCloseTo(1000 + interest, 8);
+      expect(szchfDto.value).toEqual({
+        eur: expect.closeTo(1000 + interest, 8),
+        chf: expect.closeTo(1000 + interest, 8),
+        usd: expect.closeTo(1000 + interest, 8),
+      });
+
+      // A position with no interestByAssetName entry is unaffected — plain booked balance/value,
+      // exactly the pre-fix behaviour.
       expect(btcDto.interest).toBeUndefined();
       expect(btcDto.interestValue).toBeUndefined();
+      expect(btcDto.balance).toBe(2);
+      expect(btcDto.value).toEqual({ eur: 2, chf: 2, usd: 2 });
     });
 
-    it('prices interestValue with the interest-source asset, not the same-named group representative', () => {
+    it("prices each source asset's own line independently, so interest is valued at its own asset's price, not the group representative's price", () => {
       const szchfEthereum = createCustomAsset({
         id: 10,
         name: 'sZCHF',
@@ -74,10 +87,10 @@ describe('CustodyAssetBalanceDtoMapper', () => {
         approxPriceUsd: 2,
       });
 
-      // The non-Ethereum sZCHF balance is listed first (becomes g[0], the group representative
-      // used for `value`/`balance`) AND has a different price. If interestValue were priced off
-      // g[0].asset instead of the asset the interest actually accrued on, it would silently come
-      // out double (price 2 instead of 1).
+      // The non-Ethereum sZCHF balance is listed first (becomes g[0], the display representative)
+      // AND has a different price. Each source asset must be priced with its own rate: 200 at
+      // price 2 plus (800 + interest) at price 1. Pricing the whole name group with g[0].asset
+      // would silently value the interest (and the Ethereum holdings) at price 2.
       const balances = [
         Object.assign(new CustodyBalance(), { asset: szchfOtherChain, balance: 200 }),
         Object.assign(new CustodyBalance(), { asset: szchfEthereum, balance: 800 }),
@@ -92,13 +105,104 @@ describe('CustodyAssetBalanceDtoMapper', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].asset.name).toBe('sZCHF');
-      expect(result[0].balance).toBe(1000);
-      // value is priced with the group representative (g[0].asset = szchfOtherChain, price 2),
-      // NOT the interest-source asset (szchfEthereum, price 1) — the other half of the same
-      // pricing guarantee: 1000 × 2 = 2000.
-      expect(result[0].value).toEqual({ chf: 2000, eur: 2000, usd: 2000 });
+      expect(result[0].balance).toBeCloseTo(1012.34, 8);
+      // Per-source pricing: 200 × 2 + (800 + 12.34) × 1 = 1212.34. The old group-representative
+      // path would have produced (1000 + 12.34) × 2 = 2024.68.
+      expect(result[0].value).toEqual({
+        chf: expect.closeTo(1212.34, 2),
+        eur: expect.closeTo(1212.34, 2),
+        usd: expect.closeTo(1212.34, 2),
+      });
       expect(result[0].interest).toBe(interest);
       expect(result[0].interestValue).toEqual({ chf: interest, eur: interest, usd: interest });
+    });
+
+    it('adds interest only once per source asset when multiple balance rows share the same asset id', () => {
+      const szchfAsset = createCustomAsset({
+        id: 10,
+        name: 'sZCHF',
+        uniqueName: 'Ethereum/sZCHF',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      // Two custody users on the same chain share one asset id. Interest is computed once across
+      // all users of that asset, so it must be folded once into the id-group total — not once per
+      // raw balance row.
+      const balances = [
+        Object.assign(new CustodyBalance(), { asset: szchfAsset, balance: 300 }),
+        Object.assign(new CustodyBalance(), { asset: szchfAsset, balance: 500 }),
+      ];
+
+      const interest = 12.34;
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>([
+        ['sZCHF', { interest, asset: szchfAsset }],
+      ]);
+
+      const result = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].balance).toBeCloseTo(812.34, 8);
+      expect(result[0].value).toEqual({
+        chf: expect.closeTo(812.34, 2),
+        eur: expect.closeTo(812.34, 2),
+        usd: expect.closeTo(812.34, 2),
+      });
+      // Regression guard: adding interest once per row would yield 300 + 500 + 12.34 + 12.34.
+      expect(result[0].value.chf).not.toBeCloseTo(824.68, 2);
+      expect(result[0].interest).toBe(interest);
+      expect(result[0].interestValue).toEqual({ chf: interest, eur: interest, usd: interest });
+    });
+
+    it('matches the old group-representative value when same-named chain assets share the same price', () => {
+      const szchfEthereum = createCustomAsset({
+        id: 10,
+        name: 'sZCHF',
+        uniqueName: 'Ethereum/sZCHF',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const szchfCitrea = createCustomAsset({
+        id: 11,
+        name: 'sZCHF',
+        uniqueName: 'Citrea/sZCHF',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const interest = 12.34;
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>([
+        ['sZCHF', { interest, asset: szchfEthereum }],
+      ]);
+
+      const balancesForward = [
+        Object.assign(new CustodyBalance(), { asset: szchfEthereum, balance: 300 }),
+        Object.assign(new CustodyBalance(), { asset: szchfCitrea, balance: 700 }),
+      ];
+      const balancesReversed = [
+        Object.assign(new CustodyBalance(), { asset: szchfCitrea, balance: 700 }),
+        Object.assign(new CustodyBalance(), { asset: szchfEthereum, balance: 300 }),
+      ];
+
+      const forward = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balancesForward, interestByAssetName);
+      const reversed = CustodyAssetBalanceDtoMapper.mapCustodyBalances(balancesReversed, interestByAssetName);
+
+      // Same prices across chains: per-source pricing equals the old name-group representative path
+      // (1000 + 12.34) × 1, independent of input order.
+      for (const result of [forward, reversed]) {
+        expect(result).toHaveLength(1);
+        expect(result[0].balance).toBeCloseTo(1012.34, 8);
+        expect(result[0].value).toEqual({
+          chf: expect.closeTo(1012.34, 2),
+          eur: expect.closeTo(1012.34, 2),
+          usd: expect.closeTo(1012.34, 2),
+        });
+        expect(result[0].interest).toBe(interest);
+        expect(result[0].interestValue).toEqual({ chf: interest, eur: interest, usd: interest });
+      }
     });
 
     it('returns balances ordered by descending CHF value regardless of input order', () => {
@@ -373,6 +477,43 @@ describe('CustodyAssetBalanceDtoMapper', () => {
       expect(secondResult[secondResult.length - 1].asset.name).toBe('CCC');
       expect(firstResult[firstResult.length - 1].value.chf).toBe(Infinity);
       expect(secondResult[secondResult.length - 1].value.chf).toBe(Infinity);
+    });
+
+    it('throws when interest targets no asset id in the matching balance name group', () => {
+      const balanceAsset = createCustomAsset({
+        id: 10,
+        name: 'sZCHF',
+        uniqueName: 'Ethereum/sZCHF',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+      const unmatchedInterestAsset = createCustomAsset({
+        id: 99,
+        name: 'sZCHF',
+        uniqueName: 'Citrea/sZCHF',
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      const balances = [Object.assign(new CustodyBalance(), { asset: balanceAsset, balance: 1000 })];
+      const interestByAssetName = new Map<string, { interest: number; asset: Asset }>([
+        ['sZCHF', { interest: 12.34, asset: unmatchedInterestAsset }],
+      ]);
+
+      // The current custody service builds interestByAssetName from assets represented by the
+      // balances it is processing, so its present call path normally cannot create this mismatch.
+      // The mapper's contract is independent of that caller, however: a future caller can supply
+      // an interest asset with the right name but an id absent from the name group. The guard must
+      // reject that input because otherwise interest would increase balance without contributing
+      // to the value of any priced asset sub-group.
+      const mapBalances = () => CustodyAssetBalanceDtoMapper.mapCustodyBalances(balances, interestByAssetName);
+
+      expect(mapBalances).toThrow(/has no matching balance sub-group/);
+      expect(mapBalances).toThrow(/Citrea\/sZCHF/);
+      expect(mapBalances).toThrow(/\(id 99\)/);
+      expect(mapBalances).toThrow(/name group 'sZCHF'/);
     });
   });
 });
