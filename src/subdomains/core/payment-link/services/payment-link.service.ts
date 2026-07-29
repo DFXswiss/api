@@ -18,7 +18,7 @@ import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
-import { Equal, In, Not } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { isSellRoute } from '../../sell-crypto/route/sell.entity';
 import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
@@ -628,10 +628,7 @@ export class PaymentLinkService {
     if (externalPaymentId) {
       // Resolve the access-key against payment links first, then look up the payment scoped to
       // those links — externalPaymentId is not unique across merchants (BUG-1289).
-      const candidateLinks = await this.paymentLinkRepo.find({
-        where: { payments: { externalId: Equal(externalPaymentId) } },
-        relations: { route: { user: { userData: { organization: true } } } },
-      });
+      const candidateLinks = await this.paymentLinkRepo.getAllPaymentLinksByExternalPaymentId(externalPaymentId);
       const paymentLink = candidateLinks.find((pl) => pl.configObj.accessKeys?.includes(key));
       if (!paymentLink) throw new NotFoundException('No payment found');
 
