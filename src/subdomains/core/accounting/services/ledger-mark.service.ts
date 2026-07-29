@@ -85,9 +85,7 @@ export class LedgerMarkService {
     if (this.latestMarks && now - this.latestMarks.loadedAt < LATEST_MARK_TTL_MS) return this.latestMarks.map;
 
     const asOf = new Date(now);
-    const rows = (
-      await this.logService.getFinancialLogs(Util.daysBefore(LATEST_MARK_LOOKBACK_DAYS, asOf), true)
-    ).filter((r) => r.created.getTime() <= asOf.getTime());
+    const rows = await this.logService.getFinancialLogs(Util.daysBefore(LATEST_MARK_LOOKBACK_DAYS, asOf), true, asOf);
 
     const map = new Map<number, number>();
     for (const row of rows) {
@@ -140,38 +138,43 @@ export class LedgerMarkService {
   /**
    * Bounded preload (§5.2, Hard Constraint #4): always limited by (batchStartDate, to) and maxRows.
    * Order is fixed — dailySample decision FIRST (avoids loading the full minute-tick), THEN upper-bound
-   * trimming, THEN the maxRows pagination backstop.
+   * trimming, THEN the maxRows pagination backstop (keyset over id; created resolved in-DB).
    */
   async preload(batchStartDate: Date, to: Date): Promise<LedgerMarkCache> {
     const spanDays = Util.daysDiff(batchStartDate, to);
     const dailySample = spanDays > Config.ledger.markPreloadDailySampleThresholdDays;
+    const maxRows = Config.ledger.markPreloadMaxRows;
 
-    let rows = await this.logService.getFinancialLogs(batchStartDate, dailySample);
-    rows = rows.filter((r) => r.created.getTime() <= to.getTime());
+    // +1 so probeRows.length > maxRows can still detect overflow when SQL already caps at maxRows
+    const probeRows = await this.logService.getFinancialLogs(batchStartDate, dailySample, to, maxRows + 1);
 
-    if (rows.length > Config.ledger.markPreloadMaxRows) {
-      rows = await this.paginate(batchStartDate, to, dailySample);
-    }
+    const rows =
+      probeRows.length > maxRows
+        ? await this.paginate(batchStartDate, to, dailySample, probeRows.slice(0, maxRows))
+        : probeRows;
 
     return new LedgerMarkCache(this.buildMarkMap(rows));
   }
 
-  // created-continuation windows; never load everything into one heap (§5.2 step 3)
-  private async paginate(batchStartDate: Date, to: Date, dailySample: boolean): Promise<Log[]> {
-    const result: Log[] = [];
-    let windowStart = batchStartDate;
+  // Keyset pages over id; never load everything into one heap (§5.2 step 3).
+  // `firstPage` reuses the rows preload() already read via the overflow probe (the same maxRows-sized
+  // first page a from-scratch pagination would produce, since both share the same filters/order/limit=
+  // maxRows and deterministic ORDER BY created ASC, id ASC) — so the probe read is not thrown away and
+  // re-fetched. Halves the data read on overflow, result set stays identical to full re-pagination.
+  private async paginate(batchStartDate: Date, to: Date, dailySample: boolean, firstPage: Log[]): Promise<Log[]> {
+    const maxRows = Config.ledger.markPreloadMaxRows;
+    const result: Log[] = [...firstPage];
+    let after: number | undefined = firstPage[firstPage.length - 1]?.id;
 
-    while (windowStart.getTime() <= to.getTime()) {
-      const window = (await this.logService.getFinancialLogs(windowStart, dailySample)).filter(
-        (r) => r.created.getTime() <= to.getTime(),
-      );
+    // Keyset continuation: each page starts strictly after the last returned id.
+    while (true) {
+      const window = await this.logService.getFinancialLogs(batchStartDate, dailySample, to, maxRows, after);
       if (!window.length) break;
 
       result.push(...window);
-      const lastCreated = window[window.length - 1].created;
-      if (window.length < Config.ledger.markPreloadMaxRows || lastCreated.getTime() <= windowStart.getTime()) break;
+      if (window.length < maxRows) break;
 
-      windowStart = new Date(lastCreated.getTime() + 1);
+      after = window[window.length - 1].id;
     }
 
     return result;

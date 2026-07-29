@@ -135,8 +135,14 @@ export class LogService {
     return this.logRepo.findOne({ where: { system, subsystem, severity, valid }, order: { id: 'DESC' } });
   }
 
-  async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
-    return this.logRepo.getFinancialLogs(from, dailySample);
+  async getFinancialLogs(
+    from?: Date,
+    dailySample?: boolean,
+    to?: Date,
+    limit?: number,
+    after?: number, // id of the last row of the previous page; NEVER a Date/created value
+  ): Promise<Log[]> {
+    return this.logRepo.getFinancialLogs(from, dailySample, to, limit, after);
   }
 
   async getLatestFinancialLog(): Promise<Log | undefined> {

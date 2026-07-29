@@ -16,6 +16,27 @@ function updateQueryBuilderStub(affected: number | null | undefined) {
   return builder;
 }
 
+// Chainable stub for the cursor-existence guard (getExists) and the main getFinancialLogs query path.
+// getExists false → assertFinancialLogCursorExists throws before any main-query terminal method runs.
+function financialLogQueryBuilderStub(exists: boolean) {
+  const builder = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    setParameters: jest.fn().mockReturnThis(),
+    getQuery: jest.fn().mockReturnValue(''),
+    getParameters: jest.fn().mockReturnValue({}),
+    getExists: jest.fn().mockResolvedValue(exists),
+    getMany: jest.fn().mockResolvedValue([]),
+  };
+
+  return builder;
+}
+
 describe('LogRepository', () => {
   it('constructs against the provided entity manager', () => {
     const repo = new LogRepository({} as EntityManager);
@@ -75,6 +96,22 @@ describe('LogRepository', () => {
       await expect(repo.setFinancialLogValidity(dto, [11, 12])).rejects.toThrow(
         'Financial log validity update returned no affected count',
       );
+    });
+  });
+
+  describe('getFinancialLogs cursor guard', () => {
+    it('fails loud when the keyset cursor id no longer exists (no silent empty main query)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const stub = financialLogQueryBuilderStub(false);
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(stub as never);
+
+      await expect(repo.getFinancialLogs(undefined, false, undefined, undefined, 999)).rejects.toThrow(
+        'Financial log cursor row 999 no longer exists',
+      );
+
+      // Guard runs first: main-query terminal (getMany) must not have been called after a missing cursor.
+      expect(stub.getExists).toHaveBeenCalled();
+      expect(stub.getMany).not.toHaveBeenCalled();
     });
   });
 });
