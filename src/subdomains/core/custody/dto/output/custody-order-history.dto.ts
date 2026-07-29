@@ -16,6 +16,12 @@ export class CustodyOrderHistoryDto {
   @ApiProperty({ enum: CustodyOrderHistoryStatus })
   status: CustodyOrderHistoryStatus;
 
+  @ApiProperty()
+  created: Date;
+
+  @ApiPropertyOptional({ description: 'Valuta timestamp, set once the order is completed' })
+  completedAt?: Date;
+
   @ApiPropertyOptional()
   inputAmount?: number;
 

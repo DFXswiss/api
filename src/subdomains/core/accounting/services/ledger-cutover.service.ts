@@ -179,13 +179,12 @@ export class LedgerCutoverService {
     return repinned != null && +repinned !== snapshot.id ? this.logService.getLog(+repinned) : snapshot;
   }
 
-  // §6.3: newest valid=true FinancialDataLog ≤ cutoff date. Bounded read (last 2 days) then pick latest ≤ now.
+  // §6.3: newest valid=true FinancialDataLog ≤ cutoff date. Bounded read (last 2 days, to=now in SQL) then pick latest.
   private async selectSnapshot(): Promise<Log | undefined> {
     const now = new Date();
-    const candidates = await this.logService.getFinancialLogs(Util.daysBefore(2, now));
-    const valid = candidates.filter((l) => l.created.getTime() <= now.getTime());
+    const candidates = await this.logService.getFinancialLogs(Util.daysBefore(2, now), false, now);
 
-    return valid.length ? Util.maxObj(valid, 'created') : undefined;
+    return candidates.length ? Util.maxObj(candidates, 'created') : undefined;
   }
 
   private parseFinance(message: string): FinanceLog | undefined {

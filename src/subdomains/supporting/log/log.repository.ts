@@ -130,7 +130,20 @@ export class LogRepository extends BaseRepository<Log> {
   }
 
   // Filters valid = true so chart series skip spike/glitch snapshots; use getLatestFinancialLog for exact numeric values.
-  async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+  // Optional `after` keyset cursor is the id of the last row of the previous page (never a Date / created value).
+  // Ordering remains (created ASC, id ASC); the cursor comparison is a Postgres row-value `(created, id) > (...)`
+  // where `created` for `:afterId` is resolved in a correlated subquery at full timestamp(6) microsecond precision.
+  // That avoids round-tripping `created` through JS `Date` (ms only), which would truncate and re-include the cursor row.
+  // Main query runs first. Only when it returns empty with a set `after` does assertEmptyResultIsEndOfData run: a
+  // deleted cursor id would make the subquery NULL and the WHERE exclude every row, which callers would misread as
+  // end-of-data. Non-empty pages skip the existence check (no extra round-trip).
+  async getFinancialLogs(
+    from?: Date,
+    dailySample?: boolean,
+    to?: Date,
+    limit?: number,
+    after?: number, // id of the last row of the previous page; NEVER a Date/created value
+  ): Promise<Log[]> {
     if (dailySample) {
       const subQuery = this.createQueryBuilder('subLog')
         .select('MAX(subLog.id)', 'max_id')
@@ -143,27 +156,75 @@ export class LogRepository extends BaseRepository<Log> {
       let query = this.createQueryBuilder('log')
         .where(`log.id IN (${subQuery.getQuery()})`)
         .setParameters(subQuery.getParameters())
-        .orderBy('log.created', 'ASC');
+        .orderBy('log.created', 'ASC')
+        .addOrderBy('log.id', 'ASC');
 
       if (from) {
         query = query.andWhere('log.created >= :from', { from });
       }
+      if (to) {
+        query = query.andWhere('log.created <= :to', { to });
+      }
+      if (after != null) {
+        // Row-value compare; subquery resolves created at full DB precision so JS Date truncation cannot re-include
+        // the cursor row. Empty results with a set after are checked via assertEmptyResultIsEndOfData below.
+        query = query.andWhere(
+          '(log.created, log.id) > ((SELECT c.created FROM log c WHERE c.id = :afterId), :afterId)',
+          { afterId: after },
+        );
+      }
+      if (limit != null) {
+        query = query.limit(limit);
+      }
 
-      return query.getMany();
+      const rows = await query.getMany();
+      if (!rows.length && after != null) await this.assertEmptyResultIsEndOfData(after);
+      return rows;
     }
 
-    const where: FindOptionsWhere<Log> = {
-      system: 'LogService',
-      subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM,
-      severity: LogSeverity.INFO,
-      valid: true,
-    };
+    // QueryBuilder (not find/FindOptionsWhere): the row-value keyset on (created, id) cannot be expressed cleanly otherwise.
+    let query = this.createQueryBuilder('log')
+      .where('log.system = :system', { system: 'LogService' })
+      .andWhere('log.subsystem = :subsystem', { subsystem: FINANCIAL_DATA_LOG_SUBSYSTEM })
+      .andWhere('log.severity = :severity', { severity: LogSeverity.INFO })
+      .andWhere('log.valid = :valid', { valid: true })
+      .orderBy('log.created', 'ASC')
+      .addOrderBy('log.id', 'ASC');
 
-    if (from) {
-      where.created = MoreThanOrEqual(from);
+    if (from && to) {
+      query = query.andWhere('log.created >= :from AND log.created <= :to', { from, to });
+    } else if (from) {
+      query = query.andWhere('log.created >= :from', { from });
+    } else if (to) {
+      query = query.andWhere('log.created <= :to', { to });
     }
 
-    return this.find({ where, order: { created: 'ASC' } });
+    if (after != null) {
+      // Row-value compare; subquery resolves created at full DB precision so JS Date truncation cannot re-include
+      // the cursor row. Empty results with a set after are checked via assertEmptyResultIsEndOfData below.
+      query = query.andWhere(
+        '(log.created, log.id) > ((SELECT c.created FROM log c WHERE c.id = :afterId), :afterId)',
+        { afterId: after },
+      );
+    }
+
+    if (limit != null) {
+      query = query.take(limit);
+    }
+
+    const rows = await query.getMany();
+    if (!rows.length && after != null) await this.assertEmptyResultIsEndOfData(after);
+    return rows;
+  }
+
+  // After an empty main-query result with a keyset cursor, fail loud when the cursor id is gone: the row-value
+  // subquery would return NULL and `(created, id) > (NULL, :afterId)` is NULL in Postgres → WHERE excludes every
+  // row → silent empty result that callers misread as end-of-data. Only invoked when the main query already
+  // returned empty (and `after` is set), so non-empty pages pay no extra round-trip. Prefer an explicit error
+  // over that false EOF.
+  private async assertEmptyResultIsEndOfData(afterId: number): Promise<void> {
+    const exists = await this.createQueryBuilder('log').where('log.id = :afterId', { afterId }).getExists();
+    if (!exists) throw new Error(`Financial log cursor row ${afterId} no longer exists`);
   }
 
   // Resolves the rows the update would change, locking them until the surrounding transaction

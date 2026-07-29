@@ -614,8 +614,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         const candidates = this.attemptedReferencesNewestFirst(order);
         let rejectedCount = 0;
 
+        // A reference cannot be published before the order that reserved it existed; one day of margin
+        // covers venue-side clock skew and late re-publication. Never widen past the previous fixed
+        // 30-day window for very old orders.
+        const since = new Date(Math.max(Util.daysBefore(30).getTime(), Util.daysBefore(1, order.created).getTime()));
+
         for (const candidate of candidates) {
-          const info = await this.scryptService.getOrderStatus(candidate);
+          const info = await this.scryptService.getOrderStatus(candidate, since);
 
           // Absent, newest first: an accepted replacement may simply not be visible yet, while the order it
           // replaced still is. Falling through to that predecessor would report SENT on a reference the venue
