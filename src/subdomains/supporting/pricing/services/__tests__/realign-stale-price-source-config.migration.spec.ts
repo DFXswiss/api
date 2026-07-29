@@ -355,7 +355,9 @@ describeDb('RealignStalePriceSourceConfig migration (real Postgres reporting)', 
     expect(driftNotices(notices)).toEqual([]);
   });
 
-  it('stays silent when the rules already hold the intended state', async () => {
+  it('stays silent in an environment that was only ever seeded, where check1Source alone is NULL', async () => {
+    // This shape — check1Source NULL, the other three populated — is what pins the report to
+    // check1Source: re-keying it to any other check column makes this case report drift.
     await qr.query(`
       INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
       VALUES (17, NULL, 'maker', 'tether', 0.03), (42, NULL, 'islamic-coin', 'tether', 0.03)
