@@ -326,7 +326,10 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
     });
 
-    it('abandons a withdrawal once even its long bound has run out', async () => {
+    it('abandons a transfer once even its long bound has run out and the venue settles it', async () => {
+      // the bound alone is not enough: this asserts the pipeline's side of the contract, that an aged
+      // transfer whose integration confirms the cancellation does get abandoned. Whether a given venue can
+      // confirm one for a withdrawal at all is the integration's business — Scrypt, for one, cannot.
       const order = agedOrder(13 * 60, 'withdraw');
       expectResolution(order, UncertainOrderResolution.UNRESOLVED);
 

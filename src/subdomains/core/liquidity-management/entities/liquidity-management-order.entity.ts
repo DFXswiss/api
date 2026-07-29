@@ -68,8 +68,13 @@ const ABANDON_UNCERTAIN_MINUTES = {
   TRADE: 5,
   /**
    * Everything else: transfers, withdrawals, bridges, mints. Twice the slowest withdrawal observed, because
-   * the tail here is genuinely long — a bound near the median would abandon orders that are simply still
+   * the tail here is genuinely long — a bound near the median would reach orders that are simply still
    * running, and reissuing those is what actually moves funds twice.
+   *
+   * Note what this bound does NOT currently reach: reaching it only triggers a cancellation attempt, and
+   * the one venue that implements cancellation refuses it for withdrawals outright — there is no such thing
+   * as cancelling one there. So a Scrypt withdrawal still waits for a person, and this value governs the
+   * other transfer kinds and any venue that gains a cancellable withdrawal later.
    */
   TRANSFER: 12 * 60,
 };

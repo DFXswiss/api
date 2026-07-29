@@ -874,10 +874,10 @@ describe('ScryptService', () => {
       },
     );
 
-    it('does not cache a cancellation whose filled size is unreadable', async () => {
+    it.each(['', '   ', 'abc', undefined])('does not cache a cancellation whose filled size is %p', async (cumQty) => {
       // readers derive the fill with `parseFloat(...) || 0`, so such an entry would quietly claim nothing
       // was filled on every later lookup
-      stubCancel(cancelReport({ CumQty: '' }));
+      stubCancel(cancelReport({ CumQty: cumQty as unknown as string }));
 
       await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
 

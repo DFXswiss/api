@@ -398,7 +398,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
       // The venue once acknowledged this order and now cannot find it. That is not a failure — it may have
       // filled or been cancelled outside our view — so it goes to quarantine instead of releasing the rule,
-      // from where a human releases it or the caller's bound eventually gives it up.
+      // from where a human releases it or the caller's bound eventually attempts a cancellation whose confirmation can end it.
       if (e instanceof ScryptOrderNotFoundError) throw new OrderOutcomeUnknownException(e.message);
 
       // A rejection is a reply: the venue reached a verdict, so the order really did end.
@@ -483,8 +483,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * request against the same funds happens. But not forever: the manual path only accepts quarantined
    * orders, so an order nobody can ever observe would poll for good with no way out at all. Past the same
    * age at which the venue itself is considered to have lost an order, it goes to quarantine instead —
-   * still not declared failed here, and from there either released by a human or given up by the caller's
-   * own bound.
+   * still not declared failed here, and from there either released by a human or ended by a cancellation
+   * the caller's bound eventually attempts.
    */
   private waitOrQuarantine(order: LiquidityManagementOrder, reason: string): boolean {
     if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
@@ -503,8 +503,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * Ordered by the attempt suffix rather than by storage order, so it does not depend on how the list was
    * assembled. Deliberately does NOT include the next reference: that one has not been sent, and looking for
    * it would stop the search on an absence that means nothing — leaving the reference that WAS sent
-   * unchecked, and the order quarantined until its abandon bound gives up on a request that may well be
-   * live.
+   * unchecked, and the order quarantined until a cancellation the caller's bound attempts settles a request
+   * that may well be live.
    */
   private attemptedReferencesNewestFirst(order: LiquidityManagementOrder): CorrelationId[] {
     return [...order.allCorrelationIds].sort((a, b) => this.attemptNumber(order, b) - this.attemptNumber(order, a));
@@ -669,8 +669,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     // acted on them. Both become unknown outcomes.
     //
     // Over-classifying costs an operator a look at the venue; under-classifying is what moved money without
-    // a record. Since absence at the venue is not proof, such an order waits — for a human, or for its
-    // abandon bound to run out — rather than resolving itself here, deliberately the expensive direction,
+    // a record. Since absence at the venue is not proof, such an order waits — for a human, or for the
+    // venue to confirm a cancellation once its bound is reached — rather than resolving itself here,
+    // deliberately the expensive direction,
     // because the cheap one is the dangerous one.
     return new OrderOutcomeUnknownException(`Scrypt gave no confirmed outcome for the ${description}: ${e.message}`);
   }
@@ -689,7 +690,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const { correlationId } = order;
     // UNAVAILABLE, not UNRESOLVED: with no reference there is nothing to ask about, so the venue was never
     // asked. UNRESOLVED would mean it answered and had no record — a claim nobody made, and one the caller
-    // is entitled to abandon the order on once its bound expires. Only orders predating the reserve-before-
+    // is entitled to act on once its bound expires. Only orders predating the reserve-before-
     // send guarantee can reach this, and they wait for a person: with no reference there is nothing to
     // cancel either, so the automatic route out cannot confirm anything about them.
     if (!correlationId) return UncertainOrderResolution.UNAVAILABLE;

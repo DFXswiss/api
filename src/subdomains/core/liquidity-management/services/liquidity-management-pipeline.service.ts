@@ -493,8 +493,9 @@ export class LiquidityManagementPipelineService {
     // Always null in practice: a pending release routes to an earlier branch, so this path is only ever
     // reached for an order nobody had released when this pass read it. Narrowing on that absence is exactly
     // the point — an operator may write a release between the read and this write, and that release carries
-    // an audited reason and is owed one more venue answer. Without it, this write, the one resting on no
-    // evidence at all, would silently overwrite the one resting on a person.
+    // an audited reason and is owed one more venue answer. Without it, this write — which rests on the
+    // venue's cancellation but on no evidence about whether the request was ever sent — would silently
+    // overwrite the one resting on a person.
     const examined = order.notSentRecheckDue ?? null;
 
     order.abandonUncertain(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
