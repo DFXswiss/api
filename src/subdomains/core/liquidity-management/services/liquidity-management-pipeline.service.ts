@@ -325,8 +325,10 @@ export class LiquidityManagementPipelineService {
    * either confirms it knows the reference (back to IN_PROGRESS, the normal completion check takes over) or
    * demonstrably does not (FAILED, so the rule may plan anew from a fresh balance). Anything inconclusive
    * stays put — but not indefinitely: past the abandon bound for its kind of request it is given up as
-   * FAILED anyway, because a rule parked forever is the worse failure. Orders no integration can look up,
-   * and venues that cannot be reached at all, are the exceptions that keep waiting for a human.
+   * FAILED anyway, because a rule parked forever is the worse failure. The exceptions keep waiting for a
+   * human: orders no integration can look up, and anything the venue could not be asked about or not asked
+   * about completely — no reference to ask with, an unreachable venue, or a lookup that stopped with a
+   * reference left unasked.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
     // First: anything this process observed and could not write. Retried before new lookups, because an

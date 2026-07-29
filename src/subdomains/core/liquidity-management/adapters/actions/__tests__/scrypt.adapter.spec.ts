@@ -572,6 +572,17 @@ describe('ScryptAdapter', () => {
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
     });
 
+    it('reports UNRESOLVED when only superseded references remain unasked', async () => {
+      // the replacement was adopted earlier, so the reference it replaced is already established as dead.
+      // Its absence adds nothing, and counting it as unasked would pin the order in UNAVAILABLE for good —
+      // the permanent quarantine this whole path exists to end.
+      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
+      const order = createUncertainSellOrder();
+      order.updateCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
+    });
+
     it('reports a single unknown reference as UNRESOLVED — nothing was left unasked', async () => {
       // the ordinary case: one attempt, the venue answered about it, and there is no older reference the
       // lookup skipped. That is a complete answer, and the caller's bound may act on it.

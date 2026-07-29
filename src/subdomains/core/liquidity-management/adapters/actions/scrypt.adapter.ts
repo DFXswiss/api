@@ -596,10 +596,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * Ask Scrypt what happened to a quarantined order. Observes only — never re-sends.
    *
    * Only a matched reference can confirm a positive. A missing record confirms nothing on its own — Scrypt
-   * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined, released
-   * by a human if one looks and otherwise given up automatically once the caller's bound decides the request
-   * can no longer be live. An explicit rejection of every attempted reference is the one negative that does
-   * settle, and returns NOT_SENT.
+   * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined. From
+   * there a complete answer (UNRESOLVED) may be given up automatically once the caller's bound decides the
+   * request can no longer be live, while an incomplete one (UNAVAILABLE: nothing to ask with, an unreachable
+   * venue, or a reference left unasked) only ever ends with a human. An explicit rejection of every
+   * attempted reference is the one negative that does settle, and returns NOT_SENT.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
     const { correlationId } = order;
@@ -623,6 +624,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // exists at the venue in a cancelled state — checking oldest first would match that, report SENT and
         // leave the live replacement untracked while the completion check polls a superseded reference.
         const candidates = this.attemptedReferencesNewestFirst(order);
+        const currentAttempt = this.attemptNumber(order, order.correlationId);
         let rejectedCount = 0;
 
         // A reference cannot be published before the order that reserved it existed; one day of margin
@@ -641,13 +643,20 @@ export class ScryptAdapter extends LiquidityActionAdapter {
               `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
             );
 
-            // Stopping here leaves the older references unasked, and one of them may well be live — the
-            // predecessor of an invisible replacement usually is. That is an incomplete question, not a
-            // venue that answered nothing, and the caller must not retire the order on it: UNRESOLVED
-            // would let the bound abandon an order whose earlier attempt is still open at the venue.
-            const unasked = candidates.length - index - 1;
+            // Stopping here leaves the remaining references unasked, and the predecessor of an invisible
+            // replacement is very often the live one. That is an incomplete question rather than a venue
+            // that answered nothing, and the caller must not retire the order on it: UNRESOLVED would let
+            // the bound abandon an order whose earlier attempt is still open at the venue.
+            //
+            // Only references at least as current as the adopted one count. Anything older was already
+            // superseded when that adoption happened, so its absence adds nothing — and counting it would
+            // pin the order in UNAVAILABLE forever, which is the permanent quarantine this all exists to
+            // end.
+            const unasked = candidates
+              .slice(index + 1)
+              .filter((reference) => this.attemptNumber(order, reference) >= currentAttempt);
 
-            return unasked > 0 ? UncertainOrderResolution.UNAVAILABLE : UncertainOrderResolution.UNRESOLVED;
+            return unasked.length ? UncertainOrderResolution.UNAVAILABLE : UncertainOrderResolution.UNRESOLVED;
           }
 
           // A refused replacement never took effect and leaves its predecessor live. This is the only case in

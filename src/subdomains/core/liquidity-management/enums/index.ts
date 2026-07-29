@@ -47,9 +47,11 @@ export enum LiquidityManagementOrderStatus {
   // with no record is abandoned to FAILED once it has outlived the window in which its request could still
   // be in flight (ABANDON_UNRESOLVED_MINUTES, which differs for venue-internal trades and transfers).
   //
-  // Two cases deliberately keep waiting for a human instead, because nothing there is observed: an adapter
-  // that implements no `resolveUncertainOrder` at all, and a venue that stays unreachable (UNAVAILABLE
-  // rather than UNRESOLVED). Those still need `resolveUncertainOrderManually`.
+  // Everything short of a complete answer keeps waiting for a human instead, because nothing there is
+  // observed: an adapter that implements no `resolveUncertainOrder` at all, and anything the venue could
+  // not be asked about or not asked about completely — no reference to ask with, an unreachable venue, or
+  // a lookup that stopped with a reference left unasked (all UNAVAILABLE rather than UNRESOLVED). Those
+  // still need `resolveUncertainOrderManually`.
   UNCERTAIN = 'Uncertain',
 }
 
