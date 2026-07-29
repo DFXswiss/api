@@ -46,6 +46,17 @@ interface DailyFiatValue {
 export class CustodyService {
   private readonly logger = new DfxLogger(CustodyService);
 
+  /**
+   * Below this, a balance is no holding. Balances are plain floating point sums over `float`
+   * columns, so a closed position rarely lands on exact zero — a deposit and its matching
+   * withdrawal can leave a residue like 1e-16. Comparing against exact zero would let that dust
+   * pass for a holding: it would revive the interest of a position that is in fact closed, and
+   * report it as unpriced on days without a price. The bound is the eight decimals a balance is
+   * ever displayed with (CustodyAssetBalanceDtoMapper), so nothing visible is discarded — even
+   * for the priciest custody asset it is worth far less than a rounded rappen.
+   */
+  private static readonly BALANCE_DUST = 1e-8;
+
   constructor(
     private readonly userService: UserService,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
@@ -109,7 +120,7 @@ export class CustodyService {
     const savingBalance = savingBalances[0];
 
     const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
-    if (savingBalance && savingPrincipal > 0) {
+    if (savingBalance && savingPrincipal > CustodyService.BALANCE_DUST) {
       try {
         // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
         const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
@@ -418,7 +429,7 @@ export class CustodyService {
     if (!savingAsset || !interest) return balances;
 
     const principal = balances.get(savingAsset.id) ?? 0;
-    if (principal <= 0) return balances;
+    if (principal <= CustodyService.BALANCE_DUST) return balances;
 
     const withInterest = new Map(balances);
     withInterest.set(savingAsset.id, principal + interest);
@@ -597,7 +608,7 @@ export class CustodyService {
       // holding. A non-finite balance keeps poisoning the sum exactly as before rather than
       // being quietly dropped here — that is a data fault and belongs where it is already
       // handled, not hidden behind this loop.
-      if (Math.abs(balance) < 1e-8) continue;
+      if (Math.abs(balance) < CustodyService.BALANCE_DUST) continue;
 
       const price =
         latestPriceByAsset.get(assetId) ?? this.findSubstitutePrice(assetId, substituteByAsset, latestPriceByAsset);
