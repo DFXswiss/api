@@ -9,15 +9,10 @@ import { GsTriggerType } from 'src/subdomains/generic/gs/dto/gs-trigger-type.enu
 import { GsController } from 'src/subdomains/generic/gs/gs.controller';
 import { GsService } from 'src/subdomains/generic/gs/gs.service';
 
-// Unit-level regression coverage for `GsController`'s private `logAndCheckTrigger` helper
-// (called from both `getDbData` and `getExtendedData`), exercised against the REAL controller —
-// unlike `gs.controller.e2e.spec.ts`, which cannot bootstrap the real `GsController` through
-// NestJS' HTTP pipeline: `RoleGuard()` / `UserActiveGuard()` bake already-instantiated guard
-// objects into `@UseGuards()` at controller-decoration time, so a fresh `Test.overrideGuard()`
-// call from a test module can't target them. Guards are a framework layer wrapped around the
-// controller, not part of the method itself, so a direct `new GsController(service)` plus
-// a plain method call sidesteps that problem entirely and exercises the actual production code
-// path this feature touches.
+// Direct regression coverage for `GsController`'s private `logAndCheckTrigger` helper (called
+// from both handlers). Calling the real controller without the NestJS wrapper lets this suite
+// assert the synchronous audit/service side effects before the returned Promise settles. The
+// E2E suite separately covers both handlers through NestJS routing and exception mapping.
 describe('GsController', () => {
   let service: DeepMocked<GsService>;
   let controller: GsController;
@@ -56,26 +51,17 @@ describe('GsController', () => {
   for (const { name, call, serviceCall } of handlers) {
     describe(name, () => {
       it('rejects a request without trigger, logs first, and never calls the GS service', async () => {
-        const started = performance.now();
-        let caught: unknown;
-        try {
-          await call(query({}));
-        } catch (e) {
-          caught = e;
-        }
-        const elapsed = performance.now() - started;
+        const promise = call(query({}));
 
-        expect(caught).toBeInstanceOf(BadRequestException);
-        expect((caught as BadRequestException).message).toBe('Trigger type is required');
-        // Structural invariant: audit line is emitted before rejection, service is never entered.
+        // Structural invariant: audit line is emitted and service is never entered before rejection settles.
         expect(verboseSpy).toHaveBeenCalledTimes(1);
         expect(verboseSpy).toHaveBeenCalledWith(
           'GS db call: table=asset, identifier=missing, trigger=missing, role=Admin',
         );
         expect(serviceCall()).not.toHaveBeenCalled();
-        // Rejection path is synchronous (no SettingService/DB await). Keep a modest SLA so
-        // a regression that re-introduces awaited work fails the suite without relying on load.
-        expect(elapsed).toBeLessThan(1000);
+
+        await expect(promise).rejects.toBeInstanceOf(BadRequestException);
+        await expect(promise).rejects.toThrow('Trigger type is required');
       });
 
       it('accepts trigger=Manual', async () => {
