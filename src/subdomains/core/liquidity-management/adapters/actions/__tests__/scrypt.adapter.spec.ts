@@ -469,7 +469,7 @@ describe('ScryptAdapter', () => {
       } as Partial<LiquidityManagementOrder>);
     }
 
-    it('confirms only once the venue has settled every reference the order ever sent', async () => {
+    it('confirms only once the venue has settled every reference the order ever claimed', async () => {
       const cancelIfOutstanding = jest
         .spyOn(scryptService, 'cancelIfOutstanding')
         .mockResolvedValue(ScryptCancellation.SETTLED);
@@ -564,8 +564,9 @@ describe('ScryptAdapter', () => {
     it.each([[undefined], [null]])(
       'reports UNAVAILABLE when the reference is %p — there was nothing to ask about',
       async (correlationId: string | null | undefined) => {
-        // UNRESOLVED would say the venue answered and had no record, and the caller may abandon an order on
-        // that once its bound expires. With no reference the venue was never asked at all, so the order has
+        // UNRESOLVED would say the venue answered and had no record, which the caller is entitled to act on
+        // once its bound expires — abandoning still needs a settled cancellation. With no reference the venue
+        // was never asked at all, so the order has
         // to keep waiting for a person rather than be failed on a lookup that never ran.
         const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus');
         const order = createUncertainSellOrder({ correlationId, previousCorrelationIds: null });

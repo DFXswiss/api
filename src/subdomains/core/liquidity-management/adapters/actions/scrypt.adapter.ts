@@ -331,7 +331,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     if (executed.length) order.errorMessage = `${order.errorMessage} (executed at Scrypt under ${executed.join(', ')})`;
 
     this.logger.info(
-      `Order ${order.id}: Scrypt confirmed none of its references can execute any more${
+      `Order ${order.id}: Scrypt answered for every reference that nothing is left to execute${
         executed.length ? `; ${executed.join(', ')} had filled` : ''
       }`,
     );
@@ -437,7 +437,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * second request next to it.
    *
    * The barrier is meant to hold. What eventually ends such an order is not this method giving way, but the
-   * caller cancelling every reference it ever sent — once the venue confirms none of them can execute, the
+   * caller cancelling every reference it ever claimed — once the venue answers that none of them can
+   * execute, the
    * claim is settled and there is nothing left to block on.
    */
   private async adoptLiveReplacement(order: LiquidityManagementOrder): Promise<boolean> {

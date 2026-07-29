@@ -431,7 +431,7 @@ export class LiquidityManagementPipelineService {
           // is the same answer as before but reached for a stated reason.
           if (!(await actionIntegration.cancelOutstanding?.(order))) continue;
 
-          const because = 'the venue confirmed none of its references can execute any more';
+          const because = 'the venue answered for every reference that nothing is left to execute';
           if (await this.abandonUncertainOrder(order, because)) anyChanged = true;
         }
         // Otherwise — an order still inside the window in which its request could be live — nothing changes

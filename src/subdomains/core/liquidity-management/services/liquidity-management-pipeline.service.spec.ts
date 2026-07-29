@@ -238,7 +238,7 @@ describe('LiquidityManagementPipelineService', () => {
 
     // both allowlist entries, so dropping or mistyping either one is caught
     it.each(['sell', 'buy'])(
-      'abandons a %s the venue has had no record of past its bound, so its rule is not blocked forever',
+      'abandons a %s past its bound once the venue settles every reference, so its rule is not blocked forever',
       async (command) => {
         // the failure this prevents: nobody releases the order by hand, so it stays UNCERTAIN indefinitely
         // and the rule behind it never plans again — the venue silently stops being served
@@ -249,7 +249,7 @@ describe('LiquidityManagementPipelineService', () => {
 
         expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
         // the record must not claim an observation nobody made
-        expect(order.errorMessage).toContain('none of its references can execute');
+        expect(order.errorMessage).toContain('answered for every reference');
       },
     );
 

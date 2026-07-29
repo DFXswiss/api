@@ -48,7 +48,8 @@ export enum LiquidityManagementOrderStatus {
   // be in flight (ABANDON_UNCERTAIN_MINUTES, which differs for venue-internal trades and transfers).
   //
   // Giving up is never concluded from the clock alone: past the bound the venue is asked to cancel every
-  // reference the order sent, and only its confirmation that none can still execute makes FAILED a fact.
+  // reference the order claimed — sent or merely reserved — and only its answer that none can still execute
+  // permits FAILED.
   // A venue that will not settle them, and an adapter that cannot cancel at all, keep waiting — for
   // `resolveUncertainOrderManually`.
   UNCERTAIN = 'Uncertain',
