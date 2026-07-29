@@ -29,12 +29,16 @@ export class CustodyAssetBalanceDto {
   @ApiProperty({ description: 'Total value in fiat values' })
   value: CustodyFiatValueDto;
 
-  @ApiPropertyOptional({ description: 'Accrued interest in asset units (only present for interest-bearing positions)' })
+  @ApiPropertyOptional({
+    description:
+      'Accrued interest in asset units, already folded into `balance` above — a breakdown of it, not an amount to add on top (only present for interest-bearing positions)',
+  })
   interest?: number;
 
   @ApiPropertyOptional({
     type: CustodyFiatValueDto,
-    description: 'Fiat value of the accrued interest (only present for interest-bearing positions)',
+    description:
+      'Fiat value of the accrued interest, already folded into `value` above — a breakdown of it, not an amount to add on top (only present for interest-bearing positions)',
   })
   interestValue?: CustodyFiatValueDto;
 }
