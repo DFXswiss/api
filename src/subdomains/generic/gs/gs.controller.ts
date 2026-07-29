@@ -85,6 +85,11 @@ export class GsController {
   // manually or by an automation. The setting is default-off so a forgotten config entry can
   // never self-activate enforcement. `identifier`/`trigger` use the `missing` label (not a
   // value fallback) so omissions stay visible in the log instead of going blank.
+  // The setting lookup (`getObjCached`) is cached because this path is hot. A change to
+  // `gsTriggerEnforcement` therefore takes effect only after up to 5 minutes (the
+  // `CachedRepository` cache-reset period; see `EVERY_5_MINUTES` in
+  // `src/shared/repositories/cached.repository.ts`) — relevant when turning enforcement
+  // back off during an incident.
   private async logAndCheckTrigger(query: DbQueryBaseDto, jwt: JwtPayload): Promise<void> {
     const table = Util.sanitizeLogValue(query.table, 64);
     const identifier = query.identifier ? Util.sanitizeLogValue(query.identifier, 64) : 'missing';
