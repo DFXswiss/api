@@ -305,9 +305,8 @@ describe('UserDataService', () => {
       const userData = Object.assign(new UserData(), {
         id: 397899,
         status: UserDataStatus.ACTIVE,
-        // legacy stored rows predate the lowercase-on-write normalization; the DTO transform
-        // guarantees the incoming address is already lowercased, so the stored side is the one
-        // the case-insensitive comparison has to carry
+        // mixed case belongs on the stored side: legacy rows predate lowercase-on-write, while the
+        // DTO transform already lowercases anything incoming
         mail: 'User@Example.com',
         users: [],
       });
@@ -322,8 +321,7 @@ describe('UserDataService', () => {
       expect(userDataRepo.update).not.toHaveBeenCalled();
     });
 
-    // pins the ordering the unchanged-address short-circuit depends on: it sits after checkMail, so
-    // a merged account still gets its master-code redirect instead of a silent Ok (#4092)
+    // pins that the unchanged-address short-circuit sits after checkMail (#4092)
     it('redirects a merged account even when the submitted address is the one already stored', async () => {
       const master = Object.assign(new UserData(), {
         id: 398950,
@@ -450,8 +448,7 @@ describe('UserDataService', () => {
       expect(userDataRepo.update).not.toHaveBeenCalled();
     });
 
-    // literal counts, not the service constant: expressing the loops in terms of the constant would
-    // keep both tests green if the cap were lowered to 1, which would lock a user out on one typo
+    // literal counts, not the service constant — in terms of the constant these stay green at a cap of 1
     it('still accepts the correct code on the fifth and last allowed attempt', async () => {
       const userData = buildUserData();
 

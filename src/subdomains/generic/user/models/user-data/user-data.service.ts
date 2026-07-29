@@ -781,11 +781,9 @@ export class UserDataService {
 
     await this.checkMail(userData, dto.mail);
 
-    // Re-submitting the address the account already has is a no-op, not a change. The 2FA gate
-    // below guards a change of mail; demanding it for an unchanged address turns a client retry
-    // into a dead end. Runs after checkMail so a merged account still gets its master-code redirect.
-    // Any pending change is dropped: this call states the address should stay as it is, and the Ok
-    // below would otherwise report a terminal state that an outstanding code could still overturn.
+    // Must stay after checkMail, so a merged account still gets its master-code redirect (#4092).
+    // Drops any pending change: the Ok below would otherwise report a terminal state that an
+    // outstanding verification code could still overturn.
     if (Util.equalsIgnoreCase(userData.mail, dto.mail)) {
       this.secretCache.delete(userData.id);
       return UpdateMailStatus.Ok;
@@ -818,8 +816,7 @@ export class UserDataService {
   async verifyUserMail(userData: UserData, token: string): Promise<UserData> {
     const cacheEntry = this.secretCache.get(userData.id);
 
-    // The code is a 6-digit number, so the guessing window has to be bounded on both axes: a try
-    // count (mirroring the 2FA flow) and the expiry that was so far only stored, never enforced.
+    // 6-digit code: the guessing window needs both a try count and the expiry actually enforced.
     const isUsable =
       cacheEntry && cacheEntry.tryCount < MailVerificationMaxTryCount && cacheEntry.expiryDate > new Date();
     if (cacheEntry && !isUsable) this.secretCache.delete(userData.id);
@@ -881,10 +878,8 @@ export class UserDataService {
   private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
     mail = mail?.toLowerCase();
 
-    // Read before write, and log before the column is overwritten: the change log is the event of
-    // record for this snapshot column, so a failed log write must leave the old address in place
-    // (CONTRIBUTING, "Auditable mutations"). Only an actual change is logged — reaching here with a
-    // null oldMail is an initial assignment, which the log never recorded.
+    // Logged before the column is overwritten, so a failed log write leaves the old address in place
+    // (CONTRIBUTING, "Auditable mutations"). A null oldMail is an initial assignment, not a change.
     const oldMail = userData.mail;
     if (oldMail) await this.kycLogService.createMailChangeLog(userData, oldMail, mail);
 
