@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import { verifyMessage } from 'ethers/lib/utils';
-import { Configuration } from '../../../../../../config/config';
+import { Configuration } from 'src/config/config';
 
 // Test-only private key — never a real wallet; exists solely in this unit test.
 const wallet = new ethers.Wallet('0x' + '01'.repeat(32));
