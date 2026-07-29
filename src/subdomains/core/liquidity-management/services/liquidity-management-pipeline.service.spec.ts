@@ -608,6 +608,46 @@ describe('LiquidityManagementPipelineService', () => {
         await service['resolveUncertainOrders']();
         expect(service['uncertainResolveAttempts'].size).toBe(0);
       });
+
+      it('scales the cooldown interval with the order age, at the rate the formula states', async () => {
+        // Pins `ageMs / 10` from both sides. The wait for a 100-minute-old order is only satisfied once
+        // elapsed >= (100 min + elapsed) / 10, i.e. at 11 min 6.7 s — so 11 minutes is still inside it and
+        // 11 min 20 s is past it. A one-sided assertion would let the rate drift unnoticed: with `ageMs / 5`
+        // the order simply stays in cooldown and a lower-bound-only test keeps passing.
+        const resolveUncertainOrder = stubResolver();
+        const order = uncertainOrder({ created: new Date(Date.now() - 100 * 60_000) });
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+
+        await service['resolveUncertainOrders']();
+
+        jest.advanceTimersByTime(11 * 60_000);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(20_000);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
+      });
+
+      it('caps the cooldown interval at thirty minutes no matter how old the order is', async () => {
+        // Pins the cap to the millisecond. An 8-hour-old order's uncapped wait would be 48 minutes at the
+        // first pass and 51 by the time of the boundary check — either way far past the cap, so a lookup at
+        // exactly 30 minutes can only come from it. Requiring no lookup a millisecond earlier leaves the cap
+        // no other whole-millisecond value to take, and landing on the boundary pins `<` against `<=`.
+        const resolveUncertainOrder = stubResolver();
+        const order = uncertainOrder({ created: new Date(Date.now() - 8 * 60 * 60_000) });
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+
+        await service['resolveUncertainOrders']();
+
+        jest.advanceTimersByTime(30 * 60_000 - 1);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(1);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
+      });
     });
   });
 
