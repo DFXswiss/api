@@ -50,10 +50,12 @@ const ORDER_LOST_AFTER_MINUTES = 60;
 //
 // That reading is an inference, not a documented guarantee — the protocol spec lists the reason without
 // defining it, so "never existed" cannot be distinguished from "not processed yet" from the value alone.
-// What it rests on: the caller only cancels an order it has already failed to find via a separate status
-// lookup, and only once that order has outlived the window in which its request could still be in flight.
-// Two independent negative answers plus that age are the strongest evidence this protocol offers. Every
-// other reason (too late, rate limited, already pending) settles nothing and is waited out.
+// What it rests on: the caller only cancels an order that has already failed a status lookup and has
+// outlived the window in which its request could still be in flight. Note what that does and does not
+// cover — the lookup stops at the first reference the venue does not show, so for every other reference of
+// the same order this refusal is the only negative answer there is. Age plus one refusal is the strongest
+// evidence this protocol offers. Every other reason (too late, rate limited, already pending) settles
+// nothing and is waited out.
 const SCRYPT_CANCEL_REJECTED = 'CancelRejected';
 const SCRYPT_UNKNOWN_ORDER = 'UnknownOrder';
 
@@ -913,9 +915,9 @@ export class ScryptService extends PricingProvider {
         return ScryptCancellation.SETTLED;
       }
 
-      // The venue does not know this reference. Taken together with the status lookup that already failed
-      // to find it and with the order's age, that is treated as settled — see SCRYPT_UNKNOWN_ORDER for why
-      // this is an inference rather than a guarantee.
+      // The venue does not know this reference. Taken together with the order's age and its failed status
+      // lookup, that is treated as settled — see SCRYPT_UNKNOWN_ORDER for what that evidence covers and
+      // why it is an inference rather than a guarantee.
       //
       // Unless the same report also reports a fill, in which case it contradicts itself: an order the venue
       // has no record of cannot have traded. Nothing may be concluded from a report that disagrees with

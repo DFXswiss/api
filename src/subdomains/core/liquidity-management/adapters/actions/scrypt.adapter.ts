@@ -491,7 +491,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   /**
-   * Every reference this order has actually put on the wire, newest first.
+   * Every reference this order has claimed — sent or merely reserved — newest first.
    *
    * Ordered by the attempt suffix rather than by storage order, so it does not depend on how the list was
    * assembled. Deliberately does NOT include the next reference: that one has not been sent, and looking for
@@ -753,9 +753,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // otherwise is what would let the rule reissue a request that later materialises — so this reports
       // only what it saw, and never resolves the order on absence alone.
       //
-      // The caller bounds the wait: an order stuck here long enough is abandoned rather than held for an
-      // operator who may never come. That bound belongs there, not here — this method's job is to report
-      // what the venue said, not to decide how long a rule may stay blocked.
+      // The caller bounds the wait: an order stuck here long enough gets a cancellation attempt rather than
+      // being held for an operator who may never come, and only that attempt's confirmation abandons it.
+      // Both belong there, not here — this method's job is to report what the venue said, not to decide how
+      // long a rule may stay blocked or when giving up is safe.
       this.logger.warn(
         `Scrypt still has no record of reference ${correlationId} for order ${order.id} — keeping it quarantined`,
       );
