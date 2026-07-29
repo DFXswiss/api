@@ -43,8 +43,11 @@ export interface LiquidityActionIntegration {
    * longer happen, this removes the possibility — cancelling is the opposite of re-sending, so it is the one
    * write that is always safe against an outcome nobody could observe.
    *
-   * Returns true only when the venue has CONFIRMED there is nothing left to execute. An unconfirmed cancel
-   * must return false: it may well have taken effect, but "may well" is what quarantine already means.
+   * Returns true only when the venue has answered for every reference that nothing is left to execute. Read
+   * "answered" precisely: a cancellation it accepts, or an order it reports terminal, settles the question
+   * outright — while a refusal saying it has no such order is an inference from the venue's own words, not a
+   * statement about execution. An unconfirmed cancel must return false: it may well have taken effect, but
+   * "may well" is what quarantine already means.
    * Integrations that cannot cancel omit this, and their orders keep waiting for a person.
    */
   cancelOutstanding?(order: LiquidityManagementOrder): Promise<boolean>;

@@ -272,7 +272,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    *
    * All-or-nothing on purpose: one reference the venue would not settle is enough to keep the whole order
    * quarantined, because the funds a rule would get back are the same funds that reference could still
-   * spend. Withdrawals are not cancellable this way and are left alone — they take the caller's ordinary
+   * spend. Every reference is still asked about — a refusal on one is no reason to leave the others without
+   * an attempt, since those are precisely the ones that could be sitting open in the book. Withdrawals are not cancellable this way and are left alone — they take the caller's ordinary
    * route instead.
    *
    * The replan that follows reads the venue's balance, which is pushed rather than polled, so a fill that
@@ -295,6 +296,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const [from, to] = order.action.command === ScryptAdapterCommands.SELL ? [asset, tradeAsset] : [tradeAsset, asset];
 
     const executed: CorrelationId[] = [];
+    let unsettled = 0;
 
     for (const reference of references) {
       const outcome = await this.scryptService.cancelIfOutstanding(reference, from, to);
@@ -312,12 +314,16 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         continue;
       }
 
+      // Counted, not returned on. Leaving the loop here would leave every older reference without so much
+      // as a cancellation attempt — and those are exactly the ones that can sit open in the book while the
+      // newest keeps refusing to settle. Ask about all of them, then decide.
+      unsettled++;
       this.logger.warn(
         `Order ${order.id}: Scrypt would not settle ${reference}, so it may still execute — keeping the order quarantined`,
       );
-
-      return false;
     }
+
+    if (unsettled) return false;
 
     // Which reference filled is the one thing an abandoned order can no longer say for itself — its status
     // becomes FAILED and it books no output. The venue's own transaction record carries the money side, but

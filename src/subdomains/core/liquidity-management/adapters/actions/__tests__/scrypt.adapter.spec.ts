@@ -492,6 +492,22 @@ describe('ScryptAdapter', () => {
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
     });
 
+    it('still cancels the older references when the newest one will not settle', async () => {
+      // leaving the loop at the first refusal would leave exactly those references without an attempt —
+      // and they are the ones that could be sitting open in the book
+      const cancelIfOutstanding = jest
+        .spyOn(scryptService, 'cancelIfOutstanding')
+        .mockImplementation(async (id: string) =>
+          id === 'dfx-lm-4711-1' ? ScryptCancellation.UNCONFIRMED : ScryptCancellation.SETTLED,
+        );
+      const order = cancellableOrder();
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+      expect(cancelIfOutstanding).toHaveBeenCalledWith('dfx-lm-4711-1', 'EUR', 'USDT');
+      expect(cancelIfOutstanding).toHaveBeenCalledWith('dfx-lm-4711', 'EUR', 'USDT');
+    });
+
     it('never confirms an order that has no reference at all — nothing was asked', async () => {
       // an empty loop would otherwise fall straight through to "all settled", abandoning the order on a
       // confirmation nobody gave
