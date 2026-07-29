@@ -31,11 +31,11 @@
  * one means the stored configuration has drifted away from what this migration targets, which
  * would otherwise be recorded as applied with no signal.
  *
- * `down` carries no such check. The end state it wants is "restored", which a freshly seeded row
- * does not satisfy and never did — so any check keyed on the check columns alone reports a revert
- * in an environment that legitimately has nothing to revert. Excluding that case is possible, but
- * only by hard-coding the seeded shape here, which pins this migration to seed data that changes
- * independently of it. A bare `down` was preferred over that coupling.
+ * `down` carries no such check. The only end-state predicate that separates a row it failed to
+ * restore from a freshly seeded one — every check column still NULL — is exactly the predicate its
+ * own statements consume, so a check on it could never fire. Broadening it to `check1Source` alone,
+ * the way `up`'s check is broadened past its guard, would instead flag freshly seeded rows, which
+ * legitimately have nothing to revert.
  *
  * @class
  * @implements {MigrationInterface}

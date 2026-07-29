@@ -104,8 +104,9 @@ describe('RealignStalePriceSourceConfig migration', () => {
   };
 
   // A cross-check re-pointed by hand after this migration was written. Each case deviates from the
-  // expected configuration in exactly one column, so every predicate of the up() guard is
-  // load-bearing: drop any one of them and the corresponding case starts matching.
+  // expected configuration in exactly one check column, so every check-column predicate of the
+  // up() guard is load-bearing: drop any one of them and the corresponding case starts matching.
+  // The id predicates are pinned separately, by the unrelated-rule cases below.
   const singleColumnDeviations = (
     source: string,
     asset: string,
@@ -214,6 +215,31 @@ describe('RealignStalePriceSourceConfig migration', () => {
     });
 
     it('does not inject a configuration these rules never had, even on down', async () => {
+      const before = rules();
+
+      await migration.up({ query });
+      await migration.down({ query });
+
+      expect(rules()).toEqual(before);
+    });
+  });
+
+  // Both statements are scoped by id as well as by value. Without that scoping down() would stamp
+  // a cross-check onto any rule that happens to have none — and a large share of the real table
+  // does — so the id predicates need pinning independently of the check-column ones.
+  describe('against unrelated rules', () => {
+    it('up leaves a rule that merely shares the retired configuration alone', async () => {
+      insertRule(98, 'Binance', 'MKR', 'USDT', 0.03);
+      insertRule(99, 'Kucoin', 'ISLM', 'USDT', 0.03);
+      const before = rules();
+
+      await migration.up({ query });
+
+      expect(rules()).toEqual(before);
+    });
+
+    it('down does not stamp a cross-check onto an unrelated rule that has none', async () => {
+      insertRule(99, null, null, null, null);
       const before = rules();
 
       await migration.up({ query });
@@ -385,9 +411,14 @@ describeDb('RealignStalePriceSourceConfig migration (real Postgres reporting)', 
     expect(driftNotices(notices)).toEqual([]);
   });
 
-  it('stays silent on down in an environment that was only ever seeded', async () => {
+  it('leaves a seeded environment untouched and silent on down', async () => {
     // down() carries no report precisely because this shape has nothing to revert; an end-state
-    // check keyed on check1Source alone would wrongly flag it as drift.
+    // check keyed on check1Source alone would wrongly flag it as drift. The row assertion is what
+    // makes the fixture load-bearing — the notice assertion alone would hold for any fixture.
+    const seeded = [
+      { id: 17, check1Source: null, check1Asset: 'maker', check1Reference: 'tether', check1Limit: 0.03 },
+      { id: 42, check1Source: null, check1Asset: 'islamic-coin', check1Reference: 'tether', check1Limit: 0.03 },
+    ];
     await qr.query(`
       INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
       VALUES (17, NULL, 'maker', 'tether', 0.03), (42, NULL, 'islamic-coin', 'tether', 0.03)
@@ -395,6 +426,10 @@ describeDb('RealignStalePriceSourceConfig migration (real Postgres reporting)', 
 
     const notices = await captureNotices(() => migration.down(qr));
 
+    const after = await qr.query(
+      `SELECT "id", "check1Source", "check1Asset", "check1Reference", "check1Limit" FROM "price_rule" ORDER BY "id"`,
+    );
+    expect(after).toEqual(seeded);
     expect(driftNotices(notices)).toEqual([]);
   });
 });
