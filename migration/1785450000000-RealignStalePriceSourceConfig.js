@@ -4,24 +4,27 @@
  */
 
 /**
- * Realign two pieces of pricing configuration that can no longer be satisfied.
+ * Remove the cross-check from two price rules whose comparison market no longer trades.
  *
- * A deviation check can only pass while its comparison market still quotes. Once that market
- * stops quoting, the check never clears, the rule is never written back, and the price ages out
- * for every consumer. Where that has happened the check is removed rather than widened, so the
- * remaining source is used as-is instead of a tolerance being stretched to cover a gap.
+ * A rule only persists a refreshed price once its deviation check clears. Where the configured
+ * comparison market has stopped trading it still answers with its last price, frozen at the
+ * moment it halted, so the gap against the live primary source widens indefinitely and the check
+ * can never clear. The rule is then never written back and its price ages out for every consumer.
  *
- * Separately, an entry that is neither buyable nor sellable is taken out of the recurring payment
- * pricing set; there is nothing for a price on it to serve.
+ * The checks are removed rather than widened: the gap is not a tolerance that needs stretching,
+ * and no limit wide enough to cover a frozen quote would still reject a wrong one. Rules without
+ * a cross-check are an established configuration here. A third rule shows the same symptom but
+ * its comparison market is still trading and the deviation it reports is genuine, so that check
+ * is deliberately left in place.
  *
- * Every statement is conditional on the state this migration was written against, so it is
- * idempotent and becomes a no-op wherever the configuration already differs.
+ * Both directions are guarded on the exact state they expect, so `up` no-ops where the
+ * configuration already differs and `down` only reverses rows that `up` actually changed.
  *
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class RealignStalePriceSourceConfig1785341400000 {
-  name = 'RealignStalePriceSourceConfig1785341400000';
+module.exports = class RealignStalePriceSourceConfig1785450000000 {
+  name = 'RealignStalePriceSourceConfig1785450000000';
 
   /**
    * @param {QueryRunner} queryRunner
@@ -39,6 +42,7 @@ module.exports = class RealignStalePriceSourceConfig1785341400000 {
         AND "check1Source" = 'Binance'
         AND "check1Asset" = 'MKR'
         AND "check1Reference" = 'USDT'
+        AND "check1Limit" = 0.03
     `);
 
     await queryRunner.query(`
@@ -51,15 +55,7 @@ module.exports = class RealignStalePriceSourceConfig1785341400000 {
         AND "check1Source" = 'Kucoin'
         AND "check1Asset" = 'ISLM'
         AND "check1Reference" = 'USDT'
-    `);
-
-    await queryRunner.query(`
-      UPDATE "asset"
-      SET "paymentEnabled" = false
-      WHERE "id" = 261
-        AND "paymentEnabled" = true
-        AND "buyable" = false
-        AND "sellable" = false
+        AND "check1Limit" = 0.03
     `);
   }
 
@@ -70,13 +66,6 @@ module.exports = class RealignStalePriceSourceConfig1785341400000 {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
     await queryRunner.query(`
-      UPDATE "asset"
-      SET "paymentEnabled" = true
-      WHERE "id" = 261
-        AND "paymentEnabled" = false
-    `);
-
-    await queryRunner.query(`
       UPDATE "price_rule"
       SET "check1Source" = 'Kucoin',
           "check1Asset" = 'ISLM',
@@ -84,6 +73,9 @@ module.exports = class RealignStalePriceSourceConfig1785341400000 {
           "check1Limit" = 0.03
       WHERE "id" = 42
         AND "check1Source" IS NULL
+        AND "check1Asset" IS NULL
+        AND "check1Reference" IS NULL
+        AND "check1Limit" IS NULL
     `);
 
     await queryRunner.query(`
@@ -94,6 +86,9 @@ module.exports = class RealignStalePriceSourceConfig1785341400000 {
           "check1Limit" = 0.03
       WHERE "id" = 17
         AND "check1Source" IS NULL
+        AND "check1Asset" IS NULL
+        AND "check1Reference" IS NULL
+        AND "check1Limit" IS NULL
     `);
   }
 };
