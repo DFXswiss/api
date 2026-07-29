@@ -529,6 +529,36 @@ describe('ScryptService', () => {
     expect((service as any).executionReports.get('X')).toEqual(liveTerminal);
   });
 
+  it('passes a caller-supplied since through to the venue request as StartDate', async () => {
+    // the caller side of this is covered elsewhere (scrypt.adapter.spec.ts); this covers the receiving side —
+    // a mutation that drops `since` and always fetches the fixed 30-day window would pass unnoticed otherwise
+    (instance as any).fetch.mockClear();
+    const since = new Date('2026-07-01T00:00:00.000Z');
+
+    await (service as any).getOrderStatus('ord-since-1', since);
+
+    expect((instance as any).fetch).toHaveBeenCalledWith(
+      ScryptMessageType.EXECUTION_REPORT,
+      expect.objectContaining({ StartDate: since.toISOString() }),
+    );
+  });
+
+  it('falls back to the fixed thirty-day window when no since is given', async () => {
+    // guards the `since ?? Util.daysBefore(30)` default; the bound is derived from "now", so pin it from both
+    // sides instead of asserting an exact timestamp
+    (instance as any).fetch.mockClear();
+    const earliest = Util.daysBefore(30);
+
+    await (service as any).getOrderStatus('ord-since-2');
+
+    const latest = Util.daysBefore(30);
+    const [, filters] = (instance as any).fetch.mock.calls[0];
+    const startDate = new Date((filters as Record<string, unknown>).StartDate as string);
+
+    expect(startDate.getTime()).toBeGreaterThanOrEqual(earliest.getTime());
+    expect(startDate.getTime()).toBeLessThanOrEqual(latest.getTime());
+  });
+
   it('constructor warm-up BalanceTransaction fetch goes through the terminal-aware guard', async () => {
     const now = new Date().toISOString();
     const terminalRecord = {
