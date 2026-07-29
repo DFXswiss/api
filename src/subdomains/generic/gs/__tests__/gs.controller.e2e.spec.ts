@@ -222,7 +222,7 @@ describe('GsController e2e (NestJS pipeline)', () => {
   });
 });
 
-describe('GsController e2e (db trigger requirement)', () => {
+describe('GsController e2e (db query DTO validation)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {

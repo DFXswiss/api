@@ -62,7 +62,7 @@ describe('GsController', () => {
 
   for (const { name, call, serviceCall } of handlers) {
     describe(name, () => {
-      it('rejects a request without trigger when the check is enabled, and logs table/identifier/trigger as missing', async () => {
+      it('rejects a request without trigger when the check is enabled, and logs the table plus missing labels for identifier and trigger', async () => {
         mockTriggerEnforcement(true);
 
         let caught: unknown;
