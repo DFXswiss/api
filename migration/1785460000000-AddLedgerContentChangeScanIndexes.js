@@ -40,15 +40,20 @@
  * (~4350 rows/day), and writers retry on lock timeout rather than losing data.
  *
  * Tables and index names:
- *   trading_order              → IDX_trading_order_content_change_scan
- *   crypto_input               → IDX_crypto_input_content_change_scan
- *   bank_tx                    → IDX_bank_tx_content_change_scan
- *   buy_crypto                 → IDX_buy_crypto_content_change_scan
- *   exchange_tx                → IDX_exchange_tx_content_change_scan
- *   payout_order               → IDX_payout_order_content_change_scan
- *   buy_fiat                   → IDX_buy_fiat_content_change_scan
- *   liquidity_management_order → IDX_liquidity_management_order_content_change_scan
- *   liquidity_order            → IDX_liquidity_order_content_change_scan
+ *   trading_order              → IDX_47e55a74022f04d725395b9648
+ *   crypto_input               → IDX_37d5dbe4bda6e9e78b0ac08ba1
+ *   bank_tx                    → IDX_834c06e67196ac958afc5dccec
+ *   buy_crypto                 → IDX_398573811cc39fb7ff740459a6
+ *   exchange_tx                → IDX_82c40ae44b9968bf6d2c6acdd0
+ *   payout_order               → IDX_44c2cf65b5554fb61eef1453c5
+ *   buy_fiat                   → IDX_934bb0a02ccf36e8ed04bb6bdd
+ *   liquidity_management_order → IDX_6d47b5e8f3e480587a4e3da5a4
+ *   liquidity_order            → IDX_617b110d76b02979c229fbc6be
+ *
+ * These are not arbitrary names but the deterministic names TypeORM's DefaultNamingStrategy would
+ * generate itself, since custom index naming is disallowed by CONTRIBUTING.md. Each name is
+ * `IDX_` followed by the first 26 hex characters of `sha1(<table> + '_id_updated')` (column names
+ * `id` and `updated` sorted alphabetically and joined with `_`, per TypeORM's DefaultNamingStrategy).
  *
  * @class
  * @implements {MigrationInterface}
@@ -62,43 +67,43 @@ module.exports = class AddLedgerContentChangeScanIndexes1785460000000 {
   async up(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(
-      `CREATE INDEX "IDX_trading_order_content_change_scan" ON "trading_order" ("updated", "id")`,
+      `CREATE INDEX "IDX_47e55a74022f04d725395b9648" ON "trading_order" ("updated", "id")`,
     );
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(
-      `CREATE INDEX "IDX_crypto_input_content_change_scan" ON "crypto_input" ("updated", "id")`,
+      `CREATE INDEX "IDX_37d5dbe4bda6e9e78b0ac08ba1" ON "crypto_input" ("updated", "id")`,
     );
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`CREATE INDEX "IDX_bank_tx_content_change_scan" ON "bank_tx" ("updated", "id")`);
+    await queryRunner.query(`CREATE INDEX "IDX_834c06e67196ac958afc5dccec" ON "bank_tx" ("updated", "id")`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(
-      `CREATE INDEX "IDX_buy_crypto_content_change_scan" ON "buy_crypto" ("updated", "id")`,
-    );
-
-    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(
-      `CREATE INDEX "IDX_exchange_tx_content_change_scan" ON "exchange_tx" ("updated", "id")`,
+      `CREATE INDEX "IDX_398573811cc39fb7ff740459a6" ON "buy_crypto" ("updated", "id")`,
     );
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(
-      `CREATE INDEX "IDX_payout_order_content_change_scan" ON "payout_order" ("updated", "id")`,
-    );
-
-    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`CREATE INDEX "IDX_buy_fiat_content_change_scan" ON "buy_fiat" ("updated", "id")`);
-
-    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(
-      `CREATE INDEX "IDX_liquidity_management_order_content_change_scan" ON "liquidity_management_order" ("updated", "id")`,
+      `CREATE INDEX "IDX_82c40ae44b9968bf6d2c6acdd0" ON "exchange_tx" ("updated", "id")`,
     );
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(
-      `CREATE INDEX "IDX_liquidity_order_content_change_scan" ON "liquidity_order" ("updated", "id")`,
+      `CREATE INDEX "IDX_44c2cf65b5554fb61eef1453c5" ON "payout_order" ("updated", "id")`,
+    );
+
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+    await queryRunner.query(`CREATE INDEX "IDX_934bb0a02ccf36e8ed04bb6bdd" ON "buy_fiat" ("updated", "id")`);
+
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_6d47b5e8f3e480587a4e3da5a4" ON "liquidity_management_order" ("updated", "id")`,
+    );
+
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_617b110d76b02979c229fbc6be" ON "liquidity_order" ("updated", "id")`,
     );
   }
 
@@ -107,30 +112,30 @@ module.exports = class AddLedgerContentChangeScanIndexes1785460000000 {
    */
   async down(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_liquidity_order_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_617b110d76b02979c229fbc6be"`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_liquidity_management_order_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_6d47b5e8f3e480587a4e3da5a4"`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_buy_fiat_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_934bb0a02ccf36e8ed04bb6bdd"`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_payout_order_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_44c2cf65b5554fb61eef1453c5"`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_exchange_tx_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_82c40ae44b9968bf6d2c6acdd0"`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_buy_crypto_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_398573811cc39fb7ff740459a6"`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_bank_tx_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_834c06e67196ac958afc5dccec"`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_crypto_input_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_37d5dbe4bda6e9e78b0ac08ba1"`);
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_trading_order_content_change_scan"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_47e55a74022f04d725395b9648"`);
   }
 };
