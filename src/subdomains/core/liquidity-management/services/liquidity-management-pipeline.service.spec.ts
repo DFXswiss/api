@@ -329,6 +329,21 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
     });
 
+    it('narrows a not-sent verdict on the absent release as SQL NULL too', async () => {
+      // the same trap on the other caller: a venue verdict arrives with nobody having released the order,
+      // so its examined value is null as well. Asserting on status alone would not catch a regression here,
+      // because resolveAsNotSent already sets FAILED synchronously before the write is attempted.
+      const order = uncertainOrder();
+      const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      stubIntegration(UncertainOrderResolution.NOT_SENT);
+
+      await service['resolveUncertainOrders']();
+
+      const criteria = update.mock.calls[0][0] as { notSentRecheckDue: FindOperator<Date> };
+      expect(criteria.notSentRecheckDue).toBeInstanceOf(FindOperator);
+      expect(criteria.notSentRecheckDue.type).toBe('isNull');
+    });
 
     it('never abandons on an unreachable venue, however old the order', async () => {
       // UNAVAILABLE is the absence of an answer, not an answer — no amount of waiting turns it into one

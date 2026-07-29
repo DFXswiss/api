@@ -318,7 +318,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       }
 
       // The venue once acknowledged this order and now cannot find it. That is not a failure — it may have
-      // filled or been cancelled outside our view — so it goes to a human instead of releasing the rule.
+      // filled or been cancelled outside our view — so it goes to quarantine instead of releasing the rule,
+      // from where a human releases it or the caller's bound eventually gives it up.
       if (e instanceof ScryptOrderNotFoundError) throw new OrderOutcomeUnknownException(e.message);
 
       // A rejection is a reply: the venue reached a verdict, so the order really did end.
@@ -398,8 +399,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * Waiting is the safe answer — writing against an order whose true state is unknown is how a second
    * request against the same funds happens. But not forever: the manual path only accepts quarantined
    * orders, so an order nobody can ever observe would poll for good with no way out at all. Past the same
-   * age at which the venue itself is considered to have lost an order, it goes to a human instead — still
-   * not declared failed.
+   * age at which the venue itself is considered to have lost an order, it goes to quarantine instead —
+   * still not declared failed here, and from there either released by a human or given up by the caller's
+   * own bound.
    */
   private waitOrQuarantine(order: LiquidityManagementOrder, reason: string): boolean {
     if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
@@ -592,7 +594,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * Ask Scrypt what happened to a quarantined order. Observes only — never re-sends.
    *
    * Can only ever confirm a positive: Scrypt has no terminal "this reference was never accepted" reply, so
-   * a missing record leaves the order quarantined for a human rather than releasing its rule.
+   * a missing record leaves the order quarantined — released by a human if one looks, and otherwise given
+   * up automatically once the caller's bound decides the request can no longer be live.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
     const { correlationId } = order;

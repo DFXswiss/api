@@ -59,7 +59,11 @@ export enum UncertainOrderResolution {
   SENT = 'Sent',
   /** The venue demonstrably does not know the order — nothing was executed, the rule may plan anew. */
   NOT_SENT = 'NotSent',
-  /** The venue answered, and the answer settles nothing. Stay in quarantine and look again later. */
+  /**
+   * The venue answered, and the answer settles nothing. Stay in quarantine and look again later — until the
+   * order outlives the abandon bound for its kind of request, at which point the caller gives it up rather
+   * than keep its rule blocked on an answer that never sharpens.
+   */
   UNRESOLVED = 'Unresolved',
   /**
    * The venue could not be asked at all.
