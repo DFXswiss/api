@@ -580,13 +580,18 @@ export class ScryptService extends PricingProvider {
     return found;
   }
 
-  async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
+  /**
+   * @param since lower bound for the fallback history fetch. A caller that knows when its reference can
+   * earliest have existed passes it here, so a lookup for an absent order does not pull a full 30 days of
+   * execution reports over the connection. Defaults to the full 30-day window.
+   */
+  async getOrderStatus(clOrdId: string, since?: Date): Promise<ScryptOrderInfo | null> {
     // Try in-memory cache first
     let report = this.executionReports.get(clOrdId);
 
     // Fallback: fetch from Scrypt API (e.g. after restart or WS reconnect)
     if (!report) {
-      const reports = await this.fetchExecutionReports(Util.daysBefore(30));
+      const reports = await this.fetchExecutionReports(since ?? Util.daysBefore(30));
       const fetched = reports.find((r) => r.ClOrdID === clOrdId);
 
       if (fetched) {
