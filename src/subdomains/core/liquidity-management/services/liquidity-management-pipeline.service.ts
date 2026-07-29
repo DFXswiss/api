@@ -369,10 +369,12 @@ export class LiquidityManagementPipelineService {
           // operator's judgement is all there is, which is why the assertion behind it is required.
           if (releasePending && (await this.completeNotSentRelease(order, 'no integration can look it up')))
             anyChanged = true;
-          // With no release either, nothing in this system would ever move the order again: no lookup can
-          // arrive, and no operator has ruled. That is the same dead end the bound exists for, reached
-          // sooner — so it applies here too rather than leaving this one case stranded for good.
-          else if (order.unresolvableTooLong() && (await this.abandonUnresolvableOrder(order))) anyChanged = true;
+          // Deliberately no automatic abandon here. Without an integration the venue is never asked, so the
+          // only thing left would be the clock — and the safety of abandoning rests on the rule replanning
+          // from a balance that reflects an execution which did happen. That holds for an exchange read live
+          // at plan time; it does not hold for a chain balance that omits unconfirmed transactions, nor for a
+          // bank balance carried over from the last imported batch. Abandoning on the clock alone would be
+          // guessing with the one class of order nothing here can observe.
           continue;
         }
 
@@ -466,9 +468,15 @@ export class LiquidityManagementPipelineService {
   private async abandonUnresolvableOrder(order: LiquidityManagementOrder): Promise<boolean> {
     const because = 'the venue has had no record of it past the point its request could still be live';
 
+    // Captured before the entity is mutated, exactly as completeNotSentRelease does. An operator may have
+    // written a release between this pass's read and this write; that release carries an audited reason and
+    // is owed one more venue answer before anything ends the order. Without narrowing on it, this write —
+    // the one resting on no evidence at all — would silently overwrite the one resting on a person.
+    const examined = order.notSentRecheckDue ?? null;
+
     order.abandonAsUnresolvable(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
 
-    if (!(await this.leaveQuarantine(order))) return false;
+    if (!(await this.leaveQuarantine(order, examined))) return false;
 
     this.logger.warn(`Uncertain liquidity order ${order.id} abandoned: ${because}`);
 

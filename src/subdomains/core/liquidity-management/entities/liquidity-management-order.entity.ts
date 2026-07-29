@@ -30,9 +30,13 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  *
  * What makes abandoning safe is not a conclusion about the order: it is that a rule replans from the venue's
  * CURRENT balance, never from the abandoned order. An order that did execute has already moved that balance,
- * so the replan sees the moved balance and sizes itself accordingly — or finds nothing left to do. The bound
- * therefore only has to outlast the window in which an execution could still be in flight and unreflected in
- * the balance.
+ * so the replan sees the moved balance and sizes itself accordingly — or finds nothing left to do.
+ *
+ * That argument is only as good as the balance behind it, which is why abandoning is confined to orders an
+ * integration has actually asked the venue about — in practice an exchange, read live at plan time. It is
+ * deliberately NOT extended to orders no integration can look up: a chain balance omits transactions that
+ * are sent but unconfirmed, and a bank balance is carried over from the last imported batch, so for those
+ * the replan could well be sizing itself against a balance the execution has not reached yet.
  *
  * The bound therefore has to outlast the window in which this order could still be in flight — and that
  * window differs by an order of magnitude between kinds of request, so one bound for both would be either
@@ -60,13 +64,18 @@ const ABANDON_UNRESOLVED_MINUTES = {
 };
 
 /**
- * Commands that settle inside a venue rather than moving funds across one.
+ * Actions that settle inside a venue rather than moving funds across one, as `system/command` pairs.
+ *
+ * Keyed on both halves, because the command name alone does not say what an action does: `sell` on an
+ * exchange is matched off against a book in seconds, while `sell` on the DEX adapter is an on-chain swap
+ * with a confirmation time. Matching the name alone would hand the short bound to exactly the actions that
+ * least deserve it.
  *
  * An allowlist, not a denylist: anything unrecognised — a new adapter, a renamed command — gets the long
  * bound. Being slow to abandon costs a rule some minutes; being fast to abandon a transfer that is still in
  * flight is what duplicates it.
  */
-const VENUE_INTERNAL_COMMANDS = ['buy', 'sell', 'purchase'];
+const VENUE_INTERNAL_ACTIONS = ['scrypt/buy', 'scrypt/sell'];
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -300,18 +309,24 @@ export class LiquidityManagementOrder extends IEntity {
    * {@link ABANDON_UNRESOLVED_MINUTES}.
    */
   unresolvableTooLong(): boolean {
-    // Without a creation timestamp there is no clock to run out. Guarded explicitly because Util.minutesDiff
-    // treats a missing date as the epoch and would report tens of millions of minutes — abandoning instantly
-    // every order whose `created` was not loaded. Absent evidence this must hold the order, never drop it.
-    if (!this.created) return false;
+    // Measured from `updated`, not `created`: an order can run normally for a long time and only become
+    // UNCERTAIN late, when a completion check amends or restarts it and that write goes unconfirmed. Its
+    // `created` is then already old, so a bound read from it would expire on the very first pass while the
+    // fresh replacement request is seconds old and plausibly still arriving — the exact double-send this
+    // guards against. `updated` moves with the transition into quarantine, so the clock starts there.
+    //
+    // Without a timestamp there is no clock to run out. Guarded explicitly because Util.minutesDiff treats a
+    // missing date as the epoch and would report tens of millions of minutes — abandoning instantly every
+    // order whose `updated` was not loaded. Absent evidence this must hold the order, never drop it.
+    if (!this.updated) return false;
 
-    // Unknown or unloaded command falls to the long bound, for the same reason.
-    const command = this.action?.command?.toLowerCase();
-    const bound = VENUE_INTERNAL_COMMANDS.includes(command)
+    // Unknown, unloaded or unlisted action falls to the long bound, for the same reason.
+    const action = `${this.action?.system}/${this.action?.command}`.toLowerCase();
+    const bound = VENUE_INTERNAL_ACTIONS.includes(action)
       ? ABANDON_UNRESOLVED_MINUTES.TRADE
       : ABANDON_UNRESOLVED_MINUTES.TRANSFER;
 
-    return Util.minutesDiff(this.created) > bound;
+    return Util.minutesDiff(this.updated) > bound;
   }
 
   /**
