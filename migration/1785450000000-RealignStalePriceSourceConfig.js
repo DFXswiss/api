@@ -24,9 +24,12 @@
  *
  * Both directions match on the exact state they expect, so `up` no-ops wherever the configuration
  * already differs — including freshly seeded environments, where these rules carry a different
- * shape — and `down` only writes rows that are in exactly the state `up` leaves behind. Each
- * direction reports how many of the two rules it found in the expected state, so a deploy that
- * matched nothing is visible in the log rather than silently recorded as applied.
+ * shape — and `down` only writes rows that are in exactly the state `up` leaves behind.
+ *
+ * Each direction then checks for rules left on the wrong side of its intended end state and
+ * reports them. Reaching that end state without changing anything is a legitimate outcome and
+ * stays silent; a rule still on the wrong side means the stored configuration has drifted away
+ * from what this migration targets, which would otherwise be recorded as applied with no signal.
  *
  * @class
  * @implements {MigrationInterface}
@@ -70,12 +73,14 @@ module.exports = class RealignStalePriceSourceConfig1785450000000 {
 
     await queryRunner.query(`
       DO $$
-      DECLARE cleared integer;
+      DECLARE remaining integer;
       BEGIN
-        SELECT count(*) INTO cleared
+        SELECT count(*) INTO remaining
         FROM "price_rule"
-        WHERE "id" IN (17, 42) AND "check1Source" IS NULL;
-        RAISE NOTICE 'RealignStalePriceSourceConfig: % of 2 rules without a cross-check', cleared;
+        WHERE "id" IN (17, 42) AND "check1Source" IS NOT NULL;
+        IF remaining > 0 THEN
+          RAISE NOTICE 'RealignStalePriceSourceConfig: % of 2 rules still carry a cross-check; stored configuration differs from the state this migration targets', remaining;
+        END IF;
       END $$
     `);
   }
@@ -116,12 +121,14 @@ module.exports = class RealignStalePriceSourceConfig1785450000000 {
 
     await queryRunner.query(`
       DO $$
-      DECLARE restored integer;
+      DECLARE remaining integer;
       BEGIN
-        SELECT count(*) INTO restored
+        SELECT count(*) INTO remaining
         FROM "price_rule"
-        WHERE "id" IN (17, 42) AND "check1Source" IS NOT NULL;
-        RAISE NOTICE 'RealignStalePriceSourceConfig: % of 2 rules with a cross-check', restored;
+        WHERE "id" IN (17, 42) AND "check1Source" IS NULL;
+        IF remaining > 0 THEN
+          RAISE NOTICE 'RealignStalePriceSourceConfig: % of 2 rules still lack a cross-check; stored configuration differs from the state this migration targets', remaining;
+        END IF;
       END $$
     `);
   }

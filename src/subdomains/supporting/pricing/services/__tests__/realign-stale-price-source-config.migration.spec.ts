@@ -1,4 +1,19 @@
 import { newDb } from 'pg-mem';
+import { DataSource, QueryRunner } from 'typeorm';
+
+// The reporting block is PL/pgSQL, which pg-mem does not implement, so the suite below covers the
+// guards against pg-mem and the reporting against a real Postgres when one is provided. Without a
+// connection string that second suite skips, keeping CI (which has no DB) green.
+const PG_URL = process.env.MIGRATION_TEST_PG;
+const describeDb = PG_URL ? describe : describe.skip;
+
+// minimal structural view of the underlying pg client — just enough to observe RAISE NOTICE output
+// (TypeORM types QueryRunner.connect() as Promise<any>, so the cast pins a safe surface)
+type NoticeListener = (msg: { message?: string }) => void;
+interface NoticeEmitter {
+  on(event: 'notice', listener: NoticeListener): void;
+  removeListener(event: 'notice', listener: NoticeListener): void;
+}
 
 type PriceRuleRow = {
   id: number;
@@ -165,5 +180,103 @@ describe('RealignStalePriceSourceConfig migration', () => {
 
       expect(rules()).toEqual(before);
     });
+  });
+});
+
+describeDb('RealignStalePriceSourceConfig migration (real Postgres reporting)', () => {
+  let dataSource: DataSource;
+  let qr: QueryRunner;
+  let migration: InstanceType<typeof RealignStalePriceSourceConfig>;
+
+  beforeAll(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    RealignStalePriceSourceConfig = require('../../../../../../migration/1785450000000-RealignStalePriceSourceConfig');
+    dataSource = new DataSource({ type: 'postgres', url: PG_URL });
+    await dataSource.initialize();
+  });
+
+  afterAll(async () => {
+    if (dataSource?.isInitialized) {
+      await dataSource.query(`DROP SCHEMA IF EXISTS realign_price_rule_spec CASCADE`);
+      await dataSource.destroy();
+    }
+  });
+
+  beforeEach(async () => {
+    qr = dataSource.createQueryRunner();
+    await qr.connect();
+
+    // Schema isolation: the real-PG migration specs share one MIGRATION_TEST_PG database and run in
+    // parallel jest workers, so unscoped DROP/CREATE of identical table names races on the pg catalog.
+    // Every table name here is unqualified, so search_path scopes them into this spec's own schema.
+    await qr.query(`CREATE SCHEMA IF NOT EXISTS realign_price_rule_spec`);
+    await qr.query(`SET search_path TO realign_price_rule_spec`);
+    await qr.query(`DROP TABLE IF EXISTS "price_rule" CASCADE`);
+    await qr.query(`
+      CREATE TABLE "price_rule" (
+        "id" integer PRIMARY KEY,
+        "check1Source" character varying(256),
+        "check1Asset" character varying(256),
+        "check1Reference" character varying(256),
+        "check1Limit" double precision,
+        "updated" TIMESTAMP NOT NULL DEFAULT now()
+      )
+    `);
+    migration = new RealignStalePriceSourceConfig();
+  });
+
+  afterEach(async () => {
+    await qr.release();
+  });
+
+  const captureNotices = async (fn: () => Promise<void>): Promise<string[]> => {
+    const client = (await qr.connect()) as NoticeEmitter;
+    const notices: string[] = [];
+    const onNotice: NoticeListener = (msg) => notices.push(msg.message ?? '');
+    client.on('notice', onNotice);
+    try {
+      await fn();
+    } finally {
+      client.removeListener('notice', onNotice);
+    }
+    return notices;
+  };
+
+  const driftNotices = (notices: string[]): string[] =>
+    notices.filter((n) => n.includes('RealignStalePriceSourceConfig:'));
+
+  it('stays silent when both rules are brought to the intended state', async () => {
+    await qr.query(`
+      INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
+      VALUES (17, 'Binance', 'MKR', 'USDT', 0.03), (42, 'Kucoin', 'ISLM', 'USDT', 0.03)
+    `);
+
+    const notices = await captureNotices(() => migration.up(qr));
+
+    expect(driftNotices(notices)).toEqual([]);
+  });
+
+  it('stays silent when the rules already hold the intended state', async () => {
+    await qr.query(`
+      INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
+      VALUES (17, NULL, 'maker', 'tether', 0.03), (42, NULL, 'islamic-coin', 'tether', 0.03)
+    `);
+
+    const notices = await captureNotices(() => migration.up(qr));
+
+    expect(driftNotices(notices)).toEqual([]);
+  });
+
+  it('reports the rules left behind when the stored configuration has drifted', async () => {
+    // a limit changed out from under the migration: the guards no longer match, so nothing is updated
+    await qr.query(`
+      INSERT INTO "price_rule" ("id", "check1Source", "check1Asset", "check1Reference", "check1Limit")
+      VALUES (17, 'Binance', 'MKR', 'USDT', 0.05), (42, 'Kucoin', 'ISLM', 'USDT', 0.07)
+    `);
+
+    const notices = await captureNotices(() => migration.up(qr));
+
+    expect(driftNotices(notices)).toHaveLength(1);
+    expect(driftNotices(notices)[0]).toContain('2 of 2 rules still carry a cross-check');
   });
 });
