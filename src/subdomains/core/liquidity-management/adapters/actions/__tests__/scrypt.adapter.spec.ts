@@ -256,6 +256,36 @@ describe('ScryptAdapter', () => {
       expect(orderRepo.save).toHaveBeenCalled();
     });
 
+    it('steps past a claim the venue has answered about and not shown for long enough', async () => {
+      // otherwise the order oscillates forever: reconciliation resolves it to the predecessor, the next
+      // completion check blocks on the same invisible claim and quarantines it again, and every return
+      // resets the very clocks meant to end it. Both paths must apply the same age rule or neither works.
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
+      const checkTrade = jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
+      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 2 * 60 * 60 * 1000) });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await adapter['checkTradeCompletion'](order, 'EUR', 'USDT');
+
+      // it kept the predecessor and was allowed to work it, rather than blocking every write
+      expect(order.correlationId).toBe('dfx-lm-4711');
+      expect(checkTrade).toHaveBeenCalled();
+    });
+
+    it('keeps blocking on a claim the venue could not be asked about, however old', async () => {
+      // silence is not an answer, and no clock turns it into one — only an answered absence may be stepped past
+      jest.spyOn(scryptService, 'getOrderStatus').mockRejectedValue(new Error('Connection closed'));
+      const checkTrade = jest.spyOn(scryptService, 'checkTrade').mockResolvedValue(false);
+      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await adapter['checkTradeCompletion'](order, 'EUR', 'USDT');
+
+      expect(checkTrade).not.toHaveBeenCalled();
+    });
+
     it('does not adopt a replacement the venue rejected', async () => {
       jest
         .spyOn(scryptService, 'getOrderStatus')
@@ -584,6 +614,37 @@ describe('ScryptAdapter', () => {
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
+    });
+
+    it('still waits at the age boundary itself', async () => {
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
+      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 59 * 60 * 1000) });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
+    });
+
+    it('walks past several invisible replacements to the one the venue does show', async () => {
+      // a chain of failed amends must not stop the search at the first of them
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
+      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 2 * 60 * 60 * 1000) });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+      order.recordSpentCorrelationId('dfx-lm-4711-2');
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
+    });
+
+    it('ends in UNRESOLVED when no reference in the chain is visible', async () => {
+      // walking past the invisible ones must terminate in a complete answer, not in a stuck state
+      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
+      const order = createUncertainSellOrder({ updated: new Date(Date.now() - 2 * 60 * 60 * 1000) });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
 
     it('reports UNRESOLVED when only superseded references remain unasked', async () => {

@@ -356,6 +356,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * is a barrier rather than something to step past — the reference is recorded BEFORE the request leaves,
    * so one the venue does not show may still be live there, and carrying on with the predecessor would put a
    * second request next to it.
+   *
+   * That barrier is not permanent, though. A claim the venue ANSWERED about and still does not show past the
+   * age at which this integration already treats an order as lost was never created, and blocking on it for
+   * good would only park the order between quarantine and back again. A claim the venue could not be asked
+   * about keeps blocking however old it is: silence is not an answer, and no clock turns it into one.
    */
   private async adoptLiveReplacement(order: LiquidityManagementOrder): Promise<boolean> {
     const currentAttempt = this.attemptNumber(order, order.correlationId);
@@ -369,9 +374,25 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
 
       if (info == null) {
+        // A claim the venue answered about and does not show, for longer than this venue itself waits
+        // before calling an order lost, was never created. Holding the write back forever on it is not
+        // caution: the completion check then quarantines the order, reconciliation hands it back, and the
+        // next check quarantines it again — an order oscillating in place, whose every return also resets
+        // the very clocks meant to end it. Stepping past a claim that answered NULL past that age is what
+        // lets the predecessor finish; the same rule as the reconciliation lookup, so both agree.
+        const answered = info === null;
+
+        if (answered && Util.minutesDiff(order.updated) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES) {
+          this.logger.warn(
+            `Order ${order.id} claimed ${reference}, but the venue has not shown it for over ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes — treating it as never created and continuing with ${order.correlationId}`,
+          );
+
+          continue;
+        }
+
         this.logger.warn(
           `Order ${order.id} claimed ${reference}, but the venue ${
-            info === null ? 'does not show it' : 'could not be asked about it'
+            answered ? 'does not show it' : 'could not be asked about it'
           } — holding back every write against ${order.correlationId}`,
         );
 
@@ -640,10 +661,6 @@ export class ScryptAdapter extends LiquidityActionAdapter {
           // replaced still is. Falling through to that predecessor would report SENT on a reference the venue
           // has already superseded and leave the live replacement untracked, so stop here instead.
           if (!info) {
-            this.logger.warn(
-              `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
-            );
-
             // Only references at least as current as the adopted one still matter. Anything older was
             // superseded when that adoption happened, so its absence adds nothing.
             const unasked = candidates
@@ -657,8 +674,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
             // Something is still unasked, and the predecessor of an invisible replacement is very often the
             // live one. While that replacement could still surface, stopping here is the safe move and the
             // incomplete answer says so.
-            if (Util.minutesDiff(order.updated) <= SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
+            if (Util.minutesDiff(order.updated) <= SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES) {
+              this.logger.warn(
+                `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
+              );
+
               return UncertainOrderResolution.UNAVAILABLE;
+            }
 
             // Past that age it is not surfacing. Returning here every pass would leave the older reference
             // unasked forever — a lookup that structurally never completes, which no waiting can fix and
@@ -669,12 +691,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
             this.logger.warn(
               `Scrypt still has no record of ${candidate} for order ${order.id} after ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes — treating it as never created and checking the reference it replaced`,
             );
-            order.recordSpentCorrelationId(candidate);
             continue;
           }
 
-          // A refused replacement never took effect and leaves its predecessor live. This is the only case in
-          // which an older reference may be considered.
+          // A refused replacement never took effect and leaves its predecessor live. This is the only case
+          // with an explicit reply that reaches an older reference — the timeout above is the other way.
           if (info.status === ScryptOrderStatus.REJECTED) {
             order.recordSpentCorrelationId(candidate);
             rejectedCount++;
