@@ -467,7 +467,7 @@ module.exports = {
     '!**/*.d.ts',
     '!jest-env.setup.ts',
     // Test scaffolding that lives outside a __tests__ directory: imported only by specs
-    // (60 and 28 importers respectively, all of them *.spec.ts). Pinning them would make an
+    // (62 and 29 importers respectively, all of them *.spec.ts). Pinning them would make an
     // untested change to a test helper fail the production gate.
     '!shared/utils/test.util.ts',
     '!shared/utils/test.shared.module.ts',

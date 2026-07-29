@@ -3,10 +3,10 @@
 This repo runs two coverage gates in CI. They answer different questions, and neither replaces
 the other.
 
-| Gate             | Config                         | Scope                                    | Question it answers                                      |
-| ---------------- | ------------------------------ | ---------------------------------------- | -------------------------------------------------------- |
-| Frick gate       | `jest.frick.config.js`         | 7 Frick files, run by 7 Frick specs only | Do _these specs alone_ fully cover _these files_?        |
-| Coverage ratchet | `jest.coverage-gate.config.js` | 421 files, whole suite                   | Has coverage regressed anywhere it was already complete? |
+| Gate             | Config                         | Scope                                      | Question it answers                                      |
+| ---------------- | ------------------------------ | ------------------------------------------ | -------------------------------------------------------- |
+| Frick gate       | `jest.frick.config.js`         | 10 Frick files, run by 10 Frick specs only | Do _these specs alone_ fully cover _these files_?        |
+| Coverage ratchet | `jest.coverage-gate.config.js` | 421 files, whole suite                     | Has coverage regressed anywhere it was already complete? |
 
 ## What the ratchet is, and what it is not
 
@@ -35,7 +35,7 @@ and fails the threshold. Statements and lines are pinned as well, so even top-le
 code that no test reaches turns the gate red.
 
 Test scaffolding is excluded. `shared/utils/test.util.ts` and `shared/utils/test.shared.module.ts`
-live outside a `__tests__` directory but are imported only by specs (60 and 28 importers, all
+live outside a `__tests__` directory but are imported only by specs (62 and 29 importers, all
 `*.spec.ts`). They are filtered out of `collectCoverageFrom`, so an untested change to a test
 helper cannot fail a production gate.
 
