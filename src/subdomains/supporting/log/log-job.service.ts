@@ -1338,17 +1338,33 @@ export class LogJobService {
       if (ref) receiverRefs.add(ref);
     }
 
+    // A receiver counts as consumed as soon as its reference matches ANY known sender, including
+    // senders that already dropped out of the 7-day reporting window. Deriving this from the recent
+    // senders alone would let a receiver whose own sender has aged out re-enter the amount+date
+    // fallback below and retire an unrelated sender whose money is still genuinely in transit.
+    const consumedRefs = new Set<string>();
+    for (const sender of senderTx) {
+      const ref = this.getTxReference(sender);
+      if (ref && receiverRefs.has(ref)) consumedRefs.add(ref);
+    }
+
     const unmatchedByRef = recentSenders.filter((s) => {
       const ref = this.getTxReference(s);
       return !ref || !receiverRefs.has(ref);
     });
 
-    // Pass 2 — amount+date fallback for receivers without a usable reference only
-    // (e.g. already-arrived Scrypt EUR deposits with empty txId).
+    // Pass 2 — amount+date fallback for receivers that are not yet consumed. A receiver counts
+    // as consumed as soon as its reference matches ANY known sender in the full senderTx array —
+    // regardless of whether that sender is still inside the 7-day recency window and regardless
+    // of whether it was the sender actually retired by pass 1. Only truly unconsumed receivers
+    // (ref-less OR referenced-but-matching-no-sender) take part in the fallback below.
     // Date window: 7 days in ms — mirrors the existing sender recency window.
     const DATE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-    const availableReceivers = receiverTx.filter((r) => !this.getTxReference(r));
+    const availableReceivers = receiverTx.filter((r) => {
+      const ref = this.getTxReference(r);
+      return !ref || !consumedRefs.has(ref);
+    });
     if (!unmatchedByRef.length || !availableReceivers.length) return unmatchedByRef;
 
     // Maximum-cardinality bipartite matching (Kuhn's augmenting-path algorithm).
