@@ -175,6 +175,25 @@ describe('BankService', () => {
     expect(result).toBe(frick);
   });
 
+  it('picks the EUR Bank Frick row, not its CHF row, for an EUR deposit', async () => {
+    // The CHF row is listed first on purpose: the rule matches on bank name AND currency, and find()
+    // takes the first hit. Without the currency check a customer paying in EUR would be handed the
+    // franc account's IBAN, and no other test in this file would notice.
+    const frickChfRow = createCustomBank({
+      name: IbanBankName.FRICK,
+      currency: 'CHF',
+      receive: true,
+      iban: 'FRICK-CHF-ROW',
+      bic: 'BFRILI22',
+    });
+    const frickEurRow = createCustomBank({ ...frickEUR, receive: true });
+    mockFindCachedByForBanks(bankRepo, [frickChfRow, frickEurRow]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR'));
+    expect(result).toBe(frickEurRow);
+    expect(result.currency).toBe('EUR');
+  });
+
   it('falls back to the established EUR receiver when Bank Frick is not receiving', async () => {
     const disabledFrick = createCustomBank({ ...frickEUR, receive: false });
     const incumbent = createCustomBank({ ...olkyEUR, receive: true });
