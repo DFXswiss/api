@@ -1440,8 +1440,9 @@ describe('LedgerCutoverService', () => {
       const future = Object.assign(new Log(), { id: 1, created: new Date(Date.now() + 86400000), valid: true });
       jest
         .spyOn(logService, 'getFinancialLogs')
-        .mockImplementation(async (_from?: Date, _dailySample?: boolean, to?: Date) =>
-          [future].filter((r) => !to || r.created.getTime() <= to.getTime()),
+        .mockImplementation(
+          async (_from?: Date, _dailySample?: boolean, to?: Date): Promise<Log[]> =>
+            [future].filter((r) => !to || r.created.getTime() <= to.getTime()),
         );
       const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
 
