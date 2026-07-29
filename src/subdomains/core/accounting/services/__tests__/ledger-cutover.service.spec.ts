@@ -1434,10 +1434,16 @@ describe('LedgerCutoverService', () => {
   describe('snapshot selection + pinning (R3-1)', () => {
     it('throws when there is no valid FinancialDataLog snapshot ≤ cutoff date (flag stays unset)', async () => {
       jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
-      // selectSnapshot reads getFinancialLogs and keeps only rows created ≤ now; a single FUTURE-dated row is filtered
-      // out → no snapshot → cutover throws → the throw propagates to @DfxCron → flag stays unset.
+      // selectSnapshot bounds the read at `to = now` in SQL; a single FUTURE-dated row therefore never comes back
+      // → no snapshot → cutover throws → the throw propagates to @DfxCron → flag stays unset.
+      // The mock honours `to` like the real query does — a mock ignoring it would hide a dropped upper bound.
       const future = Object.assign(new Log(), { id: 1, created: new Date(Date.now() + 86400000), valid: true });
-      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([future]);
+      jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockImplementation(
+          async (_from?: Date, _dailySample?: boolean, to?: Date): Promise<Log[]> =>
+            [future].filter((r) => !to || r.created.getTime() <= to.getTime()),
+        );
       const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
 
       await expect(service.run()).rejects.toThrow('No valid FinancialDataLog snapshot available for cutover');

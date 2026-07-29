@@ -2,15 +2,61 @@ import { EntityManager, UpdateResult } from 'typeorm';
 import { FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM } from '../log.entity';
 import { LogRepository } from '../log.repository';
 
+type UpdateQueryBuilderStub = {
+  update: jest.Mock;
+  set: jest.Mock;
+  where: jest.Mock;
+  andWhere: jest.Mock;
+  execute: jest.Mock;
+};
+
+type FinancialLogQueryBuilderStub = {
+  where: jest.Mock;
+  andWhere: jest.Mock;
+  orderBy: jest.Mock;
+  addOrderBy: jest.Mock;
+  groupBy: jest.Mock;
+  limit: jest.Mock;
+  take: jest.Mock;
+  select: jest.Mock;
+  setParameters: jest.Mock;
+  getQuery: jest.Mock;
+  getParameters: jest.Mock;
+  getExists: jest.Mock;
+  getMany: jest.Mock;
+};
+
 // Minimal chainable stub for the update query builder: every condition call returns itself, and
 // execute() reports how many rows the batch touched.
-function updateQueryBuilderStub(affected: number | null | undefined) {
-  const builder = {
+function updateQueryBuilderStub(affected: number | null | undefined): UpdateQueryBuilderStub {
+  const builder: UpdateQueryBuilderStub = {
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     execute: jest.fn().mockResolvedValue({ affected } as UpdateResult),
+  };
+
+  return builder;
+}
+
+// Chainable stub for the main getFinancialLogs query path (getMany) and the post-empty cursor guard (getExists).
+// Same stub instance serves both createQueryBuilder calls; getExists is only consulted after an empty main result.
+function financialLogQueryBuilderStub(exists: boolean): FinancialLogQueryBuilderStub {
+  const builder: FinancialLogQueryBuilderStub = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    setParameters: jest.fn().mockReturnThis(),
+    getQuery: jest.fn().mockReturnValue(''),
+    getParameters: jest.fn().mockReturnValue({}),
+    getExists: jest.fn().mockResolvedValue(exists),
+    getMany: jest.fn().mockResolvedValue([]),
   };
 
   return builder;
@@ -75,6 +121,70 @@ describe('LogRepository', () => {
       await expect(repo.setFinancialLogValidity(dto, [11, 12])).rejects.toThrow(
         'Financial log validity update returned no affected count',
       );
+    });
+  });
+
+  describe('getFinancialLogs cursor guard', () => {
+    it('fails loud when the keyset cursor id no longer exists (no silent empty main query)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const stub = financialLogQueryBuilderStub(false);
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(stub as never);
+
+      await expect(repo.getFinancialLogs(undefined, false, undefined, undefined, 999)).rejects.toThrow(
+        'Financial log cursor row 999 no longer exists',
+      );
+
+      // Main query runs first; guard only after empty result + set after.
+      expect(stub.getMany).toHaveBeenCalled();
+      expect(stub.getExists).toHaveBeenCalled();
+    });
+
+    it('returns empty when the cursor still exists (legitimate end-of-data)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const stub = financialLogQueryBuilderStub(true);
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(stub as never);
+
+      await expect(repo.getFinancialLogs(undefined, false, undefined, undefined, 999)).resolves.toEqual([]);
+
+      expect(stub.getMany).toHaveBeenCalled();
+      expect(stub.getExists).toHaveBeenCalled();
+    });
+
+    it('skips the existence check when after is unset', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const stub = financialLogQueryBuilderStub(false);
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(stub as never);
+
+      await expect(repo.getFinancialLogs(undefined, false)).resolves.toEqual([]);
+
+      expect(stub.getMany).toHaveBeenCalled();
+      expect(stub.getExists).not.toHaveBeenCalled();
+    });
+
+    it('skips the existence check when the main query returns rows', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const stub = financialLogQueryBuilderStub(false);
+      const page = [{ id: 1 } as never];
+      stub.getMany.mockResolvedValueOnce(page);
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(stub as never);
+
+      await expect(repo.getFinancialLogs(undefined, false, undefined, undefined, 999)).resolves.toBe(page);
+
+      expect(stub.getMany).toHaveBeenCalled();
+      expect(stub.getExists).not.toHaveBeenCalled();
+    });
+
+    it('fails loud on the dailySample path when the cursor id no longer exists', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const stub = financialLogQueryBuilderStub(false);
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(stub as never);
+
+      await expect(repo.getFinancialLogs(undefined, true, undefined, undefined, 999)).rejects.toThrow(
+        'Financial log cursor row 999 no longer exists',
+      );
+
+      expect(stub.getMany).toHaveBeenCalled();
+      expect(stub.getExists).toHaveBeenCalled();
     });
   });
 });
