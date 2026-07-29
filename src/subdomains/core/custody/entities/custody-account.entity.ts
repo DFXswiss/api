@@ -24,4 +24,13 @@ export class CustodyAccount extends IEntity {
 
   @OneToMany(() => CustodyAccountAccess, (access) => access.account)
   accessGrants: CustodyAccountAccess[];
+
+  /**
+   * Whether this account belongs to the given user_data, as opposed to merely being reachable
+   * through a grant. Distinct from the access level: a grantee can hold WRITE without owning
+   * anything, and an owner can narrow themselves to READ while still owning it.
+   */
+  isOwnedBy(accountId: number): boolean {
+    return this.owner.id === accountId;
+  }
 }

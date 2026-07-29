@@ -88,7 +88,8 @@ export class CustodyAccountController {
       dto.description,
     );
 
-    return CustodyAccountDtoMapper.toDto(custodyAccount, CustodyAccessLevel.WRITE);
+    // The caller just created it, so it is theirs by definition.
+    return CustodyAccountDtoMapper.toDto(custodyAccount, CustodyAccessLevel.WRITE, true);
   }
 
   @Put(':id')
@@ -107,7 +108,13 @@ export class CustodyAccountController {
       dto.description,
     );
 
-    return CustodyAccountDtoMapper.toDto(custodyAccount, CustodyAccessLevel.WRITE);
+    // Reached through the write guard, which a grantee passes too — ownership is a separate
+    // question from the level and has to be answered from the account itself.
+    return CustodyAccountDtoMapper.toDto(
+      custodyAccount,
+      CustodyAccessLevel.WRITE,
+      custodyAccount.isOwnedBy(jwt.account),
+    );
   }
 
   @Get(':id/balance')

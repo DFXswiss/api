@@ -68,12 +68,12 @@ export class CustodyAccountService {
       },
       relations: { account: { owner: true } },
     });
-    const sharedAccounts = activeGrants.filter((a) => a.account.owner.id !== accountId);
+    const sharedAccounts = activeGrants.filter((a) => !a.account.isOwnedBy(accountId));
 
     // A grant on an own account narrows the owner's level — see checkAccess. Without this the
     // list would offer WRITE where the authorisation only grants inspection.
     const ownLevelByAccount = new Map(
-      activeGrants.filter((a) => a.account.owner.id === accountId).map((a) => [a.account.id, a.accessLevel]),
+      activeGrants.filter((a) => a.account.isOwnedBy(accountId)).map((a) => [a.account.id, a.accessLevel]),
     );
 
     const custodyAccounts: CustodyAccountDto[] = [
@@ -81,9 +81,9 @@ export class CustodyAccountService {
         // No grant on an own account means the owner keeps full disposal — that is the rule,
         // not a fallback for a missing value.
         const level = ownLevelByAccount.get(ca.id) ?? CustodyAccessLevel.WRITE;
-        return CustodyAccountDtoMapper.toDto(ca, level);
+        return CustodyAccountDtoMapper.toDto(ca, level, true);
       }),
-      ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel)),
+      ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel, false)),
     ];
 
     // Legacy Safe = absence of any owned account row; independent of shared grants. Hidden
@@ -157,7 +157,7 @@ export class CustodyAccountService {
     // owner's own grant is the only way to express that, so it must not be overridden here.
     // Managing grants stays with the owner regardless (requireOwner), so this cannot lock
     // anyone out of their own account.
-    if (custodyAccount.owner.id === accountId && !access) {
+    if (custodyAccount.isOwnedBy(accountId) && !access) {
       return { custodyAccount, isLegacy: false };
     }
 
@@ -208,7 +208,7 @@ export class CustodyAccountService {
     const ownerId = custodyAccount.owner.id;
 
     // Owner already holds every Safe row; multi-account ambiguity only matters for grantees.
-    if (ownerId === callerAccountId) {
+    if (custodyAccount.isOwnedBy(callerAccountId)) {
       return ownerId;
     }
 
@@ -384,7 +384,7 @@ export class CustodyAccountService {
       relations: { owner: true },
     });
 
-    if (!custodyAccount || custodyAccount.owner.id !== accountId) {
+    if (!custodyAccount || !custodyAccount.isOwnedBy(accountId)) {
       throw new ForbiddenException('Only the account owner can manage access grants');
     }
 
@@ -446,7 +446,7 @@ export class CustodyAccountService {
     account: CustodyAccount,
     newLevel: CustodyAccessLevel,
   ): void {
-    const isOwnGrant = access.userData.id === account.owner.id;
+    const isOwnGrant = account.isOwnedBy(access.userData.id);
     const isElevation = access.accessLevel === CustodyAccessLevel.READ && newLevel === CustodyAccessLevel.WRITE;
 
     if (!isOwnGrant && isElevation && account.status !== CustodyAccountStatus.ACTIVE) {
@@ -461,7 +461,7 @@ export class CustodyAccountService {
    * account without an owner row and make the level unrecordable, so it stays refused.
    */
   private rejectOwnerGrantRevocation(access: CustodyAccountAccess, account: CustodyAccount): void {
-    if (access.userData.id === account.owner.id) {
+    if (account.isOwnedBy(access.userData.id)) {
       throw new BadRequestException("Cannot revoke the account owner's access grant");
     }
   }

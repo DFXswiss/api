@@ -5,13 +5,14 @@ import { CustodyAccount } from '../entities/custody-account.entity';
 import { CustodyAccessLevel } from '../enums/custody';
 
 export class CustodyAccountDtoMapper {
-  static toDto(custodyAccount: CustodyAccount, accessLevel: CustodyAccessLevel): CustodyAccountDto {
+  static toDto(custodyAccount: CustodyAccount, accessLevel: CustodyAccessLevel, isOwner: boolean): CustodyAccountDto {
     return {
       id: custodyAccount.id,
       title: custodyAccount.title,
       description: custodyAccount.description,
       isLegacy: false,
       accessLevel,
+      isOwner,
       owner: custodyAccount.owner ? { id: custodyAccount.owner.id } : undefined,
     };
   }
@@ -23,6 +24,7 @@ export class CustodyAccountDtoMapper {
       description: undefined,
       isLegacy: true,
       accessLevel: CustodyAccessLevel.WRITE,
+      isOwner: true,
       owner: { id: userData.id },
     };
   }

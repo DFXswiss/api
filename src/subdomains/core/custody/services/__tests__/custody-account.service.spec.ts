@@ -355,6 +355,7 @@ describe('CustodyAccountService', () => {
           id: ownAccountId,
           accessLevel: CustodyAccessLevel.WRITE,
           isLegacy: false,
+          isOwner: true,
         }),
       );
     });
@@ -378,6 +379,7 @@ describe('CustodyAccountService', () => {
           id: ownAccountId,
           accessLevel: CustodyAccessLevel.READ,
           isLegacy: false,
+          isOwner: true,
         }),
       );
     });
@@ -423,12 +425,53 @@ describe('CustodyAccountService', () => {
           id: foreignAccountId,
           accessLevel: CustodyAccessLevel.READ,
           isLegacy: false,
+          isOwner: false,
         }),
       );
 
       // Own account must not appear a second time as "shared"
       const ownOccurrences = result.filter((dto) => dto.id === ownAccountId);
       expect(ownOccurrences).toHaveLength(1);
+    });
+
+    it('lists a shared foreign account with write access as not owned', async () => {
+      const foreignAccount = foreignCustodyAccount();
+      const sharedWriteGrant = accessGrant({
+        account: foreignAccount,
+        userData: ownerUserData(),
+        accessLevel: CustodyAccessLevel.WRITE,
+        active: true,
+      });
+      userDataService.getUserData.mockResolvedValue(ownerUserData());
+      mockFindActiveGrants([sharedWriteGrant]);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: foreignAccountId,
+          accessLevel: CustodyAccessLevel.WRITE,
+          isLegacy: false,
+          isOwner: false,
+        }),
+      );
+    });
+
+    it('lists a legacy account as owned for a custody user without owned accounts', async () => {
+      const custodyUserId = 55;
+      userDataService.getUserData.mockResolvedValue(ownerUserData({ users: [custodyRoleUser(custodyUserId)] }));
+      mockFindActiveGrants([]);
+
+      const result = await service.getCustodyAccountsForUser(ownerId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          isLegacy: true,
+          isOwner: true,
+        }),
+      );
     });
 
     it("filters out inactive grants, another user's grants, and grants on non-active accounts", async () => {
