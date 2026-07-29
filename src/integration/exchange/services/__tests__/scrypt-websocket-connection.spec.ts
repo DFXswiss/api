@@ -711,7 +711,8 @@ describe('ScryptWebSocketConnection', () => {
     await flushPromises();
 
     // Without the epoch guard a superseded loop would run a second connect alongside the live one. Assert the
-    // observable effect too, so renaming connect() fails this loudly instead of passing on a silent spy.
+    // observable effect too: the spy alone would still pass if the retry path stopped going through connect()
+    // at all, since a spy that is never called satisfies a negative assertion.
     expect(connectSpy).not.toHaveBeenCalled();
     expect(WebSocket.instances.length).toBe(socketsBefore);
 
@@ -772,18 +773,19 @@ describe('ScryptWebSocketConnection', () => {
     connectSpy.mockRestore();
 
     (connection as any).reconnectEpoch = epochA + 1; // a newer loop took over
-    const liveTimer = (connection as any).reconnectTimer;
+    const timerBefore = (connection as any).reconnectTimer;
     const warnsBefore = loggerWarn.mock.calls.length;
     const schedulesBefore = scheduleSpy.mock.calls.length;
 
     rejectConnectA(new Error('superseded attempt failed'));
     await flushPromises();
 
-    // Without the epoch guard in .catch, a dead loop would log a retry for itself and overwrite
-    // reconnectTimer with its own stale handle — so a later disconnect() would cancel the wrong timer.
+    // Without the epoch guard in .catch, a dead loop logs a retry for itself and calls scheduleReconnect,
+    // replacing reconnectTimer with a timer of its own. In production that slot belongs to the newer loop,
+    // so a later disconnect() would then cancel the wrong one.
     expect(loggerWarn.mock.calls.length).toBe(warnsBefore);
     expect(scheduleSpy.mock.calls.length).toBe(schedulesBefore);
-    expect((connection as any).reconnectTimer).toBe(liveTimer);
+    expect((connection as any).reconnectTimer).toBe(timerBefore);
   });
 
   it('arms the loop when the SUBSCRIBE frame throws after the connect succeeded', async () => {
