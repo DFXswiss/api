@@ -44,16 +44,24 @@ enum ScryptRequestType {
   CANCEL = 'cancel',
 }
 
+// Schemes the ws client will actually open. Anything else makes its constructor throw synchronously, which
+// looks identical to an unparseable URL from here and is just as unfixable by retrying.
+const DIALABLE_WS_PROTOCOLS = ['ws:', 'wss:', 'http:', 'https:'];
+
 /**
  * A URL the client can actually dial. Shared with ScryptService.isConfigured so that "configured" and
- * "connectable" cannot drift apart: a non-empty but unparseable URL would otherwise pass the config guard,
- * register every subscription, and then fail identically on every attempt with nothing able to fix it.
+ * "connectable" cannot drift apart: a URL that merely parses would otherwise pass the config guard, register
+ * every subscription, and then fail identically on every attempt with nothing able to fix it.
+ *
+ * The scheme is the whole test. It rejects both `ftp://host` (parses, but the client refuses the scheme) and
+ * a bare `host:443` (parses, but as scheme `host:` with no authority). No separate host check: all four are
+ * special schemes, for which the URL parser already rejects an empty host.
  */
 export function isParseableWsUrl(url: string | undefined): boolean {
   if (!url) return false;
 
   try {
-    return !!new URL(url).host;
+    return DIALABLE_WS_PROTOCOLS.includes(new URL(url).protocol);
   } catch {
     return false;
   }
@@ -185,8 +193,9 @@ export class ScryptWebSocketConnection {
   // connect resolves, so establishConnection must NOT restore those (that would double-send). Everything else
   // in activeStreams is orphaned — nobody is waiting to send it — and only we can put it back on the socket.
   // Claims are per CALL, not per stream: two calls can hold the same stream at once (one dying, one live), so
-  // each releases only its own token. A shared flag or count would let the loser's release free the winner's
-  // stream — resubscribeToStreams would then restore a stream whose owner is about to send it too.
+  // each releases only its own token. A flag or a count cannot express that once disconnect() clears the map —
+  // the superseded call's release would then consume the newer call's claim, and resubscribeToStreams would
+  // restore a stream whose owner is about to send it too.
   private pendingOwnerSubscribes: Map<ScryptMessageType, Set<number>> = new Map();
   private subscribeClaimSeq = 0;
   // Filters belong to the stream, not to the one call that first sent it: restoring a stream without them would
@@ -385,7 +394,7 @@ export class ScryptWebSocketConnection {
 
     // A URL we cannot parse fails identically on every attempt, so a loop would warn forever without ever
     // being able to connect. Say so once and stay down: this needs a config change, not a retry.
-    if (!this.isWsUrlParseable()) {
+    if (!isParseableWsUrl(this.wsUrl)) {
       if (!this.loggedUnparseableWsUrl) {
         this.loggedUnparseableWsUrl = true;
         this.logger.error('Scrypt WebSocket URL cannot be parsed — not scheduling reconnects');
@@ -395,10 +404,6 @@ export class ScryptWebSocketConnection {
 
     this.isReconnecting = true;
     this.scheduleReconnect(0, ++this.reconnectEpoch);
-  }
-
-  private isWsUrlParseable(): boolean {
-    return isParseableWsUrl(this.wsUrl);
   }
 
   // Streams that are supposed to be on the socket but have no subscribe() call waiting to send them.
@@ -477,6 +482,10 @@ export class ScryptWebSocketConnection {
     await this.connect();
 
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      // connect() short-circuits on a CONNECTED state whose socket is already closing, so it resolves without
+      // having reconnected and its catch never runs. Arm here too, or a business call that lands in this window
+      // leaves the streams down until the socket's own close event finally arrives.
+      this.ensureReconnectLoop();
       throw new Error('WebSocket connection failed');
     }
 

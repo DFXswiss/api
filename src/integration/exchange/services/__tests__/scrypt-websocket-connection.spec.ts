@@ -1,6 +1,7 @@
 import { EventEmitter as MockEventEmitter } from 'events';
 import Ws from 'ws';
 import {
+  isParseableWsUrl,
   ScryptMessageType,
   ScryptRequestTimeoutError,
   ScryptWebSocketConnection,
@@ -1196,6 +1197,17 @@ describe('ScryptWebSocketConnection', () => {
       expect(onReconnect).not.toHaveBeenCalled();
     });
 
+    it('arms the loop when a business call finds the socket closing under a stale CONNECTED state', async () => {
+      const ws = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+      ws.readyState = WebSocket.CLOSING; // close event not delivered yet, so connect() still short-circuits
+
+      // A plain read, not a subscribe: nothing else in this path would arm the loop.
+      await expect(connection.fetch(ScryptMessageType.BALANCE)).rejects.toThrow(/WebSocket connection failed/);
+
+      expect((connection as any).isReconnecting).toBe(true);
+      expect(jest.getTimerCount()).toBe(1);
+    });
+
     it('a claim left behind by disconnect() does not suppress a later restore', async () => {
       connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
       const abandonedWs = latestWs(); // never opens; its subscribe() stays in flight behind the handshake timeout
@@ -1234,6 +1246,98 @@ describe('ScryptWebSocketConnection', () => {
       expect(scheduleSpy).not.toHaveBeenCalled();
       expect((broken as any).isReconnecting).toBe(false);
       expect(brokenError.mock.calls.filter(([msg]) => /cannot be parsed/.test(String(msg)))).toHaveLength(1);
+    });
+  });
+
+  describe('dialable url', () => {
+    it.each([
+      ['wss://scrypt.example/ws', true],
+      ['ws://scrypt.example/ws', true],
+      ['https://scrypt.example/ws', true],
+      ['', false],
+      [undefined, false],
+      ['not-a-url', false],
+      ['scrypt.example/ws', false], // no scheme
+      ['scrypt.example:443', false], // parses, but the host lands in the scheme
+      ['ftp://scrypt.example/ws', false], // parses with a host, but the client refuses the scheme
+    ])('isParseableWsUrl(%p) === %p', (url, expected) => {
+      expect(isParseableWsUrl(url as string | undefined)).toBe(expected);
+    });
+
+    it('arms no loop and reports once for a scheme the client would refuse', async () => {
+      const broken = new ScryptWebSocketConnection('ftp://scrypt.example/ws', 'api-key', 'api-secret');
+      const brokenError = jest.spyOn((broken as any).logger, 'error').mockImplementation(() => undefined);
+      const scheduleSpy = jest.spyOn(broken as any, 'scheduleReconnect');
+
+      broken.subscribeToStream(ScryptMessageType.BALANCE, () => undefined);
+      // The real ws constructor rejects this scheme synchronously; the mock does not, so drive the attempt to
+      // its handshake timeout to reach the same failure the guard has to answer for.
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      expect(scheduleSpy).not.toHaveBeenCalled();
+      expect((broken as any).isReconnecting).toBe(false);
+      expect(brokenError.mock.calls.filter(([msg]) => /cannot be parsed/.test(String(msg)))).toHaveLength(1);
+    });
+  });
+
+  describe('state reset on disconnect', () => {
+    it('forgets stream filters so a later unfiltered subscribe is not restored with the old filter', async () => {
+      const unsubscribe = connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined, {
+        StartDate: '2026-01-01T00:00:00.000000Z',
+      });
+      latestWs().open();
+      await flushPromises();
+
+      unsubscribe(); // drops the stream and must drop its filter with it
+
+      connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined); // no filter this time
+      await flushPromises();
+      const ws = latestWs();
+      ws.remoteClose(1006, 'gone');
+      await fireReconnectAttempt(0);
+      const reconnectedWs = latestWs();
+      reconnectedWs.open();
+      await flushPromises();
+
+      const restored = subscribeMessages(reconnectedWs)[0] as any;
+      expect(restored.streams[0]).not.toHaveProperty('StartDate');
+    });
+
+    it('clears stream filters on disconnect so a reused connection does not replay them', async () => {
+      connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined, {
+        StartDate: '2026-01-01T00:00:00.000000Z',
+      });
+      latestWs().open();
+      await flushPromises();
+
+      await connection.disconnect();
+
+      connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined);
+      const reusedWs = latestWs();
+      reusedWs.open();
+      await flushPromises();
+
+      const sent = subscribeMessages(reusedWs)[0] as any;
+      expect(sent.streams[0]).not.toHaveProperty('StartDate');
+    });
+
+    it('resets hasEverConnected so a reused connection does not fire catch-up on its first connect', async () => {
+      const onReconnect = jest.fn();
+      connection.onReconnect(onReconnect);
+
+      const ws = await firstConnectWithStream(ScryptMessageType.BALANCE);
+      expect(ws).toBeDefined();
+      expect(onReconnect).not.toHaveBeenCalled();
+
+      await connection.disconnect();
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE, () => undefined);
+      latestWs().open();
+      await flushPromises();
+
+      // A reused connection starts over — its first connect owes no catch-up.
+      expect(onReconnect).not.toHaveBeenCalled();
     });
   });
 
