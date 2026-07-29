@@ -70,6 +70,16 @@ export class RealUnitJobService {
     }
   }
 
+  // Resolves RealUnit W2W transfer requests stuck in PROCESSING after a crash/restart between the
+  // atomic claim and the broadcast/callback in confirmTransfer — see
+  // RealUnitService.reconcilePendingTransfers for the actual reconciliation logic.
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.REALUNIT_TRANSFER_RECONCILIATION, timeout: 1800 })
+  async reconcilePendingTransfers(): Promise<void> {
+    await this.realunitService.reconcilePendingTransfers();
+  }
+
+  // --- HELPER METHODS --- //
+
   private async getConsumedSettlements(userId: number): Promise<Map<string, number>> {
     const settlements = await this.transactionRequestService.getUsedSettlements(userId);
 
@@ -92,9 +102,10 @@ export class RealUnitJobService {
     expectedShares: number,
     minTimestamp: Date,
   ): HistoryEventDto | undefined {
-    const incomingTransfers = history
-      .filter((e) => e.transfer && Util.equalsIgnoreCase(e.transfer.to, address))
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    const incomingTransfers = Util.sort(
+      history.filter((e) => e.transfer && Util.equalsIgnoreCase(e.transfer.to, address)),
+      'timestamp',
+    );
 
     const seen = new Map<string, number>();
 
@@ -113,13 +124,5 @@ export class RealUnitJobService {
 
   private settlementKey(txHash: string, shares: number): string {
     return `${txHash.toLowerCase()}|${shares}`;
-  }
-
-  // Resolves RealUnit W2W transfer requests stuck in PROCESSING after a crash/restart between the
-  // atomic claim and the broadcast/callback in confirmTransfer — see
-  // RealUnitService.reconcilePendingTransfers for the actual reconciliation logic.
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.REALUNIT_TRANSFER_RECONCILIATION, timeout: 1800 })
-  async reconcilePendingTransfers(): Promise<void> {
-    await this.realunitService.reconcilePendingTransfers();
   }
 }

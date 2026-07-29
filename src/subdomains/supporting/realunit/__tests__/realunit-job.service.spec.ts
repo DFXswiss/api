@@ -186,6 +186,23 @@ describe('RealUnitJobService', () => {
     expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xBatchTx');
   });
 
+  it('should complete a quote when the consumed transfer is not the first event of the batch tx', async () => {
+    const largeQuote = { ...quote, id: 11, estimatedAmount: 22047 };
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([largeQuote] as any);
+    jest
+      .spyOn(transactionRequestService, 'getUsedSettlements')
+      .mockResolvedValue([{ settlementTxId: '0xBatchTx', estimatedAmount: 219.71 }]);
+    // the consumed transfer is the second event here, so a tx-hash-only match would skip the wrong one
+    mockHistory([
+      { ...settlementEvent, txHash: '0xBatchTx', transfer: { ...settlementEvent.transfer, value: '22047' } },
+      { ...settlementEvent, txHash: '0xBatchTx', transfer: { ...settlementEvent.transfer, value: '219' } },
+    ]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, '0xBatchTx');
+  });
+
   it('should match the oldest unused settlement transfer', async () => {
     const laterEvent = { ...settlementEvent, txHash: '0xLaterTx', timestamp: new Date('2026-07-01T12:00:00Z') };
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
