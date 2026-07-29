@@ -143,7 +143,7 @@ export class LedgerMarkService {
   async preload(batchStartDate: Date, to: Date): Promise<LedgerMarkCache> {
     const spanDays = Util.daysDiff(batchStartDate, to);
     const dailySample = spanDays > Config.ledger.markPreloadDailySampleThresholdDays;
-    const maxRows = Config.ledger.markPreloadMaxRows;
+    const maxRows = this.getMarkPreloadMaxRows();
 
     // +1 so probeRows.length > maxRows can still detect overflow when SQL already caps at maxRows
     const probeRows = await this.logService.getFinancialLogs(batchStartDate, dailySample, to, maxRows + 1);
@@ -162,7 +162,7 @@ export class LedgerMarkService {
   // maxRows and deterministic ORDER BY created ASC, id ASC) — so the probe read is not thrown away and
   // re-fetched. Halves the data read on overflow, result set stays identical to full re-pagination.
   private async paginate(batchStartDate: Date, to: Date, dailySample: boolean, firstPage: Log[]): Promise<Log[]> {
-    const maxRows = Config.ledger.markPreloadMaxRows;
+    const maxRows = this.getMarkPreloadMaxRows();
     const result: Log[] = [...firstPage];
     let after: number | undefined = firstPage[firstPage.length - 1]?.id;
 
@@ -178,6 +178,16 @@ export class LedgerMarkService {
     }
 
     return result;
+  }
+
+  // Fail loud on a non-positive / non-integer markPreloadMaxRows (e.g. LEDGER_MARK_PRELOAD_MAX_ROWS=0 or
+  // a broken env parse): LIMIT 0 / empty first page would otherwise silently build an empty cache.
+  private getMarkPreloadMaxRows(): number {
+    const value = Config.ledger.markPreloadMaxRows;
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`Invalid LEDGER_MARK_PRELOAD_MAX_ROWS: expected a positive integer, got ${String(value)}`);
+    }
+    return value;
   }
 
   private buildMarkMap(rows: Log[]): Map<number, MarkPoint[]> {

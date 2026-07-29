@@ -20,12 +20,22 @@ function financialLog(created: Date, assets: Record<string, { priceChf: number }
   });
 }
 
+/** Matches `LogService.getFinancialLogs` / repository keyset pagination signature. */
+type FakeGetFinancialLogs = (
+  from?: Date,
+  dailySample?: boolean,
+  to?: Date,
+  limit?: number,
+  after?: number,
+) => Promise<Log[]>;
+
 /**
  * Fake `getFinancialLogs` that honours from/to/limit/after like the repository keyset query.
  * Pagination tests must use this — rigid mockResolvedValueOnce chains ignore limit and hide data-loss bugs.
- * `after` is the id-only cursor (number); filter is rows with id > after.
+ * `after` is the id-only cursor (number); filter is the production row-value compare
+ * `(created, id) > (cursor.created, cursor.id)` after resolving the cursor row from `allRows` by id.
  */
-function fakeGetFinancialLogs(allRows: Log[]) {
+function fakeGetFinancialLogs(allRows: Log[]): FakeGetFinancialLogs {
   return async (from?: Date, _dailySample?: boolean, to?: Date, limit?: number, after?: number): Promise<Log[]> => {
     let rows = [...allRows].sort((a, b) => {
       const byCreated = a.created.getTime() - b.created.getTime();
@@ -34,7 +44,16 @@ function fakeGetFinancialLogs(allRows: Log[]) {
 
     if (from) rows = rows.filter((r) => r.created.getTime() >= from.getTime());
     if (to) rows = rows.filter((r) => r.created.getTime() <= to.getTime());
-    if (after != null) rows = rows.filter((r) => r.id > after);
+    if (after != null) {
+      // Cursor row may sit outside the from/to window — resolve it from the full set, not the filtered page.
+      const cursor = allRows.find((r) => r.id === after);
+      if (!cursor) throw new Error(`Financial log cursor row ${after} no longer exists`);
+      rows = rows.filter(
+        (r) =>
+          r.created.getTime() > cursor.created.getTime() ||
+          (r.created.getTime() === cursor.created.getTime() && r.id > cursor.id),
+      );
+    }
     if (limit != null) rows = rows.slice(0, limit);
 
     return rows;
@@ -331,6 +350,34 @@ describe('LedgerMarkService', () => {
 
       expect(cache.getMarkAt(5, new Date('2026-06-01T00:30:00Z'))).toBe(50000);
       expect(cache.getMarkAt(5, new Date('2026-06-01T01:30:00Z'))).toBe(51000);
+    });
+
+    // Non-monotone ids: a later `created` can carry a smaller id than the cursor. Production compares
+    // `(created, id)` lexicographically; an id-only `id > after` filter would drop the second row.
+    it('keeps rows with non-monotone ids via lexicographic (created, id) keyset cursor', async () => {
+      const t0 = new Date('2026-06-01T00:00:00Z');
+      const t1 = new Date('2026-06-01T01:00:00Z');
+      const rowA = createCustomLog({
+        id: 200,
+        system: 'LogService',
+        subsystem: 'FinancialDataLog',
+        created: t0,
+        message: JSON.stringify({ assets: { '5': { priceChf: 50000 } } }),
+      });
+      const rowB = createCustomLog({
+        id: 50,
+        system: 'LogService',
+        subsystem: 'FinancialDataLog',
+        created: t1,
+        message: JSON.stringify({ assets: { '6': { priceChf: 51000 } } }),
+      });
+
+      jest.spyOn(logService, 'getFinancialLogs').mockImplementation(fakeGetFinancialLogs([rowA, rowB]));
+
+      const cache = await pagedService.preload(t0, new Date('2026-06-01T03:00:00Z'));
+
+      expect(cache.getMarkAt(5, t0)).toBe(50000);
+      expect(cache.getMarkAt(6, t1)).toBe(51000);
     });
 
     it('excludes rows with created after to from the cache (SQL upper bound is respected)', async () => {
