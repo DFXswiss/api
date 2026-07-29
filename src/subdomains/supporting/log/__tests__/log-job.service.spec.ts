@@ -1579,6 +1579,88 @@ describe('LogJobService', () => {
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
   });
 
+  it('should not let a receiver whose own sender aged out of the 7-day window retire an unrelated recent sender via amount+date', () => {
+    // S_alt is 8 days old and falls out of recentSenders, but its ref "83001" still matches E's
+    // ref from DEPOSIT-83001. E must count as consumed (consumedRefs built over full senderTx, not
+    // only recentSenders). Otherwise E stays available and would falsely retire S_neu by amount+date
+    // (same 30000 EUR; dateDiff between daysBefore(6) and daysBefore(1) is well under DATE_WINDOW_MS).
+    const sAlt = createCustomBankTx({
+      id: 1,
+      created: Util.daysBefore(8),
+      valueDate: Util.daysBefore(8),
+      remittanceInfo: 'DFX Payout 83001',
+      instructedAmount: 30000,
+      instructedCurrency: 'EUR',
+    });
+    const receiver = createCustomExchangeTx({
+      id: 1,
+      created: Util.daysBefore(6),
+      txId: 'DEPOSIT-83001',
+      amount: 30000,
+      currency: 'EUR',
+    });
+    const sNeu = createCustomBankTx({
+      id: 2,
+      created: Util.daysBefore(1),
+      valueDate: Util.daysBefore(1),
+      instructedAmount: 30000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'DFX Payout 83999',
+    });
+
+    expect(service.getUnmatchedSenders([sAlt, sNeu], [receiver])).toEqual([sNeu]);
+  });
+
+  it('should not match a ref-less receiver outside the 7-day date window even when amount and currency match', () => {
+    // Pass-2 amount+date fallback must still enforce DATE_WINDOW_MS: same amount/currency is not
+    // enough when the receiver is more than 7 days away from the sender.
+    const sender = createCustomBankTx({
+      id: 1,
+      created: Util.daysBefore(2),
+      valueDate: Util.daysBefore(2),
+      instructedAmount: 15000,
+      instructedCurrency: 'EUR',
+      remittanceInfo: 'DFX Payout 84001',
+    });
+    const receiver = createCustomExchangeTx({
+      id: 1,
+      created: Util.daysBefore(10),
+      amount: 15000,
+      currency: 'EUR',
+      txId: undefined,
+    });
+
+    expect(service.getUnmatchedSenders([sender], [receiver])).toEqual([sender]);
+  });
+
+  it('should retire an ExchangeTx withdrawal sender against a BankTx receiver by amount+date (fromScrypt direction, ref-less sender)', () => {
+    // fromScrypt (Scrypt withdrawal -> bank receipt): Scrypt withdrawals real-world have no txId
+    // (verified in prod). Pass 1 cannot match. The receiver intentionally carries a set reference
+    // that matches no sender (no trailing 4+ digit payout id, full normalized ref unmatched).
+    // Without the fix (filter `!this.getTxReference(r)` instead of `!ref || !consumedRefs.has(ref)`),
+    // this receiver would be excluded from the amount/date fallback and the sender would stay unmatched.
+    // With the fix, the referenced-but-unconsumed receiver participates and retires the sender.
+    const sender = createCustomExchangeTx({
+      id: 1,
+      created: Util.hoursBefore(24),
+      externalCreated: Util.hoursBefore(24),
+      type: ExchangeTxType.WITHDRAWAL,
+      amount: 12000,
+      currency: 'CHF',
+      txId: undefined,
+    });
+    const receiver = createCustomBankTx({
+      id: 1,
+      created: Util.hoursBefore(20),
+      valueDate: Util.hoursBefore(20),
+      instructedAmount: 12000,
+      instructedCurrency: 'CHF',
+      remittanceInfo: 'SCRYPT PAYOUT 12000 CHF',
+    });
+
+    expect(service.getUnmatchedSenders([sender], [receiver])).toEqual([]);
+  });
+
   // --- settlement-anchored buy_fiat liability (FinanceLog) ---
 
   // Yapeal CHF payout-bank asset: dexName = currency, bank = settling bank.
