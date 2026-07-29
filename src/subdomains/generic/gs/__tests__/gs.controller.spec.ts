@@ -2,7 +2,6 @@ import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { BadRequestException } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { DbQueryDto } from 'src/subdomains/generic/gs/dto/db-query.dto';
@@ -16,12 +15,11 @@ import { GsService } from 'src/subdomains/generic/gs/gs.service';
 // NestJS' HTTP pipeline: `RoleGuard()` / `UserActiveGuard()` bake already-instantiated guard
 // objects into `@UseGuards()` at controller-decoration time, so a fresh `Test.overrideGuard()`
 // call from a test module can't target them. Guards are a framework layer wrapped around the
-// controller, not part of the method itself, so a direct `new GsController(service, settingService)` plus
+// controller, not part of the method itself, so a direct `new GsController(service)` plus
 // a plain method call sidesteps that problem entirely and exercises the actual production code
 // path this feature touches.
 describe('GsController', () => {
   let service: DeepMocked<GsService>;
-  let settingService: DeepMocked<SettingService>;
   let controller: GsController;
   let verboseSpy: jest.SpyInstance;
 
@@ -29,11 +27,7 @@ describe('GsController', () => {
 
   // Both handlers check `Process.GS_DB` before trigger enforcement. `Process.GS_DB` must stay
   // enabled (DisabledProcess -> false) here so the pre-existing endpoint-disabled guard never
-  // fires and the trigger check is what's actually under test. Enforcement itself is gated by
-  // `SettingService.getObj('gsTriggerEnforcement', ...)`.
-  function mockTriggerEnforcement(enforced: unknown): void {
-    settingService.getObj.mockResolvedValue(enforced);
-  }
+  // fires and the trigger check is what's actually under test.
 
   function query(overrides: Partial<DbQueryDto>): DbQueryDto {
     return Object.assign(new DbQueryDto(), { table: 'asset' }, overrides);
@@ -41,8 +35,7 @@ describe('GsController', () => {
 
   beforeEach(() => {
     service = createMock<GsService>();
-    settingService = createMock<SettingService>();
-    controller = new GsController(service, settingService);
+    controller = new GsController(service);
     verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
   });
@@ -62,65 +55,45 @@ describe('GsController', () => {
 
   for (const { name, call, serviceCall } of handlers) {
     describe(name, () => {
-      it('rejects a request without trigger when the check is enabled, and logs the table plus missing labels for identifier and trigger', async () => {
-        mockTriggerEnforcement(true);
-
+      it('rejects a request without trigger, logs first, and never calls the GS service', async () => {
+        const started = performance.now();
         let caught: unknown;
         try {
           await call(query({}));
         } catch (e) {
           caught = e;
         }
+        const elapsed = performance.now() - started;
 
         expect(caught).toBeInstanceOf(BadRequestException);
         expect((caught as BadRequestException).message).toBe('Trigger type is required');
-        expect(serviceCall()).not.toHaveBeenCalled();
+        // Structural invariant: audit line is emitted before rejection, service is never entered.
+        expect(verboseSpy).toHaveBeenCalledTimes(1);
         expect(verboseSpy).toHaveBeenCalledWith(
           'GS db call: table=asset, identifier=missing, trigger=missing, role=Admin',
         );
-        expect(settingService.getObj).toHaveBeenCalledWith('gsTriggerEnforcement', false);
+        expect(serviceCall()).not.toHaveBeenCalled();
+        // Rejection path is synchronous (no SettingService/DB await). Keep a modest SLA so
+        // a regression that re-introduces awaited work fails the suite without relying on load.
+        expect(elapsed).toBeLessThan(1000);
       });
 
-      it('accepts trigger=Manual when the check is enabled', async () => {
-        mockTriggerEnforcement(true);
-
+      it('accepts trigger=Manual', async () => {
         await call(query({ trigger: GsTriggerType.MANUAL }));
 
         expect(serviceCall()).toHaveBeenCalled();
       });
 
-      it('accepts trigger=Auto when the check is enabled', async () => {
-        mockTriggerEnforcement(true);
-
+      it('accepts trigger=Auto', async () => {
         await call(query({ trigger: GsTriggerType.AUTO }));
-
-        expect(serviceCall()).toHaveBeenCalled();
-      });
-
-      it('accepts a request without trigger when the check is disabled', async () => {
-        mockTriggerEnforcement(false);
-
-        await call(query({}));
 
         expect(serviceCall()).toHaveBeenCalled();
       });
     });
   }
 
-  describe('getDbData trigger enforcement', () => {
-    it('accepts a request without trigger when the setting resolves to a truthy non-boolean (e.g. a hand-written "true" string) — only a real boolean true enforces', async () => {
-      mockTriggerEnforcement('true');
-
-      await controller.getDbData(jwt, query({}));
-
-      expect(service.getDbData).toHaveBeenCalled();
-    });
-  });
-
   describe('getDbData log sanitization', () => {
     it('replaces control characters in identifier so log lines cannot be forged', async () => {
-      mockTriggerEnforcement(false);
-
       await controller.getDbData(jwt, query({ identifier: 'x\nforged', trigger: GsTriggerType.MANUAL }));
 
       expect(verboseSpy).toHaveBeenCalledWith(
@@ -129,8 +102,6 @@ describe('GsController', () => {
     });
 
     it('truncates oversized identifier values and appends a truncation marker', async () => {
-      mockTriggerEnforcement(false);
-
       await controller.getDbData(jwt, query({ identifier: 'a'.repeat(500), trigger: GsTriggerType.MANUAL }));
 
       const logged = verboseSpy.mock.calls[0][0] as string;
@@ -143,7 +114,6 @@ describe('GsController', () => {
     });
 
     it('sanitizes identifier in the getDbData failure log so log lines cannot be forged', async () => {
-      mockTriggerEnforcement(false);
       service.getDbData.mockRejectedValue(new Error('boom'));
 
       let caught: unknown;
