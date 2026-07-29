@@ -61,6 +61,32 @@ export class AssetService {
     return this.assetRepo.findCachedBy(`${ids}`, { id: In(ids) });
   }
 
+  /**
+   * Assets sharing a price rule, i.e. assets that are priced identically by definition. Used to
+   * value an asset on days it has no `asset_price` row of its own: a position introduced later
+   * (`Ethereum/sZCHF`, added long after the holdings it represents) has no price history before
+   * its creation date, while the asset it is pegged to has the full series. Reading the peer's
+   * price is not an estimate — the shared price rule is what defines both prices.
+   *
+   * The price rule travels with each asset so callers can map a rule to its members without a
+   * second round trip. Not cached: unlike the id lookups above, this is used on a read path
+   * that must reflect a newly added asset immediately.
+   */
+  async getAssetsByPriceRules(priceRuleIds: number[]): Promise<Asset[]> {
+    if (!priceRuleIds.length) return [];
+
+    return this.assetRepo.find({
+      where: { priceRule: { id: In(priceRuleIds) } },
+      relations: { priceRule: true },
+    });
+  }
+
+  async getAssetsByIdWith(ids: number[], relations: FindOptionsRelations<Asset>): Promise<Asset[]> {
+    if (!ids.length) return [];
+
+    return this.assetRepo.find({ where: { id: In(ids) }, relations });
+  }
+
   async getAssetByChainId(blockchain: Blockchain, chainId: string): Promise<Asset> {
     return this.assetRepo.findOneCachedBy(`${blockchain}-${chainId}`, { blockchain, chainId });
   }
