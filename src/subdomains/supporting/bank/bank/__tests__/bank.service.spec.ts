@@ -63,8 +63,11 @@ function mockFindCachedForBanks(bankRepo: BankRepository, banks: Bank[]): void {
   jest
     .spyOn(bankRepo, 'findCached')
     .mockImplementation(async (_key: number | string, options?: FindOneOptions<Bank>) => {
-      const where = options?.where as FindOptionsWhere<Bank> | undefined;
+      const where = options?.where;
       if (!where) return banks;
+      // getBankInternal always supplies one object; fail visibly if that contract changes, rather
+      // than casting the array variant away and silently matching nothing.
+      if (Array.isArray(where)) throw new Error('mockFindCachedForBanks does not support array filters');
       return banks.filter(
         (bank) =>
           (where.name === undefined || bank.name === where.name) &&
