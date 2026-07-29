@@ -968,6 +968,34 @@ describe('ScryptService', () => {
       );
     });
 
+    it('settles nothing when the filled size is not a number at all', async () => {
+      stubCancel(cancelReport({ CumQty: 'abc' }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('waits past a PendingCancel report instead of taking it for the answer', async () => {
+      // the waiter resolves on its first match and then stops listening, so accepting the interim state
+      // would freeze it as the result and the real terminal report would never be seen. Exercises the
+      // matcher itself rather than mocking around it.
+      const connection = (service as any).connection;
+      let matcher: (reports: ScryptExecutionReport[]) => ScryptExecutionReport | null;
+      jest.spyOn(service as any, 'getTradePair').mockResolvedValue({ symbol: 'EUR/USDT' });
+      jest.spyOn(connection, 'requestAndWaitForUpdate').mockImplementation(async (..._args: unknown[]) => {
+        matcher = _args[3] as typeof matcher;
+        return cancelReport();
+      });
+
+      await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
+
+      const pending = cancelReport({ OrdStatus: ScryptOrderStatus.PENDING_CANCEL });
+      const terminal = cancelReport();
+      expect(matcher([pending])).toBeNull();
+      expect(matcher([pending, terminal])).toBe(terminal);
+    });
+
     it('settles nothing when the cancel never came back', async () => {
       stubCancel(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
 
