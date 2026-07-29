@@ -43,9 +43,9 @@ export enum LiquidityManagementOrderStatus {
   // pipeline (it never resumes on its own) but not for the order: `resolveUncertainOrders` asks the venue
   // what happened and moves it on to IN_PROGRESS or FAILED. See OrderOutcomeUnknownException.
   //
-  // Time-bounded only where an integration can actually ask the venue: an order whose lookup keeps coming
-  // back with no record is abandoned to FAILED once it has outlived the window in which its request could
-  // still be in flight (ABANDON_UNRESOLVED_MINUTES, which differs for venue-internal trades and transfers).
+  // Time-bounded only where an integration can actually ask the venue: an order whose lookup comes back
+  // with no record is abandoned to FAILED once it has outlived the window in which its request could still
+  // be in flight (ABANDON_UNRESOLVED_MINUTES, which differs for venue-internal trades and transfers).
   //
   // Two cases deliberately keep waiting for a human instead, because nothing there is observed: an adapter
   // that implements no `resolveUncertainOrder` at all, and a venue that stays unreachable (UNAVAILABLE
@@ -66,11 +66,15 @@ export enum UncertainOrderResolution {
    */
   UNRESOLVED = 'Unresolved',
   /**
-   * The venue could not be asked at all.
+   * The venue could not be asked, or could not be asked completely.
    *
    * Deliberately not the same as UNRESOLVED: that one is an answer, this one is the absence of one, and a
    * caller that retires an order's outstanding work on the strength of a completed lookup must not retire it
    * on a failed one.
+   *
+   * "Not completely" covers a lookup that stopped with references left unasked — an order superseded by a
+   * replacement the venue cannot see yet leaves its predecessor unchecked, and that predecessor is very
+   * often the live one. Reporting that as an answer would let a caller time it out as never sent.
    */
   UNAVAILABLE = 'Unavailable',
 }

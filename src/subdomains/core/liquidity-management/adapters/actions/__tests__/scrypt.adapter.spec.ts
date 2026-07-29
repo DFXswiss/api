@@ -476,9 +476,9 @@ describe('ScryptAdapter', () => {
       await expect(adapter.resolveUncertainOrder(ancient)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
     });
 
-    it.each([undefined, null])(
+    it.each([[undefined], [null]])(
       'reports UNAVAILABLE when the reference is %p — there was nothing to ask about',
-      async (correlationId) => {
+      async (correlationId: string | null | undefined) => {
         // UNRESOLVED would say the venue answered and had no record, and the caller may abandon an order on
         // that once its bound expires. With no reference the venue was never asked at all, so the order has
         // to keep waiting for a person rather than be failed on a lookup that never ran.
@@ -558,14 +558,28 @@ describe('ScryptAdapter', () => {
 
     it('stays quarantined when a claimed replacement is not (yet) visible, even if the predecessor is', async () => {
       // an accepted replacement may lag in the venue's view; falling back to the order it replaced would
-      // report SENT on a superseded reference and leave the live replacement untracked
+      // report SENT on a superseded reference and leave the live replacement untracked.
+      //
+      // UNAVAILABLE rather than UNRESOLVED, because stopping here leaves the predecessor unasked — and here
+      // it is demonstrably still live. Calling that an answer would let the caller's bound abandon an order
+      // with an open attempt at the venue, which is the duplicate this whole path exists to avoid.
       jest
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) => (id === 'dfx-lm-4711' ? venueOrder(id) : null));
       const order = createUncertainSellOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
-      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
+    });
+
+    it('reports a single unknown reference as UNRESOLVED — nothing was left unasked', async () => {
+      // the ordinary case: one attempt, the venue answered about it, and there is no older reference the
+      // lookup skipped. That is a complete answer, and the caller's bound may act on it.
+      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
+
+      await expect(adapter.resolveUncertainOrder(createUncertainSellOrder())).resolves.toBe(
+        UncertainOrderResolution.UNRESOLVED,
+      );
     });
 
     it('falls back to the predecessor only after the replacement was explicitly rejected', async () => {

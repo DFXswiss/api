@@ -251,6 +251,20 @@ describe('LiquidityManagementPipelineService', () => {
       },
     );
 
+    it('acts on a release immediately when the order carries no reference to look up', async () => {
+      // an unaskable order reports UNAVAILABLE, so without this the release would sit out the full
+      // unreachable-venue wait for an answer that can never arrive — somebody already checked by hand
+      const order = uncertainOrder({ correlationId: undefined, notSentRecheckDue: RELEASED_AT });
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      stubIntegration(UncertainOrderResolution.UNAVAILABLE);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(order.errorMessage).toContain('no reference exists to look it up');
+    });
+
     it('lets a human release win over the clock when both would apply', async () => {
       // an operator checked the venue and recorded why; the abandon knows nothing and would overwrite that
       // reason with an anonymous one. The branch order guarantees the release wins — assert it, so that

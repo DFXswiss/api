@@ -4,7 +4,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
-import { LiquidityManagementOrderStatus } from '../enums';
+import { LiquidityManagementOrderStatus, LiquidityManagementSystem } from '../enums';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
 import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
@@ -74,8 +74,15 @@ const ABANDON_UNRESOLVED_MINUTES = {
  * An allowlist, not a denylist: anything unrecognised — a new adapter, a renamed command — gets the long
  * bound. Being slow to abandon costs a rule some minutes; being fast to abandon a transfer that is still in
  * flight is what duplicates it.
+ *
+ * The system half comes from the enum so a rename cannot silently detach the list from reality. The command
+ * half stays literal: those enums live in the adapters, which import this entity, and importing them back
+ * would close a cycle.
  */
-const VENUE_INTERNAL_ACTIONS = ['scrypt/buy', 'scrypt/sell'];
+const VENUE_INTERNAL_ACTIONS = [
+  `${LiquidityManagementSystem.SCRYPT}/buy`.toLowerCase(),
+  `${LiquidityManagementSystem.SCRYPT}/sell`.toLowerCase(),
+];
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {

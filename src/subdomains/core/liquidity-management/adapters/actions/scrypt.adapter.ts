@@ -630,7 +630,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // 30-day window for very old orders.
         const since = new Date(Math.max(Util.daysBefore(30).getTime(), Util.daysBefore(1, order.created).getTime()));
 
-        for (const candidate of candidates) {
+        for (const [index, candidate] of candidates.entries()) {
           const info = await this.scryptService.getOrderStatus(candidate, since);
 
           // Absent, newest first: an accepted replacement may simply not be visible yet, while the order it
@@ -640,7 +640,14 @@ export class ScryptAdapter extends LiquidityActionAdapter {
             this.logger.warn(
               `Scrypt does not (yet) know reference ${candidate} for order ${order.id} — keeping it quarantined`,
             );
-            return UncertainOrderResolution.UNRESOLVED;
+
+            // Stopping here leaves the older references unasked, and one of them may well be live — the
+            // predecessor of an invisible replacement usually is. That is an incomplete question, not a
+            // venue that answered nothing, and the caller must not retire the order on it: UNRESOLVED
+            // would let the bound abandon an order whose earlier attempt is still open at the venue.
+            const unasked = candidates.length - index - 1;
+
+            return unasked > 0 ? UncertainOrderResolution.UNAVAILABLE : UncertainOrderResolution.UNRESOLVED;
           }
 
           // A refused replacement never took effect and leaves its predecessor live. This is the only case in

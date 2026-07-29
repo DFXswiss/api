@@ -404,15 +404,21 @@ export class LiquidityManagementPipelineService {
           // checked independently and released the order on that basis. Two negatives, one of them from a
           // person who looked: that is what this release was waiting for.
           if (await this.completeNotSentRelease(order, 'the venue has no record of it either')) anyChanged = true;
+        } else if (releasePending && !order.correlationId) {
+          // Nothing ever went out under a reference, so no lookup can produce an answer — the same dead end
+          // as an order with no integration, and the same reason not to make somebody who already checked
+          // wait out a clock. Without this the release would sit through the full unreachable-venue wait,
+          // because an unaskable order now reports UNAVAILABLE rather than an answer.
+          if (await this.completeNotSentRelease(order, 'no reference exists to look it up')) anyChanged = true;
         } else if (releasePending && order.releaseWaitedOutVenue()) {
           // Nobody has been able to ask this venue anything for long enough. Waiting more does not make an
           // answer likelier; it only keeps an order a person has verified by hand out of reach.
           if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
             anyChanged = true;
         } else if (resolution === UncertainOrderResolution.UNRESOLVED && order.unresolvableTooLong()) {
-          // The venue has been answering "no record" past the point this request could still be live, and no
-          // operator has released the order. The original design waited here indefinitely, which is only
-          // safe if somebody eventually looks — where
+          // The venue answered that it has no record, and the order is older than the point at which this
+          // request could still be live. Nobody has released it. The original design waited here
+          // indefinitely, which is only safe if somebody eventually looks — where
           // nobody does, the rule never runs again and the venue stops being served entirely. Abandoning is
           // the lesser failure, and it is safe for a reason that has nothing to do with this order: the rule
           // replans from the venue's current balance, so an execution that did happen is already reflected
