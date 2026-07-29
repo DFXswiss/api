@@ -5,7 +5,9 @@ const HISTORICAL_SIGN_MESSAGE =
 const HISTORICAL_SIGN_MESSAGE_GENERAL =
   'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_';
 
-describe('sign-message env scope (a signature created outside PRD must not verify on PRD)', () => {
+// Configured sign-message *text* per ENVIRONMENT only — no sign/verify here.
+// Cryptographic cross-env replay proof lives in sign-message-cross-env-replay.spec.ts.
+describe('sign-message env scope (configured message text differs by ENVIRONMENT)', () => {
   const originalEnv = process.env.ENVIRONMENT;
 
   afterEach(() => {
@@ -16,7 +18,7 @@ describe('sign-message env scope (a signature created outside PRD must not verif
     }
   });
 
-  it('PRD keeps the historical sign messages byte-for-byte (no prefix)', () => {
+  it('PRD keeps the historical sign message text byte-for-byte (no prefix)', () => {
     process.env.ENVIRONMENT = 'prd';
     const config = new Configuration();
 
@@ -24,7 +26,7 @@ describe('sign-message env scope (a signature created outside PRD must not verif
     expect(config.auth.signMessageGeneral).toBe(HISTORICAL_SIGN_MESSAGE_GENERAL);
   });
 
-  it('DEV signs a distinct text prefixed with [dev]_ so the signature cannot verify on PRD', () => {
+  it('DEV uses a distinct sign message text prefixed with [dev]_ (not a crypto proof)', () => {
     process.env.ENVIRONMENT = 'dev';
     const config = new Configuration();
 
@@ -34,7 +36,7 @@ describe('sign-message env scope (a signature created outside PRD must not verif
     expect(config.auth.signMessageGeneral.startsWith('[dev]_')).toBe(true);
   });
 
-  it('LOC signs a distinct text so the signature cannot verify on PRD', () => {
+  it('LOC uses a sign message text distinct from the historical PRD text', () => {
     process.env.ENVIRONMENT = 'loc';
     const config = new Configuration();
 
@@ -42,8 +44,16 @@ describe('sign-message env scope (a signature created outside PRD must not verif
     expect(config.auth.signMessageGeneral).not.toBe(HISTORICAL_SIGN_MESSAGE_GENERAL);
   });
 
-  it('unset ENVIRONMENT is treated as non-PRD (fail-closed: never yields a PRD-valid signature)', () => {
+  it('unset ENVIRONMENT uses a sign message text distinct from the historical PRD text', () => {
     delete process.env.ENVIRONMENT;
+    const config = new Configuration();
+
+    expect(config.auth.signMessage).not.toBe(HISTORICAL_SIGN_MESSAGE);
+    expect(config.auth.signMessageGeneral).not.toBe(HISTORICAL_SIGN_MESSAGE_GENERAL);
+  });
+
+  it('an unknown ENVIRONMENT value uses a sign message text distinct from the historical PRD text', () => {
+    process.env.ENVIRONMENT = 'staging';
     const config = new Configuration();
 
     expect(config.auth.signMessage).not.toBe(HISTORICAL_SIGN_MESSAGE);

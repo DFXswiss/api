@@ -189,6 +189,13 @@ describeDb('ClearDevUserSignatures migration (real Postgres)', () => {
     expect(entry2).toBeDefined();
     expect(entry2?.beforeFingerprint).toBe(fp2);
     expect(entry2?.after).toBeNull();
+
+    // Audit log must never hold plaintext signatures — only md5 fingerprints.
+    expect(logs[0].message).not.toContain('sig-plaintext-1');
+    expect(logs[0].message).not.toContain('sig-plaintext-2');
+    for (const entry of entries) {
+      expect(entry).not.toHaveProperty('before');
+    }
   });
 
   it('writes no audit row and changes nothing when there are no non-null signatures', async () => {
@@ -212,7 +219,9 @@ describeDb('ClearDevUserSignatures migration (real Postgres)', () => {
     expect(users[0].signature).toBeNull();
   });
 
-  it('rolls back and rejects when the audit insert fails, leaving the signature intact', async () => {
+  // Proves statement atomicity only (failed insert rolls back the whole statement).
+  // Does not isolate the EXISTS coupling — see the suppress-trigger test below.
+  it('rejects and leaves the signature intact when the audit table is missing (statement atomicity)', async () => {
     process.env.ENVIRONMENT = 'dev';
 
     await queryRunner.query(`
@@ -238,6 +247,44 @@ describeDb('ClearDevUserSignatures migration (real Postgres)', () => {
     } finally {
       await verifyRunner.release();
     }
+  });
+
+  // The test above only proves PG statement atomicity (a failing insert rolls back UPDATE too),
+  // independent of whether the migration has EXISTS. This test isolates the structural coupling:
+  // a successful but rowless audit insert must not null signatures either.
+  it('does not null the signature when the audit insert yields no row (isolates the EXISTS coupling)', async () => {
+    process.env.ENVIRONMENT = 'dev';
+
+    await queryRunner.query(`
+      INSERT INTO "user" ("address", "signature")
+      VALUES ('addr-suppressed', 'sig-plaintext-suppressed')
+    `);
+
+    await queryRunner.query(`
+      CREATE FUNCTION suppress_log_insert() RETURNS trigger AS $fn$
+      BEGIN
+        RETURN NULL;
+      END;
+      $fn$ LANGUAGE plpgsql
+    `);
+    await queryRunner.query(`
+      CREATE TRIGGER suppress_log_insert_trigger
+      BEFORE INSERT ON "log"
+      FOR EACH ROW
+      EXECUTE FUNCTION suppress_log_insert()
+    `);
+
+    const migration = new ClearDevUserSignatures();
+    await migration.up(queryRunner);
+
+    const logCount = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "log"`)) as { count: number }[];
+    expect(logCount[0].count).toBe(0);
+
+    const users = (await queryRunner.query(`SELECT "signature" FROM "user" WHERE "address" = 'addr-suppressed'`)) as {
+      signature: string | null;
+    }[];
+    expect(users).toHaveLength(1);
+    expect(users[0].signature).toBe('sig-plaintext-suppressed');
   });
 
   it('does nothing on a real database when ENVIRONMENT is not dev', async () => {
