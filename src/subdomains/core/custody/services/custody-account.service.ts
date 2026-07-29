@@ -92,8 +92,9 @@ export class CustodyAccountService {
     // entries deliberately does NOT matter: a viewer holding only Read grants is exactly the
     // case this hides — an operator-side account with an empty Safe of its own. The cost is
     // that such a viewer keeps no writable entry in the list (checkAccess() rejects writes on
-    // a Read account), so the selector offers them no deposit path. Anyone actually holding
-    // custody balances is caught by the balance check below and keeps the entry either way.
+    // a Read account), so the selector offers them no deposit path. Whenever another entry is
+    // visible, the balance check below has the last word: a legacy Safe that holds something
+    // keeps its entry. With nothing else visible the check never runs and the entry stays.
     if (allOwnedAccounts.length === 0) {
       const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
       if (custodyUserIds.length > 0) {

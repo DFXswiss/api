@@ -569,6 +569,9 @@ describe('CustodyAccountService', () => {
 
       expect(result).toHaveLength(2);
       expect(result.some((dto) => dto.isLegacy)).toBe(true);
+      // Asserting the call is what makes this test about the fix: without it the case would
+      // pass under the old write-access rule too, where the balance was never consulted here.
+      expect(custodyService.hasNonZeroCustodyBalance).toHaveBeenCalledWith([custodyUserId]);
     });
 
     it('drops the empty legacy entry when the user has write access elsewhere', async () => {
