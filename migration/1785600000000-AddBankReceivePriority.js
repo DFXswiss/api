@@ -6,9 +6,11 @@
 /**
  * Adds the nullable `bank.receivePriority` deposit-target eligibility and ordering column. This
  * migration deliberately updates existing `bank` rows to backfill the new column (without inserting
- * or deleting rows), because leaving every bank at NULL would make every deposit target ineligible
- * and change customer routing at deploy. Production activation of Frick by giving it a real priority
- * instead of NULL is a separate, later Ops data step and is not part of this migration.
+ * or deleting rows), because leaving every bank at NULL would leave the generic
+ * `BankService.getBank()` deposit selector without a single eligible bank and change customer
+ * routing at deploy. Explicit personal-IBAN paths resolve their bank separately and are not gated by
+ * this column. Production activation of Frick by giving it a real priority instead of NULL is a
+ * separate, later Ops data step and is not part of this migration.
  *
  * @class
  * @implements {MigrationInterface}
