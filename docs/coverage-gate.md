@@ -6,7 +6,7 @@ the other.
 | Gate             | Config                         | Scope                                    | Question it answers                                      |
 | ---------------- | ------------------------------ | ---------------------------------------- | -------------------------------------------------------- |
 | Frick gate       | `jest.frick.config.js`         | 7 Frick files, run by 7 Frick specs only | Do _these specs alone_ fully cover _these files_?        |
-| Coverage ratchet | `jest.coverage-gate.config.js` | 399 files, whole suite                   | Has coverage regressed anywhere it was already complete? |
+| Coverage ratchet | `jest.coverage-gate.config.js` | 413 files, whole suite                   | Has coverage regressed anywhere it was already complete? |
 
 ## What the ratchet is, and what it is not
 
@@ -16,7 +16,7 @@ file, CI fails.
 
 It is a **regression gate**, not a statement about test quality:
 
-- It does not claim the repo is well tested. Overall coverage is 57.66% of statements and 39.46%
+- It does not claim the repo is well tested. Overall coverage is 59.45% of statements and 42.43%
   of branches; the pinned files are the subset that happens to be complete today.
 - It does not verify that a file's _own_ spec covers it. Under a whole-suite run, coverage may
   come from any spec. The Frick gate is the one that makes the stronger per-spec claim, which is
@@ -25,8 +25,8 @@ It is a **regression gate**, not a statement about test quality:
   ratchet only protects files already on the list, and that list grows by hand (see "How the list
   grows"). That is the price of the threshold approach.
 
-Of the 399 pinned files, **217 carry real logic** (they have functions and/or branches) and
-**182 are purely declarative today** (NestJS modules, constant files with neither). The two groups
+Of the 413 pinned files, **225 carry real logic** (they have functions and/or branches) and
+**188 are purely declarative today** (NestJS modules, constant files with neither). The two groups
 are kept visibly separate in the config so the count is not mistaken for test depth.
 
 Pinning the declarative ones is deliberate and not vacuous. Istanbul reports a metric with a total
@@ -150,30 +150,32 @@ warm caches, is a good deal slower than the 1.5 min it takes in CI.
 
 ## Current state
 
-The collection glob matches 1,643 files under `src/`. 1,591 of them contain instrumentable code
-and appear in the report. The remaining 52 compile to no executable statements and therefore
-cannot be measured or pinned: 50 are type-only (interfaces, type aliases, response shapes), one
+Measured on develop @ e6139b860.
+
+The collection glob matches 1,656 files under `src/`. 1,605 of them contain instrumentable code
+and appear in the report. The remaining 51 compile to no executable statements and therefore
+cannot be measured or pinned: 49 are type-only (interfaces, type aliases, response shapes), one
 consists entirely of commented-out code (`integration/exchange/services/p2b.service.ts`) and one
 is empty (`subdomains/supporting/payin/enums/index.ts`, 0 bytes). Those two are pre-existing and untouched here;
 deleting them would be a separate cleanup.
 
 | Class    | Files | Meaning                                         |
 | -------- | ----- | ----------------------------------------------- |
-| Complete | 399   | Pinned by the ratchet                           |
+| Complete | 413   | Pinned by the ratchet                           |
 | Partial  | 1,062 | Some coverage, below 100 on at least one metric |
 | None     | 130   | No coverage at all                              |
 
-Totals: statements 57.66%, branches 39.46%, functions 31.84%, lines 57.98%.
+Totals: statements 59.45%, branches 42.43%, functions 34.09%, lines 59.81%.
 
 Coverage is very unevenly distributed. `subdomains/supporting/payout` has 69 of 102 files
 complete; `subdomains/supporting/dex` has 6 of 170, `subdomains/supporting/payin` 6 of 102, and
-`subdomains/core/liquidity-management` 7 of 62. Nine files under `subdomains/supporting/mros` and
+`subdomains/core/liquidity-management` 9 of 64. Nine files under `subdomains/supporting/mros` and
 six under `subdomains/generic/admin` have no coverage at all.
 
 ## How the list grows
 
 Any PR may add files to `coverageThreshold` once they reach 100%.
-`jest.coverage-gate.config.js` holds the 399 paths in two arrays, `PINNED_LOGIC` (logic-carrying
+`jest.coverage-gate.config.js` holds the 413 paths in two arrays, `PINNED_LOGIC` (logic-carrying
 files) and `PINNED_DECLARATIVE` (purely declarative files), from which `coverageThreshold` is
 generated. Adding a file means appending its path to the matching array, not writing out a
 `coverageThreshold` object entry by hand.
@@ -183,9 +185,9 @@ metrics**, several of them one or two uncovered branches away. Examples:
 
 | File                                                                        | branches | functions | lines | statements |
 | --------------------------------------------------------------------------- | -------- | --------- | ----- | ---------- |
-| `src/subdomains/core/accounting/services/consumers/exchange-tx.consumer.ts` | 97.03    | 100       | 100   | 99.54      |
+| `src/subdomains/core/accounting/services/ledger-cutover.service.ts`         | 98.55    | 100       | 99.33 | 99.1       |
+| `src/subdomains/core/accounting/services/consumers/exchange-tx.consumer.ts` | 96.29    | 100       | 100   | 99.54      |
 | `src/subdomains/core/accounting/services/ledger-reconciliation.service.ts`  | 95.52    | 100       | 99.41 | 99.48      |
-| `src/subdomains/core/accounting/services/ledger-mark.service.ts`            | 95.23    | 100       | 100   | 98.95      |
 | `src/integration/infrastructure/storage/s3-storage.service.ts`              | 95       | 100       | 100   | 100        |
 
 To regenerate the full picture, run the gate and read `coverage-gate/coverage-summary.json`.
@@ -194,8 +196,8 @@ To regenerate the full picture, run the gate and read `coverage-gate/coverage-su
 below 100, the expected response is to extend the tests. Unpinning is an explicit decision that
 belongs in the PR description, not a silent edit.
 
-That rule stays hard for the 217 logic-carrying files. A foreseeable friction case is different:
-when one of the 182 purely declarative files (a NestJS module, a constants file) first gains
+That rule stays hard for the 225 logic-carrying files. A foreseeable friction case is different:
+when one of the 188 purely declarative files (a NestJS module, a constants file) first gains
 executable logic — for example a `useFactory` on a module — the function metric jumps from 0/0 to
 0/N and the gate turns red. Tests remain the preferred fix, but unpinning that one file is an
 allowed outcome if the PR description names and justifies it (not as a silent edit). For
