@@ -244,6 +244,32 @@ describe('BankService', () => {
     expect(result).toBe(incumbent);
   });
 
+  it('does not substitute another Bank Frick row when the attributed one is not receiving', async () => {
+    // The attributed (asset-linked) row is disabled while a second, unbound Frick row still receives.
+    // The rule must not fall through to that one: attribution stays on the disabled row, so paying
+    // into the unbound IBAN would book against a row nothing is keyed on. The incumbent wins instead.
+    const attributedDisabled = createCustomBank({
+      ...frickEUR,
+      id: 19,
+      receive: false,
+      asset: createCustomAsset({}),
+      iban: 'FRICK-ATTRIBUTED-DISABLED',
+    });
+    const unboundReceiving = createCustomBank({
+      ...frickEUR,
+      id: 77,
+      receive: true,
+      asset: null,
+      iban: 'FRICK-UNBOUND-RECEIVING',
+    });
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true });
+    mockFindCachedByForBanks(bankRepo, [attributedDisabled, unboundReceiving, incumbent]);
+    mockFindCachedForBanks(bankRepo, [attributedDisabled, unboundReceiving]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR'));
+    expect(result).toBe(incumbent);
+  });
+
   it('leaves CHF bank selection unaffected by the Bank Frick EUR rule', async () => {
     const frick = createCustomBank({ ...frickEUR, receive: true });
     const chf = createCustomBank({ ...yapealCHF, receive: true });

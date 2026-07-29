@@ -93,12 +93,17 @@ export class BankService implements OnModuleInit {
     const receiveBanks = await this.getReceiveBanks();
 
     // Product decision, deliberately hardcoded: an EUR bank transfer is routed to Bank Frick.
-    // Resolved through getBankInternal so the row shown to the customer is the SAME row that owns
-    // attribution: (name, currency) is not unique, and selectAttributionBank prefers the asset-linked
-    // identity that isBankMatching and the booked bank_tx history are keyed on. Picking a different
-    // row here - e.g. the newest one - would let the deposit IBAN drift away from that attribution.
+    // Resolved through getBankInternal so this picks the row selectAttributionBank would pick -
+    // (name, currency) is not unique, and the asset-linked identity is the one isBankMatching and the
+    // booked bank_tx history are keyed on. Choosing by any other rule here, e.g. the newest row, would
+    // hand out an IBAN that attribution does not follow.
+    // This aligns the selection RULE, not the caches: ibanCache is loaded once at module init while
+    // this read goes through the repository cache, so a bank row edited at runtime can still be seen
+    // differently by the two until the process restarts. That gap predates this rule and applies to
+    // every bank; do not read this call as a guarantee that the two can never disagree.
     // The rule is scoped to exactly EUR + BANK; receive must still hold, since getBankInternal does
-    // not filter on it.
+    // not filter on it - and if the attributed row is not receiving, no other Frick row stands in for
+    // it, because the exclusion below then applies to all of them.
     if (currency === 'EUR' && paymentMethod === FiatPaymentMethod.BANK) {
       const frickEur = await this.getBankInternal(IbanBankName.FRICK, 'EUR');
       if (frickEur?.receive) return frickEur;
