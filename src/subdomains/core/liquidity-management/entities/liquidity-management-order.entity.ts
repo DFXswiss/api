@@ -33,10 +33,14 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  * so the replan sees the moved balance and sizes itself accordingly — or finds nothing left to do.
  *
  * That argument is only as good as the balance behind it, which is why abandoning is confined to orders an
- * integration has actually asked the venue about — in practice an exchange, read live at plan time. It is
+ * integration can actually ask the venue about — in practice an exchange, read live at plan time. It is
  * deliberately NOT extended to orders no integration can look up: a chain balance omits transactions that
  * are sent but unconfirmed, and a bank balance is carried over from the last imported batch, so for those
  * the replan could well be sizing itself against a balance the execution has not reached yet.
+ *
+ * Within an askable venue, though, every outcome is bounded — including the ones where the answer never
+ * arrived. Leaving those to an operator sounds like the careful choice, but where nobody performs the
+ * manual release it is not caution, it is a rule that never runs again.
  *
  * The bound therefore has to outlast the window in which this order could still be in flight — and that
  * window differs by an order of magnitude between kinds of request, so one bound for both would be either
@@ -61,6 +65,17 @@ const ABANDON_UNRESOLVED_MINUTES = {
    * running, and reissuing those is what actually moves funds twice.
    */
   TRANSFER: 12 * 60,
+  /**
+   * The venue could not be asked, or not completely: no reference to ask with, an unreachable venue, or a
+   * lookup that stopped with a reference left unasked. Weaker evidence than a plain "no record", so this
+   * waits far longer — but it does end, because an order that only ever resolves through an operator does
+   * not resolve at all where nobody looks, and its rule stays dead with it.
+   *
+   * Twenty-four hours: over four times the slowest order ever observed at this venue (5.6h), so anything
+   * still unaccounted for by then has long since stopped being in flight, and the balance the rule replans
+   * from reflects whatever really happened.
+   */
+  UNOBSERVED: 24 * 60,
 };
 
 /**
@@ -315,6 +330,21 @@ export class LiquidityManagementOrder extends IEntity {
    * would long since be reflected in the venue's balance, which is what the replan reads. See
    * {@link ABANDON_UNRESOLVED_MINUTES}.
    */
+  /**
+   * Whether an order the venue could not be asked about — or not completely — has waited long enough to be
+   * given up anyway.
+   *
+   * Separate from {@link unresolvableTooLong} and far more patient, because there is no answer behind it,
+   * only a clock. It exists so that no order ends in a permanent wait for an operator: where nobody performs
+   * the manual release, "wait for a human" and "never resolve" are the same thing, and the rule dies with
+   * the order. See {@link ABANDON_UNRESOLVED_MINUTES.UNOBSERVED}.
+   */
+  unobservedTooLong(): boolean {
+    if (!this.updated) return false;
+
+    return Util.minutesDiff(this.updated) > ABANDON_UNRESOLVED_MINUTES.UNOBSERVED;
+  }
+
   unresolvableTooLong(): boolean {
     // Measured from `updated`, not `created`: an order can run normally for a long time and only become
     // UNCERTAIN late, when a completion check amends or restarts it and that write goes unconfirmed. Its

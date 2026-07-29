@@ -596,11 +596,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * Ask Scrypt what happened to a quarantined order. Observes only — never re-sends.
    *
    * Only a matched reference can confirm a positive. A missing record confirms nothing on its own — Scrypt
-   * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined. From
-   * there a complete answer (UNRESOLVED) may be given up automatically once the caller's bound decides the
-   * request can no longer be live, while an incomplete one (UNAVAILABLE: nothing to ask with, an unreachable
-   * venue, or a reference left unasked) only ever ends with a human. An explicit rejection of every
-   * attempted reference is the one negative that does settle, and returns NOT_SENT.
+   * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined. Both
+   * outcomes are eventually given up by the caller, only on different clocks: a complete answer (UNRESOLVED)
+   * once the request can no longer be live, an incomplete one (UNAVAILABLE: nothing to ask with, an
+   * unreachable venue, or a reference left unasked) after far longer, since only time stands behind it.
+   * Nothing here ends in a permanent wait for an operator. An explicit rejection of every attempted
+   * reference is the one negative that does settle, and returns NOT_SENT.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
     const { correlationId } = order;

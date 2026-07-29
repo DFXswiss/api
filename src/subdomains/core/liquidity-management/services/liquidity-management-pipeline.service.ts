@@ -325,10 +325,11 @@ export class LiquidityManagementPipelineService {
    * either confirms it knows the reference (back to IN_PROGRESS, the normal completion check takes over) or
    * demonstrably does not (FAILED, so the rule may plan anew from a fresh balance). Anything inconclusive
    * stays put — but not indefinitely: past the abandon bound for its kind of request it is given up as
-   * FAILED anyway, because a rule parked forever is the worse failure. The exceptions keep waiting for a
-   * human: orders no integration can look up, and anything the venue could not be asked about or not asked
-   * about completely — no reference to ask with, an unreachable venue, or a lookup that stopped with a
-   * reference left unasked.
+   * FAILED anyway, because a rule parked forever is the worse failure. An incomplete answer — no reference
+   * to ask with, an unreachable venue, or a lookup that stopped with a reference left unasked — waits far
+   * longer, since only a clock stands behind it, but it ends too. The single exception is an order no
+   * integration can look up at all: there the venue is never asked and the balance a replan would read is
+   * not live either, so it keeps waiting for a human.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
     // First: anything this process observed and could not write. Retried before new lookups, because an
@@ -426,6 +427,13 @@ export class LiquidityManagementPipelineService {
           // replans from the venue's current balance, so an execution that did happen is already reflected
           // there and sizes the replan down rather than duplicating it.
           if (await this.abandonUnresolvableOrder(order)) anyChanged = true;
+        } else if (resolution === UncertainOrderResolution.UNAVAILABLE && order.unobservedTooLong()) {
+          // No answer ever came — the venue could not be asked, or not completely. That is weaker ground
+          // than a plain "no record", which is why this waits far longer. But it does end: an order that
+          // resolves only through an operator does not resolve at all where nobody performs the release,
+          // and its rule dies with it. By this point nothing can still be in flight, so the balance the
+          // rule replans from already reflects whatever really happened.
+          if (await this.abandonUnobservedOrder(order)) anyChanged = true;
         }
         // Otherwise — a venue that cannot be asked yet, or an inconclusive answer that has not yet run out
         // its clock — nothing changes and it keeps blocking.
@@ -483,6 +491,31 @@ export class LiquidityManagementPipelineService {
     // the point — an operator may write a release between the read and this write, and that release carries
     // an audited reason and is owed one more venue answer. Without it, this write, the one resting on no
     // evidence at all, would silently overwrite the one resting on a person.
+    const examined = order.notSentRecheckDue ?? null;
+
+    order.abandonAsUnresolvable(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
+
+    if (!(await this.leaveQuarantine(order, examined))) return false;
+
+    this.logger.warn(`Uncertain liquidity order ${order.id} abandoned: ${because}`);
+
+    return true;
+  }
+
+  /**
+   * Give up on an order the venue never answered about at all, so its rule runs again.
+   *
+   * The weakest of the three ways out of quarantine: no venue reply stands behind it, not even a "no
+   * record" — only the clock. It exists because the alternative is not caution but paralysis, since an
+   * order waiting for an operator who never comes is an order that never resolves.
+   *
+   * The reason says the venue was never heard from, never that nothing was sent, so the row still claims
+   * only what was actually observed. Logged as a warning for the same purpose as its sibling: this is not
+   * routine, and it should be visible without anybody having to be the mechanism that unblocks it.
+   */
+  private async abandonUnobservedOrder(order: LiquidityManagementOrder): Promise<boolean> {
+    const because = 'the venue could not be asked about it for long past the point its request could be live';
+
     const examined = order.notSentRecheckDue ?? null;
 
     order.abandonAsUnresolvable(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);

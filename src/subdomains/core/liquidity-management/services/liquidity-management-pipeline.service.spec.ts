@@ -379,14 +379,27 @@ describe('LiquidityManagementPipelineService', () => {
       expect(criteria.notSentRecheckDue.type).toBe('isNull');
     });
 
-    it('never abandons on an unreachable venue, however old the order', async () => {
-      // UNAVAILABLE is the absence of an answer, not an answer — no amount of waiting turns it into one
-      const order = agedOrder(30 * 60);
+    it('keeps an unreachable venue quarantined far longer than an answered one', async () => {
+      // UNAVAILABLE is the absence of an answer, so it must outlast every bound that applies to one —
+      // 30 hours would already be abandoned had the venue merely reported no record
+      const order = agedOrder(20 * 60);
       expectResolution(order, UncertainOrderResolution.UNAVAILABLE);
 
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    it('abandons an unreachable venue too, once even its long clock has run out', async () => {
+      // waiting for an operator who never comes is not caution, it is a rule that never runs again
+      const order = agedOrder(25 * 60);
+      expectResolution(order, UncertainOrderResolution.UNAVAILABLE);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      // the row must still claim only what was observed: nothing was heard, not that nothing was sent
+      expect(order.errorMessage).toContain('could not be asked about it');
     });
 
     it('never abandons an order whose quarantine timestamp is missing', async () => {
