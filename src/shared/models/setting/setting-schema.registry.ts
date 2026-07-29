@@ -37,9 +37,6 @@ export const SettingSchemaRegistry: Record<string, SettingSchema> = {
 
   // Compliance
   complianceClerks: 'string[]',
-
-  // GS trigger enforcement
-  gsTriggerEnforcement: 'boolean',
 };
 
 export function isArraySchema(schema: SettingSchema): schema is ArraySchema {

@@ -74,9 +74,8 @@ class GsControllerTestModule {
 // `RoleGuard()` / `UserActiveGuard()` again in this file creates different instances that
 // `Test.overrideGuard()` cannot match.
 //
-// This controller deliberately does NOT reproduce the trigger-enforcement gate. That gate
-// (`SettingService.getObj('gsTriggerEnforcement', false)`, default-off) is exercised
-// against the REAL `GsController` in the unit test `gs.controller.spec.ts`; duplicating it here
+// This controller deliberately does NOT reproduce the trigger-enforcement check. That check is
+// exercised against the REAL `GsController` in the unit test `gs.controller.spec.ts`; duplicating it here
 // would just be two tests for the same logic. This fixture covers the full DbQueryDto /
 // ValidationPipe surface (not only the trigger field) — what only the full NestJS pipeline
 // can prove: that the real `DbQueryDto` decorators (`@IsEnum(GsTriggerType)`,

@@ -46,9 +46,8 @@ export class DbQueryBaseDto {
   @Matches(/^[A-Za-z0-9_-]+$/)
   identifier: string;
 
-  // Enforcement of "trigger is required" happens in the controller, gated by the
-  // `gsTriggerEnforcement` setting (default-off) — not here — keeping this optional at the DTO
-  // level lets the requirement roll out gradually.
+  // Enforcement of "trigger is required" happens synchronously in the controller, not here,
+  // so missing-trigger requests still reach the audit logger before they are rejected.
   @IsOptional()
   @IsEnum(GsTriggerType)
   trigger?: GsTriggerType;
