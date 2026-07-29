@@ -355,6 +355,20 @@ describe('S3StorageService', () => {
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
     });
 
+    it('fails closed with a non-Error rejection from the lock-configuration read', async () => {
+      const container = 'ep2-worm-non-error-rejection';
+      s3Mock
+        .on(GetObjectLockConfigurationCommand, { Bucket: container })
+        .callsFake(() => Promise.reject('access denied'));
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow('could not verify Object Lock is enabled (error: access denied)');
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+    });
+
     it('probes Object Lock on every WORM write (no TTL cache)', async () => {
       const container = 'ep2-worm-probe-every-write';
       s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({

@@ -84,6 +84,14 @@ describe('MockStorageService', () => {
 
       expect(await service.listKeys('nope/')).toEqual([]);
     });
+
+    it('lists all entries of the container when no prefix is given', async () => {
+      const service = new MockStorageService('mock-spec-keys-all');
+      await service.uploadBlob('x.png', Buffer.from('x'), 'image/png');
+      await service.uploadBlob('y.png', Buffer.from('y'), 'image/png');
+
+      expect((await service.listKeys()).sort()).toEqual(['x.png', 'y.png']);
+    });
   });
 
   describe('getBlob dummy-file fallback', () => {
