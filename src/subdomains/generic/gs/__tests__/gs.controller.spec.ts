@@ -31,7 +31,7 @@ describe('GsController', () => {
   // enabled (DisabledProcess -> false) here so the pre-existing endpoint-disabled guard never
   // fires and the trigger check is what's actually under test. Enforcement itself is gated by
   // `SettingService.getObj('gsTriggerEnforcement', ...)`.
-  function mockTriggerEnforcement(enforced: boolean): void {
+  function mockTriggerEnforcement(enforced: unknown): void {
     settingService.getObj.mockResolvedValue(enforced);
   }
 
@@ -108,6 +108,14 @@ describe('GsController', () => {
   }
 
   describe('getDbData log sanitization', () => {
+    it('accepts a request without trigger when the setting resolves to a truthy non-boolean (e.g. a hand-written "true" string) — only a real boolean true enforces', async () => {
+      mockTriggerEnforcement('true');
+
+      await controller.getDbData(jwt, query({}));
+
+      expect(service.getDbData).toHaveBeenCalled();
+    });
+
     it('replaces control characters in identifier so log lines cannot be forged', async () => {
       mockTriggerEnforcement(false);
 

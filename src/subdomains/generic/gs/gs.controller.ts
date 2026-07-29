@@ -36,7 +36,7 @@ export class GsController {
     try {
       return await this.gsService.getDbData(query, jwt.role);
     } catch (e) {
-      const { table, identifier } = this.sanitizedLogFields(query);
+      const { table, identifier } = this.sanitizeLogFields(query);
       this.logger.verbose(`DB data call for ${table} in ${identifier} failed:`, e);
       throw new BadRequestException(e.message);
     }
@@ -90,7 +90,7 @@ export class GsController {
   // intentionally uncached so gate changes take effect immediately and consistently across
   // all API instances — especially when turning enforcement off during an incident.
   private async logAndCheckTrigger(query: DbQueryBaseDto, jwt: JwtPayload): Promise<void> {
-    const { table, identifier } = this.sanitizedLogFields(query);
+    const { table, identifier } = this.sanitizeLogFields(query);
 
     this.logger.verbose(
       `GS db call: table=${table}, identifier=${identifier}, trigger=${query.trigger ?? 'missing'}, role=${jwt.role}`,
@@ -101,7 +101,7 @@ export class GsController {
   }
 
   // Client-controlled values must never land raw in any log line.
-  private sanitizedLogFields(query: DbQueryBaseDto): { table: string; identifier: string } {
+  private sanitizeLogFields(query: DbQueryBaseDto): { table: string; identifier: string } {
     return {
       table: Util.sanitizeLogValue(query.table, 64),
       identifier: query.identifier ? Util.sanitizeLogValue(query.identifier, 64) : 'missing',

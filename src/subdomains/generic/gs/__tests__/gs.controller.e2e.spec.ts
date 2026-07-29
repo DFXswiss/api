@@ -75,7 +75,7 @@ class GsControllerTestModule {
 // `Test.overrideGuard()` cannot match.
 //
 // This controller deliberately does NOT reproduce the trigger-enforcement gate. That gate
-// (`SettingService.getObjCached('gsTriggerEnforcement', false)`, default-off) is exercised
+// (`SettingService.getObj('gsTriggerEnforcement', false)`, default-off) is exercised
 // against the REAL `GsController` in the unit test `gs.controller.spec.ts`; duplicating it here
 // would just be two tests for the same logic. This file covers what only the full NestJS
 // pipeline can prove: that the real `DbQueryDto` decorators (`@IsEnum(GsTriggerType)`,
@@ -273,5 +273,20 @@ describe('GsController e2e (db trigger requirement)', () => {
       .post('/v1/gs/db')
       .send({ table: 'a'.repeat(257) })
       .expect(400);
+  });
+
+  it('rejects a table name with an embedded control character via the global ValidationPipe', async () => {
+    await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'user\ndata' }).expect(400);
+  });
+
+  it('rejects an identifier with an embedded control character via the global ValidationPipe', async () => {
+    await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'asset', identifier: 'x\nforged' }).expect(400);
+  });
+
+  it('accepts a valid identifier with hyphen and underscore via the global ValidationPipe', async () => {
+    await request(app.getHttpServer())
+      .post('/v1/gs/db')
+      .send({ table: 'asset', identifier: 'valid-identifier_123' })
+      .expect(201);
   });
 });
