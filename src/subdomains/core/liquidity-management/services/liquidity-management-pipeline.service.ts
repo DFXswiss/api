@@ -369,6 +369,10 @@ export class LiquidityManagementPipelineService {
           // operator's judgement is all there is, which is why the assertion behind it is required.
           if (releasePending && (await this.completeNotSentRelease(order, 'no integration can look it up')))
             anyChanged = true;
+          // With no release either, nothing in this system would ever move the order again: no lookup can
+          // arrive, and no operator has ruled. That is the same dead end the bound exists for, reached
+          // sooner — so it applies here too rather than leaving this one case stranded for good.
+          else if (order.unresolvableTooLong() && (await this.abandonUnresolvableOrder(order))) anyChanged = true;
           continue;
         }
 
@@ -402,7 +406,8 @@ export class LiquidityManagementPipelineService {
           if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
             anyChanged = true;
         } else if (resolution === UncertainOrderResolution.UNRESOLVED && order.unresolvableTooLong()) {
-          // The venue has been answering "no record" for hours and no operator has released the order. The
+          // The venue has been answering "no record" past the point this request could still be live, and no
+          // operator has released the order. The
           // original design waited here indefinitely, which is only safe if somebody eventually looks — where
           // nobody does, the rule never runs again and the venue stops being served entirely. Abandoning is
           // the lesser failure, and it is safe for a reason that has nothing to do with this order: the rule

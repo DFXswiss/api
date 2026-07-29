@@ -282,6 +282,30 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
     });
 
+    it('abandons an order no integration can look up once its bound has run out', async () => {
+      // an order can outlive the adapter that made it: no lookup will ever arrive, so without the bound
+      // this one is stranded permanently even though nothing is in flight
+      const order = agedOrder(30);
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(undefined);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+    });
+
+    it('keeps an order no integration can look up while it is still inside its bound', async () => {
+      const order = agedOrder(1);
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(undefined);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
     it('never abandons on an unreachable venue, however old the order', async () => {
       // UNAVAILABLE is the absence of an answer, not an answer — no amount of waiting turns it into one
       const order = agedOrder(30 * 60);
