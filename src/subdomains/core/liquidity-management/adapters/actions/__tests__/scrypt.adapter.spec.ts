@@ -460,11 +460,20 @@ describe('ScryptAdapter', () => {
   });
 
   describe('cancelOutstanding', () => {
+    /** cancelOutstanding derives the trade pair from the rule, so the fixture needs one. */
+    function cancellableOrder(overrides: Partial<LiquidityManagementOrder> = {}): LiquidityManagementOrder {
+      return createUncertainSellOrder({
+        action: { command: ScryptAdapterCommands.SELL, paramMap: { tradeAsset: 'USDT' } },
+        pipeline: { rule: { targetAsset: { dexName: 'EUR' } } },
+        ...overrides,
+      } as Partial<LiquidityManagementOrder>);
+    }
+
     it('confirms only once the venue has settled every reference the order ever sent', async () => {
       const cancelIfOutstanding = jest
         .spyOn(scryptService, 'cancelIfOutstanding')
         .mockResolvedValue(ScryptCancellation.SETTLED);
-      const order = createUncertainSellOrder();
+      const order = cancellableOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(true);
@@ -477,7 +486,7 @@ describe('ScryptAdapter', () => {
         .mockImplementation(async (id: string) =>
           id === 'dfx-lm-4711' ? ScryptCancellation.UNCONFIRMED : ScryptCancellation.SETTLED,
         );
-      const order = createUncertainSellOrder();
+      const order = cancellableOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
@@ -487,7 +496,7 @@ describe('ScryptAdapter', () => {
       // an empty loop would otherwise fall straight through to "all settled", abandoning the order on a
       // confirmation nobody gave
       const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
-      const order = createUncertainSellOrder({ correlationId: null, previousCorrelationIds: null });
+      const order = cancellableOrder({ correlationId: null, previousCorrelationIds: null });
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
       expect(cancelIfOutstanding).not.toHaveBeenCalled();
@@ -500,7 +509,7 @@ describe('ScryptAdapter', () => {
         .mockImplementation(async (id: string) =>
           id === 'dfx-lm-4711-1' ? ScryptCancellation.EXECUTED : ScryptCancellation.SETTLED,
         );
-      const order = createUncertainSellOrder();
+      const order = cancellableOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
@@ -510,7 +519,7 @@ describe('ScryptAdapter', () => {
 
     it('never cancels a withdrawal — there is no such thing at this venue', async () => {
       const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
-      const order = createUncertainSellOrder({ action: withdrawAction() });
+      const order = cancellableOrder({ action: withdrawAction() });
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
       expect(cancelIfOutstanding).not.toHaveBeenCalled();

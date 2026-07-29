@@ -815,7 +815,7 @@ describe('ScryptService', () => {
       });
       jest.spyOn(service as any, 'getTradePrice').mockResolvedValue(2);
       jest.spyOn(service as any, 'editOrder').mockRejectedValue(editOutcome);
-      jest.spyOn(service as any, 'cancelOrder').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'cancelOrder').mockResolvedValue({ OrdStatus: ScryptOrderStatus.CANCELED });
     }
 
     it('propagates an unconfirmed amend instead of swallowing it', async () => {
