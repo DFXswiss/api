@@ -127,7 +127,8 @@ export class TransactionRequest extends IEntity {
   aktionariatResponse?: string;
 
   // tx hash of the on-chain transfer that settled this request (set by the settlement job);
-  // each settlement tx may complete at most one request per user
+  // a settlement tx may contain multiple transfer events (batch settlement), each of which
+  // may complete at most one request per user
   @Column({ length: 256, nullable: true })
   settlementTxId?: string;
 
