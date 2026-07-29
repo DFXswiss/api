@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -468,10 +468,11 @@ export class LiquidityManagementPipelineService {
   private async abandonUnresolvableOrder(order: LiquidityManagementOrder): Promise<boolean> {
     const because = 'the venue has had no record of it past the point its request could still be live';
 
-    // Captured before the entity is mutated, exactly as completeNotSentRelease does. An operator may have
-    // written a release between this pass's read and this write; that release carries an audited reason and
-    // is owed one more venue answer before anything ends the order. Without narrowing on it, this write —
-    // the one resting on no evidence at all — would silently overwrite the one resting on a person.
+    // Always null in practice: a pending release routes to an earlier branch, so this path is only ever
+    // reached for an order nobody had released when this pass read it. Narrowing on that absence is exactly
+    // the point — an operator may write a release between the read and this write, and that release carries
+    // an audited reason and is owed one more venue answer. Without it, this write, the one resting on no
+    // evidence at all, would silently overwrite the one resting on a person.
     const examined = order.notSentRecheckDue ?? null;
 
     order.abandonAsUnresolvable(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
@@ -623,8 +624,16 @@ export class LiquidityManagementPipelineService {
       {
         id: order.id,
         status: LiquidityManagementOrderStatus.UNCERTAIN,
-        // narrowed by the caller when the outcome depends on WHICH pending release was examined
-        ...(expectedRecheckDue !== undefined ? { notSentRecheckDue: expectedRecheckDue } : {}),
+        // Narrowed by the caller when the outcome depends on WHICH pending release was examined.
+        //
+        // `IsNull()` rather than a bare null: TypeORM renders a raw null in a where object as `= NULL`
+        // (invalidWhereValuesBehavior.null defaults to "ignore", which falls through to an equality), and
+        // `x = NULL` is UNKNOWN in SQL, so it matches nothing — not even the row whose column really is
+        // NULL. "No release was pending" is the ordinary case for every caller here, so without this the
+        // narrowed update would silently never affect a row and report itself as a lost race.
+        ...(expectedRecheckDue !== undefined
+          ? { notSentRecheckDue: expectedRecheckDue === null ? IsNull() : expectedRecheckDue }
+          : {}),
       },
       {
         status: order.status,

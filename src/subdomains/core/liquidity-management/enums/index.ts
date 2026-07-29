@@ -43,9 +43,13 @@ export enum LiquidityManagementOrderStatus {
   // pipeline (it never resumes on its own) but not for the order: `resolveUncertainOrders` asks the venue
   // what happened and moves it on to IN_PROGRESS or FAILED. See OrderOutcomeUnknownException.
   //
-  // Always time-bounded: an order the venue keeps having no record of is abandoned to FAILED once it has
-  // outlived the window in which its request could still be in flight (ABANDON_UNRESOLVED_MINUTES, which
-  // differs for venue-internal trades and for transfers), so quarantine can never strand a rule permanently.
+  // Time-bounded only where an integration can actually ask the venue: an order whose lookup keeps coming
+  // back with no record is abandoned to FAILED once it has outlived the window in which its request could
+  // still be in flight (ABANDON_UNRESOLVED_MINUTES, which differs for venue-internal trades and transfers).
+  //
+  // Two cases deliberately keep waiting for a human instead, because nothing there is observed: an adapter
+  // that implements no `resolveUncertainOrder` at all, and a venue that stays unreachable (UNAVAILABLE
+  // rather than UNRESOLVED). Those still need `resolveUncertainOrderManually`.
   UNCERTAIN = 'Uncertain',
 }
 

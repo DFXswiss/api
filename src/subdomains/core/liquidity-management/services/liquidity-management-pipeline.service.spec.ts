@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { FindOperator } from 'typeorm';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
@@ -309,18 +310,25 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
     });
 
-    it('does not let an abandon overwrite a release written after this pass read the order', async () => {
-      // the abandon rests on no evidence at all; it must not outrank an operator who checked and is still
-      // owed one venue answer. Narrowed on the release it examined, so a newer one makes the write miss.
+    it('narrows an abandon on the absent release as SQL NULL, not as a bare null', async () => {
+      // the abandon rests on no evidence at all, so it must not outrank an operator who checked and is
+      // still owed one venue answer — hence the narrowing. But "no release pending" is the ordinary case
+      // here, and a raw null renders as `= NULL`, which matches no row at all: the update would never
+      // affect anything and would report itself as a lost race. A mocked repo cannot see that, so assert
+      // on the operator itself.
       const order = agedOrder(30);
-      const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+      const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
       stubIntegration(UncertainOrderResolution.UNRESOLVED);
 
       await service['resolveUncertainOrders']();
 
-      expect(update.mock.calls[0][0]).toMatchObject({ notSentRecheckDue: null });
+      const criteria = update.mock.calls[0][0] as { notSentRecheckDue: FindOperator<Date> };
+      expect(criteria.notSentRecheckDue).toBeInstanceOf(FindOperator);
+      expect(criteria.notSentRecheckDue.type).toBe('isNull');
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
     });
+
 
     it('never abandons on an unreachable venue, however old the order', async () => {
       // UNAVAILABLE is the absence of an answer, not an answer — no amount of waiting turns it into one
