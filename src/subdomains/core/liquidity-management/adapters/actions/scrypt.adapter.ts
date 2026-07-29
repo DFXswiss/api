@@ -683,7 +683,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     // UNAVAILABLE, not UNRESOLVED: with no reference there is nothing to ask about, so the venue was never
     // asked. UNRESOLVED would mean it answered and had no record — a claim nobody made, and one the caller
     // is entitled to abandon the order on once its bound expires. Only orders predating the reserve-before-
-    // send guarantee can reach this, and they resolve on the unanswered bound rather than on a verdict.
+    // send guarantee can reach this, and they wait for a person: with no reference there is nothing to
+    // cancel either, so the automatic route out cannot confirm anything about them.
     if (!correlationId) return UncertainOrderResolution.UNAVAILABLE;
 
     let allAttemptsRejected = false;

@@ -28,9 +28,11 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  * stops being served at all. A liquidity rule that never runs again is the larger failure, and it is certain,
  * while the double execution being guarded against is merely possible.
  *
- * What makes abandoning safe is not a conclusion about the order: it is that a rule replans from the venue's
- * CURRENT balance, never from the abandoned order. An order that did execute has already moved that balance,
- * so the replan sees the moved balance and sizes itself accordingly — or finds nothing left to do.
+ * What carries abandoning is not a conclusion about the order but two things outside it: the venue has
+ * confirmed that none of its references can execute any more, and a rule replans from the venue's balance
+ * rather than from the abandoned order. An order that did execute has already moved that balance, so the
+ * replan sizes itself against what is actually left. That balance is pushed rather than polled, so a fill
+ * that has only just landed may briefly not be in it — see the adapter's cancellation for that window.
  *
  * That argument is only as good as the balance behind it, which is why abandoning is confined to orders an
  * integration can actually ask the venue about — in practice an exchange, read live at plan time. It is

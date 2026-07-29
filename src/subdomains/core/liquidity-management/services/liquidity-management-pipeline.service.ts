@@ -472,7 +472,7 @@ export class LiquidityManagementPipelineService {
   }
 
   /**
-   * Abandon an order the venue never accounted for, so its rule runs again.
+   * Abandon an order with nothing left outstanding at the venue, so its rule runs again.
    *
    * The way out of quarantine that rests on no conclusion about the request at all — only on the clock,
    * which is why `because` may only ever describe what the lookup did or did not return, never that nothing
