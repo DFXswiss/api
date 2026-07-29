@@ -87,17 +87,21 @@ export class CustodyAccountService {
     ];
 
     // Legacy Safe = absence of any owned account row; independent of shared grants. Hidden
-    // only when it is both empty AND the customer already has write access on another entry
-    // — a Read-only grant elsewhere cannot substitute for it: checkAccess() rejects any write
-    // on a Read account, so someone with no writable account left would lose their only path
-    // to a deposit. A non-empty legacy Safe always stays, regardless of what else is writable.
+    // when it is both empty AND at least one other entry is visible, so an empty "Custody"
+    // never sits next to real accounts in the selector. The access level of those other
+    // entries deliberately does NOT matter: a viewer holding only Read grants is exactly the
+    // case this hides — an operator-side account with an empty Safe of its own. The cost is
+    // that such a viewer keeps no writable entry in the list (checkAccess() rejects writes on
+    // a Read account), so the selector offers them no deposit path. Whenever another entry is
+    // visible, the balance check below has the last word: a legacy Safe that holds something
+    // keeps its entry. With nothing else visible the check never runs and the entry stays.
     if (allOwnedAccounts.length === 0) {
       const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
       if (custodyUserIds.length > 0) {
-        // The balance check only runs when a legacy entry is actually in play AND the
-        // customer already has write access elsewhere — every other case stays cheap, no query.
-        const hasWriteElsewhere = custodyAccounts.some((ca) => ca.accessLevel === CustodyAccessLevel.WRITE);
-        const hideLegacy = hasWriteElsewhere && !(await this.custodyService.hasNonZeroCustodyBalance(custodyUserIds));
+        // The balance check only runs when a legacy entry is actually in play AND something
+        // else is visible next to it — every other case stays cheap, no query.
+        const hasOtherAccounts = custodyAccounts.length > 0;
+        const hideLegacy = hasOtherAccounts && !(await this.custodyService.hasNonZeroCustodyBalance(custodyUserIds));
         if (!hideLegacy) custodyAccounts.push(CustodyAccountDtoMapper.toLegacyDto(account));
       }
     }
