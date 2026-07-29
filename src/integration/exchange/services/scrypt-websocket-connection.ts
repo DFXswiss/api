@@ -275,8 +275,8 @@ export class ScryptWebSocketConnection {
     return this.retryIdempotentRead(doFetch, `fetchAll ${streamName}`);
   }
 
-  // Register a callback fired after any connect that restored streams — every reconnect, plus a first connect
-  // that healed an earlier failed attempt (but not a clean first connect). Used to re-fetch state that
+  // Register a callback fired after every reconnect, plus a first connect that healed an earlier failed
+  // attempt (but not a clean first connect). Used to re-fetch state that
   // a bare re-subscribe does not replay (see ScryptService catch-up). Callbacks must not throw / handle their own errors.
   onReconnect(callback: () => void | Promise<void>): void {
     this.reconnectCallbacks.push(callback);
@@ -397,13 +397,13 @@ export class ScryptWebSocketConnection {
 
     // A URL we cannot dial fails identically on every attempt, so a loop would warn forever without ever being
     // able to connect. Say so once and stay down: this needs a config change, not a retry. The message names
-    // both causes, because an unsupported scheme parses perfectly and would otherwise send the operator
-    // hunting for a typo.
+    // all three causes, because an unsupported scheme and a stray fragment both parse perfectly and would
+    // otherwise send the operator hunting for a typo that is not there.
     if (!isDialableWsUrl(this.wsUrl)) {
       if (!this.loggedUndialableWsUrl) {
         this.loggedUndialableWsUrl = true;
         this.logger.error(
-          'Scrypt WebSocket URL is not dialable (unparseable or unsupported scheme) — not scheduling reconnects',
+          'Scrypt WebSocket URL is not dialable (unparseable, unsupported scheme or URL fragment) — not scheduling reconnects',
         );
       }
       return;

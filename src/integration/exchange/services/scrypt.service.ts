@@ -91,7 +91,7 @@ export class ScryptService extends PricingProvider {
 
   // A dialable wsUrl counts as configuration, not just the credentials: an environment without one can never
   // connect, so it skips warm-up and subscriptions entirely instead of registering everything and then failing
-  // identically on every attempt. Uses the same parse test as the connection, so "configured" cannot claim a
+  // identically on every attempt. Uses the connection's own dialability test, so "configured" cannot claim a
   // URL the client would refuse to dial.
   get isConfigured(): boolean {
     const { wsUrl, apiKey, apiSecret } = GetConfig().scrypt;

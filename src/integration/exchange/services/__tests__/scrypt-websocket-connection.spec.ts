@@ -685,8 +685,9 @@ describe('ScryptWebSocketConnection', () => {
     await connection.disconnect();
     expect((connection as any).isReconnecting).toBe(false);
 
-    // Re-arm a timer with a STALE epoch so the setTimeout callback's epoch guard is exercised
-    // (not merely clearTimeout of a still-pending timer). disconnect() already bumped reconnectEpoch.
+    // Re-arm a timer with a STALE epoch. Note this no longer reaches the epoch guard itself: disconnect()
+    // empties activeStreams, so the callback's stand-down check returns first. The stale-epoch guard is
+    // covered separately below, with streams still outstanding.
     const staleEpoch = (connection as any).reconnectEpoch - 1;
     (connection as any).scheduleReconnect(0, staleEpoch);
     jest.advanceTimersByTime(60000 * 3);
@@ -694,6 +695,54 @@ describe('ScryptWebSocketConnection', () => {
 
     expect(WebSocket.instances.length).toBe(constructCountBeforeDisconnect);
     expect((connection as any).isReconnecting).toBe(false);
+  });
+
+  it('a stale-epoch timer no-ops even while streams are still outstanding', async () => {
+    const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+    firstWs.remoteClose(1006, 'gone'); // loop armed at the current epoch, streams stay active
+    expect((connection as any).activeStreams.size).toBeGreaterThan(0);
+
+    jest.clearAllTimers(); // drop the live loop's timer so only the stale one below can fire
+    const connectSpy = jest.spyOn(connection as any, 'connect');
+
+    (connection as any).scheduleReconnect(0, (connection as any).reconnectEpoch - 1);
+    jest.advanceTimersByTime(5000);
+    await flushPromises();
+
+    // Without the epoch guard a superseded loop would run a second connect alongside the live one.
+    expect(connectSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not re-arm (or restart the backoff) when the loop is already armed', async () => {
+    const ws = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+    ws.readyState = WebSocket.CLOSING;
+    await expect(connection.fetch(ScryptMessageType.BALANCE)).rejects.toThrow(/WebSocket connection failed/);
+    expect((connection as any).isReconnecting).toBe(true);
+
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+    const epochBefore = (connection as any).reconnectEpoch;
+
+    ws.remoteClose(1006, 'gone');
+
+    // Re-arming here would supersede the in-flight attempt and reset the backoff to attempt 0 on every
+    // close — a flapping venue would degenerate into a 2.5-5s retry storm instead of backing off.
+    expect(scheduleSpy).not.toHaveBeenCalled();
+    expect((connection as any).reconnectEpoch).toBe(epochBefore);
+  });
+
+  it('a close during the handshake neither logs a close nor arms the loop', async () => {
+    connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+    const ws = latestWs(); // current generation, still CONNECTING
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+
+    ws.remoteClose(1006, 'pre-open drop');
+
+    // A socket that never connected must not report an outage, and must not bypass ensureReconnectLoop's
+    // guards by arming directly.
+    expect((connection as any).connectionState).toBe('connecting');
+    expect((connection as any).isReconnecting).toBe(false);
+    expect(scheduleSpy).not.toHaveBeenCalled();
+    expect(loggerWarn).not.toHaveBeenCalledWith(expect.stringMatching(/closed \(code:/));
   });
 
   it('stale reconnect loop settle does not disturb a newer loop after disconnect + drop', async () => {
@@ -1322,7 +1371,7 @@ describe('ScryptWebSocketConnection', () => {
     });
   });
 
-  describe('stream state resets', () => {
+  describe('state resets (unsubscribe and disconnect)', () => {
     it('forgets stream filters so a later unfiltered subscribe is not restored with the old filter', async () => {
       const unsubscribe = connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined, {
         StartDate: '2026-01-01T00:00:00.000000Z',
