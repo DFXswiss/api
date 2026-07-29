@@ -17,7 +17,13 @@ import { In, IsNull, Not } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
-import { CustodyBalanceDto, CustodyHistoryDto, CustodyHistoryEntryDto } from '../dto/output/custody-balance.dto';
+import {
+  CustodyAssetBalanceDto,
+  CustodyBalanceDto,
+  CustodyFiatValueDto,
+  CustodyHistoryDto,
+  CustodyHistoryEntryDto,
+} from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyOrderStatus } from '../enums/custody';
@@ -125,9 +131,20 @@ export class CustodyService {
 
     const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, interestByAssetName);
 
-    const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur, 0);
-    const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf, 0);
-    const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.value.usd, 0);
+    // Accrued interest counts towards the total. It is what the position is worth today, and
+    // leaving it out understated the Safe by a figure that grows every day. It was previously
+    // excluded to keep this total equal to the value history, which did not carry interest —
+    // getUserCustodyHistory() now accrues it per day, so both sides agree again.
+    //
+    // `interestValue` is absent on every position that bears no interest, and deliberately also
+    // on one whose interest could not be computed (logged above): a broken figure is left out
+    // of the total rather than guessed at.
+    const interestValue = (b: CustodyAssetBalanceDto): CustodyFiatValueDto =>
+      b.interestValue ?? { eur: 0, chf: 0, usd: 0 };
+
+    const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur + interestValue(curr).eur, 0);
+    const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf + interestValue(curr).chf, 0);
+    const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.value.usd + interestValue(curr).usd, 0);
 
     return {
       balances,
@@ -238,15 +255,36 @@ export class CustodyService {
       .filter((a) => a);
     const assets = Array.from(new Map(allAssets.map((a) => [a.id, a])).values());
 
+    // Prices are defined per price rule, but `asset_price` keeps one series per asset. An asset
+    // introduced long after the holdings it represents (`Ethereum/sZCHF`) therefore has no rows
+    // before its own creation date. Valuing only the assets that carry a row for a given day
+    // would drop such a position out of the series entirely and make it appear to spring into
+    // existence on the day its first price was written. Pulling in the assets that share its
+    // price rule closes that gap with the peer's series — the same price by definition, not an
+    // estimate.
+    const substituteByAsset = await this.getPriceSubstitutes(assets);
+    const priceAssets = Array.from(
+      new Map(assets.concat(Array.from(substituteByAsset.values()).flat()).map((a) => [a.id, a])).values(),
+    );
+
     // get all prices (by date)
     const startDate = new Date(custodyOrders[0].updated);
     startDate.setHours(0, 0, 0, 0);
-    const prices = await this.assetPricesService.getAssetPrices(assets, startDate);
+    const prices = await this.assetPricesService.getAssetPrices(priceAssets, startDate);
 
     const priceMap = Util.groupByAccessor(prices, (p) => Util.isoDate(p.created));
 
+    // The interest-bearing position grows every day and is part of what the Safe is worth, so
+    // the series has to carry it — otherwise the chart and the balance disagree by an amount
+    // that widens daily.
+    const savingAsset = assets.find((a) => a.uniqueName === Config.custody.savingAsset);
+    const interestByDay = savingAsset
+      ? this.accrueInterestByDay(savingAsset, custodyOrders, [...priceMap.keys()], custodyUserIds)
+      : new Map<string, number>();
+
     // process by day: apply order volumes before calculating value
     const assetBalancesMap = new Map<number, number>();
+    const unpricedAssetIds = new Set<number>();
     const totalValue: CustodyHistoryEntryDto[] = [];
     const sortedOrderDays = [...orderMap.keys()].sort();
     let orderDayIndex = 0;
@@ -264,8 +302,14 @@ export class CustodyService {
         orderDayIndex++;
       }
 
+      // Interest as of this day, valued like any other holding of the same asset. It is accrued
+      // to the start of the day, the instant the day's balances describe; the live balance
+      // endpoint accrues to now, so the newest point can trail it by up to one day's interest —
+      // the same class of gap the series already has against the balance's spot price.
+      const dayBalances = this.withAccruedInterest(assetBalancesMap, savingAsset, interestByDay.get(day));
+
       // calculate daily portfolio value from current balances and available prices
-      const dailyValue = this.calculateDailyPortfolioValue(dayPrices, assetBalancesMap);
+      const dailyValue = this.calculateDailyPortfolioValue(dayPrices, dayBalances, substituteByAsset, unpricedAssetIds);
 
       totalValue.push({
         date: new Date(day),
@@ -277,7 +321,92 @@ export class CustodyService {
       });
     }
 
+    // A holding that could not be valued on any day is silently absent from the series — the
+    // exact failure this path was fixed for, so it must not fail quietly a second time. Report
+    // it once for the whole request rather than per day.
+    if (unpricedAssetIds.size) {
+      this.logger.error(
+        `Custody history for account ${accountId}: no price series found for asset(s) ` +
+          `${[...unpricedAssetIds].join(', ')} — those holdings are missing from the value history`,
+      );
+    }
+
     return { totalValue };
+  }
+
+  /**
+   * Peers that can price an asset on days it has no series of its own, keyed by asset id. Only
+   * assets that actually share a price rule appear; an asset with no peer is simply absent.
+   */
+  private async getPriceSubstitutes(assets: Asset[]): Promise<Map<number, Asset[]>> {
+    const assetsWithRule = await this.assetService.getAssetsByIdWith(
+      assets.map((a) => a.id),
+      { priceRule: true },
+    );
+
+    const ruleIds = [...new Set(assetsWithRule.map((a) => a.priceRule?.id).filter((id) => id != null))];
+    const peers = await this.assetService.getAssetsByPriceRules(ruleIds);
+
+    const peersByRule = Util.groupByAccessor(peers, (a) => a.priceRule.id);
+
+    const substitutes = new Map<number, Asset[]>();
+    for (const asset of assetsWithRule) {
+      const ruleId = asset.priceRule?.id;
+      if (ruleId == null) continue;
+
+      const others = (peersByRule.get(ruleId) ?? []).filter((p) => p.id !== asset.id);
+      if (others.length) substitutes.set(asset.id, others);
+    }
+
+    return substitutes;
+  }
+
+  /**
+   * Accrued interest per day of the series. Computed once for all days rather than per day so a
+   * broken figure is reported a single time: interest is a display add-on, and a data error in
+   * it must not cost the customer their entire value history — the same trade-off
+   * getUserCustodyBalance() already makes for the balance response.
+   */
+  private accrueInterestByDay(
+    savingAsset: Asset,
+    orders: CustodyOrder[],
+    days: string[],
+    userIds: number[],
+  ): Map<string, number> {
+    const interestByDay = new Map<string, number>();
+
+    try {
+      for (const day of days) {
+        interestByDay.set(day, this.accrueInterest(orders, savingAsset, new Date(day), userIds));
+      }
+    } catch (e) {
+      this.logger.error(
+        `Failed to calculate accrued interest for the value history of user(s) ${userIds.join(', ')}, asset ` +
+          `${savingAsset.uniqueName} — history is served without interest:`,
+        e,
+      );
+      return new Map();
+    }
+
+    return interestByDay;
+  }
+
+  /**
+   * The day's balances with accrued interest folded into the interest-bearing position, so it is
+   * valued by exactly the same code path as every other holding. Returns the input untouched
+   * when there is nothing to add, which keeps the common case free of a copy.
+   */
+  private withAccruedInterest(
+    balances: Map<number, number>,
+    savingAsset: Asset | undefined,
+    interest: number | undefined,
+  ): Map<number, number> {
+    if (!savingAsset || !interest) return balances;
+
+    const withInterest = new Map(balances);
+    withInterest.set(savingAsset.id, (withInterest.get(savingAsset.id) ?? 0) + interest);
+
+    return withInterest;
   }
 
   /**
@@ -316,6 +445,19 @@ export class CustodyService {
       ],
     });
 
+    return this.accrueInterest(orders, asset, dueDate, userIds);
+  }
+
+  /**
+   * The interest calculation itself, over an already-loaded order set. Split out so the value
+   * history can accrue interest for every day of the series without a database round trip per
+   * day — it already holds every completed order it needs.
+   *
+   * Callers may pass orders that do not touch `asset` at all: the loop below selects by asset
+   * id, and the NULL-amount checks mirror the `Not(IsNull())` filters of the query above, so a
+   * wider order set yields the same result as the narrow one.
+   */
+  private accrueInterest(orders: CustodyOrder[], asset: Asset, dueDate: Date, userIds: number[]): number {
     let interest = 0;
     const rate = Config.custody.savingInterestRate;
 
@@ -404,7 +546,12 @@ export class CustodyService {
    * (e.g. local post-midnight). Use the latest price per asset for that day.
    * On equal `created`, the higher `id` wins (later insert), independent of list order.
    */
-  private calculateDailyPortfolioValue(dayPrices: AssetPrice[], assetBalancesMap: Map<number, number>): DailyFiatValue {
+  private calculateDailyPortfolioValue(
+    dayPrices: AssetPrice[],
+    assetBalancesMap: Map<number, number>,
+    substituteByAsset: Map<number, Asset[]>,
+    unpricedAssetIds: Set<number>,
+  ): DailyFiatValue {
     const latestPriceByAsset = new Map<number, AssetPrice>();
 
     for (const price of dayPrices) {
@@ -418,16 +565,44 @@ export class CustodyService {
       }
     }
 
-    return [...latestPriceByAsset.values()].reduce(
-      (value, price) => {
-        const balance = assetBalancesMap.get(price.asset.id) ?? 0;
-        value.chf += balance * price.priceChf;
-        value.eur += balance * price.priceEur;
-        value.usd += balance * price.priceUsd;
-        return value;
-      },
-      { chf: 0, eur: 0, usd: 0 },
-    );
+    // Driven by the holdings, not by the prices. Iterating the prices instead made a holding
+    // whose asset had no row for that day vanish from the sum without a trace — which is
+    // precisely how a position introduced later (Ethereum/sZCHF) went missing from six months
+    // of history. Every holding is now either valued or recorded as unpriced.
+    const value = { chf: 0, eur: 0, usd: 0 };
+
+    for (const [assetId, balance] of assetBalancesMap.entries()) {
+      // Skips the no-op only. A non-finite balance keeps poisoning the sum exactly as before,
+      // rather than being quietly dropped here — that is a data fault and belongs where it is
+      // already handled, not hidden behind this loop.
+      if (balance === 0) continue;
+
+      const price = latestPriceByAsset.get(assetId) ?? this.findSubstitutePrice(assetId, substituteByAsset, latestPriceByAsset);
+      if (!price) {
+        unpricedAssetIds.add(assetId);
+        continue;
+      }
+
+      value.chf += balance * price.priceChf;
+      value.eur += balance * price.priceEur;
+      value.usd += balance * price.priceUsd;
+    }
+
+    return value;
+  }
+
+  /** The day's price from an asset sharing the price rule — identical by definition, not inferred. */
+  private findSubstitutePrice(
+    assetId: number,
+    substituteByAsset: Map<number, Asset[]>,
+    latestPriceByAsset: Map<number, AssetPrice>,
+  ): AssetPrice | undefined {
+    for (const peer of substituteByAsset.get(assetId) ?? []) {
+      const price = latestPriceByAsset.get(peer.id);
+      if (price) return price;
+    }
+
+    return undefined;
   }
 
   async getUserTotalBalancesChf(date: Date): Promise<Map<number, number>> {
