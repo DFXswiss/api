@@ -868,14 +868,14 @@ describe('BuyService', () => {
   describe('createBuy route persistence', () => {
     const asset = { id: 10, name: 'BTC', buyable: true } as Asset;
     const user = { id: 1 } as any;
-    const dto = { asset } as any;
+    const dto = () => ({ asset }) as any;
 
     // the transaction callback runs against this manager, so a rejected save rolls the route back
     let manager: { save: jest.Mock };
 
     beforeEach(() => {
-      manager = { save: jest.fn() };
-      jest.spyOn(buyRepo, 'create').mockImplementation((e: any) => e as Buy);
+      manager = { save: jest.fn().mockResolvedValue({ id: 42, bankUsage: 'ABCD-EFGH-IJKL' } as Buy) };
+      jest.spyOn(buyRepo, 'create').mockImplementation((e: any) => ({ ...e }) as Buy);
       Object.defineProperty(buyRepo, 'manager', {
         value: { transaction: (cb: any) => cb(manager) },
         configurable: true,
@@ -885,18 +885,17 @@ describe('BuyService', () => {
     });
 
     it('creates the route inside the same transaction as the buy', async () => {
-      manager.save.mockResolvedValue({ id: 42, bankUsage: 'ABCD-EFGH-IJKL' } as Buy);
-
-      await service.createBuy(user, '0x123', dto);
+      await service.createBuy(user, '0x123', dto());
 
       expect(routeService.createRoute).toHaveBeenCalledWith(expect.anything(), manager);
       expect(manager.save).toHaveBeenCalledTimes(1);
+      expect(buyRepo.save).not.toHaveBeenCalled();
     });
 
     it('does not persist the route outside the transaction when the buy insert is rejected', async () => {
       manager.save.mockRejectedValue(new Error('duplicate key value violates unique constraint'));
 
-      await expect(service.createBuy(user, '0x123', dto)).rejects.toThrow('duplicate key');
+      await expect(service.createBuy(user, '0x123', dto())).rejects.toThrow('duplicate key');
 
       // the route was only ever created through the transaction manager, so it rolls back with it
       expect(routeService.createRoute).toHaveBeenCalledTimes(1);

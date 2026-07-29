@@ -9,12 +9,10 @@ import { RouteRepository } from './route.repository';
 export class RouteService {
   constructor(private readonly routeRepo: RouteRepository) {}
 
-  // pass a manager to create the route in the caller's transaction, so that a failing route
-  // owner insert (buy/sell/swap) rolls the route back instead of orphaning it
-  async createRoute(dto: CreateRouteDto, manager?: EntityManager): Promise<Route> {
-    const entity = this.routeRepo.create(dto);
-
-    return manager ? manager.save(entity) : this.routeRepo.save(entity);
+  // the route is always created in its owner's transaction, so that a failing owner insert
+  // (buy/sell/swap) rolls the route back instead of orphaning it
+  async createRoute(dto: CreateRouteDto, manager: EntityManager): Promise<Route> {
+    return manager.save(this.routeRepo.create(dto));
   }
 
   async updateRoute(id: number, dto: UpdateRouteDto): Promise<Route> {

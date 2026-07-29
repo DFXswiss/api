@@ -165,4 +165,42 @@ describe('SwapService', () => {
       expect(result.eip5792).toBeUndefined();
     });
   });
+
+  describe('createSwap route persistence', () => {
+    const asset = { id: 10, name: 'BTC' } as any;
+
+    // the transaction callback runs against this manager, so a rejected save rolls the route back
+    let manager: { save: jest.Mock };
+
+    beforeEach(() => {
+      manager = { save: jest.fn().mockResolvedValue({ id: 42 }) };
+      jest.spyOn(swapRepo, 'create').mockImplementation((e: any) => ({ ...e }));
+      jest.spyOn(swapRepo, 'findOne').mockResolvedValue(undefined);
+      Object.defineProperty(swapRepo, 'manager', {
+        value: { transaction: (cb: any) => cb(manager) },
+        configurable: true,
+      });
+      jest.spyOn(routeService, 'createRoute').mockResolvedValue({ id: 5 } as any);
+      jest.spyOn(userDataService, 'getUserDataByUser').mockResolvedValue({ id: 7, kycLevel: 30 } as any);
+      jest.spyOn(depositService, 'getNextDeposit').mockResolvedValue({ id: 9 } as any);
+    });
+
+    it('creates the route inside the same transaction as the swap', async () => {
+      await service.createSwap(1, 'Ethereum' as any, asset, true);
+
+      expect(routeService.createRoute).toHaveBeenCalledWith(expect.anything(), manager);
+      expect(manager.save).toHaveBeenCalledTimes(1);
+      expect(swapRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not persist the route outside the transaction when the swap insert is rejected', async () => {
+      manager.save.mockRejectedValue(new Error('duplicate key value violates unique constraint'));
+
+      await expect(service.createSwap(1, 'Ethereum' as any, asset, true)).rejects.toThrow('duplicate key');
+
+      expect(routeService.createRoute).toHaveBeenCalledTimes(1);
+      expect(routeService.createRoute).toHaveBeenCalledWith(expect.anything(), manager);
+      expect(swapRepo.save).not.toHaveBeenCalled();
+    });
+  });
 });
