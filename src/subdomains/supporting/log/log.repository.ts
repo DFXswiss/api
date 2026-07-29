@@ -22,9 +22,21 @@ import {
 /** One asset priceChf projected from a FinancialDataLog snapshot (no full message JSON). */
 export interface FinancialLogAssetPrice {
   created: Date;
-  assetId: number;
-  priceChf: number;
-  /** id of the underlying log row — keyset cursor / overflow counts use this, not result-row index. */
+  /**
+   * null when the JSON key in `assets` is not a plain non-negative-integer string (`^[0-9]+$`) —
+   * kept as a row with assetId=null rather than aborting the whole query via a failing `::int` cast.
+   */
+  assetId: number | null;
+  /**
+   * null when this row carries no usable price: `assets` was empty/absent for the log row (one
+   * placeholder row per log row), the JSON value at `priceChf` was not a JSON number (e.g. the string
+   * "1.25"), or the numeric value was NaN/Infinity.
+   */
+  priceChf: number | null;
+  /** id of the underlying log row — logId is ALWAYS present, on every row, even the null-price ones.
+   *  Overflow detection / keyset cursor logic in LedgerMarkService counts distinct logId values across
+   *  ALL returned rows (not just the ones with a usable price) to know how many log rows were actually
+   *  read — see LedgerMarkService.uniqueLogIds. */
   logId: number;
 }
 
@@ -230,6 +242,14 @@ export class LogRepository extends BaseRepository<Log> {
    * SQL-side projection of priceChf per asset from FinancialDataLog snapshots.
    * LIMIT/keyset apply to log rows (inner subquery), not to the expanded asset result — same page semantics as
    * getFinancialLogs. Callers that only need marks avoid shipping/parsing the full message JSON.
+   *
+   * LEFT JOIN LATERAL (not an implicit CROSS JOIN) so every log row yields at least one result row — including
+   * when `assets` is empty/absent or a key/price is unusable (assetId/priceChf null). That keeps logId-based
+   * overflow detection and keyset pagination in LedgerMarkService correct (Finding 1+2: the old join+WHERE
+   * dropped unusable-price rows entirely, so uniqueLogIds under-counted and pagination/overflow stopped early).
+   * Invalid keys and non-number priceChf are nulled via CASE expressions rather than filtered in WHERE, so the
+   * row (and its logId) always remains. Malformed `message` JSON fails loud: `message::jsonb` aborts the whole
+   * query (intentional change vs the old JS path that try/caught per row).
    */
   async getFinancialLogAssetPrices(
     from?: Date,
@@ -265,8 +285,11 @@ export class LogRepository extends BaseRepository<Log> {
 
     const sql = `
 SELECT l.created AS "created",
-       (kv.key)::int AS "assetId",
-       (kv.value->>'priceChf')::float8 AS "priceChf",
+       CASE WHEN kv.key ~ '^[0-9]+$' THEN kv.key::int ELSE NULL END AS "assetId",
+       CASE
+         WHEN jsonb_typeof(kv.value -> 'priceChf') = 'number' THEN (kv.value ->> 'priceChf')::float8
+         ELSE NULL
+       END AS "priceChf",
        l.id AS "logId"
 FROM (
   SELECT id, created, message
@@ -274,30 +297,28 @@ FROM (
   WHERE ${conditions.join(' AND ')}
   ORDER BY created ASC, id ASC
   ${limitClause}
-) l,
-LATERAL jsonb_each(l.message::jsonb -> 'assets') kv
-WHERE kv.value->>'priceChf' IS NOT NULL
+) l
+LEFT JOIN LATERAL jsonb_each(l.message::jsonb -> 'assets') kv ON true
 ORDER BY l.created ASC, l.id ASC`;
 
     const raw = (await this.query(sql, params)) as {
       created: Date | string;
-      assetId: number | string;
-      priceChf: number | string;
+      assetId: number | string | null;
+      priceChf: number | string | null;
       logId: number | string;
     }[];
 
-    const rows: FinancialLogAssetPrice[] = [];
-    for (const r of raw) {
-      const priceChf = Number(r.priceChf);
-      if (!Number.isFinite(priceChf)) continue;
-
-      rows.push({
+    const rows: FinancialLogAssetPrice[] = raw.map((r) => {
+      const priceChf = r.priceChf == null ? null : Number(r.priceChf);
+      return {
         created: r.created instanceof Date ? r.created : new Date(r.created),
-        assetId: Number(r.assetId),
-        priceChf,
+        assetId: r.assetId == null ? null : Number(r.assetId),
+        // float8 NaN/Infinity (e.g. an out-of-range numeric text) must be excluded the same way the old
+        // Number.isFinite gate excluded them — never surface as a phantom mark.
+        priceChf: priceChf != null && Number.isFinite(priceChf) ? priceChf : null,
         logId: Number(r.logId),
-      });
-    }
+      };
+    });
 
     if (!rows.length && after != null) await this.assertEmptyResultIsEndOfData(after);
     return rows;

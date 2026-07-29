@@ -208,26 +208,33 @@ export class LedgerMarkService {
   }
 
   // Expand one Log into the same projection shape as getFinancialLogAssetPrices (dailySample adapter only).
+  // Mirrors the repository's LEFT JOIN LATERAL: every log row must yield at least one result row so that
+  // uniqueLogIds/overflow-detection below count log rows actually read, not just the ones carrying a usable
+  // mark (see PR review Finding 1+2) — an empty/absent `assets` object still emits one all-null placeholder
+  // row, and each present asset key emits its own row with assetId/priceChf nulled per-field when unusable
+  // (non-numeric key / non-finite price), rather than being skipped.
   private rowToAssetPrices(row: Log): FinancialLogAssetPrice[] {
     const assets = this.parseAssets(row.message);
-    if (!assets) return [];
+    const entries = assets ? Object.entries(assets) : [];
 
-    const result: FinancialLogAssetPrice[] = [];
-    for (const [assetIdKey, assetLog] of Object.entries(assets)) {
-      const priceChf = assetLog?.priceChf;
-      if (!Number.isFinite(priceChf)) continue;
-
-      result.push({
-        created: row.created,
-        assetId: +assetIdKey,
-        priceChf,
-        logId: row.id,
-      });
+    if (!entries.length) {
+      return [{ created: row.created, assetId: null, priceChf: null, logId: row.id }];
     }
-    return result;
+
+    return entries.map(([assetIdKey, assetLog]) => {
+      const priceChf = assetLog?.priceChf;
+      return {
+        created: row.created,
+        assetId: /^[0-9]+$/.test(assetIdKey) ? Number(assetIdKey) : null,
+        priceChf: typeof priceChf === 'number' && Number.isFinite(priceChf) ? priceChf : null,
+        logId: row.id,
+      };
+    });
   }
 
   // Distinct logIds in first-seen order (SQL keeps all assets of one log contiguous).
+  // logId is present on every projection row, including null-price placeholders, so this counts log rows
+  // actually read — not only those that carried a usable mark (Finding 1+2).
   private uniqueLogIds(rows: FinancialLogAssetPrice[]): number[] {
     const ids: number[] = [];
     const seen = new Set<number>();
@@ -259,8 +266,11 @@ export class LedgerMarkService {
     const marks = new Map<number, MarkPoint[]>();
 
     for (const row of rows) {
-      // Repo already drops non-finite values; keep the guard as a defensive double-check.
-      if (!Number.isFinite(row.priceChf)) continue;
+      // Repo / rowToAssetPrices keep a row per read log even without a usable mark (assetId/priceChf
+      // null) so overflow detection and keyset pagination count log rows correctly — skip those here.
+      // Number.isFinite is kept as a second line of defence: the repository already nulls NaN/Infinity,
+      // but a mark of NaN would silently corrupt a valuation, so it must not depend on one guard alone.
+      if (row.assetId == null || !Number.isFinite(row.priceChf)) continue;
 
       const points = marks.get(row.assetId) ?? [];
       points.push({ created: row.created, priceChf: row.priceChf });

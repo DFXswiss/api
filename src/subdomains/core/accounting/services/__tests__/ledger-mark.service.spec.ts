@@ -69,27 +69,28 @@ type FakeGetFinancialLogAssetPrices = (
   after?: number,
 ) => Promise<FinancialLogAssetPrice[]>;
 
-/** Expand a Log fixture into the SQL projection shape (same filters as the repository path). */
+/** Expand a Log fixture into the SQL projection shape (same LEFT JOIN LATERAL semantics as the repository). */
 function logToAssetPrices(row: Log): FinancialLogAssetPrice[] {
-  try {
-    const assets = (JSON.parse(row.message) as { assets?: Record<string, { priceChf?: number }> }).assets;
-    if (!assets) return [];
+  // message::jsonb aborts the whole query on malformed JSON in production (fail-loud, see
+  // log.repository.ts) — this fake must throw too, not swallow it into an empty projection (Finding 4).
+  const assets = (JSON.parse(row.message) as { assets?: Record<string, unknown> }).assets;
+  const entries = assets ? Object.entries(assets) : [];
 
-    const out: FinancialLogAssetPrice[] = [];
-    for (const [assetIdKey, assetLog] of Object.entries(assets)) {
-      const priceChf = assetLog?.priceChf;
-      if (!Number.isFinite(priceChf)) continue;
-      out.push({
-        created: row.created,
-        assetId: +assetIdKey,
-        priceChf,
-        logId: row.id,
-      });
-    }
-    return out;
-  } catch {
-    return [];
+  // LEFT JOIN LATERAL preserves the log row even when jsonb_each yields no rows (empty/absent assets):
+  // exactly one null-price placeholder row so logId-based overflow counting still sees this log row.
+  if (!entries.length) {
+    return [{ created: row.created, assetId: null, priceChf: null, logId: row.id }];
   }
+
+  return entries.map(([assetIdKey, assetLog]) => {
+    const priceChf = (assetLog as { priceChf?: unknown })?.priceChf;
+    return {
+      created: row.created,
+      assetId: /^[0-9]+$/.test(assetIdKey) ? Number(assetIdKey) : null,
+      priceChf: typeof priceChf === 'number' && Number.isFinite(priceChf) ? priceChf : null,
+      logId: row.id,
+    };
+  });
 }
 
 /**
@@ -310,17 +311,39 @@ describe('LedgerMarkService', () => {
     expect(cache.getMarkAt(5, new Date('2026-06-01'))).toBeUndefined();
   });
 
-  it('never throws on malformed message JSON (defensive parse)', async () => {
-    // Hot path no longer parses message in the service; projection fake yields no prices for unparseable rows.
+  it('throws on malformed message JSON (fail-loud, matches `message::jsonb` in production SQL)', async () => {
     jest
       .spyOn(logService, 'getFinancialLogAssetPrices')
       .mockImplementation(
         fakeGetFinancialLogAssetPrices([createCustomLog({ created: new Date('2026-06-01'), message: 'not-json' })]),
       );
 
+    await expect(service.preload(new Date('2026-06-01'), new Date('2026-06-01'))).rejects.toThrow();
+  });
+
+  it('excludes a priceChf that is a JSON string, not a JSON number (matches the old Number.isFinite gate)', async () => {
+    const row = financialLog(new Date('2026-06-01'), {
+      '5': { priceChf: '1.25' as unknown as number },
+    });
+
+    jest.spyOn(logService, 'getFinancialLogAssetPrices').mockImplementation(fakeGetFinancialLogAssetPrices([row]));
+
     const cache = await service.preload(new Date('2026-06-01'), new Date('2026-06-01'));
 
     expect(cache.getMarkAt(5, new Date('2026-06-01'))).toBeUndefined();
+  });
+
+  it('excludes a non-numeric asset key without aborting the rest of the projection', async () => {
+    const row = financialLog(new Date('2026-06-01'), {
+      abc: { priceChf: 10 },
+      '5': { priceChf: 20 },
+    });
+
+    jest.spyOn(logService, 'getFinancialLogAssetPrices').mockImplementation(fakeGetFinancialLogAssetPrices([row]));
+
+    const cache = await service.preload(new Date('2026-06-01'), new Date('2026-06-01'));
+
+    expect(cache.getMarkAt(5, new Date('2026-06-01'))).toBe(20); // numeric key still projected despite the sibling non-numeric key
   });
 
   it('uses dailySample when the span exceeds the threshold (bounded preload)', async () => {
@@ -398,11 +421,11 @@ describe('LedgerMarkService', () => {
 
   it('omits assets with missing or non-finite projected prices (no 0-mark)', async () => {
     const t = new Date('2026-06-01T00:00:00Z');
-    // Repo/fake normally drop non-finite rows; inject them here so buildMarkMap's guard is covered too.
+    // Repo/fake null non-finite / unusable fields; inject null placeholders so buildMarkMap's skip is covered.
     jest.spyOn(logService, 'getFinancialLogAssetPrices').mockResolvedValue([
       { created: t, assetId: 5, priceChf: 42, logId: 1 },
-      { created: t, assetId: 6, priceChf: NaN, logId: 1 },
-      { created: t, assetId: 7, priceChf: Infinity, logId: 1 },
+      { created: t, assetId: 6, priceChf: null, logId: 1 },
+      { created: t, assetId: null, priceChf: 7, logId: 1 },
       // asset 8 absent entirely → no mark
     ]);
 
@@ -665,6 +688,41 @@ describe('LedgerMarkService', () => {
       expect(cache.getMarkAt(5, new Date('2026-06-01T05:30:00Z'))).toBe(50);
       // markPreloadMaxRows=2: probe (3) + page after r2 (r3,r4) + page after r4 (r5) = 3 calls
       expect(spy.mock.calls.length).toBe(3);
+    });
+  });
+
+  // Finding 1+2: a log row with no usable prices must still occupy a logId slot so overflow/pagination continue
+  // past it — otherwise later valid marks are silently dropped when maxRows=1.
+  describe('pagination continues past a log row with no usable prices (Finding 1+2 regression)', () => {
+    let pagedService: LedgerMarkService;
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TestUtil.provideConfig({
+            ledger: { markPreloadMaxRows: 1, markPreloadDailySampleThresholdDays: 2 },
+          }),
+          LedgerMarkService,
+          { provide: LogService, useValue: logService },
+        ],
+      }).compile();
+      pagedService = module.get<LedgerMarkService>(LedgerMarkService);
+    });
+
+    it('keeps every valid mark when an unusable-price row sits between two valid rows', async () => {
+      const r1 = financialLog(new Date('2026-06-01T00:00:00Z'), { '5': { priceChf: 1 } });
+      const unusable = financialLog(new Date('2026-06-01T01:00:00Z'), {}); // no usable price at all
+      const r3 = financialLog(new Date('2026-06-01T02:00:00Z'), { '5': { priceChf: 3 } });
+
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogAssetPrices')
+        .mockImplementation(fakeGetFinancialLogAssetPrices([r1, unusable, r3]));
+
+      const cache = await pagedService.preload(new Date('2026-06-01T00:00:00Z'), new Date('2026-06-01T03:00:00Z'));
+
+      expect(cache.getMarkAt(5, new Date('2026-06-01T00:30:00Z'))).toBe(1);
+      expect(cache.getMarkAt(5, new Date('2026-06-01T02:30:00Z'))).toBe(3); // r3 must not be silently dropped
+      expect(spy.mock.calls.length).toBeGreaterThan(1); // pagination actually continued past the unusable row
     });
   });
 
