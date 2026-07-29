@@ -27,6 +27,7 @@ describe('CustodyService', () => {
   let custodyOrderRepo: DeepMocked<CustodyOrderRepository>;
   let custodyBalanceRepo: DeepMocked<CustodyBalanceRepository>;
   let assetPricesService: DeepMocked<AssetPricesService>;
+  let assetService: DeepMocked<AssetService>;
 
   const asset = createCustomAsset({ id: 42, name: 'BTC' });
   const custodyUser = createCustomUser({ id: 7, role: UserRole.CUSTODY });
@@ -39,6 +40,12 @@ describe('CustodyService', () => {
     custodyOrderRepo = createMock<CustodyOrderRepository>();
     custodyBalanceRepo = createMock<CustodyBalanceRepository>();
     assetPricesService = createMock<AssetPricesService>();
+    assetService = createMock<AssetService>();
+
+    // No shared price rule unless a test sets one up: the substitute lookup then contributes
+    // nothing and each asset is valued from its own series, as before.
+    assetService.getAssetsByIdWith.mockResolvedValue([]);
+    assetService.getAssetsByPriceRules.mockResolvedValue([]);
 
     service = new CustodyService(
       createMock<UserService>(),
@@ -49,7 +56,7 @@ describe('CustodyService', () => {
       custodyOrderRepo,
       custodyBalanceRepo,
       assetPricesService,
-      createMock<AssetService>(),
+      assetService,
     );
 
     userDataService.getUserData.mockResolvedValue(
@@ -158,6 +165,169 @@ describe('CustodyService', () => {
         usd: balance * higherIdPrice.priceUsd,
       });
     });
+
+    it('values a holding from a price-rule peer on days its own asset has no price row', async () => {
+      // The asset held has no series at all — the situation of an asset created long after the
+      // holdings it represents. Before this was fixed the position silently vanished from the
+      // series and the whole day was valued as if it were not held.
+      const peer = createCustomAsset({ id: 43, name: 'ZCHF', uniqueName: 'Ethereum/ZCHF' });
+      const balance = 1000;
+
+      custodyOrderRepo.find.mockResolvedValue([depositOrder(new Date('2025-11-01T08:00:00.000Z'), balance)]);
+      assetPricesService.getAssetPrices.mockResolvedValue([
+        Object.assign(new AssetPrice(), {
+          id: 1,
+          asset: peer,
+          created: new Date('2025-11-01T09:00:00.000Z'),
+          priceChf: 1,
+          priceEur: 0.9,
+          priceUsd: 1.1,
+        }),
+      ]);
+
+      const rule = { id: 5 } as any;
+      assetService.getAssetsByIdWith.mockResolvedValue([
+        Object.assign(createCustomAsset({ id: asset.id }), { priceRule: rule }),
+      ]);
+      assetService.getAssetsByPriceRules.mockResolvedValue([
+        Object.assign(createCustomAsset({ id: asset.id }), { priceRule: rule }),
+        Object.assign(peer, { priceRule: rule }),
+      ]);
+
+      const result = await service.getUserCustodyHistory(accountId);
+
+      expect(result.totalValue).toHaveLength(1);
+      expect(result.totalValue[0].value).toEqual({ chf: 1000, eur: 900, usd: 1100 });
+    });
+
+    it('carries accrued interest of the saving position through the series', async () => {
+      const savingAsset = createCustomAsset({ id: 60, name: 'sZCHF', uniqueName: Config.custody.savingAsset });
+      const deposit = 99500;
+      const start = new Date('2026-01-28T00:00:00.000Z');
+
+      custodyOrderRepo.find.mockResolvedValue([
+        Object.assign(new CustodyOrder(), {
+          id: 1,
+          type: CustodyOrderType.DEPOSIT,
+          status: CustodyOrderStatus.COMPLETED,
+          inputAmount: deposit,
+          inputAsset: savingAsset,
+          user: custodyUser,
+          updated: start,
+          completedAt: start,
+        }),
+      ]);
+
+      const price = (id: number, created: Date): AssetPrice =>
+        Object.assign(new AssetPrice(), { id, asset: savingAsset, created, priceChf: 1, priceEur: 1, priceUsd: 1 });
+
+      assetPricesService.getAssetPrices.mockResolvedValue([
+        price(1, new Date('2026-01-28T01:00:00.000Z')),
+        price(2, new Date('2026-07-28T01:00:00.000Z')),
+      ]);
+
+      const result = await service.getUserCustodyHistory(accountId);
+
+      expect(result.totalValue).toHaveLength(2);
+      // Day of the deposit: nothing has accrued yet.
+      expect(result.totalValue[0].value.chf).toBeCloseTo(deposit, 2);
+      // Six months on, the position is worth the deposit plus its interest — the figure the
+      // customer sees in the balance, so the chart no longer trails it.
+      expect(result.totalValue[1].value.chf).toBeCloseTo(deposit + 1726.94, 2);
+    });
+
+    it('stops carrying interest once the saving position is fully paid out', async () => {
+      // Tranches accrue with their own sign, so a closed position leaves a frozen remainder —
+      // the interest earned while it was held. That figure is never booked and never paid out,
+      // so a Safe that holds nothing must not keep showing it for months on end.
+      const savingAsset = createCustomAsset({ id: 60, name: 'sZCHF', uniqueName: Config.custody.savingAsset });
+      const amount = 99500;
+      const depositedAt = new Date('2026-01-28T00:00:00.000Z');
+      const withdrawnAt = new Date('2026-02-27T00:00:00.000Z');
+
+      custodyOrderRepo.find.mockResolvedValue([
+        Object.assign(new CustodyOrder(), {
+          id: 1,
+          type: CustodyOrderType.DEPOSIT,
+          status: CustodyOrderStatus.COMPLETED,
+          inputAmount: amount,
+          inputAsset: savingAsset,
+          user: custodyUser,
+          updated: depositedAt,
+          completedAt: depositedAt,
+        }),
+        Object.assign(new CustodyOrder(), {
+          id: 2,
+          type: CustodyOrderType.WITHDRAWAL,
+          status: CustodyOrderStatus.COMPLETED,
+          outputAmount: amount,
+          outputAsset: savingAsset,
+          user: custodyUser,
+          updated: withdrawnAt,
+          completedAt: withdrawnAt,
+        }),
+      ]);
+
+      const price = (id: number, created: Date): AssetPrice =>
+        Object.assign(new AssetPrice(), { id, asset: savingAsset, created, priceChf: 1, priceEur: 1, priceUsd: 1 });
+
+      assetPricesService.getAssetPrices.mockResolvedValue([
+        price(1, new Date('2026-01-28T01:00:00.000Z')),
+        price(2, new Date('2026-02-27T01:00:00.000Z')),
+        price(3, new Date('2026-07-28T01:00:00.000Z')),
+      ]);
+
+      const result = await service.getUserCustodyHistory(accountId);
+
+      expect(result.totalValue).toHaveLength(3);
+      // Day of the payout and five months later: nothing is held, so nothing is worth anything.
+      expect(result.totalValue[1].value.chf).toBe(0);
+      expect(result.totalValue[2].value.chf).toBe(0);
+    });
+
+    it('values the saving position from a price-rule peer and still accrues its interest', async () => {
+      // The production case in one test: sZCHF bears interest AND has no price series of its own
+      // before the day it was created, so both mechanisms have to work on the same asset at once.
+      const savingAsset = createCustomAsset({ id: 60, name: 'sZCHF', uniqueName: Config.custody.savingAsset });
+      const peer = createCustomAsset({ id: 61, name: 'ZCHF', uniqueName: 'Ethereum/ZCHF' });
+      const deposit = 99500;
+      const start = new Date('2026-01-28T00:00:00.000Z');
+
+      custodyOrderRepo.find.mockResolvedValue([
+        Object.assign(new CustodyOrder(), {
+          id: 1,
+          type: CustodyOrderType.DEPOSIT,
+          status: CustodyOrderStatus.COMPLETED,
+          inputAmount: deposit,
+          inputAsset: savingAsset,
+          user: custodyUser,
+          updated: start,
+          completedAt: start,
+        }),
+      ]);
+
+      // Only the peer has a series — the saving asset itself has none at all.
+      const peerPrice = (id: number, created: Date): AssetPrice =>
+        Object.assign(new AssetPrice(), { id, asset: peer, created, priceChf: 1, priceEur: 1, priceUsd: 1 });
+
+      assetPricesService.getAssetPrices.mockResolvedValue([
+        peerPrice(1, new Date('2026-01-28T01:00:00.000Z')),
+        peerPrice(2, new Date('2026-07-28T01:00:00.000Z')),
+      ]);
+
+      const rule = { id: 5 } as any;
+      assetService.getAssetsByIdWith.mockResolvedValue([Object.assign(savingAsset, { priceRule: rule })]);
+      assetService.getAssetsByPriceRules.mockResolvedValue([
+        Object.assign(savingAsset, { priceRule: rule }),
+        Object.assign(peer, { priceRule: rule }),
+      ]);
+
+      const result = await service.getUserCustodyHistory(accountId);
+
+      expect(result.totalValue).toHaveLength(2);
+      expect(result.totalValue[0].value.chf).toBeCloseTo(deposit, 2);
+      expect(result.totalValue[1].value.chf).toBeCloseTo(deposit + 1726.94, 2);
+    });
   });
 
   describe('getUserCustodyBalance', () => {
@@ -167,7 +337,7 @@ describe('CustodyService', () => {
       await expect(service.getUserCustodyBalance(accountId)).rejects.toThrow(NotFoundException);
     });
 
-    it('attaches interest and interestValue only to the saving position; totalValue stays unchanged', async () => {
+    it('attaches interest and interestValue only to the saving position and counts them in totalValue', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-07-28T00:00:00.000Z'));
 
       const savingAsset = createCustomAsset({
@@ -222,10 +392,42 @@ describe('CustodyService', () => {
       expect(btcDto.interest).toBeUndefined();
       expect(btcDto.interestValue).toBeUndefined();
 
-      // totalValue must reflect only booked balances (curr.value), never the accrued interest —
-      // getUserCustodyHistory() has no notion of interest, so including it here would make the
-      // displayed figure jump against the history chart.
-      expect(result.totalValue).toEqual({ chf: 6000, eur: 5600, usd: 6500 });
+      // Accrued interest counts towards the total: it is what the position is worth today, and
+      // getUserCustodyHistory() now accrues it per day too, so the figure no longer disagrees
+      // with the chart. Booked balances alone would be 6000 / 5600 / 6500.
+      expect(result.totalValue).toEqual({
+        chf: expect.closeTo(7726.94, 2),
+        eur: expect.closeTo(7326.94, 2),
+        usd: expect.closeTo(8226.94, 2),
+      });
+    });
+
+    it('reports no interest for a saving position that is fully paid out', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-28T00:00:00.000Z'));
+
+      const savingAsset = createCustomAsset({
+        id: 60,
+        name: 'sZCHF',
+        uniqueName: Config.custody.savingAsset,
+        approxPriceChf: 1,
+        approxPriceEur: 1,
+        approxPriceUsd: 1,
+      });
+
+      // The balance row survives a full payout with balance 0 — it is never deleted.
+      custodyBalanceRepo.findBy.mockResolvedValue([
+        Object.assign(new CustodyBalance(), { asset: savingAsset, balance: 0, user: custodyUser }),
+      ]);
+
+      const result = await service.getUserCustodyBalance(accountId);
+
+      const szchfDto = result.balances.find((b) => b.asset.name === 'sZCHF');
+
+      expect(szchfDto.interest).toBeUndefined();
+      expect(szchfDto.interestValue).toBeUndefined();
+      expect(result.totalValue).toEqual({ chf: 0, eur: 0, usd: 0 });
+      // The interest calculation is not even reached for a closed position.
+      expect(custodyOrderRepo.find).not.toHaveBeenCalled();
     });
 
     it('keeps all positions with correct value, drops interest, and logs when it throws', async () => {
