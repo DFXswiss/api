@@ -160,14 +160,17 @@ describe('BankService', () => {
     // the dedicated test below); here every row still sits at the neutral default, so ascending id
     // decides and the incumbents (Olkypay id 4, Yapeal id 15) keep their currencies.
     // A preceding test disables the shared olkyEUR mock in place (createDefaultDisabledBanks mutates it),
-    // so restore its natural receive state here to exercise Frick exclusion rather than that leaked state.
+    // so restore its natural receive state here to exercise the priority ordering rather than that
+    // leaked state.
     olkyEUR.receive = true;
+    // Routed through createCustomBank so these stay real Bank instances: the shared mocks carry no id,
+    // and a plain spread would drop the entity methods the repository contract promises.
     const frickFirst = [
-      { ...frickEUR, id: 19 },
-      { ...frickCHF, id: 20 },
-      { ...olkyEUR, id: 4 },
-      { ...yapealEUR, id: 16 },
-      { ...yapealCHF, id: 15 },
+      createCustomBank({ ...frickEUR, id: 19 }),
+      createCustomBank({ ...frickCHF, id: 20 }),
+      createCustomBank({ ...olkyEUR, id: 4 }),
+      createCustomBank({ ...yapealEUR, id: 16 }),
+      createCustomBank({ ...yapealCHF, id: 15 }),
     ];
     jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
       if (filter?.receive !== undefined) return frickFirst.filter((b) => b.receive === filter.receive);
