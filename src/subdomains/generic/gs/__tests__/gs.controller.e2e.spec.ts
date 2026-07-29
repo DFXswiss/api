@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   INestApplication,
@@ -14,7 +13,6 @@ import { Test } from '@nestjs/testing';
 import * as bodyParser from 'body-parser';
 import request from 'supertest';
 import { GetConfig } from 'src/config/config';
-import * as processServiceModule from 'src/shared/services/process.service';
 import { DbQueryDto, DbReturnData } from 'src/subdomains/generic/gs/dto/db-query.dto';
 import { GsTriggerType } from 'src/subdomains/generic/gs/dto/gs-trigger-type.enum';
 import { DebugQueryDto, DebugQueryResult } from '../dto/debug-query.dto';
@@ -69,25 +67,23 @@ class GsControllerTestModule {
   }
 }
 
-// Test-only route for the `trigger` requirement added to `GsController.getDbData` /
-// `getExtendedData` (production file: `gs.controller.ts`). The production `GsController` is
-// NOT bootstrapped here, for the same reason `GsDebugTestController` above isn't: `RoleGuard()`
-// and `UserActiveGuard()` return already-instantiated guard objects baked into `@UseGuards()`
-// at controller-decoration time in `gs.controller.ts`, so calling `RoleGuard()` /
-// `UserActiveGuard()` again in this file creates different instances that `Test.overrideGuard()`
-// cannot match. This controller mirrors only the two-line trigger-check against the real
-// `DbQueryDto` (so `@IsEnum(GsTriggerType)` and the DTO's other decorators run for real) and the
-// real `DisabledProcess` / `Process.GS_TRIGGER_CHECK`, controlled via
-// `jest.spyOn(processServiceModule, 'DisabledProcess')` — the same pattern already used across
-// this repo's service-level specs (e.g. `support-issue-notification.service.spec.ts`).
+// Test-only route for the `/gs/db` request pipeline (production file: `gs.controller.ts`). The
+// production `GsController` is NOT bootstrapped here, for the same reason `GsDebugTestController`
+// above isn't: `RoleGuard()` and `UserActiveGuard()` return already-instantiated guard objects
+// baked into `@UseGuards()` at controller-decoration time in `gs.controller.ts`, so calling
+// `RoleGuard()` / `UserActiveGuard()` again in this file creates different instances that
+// `Test.overrideGuard()` cannot match.
+//
+// This controller deliberately does NOT reproduce the trigger-enforcement gate. That gate
+// (`SettingService.getObjCached('gsTriggerEnforcement', false)`, default-off) is exercised
+// against the REAL `GsController` in the unit test `gs.controller.spec.ts`; duplicating it here
+// would just be two tests for the same logic. This file covers what only the full NestJS
+// pipeline can prove: that the real `DbQueryDto` decorators (`@IsEnum(GsTriggerType)`,
+// `@MaxLength(256)` on `table`/`identifier`) are actually wired into the global `ValidationPipe`.
 @Controller('gs')
 class GsDbTriggerTestController {
   @Post('db')
-  async getDbData(@Body() query: DbQueryDto): Promise<DbReturnData> {
-    if (!processServiceModule.DisabledProcess(processServiceModule.Process.GS_TRIGGER_CHECK) && !query.trigger) {
-      throw new BadRequestException('Trigger type is required');
-    }
-
+  async getDbData(@Body() _query: DbQueryDto): Promise<DbReturnData> {
     return { keys: ['id'], values: [] };
   }
 }
@@ -250,49 +246,32 @@ describe('GsController e2e (db trigger requirement)', () => {
     await app.close();
   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
+  it('rejects an invalid trigger value via the global ValidationPipe', async () => {
+    await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'asset', trigger: 'Cron' }).expect(400);
   });
 
-  it('rejects a request without trigger when the check is enabled', async () => {
-    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
-
-    await request(app.getHttpServer())
-      .post('/v1/gs/db')
-      .send({ table: 'asset' })
-      .expect(400)
-      .expect((res: request.Response) => {
-        expect(res.body.message).toBe('Trigger type is required');
-      });
-  });
-
-  it('accepts trigger=Manual when the check is enabled', async () => {
-    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
-
+  it('accepts trigger=Manual', async () => {
     await request(app.getHttpServer())
       .post('/v1/gs/db')
       .send({ table: 'asset', trigger: GsTriggerType.MANUAL })
       .expect(201);
   });
 
-  it('accepts trigger=Auto when the check is enabled', async () => {
-    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
-
-    await request(app.getHttpServer())
-      .post('/v1/gs/db')
-      .send({ table: 'asset', trigger: GsTriggerType.AUTO })
-      .expect(201);
-  });
-
-  it('accepts a request without trigger when the check is disabled', async () => {
-    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(true);
-
+  it('accepts a request without trigger — the ValidationPipe alone does not enforce it', async () => {
     await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'asset' }).expect(201);
   });
 
-  it('rejects an invalid trigger value via the global ValidationPipe', async () => {
-    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
+  it('rejects an identifier over the 256-char limit via the global ValidationPipe', async () => {
+    await request(app.getHttpServer())
+      .post('/v1/gs/db')
+      .send({ table: 'asset', identifier: 'a'.repeat(257) })
+      .expect(400);
+  });
 
-    await request(app.getHttpServer()).post('/v1/gs/db').send({ table: 'asset', trigger: 'Cron' }).expect(400);
+  it('rejects a table name over the 256-char limit via the global ValidationPipe', async () => {
+    await request(app.getHttpServer())
+      .post('/v1/gs/db')
+      .send({ table: 'a'.repeat(257) })
+      .expect(400);
   });
 });

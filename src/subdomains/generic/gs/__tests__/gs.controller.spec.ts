@@ -2,6 +2,7 @@ import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { BadRequestException } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { DbQueryDto } from 'src/subdomains/generic/gs/dto/db-query.dto';
@@ -20,18 +21,18 @@ import { GsService } from 'src/subdomains/generic/gs/gs.service';
 // path this feature touches.
 describe('GsController', () => {
   let service: DeepMocked<GsService>;
+  let settingService: DeepMocked<SettingService>;
   let controller: GsController;
   let verboseSpy: jest.SpyInstance;
 
   const jwt: JwtPayload = { role: UserRole.ADMIN, ip: '1.2.3.4' };
 
-  // Both handlers check `Process.GS_DB` before `Process.GS_TRIGGER_CHECK`. `Process.GS_DB` must
-  // stay enabled (DisabledProcess -> false) here so the pre-existing endpoint-disabled guard
-  // never fires and the trigger check is what's actually under test.
-  function mockTriggerCheck(disabled: boolean): void {
-    jest
-      .spyOn(processServiceModule, 'DisabledProcess')
-      .mockImplementation((process) => (process === processServiceModule.Process.GS_TRIGGER_CHECK ? disabled : false));
+  // Both handlers check `Process.GS_DB` before trigger enforcement. `Process.GS_DB` must stay
+  // enabled (DisabledProcess -> false) here so the pre-existing endpoint-disabled guard never
+  // fires and the trigger check is what's actually under test. Enforcement itself is gated by
+  // `SettingService.getObjCached('gsTriggerEnforcement', …)`.
+  function mockTriggerEnforcement(enforced: boolean): void {
+    settingService.getObjCached.mockResolvedValue(enforced);
   }
 
   function query(overrides: Partial<DbQueryDto>): DbQueryDto {
@@ -40,8 +41,10 @@ describe('GsController', () => {
 
   beforeEach(() => {
     service = createMock<GsService>();
-    controller = new GsController(service);
+    settingService = createMock<SettingService>();
+    controller = new GsController(service, settingService);
     verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -60,7 +63,7 @@ describe('GsController', () => {
   for (const { name, call, serviceCall } of handlers) {
     describe(name, () => {
       it('rejects a request without trigger when the check is enabled, and logs table/identifier/trigger as missing', async () => {
-        mockTriggerCheck(false);
+        mockTriggerEnforcement(true);
 
         let caught: unknown;
         try {
@@ -78,7 +81,7 @@ describe('GsController', () => {
       });
 
       it('accepts trigger=Manual when the check is enabled', async () => {
-        mockTriggerCheck(false);
+        mockTriggerEnforcement(true);
 
         await call(query({ trigger: GsTriggerType.MANUAL }));
 
@@ -86,7 +89,7 @@ describe('GsController', () => {
       });
 
       it('accepts trigger=Auto when the check is enabled', async () => {
-        mockTriggerCheck(false);
+        mockTriggerEnforcement(true);
 
         await call(query({ trigger: GsTriggerType.AUTO }));
 
@@ -94,7 +97,7 @@ describe('GsController', () => {
       });
 
       it('accepts a request without trigger when the check is disabled', async () => {
-        mockTriggerCheck(true);
+        mockTriggerEnforcement(false);
 
         await call(query({}));
 
@@ -102,4 +105,30 @@ describe('GsController', () => {
       });
     });
   }
+
+  describe('getDbData log sanitization', () => {
+    it('replaces control characters in identifier so log lines cannot be forged', async () => {
+      mockTriggerEnforcement(false);
+
+      await controller.getDbData(jwt, query({ identifier: 'x\nforged', trigger: GsTriggerType.MANUAL }));
+
+      expect(verboseSpy).toHaveBeenCalledWith(
+        'GS db call: table=asset, identifier=x?forged, trigger=Manual, role=Admin',
+      );
+    });
+
+    it('truncates oversized identifier values and appends a truncation marker', async () => {
+      mockTriggerEnforcement(false);
+
+      await controller.getDbData(jwt, query({ identifier: 'a'.repeat(500), trigger: GsTriggerType.MANUAL }));
+
+      const logged = verboseSpy.mock.calls[0][0] as string;
+      const match = /identifier=([^,]+)/.exec(logged);
+      expect(match).not.toBeNull();
+      const identifierPart = match![1];
+      expect(identifierPart.length).toBeLessThanOrEqual(64 + 3);
+      expect(identifierPart.endsWith('...')).toBe(true);
+      expect(identifierPart.startsWith('a'.repeat(64))).toBe(true);
+    });
+  });
 });

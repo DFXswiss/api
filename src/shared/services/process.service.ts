@@ -100,7 +100,6 @@ export enum Process {
   GUARANTEED_PRICE = 'GuaranteedPrice',
   GS_DEBUG = 'GsDebug',
   GS_DB = 'GsDb',
-  GS_TRIGGER_CHECK = 'GsTriggerCheck',
   TRANSACTION_AML_CHECK_LOG = 'TransactionAmlCheckLog',
   // ledger booking consumers + jobs (§11.1; one own flag per @DfxCron method = kill-switch, Hard Constraint #5)
   LEDGER_BOOKING_BANK_TX = 'LedgerBookingBankTx',

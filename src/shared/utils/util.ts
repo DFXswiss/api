@@ -720,6 +720,16 @@ export class Util {
     return Util.sanitizeString(value);
   }
 
+  // Protects against log forging and oversized log events for client-controlled values.
+  static sanitizeLogValue(value: string, maxLength: number): string {
+    const sanitized = Array.from(value, (char) => {
+      const code = char.charCodeAt(0);
+      return code < 0x20 || code === 0x7f ? '?' : char;
+    }).join('');
+
+    return sanitized.length > maxLength ? `${sanitized.slice(0, maxLength)}...` : sanitized;
+  }
+
   static toCsv(list: any[], separator = ',', toGermanLocalDateString = false): string {
     const headers = Object.keys(list[0]).join(separator);
     const values = list.map((t) =>
