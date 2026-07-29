@@ -36,6 +36,12 @@ export class Bank extends IEntity {
   @Column({ type: 'int', default: 1000 })
   sendPriority: number = 1000;
 
+  // Deterministic receiver tie-breaker for currencies with more than one eligible receive=true bank:
+  // lower value is tried first. An operational input (set by Ops), never inferred from bank name in
+  // code. Ties are broken by ascending id, so adding a bank never silently changes an existing choice.
+  @Column({ type: 'int', default: 1000 })
+  receivePriority: number = 1000;
+
   @OneToOne(() => Asset, (asset) => asset.bank, { nullable: true })
   @JoinColumn()
   asset: Asset;

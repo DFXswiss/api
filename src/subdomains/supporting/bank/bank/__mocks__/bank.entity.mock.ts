@@ -8,6 +8,7 @@ const defaultBank: Partial<Bank> = {
   currency: 'EUR',
   receive: true,
   send: true,
+  receivePriority: 1000,
 };
 
 export const olkyEUR = createCustomBank({

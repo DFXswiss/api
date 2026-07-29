@@ -88,13 +88,12 @@ export class BankService implements OnModuleInit {
   async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank> {
     const fallBackCurrency = 'EUR';
 
-    // Bank Frick's rows are receive=true so money arriving on its accounts is fully processed, but it
-    // must never be offered to a customer as a deposit target - customers are always shown the incumbent
-    // banks (Olkypay/Yapeal). It is deliberately filtered out of this customer-facing selector here;
-    // inbound crediting runs via BankTxFrickService, not this path, and the outbound payout selector
-    // applies its own separate Frick handling, so the exclusion affects only the deposit IBAN shown to
-    // customers.
-    const banks = (await this.getReceiveBanks()).filter((b) => b.name !== IbanBankName.FRICK);
+    // Deposit-target selection is an operational input (Bank.receivePriority), not a hardcoded
+    // bank-name preference: lower value wins, ties broken by ascending id so the choice is stable
+    // and a newly added bank row can never silently take over an existing one.
+    const banks = [...(await this.getReceiveBanks())].sort(
+      (a, b) => a.receivePriority - b.receivePriority || a.id - b.id,
+    );
 
     // select the matching bank account
     let account: Bank;

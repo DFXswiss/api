@@ -175,6 +175,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'iban',
       'name',
       'receive',
+      'receivePriority',
       'sctInst',
       'send',
       'sendPriority',
