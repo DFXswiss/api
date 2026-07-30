@@ -226,7 +226,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
 
     const logs = await getLogs();
     expect(logs).toHaveLength(1);
-    expect(logs[0].system).toBe('Auth');
+    expect(logs[0].system).toBe('User');
     expect(logs[0].subsystem).toBe('GrantSupportRoleOnDev');
     expect(logs[0].severity).toBe('Info');
     expect(logs[0].category).toBe('up');

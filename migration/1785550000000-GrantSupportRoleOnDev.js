@@ -33,7 +33,7 @@ module.exports = class GrantSupportRoleOnDev1785550000000 {
             )
             INSERT INTO "log" ("system", "subsystem", "severity", "message", "category")
             SELECT
-                'Auth',
+                'User',
                 'GrantSupportRoleOnDev',
                 'Info',
                 jsonb_build_object(
@@ -69,7 +69,7 @@ module.exports = class GrantSupportRoleOnDev1785550000000 {
                   AND "role" = 'Support'
                   AND EXISTS (
                       SELECT 1 FROM "log"
-                      WHERE "system" = 'Auth'
+                      WHERE "system" = 'User'
                         AND "subsystem" = 'GrantSupportRoleOnDev'
                         AND "category" = 'up'
                         AND ("message"::jsonb ->> 'affectedCount')::int > 0
@@ -78,7 +78,7 @@ module.exports = class GrantSupportRoleOnDev1785550000000 {
             )
             INSERT INTO "log" ("system", "subsystem", "severity", "message", "category")
             SELECT
-                'Auth',
+                'User',
                 'GrantSupportRoleOnDev',
                 'Info',
                 jsonb_build_object(
