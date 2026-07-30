@@ -75,14 +75,16 @@ const PENDING_STUCK_AFTER_MINUTES = 5;
 /**
  * Minimum wait between two cancel attempts for the SAME pending reference, once it is past its bound.
  *
- * The cancel below is a WRITE to the venue, and `checkRunningOrders` drives this on an ungated 10-second
- * cron — without a floor here, an UNCONFIRMED answer would draw a fresh cancel on every tick for as long as
- * the venue keeps not confirming it. One minute, matching the cooldown floor the analogous quarantine-cancel
- * throttle uses (`UNCERTAIN_RESOLVE_MIN_INTERVAL_MS` in liquidity-management-pipeline.service.ts), for the
- * same stated reason: "a cancellation the venue will not confirm must not retry on every ten-second tick."
- * This only slows the write down — it does not move PENDING_STUCK_AFTER_MINUTES itself, so the order becomes
- * eligible for a cancel at exactly the same age either way; only how often an unconfirmed attempt may repeat
- * changes.
+ * The cancel below is a WRITE to the venue, and `checkRunningOrders` is driven by a cron that runs nominally
+ * every ten seconds, and possibly more often within one pass — the cron itself has a lock, a jitter lead-in
+ * and a process-disable gate, and `processPipelines`'s own `while (hasChanges)` loop can invoke it again
+ * before the next tick. Without a floor here, an UNCONFIRMED answer would draw a fresh cancel on every one of
+ * those calls for as long as the venue keeps not confirming it. One minute, matching the cooldown floor the
+ * analogous quarantine-cancel throttle uses (`UNCERTAIN_RESOLVE_MIN_INTERVAL_MS` in
+ * liquidity-management-pipeline.service.ts), for the same stated reason: "a cancellation the venue will not
+ * confirm must not retry on every ten-second tick." This only slows the write down — it does not move
+ * PENDING_STUCK_AFTER_MINUTES itself, so the order becomes eligible for a cancel at exactly the same age
+ * either way; only how often an unconfirmed attempt may repeat changes.
  */
 const PENDING_CANCEL_RETRY_MINUTES = 1;
 
@@ -792,7 +794,7 @@ export class ScryptService extends PricingProvider {
     clOrdId: string,
     from: string,
     to: string,
-    orderCreated?: Date,
+    orderCreated: Date,
     replacementClOrdId?: string,
     // Invoked immediately before a replacement is sent, so the caller can make the reference durable first.
     // Without that, a replacement whose confirmation is lost is neither the current reference nor a spent
@@ -802,7 +804,7 @@ export class ScryptService extends PricingProvider {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
       // Past its bound and still not found anywhere: treat it as lost rather than keep polling for it.
-      const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
+      const ageMinutes = Util.minutesDiff(orderCreated);
       if (ageMinutes > ORDER_LOST_AFTER_MINUTES) {
         throw new ScryptOrderNotFoundError(
           `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — it may have completed or been cancelled outside of tracked state`,
@@ -942,16 +944,8 @@ export class ScryptService extends PricingProvider {
         // the book must not be given up on unconfirmed evidence, or the onFail chain could place a second,
         // genuinely competing buy right next to it. That cancel is a WRITE to the venue, so it is throttled to
         // at most one attempt per PENDING_CANCEL_RETRY_MINUTES per reference — otherwise an UNCONFIRMED answer
-        // would draw a fresh cancel on every ten-second cron tick.
-        if (!orderCreated) {
-          // No creation timestamp means there is no clock to measure this bound against. This is the admin
-          // trade endpoint (ExchangeController), which keeps its trades in memory for a person who started
-          // them and is polling the result themselves — not a liquidity order that a missing timestamp could
-          // silently exempt from a rule nobody is watching. Every liquidity path passes order.created.
-          this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
-          return false;
-        }
-
+        // would draw a fresh cancel on every checkRunningOrders call, which runs nominally every ten seconds,
+        // and possibly more often within one pass.
         const ageMinutes = Util.minutesDiff(orderCreated);
         if (ageMinutes <= PENDING_STUCK_AFTER_MINUTES) {
           this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
@@ -967,8 +961,12 @@ export class ScryptService extends PricingProvider {
           return false;
         }
 
-        const cancellation = await this.cancelIfOutstanding(clOrdId, from, to);
-        this.recordPendingCancelAttempt(clOrdId);
+        let cancellation: ScryptCancellation;
+        try {
+          cancellation = await this.cancelIfOutstanding(clOrdId, from, to);
+        } finally {
+          this.recordPendingCancelAttempt(clOrdId);
+        }
 
         if (cancellation === ScryptCancellation.EXECUTED) {
           this.pendingCancelAttempts.delete(clOrdId);

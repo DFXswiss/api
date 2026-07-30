@@ -1444,8 +1444,9 @@ describe('ScryptService', () => {
     });
 
     it('does not retry the cancel write on the very next pass after an unconfirmed attempt', async () => {
-      // the cancel is a WRITE and checkRunningOrders reruns every 10 seconds — without a retry floor per
-      // reference this would fire a fresh cancel on every tick for as long as the venue keeps not confirming it
+      // the cancel is a WRITE and checkRunningOrders runs nominally every 10 seconds, and possibly more often
+      // within one pass — without a retry floor per reference this would fire a fresh cancel on every one of
+      // those calls for as long as the venue keeps not confirming it
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PENDING_NEW,
@@ -1460,18 +1461,30 @@ describe('ScryptService', () => {
       expect(cancelSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('waits on a pending order with no orderCreated instead of treating the missing timestamp as young', async () => {
-      // without a dedicated branch, `orderCreated ? ... : 0` would silently read a missing timestamp as age
-      // zero and let it slip through as "young" forever, instead of just waiting without ever cancelling
+    it('retries the cancel write again once the retry floor has passed', async () => {
+      // Mirrors the previous test but advances past PENDING_CANCEL_RETRY_MINUTES between passes: without
+      // this, an implementation whose retry floor never expires would look identical to a correct one to
+      // the test above alone, and a permanently blocked cancel is itself a new stuck-forever wait state.
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PENDING_NEW,
         remainingQuantity: 5,
       });
-      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+      const orderCreated = new Date(Date.now() - 6 * 60 * 1000);
 
-      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(false);
-      expect(cancelSpy).not.toHaveBeenCalled();
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
+
+      // PENDING_CANCEL_RETRY_MINUTES is a private module-level constant (1 minute) with no export to
+      // import in this test, so the recorded attempt is backdated directly on the service's private map
+      // instead of driving Date.now() itself — this is the one throttle input the test needs to move, and
+      // moving only it keeps the assertion tied to the retry floor, not incidentally to the order's own age.
+      const pastRetryFloor = new Date(Date.now() - 2 * 60 * 1000);
+      (service as any).pendingCancelAttempts.set('dfx-lm-7', pastRetryFloor);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      expect(cancelSpy).toHaveBeenCalledTimes(2);
     });
 
     it('cancels on an explicit rejection, but reports the refusal and the spent reference', async () => {

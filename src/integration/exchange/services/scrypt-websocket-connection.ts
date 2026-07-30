@@ -94,11 +94,13 @@ export class ScryptOrderNotFoundError extends Error {}
  * a terminal cancel with nothing filled, or the venue not recognising the reference at all
  * (`SCRYPT_UNKNOWN_ORDER`), which is an inference from its own words rather than a statement about execution.
  *
- * Both still carry the weight this error rests on here, because of what immediately precedes the cancel: the
- * venue had just reported this very reference as PENDING. If the cancel then comes back saying it does not
- * know the reference, that is the venue contradicting its own last answer — and either reading, a genuine
- * terminal cancel or that contradiction, lands at the same conclusion: nothing can execute under this
- * reference any more.
+ * Both still carry the weight this error rests on here, because of what the cancel follows: the venue's most
+ * recently reported status for this very reference was PENDING. That reading comes from the cached execution
+ * report and is not re-fetched before the cancel is sent, and this branch is only reached after
+ * PENDING_STUCK_AFTER_MINUTES, so the observation behind it can be several minutes old rather than fresh. If
+ * the cancel then comes back saying it does not know the reference, that is still the venue contradicting its
+ * own last answer — and either reading, a genuine terminal cancel or that contradiction, lands at the same
+ * conclusion: nothing can execute under this reference any more.
  *
  * Distinct from {@link ScryptOrderNotFoundError}: that one means the venue cannot find the order at all, an
  * unresolved blind spot. Here the venue found it, answered PENDING, and then settled it on request — which is
