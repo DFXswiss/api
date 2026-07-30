@@ -41,7 +41,9 @@ import {
 
 /**
  * After this long without a usable answer, an order the venue once acknowledged is treated as lost rather
- * than merely slow. Shared by the "cannot be found" and the "stuck pending" paths so both give up together.
+ * than merely slow. One use only: the branch below where the status lookup returns nothing at all. The
+ * pending states deliberately do NOT consult it — they wait however old the order is, because a venue that
+ * still reports PENDING_NEW is answering, and this constant is about silence.
  *
  * Kept equal to SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES in the adapter, which documents itself as matching
  * this value — the two are the pair of routes out of a silent order and must not drift apart. Five rather
@@ -751,7 +753,7 @@ export class ScryptService extends PricingProvider {
   ): Promise<boolean> {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
-      // If the order is older than 1 hour and still not found, it's lost
+      // Past its bound and still not found anywhere: treat it as lost rather than keep polling for it.
       const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
       if (ageMinutes > ORDER_LOST_AFTER_MINUTES) {
         throw new ScryptOrderNotFoundError(
