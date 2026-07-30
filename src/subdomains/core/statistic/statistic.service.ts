@@ -41,10 +41,8 @@ export class StatisticService implements OnModuleInit {
   }
 
   async getStatus(): Promise<SettingStatus> {
-    const settings = await this.settingService.getAll();
-    return settings
-      .filter((s) => s.key.endsWith('Status'))
-      .reduce((prev, curr) => ({ ...prev, [curr.key.replace('Status', '')]: curr.value }), {});
+    const settings = await this.settingService.getStatusSettings();
+    return settings.reduce((prev, curr) => ({ ...prev, [curr.key.replace('Status', '')]: curr.value }), {});
   }
 
   getAll(): StatisticDto {

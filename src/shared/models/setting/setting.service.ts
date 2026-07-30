@@ -16,6 +16,12 @@ export class SettingService {
     return this.settingRepo.find();
   }
 
+  // Loads only settings whose key ends with "Status" instead of transferring the entire table: in production,
+  // getAll() transfers about 1.5 MB, including one entry of about 1.5 MB, to return only a few bytes of status data.
+  async getStatusSettings(): Promise<Setting[]> {
+    return this.settingRepo.getStatusSettings();
+  }
+
   async get(key: string, defaultValue?: string): Promise<string | undefined> {
     return this.settingRepo.findOneBy({ key }).then((d) => d?.value ?? defaultValue);
   }
