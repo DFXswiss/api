@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import {
+  isTerminalScryptOrderStatus,
   ScryptCancellation,
   ScryptOrderInfo,
   ScryptOrderSide,
@@ -288,14 +289,18 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * knowing if a rule is ever seen planning against a balance that looks one fill stale.
    */
   async cancelOutstanding(order: LiquidityManagementOrder): Promise<string | null> {
-    if (order.action.command === ScryptAdapterCommands.WITHDRAW) {
-      if (!order.correlationId) {
-        this.logger.error(
-          `Order ${order.id}: Scrypt withdrawal reached cancelOutstanding with no correlationId — reserve-before-send should make this impossible`,
-        );
-        return null;
-      }
+    // Reconstruct a missing reference from the order id alone (see reserveCorrelationId). The error log
+    // remains: reserve-before-send should make this state impossible. Reconstruction is still safe to ask
+    // about — the id is deterministic from the row, has no random component, and a pure venue lookup under
+    // it is harmless if nothing was ever sent under that name.
+    if (!order.correlationId) {
+      this.logger.error(
+        `Order ${order.id}: Scrypt order reached cancelOutstanding with no correlationId — reserve-before-send should make this impossible`,
+      );
+      order.reserveCorrelationId(this.reserveCorrelationId(order));
+    }
 
+    if (order.action.command === ScryptAdapterCommands.WITHDRAW) {
       const absent = await this.scryptService.confirmWithdrawalAbsent(order.correlationId, order.created);
       return absent ? 'the venue returned its full transaction history and has no record of this withdrawal' : null;
     }
@@ -311,6 +316,36 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         `Order ${order.id}: Scrypt trade reached cancelOutstanding with no references — reserve-before-send should make this impossible`,
       );
       return null;
+    }
+
+    // A command no longer in ScryptAdapterCommands (rename/removal) still reaches this adapter via
+    // getReconciliationIntegration. We cannot derive a storno symbol from parseTradeParams / SELL vs BUY,
+    // so we must not invent a cancel. Instead ask the venue about every reference individually: only a
+    // terminal status (or a confirmed absence for withdraw above) is a venue answer, not a guess. null on
+    // any reference keeps the order waiting on the venue for another pass.
+    const knownCommands = Object.values(ScryptAdapterCommands) as string[];
+    if (!knownCommands.includes(order.action.command)) {
+      for (const reference of references) {
+        // `null` = venue has no record; `undefined` = could not be asked (same distinction as adoptLiveReplacement).
+        const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
+        if (info == null || !isTerminalScryptOrderStatus(info.status)) {
+          this.logger.warn(
+            `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is ${
+              info == null
+                ? info === null
+                  ? 'unknown to the venue'
+                  : 'unreachable'
+                : `still non-terminal (${info.status})`
+            }; keeping the order quarantined`,
+          );
+          return null;
+        }
+      }
+
+      this.logger.info(
+        `Order ${order.id}: venue reports every reference of unsupported command ${order.action.command} in a terminal state`,
+      );
+      return 'the venue reports every reference of this unsupported command in a terminal state';
     }
 
     const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
@@ -711,19 +746,18 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * rejection of every attempted trade reference is the one negative that settles here, and returns NOT_SENT.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
-    const { correlationId } = order;
-    // UNAVAILABLE, not UNRESOLVED: with no reference there is nothing to ask about, so the venue was never
-    // asked. UNRESOLVED would mean it answered and had no record — a claim nobody made, and one the caller
-    // is entitled to act on once its bound expires. Since reserve-before-send a Scrypt order cannot reach
-    // quarantine without a reference; landing here is an invariant break (a bug), not a planned wait for a
-    // person. There is still no automatic exit without a reference — that would be guessing — but the error
-    // log is the response, not an operator who may never come.
-    if (!correlationId) {
+    // Reconstruct a missing reference from the order id alone (see reserveCorrelationId). The error log
+    // remains: reserve-before-send should make this state impossible. Reconstruction is still safe — the id
+    // is deterministic from the row, has no random component, and a pure venue lookup under it is harmless
+    // if nothing was ever sent under that name. Without it the order would wait on an operator forever.
+    if (!order.correlationId) {
       this.logger.error(
         `Order ${order.id}: Scrypt order reached resolveUncertainOrder with no correlationId — reserve-before-send should make quarantining without a reference impossible; this is a bug`,
       );
-      return UncertainOrderResolution.UNAVAILABLE;
+      order.reserveCorrelationId(this.reserveCorrelationId(order));
     }
+
+    const { correlationId } = order;
 
     let allAttemptsRejected = false;
 
@@ -735,6 +769,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
           return UncertainOrderResolution.SENT;
         }
       } else {
+        // Trade path (and any command that is not WITHDRAW, including unknown/renamed commands): works for
+        // every command because it never consults order.action.command or parseTradeParams — only
+        // attemptedReferencesNewestFirst and getOrderStatus. The outer branch is `command === WITHDRAW`,
+        // which is false for an unknown command, so those fall here correctly and stay command-independent.
+        //
         // Newest first. A replacement supersedes the order it replaced, and the replaced one usually still
         // exists at the venue in a cancelled state — checking oldest first would match that, report SENT and
         // leave the live replacement untracked while the completion check polls a superseded reference.

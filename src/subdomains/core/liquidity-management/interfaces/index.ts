@@ -52,8 +52,12 @@ export interface LiquidityActionIntegration {
    * that omits the withdrawal reference settles the question. An unconfirmed cancel, incomplete history, or
    * failed consistency check must return null: it may well have taken effect, but "may well" is what
    * quarantine already means.
-   * Integrations that cannot cancel omit this and simply have no automatic exit from quarantine. For Scrypt
-   * every command (trade and withdraw) implements this path — neither waits on an operator as its way out.
+   * Integrations that cannot cancel omit this and simply have no automatic exit from quarantine. For Scrypt,
+   * reconciliation reaches the adapter by system (not by registered command), so every command — including
+   * one no longer in `supportedCommands` — gets either a venue-confirmed reason string or `null`. Known
+   * trade/withdraw commands cancel or confirm absence as before; an unsupported command does not send a
+   * cancel (the storno symbol is no longer derivable) and instead asks `getOrderStatus` for every reference,
+   * accepting only terminal venue answers. Neither path waits on an operator as its way out.
    */
   cancelOutstanding?(order: LiquidityManagementOrder): Promise<string | null>;
 }

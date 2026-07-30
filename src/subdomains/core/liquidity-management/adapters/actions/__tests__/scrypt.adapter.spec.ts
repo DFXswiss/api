@@ -69,6 +69,15 @@ function withdrawAction(): LiquidityManagementAction {
   return Object.assign(new LiquidityManagementAction(), { command: ScryptAdapterCommands.WITHDRAW, params: '{}' });
 }
 
+/** Same as {@link withdrawAction}, for the deliberately unregistered command the reconciliation path must
+ * still handle by name alone (it resolves by system, not by a known command list). */
+function sellIfDeficitAction(paramMap: Record<string, unknown> = {}): LiquidityManagementAction {
+  return Object.assign(new LiquidityManagementAction(), {
+    command: 'sell-if-deficit',
+    params: JSON.stringify(paramMap),
+  });
+}
+
 describe('ScryptAdapter', () => {
   let adapter: ScryptAdapter;
   let scryptService: ScryptService;
@@ -510,16 +519,20 @@ describe('ScryptAdapter', () => {
       expect(cancelIfOutstanding).toHaveBeenCalledWith('dfx-lm-4711', 'EUR', 'USDT');
     });
 
-    it('never confirms an order that has no reference at all — nothing was asked', async () => {
-      // an empty loop would otherwise fall straight through to "all settled", abandoning the order on a
-      // confirmation nobody gave
-      const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+    it('reconstructs a missing trade correlationId and still asks the venue under dfx-lm-${id}', async () => {
+      // invariant break stays logged; the reference is deterministic from the order id so a pure lookup is
+      // safe even when the column was never written
+      const cancelIfOutstanding = jest
+        .spyOn(scryptService, 'cancelIfOutstanding')
+        .mockResolvedValue(ScryptCancellation.SETTLED);
       const errorSpy = jest.spyOn(adapter['logger'], 'error').mockImplementation();
-      const order = cancellableOrder({ correlationId: null, previousCorrelationIds: null });
+      const order = cancellableOrder({ id: 4711, correlationId: null, previousCorrelationIds: null });
 
-      await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
-      expect(cancelIfOutstanding).not.toHaveBeenCalled();
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(
+        'the venue answered for every reference that nothing is left to execute',
+      );
       expect(errorSpy).toHaveBeenCalled();
+      expect(cancelIfOutstanding).toHaveBeenCalledWith('dfx-lm-4711', 'EUR', 'USDT');
     });
 
     it('treats an executed reference as settled — it cannot execute again either', async () => {
@@ -562,14 +575,48 @@ describe('ScryptAdapter', () => {
       expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId, order.created);
     });
 
-    it('refuses a withdrawal without correlationId and never asks the venue', async () => {
-      const confirmWithdrawalAbsent = jest.spyOn(scryptService, 'confirmWithdrawalAbsent');
+    it('reconstructs a missing withdrawal correlationId and still confirms absence under dfx-lm-${id}', async () => {
+      const confirmWithdrawalAbsent = jest.spyOn(scryptService, 'confirmWithdrawalAbsent').mockResolvedValue(true);
       const errorSpy = jest.spyOn(adapter['logger'], 'error').mockImplementation();
-      const order = cancellableOrder({ action: withdrawAction(), correlationId: null });
+      const order = cancellableOrder({ id: 4711, action: withdrawAction(), correlationId: null });
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(
+        'the venue returned its full transaction history and has no record of this withdrawal',
+      );
+      expect(errorSpy).toHaveBeenCalled();
+      expect(confirmWithdrawalAbsent).toHaveBeenCalledWith('dfx-lm-4711', order.created);
+    });
+
+    it('for an unsupported command asks getOrderStatus for every reference and returns a reason only when all are terminal', async () => {
+      const getOrderStatus = jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) => venueOrder(id, ScryptOrderStatus.FILLED));
+      const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+      const order = cancellableOrder({
+        action: sellIfDeficitAction({ tradeAsset: 'USDT' }),
+      });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(
+        'the venue reports every reference of this unsupported command in a terminal state',
+      );
+      expect(cancelIfOutstanding).not.toHaveBeenCalled();
+      expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711-1');
+      expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711');
+    });
+
+    it('for an unsupported command returns null when any reference is non-terminal', async () => {
+      jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) =>
+          venueOrder(id, id === 'dfx-lm-4711-1' ? ScryptOrderStatus.NEW : ScryptOrderStatus.FILLED),
+        );
+      const order = cancellableOrder({
+        action: sellIfDeficitAction({ tradeAsset: 'USDT' }),
+      });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
-      expect(errorSpy).toHaveBeenCalled();
-      expect(confirmWithdrawalAbsent).not.toHaveBeenCalled();
     });
   });
 
@@ -592,19 +639,17 @@ describe('ScryptAdapter', () => {
     });
 
     it.each([[undefined], [null]])(
-      'reports UNAVAILABLE when the reference is %p — there was nothing to ask about',
+      'reconstructs a missing reference %p as dfx-lm-${id} and still asks the venue',
       async (correlationId: string | null | undefined) => {
-        // UNRESOLVED would say the venue answered and had no record, which the caller is entitled to act on
-        // once its bound expires — abandoning still needs a settled exit. With no reference the venue was
-        // never asked at all; since reserve-before-send this is an invariant break (logged as error), not a
-        // planned wait, and still no automatic exit — that would be guessing without a reference to ask about.
-        const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus');
+        // invariant break stays logged; the reconstructed id is deterministic from the order row so a pure
+        // lookup is safe, and leaving the order for an operator forever is not allowed
+        const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(null);
         const errorSpy = jest.spyOn(adapter['logger'], 'error').mockImplementation();
-        const order = createUncertainSellOrder({ correlationId, previousCorrelationIds: null });
+        const order = createUncertainSellOrder({ id: 4711, correlationId, previousCorrelationIds: null });
 
-        await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
-        expect(getOrderStatus).not.toHaveBeenCalled();
+        await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNRESOLVED);
         expect(errorSpy).toHaveBeenCalled();
+        expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711', expect.any(Date));
       },
     );
 
@@ -744,6 +789,15 @@ describe('ScryptAdapter', () => {
       const [, since] = getOrderStatus.mock.calls[0];
       expect(since?.getTime()).toBeGreaterThanOrEqual(earliest.getTime());
       expect(since?.getTime()).toBeLessThanOrEqual(latest.getTime());
+    });
+
+    it('resolves an unknown command on the command-independent trade path', async () => {
+      jest.spyOn(scryptService, 'getOrderStatus').mockResolvedValue(venueOrder('dfx-lm-4711'));
+      const order = createUncertainSellOrder({
+        action: sellIfDeficitAction(),
+      });
+
+      await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.SENT);
     });
   });
 });

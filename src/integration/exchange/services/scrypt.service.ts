@@ -26,6 +26,7 @@ import {
   ScryptTransactionType,
   ScryptWithdrawResponse,
   ScryptWithdrawStatus,
+  isTerminalScryptOrderStatus,
 } from '../dto/scrypt.dto';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import {
@@ -198,7 +199,7 @@ export class ScryptService extends PricingProvider {
   }
 
   private isTerminalExecutionReport(r: ScryptExecutionReport): boolean {
-    return [ScryptOrderStatus.FILLED, ScryptOrderStatus.CANCELED, ScryptOrderStatus.REJECTED].includes(r.OrdStatus);
+    return isTerminalScryptOrderStatus(r.OrdStatus);
   }
 
   /**
@@ -617,13 +618,24 @@ export class ScryptService extends PricingProvider {
    * so with enough remaining balance a second attempt goes through — a double payout. The gate exists to
    * make that impossible from an untrustworthy history.
    *
-   * `since` only limits which *cached* rows the gate insists on seeing again: a venue that drops ancient
-   * history must not permanently fail the gate on a long-irrelevant cached id, or the withdrawal would fall
-   * back into endless silent quarantine. A failed gate always warns with the missing references named, so a
-   * permanently broken fetch is visible rather than an invisible wait.
+   * The gate alone is not enough when the process cache is empty or holds only rows outside `since`. An
+   * empty `previouslyCached` (restart, failed warm-up, catch-up not yet done) makes the in-window loop a
+   * no-op, so a non-empty but incomplete venue reply would pass as "confirmed absence". The same hole opens
+   * when every cached id is older than `since` and the window is empty: the in-window gate is trivially
+   * satisfied. Both cases refuse with `false` + warn until the cache has an anchor — the overall newest
+   * known `ClReqID` (by readable timestamp over all cached rows, independent of `since`) must reappear in
+   * the fresh history. That is a deferral, not a permanent wait on a human: warm-up and reconnect catch-up
+   * refill the cache within seconds, the next automatic pass re-checks, and the order waits on the venue
+   * (or the next cache fill), never on an operator.
    *
-   * @returns true only when the fresh history is non-empty, passes the consistency gate, and does not contain
-   * `clReqId`. false on fetch failure, empty history, gate failure, or when the reference is present.
+   * `since` only limits which *cached* rows the in-window gate insists on seeing again: a venue that drops
+   * ancient history must not permanently fail that gate on a long-irrelevant cached id. The overall-newest
+   * anchor is separate and is never filtered by `since`. A failed gate or missing anchor always warns with
+   * the missing references named, so a permanently broken fetch is visible rather than an invisible wait.
+   *
+   * @returns true only when the fresh history is non-empty, has a usable cache anchor present in that
+   * history, passes the in-window consistency gate, and does not contain `clReqId`. false on fetch failure,
+   * empty history, missing anchor, gate failure, or when the reference is present.
    */
   async confirmWithdrawalAbsent(clReqId: string, since: Date): Promise<boolean> {
     // Snapshot before the fetch: the gate asks whether rows we already knew still appear in the answer we
@@ -647,6 +659,55 @@ export class ScryptService extends PricingProvider {
     }
 
     const freshIds = new Set(fresh.map((t) => t.ClReqID).filter((id): id is string => Boolean(id)));
+
+    // Anchor before the in-window gate: without at least one known ClReqID in the process cache, the
+    // consistency loop below is a no-op and a partial fresh history would be upgraded to "confirmed
+    // absence". Defer (false + warn) until warm-up / catch-up has filled the cache — automatic, not human.
+    const cachedWithId = previouslyCached.filter((t): t is ScryptBalanceTransaction & { ClReqID: string } =>
+      Boolean(t.ClReqID),
+    );
+    if (!cachedWithId.length) {
+      this.logger.warn(
+        `confirmWithdrawalAbsent(${clReqId}): no cached balance transactions with ClReqID — cannot anchor consistency gate (empty cache after restart/warm-up; deferring until cache is filled)`,
+      );
+      return false;
+    }
+
+    // Overall newest known transaction (independent of `since`) must appear in fresh. A complete history
+    // necessarily includes the newest id we already saw; without this check, a `since` window with no other
+    // cached rows would pass the in-window gate the same way an empty cache does.
+    const readableTime = (t: ScryptBalanceTransaction): number | null => {
+      const raw = t.Timestamp ?? t.TransactTime;
+      if (!raw) return null;
+      const ts = new Date(raw).getTime();
+      return Number.isNaN(ts) ? null : ts;
+    };
+    const anyReadable = cachedWithId.some((t) => readableTime(t) != null);
+    let anchorIds: string[];
+    if (anyReadable) {
+      let bestTs = -Infinity;
+      let bestId = cachedWithId[0].ClReqID;
+      for (const t of cachedWithId) {
+        const ts = readableTime(t);
+        if (ts != null && ts >= bestTs) {
+          bestTs = ts;
+          bestId = t.ClReqID;
+        }
+      }
+      anchorIds = [bestId];
+    } else {
+      // No readable stamps: every cached ClReqID is an anchor — a complete reply must contain them all.
+      anchorIds = [...new Set(cachedWithId.map((t) => t.ClReqID))];
+    }
+    const missingAnchors = anchorIds.filter((id) => !freshIds.has(id));
+    if (missingAnchors.length) {
+      this.logger.warn(
+        `confirmWithdrawalAbsent(${clReqId}): newest/overall cache anchor missing from fresh history: ${missingAnchors.join(
+          ', ',
+        )}`,
+      );
+      return false;
+    }
 
     const missingFromFresh: string[] = [];
     for (const cached of previouslyCached) {

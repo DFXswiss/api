@@ -57,6 +57,28 @@ describe('LiquidityManagementOrder', () => {
     it('applies the long bound to anything unrecognised', () => {
       expect(quarantined(30, 'some-new-command', 'SomeNewSystem').unresolvableTooLong()).toBe(false);
     });
+
+    it('falls back to created when updated is missing — bound can still expire', () => {
+      // deliberate fallback: created is older-or-equal, so the bound fires earlier, not later; abandon still
+      // needs venue confirmation, so an earlier cleanup attempt is safe
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: undefined,
+        created: minutesAgo(6),
+        action: { system: 'Scrypt', command: 'sell' },
+      });
+      expect(order.unresolvableTooLong()).toBe(true);
+    });
+
+    it('stays false when both updated and created are missing', () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: undefined,
+        created: undefined,
+        action: { system: 'Scrypt', command: 'sell' },
+      });
+      expect(order.unresolvableTooLong()).toBe(false);
+    });
   });
 
   describe('getAbandonableAt', () => {
@@ -78,6 +100,26 @@ describe('LiquidityManagementOrder', () => {
 
     it('is null without a timestamp — no deadline to respect constrains nobody', () => {
       expect(quarantined(undefined).getAbandonableAt()).toBeNull();
+    });
+
+    it('falls back to created when updated is missing and returns a Date', () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: undefined,
+        created: minutesAgo(6),
+        action: { system: 'Scrypt', command: 'sell' },
+      });
+      expect(order.getAbandonableAt()).toBeInstanceOf(Date);
+    });
+
+    it('is null when both updated and created are missing', () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: undefined,
+        created: undefined,
+        action: { system: 'Scrypt', command: 'sell' },
+      });
+      expect(order.getAbandonableAt()).toBeNull();
     });
 
     it('falls the trade bound after the moment quarantine began', () => {

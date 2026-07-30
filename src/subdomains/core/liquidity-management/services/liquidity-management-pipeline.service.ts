@@ -328,9 +328,13 @@ export class LiquidityManagementPipelineService {
    * parked forever is the worse failure. It is given up as FAILED only once the venue has confirmed that
    * nothing under this order can still execute. Age decides when it is worth trying to clean up; the
    * cancellation decides whether giving up is safe. So the bound is not a deadline after which the order is
-   * certainly gone: an order no integration can look up, or whose references the venue will not settle, keeps
-   * waiting past it — on the venue, not on an operator. An operator can still release sooner as a shortcut;
-   * the mechanism that ends the wait is the venue answering (or confirming absence) on a later pass.
+   * certainly gone. For Scrypt (and any system whose adapter implements `resolveUncertainOrder`), an order
+   * whose references the venue will not yet settle keeps waiting past it — on the venue, not on an operator:
+   * reconciliation resolves by system, so a renamed or removed command still reaches the adapter. Systems
+   * whose adapter omits `resolveUncertainOrder` have no automatic venue path; without a pending release they
+   * are skipped every pass until an operator acts (`releasePending`). An operator can still release sooner as
+   * a shortcut; where the adapter can ask, the mechanism that ends the wait is the venue answering (or
+   * confirming absence) on a later pass.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
     // First: anything this process observed and could not write. Retried before new lookups, because an
@@ -387,9 +391,10 @@ export class LiquidityManagementPipelineService {
       }
 
       try {
-        // Null when the action's system or command is no longer registered at all — an order can outlive the
-        // adapter that made it, and dereferencing that would throw here on every pass, forever.
-        const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
+        // Null only when the action's *system* has no adapter at all. Command registration is ignored here:
+        // a quarantined order can outlive a command rename/removal, and reconciliation still needs whoever
+        // can ask that venue. Execution of new orders keeps using getIntegration (registered commands only).
+        const actionIntegration = this.actionIntegrationFactory.getReconciliationIntegration(order.action);
 
         if (!actionIntegration?.resolveUncertainOrder) {
           // The one exception to "a release waits for the venue": there is no lookup for this order at all,

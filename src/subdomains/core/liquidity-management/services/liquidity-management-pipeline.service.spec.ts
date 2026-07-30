@@ -170,6 +170,7 @@ describe('LiquidityManagementPipelineService', () => {
         correlationId: 'dfx-lm-9',
         errorMessage: 'Scrypt did not answer',
         created: ORDER_CREATED,
+        updated: new Date(Date.now() - 60_000),
         action: { id: 233, system: 'Scrypt', command: 'sell' },
         ...overrides,
       });
@@ -189,7 +190,8 @@ describe('LiquidityManagementPipelineService', () => {
      * true → reason string (exit), false → null (no exit). The pipeline now receives the reason from the
      * integration rather than inventing one. */
     function stubIntegration(resolution: UncertainOrderResolution, cancelSettles = true): void {
-      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+      // resolveUncertainOrders uses getReconciliationIntegration (system-only), not getIntegration
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
         supportedCommands: ['sell'],
         executeOrder: jest.fn(),
         checkCompletion: jest.fn(),
@@ -366,7 +368,7 @@ describe('LiquidityManagementPipelineService', () => {
       const order = agedOrder(30 * 24 * 60);
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
       jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(undefined);
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue(undefined);
 
       await service['resolveUncertainOrders']();
 
@@ -419,14 +421,35 @@ describe('LiquidityManagementPipelineService', () => {
       expect(criteria.notSentRecheckDue.type).toBe('isNull');
     });
 
-    it('never abandons an order whose quarantine timestamp is missing', async () => {
-      // Util.minutesDiff reads a missing date as the epoch; unguarded that abandons instantly
+    it('runs the abandon clock off `created` once `updated` is missing, because created is always the older (or equal) bound', async () => {
+      // entity copy() clears `updated`, and some raw loads omit the column — `created` stays the only
+      // clock left. It is never younger than `updated` would have been, so falling back to it can only make
+      // the bound expire earlier, never later: the one direction that keeps giving up safe.
       const order = uncertainOrder({ updated: undefined });
       expectResolution(order, UncertainOrderResolution.UNRESOLVED);
 
       await service['resolveUncertainOrders']();
 
+      // ORDER_CREATED is 29 days old, decisively past the 5-minute trade bound
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+    });
+
+    it('never abandons an order with neither a quarantine timestamp nor a creation date', async () => {
+      // Util.minutesDiff reads a missing date as the epoch; unguarded that abandons instantly. `created` is
+      // the last fallback, and losing that too must leave no clock at all — the order can only wait.
+      //
+      // Routed through a pending release (rather than a bare uncertainOrder()) so the pass takes the
+      // releasePending branch: that branch never reads order.created for the cooldown throttle, so this
+      // reaches unresolvableTooLong()'s own missing-date guard instead of the unrelated crash a bare
+      // uncertain order with no `created` would hit in the age-based throttle a few lines above it.
+      const order = uncertainOrder({ updated: undefined, created: undefined, notSentRecheckDue: RELEASED_AT });
+      stubIntegration(UncertainOrderResolution.UNAVAILABLE);
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+
+      await service['resolveUncertainOrders']();
+
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(orderRepo.update).not.toHaveBeenCalled();
     });
 
     it('keeps a released order quarantined until the venue has actually answered', async () => {
@@ -536,7 +559,7 @@ describe('LiquidityManagementPipelineService', () => {
       const order = releasePendingOrder();
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
       const update = jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue(null);
 
       // and the pass reports the change, so the caller's loop knows something moved
       await expect(service['resolveUncertainOrders']()).resolves.toBe(true);
@@ -550,7 +573,7 @@ describe('LiquidityManagementPipelineService', () => {
     it('leaves an unreleased order alone when its adapter is gone', async () => {
       const order = uncertainOrder();
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
-      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue(null);
 
       await service['resolveUncertainOrders']();
 
@@ -698,7 +721,7 @@ describe('LiquidityManagementPipelineService', () => {
     it('keeps the order quarantined when the lookup itself throws', async () => {
       const order = uncertainOrder();
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
-      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
         supportedCommands: ['sell'],
         executeOrder: jest.fn(),
         checkCompletion: jest.fn(),
@@ -709,6 +732,47 @@ describe('LiquidityManagementPipelineService', () => {
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    it('reaches the adapter for a Scrypt order whose command is no longer registered', async () => {
+      // getIntegration would return null for an unregistered command; reconciliation resolves by system
+      const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNRESOLVED);
+      const cancelOutstanding = jest.fn().mockResolvedValue(null);
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
+        supportedCommands: ['sell', 'buy', 'withdraw'], // deliberately omits the order's command
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder,
+        cancelOutstanding,
+      });
+      // getIntegration would skip — prove reconciliation does not use it for this path
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+      const order = agedOrder(30, 'sell-if-deficit', 'Scrypt');
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+
+      await service['resolveUncertainOrders']();
+
+      expect(resolveUncertainOrder).toHaveBeenCalledWith(order);
+    });
+
+    it('leaves a non-Scrypt system without resolveUncertainOrder alone (no automatic progress)', async () => {
+      // observable behaviour unchanged vs getIntegration: adapter exists but offers no reconciliation
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
+        supportedCommands: ['transfer'],
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        // no resolveUncertainOrder
+      });
+      const order = agedOrder(30 * 24 * 60, 'transfer', 'SomeBank');
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(orderRepo.update).not.toHaveBeenCalled();
     });
 
     describe('venue-lookup cooldown', () => {
@@ -722,7 +786,7 @@ describe('LiquidityManagementPipelineService', () => {
        * and only the cooldown decides whether the venue is asked. */
       function stubResolver(): jest.Mock {
         const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNAVAILABLE);
-        jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
           supportedCommands: ['sell'],
           executeOrder: jest.fn(),
           checkCompletion: jest.fn(),
@@ -843,7 +907,10 @@ describe('LiquidityManagementPipelineService', () => {
         // 11 min 20 s is past it. A one-sided assertion would let the rate drift unnoticed: with `ageMs / 5`
         // the order simply stays in cooldown and a lower-bound-only test keeps passing.
         const resolveUncertainOrder = stubResolver();
-        const order = uncertainOrder({ created: new Date(Date.now() - 100 * 60_000) });
+        const order = uncertainOrder({
+          created: new Date(Date.now() - 100 * 60_000),
+          action: { id: 233, system: 'Scrypt', command: 'withdraw' } as LiquidityManagementOrder['action'],
+        });
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
 
         await service['resolveUncertainOrders']();
@@ -864,7 +931,7 @@ describe('LiquidityManagementPipelineService', () => {
         // never moved. Asserted just before the bound, where the shrinking variant asks and this one does not.
         const order = agedOrder(0);
         const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNAVAILABLE);
-        jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
           supportedCommands: ['sell'],
           executeOrder: jest.fn(),
           checkCompletion: jest.fn(),
@@ -939,7 +1006,7 @@ describe('LiquidityManagementPipelineService', () => {
         // cap decides exactly as it did before, and a lookup one millisecond early still must not happen.
         const order = agedOrder(0, 'withdraw');
         const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNAVAILABLE);
-        jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+        jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
           supportedCommands: ['withdraw'],
           executeOrder: jest.fn(),
           checkCompletion: jest.fn(),
@@ -965,7 +1032,10 @@ describe('LiquidityManagementPipelineService', () => {
         // exactly 30 minutes can only come from it. Requiring no lookup a millisecond earlier leaves the cap
         // no other whole-millisecond value to take, and landing on the boundary pins `<` against `<=`.
         const resolveUncertainOrder = stubResolver();
-        const order = uncertainOrder({ created: new Date(Date.now() - 8 * 60 * 60_000) });
+        const order = uncertainOrder({
+          created: new Date(Date.now() - 8 * 60 * 60_000),
+          action: { id: 233, system: 'Scrypt', command: 'withdraw' } as LiquidityManagementOrder['action'],
+        });
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
 
         await service['resolveUncertainOrders']();

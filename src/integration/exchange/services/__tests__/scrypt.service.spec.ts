@@ -824,14 +824,24 @@ describe('ScryptService', () => {
       };
     }
 
-    it('returns true when a non-empty fresh history has no record of the reference and the gate holds', async () => {
+    it('returns false and warns when the cache is empty — a non-empty fresh history alone cannot confirm absence', async () => {
+      // Empty process cache (restart / warm-up not done): the in-window gate would be a no-op and an
+      // incomplete venue reply would be upgraded to "confirmed absence". Refuse until an anchor exists.
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
       instance.fetchAll.mockResolvedValue([balanceTx({ ClReqID: 'unrelated-in-history', TransactionID: 'tx-u' })]);
 
-      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(true);
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
     });
 
     it('returns false when the fresh history contains the sought reference', async () => {
-      instance.fetchAll.mockResolvedValue([balanceTx({ ClReqID: soughtId, TransactionID: 'tx-sought' })]);
+      (service as any).balanceTransactions.set('anchor-ref', {
+        ...balanceTx({ ClReqID: 'anchor-ref', Timestamp: '2026-07-15T12:00:00.000Z' }),
+      });
+      instance.fetchAll.mockResolvedValue([
+        balanceTx({ ClReqID: soughtId, TransactionID: 'tx-sought' }),
+        balanceTx({ ClReqID: 'anchor-ref', TransactionID: 'tx-anchor', Timestamp: '2026-07-15T12:00:00.000Z' }),
+      ]);
 
       await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
     });
@@ -868,7 +878,11 @@ describe('ScryptService', () => {
       expect(warnSpy).toHaveBeenCalled();
     });
 
-    it('ignores cached references older than since so a truncated venue retention window cannot fail the gate forever', async () => {
+    it('refuses when the only cached reference is older than since and missing from fresh — overall newest is still an anchor', async () => {
+      // Closing the hole a `since` window without other cached rows used to open: the in-window gate would
+      // skip the ancient id, pass trivially, and treat a partial fresh history as confirmed absence. The
+      // overall-newest anchor must still appear in fresh regardless of since.
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
       (service as any).balanceTransactions.set('ancient-ref', {
         ...balanceTx({
           ClReqID: 'ancient-ref',
@@ -877,6 +891,19 @@ describe('ScryptService', () => {
       });
       instance.fetchAll.mockResolvedValue([
         balanceTx({ ClReqID: 'recent-unrelated', TransactionID: 'tx-r', Timestamp: '2026-07-15T00:00:00.000Z' }),
+      ]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it('returns true when the overall-newest cache anchor is in fresh and the sought reference is absent', async () => {
+      (service as any).balanceTransactions.set('anchor-ref', {
+        ...balanceTx({ ClReqID: 'anchor-ref', Timestamp: '2026-07-20T00:00:00.000Z' }),
+      });
+      instance.fetchAll.mockResolvedValue([
+        balanceTx({ ClReqID: 'anchor-ref', TransactionID: 'tx-a', Timestamp: '2026-07-20T00:00:00.000Z' }),
+        balanceTx({ ClReqID: 'unrelated-in-history', TransactionID: 'tx-u', Timestamp: '2026-07-21T00:00:00.000Z' }),
       ]);
 
       await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(true);

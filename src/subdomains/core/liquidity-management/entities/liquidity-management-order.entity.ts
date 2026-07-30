@@ -351,16 +351,24 @@ export class LiquidityManagementOrder extends IEntity {
     // fresh replacement request is seconds old and plausibly still arriving — the exact double-send this
     // guards against. `updated` moves with the transition into quarantine, so the clock starts there.
     //
-    // Without a timestamp there is no clock to run out. Guarded explicitly because Util.minutesDiff treats a
-    // missing date as the epoch and would report tens of millions of minutes — abandoning instantly every
-    // order whose `updated` was not loaded. Absent evidence this must hold the order, never drop it.
-    if (!this.updated) return false;
+    // When `updated` is missing at runtime (entity `copy()` clears it; some raw loads omit the column) fall
+    // back to `created` deliberately — not a silent default. `created` is always older than or equal to
+    // `updated`, so the bound expires earlier rather than later. That is safe here: automatic abandon still
+    // requires venue confirmation (cancel settled / confirmed absence); this clock only decides *when* a
+    // cleanup attempt is worth making, not whether giving up is safe. Preferring `updated` when present
+    // remains correct for the long-running-then-quarantined case above.
+    //
+    // Without either timestamp there is no clock to run out. Guarded explicitly because Util.minutesDiff
+    // treats a missing date as the epoch and would report tens of millions of minutes — abandoning instantly
+    // every order whose dates were not loaded. Absent evidence this must hold the order, never drop it.
+    const since = this.updated ?? this.created;
+    if (!since) return false;
 
     // `>=`, so that reaching the bound is enough. With `>`, the instant the bound is exactly met left the two
     // halves of this clock disagreeing: {@link getAbandonableAt} already reported nothing left — which is
     // what lets the reconciliation pass run at that moment — while this said not yet. The pass then re-stamped
     // its cooldown and the order waited out another full interval, so a five-minute bound gave up at six.
-    return Util.minutesDiff(this.updated) >= this.getAbandonBoundMinutes();
+    return Util.minutesDiff(since) >= this.getAbandonBoundMinutes();
   }
 
   /**
@@ -376,13 +384,17 @@ export class LiquidityManagementOrder extends IEntity {
    * started before it. Measured against a fixed instant the question does not arise — and the caller can ask
    * about any moment, not only about now.
    *
-   * Null without a timestamp, mirroring that method's refusal to run a clock it does not have: no deadline to
-   * respect means no constraint to impose on a caller's wait.
+   * Null without `updated` and without `created`, mirroring that method's refusal to run a clock it does not
+   * have: no deadline to respect means no constraint to impose on a caller's wait.
    */
   getAbandonableAt(): Date | null {
-    if (!this.updated) return null;
+    // Same clock as {@link unresolvableTooLong}: prefer `updated`, fall back to `created` when `updated` was
+    // not loaded (see that method for why the fallback is earlier-not-later and still safe). Both missing →
+    // no deadline, mirroring the refusal to run a clock we do not have.
+    const since = this.updated ?? this.created;
+    if (!since) return null;
 
-    return new Date(this.updated.getTime() + this.getAbandonBoundMinutes() * 60_000);
+    return new Date(since.getTime() + this.getAbandonBoundMinutes() * 60_000);
   }
 
   /**

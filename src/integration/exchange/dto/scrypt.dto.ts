@@ -107,6 +107,22 @@ export enum ScryptOrderStatus {
   PENDING_REPLACE = 'PendingReplace',
 }
 
+/**
+ * Terminal order statuses at Scrypt: nothing under the reference can still execute.
+ *
+ * Single source of truth for both execution-report caching (`OrdStatus`) and order-status lookups
+ * (`ScryptOrderInfo.status`). Do not re-list these three values elsewhere.
+ */
+export const SCRYPT_TERMINAL_ORDER_STATUSES: readonly ScryptOrderStatus[] = [
+  ScryptOrderStatus.FILLED,
+  ScryptOrderStatus.CANCELED,
+  ScryptOrderStatus.REJECTED,
+];
+
+export function isTerminalScryptOrderStatus(status: ScryptOrderStatus): boolean {
+  return (SCRYPT_TERMINAL_ORDER_STATUSES as readonly ScryptOrderStatus[]).includes(status);
+}
+
 export enum ScryptOrderSide {
   BUY = 'Buy',
   SELL = 'Sell',
