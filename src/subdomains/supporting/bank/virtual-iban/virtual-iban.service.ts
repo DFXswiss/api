@@ -120,8 +120,13 @@ export class VirtualIbanService {
     return provider.accountHolder;
   }
 
-  /** Finds the active user-level personal IBAN, including Bank Frick as the regular EUR provider. */
-  async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
+  /**
+   * Finds an active personal IBAN whose bank can receive customer deposits. Receiving and sending
+   * eligibility can diverge, so one shared lookup cannot serve both directions correctly. The former
+   * unfiltered lookup could return a decommissioned row because findOne has no ORDER BY; the directional
+   * bank predicate prevents such a row from winning this receiving lookup.
+   */
+  async getActiveReceivingForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
       where: {
         userData: { id: userData.id },
@@ -140,6 +145,25 @@ export class VirtualIbanService {
     });
   }
 
+  /**
+   * Finds an active personal IBAN whose bank can send customer payouts. Sending and receiving eligibility
+   * can diverge, so one shared lookup cannot serve both directions correctly. The former unfiltered lookup
+   * could return a decommissioned row because findOne has no ORDER BY; the directional bank predicate
+   * prevents such a row from winning this sending lookup.
+   */
+  async getActiveSendingForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOne({
+      where: {
+        userData: { id: userData.id },
+        currency: { name: currencyName },
+        bank: { send: true },
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      },
+      relations: { bank: true },
+    });
+  }
+
   async getByIdForUser(id: number, userDataId: number): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
       where: {
@@ -151,7 +175,7 @@ export class VirtualIbanService {
   }
 
   async createForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
-    const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
+    const existing = await this.getActiveReceivingForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
 
     // createVirtualIban calls reserveViban without a description, which the Frick provider rejects

@@ -10,7 +10,7 @@ import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/use
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
-import { DataSource, EntityManager, FindOperator, IsNull } from 'typeorm';
+import { DataSource, EntityManager, FindOneOptions, FindOperator, IsNull } from 'typeorm';
 import { Bank } from '../../bank/bank.entity';
 import { BankService } from '../../bank/bank.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
@@ -1354,11 +1354,11 @@ describe('VirtualIbanService', () => {
   });
 
   describe('read helpers', () => {
-    it('returns the first generic user-level vIBAN selected by the repository', async () => {
+    it('returns the first receiving generic user-level vIBAN selected by the repository', async () => {
       const selected = { id: 3, bank: { name: IbanBankName.YAPEAL } } as VirtualIban;
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(selected);
 
-      await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
     });
 
     it('reuses an existing Frick EUR vIBAN from the user-level lookup', async () => {
@@ -1372,19 +1372,19 @@ describe('VirtualIbanService', () => {
       } as VirtualIban;
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(selected);
 
-      await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
-    it('getActiveForUserAndCurrency only considers rows whose bank still receives', async () => {
+    it('getActiveReceivingForUserAndCurrency only considers rows whose bank still receives', async () => {
       // A customer can hold several active rows per currency - a retired Yapeal EUR IBAN next to a
       // working Frick one. findOne has no ORDER BY, so without this filter the retired row can win,
       // the caller sees "found, but the bank does not receive", and with no collection-account
       // fallback left the request fails outright. That hit every holder of a retired Yapeal EUR IBAN.
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
 
-      await service.getActiveForUserAndCurrency(userData, 'CHF');
+      await service.getActiveReceivingForUserAndCurrency(userData, 'CHF');
 
       expect(virtualIbanRepo.findOne).toHaveBeenCalledWith({
         where: {
@@ -1396,6 +1396,55 @@ describe('VirtualIbanService', () => {
         },
         relations: { bank: true },
       });
+    });
+
+    it('getActiveSendingForUserAndCurrency only considers rows whose bank still sends', async () => {
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
+
+      await service.getActiveSendingForUserAndCurrency(userData, 'CHF');
+
+      expect(virtualIbanRepo.findOne).toHaveBeenCalledWith({
+        where: {
+          userData: { id: 7 },
+          currency: { name: 'CHF' },
+          bank: { send: true },
+          active: true,
+          status: VirtualIbanStatus.ACTIVE,
+        },
+        relations: { bank: true },
+      });
+    });
+
+    it('selects the receiving row when an active row on a retired bank is also present', async () => {
+      const retired = Object.assign(new VirtualIban(), {
+        id: 10,
+        userData,
+        currency,
+        bank: Object.assign(new Bank(), bank, { receive: false }),
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+      const receiving = Object.assign(new VirtualIban(), {
+        id: 11,
+        userData,
+        currency,
+        bank: Object.assign(new Bank(), bank, { receive: true }),
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+      const candidates = [retired, receiving];
+      const findOne = jest.spyOn(virtualIbanRepo, 'findOne');
+      findOne.mockImplementation(async (options: FindOneOptions<VirtualIban>) => {
+        if (!options.where || Array.isArray(options.where)) throw new Error('Expected one vIBAN where clause');
+        const bankWhere = options.where.bank as { receive?: boolean };
+        if (typeof bankWhere.receive !== 'boolean') throw new Error('Expected a receive-direction filter');
+
+        const selected = candidates.find((candidate) => candidate.bank.receive === bankWhere.receive);
+        return selected === undefined ? null : selected;
+      });
+
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'CHF')).resolves.toBe(receiving);
+      expect(findOne.mock.calls[0][0].order).toBeUndefined();
     });
 
     it('retains merge-base behavior by reusing a buy-bound Yapeal IBAN in the generic lookup', async () => {
@@ -1410,14 +1459,15 @@ describe('VirtualIbanService', () => {
         status: VirtualIbanStatus.ACTIVE,
       } as VirtualIban;
 
-      jest.spyOn(virtualIbanRepo, 'findOne').mockImplementation(async (options: any) => {
-        const buyWhere = options?.where?.buy;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockImplementation(async (options: FindOneOptions<VirtualIban>) => {
+        if (!options.where || Array.isArray(options.where)) throw new Error('Expected one vIBAN where clause');
+        const buyWhere = options.where.buy;
         // The regressed filter excluded this row. With merge-base semantics, no buy predicate exists.
         if (buyWhere instanceof FindOperator && buyWhere.type === 'isNull') return null;
         return buyBound;
       });
 
-      await expect(service.getActiveForUserAndCurrency(userData, 'CHF')).resolves.toBe(buyBound);
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'CHF')).resolves.toBe(buyBound);
       expect(virtualIbanRepo.findOne).toHaveBeenCalled();
     });
 

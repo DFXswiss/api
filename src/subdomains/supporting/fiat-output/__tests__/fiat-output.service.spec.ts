@@ -43,7 +43,7 @@ describe('FiatOutputService', () => {
 
     it('skips a Bank Frick virtual IBAN and falls back to an incumbent sender bank', async () => {
       const userData = createMock<SelectPayoutBankUserData>();
-      virtualIbanService.getActiveForUserAndCurrency.mockResolvedValue(
+      virtualIbanService.getActiveSendingForUserAndCurrency.mockResolvedValue(
         createCustomVirtualIban({ bank: frickEUR, iban: 'SYNTHETIC-FRICK-VIBAN' }),
       );
       bankService.getSenderBanks.mockResolvedValue([olkyEUR]);
@@ -56,7 +56,7 @@ describe('FiatOutputService', () => {
     it('returns an eligible incumbent virtual IBAN without loading sender banks', async () => {
       const userData = createMock<SelectPayoutBankUserData>();
       const virtualIban = createCustomVirtualIban({ bank: olkyEUR, iban: 'SYNTHETIC-OLKY-VIBAN' });
-      virtualIbanService.getActiveForUserAndCurrency.mockResolvedValue(virtualIban);
+      virtualIbanService.getActiveSendingForUserAndCurrency.mockResolvedValue(virtualIban);
 
       const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, userData, country);
 
@@ -73,7 +73,7 @@ describe('FiatOutputService', () => {
         send: true,
         sendPriority: 2000,
       });
-      virtualIbanService.getActiveForUserAndCurrency.mockResolvedValue(null);
+      virtualIbanService.getActiveSendingForUserAndCurrency.mockResolvedValue(null);
       bankService.getSenderBanks.mockResolvedValue([olkyEUR, frick]);
 
       const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, userData, country);
@@ -90,7 +90,7 @@ describe('FiatOutputService', () => {
         send: true,
         sendPriority: 1000,
       });
-      virtualIbanService.getActiveForUserAndCurrency.mockResolvedValue(null);
+      virtualIbanService.getActiveSendingForUserAndCurrency.mockResolvedValue(null);
       bankService.getSenderBanks.mockResolvedValue([frick]);
 
       const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, userData, country);
@@ -107,7 +107,7 @@ describe('FiatOutputService', () => {
         send: true,
         sendPriority: olkyEUR.sendPriority,
       });
-      virtualIbanService.getActiveForUserAndCurrency.mockResolvedValue(null);
+      virtualIbanService.getActiveSendingForUserAndCurrency.mockResolvedValue(null);
       bankService.getSenderBanks.mockResolvedValue([frick, olkyEUR]);
 
       const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, userData, country);

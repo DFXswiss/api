@@ -49,8 +49,9 @@ export class FiatOutputService {
   ): Promise<{ accountIban: string | undefined; bank: Bank | undefined }> {
     // use virtual IBAN if existing
     if (userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(type)) {
-      const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(userData, currency);
+      const virtualIban = await this.virtualIbanService.getActiveSendingForUserAndCurrency(userData, currency);
 
+      // The lookup already filters for send-enabled banks; retaining this check is redundant but harmless.
       if (
         virtualIban?.bank?.send &&
         virtualIban.bank.name !== IbanBankName.FRICK &&

@@ -260,7 +260,7 @@ describe('TransactionHelper', () => {
     const eur = createCustomFiat({ name: 'EUR' });
 
     it('should return the deposit bank for bank transfers', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(olkyEUR);
 
       await expect(
@@ -270,7 +270,7 @@ describe('TransactionHelper', () => {
 
     it('should return the vIBAN bank for users with an active vIBAN', async () => {
       jest
-        .spyOn(virtualIbanService, 'getActiveForUserAndCurrency')
+        .spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency')
         .mockResolvedValue(createCustomVirtualIban({ bank: yapealEUR }));
 
       await expect(
@@ -279,7 +279,7 @@ describe('TransactionHelper', () => {
     });
 
     it('should return the deposit bank for users without an active vIBAN', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(olkyEUR);
 
       await expect(

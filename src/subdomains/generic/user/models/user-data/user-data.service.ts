@@ -1443,7 +1443,7 @@ export class UserDataService {
         // route — so they must never be part of this dedup.
         //
         // Keep the lowest id among conflicting user-level actives — same ordering as
-        // getActiveForUserAndCurrency — so the surviving IBAN matches pre-merge lookup behaviour;
+        // findActiveForUserCurrencyAndBank — so the surviving IBAN matches pre-merge lookup behaviour;
         // deactivate losers (which also resets any matching Completed Frick issuance intent to Pending
         // under the loser's pre-merge userDataId) and dissolve slave issuance intents atomically via
         // mergeUserLevelVirtualIbans so a concurrent customer request cannot claim a just-reopened

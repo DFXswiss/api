@@ -91,7 +91,7 @@ describe('FiatOutputJobService', () => {
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
     // Default mock: no virtual IBANs
-    jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+    jest.spyOn(virtualIbanService, 'getActiveSendingForUserAndCurrency').mockResolvedValue(null);
     jest.spyOn(virtualIbanService, 'getBaseAccountIban').mockResolvedValue(undefined);
     jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([]);
 
@@ -217,7 +217,7 @@ describe('FiatOutputJobService', () => {
 
       // Mock virtual IBAN for user
       jest
-        .spyOn(virtualIbanService, 'getActiveForUserAndCurrency')
+        .spyOn(virtualIbanService, 'getActiveSendingForUserAndCurrency')
         .mockResolvedValue(createCustomVirtualIban({ iban: virtualIban, bank: yapealEUR }));
 
       await service['assignBankAccount']();
@@ -243,7 +243,7 @@ describe('FiatOutputJobService', () => {
 
       // Mock virtual IBAN for user
       jest
-        .spyOn(virtualIbanService, 'getActiveForUserAndCurrency')
+        .spyOn(virtualIbanService, 'getActiveSendingForUserAndCurrency')
         .mockResolvedValue(createCustomVirtualIban({ iban: virtualIban, bank: yapealEUR }));
 
       await service['assignBankAccount']();
@@ -373,7 +373,7 @@ describe('FiatOutputJobService', () => {
       const frick = createCustomBank({ name: IbanBankName.FRICK, send: true });
       jest.spyOn(frickPayoutService, 'canCreatePayments').mockReturnValue(false);
       jest
-        .spyOn(virtualIbanService, 'getActiveForUserAndCurrency')
+        .spyOn(virtualIbanService, 'getActiveSendingForUserAndCurrency')
         .mockResolvedValue(createCustomVirtualIban({ iban: 'SYNTHETIC-FRICK-VIBAN', bank: frick }));
 
       const result = await service['getPayoutAccount'](
