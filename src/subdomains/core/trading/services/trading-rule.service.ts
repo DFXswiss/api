@@ -22,13 +22,24 @@ export class TradingRuleService {
   // --- PUBLIC API --- //
 
   async getCurrentTradingOrders(): Promise<TradingOrder[]> {
-    const lastTradingOrderIds = await this.orderRepo
-      .createQueryBuilder('tradingOrder')
-      .select('MAX(tradingOrder.id)', 'tradingOrderId')
-      .innerJoin('tradingOrder.tradingRule', 'tradingRule')
-      .groupBy('tradingOrder.tradingRuleId')
-      .getRawMany<{ tradingOrderId: number }>()
-      .then((t) => t.map((t) => t.tradingOrderId));
+    // Per-rule MAX(id) lookups (not one table-wide aggregate) so Postgres can use the composite
+    // index on trading_order ("tradingRuleId", "id"). Must ship with that index — without it this
+    // shape is ~9× slower than the previous GROUP BY scan (see AddTradingOrderRuleIdIndex).
+    const rules = await this.ruleRepo.find({ select: { id: true } });
+
+    const maxIdRows = await Promise.all(
+      rules.map((rule) =>
+        this.orderRepo
+          .createQueryBuilder('tradingOrder')
+          .select('MAX(tradingOrder.id)', 'tradingOrderId')
+          .where('tradingOrder.tradingRuleId = :ruleId', { ruleId: rule.id })
+          .getRawOne<{ tradingOrderId: number | null }>(),
+      ),
+    );
+
+    const lastTradingOrderIds = maxIdRows
+      .map((row) => row?.tradingOrderId)
+      .filter((id): id is number => id !== null && id !== undefined);
 
     return this.orderRepo.findBy({ id: In(lastTradingOrderIds) });
   }
