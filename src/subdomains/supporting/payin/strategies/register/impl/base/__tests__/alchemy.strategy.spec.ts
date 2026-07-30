@@ -161,6 +161,16 @@ describe('AlchemyStrategy priced pay-in boundary', () => {
     await expect(payInService.getNewPayIns()).resolves.toEqual([]);
   });
 
+  it('stores an inert unpriced DSC input as FAILED and never returns it for processing', async () => {
+    jest.spyOn(assetService, 'getPayInAssets').mockResolvedValue([]);
+
+    await strategy.process(createWebhook('0x5d4e735784293a0a8d37761ad93c13a0dd35c7e7', 8));
+
+    expect(storedPayIns).toHaveLength(1);
+    expect(storedPayIns.at(0)).toMatchObject({ asset: null, status: PayInStatus.FAILED });
+    await expect(payInService.getNewPayIns()).resolves.toEqual([]);
+  });
+
   it('never resurrects an unpriced payment through the failed-payment retry', async () => {
     strategy.setTxType(PayInType.PAYMENT);
     jest.spyOn(assetService, 'getPayInAssets').mockResolvedValue([]);
