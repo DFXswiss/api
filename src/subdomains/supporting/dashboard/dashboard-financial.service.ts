@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
+import { AssetLog, BalancesByFinancialType } from '../log/dto/log.dto';
 import { Log } from '../log/log.entity';
 import { FinancialLogSummary } from '../log/log.repository';
 import { LogService } from '../log/log.service';
-import { FinanceLog } from '../log/dto/log.dto';
 import {
   BalanceByGroupDto,
   FinancialChangesEntryDto,
@@ -14,6 +15,7 @@ import {
   LatestBalanceResponseDto,
   RefRewardRecipientDto,
 } from './dto/financial-log.dto';
+import { LatestBalanceStore } from './latest-balance.store';
 
 @Injectable()
 export class DashboardFinancialService {
@@ -21,6 +23,7 @@ export class DashboardFinancialService {
     private readonly logService: LogService,
     private readonly assetService: AssetService,
     private readonly refRewardService: RefRewardService,
+    private readonly latestBalanceStore: LatestBalanceStore,
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean, includeByType?: boolean): Promise<FinancialLogResponseDto> {
@@ -119,20 +122,41 @@ export class DashboardFinancialService {
   }
 
   async getLatestBalance(): Promise<LatestBalanceResponseDto | undefined> {
-    const latest = await this.logService.getLatestFinancialLog();
-    if (!latest) return undefined;
+    return this.latestBalanceStore.get();
+  }
 
-    let financeLog: FinanceLog;
-    try {
-      financeLog = JSON.parse(latest.message);
-    } catch {
-      return undefined;
-    }
+  /**
+   * Called once a minute by LogJobService, immediately after it writes the FinancialDataLog entry
+   * these values are derived from. Builds the same response GET /v1/dashboard/financial/latest used
+   * to compute per-request (see buildLatestBalance below) and puts it in LatestBalanceStore, so the
+   * endpoint never touches the database again. Synchronous and DB-free by construction: assetLog,
+   * balancesByFinancialType and assets are exactly what the caller already holds in memory from the
+   * same run. A failure in here must never propagate into the caller's equity/safety-mode path —
+   * that isolation is the caller's responsibility (its own try/catch around this call), not this
+   * method's.
+   */
+  setLatestBalance(
+    timestamp: Date,
+    assetLog: AssetLog,
+    balancesByFinancialType: BalancesByFinancialType,
+    assets: Asset[],
+  ): void {
+    this.latestBalanceStore.set(this.buildLatestBalance(timestamp, assetLog, balancesByFinancialType, assets));
+  }
 
+  // Unchanged aggregation that used to run inline in getLatestBalance against a freshly parsed
+  // FinancialDataLog message and a database asset lookup: identical logic, moved here verbatim: only
+  // its inputs changed (passed in directly instead of JSON.parse(latest.message) / assetService.getAssetsById).
+  private buildLatestBalance(
+    timestamp: Date,
+    assetLog: AssetLog,
+    balancesByFinancialType: BalancesByFinancialType,
+    assets: Asset[],
+  ): LatestBalanceResponseDto {
     // By type (from existing balancesByFinancialType)
     const byType: BalanceByGroupDto[] = [];
-    if (financeLog.balancesByFinancialType) {
-      for (const [type, data] of Object.entries(financeLog.balancesByFinancialType)) {
+    if (balancesByFinancialType) {
+      for (const [type, data] of Object.entries(balancesByFinancialType)) {
         byType.push({
           name: type,
           plusBalanceChf: data.plusBalanceChf,
@@ -145,12 +169,10 @@ export class DashboardFinancialService {
 
     // By blockchain (aggregate assets)
     const blockchainTotals: Record<string, { plus: number; assets: Record<string, number> }> = {};
-    if (financeLog.assets) {
-      const assetIds = Object.keys(financeLog.assets).map(Number);
-      const assets = await this.assetService.getAssetsById(assetIds);
+    if (assetLog) {
       const assetMap = new Map(assets.map((a) => [a.id, a]));
 
-      for (const [idStr, assetData] of Object.entries(financeLog.assets)) {
+      for (const [idStr, assetData] of Object.entries(assetLog)) {
         const asset = assetMap.get(Number(idStr));
         const blockchain = asset?.blockchain ?? 'Unknown';
         const assetName = asset?.name ?? 'Unknown';
@@ -237,16 +259,16 @@ export class DashboardFinancialService {
       });
     }
 
-    return { timestamp: latest.created, byType, byBlockchain };
+    return { timestamp, byType, byBlockchain };
   }
 
-  // Pure mapping over the SQL projection: for well-formed data, the response matches the previous
-  // mapLogToEntry path exactly, including the `?? 0` field defaults. Two cases are intentionally
-  // different from that old path: (1) a `balancesByFinancialType` entry with the value `null` (e.g.
-  // `{"Crypto": null}`) now keeps the row (with an empty balancesByType entry) instead of the old
-  // per-row try/catch dropping the whole log line — favouring a visible gap over a silently dropped
-  // row; and (2) a wrongly-typed `balancesByFinancialType` property (string, boolean, `null`) —
-  // previously passed through unchanged, breaking the `number | undefined` DTO contract — now
+  // Pure mapping over the SQL projection. For the History path (includeByType=true) the response
+  // matches the previous mapLogToEntry path exactly, including the `?? 0` field defaults, with two
+  // intentional differences from that old path: (1) a `balancesByFinancialType` entry with the value
+  // `null` (e.g. `{"Crypto": null}`) now keeps the row (with an empty balancesByType entry) instead of
+  // the old per-row try/catch dropping the whole log line — favouring a visible gap over a silently
+  // dropped row; and (2) a wrongly-typed `balancesByFinancialType` property (string, boolean, `null`)
+  // — previously passed through unchanged, breaking the `number | undefined` DTO contract — now
   // becomes `undefined` (see the `asNumber` guard in log.repository.ts), honouring that contract
   // rather than avoiding a dropped row. The same visible-gap reasoning as (1) covers a top-level
   // `message: null` (not a sub-field, the whole document): the old path threw on the following
@@ -255,14 +277,19 @@ export class DashboardFinancialService {
   // document is a deliberate change from the old per-row silent drop to failing loud for the whole
   // query (the `message::jsonb` cast throws in SQL); individual scalar fields are only nulled via
   // `jsonb_typeof` guards.
+  //
+  // Chart-only path (includeByType=false): the repository omits plusBalanceChf/minusBalanceChf/
+  // fxPnlChf/balancesByType entirely from the summary. The conditional spreads below then omit them
+  // from the response as well (not 0, not null) — deliberate API contract change for the Overview
+  // screen, which only charts totalBalanceChf/btcPriceChf.
   private mapSummaryToEntry(summary: FinancialLogSummary): FinancialLogEntryDto {
     return {
       timestamp: summary.created,
       totalBalanceChf: summary.totalBalanceChf ?? 0,
-      plusBalanceChf: summary.plusBalanceChf ?? 0,
-      minusBalanceChf: summary.minusBalanceChf ?? 0,
-      fxPnlChf: summary.fxPnlChf ?? 0,
       btcPriceChf: summary.btcPriceChf,
+      ...(summary.plusBalanceChf !== undefined ? { plusBalanceChf: summary.plusBalanceChf ?? 0 } : {}),
+      ...(summary.minusBalanceChf !== undefined ? { minusBalanceChf: summary.minusBalanceChf ?? 0 } : {}),
+      ...(summary.fxPnlChf !== undefined ? { fxPnlChf: summary.fxPnlChf ?? 0 } : {}),
       ...(summary.balancesByType !== undefined ? { balancesByType: summary.balancesByType } : {}),
     };
   }

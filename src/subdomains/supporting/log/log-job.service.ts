@@ -40,6 +40,7 @@ import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
+import { DashboardFinancialService } from '../dashboard/dashboard-financial.service';
 import { CryptoInput } from '../payin/entities/crypto-input.entity';
 import { PayInService } from '../payin/services/payin.service';
 import { PayoutOrder, PayoutOrderContext } from '../payout/entities/payout-order.entity';
@@ -110,6 +111,7 @@ export class LogJobService {
     private readonly payoutService: PayoutService,
     private readonly processService: ProcessService,
     private readonly paymentBalanceService: PaymentBalanceService,
+    private readonly dashboardFinancialService: DashboardFinancialService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
@@ -171,10 +173,30 @@ export class LogJobService {
       // deliberately left outside any try/catch — it cannot throw and a wrapping catch would only mask a bug.
       const fxPnlChf = this.getFxPnlChf(lastFinanceLog, assetLog, assets);
 
-      await this.logService.create({
+      // Same source as balancesTotal.totalBalanceChf in the JSON below: the identical rounded
+      // getJsonValue result. Collapsed to null on the (very rare) non-finite case so the column
+      // matches what a reader of `message` would see — JSON has no NaN/Infinity, JSON.stringify
+      // serialises both as null, so storing the raw NaN in a float8 column would silently diverge
+      // from the JSON's own value.
+      const totalBalanceChfColumn = Number.isFinite(totalBalanceChf)
+        ? this.getJsonValue(totalBalanceChf, AmountType.FIAT, true, true)
+        : null;
+
+      // Same source as assets[btcAsset.id].priceChf in the JSON below: assetLog's raw
+      // (unrounded) approxPriceChf value for the BTC asset — that field is never passed through
+      // getJsonValue in the JSON path either, so this column is intentionally NOT rounded here.
+      // null when there is no configured BTC asset, the BTC asset has no assetLog entry (e.g.
+      // filtered out upstream), or the price is missing/non-finite.
+      const btcAsset = await this.assetService.getBtcCoin();
+      const btcAssetPriceChf = btcAsset ? assetLog[btcAsset.id]?.priceChf : undefined;
+      const btcPriceChfColumn = btcAssetPriceChf != null && Number.isFinite(btcAssetPriceChf) ? btcAssetPriceChf : null;
+
+      const financialDataLog = await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
         severity: LogSeverity.INFO,
+        totalBalanceChf: totalBalanceChfColumn,
+        btcPriceChf: btcPriceChfColumn,
         message: JSON.stringify({
           assets: assetLog,
           tradings: tradingLog,
@@ -202,6 +224,21 @@ export class LogJobService {
             Util.minutesDiff(lastLog.created) > 15),
         category: null,
       });
+
+      // Write-through for GET /v1/dashboard/financial/latest: precompute here so that endpoint never
+      // touches the database or re-parses this message. Independent of the equity path above (which
+      // has already run and already armed/disarmed the safety mode correctly), so a failure here must
+      // never escalate to that switch: own try/catch, log loudly, never rethrow.
+      try {
+        this.dashboardFinancialService.setLatestBalance(
+          financialDataLog.created,
+          assetLog,
+          balancesByFinancialType,
+          assets,
+        );
+      } catch (e) {
+        this.logger.error('Failed to update the latest-balance cache for the dashboard', e);
+      }
 
       // The changeLog feeds only the informative FinancialChangesLog and is independent of the equity
       // path above, so it runs in its own try/catch: a reporting-price failure must not arm the equity

@@ -136,6 +136,13 @@ export class Configuration {
   };
 
   ledger = {
+    // Central ledger master switch — hard-coded (intentionally no env/DB/setting), default OFF.
+    // Measured 2026-07-30 via pg_stat_activity sampling (two independent runs: ~29.6% / ~32.4% of all active
+    // production DB queries). Root cause: nine booking consumers, every minute, each parsing a ~57kB JSON block
+    // from a text column via jsonb_each over a two-day price window — roughly one third of total production DB
+    // time for a secondary process that is not currently productively consumed downstream.
+    // Re-verify DB load with the same method before flipping this back on; otherwise that load returns unnoticed.
+    enabled: false,
     reconciliationToleranceChf: +(process.env.LEDGER_RECONCILIATION_TOLERANCE_CHF ?? 1),
     transitAlarmThresholdDays: +(process.env.LEDGER_TRANSIT_ALARM_THRESHOLD_DAYS ?? 3),
     backfillBatchSize: +(process.env.LEDGER_BACKFILL_BATCH_SIZE ?? 100),
