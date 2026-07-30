@@ -193,10 +193,8 @@ export class UserDataController {
     return new StreamableFile(zipContent);
   }
 
-  // One-shot backfill of kycFileId / amlListAddedDate for rows the AML flow failed to assign while
-  // getLastKycFileId() returned a NULLS-FIRST null. Runs in the background — the report is written
-  // to the log. Dry-runs unless ?dryRun=false is passed explicitly.
-  @Post('backfill/kyc-file-ids')
+  // Runs in the background; the report is written to the log. Dry-runs unless ?dryRun=false.
+  @Post('backfillKycFileIds')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPER_ADMIN), UserActiveGuard())

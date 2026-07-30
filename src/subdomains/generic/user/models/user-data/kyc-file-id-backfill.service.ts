@@ -1,6 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -12,17 +11,23 @@ import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.servi
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { Between, In, IsNull, Not, Repository } from 'typeorm';
 import { UserService } from '../user/user.service';
 import { UserData } from './user-data.entity';
 import { UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
-// Floor for both the candidate scan and the crossing computation. Set to the InitialSchema
-// migration timestamp rather than the psql cutover commit (2026-05-22): this is a `>=` pre-filter,
-// so the earliest point Postgres could have been serving is the safe bound. Earlier crossings
-// cannot have been lost — on MSSQL the assignment succeeded, so those rows carry a kycFileId and
-// are excluded by the `kycFileId IS NULL` candidate filter regardless.
-const AFFECTED_WINDOW_START = new Date('2026-05-18T00:00:00Z');
+// Both bounds are the observed edges of the outage in the id sequence itself, not a deploy date:
+// assignment ran normally up to kycFileId 6172 (2026-05-21T14:00:08Z), produced nothing at all for
+// the next six weeks, and resumed at 6173 (2026-07-03T15:47:39Z) once #4023 reached prod.
+//
+// The ceiling matters as much as the floor. #4023 restored assignment, so a row that is still
+// `kycFileId IS NULL` after a qualifying crossing on the far side of it is not a victim of the bug
+// — it is a row the live rule declined. Without the ceiling this stops being a repair of a closed
+// window and becomes a re-derivation of current AML state, whose result would depend on which
+// manual reviews happen to be open the minute it runs.
+const AFFECTED_WINDOW_START = new Date('2026-05-21T14:00:08Z');
+const AFFECTED_WINDOW_END = new Date('2026-07-03T15:47:39Z');
 
 // Matches the live AML volume window in both preparation services:
 // Util.daysBefore(30, tx.created) … Util.daysAfter(30, tx.created).
@@ -59,13 +64,14 @@ export interface BackfillStartResult {
 
 /**
  * One-shot backfill of `kycFileId` / `amlListAddedDate` for rows the AML flow failed to assign
- * while `getLastKycFileId()` returned a NULLS-FIRST null. Background in PR #4041.
+ * during the outage fixed by #4023. Background in PR #4041.
  *
  * Reproduces the live rule rather than approximating it: per-transaction volume comes from
  * `TransactionHelper.getVolumeSince`, the same call `aml.service.postProcessing` is fed by, so the
- * window (±30d around the transaction) and the inclusion rule (`amlCheck != FAIL`) match by
- * construction. The transaction's own contribution uses the stored `amountInChf` — the value
- * priced at AML time — rather than re-pricing at today's rate.
+ * volume window (±30d) and its inclusion rule (`amlCheck != FAIL`) match by construction. Note
+ * that the rule for selecting the crossing transaction itself is narrower — see
+ * `loadWindowTransactions`. The transaction's own contribution uses the stored `amountInChf`, the
+ * value priced at AML time, rather than re-pricing at today's rate.
  *
  * The first transaction whose volume exceeds `monthlyDefaultWoKyc` is the crossing; its `created`
  * becomes `amlListAddedDate`, so `getKycFileYearlyStats` keeps the per-year shape it would have
@@ -110,7 +116,7 @@ export class KycFileIdBackfillService {
     };
   }
 
-  async run(options: BackfillOptions): Promise<BackfillReport> {
+  private async run(options: BackfillOptions): Promise<BackfillReport> {
     const candidateIds = await this.findCandidateIds();
 
     this.logger.info(`Backfill starting: ${candidateIds.length} candidates (dryRun=${options.dryRun})`);
@@ -161,9 +167,14 @@ export class KycFileIdBackfillService {
   /**
    * Candidates are driven off the transactions rather than off `user_data.updated`: the failed
    * assignment wrote nothing, so `updated` only moved where some unrelated write happened to touch
-   * the row. Anyone who could have crossed has at least one non-FAIL transaction in the window.
+   * the row.
+   *
+   * Deliberately a superset — this only decides who gets examined, and `computeCrossing` applies
+   * the real trigger rule. Narrowing here would just duplicate that predicate in a second place.
    */
   private async findCandidateIds(): Promise<number[]> {
+    const window = { from: AFFECTED_WINDOW_START, to: AFFECTED_WINDOW_END };
+
     const [fromBuyCrypto, fromBuyFiat] = await Promise.all([
       this.buyCryptoRepo
         .createQueryBuilder('bc')
@@ -173,7 +184,8 @@ export class KycFileIdBackfillService {
         .leftJoin('cryptoRoute.user', 'routeUser')
         .select('COALESCE(buyUser.userDataId, routeUser.userDataId)', 'userDataId')
         .where('bc.amlCheck != :fail', { fail: CheckStatus.FAIL })
-        .andWhere('bc.created >= :from', { from: AFFECTED_WINDOW_START })
+        .andWhere('bc.created >= :from', window)
+        .andWhere('bc.created < :to', window)
         .groupBy('COALESCE(buyUser.userDataId, routeUser.userDataId)')
         .getRawMany<{ userDataId: number | null }>(),
       this.buyFiatRepo
@@ -182,7 +194,8 @@ export class KycFileIdBackfillService {
         .leftJoin('sell.user', 'sellUser')
         .select('sellUser.userDataId', 'userDataId')
         .where('bf.amlCheck != :fail', { fail: CheckStatus.FAIL })
-        .andWhere('bf.created >= :from', { from: AFFECTED_WINDOW_START })
+        .andWhere('bf.created >= :from', window)
+        .andWhere('bf.created < :to', window)
         .groupBy('sellUser.userDataId')
         .getRawMany<{ userDataId: number | null }>(),
     ]);
@@ -199,8 +212,33 @@ export class KycFileIdBackfillService {
   }
 
   /**
-   * Walks the candidate's in-window transactions oldest-first and returns the first whose volume —
-   * computed by the same helper the live AML flow uses — exceeds the threshold.
+   * The rule for which transaction may be *the* crossing — i.e. the one whose assignment was lost.
+   *
+   * `PASS`, not `!= FAIL`: the live assignment sits inside `if (entity.amlCheck === PASS)`
+   * (`aml.service.ts`), so a Pending or GSheet transaction never triggered it. `!= FAIL` is the
+   * rule for the volume *sum*; `getVolumeSince` applies that internally and it must not be lifted
+   * up here. The distinction is not academic — crossing the threshold is itself what pushes a
+   * transaction to non-PASS when kycLevel < 50 / no bank-tx verification / no letter
+   * (`aml-helper.service.ts`), so `!= FAIL` would select preferentially for exactly the rows the
+   * live rule declined.
+   *
+   * Held as an explicit predicate rather than left to the query's WHERE clause: this is the
+   * correctness boundary, so it should be assertable without a database.
+   */
+  private isEligibleCrossing(tx: BuyCrypto | BuyFiat): boolean {
+    return (
+      tx.amlCheck === CheckStatus.PASS &&
+      tx.created >= AFFECTED_WINDOW_START &&
+      tx.created < AFFECTED_WINDOW_END &&
+      // Payment pay-ins never trigger the assignment (aml.service.postProcessing).
+      tx.cryptoInput?.txType !== PayInType.PAYMENT &&
+      tx.amountInChf != null
+    );
+  }
+
+  /**
+   * Walks the candidate's in-window transactions oldest-first and returns the first eligible one
+   * whose volume — computed by the same helper the live AML flow uses — exceeds the threshold.
    */
   private async computeCrossing(userDataId: number, threshold: number): Promise<Crossing | null> {
     const users = await this.userService.getAllUserDataUsers(userDataId);
@@ -209,9 +247,7 @@ export class KycFileIdBackfillService {
     const txs = await this.loadWindowTransactions(users.map((u) => u.id));
 
     for (const tx of txs) {
-      // Payment pay-ins never trigger the assignment (aml.service.postProcessing).
-      if (tx.cryptoInput?.txType === PayInType.PAYMENT) continue;
-      if (tx.amountInChf == null) continue;
+      if (!this.isEligibleCrossing(tx)) continue;
 
       const previousVolume = await this.transactionHelper.getVolumeSince(
         Util.daysBefore(VOLUME_WINDOW_DAYS, tx.created),
@@ -236,13 +272,17 @@ export class KycFileIdBackfillService {
   }
 
   /**
-   * Only in-window transactions are candidates for being *the* crossing — earlier ones cannot have
-   * lost an assignment. The volume behind each candidate is not floored the same way:
-   * `getVolumeSince` spans its own ±30d and legitimately reaches back before the window, exactly
-   * as the live rule did.
+   * Narrows to roughly what `isEligibleCrossing` accepts, so the scan does not pull a candidate's
+   * entire history over the wire. The predicate stays authoritative; this is an optimisation.
+   *
+   * Bounded on both sides, unlike the volume behind each candidate: `getVolumeSince` spans its own
+   * ±30d and legitimately reaches outside the window, exactly as the live rule did.
    */
   private async loadWindowTransactions(userIds: number[]): Promise<(BuyCrypto | BuyFiat)[]> {
-    const inWindow = { amlCheck: Not(CheckStatus.FAIL), created: MoreThanOrEqual(AFFECTED_WINDOW_START) };
+    const inWindow = {
+      amlCheck: CheckStatus.PASS,
+      created: Between(AFFECTED_WINDOW_START, AFFECTED_WINDOW_END),
+    };
 
     const [buyCryptos, buyFiats] = await Promise.all([
       this.buyCryptoRepo.find({
@@ -281,7 +321,9 @@ export class KycFileIdBackfillService {
 
       return affected ? kycFileId : null;
     } catch (e) {
-      const isConflict = e instanceof ConflictException || e.message?.includes('duplicate key');
+      // `update()` goes straight to the driver, so a unique-index collision surfaces as
+      // QueryFailedError — not the ConflictException that `updateUserDataInternal` would raise.
+      const isConflict = e.message?.includes('duplicate key');
       if (attempt >= MAX_ASSIGNMENT_ATTEMPTS - 1 || !isConflict) throw e;
 
       return this.assign(crossing, attempt + 1);
