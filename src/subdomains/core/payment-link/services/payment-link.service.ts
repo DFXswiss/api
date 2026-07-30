@@ -5,7 +5,6 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { merge } from 'lodash';
@@ -275,10 +274,12 @@ export class PaymentLinkService {
 
     const actualQuote = await this.paymentQuoteService.createQuote(usedStandard, pendingPayment);
 
-    const btcTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC');
-    if (!btcTransferAmount) throw new ServiceUnavailableException('Lightning payment option unavailable');
+    const btcAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC')?.amount;
+    if (!this.isUsableLightningBtcAmount(btcAmount)) {
+      throw new NotFoundException('No BTC transfer amount found');
+    }
 
-    const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
+    const msatTransferAmount = LightningHelper.btcToMsat(btcAmount);
 
     const payRequest: PaymentLinkPayRequestDto = {
       id: pendingPayment.link.uniqueId,
@@ -308,6 +309,10 @@ export class PaymentLinkService {
     };
 
     return payRequest;
+  }
+
+  private isUsableLightningBtcAmount(amount: number | undefined): amount is number {
+    return typeof amount === 'number' && Number.isFinite(amount) && amount > 0;
   }
 
   private async waitForPendingPayment(uniqueId: string, timeout: number): Promise<PaymentLinkPayment> {

@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { ServiceUnavailableException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as ConfigModule from 'src/config/config';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
@@ -55,7 +55,7 @@ describe('PaymentLinkService - createPayRequest Lightning requirement', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  it('throws ServiceUnavailableException when the quote has no Lightning/BTC amount', async () => {
+  function pendingPaymentWithCardanoOnlyLink(): PaymentLinkPayment {
     const link = {
       uniqueId: 'pl_test',
       externalId: undefined,
@@ -70,19 +70,36 @@ describe('PaymentLinkService - createPayRequest Lightning requirement', () => {
       route: { route: { label: 'test-route' } },
     } as unknown as PaymentLink;
 
-    const pendingPayment = Object.assign(new PaymentLinkPayment(), {
+    return Object.assign(new PaymentLinkPayment(), {
       uniqueId: 'plp_test',
       status: PaymentLinkPaymentStatus.PENDING,
       amount: 10,
       currency: { name: 'CHF' },
       link,
     });
+  }
 
-    const quote = Object.assign(new PaymentQuote(), {
+  function quoteFromTransferAmountsJson(transferAmountsJson: string): PaymentQuote {
+    return Object.assign(new PaymentQuote(), {
       uniqueId: 'pq_test',
       status: PaymentQuoteStatus.ACTUAL,
       expiryDate: new Date(),
-      transferAmounts: JSON.stringify([
+      transferAmounts: transferAmountsJson,
+    });
+  }
+
+  // amountJson is embedded as a raw JSON literal (e.g. '0', 'null', '1e999'), not via JSON.stringify,
+  // so values that stringify would collapse (null/Infinity) reach the guard as written.
+  function quoteWithLightningBtcAmountLiteral(amountJson: string): PaymentQuote {
+    return quoteFromTransferAmountsJson(
+      `[{"method":"${Blockchain.LIGHTNING}","minFee":0,"assets":[{"asset":"BTC","amount":${amountJson}}],"available":true},` +
+        `{"method":"${Blockchain.CARDANO}","minFee":0,"assets":[{"asset":"ADA","amount":20}],"available":true}]`,
+    );
+  }
+
+  function quoteWithoutLightning(): PaymentQuote {
+    return quoteFromTransferAmountsJson(
+      JSON.stringify([
         {
           method: Blockchain.CARDANO,
           minFee: 0,
@@ -90,8 +107,11 @@ describe('PaymentLinkService - createPayRequest Lightning requirement', () => {
           available: true,
         },
       ]),
-    });
+    );
+  }
 
+  async function expectPayRequestNotFound(quote: PaymentQuote): Promise<void> {
+    const pendingPayment = pendingPaymentWithCardanoOnlyLink();
     jest.spyOn(paymentLinkPaymentService, 'getPendingPaymentByUniqueId').mockResolvedValue(pendingPayment);
     jest.spyOn(paymentQuoteService, 'createQuote').mockResolvedValue(quote);
 
@@ -102,9 +122,25 @@ describe('PaymentLinkService - createPayRequest Lightning requirement', () => {
       caught = e;
     }
 
-    expect(caught).toBeInstanceOf(ServiceUnavailableException);
-    expect((caught as ServiceUnavailableException).getStatus()).toBe(503);
-    expect((caught as ServiceUnavailableException).message).toBe('Lightning payment option unavailable');
+    expect(caught).toBeInstanceOf(NotFoundException);
+    expect((caught as NotFoundException).getStatus()).toBe(404);
+    expect((caught as NotFoundException).message).toBe('No BTC transfer amount found');
+  }
+
+  it('throws NotFoundException when the quote has no Lightning/BTC amount', async () => {
+    await expectPayRequestNotFound(quoteWithoutLightning());
+  });
+
+  it('throws NotFoundException when Lightning/BTC amount is zero', async () => {
+    await expectPayRequestNotFound(quoteWithLightningBtcAmountLiteral('0'));
+  });
+
+  it('throws NotFoundException when persisted Lightning/BTC amount is null', async () => {
+    await expectPayRequestNotFound(quoteWithLightningBtcAmountLiteral('null'));
+  });
+
+  it('throws NotFoundException when persisted Lightning/BTC amount overflows to Infinity', async () => {
+    await expectPayRequestNotFound(quoteWithLightningBtcAmountLiteral('1e999'));
   });
 });
 
@@ -149,6 +185,10 @@ describe('PaymentLinkService + PaymentQuoteService - composed OpenCryptoPay Ligh
   const expectedAdaAmount = Number((grossFiat / adaChfRate).toFixed(6));
   const expectedMsat = LightningHelper.btcToMsat(expectedBtcAmount);
 
+  // At 100_000 CHF/BTC and forexFee 0.01: 0.0001 / 0.99 / 100_000 rounds to 0 and is dropped
+  // from transfer amounts (getTransferAmountAsset skips non-positive results), so no Lightning entry.
+  const subSatoshiInvoiceAmount = 0.0001;
+
   function cardanoOnlyLink(): PaymentLink {
     return {
       uniqueId: 'pl_cardano_only',
@@ -166,11 +206,11 @@ describe('PaymentLinkService + PaymentQuoteService - composed OpenCryptoPay Ligh
     } as unknown as PaymentLink;
   }
 
-  function pendingPayment(link: PaymentLink): PaymentLinkPayment {
+  function pendingPayment(link: PaymentLink, amount = invoiceAmount): PaymentLinkPayment {
     return Object.assign(new PaymentLinkPayment(), {
       uniqueId: 'plp_cardano_only',
       status: PaymentLinkPaymentStatus.PENDING,
-      amount: invoiceAmount,
+      amount,
       currency: chf,
       link,
       expiryDate: new Date(Date.now() + 60_000),
@@ -271,7 +311,7 @@ describe('PaymentLinkService + PaymentQuoteService - composed OpenCryptoPay Ligh
     expect(savedQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC')?.amount).toBeCloseTo(expectedBtcAmount, 8);
   });
 
-  it('does not save a quote when Lightning/BTC payment asset is missing', async () => {
+  it('saves the quote but rejects pay request when Lightning/BTC payment asset is missing', async () => {
     const link = cardanoOnlyLink();
     const payment = pendingPayment(link);
 
@@ -286,13 +326,13 @@ describe('PaymentLinkService + PaymentQuoteService - composed OpenCryptoPay Ligh
       caught = e;
     }
 
-    expect(caught).toBeInstanceOf(ServiceUnavailableException);
-    expect((caught as ServiceUnavailableException).getStatus()).toBe(503);
-    expect((caught as ServiceUnavailableException).message).toBe('Lightning payment option unavailable');
-    expect(paymentQuoteRepo.save).not.toHaveBeenCalled();
+    expect(caught).toBeInstanceOf(NotFoundException);
+    expect((caught as NotFoundException).getStatus()).toBe(404);
+    expect((caught as NotFoundException).message).toBe('No BTC transfer amount found');
+    expect(paymentQuoteRepo.save).toHaveBeenCalledTimes(1);
   });
 
-  it('does not save a quote when BTC pricing fails', async () => {
+  it('saves the quote but rejects pay request when BTC pricing fails', async () => {
     const link = cardanoOnlyLink();
     const payment = pendingPayment(link);
 
@@ -310,13 +350,37 @@ describe('PaymentLinkService + PaymentQuoteService - composed OpenCryptoPay Ligh
       caught = e;
     }
 
-    expect(caught).toBeInstanceOf(ServiceUnavailableException);
-    expect((caught as ServiceUnavailableException).getStatus()).toBe(503);
-    expect((caught as ServiceUnavailableException).message).toBe('Lightning payment option unavailable');
-    expect(paymentQuoteRepo.save).not.toHaveBeenCalled();
+    expect(caught).toBeInstanceOf(NotFoundException);
+    expect((caught as NotFoundException).getStatus()).toBe(404);
+    expect((caught as NotFoundException).message).toBe('No BTC transfer amount found');
+    expect(paymentQuoteRepo.save).toHaveBeenCalledTimes(1);
     expect(loggerErrorSpy).toHaveBeenCalledWith(
       `Quote: Failed to get price of currency CHF and asset Lightning/BTC`,
       expect.any(Error),
     );
+  });
+
+  it('rejects pay request when sub-satoshi invoice drops Lightning from the quote', async () => {
+    const link = cardanoOnlyLink();
+    const payment = pendingPayment(link, subSatoshiInvoiceAmount);
+
+    jest.spyOn(paymentLinkPaymentService, 'getPendingPaymentByUniqueId').mockResolvedValue(payment);
+    jest.spyOn(assetService, 'getPaymentAssets').mockResolvedValue([lightningBtc, cardanoAda]);
+    jest.spyOn(pricingService, 'getPrice').mockImplementation(async (from) => priceForAsset(from as { name: string }));
+
+    let caught: unknown;
+    try {
+      await paymentLinkService.createPayRequest(link.uniqueId);
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(NotFoundException);
+    expect((caught as NotFoundException).getStatus()).toBe(404);
+    expect((caught as NotFoundException).message).toBe('No BTC transfer amount found');
+    expect(paymentQuoteRepo.save).toHaveBeenCalledTimes(1);
+
+    const savedQuote = (paymentQuoteRepo.save as jest.Mock).mock.calls[0][0] as PaymentQuote;
+    expect(savedQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC')).toBeUndefined();
   });
 });

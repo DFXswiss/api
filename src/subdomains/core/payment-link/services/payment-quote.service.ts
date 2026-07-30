@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
@@ -211,10 +211,6 @@ export class PaymentQuoteService {
 
     const transferAmounts = await this.createTransferAmounts(standard, payment.link, payment.amount, payment.currency);
 
-    if (standard === PaymentStandard.OPEN_CRYPTO_PAY) {
-      this.assertLightningBtcTransferAmount(transferAmounts);
-    }
-
     const quote = this.paymentQuoteRepo.create({
       uniqueId: Util.createUniqueId(Config.prefixes.paymentQuoteUidPrefix),
       status: PaymentQuoteStatus.ACTUAL,
@@ -270,15 +266,6 @@ export class PaymentQuoteService {
     }
 
     return [Blockchain.LIGHTNING, ...blockchains];
-  }
-
-  private assertLightningBtcTransferAmount(transferAmounts: TransferAmount[]): void {
-    const lightning = transferAmounts.find((t) => t.method.toLowerCase() === Blockchain.LIGHTNING.toLowerCase());
-    const btcAmount = lightning?.assets.find((a) => a.asset.toLowerCase() === 'btc')?.amount;
-
-    if (typeof btcAmount !== 'number' || !Number.isFinite(btcAmount) || btcAmount <= 0) {
-      throw new ServiceUnavailableException('Lightning payment option unavailable');
-    }
   }
 
   private async createTransferAmount(

@@ -1,5 +1,4 @@
 import { createMock } from '@golevelup/ts-jest';
-import { ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as ConfigModule from 'src/config/config';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
@@ -10,10 +9,12 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PaymentLinkPayment } from '../../entities/payment-link-payment.entity';
 import { PaymentLink } from '../../entities/payment-link.entity';
+import { PaymentQuote } from '../../entities/payment-quote.entity';
 import { PaymentStandard } from '../../enums';
 import { PaymentQuoteRepository } from '../../repositories/payment-quote.repository';
 import { C2BPaymentLinkService } from '../c2b-payment-link.service';
@@ -27,6 +28,7 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
   let pricingService: PricingService;
   let feeService: PaymentLinkFeeService;
   let paymentQuoteRepo: PaymentQuoteRepository;
+  let loggerErrorSpy: jest.SpyInstance;
 
   const lightningBtc = createCustomAsset({
     id: 1,
@@ -107,6 +109,7 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
     pricingService = createMock<PricingService>();
     feeService = createMock<PaymentLinkFeeService>();
     paymentQuoteRepo = createMock<PaymentQuoteRepository>();
+    loggerErrorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation(() => undefined);
 
     jest.spyOn(assetService, 'getPaymentAssets').mockResolvedValue([lightningBtc, cardanoAda, tronTrx, solanaSol]);
     jest.spyOn(feeService, 'getMinFee').mockResolvedValue(0);
@@ -115,6 +118,8 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
       const rate = rates[(from as { name: string }).name] ?? 1;
       return Price.create((from as { name: string }).name, 'CHF', 1 / rate);
     });
+    jest.spyOn(paymentQuoteRepo, 'create').mockImplementation((entity) => Object.assign(new PaymentQuote(), entity));
+    jest.spyOn(paymentQuoteRepo, 'save').mockImplementation(async (quote: PaymentQuote) => quote);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -217,37 +222,29 @@ describe('PaymentQuoteService - OpenCryptoPay Lightning selection', () => {
     expect(pricingService.getPrice).not.toHaveBeenCalled();
   });
 
-  it.each([Infinity, -Infinity, NaN])(
-    'fails closed for non-finite Lightning/BTC amount %p without creating or saving a quote',
-    async (nonFiniteAmount) => {
-      jest.spyOn(service, 'createTransferAmounts').mockResolvedValue([
-        {
-          method: Blockchain.LIGHTNING,
-          minFee: 0,
-          assets: [{ asset: 'BTC', amount: nonFiniteAmount }],
-          available: true,
-        },
-      ]);
+  it('createQuote still succeeds and keeps Cardano when Lightning/BTC price is unavailable', async () => {
+    jest.spyOn(pricingService, 'getPrice').mockImplementation(async (from) => {
+      if ((from as { name: string }).name === 'BTC') throw new Error('BTC price unavailable');
+      const rate = rates[(from as { name: string }).name] ?? 1;
+      return Price.create((from as { name: string }).name, 'CHF', 1 / rate);
+    });
 
-      const payment = Object.assign(new PaymentLinkPayment(), {
-        amount: invoiceAmount,
-        currency: chf,
-        expiryDate: new Date(Date.now() + 60_000),
-        link: paymentLinkWith([Blockchain.CARDANO]),
-      });
+    const payment = Object.assign(new PaymentLinkPayment(), {
+      amount: invoiceAmount,
+      currency: chf,
+      expiryDate: new Date(Date.now() + 60_000),
+      link: paymentLinkWith([Blockchain.CARDANO]),
+    });
 
-      let caught: unknown;
-      try {
-        await service.createQuote(PaymentStandard.OPEN_CRYPTO_PAY, payment);
-      } catch (e) {
-        caught = e;
-      }
+    const quote = await service.createQuote(PaymentStandard.OPEN_CRYPTO_PAY, payment);
 
-      expect(caught).toBeInstanceOf(ServiceUnavailableException);
-      expect((caught as ServiceUnavailableException).getStatus()).toBe(503);
-      expect((caught as ServiceUnavailableException).message).toBe('Lightning payment option unavailable');
-      expect(paymentQuoteRepo.create).not.toHaveBeenCalled();
-      expect(paymentQuoteRepo.save).not.toHaveBeenCalled();
-    },
-  );
+    expect(paymentQuoteRepo.create).toHaveBeenCalledTimes(1);
+    expect(paymentQuoteRepo.save).toHaveBeenCalledTimes(1);
+    expect(quote.getTransferAmountFor(Blockchain.CARDANO, 'ADA')?.amount).toBe(expectedAmount('ADA', 6));
+    expect(quote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC')).toBeUndefined();
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
+      `Quote: Failed to get price of currency CHF and asset Lightning/BTC`,
+      expect.any(Error),
+    );
+  });
 });
