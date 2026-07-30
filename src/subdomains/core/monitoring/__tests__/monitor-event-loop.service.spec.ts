@@ -59,9 +59,7 @@ describe('MonitorEventLoopService', () => {
     it('logs delay metrics unchanged and utilization with one decimal place', () => {
       service.monitorEventLoop();
 
-      expect(infoSpy).toHaveBeenCalledWith(
-        'EventLoop delay: mean 28ms / p95 46ms / max 202ms / utilization 87.3%',
-      );
+      expect(infoSpy).toHaveBeenCalledWith('EventLoop delay: mean 28ms / p95 46ms / max 202ms / utilization 87.3%');
       expect(mockHistogram.reset).toHaveBeenCalled();
     });
 
