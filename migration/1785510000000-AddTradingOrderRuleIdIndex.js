@@ -112,8 +112,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddTradingOrderRuleIdIndex1785480000000 {
-  name = 'AddTradingOrderRuleIdIndex1785480000000';
+module.exports = class AddTradingOrderRuleIdIndex1785510000000 {
+  name = 'AddTradingOrderRuleIdIndex1785510000000';
 
   /**
    * @param {QueryRunner} queryRunner
