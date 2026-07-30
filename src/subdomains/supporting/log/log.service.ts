@@ -161,8 +161,9 @@ export class LogService {
     to?: Date,
     limit?: number,
     after?: number, // id of the last row of the previous page; NEVER a Date/created value
+    includeByType?: boolean,
   ): Promise<FinancialLogSummary[]> {
-    return this.logRepo.getFinancialLogSummaries(btcAssetId, from, dailySample, to, limit, after);
+    return this.logRepo.getFinancialLogSummaries(btcAssetId, from, dailySample, to, limit, after, includeByType);
   }
 
   async getLatestFinancialLog(): Promise<Log | undefined> {

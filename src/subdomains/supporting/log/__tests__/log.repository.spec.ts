@@ -691,5 +691,96 @@ describe('LogRepository', () => {
       // Wrong-typed values become undefined and are dropped on serialisation — never null/0/string/boolean.
       expect(JSON.parse(JSON.stringify(rows[0].balancesByType.Crypto))).toEqual({});
     });
+
+    it('omits balancesByFinancialType from the SELECT list when includeByType is explicitly false (the actual DB-time and payload-size saving)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+
+      await repo.getFinancialLogSummaries(7, undefined, undefined, undefined, undefined, undefined, false);
+
+      const [sql] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).not.toContain('balancesByFinancialType');
+    });
+
+    it('still selects and returns balancesByType when includeByType is not passed at all (backward compatibility)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const created = new Date('2026-07-14T00:00:00Z');
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created,
+          id: 1,
+          totalBalanceChf: 100,
+          plusBalanceChf: 100,
+          minusBalanceChf: 0,
+          fxPnlChf: null,
+          btcPriceChf: 0,
+          balancesByFinancialType: { Crypto: { plusBalanceChf: 10, minusBalanceChf: 5 } },
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries(7);
+
+      const [sql] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain(`message::jsonb -> 'balancesByFinancialType' AS "balancesByFinancialType"`);
+      expect(rows[0].balancesByType).toEqual({ Crypto: { plusBalanceChf: 10, minusBalanceChf: 5 } });
+    });
+
+    it('omits the balancesByType key entirely (not undefined-valued, not an empty object) from the mapped summary when includeByType is false', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created: new Date('2026-07-14T00:00:00Z'),
+          id: 1,
+          totalBalanceChf: 100,
+          plusBalanceChf: 100,
+          minusBalanceChf: 0,
+          fxPnlChf: null,
+          btcPriceChf: 0,
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        false,
+      );
+
+      expect(rows).toHaveLength(1);
+      expect('balancesByType' in rows[0]).toBe(false);
+    });
+
+    it('keeps the same $N placeholder positions when includeByType=false is combined with every other optional parameter (btcAssetId, from, to, after, limit)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([]);
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(financialLogQueryBuilderStub(true) as never);
+      const from = new Date('2026-01-01T00:00:00Z');
+      const to = new Date('2026-02-01T00:00:00Z');
+
+      await repo.getFinancialLogSummaries(7, from, false, to, 50, 10, false);
+
+      const [sql, params] = querySpy.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain('$5::text');
+      expect(sql).toContain('created >= $6');
+      expect(sql).toContain('created <= $7');
+      expect(sql).toContain('(created, id) > ((SELECT c.created FROM log c WHERE c.id = $8), $9)');
+      expect(sql).toContain('LIMIT $10');
+      expect(sql).not.toContain('balancesByFinancialType');
+      expect(params).toEqual([
+        'LogService',
+        FINANCIAL_DATA_LOG_SUBSYSTEM,
+        LogSeverity.INFO,
+        true,
+        '7',
+        from,
+        to,
+        10,
+        10,
+        50,
+      ]);
+    });
   });
 });
