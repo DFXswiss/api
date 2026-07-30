@@ -324,11 +324,12 @@ export class LiquidityManagementPipelineService {
    * This only ever observes or cancels — it must never re-send anything. An order leaves quarantine when the venue
    * either confirms it knows the reference (back to IN_PROGRESS, the normal completion check takes over) or
    * demonstrably does not (FAILED, so the rule may plan anew from a fresh balance). Anything inconclusive
-   * stays put — but not indefinitely: past the abandon bound for its kind of request it is given up as
-   * FAILED anyway, because a rule parked forever is the worse failure — but only after the venue has
-   * confirmed that nothing under this order can still execute. Age decides when it is worth trying to clean
-   * up; the cancellation decides whether giving up is safe. An order no integration can look up, or whose
-   * references the venue will not settle, keeps waiting.
+   * stays put, and past the abandon bound for its kind of request a cancellation is attempted — because a rule
+   * parked forever is the worse failure. It is given up as FAILED only once the venue has confirmed that
+   * nothing under this order can still execute. Age decides when it is worth trying to clean up; the
+   * cancellation decides whether giving up is safe. So the bound is not a deadline after which the order is
+   * certainly gone: an order no integration can look up, or whose references the venue will not settle, keeps
+   * waiting past it, for a person.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
     // First: anything this process observed and could not write. Retried before new lookups, because an

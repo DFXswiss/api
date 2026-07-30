@@ -950,11 +950,14 @@ export class ScryptService extends PricingProvider {
       return ScryptCancellation.UNCONFIRMED;
     } catch (e) {
       // No rejection branch here on purpose: this venue answers a refused cancel with an execution report,
-      // not an exception, and that is read above. Anything reaching this catch is a transport failure.
+      // not an exception, and that is read above. What reaches this catch is anything that stopped the cancel
+      // from being answered — the trade-pair lookup it starts with, or the send and its wait.
       //
-      // A cancel is a write. Unconfirmed, it may have taken effect at the venue while the cached report
-      // still shows the order open — and a non-terminal entry is never refreshed, so every later check
-      // would wait on a picture that cannot change. Drop it and let the next lookup ask the venue.
+      // Not all of those got as far as writing, but this cannot tell which did, and that is the whole reason
+      // to treat them alike: an unconfirmed cancel may have taken effect at the venue while the cached report
+      // still shows the order open, and a non-terminal entry is never refreshed, so every later check would
+      // wait on a picture that cannot change. Dropping it costs one lookup when nothing was ever sent, and
+      // avoids a permanently stale one when something was.
       this.forgetExecutionReport(clOrdId);
       this.logger.warn(`Cancel of order ${clOrdId} went unconfirmed: ${e.message}`);
 

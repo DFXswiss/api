@@ -20,7 +20,11 @@ import { LiquidityManagementPipeline } from './liquidity-management-pipeline.ent
 const RELEASE_WITHOUT_VENUE_MINUTES = 60;
 
 /**
- * How long a quarantined order may go unaccounted for before it is abandoned instead of held further.
+ * How long a quarantined order may go unaccounted for before cleaning it up is worth attempting.
+ *
+ * Reaching this bound does not abandon anything by itself — it starts a cancellation. Whether the order is
+ * then given up depends on the venue settling every reference it claimed, so an order whose integration
+ * cannot cancel, or whose venue will not answer, stays quarantined past this bound.
  *
  * The quarantine was built to wait for an operator, on the reasoning that absence at the venue is not proof
  * of non-execution. That reasoning is sound but incomplete: it assumed the wait ends. Where nobody checks a
@@ -40,9 +44,13 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  * are sent but unconfirmed, and a bank balance is carried over from the last imported batch, so for those
  * the replan could well be sizing itself against a balance the execution has not reached yet.
  *
- * Within an askable venue, though, every outcome is bounded — including the ones where the answer never
- * arrived. Leaving those to an operator sounds like the careful choice, but where nobody performs the
- * manual release it is not caution, it is a rule that never runs again.
+ * Within an askable venue, though, no outcome is left waiting for an operator who never comes — including the
+ * ones where the answer never arrived. Leaving those to a person sounds like the careful choice, but where
+ * nobody performs the manual release it is not caution, it is a rule that never runs again.
+ *
+ * "Not left waiting for a person" is the claim, and it is weaker than "bounded": a venue that will not settle
+ * a reference still holds its order here indefinitely. What these bounds end is the assumption that somebody
+ * will eventually look — not the quarantine itself.
  *
  * Each bound has to outlast the window in which its order could still be in flight, and that window differs
  * by an order of magnitude between kinds of request, so a single value would be either useless or unsafe.
