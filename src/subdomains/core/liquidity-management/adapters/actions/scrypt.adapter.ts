@@ -60,15 +60,17 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
 const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 5;
 
 /**
- * Backstop against a withdrawal that stays stuck reporting "in progress" forever — not a bound against a
+ * Backstop against a withdrawal whose venue record never gains a transaction hash — not a bound against a
  * merely slow one.
  *
- * A venue record without a `txHash` is an observation — the venue has acknowledged the request — but "the
- * venue answers" is not the same claim as "the transfer is running". Without a ceiling here the only exit
- * left would be a human noticing, and that is exactly the outcome this system exists to remove. Measured
- * over 60 days in production, withdrawals took a median of 6.6 minutes to complete, a p95 of 90 minutes,
- * and the single slowest observed run took 336 minutes (5.6 hours). 24 hours is a good four times that
- * worst case — far outside anything slowness alone could explain.
+ * `ScryptTransactionStatus` (scrypt.dto.ts) declares only COMPLETED | FAILED | REJECTED, and FAILED/REJECTED
+ * are already handled above this branch, so what actually reaches here is either a Completed record without
+ * a hash or a status outside that declared enum — not a documented "in progress" state either way. What is
+ * certain is only the absence: a record without a `txHash` counts as not finished, whatever status the venue
+ * attaches to it. Without a ceiling here the only exit left would be a human noticing, and that is exactly
+ * the outcome this system exists to remove. Measured over 60 days in production, withdrawals took a median
+ * of 6.6 minutes to complete, a p95 of 90 minutes, and the single slowest observed run took 336 minutes (5.6
+ * hours). 24 hours is a good four times that worst case — far outside anything slowness alone could explain.
  *
  * The exit is failing the order so the rule can replan; if the venue pays out afterwards regardless, that
  * is only an internal rebooking, because every Scrypt withdrawal address is DFX's own. Deliberately NOT
@@ -272,8 +274,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         const ageMinutes = Util.minutesDiff(order.created);
         if (ageMinutes > SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES)
           throw new OrderFailedException(
-            `Withdrawal ${correlationId} is ${Math.round(ageMinutes)} minutes old: the venue has reported it ` +
-              `in progress without a transaction hash for longer than the ${SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES}-minute stuck bound`,
+            `Withdrawal ${correlationId} is ${Math.round(ageMinutes)} minutes old: the venue reports status ` +
+              `${withdrawal.status} without a transaction hash, longer than the ${SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES}-minute stuck bound`,
           );
       }
 

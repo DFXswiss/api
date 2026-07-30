@@ -89,13 +89,21 @@ export class ScryptOrderNotFoundError extends Error {}
 
 /**
  * A trade the venue has reported PENDING_NEW/PENDING_CANCEL/PENDING_REPLACE for longer than that transition
- * should ever take, whose outstanding reference the venue then confirmed — on an explicit cancel request —
- * that nothing can execute under it any more.
+ * should ever take, whose outstanding reference the venue then answered on an explicit cancel request with
+ * `ScryptCancellation.SETTLED` — one of two distinct qualities of answer, per that enum's own documentation:
+ * a terminal cancel with nothing filled, or the venue not recognising the reference at all
+ * (`SCRYPT_UNKNOWN_ORDER`), which is an inference from its own words rather than a statement about execution.
+ *
+ * Both still carry the weight this error rests on here, because of what immediately precedes the cancel: the
+ * venue had just reported this very reference as PENDING. If the cancel then comes back saying it does not
+ * know the reference, that is the venue contradicting its own last answer — and either reading, a genuine
+ * terminal cancel or that contradiction, lands at the same conclusion: nothing can execute under this
+ * reference any more.
  *
  * Distinct from {@link ScryptOrderNotFoundError}: that one means the venue cannot find the order at all, an
- * unresolved blind spot. Here the venue found it, answered PENDING, and then confirmed on request that the
- * reference is settled. That confirmation is a verdict, not a gap, so the caller may fail the order instead
- * of quarantining it.
+ * unresolved blind spot. Here the venue found it, answered PENDING, and then settled it on request — which is
+ * why the caller may fail the order instead of quarantining it. No change in behaviour from this wording,
+ * only a more honest account of what SETTLED actually rests on.
  */
 export class ScryptOrderStuckPendingError extends Error {}
 

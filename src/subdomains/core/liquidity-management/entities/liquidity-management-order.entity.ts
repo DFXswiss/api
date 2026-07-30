@@ -83,7 +83,8 @@ const ABANDON_UNCERTAIN_MINUTES = {
    * Five minutes, and deliberately not derived from how long withdrawals take: measured over 60 days they
    * run to 336 minutes, and 39% of them past ten. That tail does not reach this bound, because the bound
    * only applies while the venue does NOT name the reference. One it does name is SENT and runs to
-   * completion on its own clock, however long that takes.
+   * completion on its own clock, but not unbounded — without a transaction hash,
+   * `SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES` (24 hours, in the adapter) fails it so the rule can replan.
    *
    * What the short value buys is the ceiling the orderer set: five minutes here plus the five a withdrawal
    * may stay unobservable (see SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES) is the ten-minute maximum a

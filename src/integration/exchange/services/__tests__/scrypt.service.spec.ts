@@ -1443,6 +1443,37 @@ describe('ScryptService', () => {
       );
     });
 
+    it('does not retry the cancel write on the very next pass after an unconfirmed attempt', async () => {
+      // the cancel is a WRITE and checkRunningOrders reruns every 10 seconds — without a retry floor per
+      // reference this would fire a fresh cancel on every tick for as long as the venue keeps not confirming it
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+      const orderCreated = new Date(Date.now() - 6 * 60 * 1000);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits on a pending order with no orderCreated instead of treating the missing timestamp as young', async () => {
+      // without a dedicated branch, `orderCreated ? ... : 0` would silently read a missing timestamp as age
+      // zero and let it slip through as "young" forever, instead of just waiting without ever cancelling
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(false);
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
     it('cancels on an explicit rejection, but reports the refusal and the spent reference', async () => {
       // A rejection is a reply: nothing was created, so cancelling is safe. The caller still has to learn
       // about it — the replacement reference is burnt at the venue and must not be derived again.

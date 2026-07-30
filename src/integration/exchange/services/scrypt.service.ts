@@ -72,6 +72,20 @@ const ORDER_LOST_AFTER_MINUTES = 5;
  */
 const PENDING_STUCK_AFTER_MINUTES = 5;
 
+/**
+ * Minimum wait between two cancel attempts for the SAME pending reference, once it is past its bound.
+ *
+ * The cancel below is a WRITE to the venue, and `checkRunningOrders` drives this on an ungated 10-second
+ * cron — without a floor here, an UNCONFIRMED answer would draw a fresh cancel on every tick for as long as
+ * the venue keeps not confirming it. One minute, matching the cooldown floor the analogous quarantine-cancel
+ * throttle uses (`UNCERTAIN_RESOLVE_MIN_INTERVAL_MS` in liquidity-management-pipeline.service.ts), for the
+ * same stated reason: "a cancellation the venue will not confirm must not retry on every ten-second tick."
+ * This only slows the write down — it does not move PENDING_STUCK_AFTER_MINUTES itself, so the order becomes
+ * eligible for a cancel at exactly the same age either way; only how often an unconfirmed attempt may repeat
+ * changes.
+ */
+const PENDING_CANCEL_RETRY_MINUTES = 1;
+
 // The venue answers a refused cancel with an execution report rather than a separate reject message, so the
 // refusal has to be read off these two fields. `UnknownOrder` is the one reason treated as settling
 // anything.
@@ -100,6 +114,9 @@ export class ScryptService extends PricingProvider {
   private readonly balances?: AsyncSubscription<Map<string, ScryptBalance>>;
   private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
   private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
+  // Throttle for the WRITE in the PENDING branch of checkTrade — see PENDING_CANCEL_RETRY_MINUTES. Keyed by
+  // clOrdId, value is the end of the last cancel attempt for that reference.
+  private readonly pendingCancelAttempts: Map<string, Date> = new Map();
   private catchUpInProgress = false;
   private catchUpPending = false;
   private lastCatchUpAt?: number;
@@ -756,6 +773,17 @@ export class ScryptService extends PricingProvider {
     };
   }
 
+  // Prunes on every write rather than on a timer or a terminal event: this throttle only ever needs the MOST
+  // RECENT attempt, so nothing is lost by dropping an old one, and 24 hours is far beyond
+  // PENDING_STUCK_AFTER_MINUTES (single-digit minutes) — an entry that old belongs to a reference that has
+  // long since resolved or moved on, not one still cycling through the PENDING branch below.
+  private recordPendingCancelAttempt(clOrdId: string): void {
+    this.pendingCancelAttempts.set(clOrdId, new Date());
+
+    const dayAgo = Util.hoursBefore(24);
+    for (const [id, at] of this.pendingCancelAttempts) if (at < dayAgo) this.pendingCancelAttempts.delete(id);
+  }
+
   /**
    * @param replacementClOrdId reference to use if this check has to amend or restart the order. Must be
    * reproducible from the order row by the caller, so a timed-out replacement stays findable.
@@ -912,25 +940,48 @@ export class ScryptService extends PricingProvider {
         // so past that bound this stops merely waiting and asks the venue to settle the question. The clock
         // alone is never the exit, though — only a confirmed cancel is: a trade that might still be sitting in
         // the book must not be given up on unconfirmed evidence, or the onFail chain could place a second,
-        // genuinely competing buy right next to it.
-        const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
-        if (!orderCreated || ageMinutes <= PENDING_STUCK_AFTER_MINUTES) {
+        // genuinely competing buy right next to it. That cancel is a WRITE to the venue, so it is throttled to
+        // at most one attempt per PENDING_CANCEL_RETRY_MINUTES per reference — otherwise an UNCONFIRMED answer
+        // would draw a fresh cancel on every ten-second cron tick.
+        if (!orderCreated) {
+          // No creation timestamp means there is no clock to measure this bound against. This is the admin
+          // trade endpoint (ExchangeController), which keeps its trades in memory for a person who started
+          // them and is polling the result themselves — not a liquidity order that a missing timestamp could
+          // silently exempt from a rule nobody is watching. Every liquidity path passes order.created.
           this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
           return false;
         }
 
+        const ageMinutes = Util.minutesDiff(orderCreated);
+        if (ageMinutes <= PENDING_STUCK_AFTER_MINUTES) {
+          this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
+          return false;
+        }
+
+        const lastCancelAttempt = this.pendingCancelAttempts.get(clOrdId);
+        if (lastCancelAttempt && Util.minutesDiff(lastCancelAttempt) < PENDING_CANCEL_RETRY_MINUTES) {
+          this.logger.verbose(
+            `Order ${clOrdId} is pending (${orderInfo.status}) past its bound, but its last cancel attempt was ` +
+              `less than ${PENDING_CANCEL_RETRY_MINUTES} minute(s) ago — waiting before retrying the write`,
+          );
+          return false;
+        }
+
         const cancellation = await this.cancelIfOutstanding(clOrdId, from, to);
+        this.recordPendingCancelAttempt(clOrdId);
 
         if (cancellation === ScryptCancellation.EXECUTED) {
+          this.pendingCancelAttempts.delete(clOrdId);
           this.logger.verbose(`Order ${clOrdId} was pending past its bound, but Scrypt confirms it filled`);
           return true;
         }
 
         if (cancellation === ScryptCancellation.SETTLED) {
+          this.pendingCancelAttempts.delete(clOrdId);
           throw new ScryptOrderStuckPendingError(
-            `Order ${clOrdId} has been reported ${orderInfo.status} for ${Math.round(ageMinutes)} minutes, ` +
-              `past the ${PENDING_STUCK_AFTER_MINUTES}-minute pending bound, and Scrypt confirms nothing can ` +
-              `execute under it any more`,
+            `Order ${clOrdId} is ${Math.round(ageMinutes)} minutes old and currently reports status ` +
+              `${orderInfo.status}, past the ${PENDING_STUCK_AFTER_MINUTES}-minute pending bound, and Scrypt ` +
+              `confirms nothing can execute under it any more`,
           );
         }
 
