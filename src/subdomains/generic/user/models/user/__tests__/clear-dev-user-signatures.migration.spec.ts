@@ -60,13 +60,14 @@ describe('ClearDevUserSignatures migration (SQL content)', () => {
     expect(sql).toContain('EXISTS (SELECT 1 FROM "audit")');
   });
 
-  it('down() never issues a query (the rotation is deliberately irreversible)', async () => {
+  // down() deliberately takes no query runner, because the rotation is irreversible and there is
+  // nothing to execute. Asserting against a mock would be tautological here - the mock could never
+  // be reached. The behavioural guarantee is pinned against a live database in the Postgres block.
+  it('down() takes no query runner and resolves (the rotation is deliberately irreversible)', async () => {
     const migration = new ClearDevUserSignatures();
-    const queryRunner = { query: jest.fn(async (_sql: string) => []) };
 
-    await migration.down();
-
-    expect(queryRunner.query.mock.calls).toHaveLength(0);
+    expect(migration.down).toHaveLength(0);
+    await expect(migration.down()).resolves.toBeUndefined();
   });
 });
 
@@ -306,5 +307,27 @@ describeDb('ClearDevUserSignatures migration (real Postgres)', () => {
 
     const logCount = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "log"`)) as { count: number }[];
     expect(logCount[0].count).toBe(0);
+  });
+
+  it('down() restores nothing against a live database (the rotation stays irreversible)', async () => {
+    process.env.ENVIRONMENT = 'dev';
+
+    await queryRunner.query(`
+      INSERT INTO "user" ("address", "signature")
+      VALUES ('addr-down', 'sig-plaintext-down')
+    `);
+
+    const migration = new ClearDevUserSignatures();
+    await migration.up(queryRunner);
+    await migration.down();
+
+    const users = (await queryRunner.query(`SELECT "signature" FROM "user" WHERE "address" = 'addr-down'`)) as {
+      signature: string | null;
+    }[];
+    expect(users).toHaveLength(1);
+    expect(users[0].signature).toBeNull();
+
+    const logCount = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "log"`)) as { count: number }[];
+    expect(logCount[0].count).toBe(1);
   });
 });
