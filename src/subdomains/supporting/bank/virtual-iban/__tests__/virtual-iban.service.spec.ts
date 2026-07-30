@@ -425,6 +425,10 @@ describe('VirtualIbanService', () => {
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
+    // Documents what this service does when asked, not what the buy flow asks of it: BuyService
+    // deliberately skips the buy-specific step for EUR, because createForBuy issues through the
+    // generic provider path without the advisory lock, merged-account handling and claim recovery
+    // that getOrCreateFrickForUser provides. Do not read this test as the intended EUR route.
     it('creates an EUR buy-specific vIBAN via Frick', async () => {
       const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
       const eur = { id: 4, name: 'EUR' } as Fiat;
