@@ -22,8 +22,6 @@ const DEFAULT_REPORT = 'coverage-gate/coverage-summary.json';
 const METRICS = ['branches', 'functions', 'lines', 'statements'];
 const LABEL_LOGIC = 'PINNED_LOGIC';
 const LABEL_DECLARATIVE = 'PINNED_DECLARATIVE';
-// Align both prefixes to the longer constant so paths start in the same column.
-const LABEL_WIDTH = LABEL_DECLARATIVE.length;
 
 function main() {
   const reportPath = process.argv[2] || DEFAULT_REPORT;
@@ -40,10 +38,7 @@ function main() {
   try {
     raw = fs.readFileSync(reportPath, 'utf8');
   } catch {
-    console.log(
-      `Coverage ratchet: coverage summary not found at ${reportPath} ` +
-        `(gate likely failed before writing it); nothing to report.`,
-    );
+    console.log(`Coverage ratchet: coverage summary at ${reportPath} is unreadable; nothing to report.`);
     process.exit(0);
   }
 
@@ -52,6 +47,11 @@ function main() {
     summary = JSON.parse(raw);
   } catch {
     console.log('Coverage ratchet: coverage summary is not valid JSON; nothing to report.');
+    process.exit(0);
+  }
+
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+    console.log('Coverage ratchet: coverage summary has an unexpected shape; nothing to report.');
     process.exit(0);
   }
 
@@ -81,21 +81,34 @@ function main() {
     unpinned.push({ label, rel });
   }
 
-  unpinned.sort((a, b) => {
-    if (a.rel < b.rel) return -1;
-    if (a.rel > b.rel) return 1;
-    return 0;
-  });
+  const logicPaths = unpinned
+    .filter((u) => u.label === LABEL_LOGIC)
+    .map((u) => u.rel)
+    .sort();
+  const declarativePaths = unpinned
+    .filter((u) => u.label === LABEL_DECLARATIVE)
+    .map((u) => u.rel)
+    .sort();
 
   if (unpinned.length === 0) {
     console.log('Coverage ratchet: every file at 100% is pinned.');
   } else {
     console.log(`Coverage ratchet: ${unpinned.length} file(s) reach 100% on all four metrics but are not pinned.`);
     console.log('');
-    for (const { label, rel } of unpinned) {
-      console.log(`  ${label.padEnd(LABEL_WIDTH)}  ${rel}`);
+    if (logicPaths.length > 0) {
+      console.log(`Add to ${LABEL_LOGIC}:`);
+      for (const rel of logicPaths) {
+        console.log(`  '${rel}',`);
+      }
+      console.log('');
     }
-    console.log('');
+    if (declarativePaths.length > 0) {
+      console.log(`Add to ${LABEL_DECLARATIVE}:`);
+      for (const rel of declarativePaths) {
+        console.log(`  '${rel}',`);
+      }
+      console.log('');
+    }
     console.log('Nothing guards these today: a later change can erode them without turning the gate red.');
     console.log(
       'Add each path to the matching array in jest.coverage-gate.config.js — see docs/coverage-gate.md, "How the list grows".',
@@ -109,9 +122,25 @@ function main() {
       if (unpinned.length === 0) {
         md += 'Coverage ratchet: every file at 100% is pinned.\n';
       } else {
-        for (const { label, rel } of unpinned) {
-          md += `- ${label} \`${rel}\`\n`;
+        if (logicPaths.length > 0) {
+          md += `### Add to ${LABEL_LOGIC}\n\n`;
+          md += '```\n';
+          for (const rel of logicPaths) {
+            md += `  '${rel}',\n`;
+          }
+          md += '```\n\n';
         }
+        if (declarativePaths.length > 0) {
+          md += `### Add to ${LABEL_DECLARATIVE}\n\n`;
+          md += '```\n';
+          for (const rel of declarativePaths) {
+            md += `  '${rel}',\n`;
+          }
+          md += '```\n\n';
+        }
+        md += 'Nothing guards these today: a later change can erode them without turning the gate red.\n';
+        md +=
+          'Add each path to the matching array in jest.coverage-gate.config.js — see docs/coverage-gate.md, "How the list grows".\n';
       }
       fs.appendFileSync(stepSummary, md);
     } catch {
@@ -122,11 +151,17 @@ function main() {
   process.exit(0);
 }
 
+// Deliberately does NOT resolve via path.resolve/path.relative against the current working
+// directory. That was considered and rejected: the report this script reads can have been
+// produced on another machine or under a different checkout path than the one the script runs
+// in — that is exactly how it is also used locally, against a saved report — and resolving
+// against the current cwd would then discard every file. Do not reintroduce path.resolve here.
 /**
  * Turn an Istanbul absolute path (or an already-relative key) into a repo-relative `src/...` path.
  * Returns null when the file is outside `src/`.
  */
 function normalizeToSrc(fileKey) {
+  if (fileKey.startsWith('./src/')) return fileKey.slice(2);
   if (fileKey.startsWith('src/')) return fileKey;
 
   const idx = fileKey.lastIndexOf('/src/');
