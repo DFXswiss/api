@@ -208,6 +208,8 @@ module.exports = class AddDenarioPermanentRef1785600100000 {
     // AddBankFrickCustodyAssets / ActivateBankFrick).
     if (process.env.ENVIRONMENT !== 'prd') return;
 
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+
     // Serialize apply/reapply/rollback before taking the mutable setting lock. This keeps lock ordering
     // identical to down() and prevents a recovery reapply from creating a second active ownership event.
     const activeApply = await getActiveApplyAudit(queryRunner);
@@ -265,6 +267,8 @@ module.exports = class AddDenarioPermanentRef1785600100000 {
   async down(queryRunner) {
     // Mirror up(): the apply only ran on prd, so the rollback is a no-op everywhere else.
     if (process.env.ENVIRONMENT !== 'prd') return;
+
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
     const applyAudit = await getActiveApplyAudit(queryRunner);
     if (!applyAudit) return;

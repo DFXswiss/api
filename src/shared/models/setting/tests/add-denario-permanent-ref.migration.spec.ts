@@ -30,6 +30,8 @@ function createHarness(refs: unknown[] = ['123-456'], initialSetting?: string): 
   if (initialSetting !== undefined) settings.set('ref-keys', initialSetting);
 
   const query = jest.fn(async (sql: string, parameters: unknown[] = []) => {
+    // Migrations set lock_timeout after the prd guard; the harness only mocks data statements.
+    if (sql.startsWith('SET LOCAL lock_timeout')) return [];
     if (sql.includes('FROM "user" u')) return refs.map((ref) => ({ ref }));
     if (sql.startsWith('INSERT INTO "migration_audit_lock"')) return [];
     if (sql.startsWith('SELECT "migration" FROM "migration_audit_lock"')) return [{ migration: parameters[0] }];

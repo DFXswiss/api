@@ -280,6 +280,10 @@ module.exports = class AddDenarioWalletAndAssets1785600200000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
+    // Caps wait for the CREATE UNIQUE INDEX below (and any later prd-only locks). Must run first:
+    // the index is declared entity schema and runs in every environment before the prd guard.
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+
     // Cheap, read-only precheck that runs in every environment before the index below: if duplicate
     // 'Denario' rows already exist, this fails with a clear application error instead of the opaque
     // constraint-violation error that CREATE UNIQUE INDEX would otherwise raise.
@@ -379,6 +383,8 @@ module.exports = class AddDenarioWalletAndAssets1785600200000 {
   async down(queryRunner) {
     // Mirror up(): the apply only ran on prd, so the rollback is a no-op everywhere else.
     if (process.env.ENVIRONMENT !== 'prd') return;
+
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
     const applyAudit = await getActiveApplyAudit(queryRunner);
     if (!applyAudit) return;

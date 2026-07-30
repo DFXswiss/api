@@ -24,6 +24,8 @@ module.exports = class CreateMigrationAuditStore1785600000000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "migration_audit_lock" (
         "migration" character varying(256) NOT NULL,

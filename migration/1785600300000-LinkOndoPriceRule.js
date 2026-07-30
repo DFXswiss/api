@@ -148,6 +148,8 @@ module.exports = class LinkOndoPriceRule1785600300000 {
     // (same rationale as AddBankFrickCustodyAssets).
     if (process.env.ENVIRONMENT !== 'prd') return;
 
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+
     if (await getActiveApplyAudit(queryRunner)) return;
 
     const assets = await queryRunner.query(
@@ -197,6 +199,8 @@ module.exports = class LinkOndoPriceRule1785600300000 {
   async down(queryRunner) {
     // Mirror up(): the apply only ran on prd, so the rollback is a no-op everywhere else.
     if (process.env.ENVIRONMENT !== 'prd') return;
+
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
     const applyAudit = await getActiveApplyAudit(queryRunner);
     if (!applyAudit) return;
