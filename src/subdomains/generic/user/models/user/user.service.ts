@@ -97,20 +97,6 @@ export class UserService {
     return this.userRepo.findOne({ where: { address }, relations });
   }
 
-  // Deliberately the only read path for the login credential in `user.signature`. The column is
-  // `select: false` by default; this method is the only place that reloads it via explicit
-  // `addSelect`. Keep this query narrow - do not add the column to any other query.
-  async getSignature(userId: number): Promise<string | undefined> {
-    const result = await this.userRepo
-      .createQueryBuilder('user')
-      .select('user.id')
-      .addSelect('user.signature')
-      .where('user.id = :userId', { userId })
-      .getOne();
-
-    return result?.signature;
-  }
-
   async getUserByKey(key: string, value: any, onlyDefaultRelation = false): Promise<User> {
     const query = this.userRepo
       .createQueryBuilder('user')
