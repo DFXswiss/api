@@ -968,20 +968,25 @@ Keep old endpoints for backward compatibility but annotate:
 
 ### Long-Polling Endpoints Must Be Named `wait`
 
-An endpoint that intentionally blocks until an event occurs — a long poll — **must** carry `wait` as its own path segment. Conversely, an endpoint that is expected to answer quickly **must not** use `wait` as a path segment.
+A **new** endpoint whose response time is governed by an external event rather than by its own computation — a long poll — **must** carry `wait` as its own path segment. Conversely, an endpoint expected to answer quickly **must not** use `wait` as a path segment.
 
-Current long-polling endpoints:
+Endpoints that block by design:
 
-| Path                               | Blocks until                                               |
-| ---------------------------------- | ---------------------------------------------------------- |
-| `GET /v1/lnurlp/wait/:id`          | the payment-link payment is completed, canceled or expired |
-| `GET /v1/paymentLink/payment/wait` | the same, for the authenticated payment-link flow          |
+| Path                                 | Blocks until                                                                                                                                                                      | `wait` segment |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `GET /v1/lnurlp/wait/:id`            | the payment resolves: completed, canceled, expired — or, for `MULTIPLE`-mode links, when a quote reaches the configured completion threshold (the payment itself may stay `Pending`) | yes            |
+| `GET /v1/paymentLink/payment/wait`   | the same, for the authenticated payment-link flow                                                                                                                                 | yes            |
+| `GET /v1/lnurlp/:id`                 | a pending payment appears; bounded by `timeout` (default 10 s, caller-controllable)                                                                                               | no — exempt    |
+| `GET /v1/node/:node/tx/:txId`        | the transaction reaches one confirmation; bounded at 600 s                                                                                                                        | no — exempt    |
+| `GET /v1/node/:node/:mode/tx/:txId`  | the same                                                                                                                                                                          | no — exempt    |
 
-This is not cosmetic. Latency monitoring excludes long-polling routes from its slowest-requests view by matching the route template against `^.*/wait(/.*)?$`. A long poll's duration measures how long a *customer* took to act, not how long the API computed — leaving it in that view pushes the genuine outliers out of a list with a fixed row cap.
+The three exempt routes predate this rule and are deliberately **not** renamed: `/v1/lnurlp/:id` is the LNURL pay-request path encoded into LNURLs already in circulation, and the two node routes are admin-only and `@ApiExcludeEndpoint()`. They remain visible in latency monitoring — read their duration as expected behavior, not as a regression. Do not add further exemptions; a new blocking endpoint gets a `wait` segment.
+
+This is not cosmetic. Latency monitoring excludes routes matching `^.*/wait(/.*)?$` from its slowest-requests view. A long poll's duration measures how long a *customer* took to act, not how long the API computed — leaving it in that view pushes the genuine outliers out of a list with a fixed row cap.
 
 Getting the name wrong breaks monitoring in one of two directions:
 
-- **A blocking endpoint without a `wait` segment** appears as a permanent latency outlier and masks real regressions.
+- **A new blocking endpoint without a `wait` segment** appears as a permanent latency outlier and masks real regressions — that is exactly what the exempt routes above cost us today.
 - **A fast endpoint with a `wait` segment** is silently dropped from the latency view — if it ever becomes slow, nobody notices.
 
 The pattern is segment-anchored, so `/waitlist`, `/waitTime`, `/awaiting` and `/waiting/:id` are unaffected; only a complete `wait` segment matches. Matching runs on the server-side route template (`http.route`), never on the raw request path, which is caller-controlled.
