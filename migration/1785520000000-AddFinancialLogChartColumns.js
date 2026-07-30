@@ -81,8 +81,8 @@ module.exports = class AddFinancialLogChartColumns1785520000000 {
              THEN (("message")::jsonb -> 'assets' -> $1::text ->> 'priceChf')::float8
              ELSE NULL
            END
-       WHERE "subsystem" = $2 AND "severity" = $3 AND "message" IS JSON`,
-      [btcAssetId != null ? String(btcAssetId) : null, 'FinancialDataLog', 'Info'],
+       WHERE "system" = $2 AND "subsystem" = $3 AND "severity" = $4 AND "message" IS JSON`,
+      [btcAssetId != null ? String(btcAssetId) : null, 'LogService', 'FinancialDataLog', 'Info'],
     );
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
