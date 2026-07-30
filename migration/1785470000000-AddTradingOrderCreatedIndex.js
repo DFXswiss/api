@@ -18,53 +18,46 @@
  *
  * Production `EXPLAIN (ANALYZE, BUFFERS)` for the actual query predicate — `created >= '2026-07-01
  * 00:00:00'` (`Util.firstDayOfMonth()` always returns the first day of the month, see
- * `src/shared/utils/util.ts:410-412`) — showed a Parallel Seq Scan on `trading_order`
- * (`max_parallel_workers_per_gather` is 2 on this instance, so `loops=3` means the leader process
- * plus two workers — three participants total, not three workers), Rows Removed by Filter
- * 1,765,454 (×3 loops), rows=41,306 (×3 loops) = 123,918 matching rows (2.3% of the table), Buffers
- * shared hit=49 read=89282, Execution Time 141.283 ms. This is practically the same cost profile as
- * the scan the sibling migration (`AddLedgerContentChangeScanIndexes`) already fixed for a different
- * query — just from a different source, found via high-frequency `pg_stat_activity` sampling after
- * the sibling migration's indexes were already live in production and being used (confirmed via
- * `pg_stat_user_indexes`), yet the seq-scan load on `trading_order` had not gone down (45s-window
- * delta: 15 scans, 27.1M rows, 3,486 MB). The cost of this scan is practically independent of the
- * date filter, because a Seq Scan reads the whole table regardless of how selective the predicate
- * is: a separate measurement with `created >= '2026-07-30 00:00:00'` (only 454 matching rows) still
- * cost Execution Time 146.399 ms and Buffers read=88994 — almost identical to the 141.283 ms /
- * read=89282 above. What matters for the index decision is the query's selectivity (2.3% of the
- * table matches `created >= firstDayOfMonth`), not the runtime of any one scan. Stated honestly:
- * that the Postgres planner will actually pick this new index for this query is NOT verified in
- * production, because the index does not yet exist there — the decision to add it rests on the
- * measured selectivity (2.3%) and the correlation of `created` to physical row order (0.796,
- * discussed below), not on an observed plan change.
+ * `src/shared/utils/util.ts:410-412`) — showed a Parallel Seq Scan on `trading_order`, Rows Removed
+ * by Filter 1,765,454 (x3 workers), rows=41,306 (x3 workers) = 123,918 matching rows (2.3% of the
+ * table), Buffers shared hit=49 read=89282, Execution Time 141.283 ms. This is practically the same
+ * cost profile as the scan the sibling migration (`AddLedgerContentChangeScanIndexes`) already fixed
+ * for a different query — just from a different source, found via high-frequency
+ * `pg_stat_activity` sampling after the sibling migration's indexes were already live in production
+ * and being used (confirmed via `pg_stat_user_indexes`), yet the seq-scan load on `trading_order`
+ * had not gone down (45s-window delta: 15 scans, 27.1M rows, 3,486 MB). The cost of this scan is
+ * practically independent of the date filter, because a Seq Scan reads the whole table regardless of
+ * how selective the predicate is: a separate measurement with `created >= '2026-07-30 00:00:00'`
+ * (only 454 matching rows) still cost Execution Time 146.399 ms and Buffers read=88994 — almost
+ * identical to the 141.283 ms / read=89282 above. What matters for the index decision is the
+ * query's selectivity (2.3% of the table matches `created >= firstDayOfMonth`), not the runtime of
+ * any one scan. Stated honestly: that the Postgres planner will actually pick this new index for
+ * this query is NOT verified in production, because the index does not yet exist there — the
+ * decision to add it rests on the measured selectivity (2.3%) and the correlation of `created` to
+ * physical row order (0.796, discussed below), not on an observed plan change.
  *
  * Why a single-column index and not a covering index: the monthly window matched 123,918 of
  * 5.4 million rows (2.3%) at measurement time — a snapshot, since the table grows by roughly
  * 4,350 rows/day; the stable figure the decision rests on is the ~2.3% selectivity, not the
- * absolute row count. That ~2.3% selectivity is the basis for expecting an index scan to beat a
- * sequential scan here — not a verified planner outcome. The correlation of `created` to physical
- * row order is 0.796 per `pg_stats`, so heap accesses via the index are largely sequential. An
- * `INCLUDE (profitChf, txFeeAmountChf)` would bloat the index from an estimated ~103 MB to ~190 MB,
- * and would additionally depend on an up-to-date visibility map for index-only scans to pay off —
- * which is not reliably available here (`last_autovacuum` is NULL on this table). That trade-off is
- * the reason to omit `INCLUDE`.
+ * absolute row count. That is clearly within the range where an index scan beats a sequential scan.
+ * The correlation of `created` to physical row order is 0.796 per `pg_stats`, so heap accesses via
+ * the index are largely sequential. An `INCLUDE (profitChf, txFeeAmountChf)` would bloat the index
+ * from an estimated ~103 MB to ~190 MB, and would additionally depend on an up-to-date visibility
+ * map for index-only scans to pay off — which is not reliably available here (`last_autovacuum` is
+ * NULL on this table). That trade-off is the reason to omit `INCLUDE`.
  *
  * Why only `trading_order` and not the other tables queried in the same `LogJobService` block:
- * `crypto_input` is queried with `created >= firstDayOfMonth` on its own column (via
- * `PayInService.getPayInFee`) and has no index containing `created`. `buy_fiat` and `buy_crypto` are
- * different: they filter via `transaction: { created: MoreThan(from) }` in
- * `BuyFiatService.getBuyFiat` / `BuyCryptoService.getBuyCrypto` — i.e. on the joined `transaction`
- * table's `created` column with `>`, not their own `created` column — so an index on `buy_fiat`'s or
- * `buy_crypto`'s own `created` column would not serve this query path at all. `bank_tx` does have
- * one — `IDX_bank_tx_type_created` on `("type", "created")`, added by
- * `1784117860216-AddBankTxTypeCreatedIndex.js` for `BankTxService.getBankTxFee`, the same function
- * `LogJobService` calls in the same minute — but it only serves one of `getBankTxFee`'s three
- * sub-queries (the `type = ... AND created >= ...` one); with `type` leading, it can't serve the
- * legacy sum (`created` only, no `type` predicate) or the inline-charges query (`type IS NULL OR
- * type != ...`). All four tables are excluded here regardless, because they are orders of magnitude
- * smaller (`crypto_input` 234 MB, `bank_tx` 147 MB, `buy_crypto` 100 MB, `buy_fiat` 35 MB, versus
- * `trading_order` at 922 MB / 5.4 million rows), and no production measurement exists to justify an
- * index for them. This is a deliberate, considered exclusion, not an oversight.
+ * `buy_fiat`, `buy_crypto`, and `crypto_input` are also queried with `created >= firstDayOfMonth` and
+ * have no index containing `created`. `bank_tx` does have one — `IDX_bank_tx_type_created` on
+ * `("type", "created")`, added by `1784117860216-AddBankTxTypeCreatedIndex.js` for
+ * `BankTxService.getBankTxFee`, the same function `LogJobService` calls in the same minute — but it
+ * only serves one of `getBankTxFee`'s three sub-queries (the `type = ... AND created >= ...` one);
+ * with `type` leading, it can't serve the legacy sum (`created` only, no `type` predicate) or the
+ * inline-charges query (`type IS NULL OR type != ...`). All four tables are excluded here regardless,
+ * because they are orders of magnitude smaller (`crypto_input` 234 MB, `bank_tx` 147 MB, `buy_crypto`
+ * 100 MB, `buy_fiat` 35 MB, versus `trading_order` at 922 MB / 5.4 million rows), and no production
+ * measurement exists to justify an index for them. This is a deliberate, considered exclusion, not an
+ * oversight.
  *
  * CREATE INDEX CONCURRENTLY is not used: migrations in this codebase run transactionally and
  * boot-blockingly (see src/config/config.ts, migrationsRun gated by the SQL_MIGRATE env var).
