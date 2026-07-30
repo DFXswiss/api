@@ -7,6 +7,13 @@ const SCHEMA = 'grant_support_role_on_dev_spec';
 const TARGET_ADDRESS = '0xB6cA05F0e3e71B1C5568BD423A6682dc78469Ae8';
 const OTHER_ADDRESS = '0x1111111111111111111111111111111111111111';
 
+const NON_DEV_ENVIRONMENTS: (string | undefined)[] = ['prd', 'stg', 'loc', '', undefined];
+
+function setEnvironment(value: string | undefined): void {
+  if (value === undefined) delete process.env.ENVIRONMENT;
+  else process.env.ENVIRONMENT = value;
+}
+
 let GrantSupportRoleOnDev: new () => {
   up(queryRunner: QueryRunner): Promise<void>;
   down(queryRunner: QueryRunner): Promise<void>;
@@ -32,39 +39,8 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     }
   });
 
-  it.each([
-    {
-      label: 'prd',
-      set: () => {
-        process.env.ENVIRONMENT = 'prd';
-      },
-    },
-    {
-      label: 'stg',
-      set: () => {
-        process.env.ENVIRONMENT = 'stg';
-      },
-    },
-    {
-      label: 'loc',
-      set: () => {
-        process.env.ENVIRONMENT = 'loc';
-      },
-    },
-    {
-      label: 'empty string',
-      set: () => {
-        process.env.ENVIRONMENT = '';
-      },
-    },
-    {
-      label: 'unset',
-      set: () => {
-        delete process.env.ENVIRONMENT;
-      },
-    },
-  ])('up() issues no queries when ENVIRONMENT is $label (not dev)', async ({ set }) => {
-    set();
+  it.each(NON_DEV_ENVIRONMENTS)('up() issues no queries when ENVIRONMENT is %p (not dev)', async (value) => {
+    setEnvironment(value);
     const migration = new GrantSupportRoleOnDev();
     const queryRunner = { query: jest.fn(async (_sql: string) => []) };
 
@@ -73,39 +49,8 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     expect(queryRunner.query.mock.calls).toHaveLength(0);
   });
 
-  it.each([
-    {
-      label: 'prd',
-      set: () => {
-        process.env.ENVIRONMENT = 'prd';
-      },
-    },
-    {
-      label: 'stg',
-      set: () => {
-        process.env.ENVIRONMENT = 'stg';
-      },
-    },
-    {
-      label: 'loc',
-      set: () => {
-        process.env.ENVIRONMENT = 'loc';
-      },
-    },
-    {
-      label: 'empty string',
-      set: () => {
-        process.env.ENVIRONMENT = '';
-      },
-    },
-    {
-      label: 'unset',
-      set: () => {
-        delete process.env.ENVIRONMENT;
-      },
-    },
-  ])('down() issues no queries when ENVIRONMENT is $label (not dev)', async ({ set }) => {
-    set();
+  it.each(NON_DEV_ENVIRONMENTS)('down() issues no queries when ENVIRONMENT is %p (not dev)', async (value) => {
+    setEnvironment(value);
     const migration = new GrantSupportRoleOnDev();
     const queryRunner = { query: jest.fn(async (_sql: string) => []) };
 
