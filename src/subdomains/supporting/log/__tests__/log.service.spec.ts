@@ -288,9 +288,17 @@ describe('LogService', () => {
       ];
       const spy = jest.spyOn(logRepo, 'getFinancialLogSummaries').mockResolvedValue(summaries);
 
-      await expect(service.getFinancialLogSummaries(7, from, true, to, 25, 10)).resolves.toEqual(summaries);
+      await expect(service.getFinancialLogSummaries(7, from, true, to, 25, 10, false)).resolves.toEqual(summaries);
 
-      expect(spy).toHaveBeenCalledWith(7, from, true, to, 25, 10);
+      expect(spy).toHaveBeenCalledWith(7, from, true, to, 25, 10, false);
+    });
+
+    it('forwards includeByType as undefined when the caller omits it, so the repository default (true) applies', async () => {
+      const spy = jest.spyOn(logRepo, 'getFinancialLogSummaries').mockResolvedValue([]);
+
+      await service.getFinancialLogSummaries(7);
+
+      expect(spy).toHaveBeenCalledWith(7, undefined, undefined, undefined, undefined, undefined, undefined);
     });
   });
 

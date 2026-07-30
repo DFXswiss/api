@@ -23,12 +23,20 @@ export class DashboardFinancialService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  async getFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
+  async getFinancialLog(from?: Date, dailySample?: boolean, includeByType?: boolean): Promise<FinancialLogResponseDto> {
     // BTC price is projected in SQL and needs btcAssetId as a parameter, so resolve getBtcCoin first.
     // One extra sequential roundtrip vs the previous Promise.all, judged negligible against the
     // eliminated transfer volume of the full message JSON.
     const btcAsset = await this.assetService.getBtcCoin();
-    const summaries = await this.logService.getFinancialLogSummaries(btcAsset?.id, from, dailySample);
+    const summaries = await this.logService.getFinancialLogSummaries(
+      btcAsset?.id,
+      from,
+      dailySample,
+      undefined,
+      undefined,
+      undefined,
+      includeByType,
+    );
 
     const entries = summaries.map((summary) => this.mapSummaryToEntry(summary));
     return { entries };
@@ -255,7 +263,7 @@ export class DashboardFinancialService {
       minusBalanceChf: summary.minusBalanceChf ?? 0,
       fxPnlChf: summary.fxPnlChf ?? 0,
       btcPriceChf: summary.btcPriceChf,
-      balancesByType: summary.balancesByType,
+      ...(summary.balancesByType !== undefined ? { balancesByType: summary.balancesByType } : {}),
     };
   }
 }

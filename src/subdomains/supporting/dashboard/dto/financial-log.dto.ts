@@ -11,8 +11,13 @@ export class FinancialLogEntryDto {
    * plusBalanceChf/minusBalanceChf can be missing per type when the source FinancialDataLog
    * snapshot omitted one of the two keys (see FinancialLogSummary.balancesByType); a missing
    * value is left out of the JSON response the same way it always was, never defaulted to 0.
+   *
+   * The whole field is only present when the caller did not opt out via the `byType` query
+   * parameter on GET /v1/dashboard/financial/log (`byType=false`); when opted out it is omitted
+   * entirely from the response — never an empty object, never null — because it makes up 82% of
+   * the payload and the Overview screen that calls this endpoint on every refresh never reads it.
    */
-  balancesByType: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }>;
+  balancesByType?: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }>;
 }
 
 export class FinancialLogResponseDto {

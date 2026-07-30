@@ -25,11 +25,13 @@ export class DashboardFinancialController {
   async getFinancialLog(
     @Query('from') from?: string,
     @Query('dailySample') dailySample?: string,
+    @Query('byType') byType?: string,
   ): Promise<FinancialLogResponseDto> {
     const fromDate = this.parseDate(from);
     const sample = dailySample !== 'false';
+    const includeByType = byType !== 'false';
 
-    return this.dashboardFinancialService.getFinancialLog(fromDate, sample);
+    return this.dashboardFinancialService.getFinancialLog(fromDate, sample, includeByType);
   }
 
   @Get('latest')

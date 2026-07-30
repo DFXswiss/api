@@ -231,7 +231,7 @@ describe('DashboardFinancialService', () => {
       const result = await service.getFinancialLog(from, true);
 
       expect(getBtcCoinSpy).toHaveBeenCalled();
-      expect(getSummariesSpy).toHaveBeenCalledWith(7, from, true);
+      expect(getSummariesSpy).toHaveBeenCalledWith(7, from, true, undefined, undefined, undefined, undefined);
       // Ordering matters: btcAssetId is a SQL projection parameter, so getBtcCoin must finish first.
       expect(getBtcCoinSpy.mock.invocationCallOrder[0]).toBeLessThan(getSummariesSpy.mock.invocationCallOrder[0]);
 
@@ -257,7 +257,40 @@ describe('DashboardFinancialService', () => {
 
       await service.getFinancialLog();
 
-      expect(getSummariesSpy).toHaveBeenCalledWith(undefined, undefined, undefined);
+      expect(getSummariesSpy).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      );
+    });
+
+    it('forwards includeByType=false through to getFinancialLogSummaries and the response omits balancesByType entirely (not an empty object, not null)', async () => {
+      const btcAsset = { id: 7 } as Awaited<ReturnType<AssetService['getBtcCoin']>>;
+      const summaries: FinancialLogSummary[] = [
+        {
+          created: new Date('2026-07-14T00:00:00Z'),
+          id: 1,
+          totalBalanceChf: 100,
+          plusBalanceChf: 120,
+          minusBalanceChf: 20,
+          fxPnlChf: 1.5,
+          btcPriceChf: 64000,
+          // no balancesByType key: the repository omits it entirely when includeByType is false
+        },
+      ];
+      jest.spyOn(assetService, 'getBtcCoin').mockResolvedValue(btcAsset);
+      const getSummariesSpy = jest.spyOn(logService, 'getFinancialLogSummaries').mockResolvedValue(summaries);
+
+      const from = new Date('2026-07-01T00:00:00Z');
+      const result = await service.getFinancialLog(from, true, false);
+
+      expect(getSummariesSpy).toHaveBeenCalledWith(7, from, true, undefined, undefined, undefined, false);
+      expect('balancesByType' in result.entries[0]).toBe(false);
+      expect(JSON.parse(JSON.stringify(result.entries[0]))).not.toHaveProperty('balancesByType');
     });
   });
 });
