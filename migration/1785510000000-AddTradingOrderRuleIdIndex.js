@@ -5,8 +5,8 @@
 
 /**
  * Add a composite index on `trading_order ("tradingRuleId", "id")` so the per-minute
- * "latest trading order per rule" lookup stops doing a full sequential scan on this
- * 5.4-million-row / ~920 MB table.
+ * "latest trading order per rule" lookup stops doing a full sequential scan of the table.
+ * Row counts and sizes are given further down, together with where each was measured.
  *
  * The query this targets is:
  * `SELECT MAX("tradingOrder"."id") AS "tradingOrderId" FROM "trading_order" "tradingOrder"
