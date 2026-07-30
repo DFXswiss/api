@@ -17,6 +17,7 @@ import { OrderNotNecessaryException } from '../exceptions/order-not-necessary.ex
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
 import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
+import { LiquidityActionIntegration } from '../interfaces';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
@@ -442,6 +443,14 @@ export class LiquidityManagementPipelineService {
                 `(system ${order.action.system}, command ${order.action.command}), but no registered command ` +
                 `can check its completion — returning it to IN_PROGRESS would leave it with no exit`,
             );
+
+            // A SENT for a command that no longer exists is a real observation ("the reference exists") but
+            // not one that can return to normal operation. The only remaining exit is the same as for an
+            // unresolvable case: after the bound elapses, cancel and abandon. resolveUncertainOrder answers
+            // "does the reference exist", not "is it still open" — so SENT stays SENT permanently, and the
+            // cleanup path must not depend on a future status change; it has to run independently of whether
+            // the command is still registered.
+            if (await this.attemptQuarantineCleanup(order, actionIntegration)) anyChanged = true;
           } else if (await this.applyConfirmedObservation(order)) {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
@@ -466,24 +475,9 @@ export class LiquidityManagementPipelineService {
           // answer likelier; it only keeps an order a person has verified by hand out of reach.
           if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
             anyChanged = true;
-        } else if (order.unresolvableTooLong()) {
-          // Old enough that cleaning it up is worth attempting, and nobody has released it. Leaving it here
-          // forever is not the careful option — the rule then never runs again and the venue stops being
-          // served entirely. Trade and withdraw both reach this path: the integration decides how to make
-          // sure nothing can still execute (cancel every reference, or confirm a withdrawal is absent from
-          // a complete history) and returns the reason wording the abandon step will record.
-          //
-          // What stands in the way of giving up is never the order itself but the possibility of a request
-          // still executing: hand the funds back and a late fill spends them twice. So rather than
-          // estimating when that can no longer happen — these are orders nothing expires, so age proves
-          // nothing — the possibility is removed. Cancelling is the opposite of re-sending and cannot create
-          // anything, and once the venue confirms nothing can execute, abandoning is a fact rather than a
-          // guess. Refuses to settle, or cannot be reached? Then nothing changes and the order waits on the
-          // venue (an operator is only a shortcut past the next automatic pass).
-          const because = await actionIntegration.cancelOutstanding?.(order);
-          if (!because) continue;
-
-          if (await this.abandonUncertainOrder(order, because)) anyChanged = true;
+        } else if (await this.attemptQuarantineCleanup(order, actionIntegration)) {
+          // see attemptQuarantineCleanup
+          anyChanged = true;
         }
         // Otherwise — an order still inside the window in which its request could be live — nothing changes
         // and it keeps blocking.
@@ -494,6 +488,42 @@ export class LiquidityManagementPipelineService {
     }
 
     return anyChanged;
+  }
+
+  /**
+   * Attempt cancel-and-abandon for a quarantined order that has outlived its bound.
+   *
+   * Called from two places that share the same exit and must not invent two clocks for it: the ordinary
+   * end of the if/else-if chain (inconclusive lookup, bound reached), and the SENT branch when the venue
+   * confirmed the reference but no registered command remains to finish the job. The deadline check lives
+   * here — not at either call site — so both paths apply the same bound, and so the SENT path can invoke
+   * cleanup without re-entering the chain or falling through into completeNotSentRelease.
+   *
+   * Returns whether the order was abandoned (and thus whether the caller should count a state change).
+   */
+  private async attemptQuarantineCleanup(
+    order: LiquidityManagementOrder,
+    actionIntegration: LiquidityActionIntegration,
+  ): Promise<boolean> {
+    if (!order.unresolvableTooLong()) return false;
+
+    // Old enough that cleaning it up is worth attempting, and nobody has released it. Leaving it here
+    // forever is not the careful option — the rule then never runs again and the venue stops being
+    // served entirely. Trade and withdraw both reach this path: the integration decides how to make
+    // sure nothing can still execute (cancel every reference, or confirm a withdrawal is absent from
+    // a complete history) and returns the reason wording the abandon step will record.
+    //
+    // What stands in the way of giving up is never the order itself but the possibility of a request
+    // still executing: hand the funds back and a late fill spends them twice. So rather than
+    // estimating when that can no longer happen — these are orders nothing expires, so age proves
+    // nothing — the possibility is removed. Cancelling is the opposite of re-sending and cannot create
+    // anything, and once the venue confirms nothing can execute, abandoning is a fact rather than a
+    // guess. Refuses to settle, or cannot be reached? Then nothing changes and the order waits on the
+    // venue (an operator is only a shortcut past the next automatic pass).
+    const because = await actionIntegration.cancelOutstanding?.(order);
+    if (!because) return false;
+
+    return this.abandonUncertainOrder(order, because);
   }
 
   /**

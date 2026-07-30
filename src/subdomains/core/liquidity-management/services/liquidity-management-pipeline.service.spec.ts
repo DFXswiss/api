@@ -768,13 +768,14 @@ describe('LiquidityManagementPipelineService', () => {
       // Venue knows the reference, but no registered command can checkCompletion. Returning to IN_PROGRESS
       // would trap the order (see FIX 1); stay UNCERTAIN so the automatic abandon path remains available.
       const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.SENT);
+      const cancelOutstanding = jest.fn().mockResolvedValue(null);
       jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
         supportedCommands: ['sell', 'buy', 'withdraw'], // deliberately omits the order's command
         executeOrder: jest.fn(),
         checkCompletion: jest.fn(),
         validateParams: jest.fn(),
         resolveUncertainOrder,
-        cancelOutstanding: jest.fn().mockResolvedValue(null),
+        cancelOutstanding,
       });
       jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
       const order = agedOrder(30, 'sell-if-deficit', 'Scrypt');
@@ -787,6 +788,83 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).not.toBe(LiquidityManagementOrderStatus.IN_PROGRESS);
       expect(resolveUncertainOrder).toHaveBeenCalledWith(order);
       expect(warn).toHaveBeenCalledWith(expect.stringMatching(/stays quarantined.*no registered command/s));
+      expect(cancelOutstanding).not.toHaveBeenCalled();
+    });
+
+    it('abandons a venue-confirmed SENT order past its bound when its command is no longer registered', async () => {
+      const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.SENT);
+      const cancelOutstanding = jest
+        .fn()
+        .mockResolvedValue('the venue answered for every reference that nothing is left to execute');
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
+        supportedCommands: ['sell', 'buy', 'withdraw'], // deliberately omits the order's command
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder,
+        cancelOutstanding,
+      });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+      const order = agedOrder(30, 'sell', 'Scrypt');
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      await service['resolveUncertainOrders']();
+
+      expect(cancelOutstanding).toHaveBeenCalledWith(order);
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(order.errorMessage).toContain('the venue answered for every reference that nothing is left to execute');
+    });
+
+    it('keeps a venue-confirmed SENT order past its bound quarantined when cancelOutstanding is unsettled', async () => {
+      const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.SENT);
+      const cancelOutstanding = jest.fn().mockResolvedValue(null);
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
+        supportedCommands: ['sell', 'buy', 'withdraw'], // deliberately omits the order's command
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder,
+        cancelOutstanding,
+      });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+      const order = agedOrder(30, 'sell', 'Scrypt');
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      await service['resolveUncertainOrders']();
+
+      expect(cancelOutstanding).toHaveBeenCalledWith(order);
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    it('abandons a released venue-confirmed SENT order past its bound via cancelOutstanding, not completeNotSentRelease', async () => {
+      const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.SENT);
+      const cancelOutstanding = jest
+        .fn()
+        .mockResolvedValue('the venue answered for every reference that nothing is left to execute');
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
+        supportedCommands: ['sell', 'buy', 'withdraw'], // deliberately omits the order's command
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder,
+        cancelOutstanding,
+      });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+      const order = agedOrder(30, 'sell', 'Scrypt');
+      order.notSentRecheckDue = RELEASED_AT;
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      await service['resolveUncertainOrders']();
+
+      expect(cancelOutstanding).toHaveBeenCalledWith(order);
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(order.errorMessage).toContain('the venue answered for every reference that nothing is left to execute');
+      expect(order.errorMessage).not.toContain('the venue confirmed the request never arrived');
     });
 
     it('leaves a non-Scrypt system without resolveUncertainOrder alone (no automatic progress)', async () => {
