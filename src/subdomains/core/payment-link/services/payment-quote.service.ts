@@ -801,13 +801,21 @@ export class PaymentQuoteService {
         return;
       }
 
-      const earliestClaim = await this.getEarliestQuoteClaimingTx(Blockchain.INTERNET_COMPUTER, transferInfo.tx);
+      // Canonicalize the txId before both the replay guard and the ledger lookup — otherwise
+      // Number-coerced aliases (`"42"` / `"042"` / `"+42"` / `"4.2e1"` all name block 42; same
+      // for `canA:42` vs `canA:042`) each pass the exact-string `Equal(...)` guard independently
+      // and settle the same on-chain block against multiple quotes. Persist the canonical form
+      // so downstream state (getConfirmingQuotes, webhooks, later replays) all agree.
+      const txId = InternetComputerUtil.canonicalizeTxId(transferInfo.tx);
+      if (txId !== quote.txId) await this.saveTransaction(quote, Blockchain.INTERNET_COMPUTER, txId);
+
+      const earliestClaim = await this.getEarliestQuoteClaimingTx(Blockchain.INTERNET_COMPUTER, txId);
       if (earliestClaim && earliestClaim.uniqueId !== quote.uniqueId) {
-        quote.txFailed(`Transaction ${transferInfo.tx} already assigned to another quote`);
+        quote.txFailed(`Transaction ${txId} already assigned to another quote`);
         return;
       }
 
-      await this.waitForTxConfirmation(Blockchain.INTERNET_COMPUTER, transferInfo.tx);
+      await this.waitForTxConfirmation(Blockchain.INTERNET_COMPUTER, txId);
 
       const icpClient = this.internetComputerService.getDefaultClient();
       const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.INTERNET_COMPUTER);
@@ -822,11 +830,11 @@ export class PaymentQuoteService {
         // cheap ICRC-3 token to DFX would satisfy a quote for 100 units of a different (expensive)
         // ICRC-3 token — same principal, same amount, but a different asset entirely.
         if (!isCoin) {
-          const canisterId = transferInfo.tx.split(':')[0];
+          const canisterId = txId.split(':')[0];
           if (canisterId !== activation.asset.chainId) continue;
         }
 
-        const transfer = await icpClient.getTransferByTxId(transferInfo.tx, activation.asset);
+        const transfer = await icpClient.getTransferByTxId(txId, activation.asset);
         if (!transfer) continue;
 
         // Native ICP transfers surface an account-identifier hex; ICRC-3 transfers surface the
@@ -836,12 +844,12 @@ export class PaymentQuoteService {
         const result = this.txValidationService.validateIcpTransfer(transfer, expectedRecipient, activation.amount);
 
         if (result.isValid) {
-          quote.txInBlockchain(transferInfo.tx);
+          quote.txInBlockchain(txId);
           return;
         }
       }
 
-      quote.txFailed(`Transaction ${transferInfo.tx} does not pay any matching activation`);
+      quote.txFailed(`Transaction ${txId} does not pay any matching activation`);
     } catch (e) {
       quote.txFailed(
         e.message === 'not confirmed'
