@@ -189,8 +189,7 @@ export class LogJobService {
       // filtered out upstream), or the price is missing/non-finite.
       const btcAsset = await this.assetService.getBtcCoin();
       const btcAssetPriceChf = btcAsset ? assetLog[btcAsset.id]?.priceChf : undefined;
-      const btcPriceChfColumn =
-        btcAssetPriceChf != null && Number.isFinite(btcAssetPriceChf) ? btcAssetPriceChf : null;
+      const btcPriceChfColumn = btcAssetPriceChf != null && Number.isFinite(btcAssetPriceChf) ? btcAssetPriceChf : null;
 
       const financialDataLog = await this.logService.create({
         system: 'LogService',
