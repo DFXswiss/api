@@ -1,0 +1,327 @@
+import { PARTNER_STATISTIC_SUPPRESSION_THRESHOLD } from '../partner-statistic.enum';
+import {
+  suppressAdditiveGroup,
+  suppressAllTimeVolume,
+  suppressBreakdownRows,
+  suppressCount,
+  suppressPeriodTotals,
+  suppressRate,
+  suppressScalar,
+  suppressTimelineBuckets,
+} from '../partner-statistic.suppression';
+
+/** Single calendar anchor for payload dates — suppression logic is count-based, not calendar-based. */
+const TEST_BUCKET_DATE = new Date();
+
+describe('Partner statistic suppression', () => {
+  describe('suppressScalar (M1)', () => {
+    it('keeps 0 as 0 and nulls only 1..k-1 (boundary is strict < k)', () => {
+      expect(suppressScalar(0)).toBe(0);
+      expect(suppressScalar(1)).toBeNull();
+      expect(suppressScalar(4)).toBeNull();
+      expect(suppressScalar(PARTNER_STATISTIC_SUPPRESSION_THRESHOLD - 1)).toBeNull();
+      expect(suppressScalar(PARTNER_STATISTIC_SUPPRESSION_THRESHOLD)).toBe(5);
+      expect(suppressScalar(5)).toBe(5);
+      expect(suppressScalar(10)).toBe(10);
+      expect(suppressScalar(PARTNER_STATISTIC_SUPPRESSION_THRESHOLD - 1)).not.toBe(
+        PARTNER_STATISTIC_SUPPRESSION_THRESHOLD - 1,
+      );
+      expect(suppressScalar(PARTNER_STATISTIC_SUPPRESSION_THRESHOLD)).not.toBeNull();
+    });
+
+    it('uses min(transactions, users) as the effective count (person gate)', () => {
+      // 10 txs but only 3 users → under k
+      expect(suppressScalar(10, undefined, 3)).toBeNull();
+      // 10 txs and 5 users → visible
+      expect(suppressScalar(10, undefined, 5)).toBe(10);
+      // 3 txs and 10 users → under k on tx side
+      expect(suppressScalar(3, undefined, 10)).toBeNull();
+    });
+  });
+
+  describe('suppressRate (completion)', () => {
+    it('returns numerator/denominator (not swapped) and nulls zero or suppressed sides', () => {
+      expect(suppressRate(0, 0)).toBeNull();
+      expect(suppressRate(5, 0)).toBeNull();
+      expect(suppressRate(null, 10)).toBeNull();
+      expect(suppressRate(5, null)).toBeNull();
+      expect(suppressRate(15, 100)).toBe(0.15);
+      expect(suppressRate(15, 100)).not.toBe(suppressRate(100, 15));
+      expect(suppressRate(1, 3)).toBe(0.3333);
+    });
+  });
+
+  describe('suppressCount', () => {
+    it('flags suppression only for 1..k-1', () => {
+      expect(suppressCount(0)).toEqual({ value: 0, suppressed: false });
+      expect(suppressCount(3)).toEqual({ value: null, suppressed: true });
+      expect(suppressCount(5)).toEqual({ value: 5, suppressed: false });
+    });
+  });
+
+  describe('suppressBreakdownRows', () => {
+    it('drops rows with fewer than k transactions (boundary at k)', () => {
+      const { rows, suppressedCount } = suppressBreakdownRows([
+        { name: 'A', volume: 100, transactions: 4 },
+        { name: 'B', volume: 50, transactions: 3 },
+        { name: 'C', volume: 200, transactions: 5 },
+        { name: 'D', volume: 300, transactions: 10 },
+      ]);
+
+      expect(rows.map((r) => r.name).sort()).toEqual(['C', 'D']);
+      expect(suppressedCount).toBe(2);
+      expect(rows.find((r) => r.name === 'C')?.transactions).toBe(5);
+      expect(rows.some((r) => r.transactions === PARTNER_STATISTIC_SUPPRESSION_THRESHOLD)).toBe(true);
+    });
+
+    it('drops rows when person count is under k even if transactions are above k', () => {
+      const { rows, suppressedCount } = suppressBreakdownRows([
+        { name: 'A', volume: 100, transactions: 20, users: 2 },
+        { name: 'B', volume: 200, transactions: 20, users: 10 },
+        { name: 'C', volume: 300, transactions: 30, users: 15 },
+      ]);
+      // A under k on person gate; complementary drops B (smallest remaining); C stays
+      expect(rows.map((r) => r.name)).toEqual(['C']);
+      expect(suppressedCount).toBe(2);
+      expect(rows.find((r) => r.name === 'A')).toBeUndefined();
+    });
+
+    it('applies complementary suppression only when exactly one row is under threshold', () => {
+      const { rows, suppressedCount } = suppressBreakdownRows([
+        { name: 'A', volume: 10, transactions: 3 },
+        { name: 'B', volume: 20, transactions: 6 },
+        { name: 'C', volume: 100, transactions: 50 },
+      ]);
+
+      expect(rows.map((r) => r.name)).toEqual(['C']);
+      expect(suppressedCount).toBe(2);
+      expect(rows.find((r) => r.name === 'B')).toBeUndefined();
+    });
+
+    it('does not apply complementary suppression when zero or two+ rows are under threshold', () => {
+      const none = suppressBreakdownRows([
+        { name: 'A', volume: 10, transactions: 5 },
+        { name: 'B', volume: 20, transactions: 6 },
+      ]);
+      expect(none.rows).toHaveLength(2);
+      expect(none.suppressedCount).toBe(0);
+
+      const two = suppressBreakdownRows([
+        { name: 'A', volume: 10, transactions: 2 },
+        { name: 'B', volume: 20, transactions: 3 },
+        { name: 'C', volume: 100, transactions: 50 },
+      ]);
+      expect(two.rows.map((r) => r.name)).toEqual(['C']);
+      expect(two.suppressedCount).toBe(2);
+      expect(two.rows).toHaveLength(1);
+    });
+  });
+
+  describe('suppressTimelineBuckets (B2)', () => {
+    const bucket = (
+      buyTx: number,
+      sellTx = 0,
+      swapTx = 0,
+      buyUsers?: number,
+      sellUsers?: number,
+      swapUsers?: number,
+    ) => ({
+      date: new Date(TEST_BUCKET_DATE),
+      volume: { buy: buyTx * 10, sell: sellTx * 10, swap: swapTx * 10 },
+      transactions: { buy: buyTx, sell: sellTx, swap: swapTx },
+      users: {
+        buy: buyUsers ?? buyTx,
+        sell: sellUsers ?? sellTx,
+        swap: swapUsers ?? swapTx,
+      },
+      suppressed: false,
+      partial: false,
+    });
+
+    it('nullifies a bucket with 4 transactions and keeps one with 5 (plus complementary)', () => {
+      const { buckets, suppressedCount } = suppressTimelineBuckets([bucket(4), bucket(5), bucket(20)]);
+
+      expect(buckets[0].suppressed).toBe(true);
+      expect(buckets[0].volume).toBeNull();
+      expect(buckets[0].transactions).toBeNull();
+      expect(buckets[1].suppressed).toBe(true);
+      expect(buckets[2].suppressed).toBe(false);
+      expect(buckets[2].volume).toEqual({ buy: 200, sell: 0, swap: 0 });
+      expect(suppressedCount).toBe(2);
+    });
+
+    it('suppresses mixed bucket when any single direction is under k (block rule)', () => {
+      // buy=5 (ok), sell=1 (under) → whole bucket suppressed even though total=6 ≥ k
+      const mixed = bucket(5, 1, 0);
+      const large = bucket(20, 20, 20);
+      const { buckets, suppressedCount } = suppressTimelineBuckets([mixed, large]);
+
+      expect(buckets[0].suppressed).toBe(true);
+      expect(buckets[0].volume).toBeNull();
+      expect(buckets[0].transactions).toBeNull();
+      // complementary may also suppress large if it is the only other filled
+      expect(suppressedCount).toBeGreaterThanOrEqual(1);
+      // total − visible must not recover sell=1
+      if (!buckets[1].suppressed) {
+        // if complementary did not fire (shouldn't with only one under), buy stays
+        expect(buckets[1].transactions?.sell).not.toBe(1);
+      }
+    });
+
+    it('keeps a bucket at exactly k when no complementary case applies', () => {
+      const { buckets, suppressedCount } = suppressTimelineBuckets([bucket(4), bucket(3), bucket(5)]);
+
+      expect(buckets[0].suppressed).toBe(true);
+      expect(buckets[1].suppressed).toBe(true);
+      expect(buckets[2].suppressed).toBe(false);
+      expect(buckets[2].transactions).toEqual({ buy: 5, sell: 0, swap: 0 });
+      expect(suppressedCount).toBe(2);
+    });
+
+    it('leaves empty (0-tx) buckets as visible zeros, not suppressed', () => {
+      const empty = bucket(0);
+      const filled = bucket(10);
+      const { buckets, suppressedCount } = suppressTimelineBuckets([empty, filled]);
+
+      expect(buckets[0].suppressed).toBe(false);
+      expect(buckets[0].volume).toEqual({ buy: 0, sell: 0, swap: 0 });
+      expect(buckets[0].transactions).toEqual({ buy: 0, sell: 0, swap: 0 });
+      expect(buckets[1].suppressed).toBe(false);
+      expect(suppressedCount).toBe(0);
+    });
+
+    it('still applies complementary when empty days would otherwise defeat it (B2 security)', () => {
+      const empties = [bucket(0), bucket(0), bucket(0), bucket(0), bucket(0)];
+      const under = bucket(3);
+      const small = bucket(6);
+      const large = bucket(50);
+      const large2 = bucket(40);
+
+      const { buckets, suppressedCount } = suppressTimelineBuckets([...empties, under, small, large, large2]);
+
+      for (let i = 0; i < empties.length; i++) {
+        expect(buckets[i].suppressed).toBe(false);
+        expect(buckets[i].transactions).toEqual({ buy: 0, sell: 0, swap: 0 });
+        expect(buckets[i].volume).toEqual({ buy: 0, sell: 0, swap: 0 });
+      }
+
+      expect(buckets[empties.length].suppressed).toBe(true);
+      expect(buckets[empties.length].volume).toBeNull();
+      expect(buckets[empties.length + 1].suppressed).toBe(true);
+      expect(buckets[empties.length + 2].suppressed).toBe(false);
+      expect(buckets[empties.length + 3].suppressed).toBe(false);
+      expect(suppressedCount).toBe(2);
+    });
+  });
+
+  describe('suppressPeriodTotals (B3 / block rule)', () => {
+    it('nulls all totals fields when overall transactions.total is in 1..k-1', () => {
+      const { volume, transactions, averageTransactionVolume, suppressedCount } = suppressPeriodTotals(
+        { buy: 100, sell: 0, swap: 0, total: 100 },
+        { buy: 3, sell: 0, swap: 0, total: 3 },
+        { buy: 3, sell: 0, swap: 0, total: 3 },
+      );
+
+      expect(volume).toEqual({ buy: null, sell: null, swap: null, total: null });
+      expect(transactions).toEqual({ buy: null, sell: null, swap: null, total: null });
+      expect(averageTransactionVolume).toBeNull();
+      expect(suppressedCount).toBe(1);
+    });
+
+    it('block-suppresses the entire group when any direction is under k (no partial nulling)', () => {
+      // Previously leaked: sell=null but total/buy/swap visible → sell = total − buy − swap.
+      const mixed = suppressPeriodTotals(
+        { buy: 1000, sell: 10, swap: 200, total: 1210 },
+        { buy: 20, sell: 2, swap: 10, total: 32 },
+        { buy: 10, sell: 2, swap: 8, total: 15 },
+      );
+      expect(mixed.volume).toEqual({ buy: null, sell: null, swap: null, total: null });
+      expect(mixed.transactions).toEqual({ buy: null, sell: null, swap: null, total: null });
+      expect(mixed.averageTransactionVolume).toBeNull();
+      expect(mixed.suppressedCount).toBe(1);
+      // Reconstruction must fail
+      expect(mixed.volume.total).toBeNull();
+    });
+
+    it('keeps totals at exactly k for every direction and overall', () => {
+      const atK = suppressPeriodTotals(
+        { buy: 500, sell: 0, swap: 0, total: 500 },
+        { buy: 5, sell: 0, swap: 0, total: 5 },
+        { buy: 5, sell: 0, swap: 0, total: 5 },
+      );
+      expect(atK.volume.total).toBe(500);
+      expect(atK.transactions.total).toBe(5);
+      expect(atK.volume.buy).toBe(500);
+      expect(atK.suppressedCount).toBe(0);
+    });
+
+    it('suppresses when transaction count is high but person count is under k', () => {
+      const personGate = suppressPeriodTotals(
+        { buy: 1000, sell: 0, swap: 0, total: 1000 },
+        { buy: 20, sell: 0, swap: 0, total: 20 },
+        { buy: 2, sell: 0, swap: 0, total: 2 },
+      );
+      expect(personGate.volume.total).toBeNull();
+      expect(personGate.suppressedCount).toBe(1);
+    });
+
+    it('leaves all-zero totals as zeros, not null', () => {
+      const { volume, transactions, averageTransactionVolume, suppressedCount } = suppressPeriodTotals(
+        { buy: 0, sell: 0, swap: 0, total: 0 },
+        { buy: 0, sell: 0, swap: 0, total: 0 },
+        { buy: 0, sell: 0, swap: 0, total: 0 },
+      );
+      expect(volume.total).toBe(0);
+      expect(transactions.total).toBe(0);
+      expect(averageTransactionVolume).toBeNull();
+      expect(suppressedCount).toBe(0);
+    });
+  });
+
+  describe('suppressAdditiveGroup (funnel block rule)', () => {
+    it('nulls every non-zero member and the rate when any member is under k', () => {
+      const { values, rate, suppressedCount } = suppressAdditiveGroup(
+        { received: 20, delivered: 12, rejected: 3, inProgress: 5 },
+        { numeratorKey: 'delivered', denominatorKey: 'received' },
+      );
+      // rejected=3 under k → block
+      expect(values.received).toBeNull();
+      expect(values.delivered).toBeNull();
+      expect(values.rejected).toBeNull();
+      expect(values.inProgress).toBeNull();
+      expect(rate).toBeNull();
+      expect(suppressedCount).toBeGreaterThanOrEqual(1);
+      // reconstruction of rejected via 20-12-5 must not be possible from visible non-nulls
+      expect(Object.values(values).every((v) => v === null || v === 0)).toBe(true);
+    });
+
+    it('keeps the group when every member is 0 or ≥ k', () => {
+      const { values, rate, suppressedCount } = suppressAdditiveGroup(
+        { received: 20, delivered: 15, rejected: 0, inProgress: 5 },
+        { numeratorKey: 'delivered', denominatorKey: 'received' },
+      );
+      expect(values.received).toBe(20);
+      expect(values.delivered).toBe(15);
+      expect(values.rejected).toBe(0);
+      expect(values.inProgress).toBe(5);
+      expect(rate).toBe(0.75);
+      expect(suppressedCount).toBe(0);
+    });
+  });
+
+  describe('suppressAllTimeVolume (B3)', () => {
+    it('nulls all-time volume when tradingUsers is in 1..k-1 and keeps it at k', () => {
+      const under = suppressAllTimeVolume({ buy: 100, sell: 50, total: 150 }, 3);
+      expect(under.volume).toEqual({ buy: null, sell: null, total: null });
+      expect(under.suppressedCount).toBe(1);
+
+      const atK = suppressAllTimeVolume({ buy: 100, sell: 50, total: 150 }, 5);
+      expect(atK.volume).toEqual({ buy: 100, sell: 50, total: 150 });
+      expect(atK.suppressedCount).toBe(0);
+
+      const zero = suppressAllTimeVolume({ buy: 0, sell: 0, total: 0 }, 0);
+      expect(zero.volume).toEqual({ buy: 0, sell: 0, total: 0 });
+      expect(zero.suppressedCount).toBe(0);
+    });
+  });
+});
