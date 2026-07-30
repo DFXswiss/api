@@ -59,8 +59,13 @@ const ORDER_LOST_AFTER_MINUTES = 5;
 /**
  * PENDING_NEW / PENDING_CANCEL / PENDING_REPLACE are meant to be a transition lasting seconds — the venue
  * is in the middle of accepting, cancelling or replacing the order. Measured over 60 days, Scrypt trades
- * spend a median of 0.2 and a maximum of 1.0 minutes reaching a terminal or open state, so a trade still
- * reporting PENDING after five minutes is not a slow one, it is a stuck one.
+ * spend a median of 0.2 and a maximum of 1.0 minutes reaching a terminal or open state, so an order that is
+ * already older than five minutes and still answers PENDING is not a slow one, it is a stuck one.
+ *
+ * Measured from the order's creation, not from when it entered a pending state — a PENDING_CANCEL may have
+ * begun seconds ago on an order open for hours. The venue reports a status, not how long it has held it, so
+ * the dwell time is not available to measure against. Age is the conservative substitute: it can only ever
+ * reach this bound later than a true dwell-time clock would, never earlier.
  *
  * Deliberately its own constant rather than reusing ORDER_LOST_AFTER_MINUTES, even though both happen to be
  * five: that one bounds SILENCE from the venue (no status at all), this one bounds an ANSWER that makes no

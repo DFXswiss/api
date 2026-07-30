@@ -88,19 +88,23 @@ export class ScryptUnconfirmedWriteError extends Error {
 export class ScryptOrderNotFoundError extends Error {}
 
 /**
- * A trade the venue has reported PENDING_NEW/PENDING_CANCEL/PENDING_REPLACE for longer than that transition
- * should ever take, whose outstanding reference the venue then answered on an explicit cancel request with
+ * A trade older than PENDING_STUCK_AFTER_MINUTES that still reports PENDING_NEW/PENDING_CANCEL/
+ * PENDING_REPLACE, whose outstanding reference the venue then answered on an explicit cancel request with
  * `ScryptCancellation.SETTLED` — one of two distinct qualities of answer, per that enum's own documentation:
  * a terminal cancel with nothing filled, or the venue not recognising the reference at all
  * (`SCRYPT_UNKNOWN_ORDER`), which is an inference from its own words rather than a statement about execution.
  *
- * Both still carry the weight this error rests on here, because of what the cancel follows: the venue's most
- * recently reported status for this very reference was PENDING. That reading comes from the cached execution
- * report and is not re-fetched before the cancel is sent, and this branch is only reached after
- * PENDING_STUCK_AFTER_MINUTES, so the observation behind it can be several minutes old rather than fresh. If
- * the cancel then comes back saying it does not know the reference, that is still the venue contradicting its
- * own last answer — and either reading, a genuine terminal cancel or that contradiction, lands at the same
- * conclusion: nothing can execute under this reference any more.
+ * Read the age precisely: it is measured from the order's creation, not from when it entered a pending
+ * state. A PENDING_CANCEL or PENDING_REPLACE may well have begun moments ago on an order that was open for
+ * hours. What the bound establishes is therefore "old enough that waiting further is not the answer", not
+ * "stuck in this particular state that long".
+ *
+ * Both qualities of SETTLED carry the weight this error rests on, but not for the same reason. A terminal
+ * cancel states it outright. `UnknownOrder` rests on the inference documented at SCRYPT_UNKNOWN_ORDER: a
+ * venue that does not recognise a reference cannot execute anything under it. Deliberately NOT argued as
+ * the venue contradicting its own last answer — the status read here comes from the cached execution report
+ * and is not re-fetched before the cancel, so a live push may have moved it on in between, and "its last
+ * answer" is then not what this branch saw.
  *
  * Distinct from {@link ScryptOrderNotFoundError}: that one means the venue cannot find the order at all, an
  * unresolved blind spot. Here the venue found it, answered PENDING, and then settled it on request — which is

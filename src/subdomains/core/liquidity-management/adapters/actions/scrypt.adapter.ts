@@ -552,12 +552,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // still release sooner as a shortcut, but is not the rule path.
       if (e instanceof ScryptOrderNotFoundError) throw new OrderOutcomeUnknownException(e.message);
 
-      // Not a blind spot: the venue named the reference as PENDING and, asked to cancel it past its bound,
-      // settled it. See {@link ScryptOrderStuckPendingError} for what that settlement actually rests on: a
-      // terminal cancel with nothing filled, or the venue no longer recognising the reference at all, which
-      // is an inference from its own contradiction rather than a directly observed fact. Either reading lands
-      // at the same conclusion, so the order fails outright and the rule may replan straight away instead of
-      // waiting on a bound already spent.
+      // Not a blind spot: asked to cancel a reference past its bound, the venue settled it. See
+      // {@link ScryptOrderStuckPendingError} for what that settlement rests on: a terminal cancel with
+      // nothing filled, or the venue no longer recognising the reference — the latter an inference from
+      // SCRYPT_UNKNOWN_ORDER rather than a directly observed fact. Either reading lands at the same
+      // conclusion, so the order fails outright and the rule may replan straight away instead of waiting on
+      // a bound already spent.
       if (e instanceof ScryptOrderStuckPendingError) throw new OrderFailedException(e.message);
 
       // A rejection is a reply: the venue reached a verdict, so the order really did end.
