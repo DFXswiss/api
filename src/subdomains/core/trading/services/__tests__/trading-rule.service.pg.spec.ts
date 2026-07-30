@@ -122,10 +122,12 @@ describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () =
 
       const idCondition = findByArg.id;
 
-      // In(...) produces a real TypeORM FindOperator instance. If that ever changes (e.g. a plain
-      // value or a different operator), this must fail loudly instead of silently skipping the check.
+      // In(...) produces a real TypeORM FindOperator instance. A bare value would slip past the
+      // array check below, so reject it here. This does not pin the operator to In specifically:
+      // Any(), Not() and friends are FindOperator instances too, and swapping In for Any would
+      // carry the same list of ids -- which is what this test is actually about.
       if (!(idCondition instanceof FindOperator)) {
-        throw new Error(`expected findBy id condition to be a FindOperator (In(...)), got: ${String(idCondition)}`);
+        throw new Error(`expected findBy id condition to be a FindOperator, got: ${String(idCondition)}`);
       }
 
       // FindOperator<T>.value is typed against the entity's own field type (number here), but
