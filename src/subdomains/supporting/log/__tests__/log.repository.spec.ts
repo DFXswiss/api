@@ -547,6 +547,41 @@ describe('LogRepository', () => {
       expect(rows[0].btcPriceChf).toBe(65000.25);
     });
 
+    // This raw shape is what the SQL projection produces for a top-level `message: null` JSON
+    // document. The old mapLogToEntry/JSON.parse path threw on the resulting property access and
+    // dropped the whole line for this case; not observed in production. The downstream null-to-0
+    // mapping for btcPriceChf (mapSummaryToEntry) is covered separately in
+    // dashboard-financial.service.spec.ts:91, not exercised by this repository-level test.
+    it('keeps the row and passes all number fields through as null, sets btcPriceChf to 0, and returns balancesByType as an empty object for a raw row where all projected number fields and balancesByFinancialType are null (F20b)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const created = new Date('2026-07-14T00:00:00Z');
+      jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created,
+          id: 3,
+          // Same raw shape the SQL projection produces for a top-level JSON `null` message: every
+          // `jsonb_typeof(message::jsonb -> ...)` guard sees a non-object/non-number operand and nulls
+          // its field, same as a missing key.
+          totalBalanceChf: null,
+          plusBalanceChf: null,
+          minusBalanceChf: null,
+          fxPnlChf: null,
+          btcPriceChf: null,
+          balancesByFinancialType: null,
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries(7);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].totalBalanceChf).toBeNull();
+      expect(rows[0].plusBalanceChf).toBeNull();
+      expect(rows[0].minusBalanceChf).toBeNull();
+      expect(rows[0].fxPnlChf).toBeNull();
+      expect(rows[0].btcPriceChf).toBe(0);
+      expect(rows[0].balancesByType).toEqual({});
+    });
+
     it('maps a raw row with JSON null for only totalBalanceChf/plusBalanceChf (minusBalanceChf/fxPnlChf unaffected) to null/null, not 0 (F13)', async () => {
       const repo = new LogRepository({} as EntityManager);
       const created = new Date('2026-07-14T00:00:00Z');

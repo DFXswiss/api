@@ -233,15 +233,18 @@ export class DashboardFinancialService {
   }
 
   // Pure mapping over the SQL projection: for well-formed data, the response matches the previous
-  // mapLogToEntry path exactly, including the `?? 0` field defaults. One case is intentionally
-  // different: if a `balancesByFinancialType` entry has the value `null` (e.g. `{"Crypto": null}`),
-  // the row is now kept (with an empty balancesByType entry) instead of the previous mapLogToEntry's
-  // per-row try/catch silently dropping the whole log line — a silent gap in a financial curve is
-  // worse than an empty partial entry, so this was changed on purpose. A malformed `message` document
-  // still fails loud: the `message::jsonb` cast in SQL throws for that. Individual scalar field
-  // values, though, are tolerated via `jsonb_typeof` guards (nulled rather than thrown), and
-  // non-numeric values inside `balancesByFinancialType` are passed through unchanged
-  // (see log.repository.ts).
+  // mapLogToEntry path exactly, including the `?? 0` field defaults. Two cases are intentionally
+  // different from that old path: a `balancesByFinancialType` entry with the value `null` (e.g.
+  // `{"Crypto": null}`) now keeps the row (with an empty balancesByType entry) instead of the old
+  // per-row try/catch dropping the whole log line; and a wrongly-typed `balancesByFinancialType`
+  // property (string, boolean, `null`) — previously passed through unchanged, breaking the
+  // `number | undefined` DTO contract — now becomes `undefined` (see the `asNumber` guard in
+  // log.repository.ts). Both changes favour a visible gap over a silently dropped row. The same
+  // reasoning covers a top-level `message: null` (not a sub-field, the whole document): the old
+  // path threw on the following property access and dropped the row, the new one keeps it as a
+  // zero point via the SQL projection and the `?? 0` defaults below — not seen in current
+  // production data. A malformed `message` document still fails loud (the `message::jsonb` cast
+  // throws in SQL); individual scalar fields are only nulled via `jsonb_typeof` guards.
   private mapSummaryToEntry(summary: FinancialLogSummary): FinancialLogEntryDto {
     return {
       timestamp: summary.created,
