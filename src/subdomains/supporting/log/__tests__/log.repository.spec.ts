@@ -549,9 +549,12 @@ describe('LogRepository', () => {
 
     // This raw shape is what the SQL projection produces for a top-level `message: null` JSON
     // document. The old mapLogToEntry/JSON.parse path threw on the resulting property access and
-    // dropped the whole line for this case; not observed in production. The downstream null-to-0
-    // mapping for btcPriceChf (mapSummaryToEntry) is covered separately in
-    // dashboard-financial.service.spec.ts:91, not exercised by this repository-level test.
+    // dropped the whole line for this case; not observed in production. The btcPriceChf null-to-0
+    // default is applied entirely in getFinancialLogSummaries, so this repository-level test already
+    // covers it (expects btcPriceChf to be 0). Null pass-through for the other number fields
+    // (totalBalanceChf, plusBalanceChf, minusBalanceChf, fxPnlChf) is left to the call site and is
+    // covered separately at the service layer by the mapSummaryToEntry test that defaults null
+    // totalBalanceChf/plusBalanceChf/minusBalanceChf to 0.
     it('keeps the row and passes all number fields through as null, sets btcPriceChf to 0, and returns balancesByType as an empty object for a raw row where all projected number fields and balancesByFinancialType are null (F20b)', async () => {
       const repo = new LogRepository({} as EntityManager);
       const created = new Date('2026-07-14T00:00:00Z');
