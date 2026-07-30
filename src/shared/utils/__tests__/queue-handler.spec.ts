@@ -1,4 +1,4 @@
-import { QueueHandler } from '../queue-handler';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 
 describe('QueueHandler', () => {
   it('runs queued items and returns their results', async () => {
@@ -38,6 +38,19 @@ describe('QueueHandler', () => {
     await expect(hanging).rejects.toThrow();
 
     // slot must be free again: a follow-up item still runs
+    await expect(queue.handle(async () => 'ok')).resolves.toBe('ok');
+
+    queue.stop();
+  });
+
+  it('rejects when the action throws synchronously and frees the worker slot for the next item', async () => {
+    const queue = new QueueHandler(1000, undefined, 1);
+
+    const throwing = queue.handle((): Promise<number> => {
+      throw new Error('boom');
+    });
+    await expect(throwing).rejects.toThrow('boom');
+
     await expect(queue.handle(async () => 'ok')).resolves.toBe('ok');
 
     queue.stop();

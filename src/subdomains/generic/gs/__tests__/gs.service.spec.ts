@@ -3,6 +3,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { DataSource } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { GsService } from '../gs.service';
 import { DbQueryDto, DbReturnData } from 'src/subdomains/generic/gs/dto/db-query.dto';
 import {
@@ -15,7 +16,6 @@ import {
   GsRestrictedColumns,
   GsRestrictedMarker,
 } from '../dto/gs.dto';
-import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
