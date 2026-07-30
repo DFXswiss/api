@@ -347,7 +347,7 @@ describe('LiquidityManagementPipelineService', () => {
     it('abandons a transfer once even its long bound has run out and the venue settles it', async () => {
       // the bound alone is not enough: this asserts the pipeline's side of the contract, that an aged
       // transfer whose integration returns a reason string from cancelOutstanding does get abandoned.
-      // How the integration settles the question (trade cancel vs. withdrawal absence from full history)
+      // How the integration settles the question (trade cancel vs. a withdrawal history reply that does not name it)
       // is its business — the pipeline only forwards the returned reason.
       const order = agedOrder(13 * 60, 'withdraw');
       expectResolution(order, UncertainOrderResolution.UNRESOLVED);
