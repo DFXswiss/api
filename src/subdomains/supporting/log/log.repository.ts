@@ -71,8 +71,14 @@ export interface FinancialLogSummary {
   /**
    * plusBalanceChf/minusBalanceChf can be `undefined` per type: a real production row had a
    * `balancesByFinancialType` entry missing one of the two keys (see getFinancialLogSummaries below).
+   *
+   * The whole property is only present when getFinancialLogSummaries' `includeByType` parameter is
+   * true (the default, for backward compatibility); when explicitly false the key is absent (not an
+   * empty object) because the underlying `balancesByFinancialType` jsonb sub-tree was never selected
+   * from the database in the first place — that omission from the SELECT list, not a post-hoc
+   * discard, is the actual DB-time/payload saving.
    */
-  balancesByType: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }>;
+  balancesByType?: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }>;
 }
 
 @Injectable()
@@ -396,6 +402,10 @@ ORDER BY l.created ASC, l.id ASC`;
     to?: Date,
     limit?: number,
     after?: number, // id of the last row of the previous page; NEVER a Date/created value
+    includeByType = true, // selects/omits the balancesByFinancialType sub-tree from the SELECT list;
+    // true (the default) reproduces the exact pre-existing response for every caller that does not
+    // pass this parameter; only an explicit false skips the sub-tree. This default is intentional and
+    // required by this spec's backward-compatibility guarantee — it is not masking an error case.
   ): Promise<FinancialLogSummary[]> {
     const params: unknown[] = [];
     let i = 1;
@@ -463,31 +473,39 @@ ORDER BY l.created ASC, l.id ASC`;
       params.push(limit);
     }
 
-    const sql = `
-SELECT created AS "created",
-       id AS "id",
-       CASE
+    const selectColumns = [
+      `created AS "created"`,
+      `id AS "id"`,
+      `CASE
          WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'totalBalanceChf') = 'number'
          THEN (message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf')::float8
          ELSE NULL
-       END AS "totalBalanceChf",
-       CASE
+       END AS "totalBalanceChf"`,
+      `CASE
          WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'plusBalanceChf') = 'number'
          THEN (message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf')::float8
          ELSE NULL
-       END AS "plusBalanceChf",
-       CASE
+       END AS "plusBalanceChf"`,
+      `CASE
          WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'minusBalanceChf') = 'number'
          THEN (message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf')::float8
          ELSE NULL
-       END AS "minusBalanceChf",
-       CASE
+       END AS "minusBalanceChf"`,
+      `CASE
          WHEN jsonb_typeof(message::jsonb -> 'balancesTotal' -> 'fxPnlChf') = 'number'
          THEN (message::jsonb -> 'balancesTotal' ->> 'fxPnlChf')::float8
          ELSE NULL
-       END AS "fxPnlChf",
-       ${btcPriceSelect} AS "btcPriceChf",
-       message::jsonb -> 'balancesByFinancialType' AS "balancesByFinancialType"
+       END AS "fxPnlChf"`,
+      `${btcPriceSelect} AS "btcPriceChf"`,
+    ];
+    // The actual DB-time/payload saving: when not requested, this sub-tree is never in the SELECT
+    // list at all (not selected and then discarded after the fact).
+    if (includeByType) {
+      selectColumns.push(`message::jsonb -> 'balancesByFinancialType' AS "balancesByFinancialType"`);
+    }
+
+    const sql = `
+SELECT ${selectColumns.join(',\n       ')}
 FROM log
 WHERE ${conditions.join(' AND ')}
 ORDER BY created ASC, id ASC
@@ -501,7 +519,7 @@ ${limitClause}`;
       minusBalanceChf: number | string | null;
       fxPnlChf: number | string | null;
       btcPriceChf: number | string | null;
-      balancesByFinancialType: unknown;
+      balancesByFinancialType?: unknown;
     }[];
 
     const rows: FinancialLogSummary[] = raw.map((r) => {
@@ -512,35 +530,41 @@ ${limitClause}`;
       // btcPriceChf: absent/unusable path → 0, matching extractBtcPrice's `?.priceChf ?? 0`.
       const btcPriceChf = r.btcPriceChf == null ? 0 : Number(r.btcPriceChf);
 
-      const balancesByType: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }> = {};
-      if (r.balancesByFinancialType != null) {
-        // Always an already-parsed object/array here, never a JSON string: pg-types registers JSON.parse
-        // as the type parser for jsonb (OID 3802) and this repo configures no custom type parser, so the
-        // driver never hands back a raw string for this column.
-        const byType = r.balancesByFinancialType as Record<
-          string,
-          { plusBalanceChf?: number; minusBalanceChf?: number }
-        >;
-        // Only real numbers are kept for plusBalanceChf / minusBalanceChf; any non-number value
-        // (string, boolean, null, nested object, or missing key) becomes undefined so the result
-        // matches the number | undefined contract. On current production data this is a no-op
-        // (287,989 entries both numbers, one missing plusBalanceChf key — no string/boolean/null),
-        // and exists only to protect the contract for future/other data. The previous mapLogToEntry
-        // passed contract-breaking values through unchanged; this closes that hole. Same hardening
-        // idea as the five scalar fields above (jsonb_typeof = 'number' in SQL), applied in
-        // TypeScript because balancesByFinancialType is passed through as a raw JSON object. Note:
-        // this is a type check, not a finiteness check — it also lets `Infinity` through (e.g. from
-        // a JSON number like `1e999`, which `JSON.parse` turns into `Infinity`); `NaN` cannot occur
-        // in valid jsonb.
-        const asNumber = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
-        for (const [type, data] of Object.entries(byType)) {
-          // Optional chaining keeps non-object entries (null / number / string / boolean) from throwing:
-          // property access yields undefined and the row is retained with empty fields, rather than
-          // failing the whole request.
-          balancesByType[type] = {
-            plusBalanceChf: asNumber(data?.plusBalanceChf),
-            minusBalanceChf: asNumber(data?.minusBalanceChf),
-          };
+      // Only computed/present at all when includeByType is true (see the SELECT-list construction
+      // above): the key is entirely absent on the returned summary otherwise (conditional spread
+      // below), not an empty object and not null.
+      let balancesByType: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }> | undefined;
+      if (includeByType) {
+        balancesByType = {};
+        if (r.balancesByFinancialType != null) {
+          // Always an already-parsed object/array here, never a JSON string: pg-types registers JSON.parse
+          // as the type parser for jsonb (OID 3802) and this repo configures no custom type parser, so the
+          // driver never hands back a raw string for this column.
+          const byType = r.balancesByFinancialType as Record<
+            string,
+            { plusBalanceChf?: number; minusBalanceChf?: number }
+          >;
+          // Only real numbers are kept for plusBalanceChf / minusBalanceChf; any non-number value
+          // (string, boolean, null, nested object, or missing key) becomes undefined so the result
+          // matches the number | undefined contract. On current production data this is a no-op
+          // (287,989 entries both numbers, one missing plusBalanceChf key — no string/boolean/null),
+          // and exists only to protect the contract for future/other data. The previous mapLogToEntry
+          // passed contract-breaking values through unchanged; this closes that hole. Same hardening
+          // idea as the five scalar fields above (jsonb_typeof = 'number' in SQL), applied in
+          // TypeScript because balancesByFinancialType is passed through as a raw JSON object. Note:
+          // this is a type check, not a finiteness check — it also lets `Infinity` through (e.g. from
+          // a JSON number like `1e999`, which `JSON.parse` turns into `Infinity`); `NaN` cannot occur
+          // in valid jsonb.
+          const asNumber = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
+          for (const [type, data] of Object.entries(byType)) {
+            // Optional chaining keeps non-object entries (null / number / string / boolean) from throwing:
+            // property access yields undefined and the row is retained with empty fields, rather than
+            // failing the whole request.
+            balancesByType[type] = {
+              plusBalanceChf: asNumber(data?.plusBalanceChf),
+              minusBalanceChf: asNumber(data?.minusBalanceChf),
+            };
+          }
         }
       }
 
@@ -552,7 +576,7 @@ ${limitClause}`;
         minusBalanceChf: r.minusBalanceChf == null ? null : Number(r.minusBalanceChf),
         fxPnlChf: r.fxPnlChf == null ? null : Number(r.fxPnlChf),
         btcPriceChf,
-        balancesByType,
+        ...(includeByType ? { balancesByType } : {}),
       };
     });
 
