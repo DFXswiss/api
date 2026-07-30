@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Config } from 'src/config/config';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -104,6 +105,8 @@ export class LedgerCutoverService {
    */
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LEDGER_CUTOVER })
   async run(): Promise<void> {
+    // Two deliberate checks: master switch (hard off, no DB) vs. already-cut-over (setting). Do not merge them.
+    if (!Config.ledger.enabled) return;
     if ((await this.settingService.get(CUTOVER_LOG_ID_KEY)) != null) return; // primary guard: already cut over → no-op
 
     await this.cutover();

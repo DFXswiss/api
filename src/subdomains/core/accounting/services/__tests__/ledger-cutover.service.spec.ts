@@ -2,12 +2,14 @@ import { createMock } from '@golevelup/ts-jest';
 import { CronExpression } from '@nestjs/schedule';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { Config } from 'src/config/config';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
@@ -182,6 +184,7 @@ describe('LedgerCutoverService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LedgerCutoverService,
+        TestUtil.provideConfig(),
         { provide: SettingService, useValue: settingService },
         { provide: LogService, useValue: logService },
         { provide: LedgerBootstrapService, useValue: bootstrapService },
@@ -204,6 +207,12 @@ describe('LedgerCutoverService', () => {
     }).compile();
 
     service = module.get<LedgerCutoverService>(LedgerCutoverService);
+    // Existing cutover tests exercise behaviour with the master switch on (default is hard OFF).
+    Config.ledger.enabled = true;
+  });
+
+  afterEach(() => {
+    Config.ledger.enabled = false;
   });
 
   it('is defined', () => {
@@ -214,6 +223,19 @@ describe('LedgerCutoverService', () => {
     const params: DfxCronParams = Reflect.getMetadata(DFX_CRONJOB_PARAMS, LedgerCutoverService.prototype.run);
     expect(params.expression).toBe(CronExpression.EVERY_5_MINUTES);
     expect(params.process).toBe(Process.LEDGER_CUTOVER);
+  });
+
+  describe('master switch (Config.ledger.enabled)', () => {
+    it('returns immediately when disabled — no settingService.get call, regardless of cutover state', async () => {
+      Config.ledger.enabled = false;
+      const getSpy = jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
+
+      await service.run();
+
+      expect(getSpy).not.toHaveBeenCalled();
+      expect(bootstrapService.bootstrap).not.toHaveBeenCalled();
+      expect(bookingService.bookTx).not.toHaveBeenCalled();
+    });
   });
 
   describe('idempotency (Setting primary guard, §6.3)', () => {
