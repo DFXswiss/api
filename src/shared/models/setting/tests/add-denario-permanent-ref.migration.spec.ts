@@ -11,9 +11,6 @@ const ROLLBACK_ACTION = 'rollbackDenarioReferralAlias';
 
 type AuditLog = {
   id: number;
-  eventType: 'Apply' | 'Rollback';
-  applyEventId: number | null;
-  payload: unknown;
   message: string;
 };
 
@@ -32,10 +29,9 @@ function createHarness(refs: unknown[] = ['123-456'], initialSetting?: string): 
   const query = jest.fn(async (sql: string, parameters: unknown[] = []) => {
     // Migrations set lock_timeout after the prd guard; the harness only mocks data statements.
     if (sql.startsWith('SET LOCAL lock_timeout')) return [];
+    if (sql.startsWith('SELECT pg_advisory_xact_lock')) return [];
     if (sql.includes('FROM "user" u')) return refs.map((ref) => ({ ref }));
-    if (sql.startsWith('INSERT INTO "migration_audit_lock"')) return [];
-    if (sql.startsWith('SELECT "migration" FROM "migration_audit_lock"')) return [{ migration: parameters[0] }];
-    if (sql.startsWith('SELECT "id", "eventType", "applyEventId", "payload"')) return logs;
+    if (sql.startsWith('SELECT "id", "message" FROM "log"')) return logs;
     if (sql.startsWith('SELECT "value" FROM "setting"')) {
       const key = parameters[0] as string;
       return settings.has(key) ? [{ value: settings.get(key) }] : [];
@@ -44,16 +40,11 @@ function createHarness(refs: unknown[] = ['123-456'], initialSetting?: string): 
       settings.set(parameters[1] as string, parameters[0] as string);
       return [];
     }
-    if (sql.startsWith('INSERT INTO "migration_audit_event"')) {
-      const message = parameters[3] as string;
-      logs.push({
-        id: logs.length + 1,
-        eventType: parameters[1] as 'Apply' | 'Rollback',
-        applyEventId: (parameters[2] as number | null) ?? null,
-        payload: JSON.parse(message),
-        message,
-      });
-      return [];
+    if (sql.startsWith('INSERT INTO "log"')) {
+      const message = parameters[1] as string;
+      const id = logs.length + 1;
+      logs.push({ id, message });
+      return [{ id }];
     }
     if (sql.startsWith('INSERT INTO "setting"')) {
       const key = parameters[0] as string;
@@ -124,9 +115,7 @@ describe('AddDenarioPermanentRef migration', () => {
         ownedRef: '123-456',
       },
     ]);
-    const insertAuditCall = harness.query.mock.calls.findIndex(([sql]) =>
-      /^INSERT INTO "migration_audit_event"/.test(sql),
-    );
+    const insertAuditCall = harness.query.mock.calls.findIndex(([sql]) => /^INSERT INTO "log"/.test(sql));
     const updateRefKeysCall = harness.query.mock.calls.findIndex(([sql]) => /^UPDATE "setting"/.test(sql));
     expect(insertAuditCall).toBeGreaterThanOrEqual(0);
     expect(insertAuditCall).toBeLessThan(updateRefKeysCall);
@@ -270,7 +259,7 @@ describe('AddDenarioPermanentRef migration', () => {
     const harness = createHarness(['123-456'], initial);
     const implementation = harness.query.getMockImplementation()!;
     harness.query.mockImplementation(async (sql: string, parameters: unknown[]) => {
-      if (sql.startsWith('INSERT INTO "migration_audit_event"')) throw new Error('audit unavailable');
+      if (sql.startsWith('INSERT INTO "log"')) throw new Error('audit unavailable');
       return implementation(sql, parameters);
     });
 
@@ -280,9 +269,26 @@ describe('AddDenarioPermanentRef migration', () => {
     expect(harness.getLogs()).toEqual([]);
   });
 
+  it('does not mutate ref-keys when the apply audit insert returns no id', async () => {
+    const initial = JSON.stringify({ cakewallet: '111-222' });
+    const harness = createHarness(['123-456'], initial);
+    const implementation = harness.query.getMockImplementation()!;
+    harness.query.mockImplementation(async (sql: string, parameters: unknown[]) => {
+      // INSERT succeeds from the driver's point of view but yields no RETURNING row — the
+      // fail-closed id check must abort before the setting is rewritten.
+      if (sql.startsWith('INSERT INTO "log"')) return [];
+      return implementation(sql, parameters);
+    });
+
+    await expect(new AddDenarioPermanentRef().up(harness.queryRunner)).rejects.toThrow(/Failed to write audit event/);
+
+    expect(harness.getSetting()).toBe(initial);
+    expect(harness.getLogs()).toEqual([]);
+  });
+
   it('fails closed on corrupt or ambiguous audit history', async () => {
     const harness = createHarness(['123-456'], JSON.stringify({ cakewallet: '111-222' }));
-    harness.getLogs().push({ id: 1, eventType: 'Apply', applyEventId: null, payload: 'not-json', message: 'not-json' });
+    harness.getLogs().push({ id: 1, message: 'not-json' });
     await expect(new AddDenarioPermanentRef().down(harness.queryRunner)).rejects.toThrow('Corrupt audit event');
 
     harness.getLogs().splice(
@@ -290,16 +296,6 @@ describe('AddDenarioPermanentRef migration', () => {
       1,
       {
         id: 1,
-        eventType: 'Apply',
-        applyEventId: null,
-        payload: {
-          action: APPLY_ACTION,
-          settingKey: 'ref-keys',
-          existed: true,
-          previous: harness.getSetting(),
-          next: JSON.stringify({ cakewallet: '111-222', denario: '123-456' }),
-          ownedRef: '123-456',
-        },
         message: JSON.stringify({
           action: APPLY_ACTION,
           settingKey: 'ref-keys',
@@ -311,16 +307,6 @@ describe('AddDenarioPermanentRef migration', () => {
       },
       {
         id: 2,
-        eventType: 'Apply',
-        applyEventId: null,
-        payload: {
-          action: APPLY_ACTION,
-          settingKey: 'ref-keys',
-          existed: true,
-          previous: harness.getSetting(),
-          next: JSON.stringify({ cakewallet: '111-222', denario: '123-456' }),
-          ownedRef: '123-456',
-        },
         message: JSON.stringify({
           action: APPLY_ACTION,
           settingKey: 'ref-keys',
@@ -388,6 +374,12 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
     const db = newDb();
     db.public.registerFunction({ name: 'version', returns: DataType.text, implementation: () => 'PostgreSQL 15.0' });
     db.public.registerFunction({ name: 'current_database', returns: DataType.text, implementation: () => 'test' });
+    db.public.registerFunction({
+      name: 'pg_advisory_xact_lock',
+      args: [DataType.bigint],
+      returns: DataType.null,
+      implementation: () => null,
+    });
 
     dataSource = (await db.adapters.createTypeormDataSource({
       type: 'postgres',
@@ -419,17 +411,14 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
       )
     `);
     await dataSource.query(`
-      CREATE TABLE "migration_audit_lock" (
-        "migration" text PRIMARY KEY
-      )
-    `);
-    await dataSource.query(`
-      CREATE TABLE "migration_audit_event" (
+      CREATE TABLE "log" (
         "id" serial PRIMARY KEY,
-        "migration" text NOT NULL,
-        "eventType" text NOT NULL,
-        "applyEventId" integer UNIQUE,
-        "payload" jsonb NOT NULL
+        "created" timestamp NOT NULL DEFAULT NOW(),
+        "updated" timestamp NOT NULL DEFAULT NOW(),
+        "system" text NOT NULL,
+        "subsystem" text NOT NULL,
+        "severity" text NOT NULL,
+        "message" text NOT NULL
       )
     `);
   });
@@ -467,8 +456,8 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
       await migration.up(queryRunner);
       const afterUp = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'ref-keys'`);
       expect(JSON.parse(afterUp.at(0).value)).toEqual({ cakewallet: '111-222', denario: '123-456' });
-      const applyLogs = await queryRunner.query(`SELECT "payload" FROM "migration_audit_event" ORDER BY "id"`);
-      expect(applyLogs.at(0).payload).toMatchObject({
+      const applyLogs = await queryRunner.query(`SELECT "message" FROM "log" ORDER BY "id"`);
+      expect(JSON.parse(applyLogs.at(0).message)).toMatchObject({
         action: APPLY_ACTION,
         previous: JSON.stringify({ cakewallet: '111-222' }),
         next: JSON.stringify({ cakewallet: '111-222', denario: '123-456' }),
@@ -477,9 +466,9 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
       await migration.down(queryRunner);
       const afterDown = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'ref-keys'`);
       expect(JSON.parse(afterDown.at(0).value)).toEqual({ cakewallet: '111-222' });
-      const logsAfterDown = await queryRunner.query(`SELECT "payload" FROM "migration_audit_event" ORDER BY "id"`);
+      const logsAfterDown = await queryRunner.query(`SELECT "message" FROM "log" ORDER BY "id"`);
       expect(logsAfterDown).toHaveLength(2);
-      expect(logsAfterDown.at(1).payload).toMatchObject({
+      expect(JSON.parse(logsAfterDown.at(1).message)).toMatchObject({
         action: ROLLBACK_ACTION,
         outcome: 'reverted',
       });

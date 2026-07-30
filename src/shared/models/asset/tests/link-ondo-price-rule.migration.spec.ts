@@ -31,6 +31,12 @@ describe('LinkOndoPriceRule migration (postgres semantics)', () => {
     const db = newDb();
     db.public.registerFunction({ name: 'version', returns: DataType.text, implementation: () => 'PostgreSQL 15.0' });
     db.public.registerFunction({ name: 'current_database', returns: DataType.text, implementation: () => 'test' });
+    db.public.registerFunction({
+      name: 'pg_advisory_xact_lock',
+      args: [DataType.bigint],
+      returns: DataType.null,
+      implementation: () => null,
+    });
 
     dataSource = (await db.adapters.createTypeormDataSource({ type: 'postgres', entities: [] })) as DataSource;
     await dataSource.initialize();
@@ -51,24 +57,13 @@ describe('LinkOndoPriceRule migration (postgres semantics)', () => {
       )
     `);
     await dataSource.query(`
-      CREATE TABLE "migration_audit_lock" (
-        "migration" text PRIMARY KEY
-      )
-    `);
-    await dataSource.query(`
-      CREATE TABLE "migration_audit_event" (
-        "id" serial PRIMARY KEY,
-        "migration" text NOT NULL,
-        "eventType" text NOT NULL,
-        "applyEventId" integer UNIQUE,
-        "payload" jsonb NOT NULL
-      )
-    `);
-    await dataSource.query(`
       CREATE TABLE "log" (
         "id" serial PRIMARY KEY,
+        "created" timestamp NOT NULL DEFAULT NOW(),
+        "updated" timestamp NOT NULL DEFAULT NOW(),
         "system" text NOT NULL,
         "subsystem" text NOT NULL,
+        "severity" text NOT NULL,
         "message" text NOT NULL
       )
     `);
@@ -95,8 +90,8 @@ describe('LinkOndoPriceRule migration (postgres semantics)', () => {
 
   async function getAuditEvents(): Promise<Record<string, unknown>[]> {
     return queryRunner
-      .query(`SELECT "payload" FROM "migration_audit_event" ORDER BY "id"`)
-      .then((rows) => rows.map((row) => row.payload));
+      .query(`SELECT "message" FROM "log" ORDER BY "id"`)
+      .then((rows) => rows.map((row) => JSON.parse(row.message)));
   }
 
   it('links the active ONDO asset to its semantic price rule and writes an audit event', async () => {
@@ -140,6 +135,25 @@ describe('LinkOndoPriceRule migration (postgres semantics)', () => {
 
     await expect(new LinkOndoPriceRule().up(queryRunner)).rejects.toThrow('was not found');
     expect(await getAuditEvents()).toEqual([]);
+  });
+
+  it('does not assign a price rule when the apply audit insert returns no id', async () => {
+    const originalQuery = queryRunner.query.bind(queryRunner);
+    const querySpy = jest.spyOn(queryRunner, 'query').mockImplementation((query, parameters) => {
+      // INSERT succeeds from the driver's point of view but yields no RETURNING row — the
+      // fail-closed id check must abort before priceRuleId is written.
+      if (typeof query === 'string' && query.startsWith('INSERT INTO "log"')) {
+        return Promise.resolve([]);
+      }
+      return originalQuery(query, parameters);
+    });
+
+    try {
+      await expect(new LinkOndoPriceRule().up(queryRunner)).rejects.toThrow(/Failed to write audit event/);
+      expect(await getPriceRuleId()).toBeNull();
+    } finally {
+      querySpy.mockRestore();
+    }
   });
 
   it('fails closed on a missing, ambiguous, or conflicting price rule', async () => {
@@ -231,24 +245,32 @@ describe('LinkOndoPriceRule migration (postgres semantics)', () => {
     ]);
   });
 
-  it('never treats a forged runtime log message as rollback authority', async () => {
+  it('fails closed on a foreign or corrupt migration log payload and leaves the asset unchanged', async () => {
     await queryRunner.query(`UPDATE "asset" SET "priceRuleId" = 60 WHERE "id" = 398`);
+
     await queryRunner.query(
-      `INSERT INTO "log" ("system", "subsystem", "message") VALUES ('Migration', 'LinkOndoPriceRule1785600300000', $1)`,
+      `INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
+       VALUES (NOW(), NOW(), 'Migration', 'LinkOndoPriceRule1785600300000', 'Info', $1)`,
       [
         JSON.stringify({
-          action: 'applyOndoPriceRule',
+          action: 'forgedRollback',
+          applyLogId: 1,
           assetId: 398,
           uniqueName: 'Ethereum/ONDO',
-          previousPriceRuleId: null,
-          nextPriceRuleId: 60,
         }),
       ],
     );
 
-    await new LinkOndoPriceRule().down(queryRunner);
-
+    await expect(new LinkOndoPriceRule().down(queryRunner)).rejects.toThrow('Invalid audit action');
     expect(await getPriceRuleId()).toBe(60);
-    expect(await getAuditEvents()).toEqual([]);
+
+    await queryRunner.query(`DELETE FROM "log"`);
+    await queryRunner.query(
+      `INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
+       VALUES (NOW(), NOW(), 'Migration', 'LinkOndoPriceRule1785600300000', 'Info', 'not-json')`,
+    );
+
+    await expect(new LinkOndoPriceRule().down(queryRunner)).rejects.toThrow('Corrupt audit event');
+    expect(await getPriceRuleId()).toBe(60);
   });
 });

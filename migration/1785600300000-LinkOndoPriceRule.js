@@ -7,24 +7,26 @@ const ONDO_UNIQUE_NAME = 'Ethereum/ONDO';
 const AUDIT_MIGRATION = 'LinkOndoPriceRule1785600300000';
 const APPLY_ACTION = 'applyOndoPriceRule';
 const ROLLBACK_ACTION = 'rollbackOndoPriceRule';
+// Transaction-scoped advisory lock key: this migration's timestamp. Unique across migrations by naming
+// convention and outside hashtext()'s 32-bit range (see AddSavingZchfAsset / AddBinanceCustodyAssetsOndoAda).
+const ADVISORY_LOCK_KEY = 1785600300000;
 
 /**
+ * Return the single apply event that has not yet been matched by a rollback event.
+ * Audit rows live in the append-only "log" table; pairing is pure application logic via action and
+ * applyLogId in the JSON message payload.
+ *
  * @param {QueryRunner} queryRunner
  * @returns {Promise<({ id: number, assetId: number, nextPriceRuleId: number } & Record<string, unknown>) | undefined>}
  */
 async function getActiveApplyAudit(queryRunner) {
-  await queryRunner.query(
-    `INSERT INTO "migration_audit_lock" ("migration") VALUES ($1) ON CONFLICT ("migration") DO NOTHING`,
-    Array.of(AUDIT_MIGRATION),
-  );
-  await queryRunner.query(`SELECT "migration" FROM "migration_audit_lock" WHERE "migration" = $1 FOR UPDATE`, [
-    AUDIT_MIGRATION,
-  ]);
+  // Serialize concurrent apply/reapply/rollback of this migration within the transaction.
+  await queryRunner.query(`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_KEY})`);
 
   const rows = await queryRunner.query(
-    `SELECT "id", "eventType", "applyEventId", "payload" FROM "migration_audit_event"
-     WHERE "migration" = $1
-     ORDER BY "id" FOR UPDATE`,
+    `SELECT "id", "message" FROM "log"
+     WHERE "system" = 'Migration' AND "subsystem" = $1
+     ORDER BY "id"`,
     Array.of(AUDIT_MIGRATION),
   );
 
@@ -39,7 +41,7 @@ async function getActiveApplyAudit(queryRunner) {
 
     let event;
     try {
-      event = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+      event = typeof row.message === 'string' ? JSON.parse(row.message) : row.message;
     } catch {
       throw new Error(`Corrupt audit event ${logId} for ${AUDIT_MIGRATION}`);
     }
@@ -47,11 +49,10 @@ async function getActiveApplyAudit(queryRunner) {
       throw new Error(`Invalid audit payload ${logId} for ${AUDIT_MIGRATION}`);
     }
 
-    if (row.eventType === 'Apply') {
+    if (event.action === APPLY_ACTION) {
       const assetId = Number(event.assetId);
       const nextPriceRuleId = Number(event.nextPriceRuleId);
       if (
-        event.action !== APPLY_ACTION ||
         event.uniqueName !== ONDO_UNIQUE_NAME ||
         event.previousPriceRuleId !== null ||
         !Number.isSafeInteger(assetId) ||
@@ -62,19 +63,14 @@ async function getActiveApplyAudit(queryRunner) {
         throw new Error(`Invalid apply audit event ${logId} for ${AUDIT_MIGRATION}`);
       }
       applies.push({ ...event, id: logId, assetId, nextPriceRuleId });
-    } else if (row.eventType === 'Rollback') {
-      const applyEventId = Number(row.applyEventId);
-      if (
-        event.action !== ROLLBACK_ACTION ||
-        !Number.isSafeInteger(applyEventId) ||
-        applyEventId <= 0 ||
-        Number(event.applyLogId) !== applyEventId
-      ) {
+    } else if (event.action === ROLLBACK_ACTION) {
+      const applyLogId = Number(event.applyLogId);
+      if (!Number.isSafeInteger(applyLogId) || applyLogId <= 0) {
         throw new Error(`Invalid rollback audit event ${logId} for ${AUDIT_MIGRATION}`);
       }
-      rolledBackApplyIds.add(applyEventId);
+      rolledBackApplyIds.add(applyLogId);
     } else {
-      throw new Error(`Invalid audit event type '${row.eventType}' for ${AUDIT_MIGRATION}`);
+      throw new Error(`Invalid audit action '${event.action}' for ${AUDIT_MIGRATION}`);
     }
   }
 
@@ -87,6 +83,8 @@ async function getActiveApplyAudit(queryRunner) {
 }
 
 /**
+ * Append an audit event to "log" and fail closed if the insert does not return an id.
+ *
  * @param {QueryRunner} queryRunner
  * @param {Record<string, unknown>} event
  * @returns {Promise<void>}
@@ -96,11 +94,16 @@ async function writeAuditEvent(queryRunner, event) {
   const isRollback = event.action === ROLLBACK_ACTION;
   if (!isApply && !isRollback) throw new Error(`Invalid audit action for ${AUDIT_MIGRATION}`);
 
-  await queryRunner.query(
-    `INSERT INTO "migration_audit_event" ("migration", "eventType", "applyEventId", "payload")
-     VALUES ($1, $2, $3, $4::jsonb)`,
-    [AUDIT_MIGRATION, isApply ? 'Apply' : 'Rollback', isRollback ? event.applyLogId : null, JSON.stringify(event)],
+  const inserted = await queryRunner.query(
+    `INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
+     VALUES (NOW(), NOW(), 'Migration', $1, 'Info', $2)
+     RETURNING "id"`,
+    [AUDIT_MIGRATION, JSON.stringify(event)],
   );
+  const logId = Number(inserted?.at?.(0)?.id);
+  if (!Number.isSafeInteger(logId) || logId <= 0) {
+    throw new Error(`Failed to write audit event for ${AUDIT_MIGRATION}`);
+  }
 }
 
 /**
@@ -171,7 +174,8 @@ module.exports = class LinkOndoPriceRule1785600300000 {
       );
     }
 
-    // Persist the exact before -> after transition before changing the mutable asset snapshot.
+    // Fail-closed: persist the exact before -> after transition and require a returned id before
+    // changing the mutable asset snapshot.
     await writeAuditEvent(queryRunner, {
       action: APPLY_ACTION,
       assetId,

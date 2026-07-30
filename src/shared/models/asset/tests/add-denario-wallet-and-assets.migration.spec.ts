@@ -62,6 +62,12 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     const db = newDb();
     db.public.registerFunction({ name: 'version', returns: DataType.text, implementation: () => 'PostgreSQL 15.0' });
     db.public.registerFunction({ name: 'current_database', returns: DataType.text, implementation: () => 'test' });
+    db.public.registerFunction({
+      name: 'pg_advisory_xact_lock',
+      args: [DataType.bigint],
+      returns: DataType.null,
+      implementation: () => null,
+    });
 
     dataSource = (await db.adapters.createTypeormDataSource({ type: 'postgres', entities: [] })) as DataSource;
     await dataSource.initialize();
@@ -117,17 +123,14 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     `);
     await dataSource.query(`CREATE TABLE "user" ("id" integer PRIMARY KEY, "walletId" integer)`);
     await dataSource.query(`
-      CREATE TABLE "migration_audit_lock" (
-        "migration" text PRIMARY KEY
-      )
-    `);
-    await dataSource.query(`
-      CREATE TABLE "migration_audit_event" (
+      CREATE TABLE "log" (
         "id" serial PRIMARY KEY,
-        "migration" text NOT NULL,
-        "eventType" text NOT NULL,
-        "applyEventId" integer UNIQUE,
-        "payload" jsonb NOT NULL
+        "created" timestamp NOT NULL DEFAULT NOW(),
+        "updated" timestamp NOT NULL DEFAULT NOW(),
+        "system" text NOT NULL,
+        "subsystem" text NOT NULL,
+        "severity" text NOT NULL,
+        "message" text NOT NULL
       )
     `);
 
@@ -156,8 +159,8 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
       priceRuleId: null,
     });
     expect(await countAsset(queryRunner, 'Polygon/DSC')).toBe(1);
-    const audit = await queryRunner.query(`SELECT "payload" FROM "migration_audit_event" ORDER BY "id"`);
-    const apply = audit.at(0).payload;
+    const audit = await queryRunner.query(`SELECT "message" FROM "log" ORDER BY "id"`);
+    const apply = JSON.parse(audit.at(0).message);
     expect(apply.createdWallet.id).toEqual(expect.any(Number));
     expect(apply.createdAssets.map((asset: { uniqueName: string }) => asset.uniqueName)).toEqual([
       'Polygon/DGC',
@@ -172,7 +175,7 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     expect(await countWallet(queryRunner)).toBe(1);
     expect(await countAsset(queryRunner, 'Polygon/DGC')).toBe(1);
     expect(await countAsset(queryRunner, 'Polygon/DSC')).toBe(1);
-    expect(await queryRunner.query(`SELECT "id" FROM "migration_audit_event"`)).toHaveLength(1);
+    expect(await queryRunner.query(`SELECT "id" FROM "log"`)).toHaveLength(1);
   });
 
   it('keeps the Denario partner name unique while the migration is active', async () => {
@@ -219,8 +222,8 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     expect(await countWallet(queryRunner)).toBe(0);
     expect(await countAsset(queryRunner, 'Polygon/DGC')).toBe(0);
     expect(await countAsset(queryRunner, 'Polygon/DSC')).toBe(0);
-    const events = await queryRunner.query(`SELECT "payload" FROM "migration_audit_event" ORDER BY "id"`);
-    expect(events.map((row) => row.payload.action)).toEqual([
+    const events = await queryRunner.query(`SELECT "message" FROM "log" ORDER BY "id"`);
+    expect(events.map((row) => JSON.parse(row.message).action)).toEqual([
       'applyDenarioWalletAndAssets',
       'rollbackDenarioWalletAndAssets',
     ]);
@@ -258,7 +261,31 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     expect(await countWallet(queryRunner)).toBe(2);
     expect(await countAsset(queryRunner, 'Polygon/DGC')).toBe(0);
     expect(await countAsset(queryRunner, 'Polygon/DSC')).toBe(0);
-    expect(await queryRunner.query(`SELECT "id" FROM "migration_audit_event"`)).toEqual([]);
+    expect(await queryRunner.query(`SELECT "id" FROM "log"`)).toEqual([]);
+  });
+
+  it('fails closed when the apply audit insert returns no id', async () => {
+    // This migration inserts new rows and can only audit their ids afterwards (RETURNING * → log).
+    // That is not an "event before snapshot" case — those apply when overwriting existing values.
+    // Row cleanup on a failed audit is guaranteed by TypeORM's migration transaction
+    // (transaction: 'all'), not by application code. This pg-mem harness has no surrounding
+    // transaction, so we pin only the fail-closed throw and that no audit event was recorded.
+    const originalQuery = queryRunner.query.bind(queryRunner);
+    const querySpy = jest.spyOn(queryRunner, 'query').mockImplementation((query, parameters) => {
+      // INSERT succeeds from the driver's point of view but yields no RETURNING row.
+      if (typeof query === 'string' && query.startsWith('INSERT INTO "log"')) {
+        return Promise.resolve([]);
+      }
+      return originalQuery(query, parameters);
+    });
+
+    try {
+      await expect(new AddDenarioWalletAndAssets().up(queryRunner)).rejects.toThrow(/Failed to write audit event/);
+    } finally {
+      querySpy.mockRestore();
+    }
+
+    expect(await queryRunner.query(`SELECT "id" FROM "log"`)).toEqual([]);
   });
 
   it.each([
@@ -276,7 +303,7 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
 
     expect(await countWallet(queryRunner)).toBe(1);
     expect(await countAsset(queryRunner, 'Polygon/DGC')).toBe(0);
-    expect(await queryRunner.query(`SELECT "id" FROM "migration_audit_event"`)).toEqual([]);
+    expect(await queryRunner.query(`SELECT "id" FROM "log"`)).toEqual([]);
   });
 
   it('fails closed when a pre-existing Denario asset conflicts with the inert definition', async () => {
@@ -307,7 +334,7 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     expect(await countAsset(queryRunner, 'Polygon/DGC')).toBe(1);
     expect(await countAsset(queryRunner, 'Polygon/DSC')).toBe(1);
     expect(await countWallet(queryRunner)).toBe(1);
-    expect(await queryRunner.query(`SELECT "id" FROM "migration_audit_event"`)).toHaveLength(1);
+    expect(await queryRunner.query(`SELECT "id" FROM "log"`)).toHaveLength(1);
   });
 
   it('down() fails closed when an owned wallet has users attached', async () => {
@@ -330,8 +357,8 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
     await migration.up(queryRunner);
     await migration.down(queryRunner);
 
-    const events = await queryRunner.query(`SELECT "payload" FROM "migration_audit_event" ORDER BY "id"`);
-    expect(events.map((row) => row.payload.action)).toEqual([
+    const events = await queryRunner.query(`SELECT "message" FROM "log" ORDER BY "id"`);
+    expect(events.map((row) => JSON.parse(row.message).action)).toEqual([
       'applyDenarioWalletAndAssets',
       'rollbackDenarioWalletAndAssets',
       'applyDenarioWalletAndAssets',

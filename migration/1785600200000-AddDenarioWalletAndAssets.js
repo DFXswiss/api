@@ -28,6 +28,9 @@ const { isDeepStrictEqual } = require('node:util');
 const AUDIT_MIGRATION = 'AddDenarioWalletAndAssets1785600200000';
 const APPLY_ACTION = 'applyDenarioWalletAndAssets';
 const ROLLBACK_ACTION = 'rollbackDenarioWalletAndAssets';
+// Transaction-scoped advisory lock key: this migration's timestamp. Unique across migrations by naming
+// convention and outside hashtext()'s 32-bit range (see AddSavingZchfAsset / AddBinanceCustodyAssetsOndoAda).
+const ADVISORY_LOCK_KEY = 1785600200000;
 const DENARIO_WALLET_NAME_INDEX = 'IDX_8f34480ca127806f8393bd56fb';
 const EXPECTED_WALLET = {
   address: null,
@@ -156,22 +159,21 @@ function assertExistingWalletIsExpected(existing) {
 }
 
 /**
+ * Return the single apply event that has not yet been matched by a rollback event.
+ * Audit rows live in the append-only "log" table; pairing is pure application logic via action and
+ * applyLogId in the JSON message payload.
+ *
  * @param {QueryRunner} queryRunner
  * @returns {Promise<({ id: number } & Record<string, unknown>) | undefined>}
  */
 async function getActiveApplyAudit(queryRunner) {
-  await queryRunner.query(
-    `INSERT INTO "migration_audit_lock" ("migration") VALUES ($1) ON CONFLICT ("migration") DO NOTHING`,
-    Array.of(AUDIT_MIGRATION),
-  );
-  await queryRunner.query(`SELECT "migration" FROM "migration_audit_lock" WHERE "migration" = $1 FOR UPDATE`, [
-    AUDIT_MIGRATION,
-  ]);
+  // Serialize concurrent apply/reapply/rollback of this migration within the transaction.
+  await queryRunner.query(`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_KEY})`);
 
   const rows = await queryRunner.query(
-    `SELECT "id", "eventType", "applyEventId", "payload" FROM "migration_audit_event"
-     WHERE "migration" = $1
-     ORDER BY "id" FOR UPDATE`,
+    `SELECT "id", "message" FROM "log"
+     WHERE "system" = 'Migration' AND "subsystem" = $1
+     ORDER BY "id"`,
     Array.of(AUDIT_MIGRATION),
   );
 
@@ -186,36 +188,30 @@ async function getActiveApplyAudit(queryRunner) {
 
     let event;
     try {
-      event = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+      event = typeof row.message === 'string' ? JSON.parse(row.message) : row.message;
     } catch {
-      throw new Error(`Corrupt audit event ${row.id} for ${AUDIT_MIGRATION}`);
+      throw new Error(`Corrupt audit event ${logId} for ${AUDIT_MIGRATION}`);
     }
     if (!event || typeof event !== 'object' || Array.isArray(event)) {
-      throw new Error(`Invalid audit payload ${row.id} for ${AUDIT_MIGRATION}`);
+      throw new Error(`Invalid audit payload ${logId} for ${AUDIT_MIGRATION}`);
     }
 
-    if (row.eventType === 'Apply') {
+    if (event.action === APPLY_ACTION) {
       if (
-        event.action !== APPLY_ACTION ||
         !Array.isArray(event.createdAssets) ||
         (event.createdWallet != null && (typeof event.createdWallet !== 'object' || Array.isArray(event.createdWallet)))
       ) {
         throw new Error(`Invalid apply audit event ${logId} for ${AUDIT_MIGRATION}`);
       }
       applies.push({ ...event, id: logId });
-    } else if (row.eventType === 'Rollback') {
-      const applyEventId = Number(row.applyEventId);
-      if (
-        event.action !== ROLLBACK_ACTION ||
-        !Number.isSafeInteger(applyEventId) ||
-        applyEventId <= 0 ||
-        Number(event.applyLogId) !== applyEventId
-      ) {
+    } else if (event.action === ROLLBACK_ACTION) {
+      const applyLogId = Number(event.applyLogId);
+      if (!Number.isSafeInteger(applyLogId) || applyLogId <= 0) {
         throw new Error(`Invalid rollback audit event ${logId} for ${AUDIT_MIGRATION}`);
       }
-      rolledBackApplyIds.add(applyEventId);
+      rolledBackApplyIds.add(applyLogId);
     } else {
-      throw new Error(`Invalid audit event type '${row.eventType}' for ${AUDIT_MIGRATION}`);
+      throw new Error(`Invalid audit action '${event.action}' for ${AUDIT_MIGRATION}`);
     }
   }
 
@@ -228,6 +224,8 @@ async function getActiveApplyAudit(queryRunner) {
 }
 
 /**
+ * Append an audit event to "log" and fail closed if the insert does not return an id.
+ *
  * @param {QueryRunner} queryRunner
  * @param {Record<string, unknown>} event
  * @returns {Promise<void>}
@@ -237,11 +235,16 @@ async function writeAuditEvent(queryRunner, event) {
   const isRollback = event.action === ROLLBACK_ACTION;
   if (!isApply && !isRollback) throw new Error(`Invalid audit action for ${AUDIT_MIGRATION}`);
 
-  await queryRunner.query(
-    `INSERT INTO "migration_audit_event" ("migration", "eventType", "applyEventId", "payload")
-     VALUES ($1, $2, $3, $4::jsonb)`,
-    [AUDIT_MIGRATION, isApply ? 'Apply' : 'Rollback', isRollback ? event.applyLogId : null, JSON.stringify(event)],
+  const inserted = await queryRunner.query(
+    `INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
+     VALUES (NOW(), NOW(), 'Migration', $1, 'Info', $2)
+     RETURNING "id"`,
+    [AUDIT_MIGRATION, JSON.stringify(event)],
   );
+  const logId = Number(inserted?.at?.(0)?.id);
+  if (!Number.isSafeInteger(logId) || logId <= 0) {
+    throw new Error(`Failed to write audit event for ${AUDIT_MIGRATION}`);
+  }
 }
 
 /**
@@ -367,9 +370,10 @@ module.exports = class AddDenarioWalletAndAssets1785600200000 {
           )
         ).at(0);
 
-    // Persist exact IDs and complete created-row snapshots. Pre-existing matching rows are intentionally
-    // absent from this event and can therefore never be deleted by down(). Migration execution is
-    // transactional, so the inserts and their ownership event commit together or not at all.
+    // Persist exact IDs and complete created-row snapshots after the inserts (ownership needs those
+    // RETURNING rows). Pre-existing matching rows are intentionally absent from this event and can
+    // therefore never be deleted by down(). Migration execution is transactional, so the inserts and
+    // their ownership event commit together or not at all.
     await writeAuditEvent(queryRunner, {
       action: APPLY_ACTION,
       createdWallet: createdWallet ? normalizeRow(createdWallet) : null,

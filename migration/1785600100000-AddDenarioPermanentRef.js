@@ -14,6 +14,9 @@ const REF_CODE_FORMAT = /^\w{1,3}-\w{1,3}$/;
 const AUDIT_MIGRATION = 'AddDenarioPermanentRef1785600100000';
 const APPLY_ACTION = 'applyDenarioReferralAlias';
 const ROLLBACK_ACTION = 'rollbackDenarioReferralAlias';
+// Transaction-scoped advisory lock key: this migration's timestamp. Unique across migrations by naming
+// convention and outside hashtext()'s 32-bit range (see AddSavingZchfAsset / AddBinanceCustodyAssetsOndoAda).
+const ADVISORY_LOCK_KEY = 1785600100000;
 
 /**
  * Parse the ref-keys setting without silently replacing corrupt configuration.
@@ -40,25 +43,21 @@ function parseRefKeys(row) {
 
 /**
  * Return the single apply event that has not yet been matched by a rollback event.
- * Audit rows are append-only so a migration can be reverted and applied again without
- * destroying either transition.
+ * Audit rows live in the append-only "log" table so a migration can be reverted and applied again
+ * without destroying either transition. Pairing is pure application logic: apply rows carry
+ * action=APPLY_ACTION; rollback rows reference the apply log id via applyLogId.
  *
  * @param {QueryRunner} queryRunner
  * @returns {Promise<({ id: number, existed: boolean, ownedRef: string } & Record<string, unknown>) | undefined>}
  */
 async function getActiveApplyAudit(queryRunner) {
-  await queryRunner.query(
-    `INSERT INTO "migration_audit_lock" ("migration") VALUES ($1) ON CONFLICT ("migration") DO NOTHING`,
-    Array.of(AUDIT_MIGRATION),
-  );
-  await queryRunner.query(`SELECT "migration" FROM "migration_audit_lock" WHERE "migration" = $1 FOR UPDATE`, [
-    AUDIT_MIGRATION,
-  ]);
+  // Serialize concurrent apply/reapply/rollback of this migration within the transaction.
+  await queryRunner.query(`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_KEY})`);
 
   const rows = await queryRunner.query(
-    `SELECT "id", "eventType", "applyEventId", "payload" FROM "migration_audit_event"
-     WHERE "migration" = $1
-     ORDER BY "id" FOR UPDATE`,
+    `SELECT "id", "message" FROM "log"
+     WHERE "system" = 'Migration' AND "subsystem" = $1
+     ORDER BY "id"`,
     Array.of(AUDIT_MIGRATION),
   );
 
@@ -73,17 +72,16 @@ async function getActiveApplyAudit(queryRunner) {
 
     let event;
     try {
-      event = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+      event = typeof row.message === 'string' ? JSON.parse(row.message) : row.message;
     } catch {
-      throw new Error(`Corrupt audit event ${row.id} for ${AUDIT_MIGRATION}`);
+      throw new Error(`Corrupt audit event ${logId} for ${AUDIT_MIGRATION}`);
     }
     if (!event || typeof event !== 'object' || Array.isArray(event)) {
-      throw new Error(`Invalid audit payload ${row.id} for ${AUDIT_MIGRATION}`);
+      throw new Error(`Invalid audit payload ${logId} for ${AUDIT_MIGRATION}`);
     }
 
-    if (row.eventType === 'Apply') {
+    if (event.action === APPLY_ACTION) {
       if (
-        event.action !== APPLY_ACTION ||
         event.settingKey !== REF_SETTING_KEY ||
         typeof event.existed !== 'boolean' ||
         (event.previous !== null && typeof event.previous !== 'string') ||
@@ -94,19 +92,14 @@ async function getActiveApplyAudit(queryRunner) {
         throw new Error(`Invalid apply audit event ${logId} for ${AUDIT_MIGRATION}`);
       }
       applies.push({ ...event, id: logId });
-    } else if (row.eventType === 'Rollback') {
-      const applyEventId = Number(row.applyEventId);
-      if (
-        event.action !== ROLLBACK_ACTION ||
-        !Number.isSafeInteger(applyEventId) ||
-        applyEventId <= 0 ||
-        Number(event.applyLogId) !== applyEventId
-      ) {
+    } else if (event.action === ROLLBACK_ACTION) {
+      const applyLogId = Number(event.applyLogId);
+      if (!Number.isSafeInteger(applyLogId) || applyLogId <= 0) {
         throw new Error(`Invalid rollback audit event ${logId} for ${AUDIT_MIGRATION}`);
       }
-      rolledBackApplyIds.add(applyEventId);
+      rolledBackApplyIds.add(applyLogId);
     } else {
-      throw new Error(`Invalid audit event type '${row.eventType}' for ${AUDIT_MIGRATION}`);
+      throw new Error(`Invalid audit action '${event.action}' for ${AUDIT_MIGRATION}`);
     }
   }
 
@@ -119,6 +112,8 @@ async function getActiveApplyAudit(queryRunner) {
 }
 
 /**
+ * Append an audit event to "log" and fail closed if the insert does not return an id.
+ *
  * @param {QueryRunner} queryRunner
  * @param {Record<string, unknown>} event
  * @returns {Promise<void>}
@@ -128,11 +123,16 @@ async function writeAuditEvent(queryRunner, event) {
   const isRollback = event.action === ROLLBACK_ACTION;
   if (!isApply && !isRollback) throw new Error(`Invalid audit action for ${AUDIT_MIGRATION}`);
 
-  await queryRunner.query(
-    `INSERT INTO "migration_audit_event" ("migration", "eventType", "applyEventId", "payload")
-     VALUES ($1, $2, $3, $4::jsonb)`,
-    [AUDIT_MIGRATION, isApply ? 'Apply' : 'Rollback', isRollback ? event.applyLogId : null, JSON.stringify(event)],
+  const inserted = await queryRunner.query(
+    `INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
+     VALUES (NOW(), NOW(), 'Migration', $1, 'Info', $2)
+     RETURNING "id"`,
+    [AUDIT_MIGRATION, JSON.stringify(event)],
   );
+  const logId = Number(inserted?.at?.(0)?.id);
+  if (!Number.isSafeInteger(logId) || logId <= 0) {
+    throw new Error(`Failed to write audit event for ${AUDIT_MIGRATION}`);
+  }
 }
 
 /**
@@ -237,8 +237,9 @@ module.exports = class AddDenarioPermanentRef1785600100000 {
     Reflect.set(refKeys, DENARIO_ALIAS, denarioRef);
     const value = JSON.stringify(refKeys);
 
-    // The append-only before -> after event is written before the mutable snapshot. Migration execution
-    // is transactional, so either both writes commit or neither does. The event deliberately survives down().
+    // Fail-closed: write the append-only before -> after event and require a returned id before the
+    // mutable snapshot changes. Migration execution is transactional, so either both write or neither.
+    // The event deliberately survives down().
     await writeAuditEvent(queryRunner, {
       action: APPLY_ACTION,
       settingKey: REF_SETTING_KEY,
