@@ -557,18 +557,23 @@ export class BuyService {
     }
 
     // No personal IBAN could be resolved, and a collection account must never be shown - so a transfer
-    // fails here instead of falling back to one. Distinguish the two reasons: an eligible customer who
-    // still has no IBAN hit a failed issuance, and telling them to complete KYC they already have would
-    // send them in circles. Card payments use no deposit IBAN at all (the response carries a payment
-    // link), so they keep resolving a bank rather than breaking.
-    // Ask KYC directly rather than isUserEligible: that one also folds in whether the provider is
-    // reachable right now, so an outage would tell a fully verified customer to complete a KYC level
-    // they already hold. Missing KYC is the customer's to fix; anything else is ours.
+    // fails here instead of falling back to one. This applies to EVERY currency, not just EUR: it is
+    // the deliberate policy that a bank transfer requires a personal IBAN, and therefore KYC 50.
+    // Card payments use no deposit IBAN at all (the response carries a payment link), so they keep
+    // resolving a bank rather than breaking.
+    //
+    // Three reasons are told apart, because sending a customer after the wrong one wastes their time:
+    // no provider covers the currency at all; the customer has not reached KYC 50; or issuance failed
+    // for someone who has. KYC is read directly rather than through isUserEligible, which also folds
+    // in whether the provider is reachable right now - during an outage that would tell a fully
+    // verified customer to complete a level they already hold.
     if (selector.paymentMethod !== FiatPaymentMethod.CARD)
       throw new BadRequestException(
-        selector.userData.kycLevel >= KycLevel.LEVEL_50
-          ? QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED
-          : QuoteError.KYC_REQUIRED,
+        !this.virtualIbanService.supportsCurrency(selector.currency)
+          ? QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED
+          : selector.userData.kycLevel >= KycLevel.LEVEL_50
+            ? QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED
+            : QuoteError.KYC_REQUIRED,
       );
 
     const bank = await this.bankService.getBank(selector);

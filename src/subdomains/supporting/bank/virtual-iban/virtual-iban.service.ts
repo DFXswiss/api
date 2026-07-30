@@ -157,14 +157,15 @@ export class VirtualIbanService {
   }
 
   async createForBuy(userData: UserData, buy: Buy, currencyName: string): Promise<VirtualIban> {
-    // No buy-specific equivalent of the Frick claim/recovery protocol exists, and the generic path
-    // would fail at reserveViban anyway. Refuse rather than issue through it; BuyService skips this
-    // step for Frick currencies, so this guards direct callers.
-    if (this.frickVibanProvider.currencies.includes(currencyName))
-      throw new BadRequestException('Buy-specific personal IBANs are not available for this currency');
-
     const existingForBuy = await this.getActiveForBuyAndCurrency(buy.id, currencyName);
     if (existingForBuy) throw new ConflictException('Buy already has an active personal IBAN for this currency');
+
+    // No buy-specific equivalent of the Frick claim/recovery protocol exists, and the generic path
+    // would fail at reserveViban anyway. Refuse rather than issue through it; BuyService skips this
+    // step for Frick currencies, so this guards direct callers. Checked after the conflict lookup so
+    // an already-issued IBAN still reports a conflict, as it did before Frick joined the providers.
+    if (this.frickVibanProvider.currencies.includes(currencyName))
+      throw new BadRequestException('Buy-specific personal IBANs are not available for this currency');
 
     return this.createVirtualIban(userData, currencyName, buy);
   }
@@ -1655,6 +1656,16 @@ export class VirtualIbanService {
 
   invalidateCacheAfterMerge(): void {
     this.virtualIbanRepo.invalidateCache();
+  }
+
+  /**
+   * Whether any provider covers this currency at all, regardless of whether it is reachable right now.
+   * Kept apart from {@link hasProviderForCurrency} on purpose: "we do not offer personal IBANs in this
+   * currency" is a permanent answer the customer can act on, while an outage is temporary and ours to
+   * fix. Folding the two together would tell someone their currency is unsupported during a blip.
+   */
+  supportsCurrency(currencyName: string): boolean {
+    return this.genericProviders.some((provider) => provider.currencies.includes(currencyName));
   }
 
   private hasProviderForCurrency(currencyName: string): boolean {

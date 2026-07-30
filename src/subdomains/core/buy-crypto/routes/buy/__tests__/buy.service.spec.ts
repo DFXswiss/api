@@ -756,6 +756,7 @@ describe('BuyService', () => {
     it('reports PersonalIbanIssuanceFailed for an eligible EUR transfer after issuance fails', async () => {
       jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
       jest
         .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
         .mockRejectedValue(new Error('transient issuance error'));
@@ -771,6 +772,7 @@ describe('BuyService', () => {
     it('reports KycRequired for an ineligible EUR transfer without a personal IBAN', async () => {
       jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
+      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
 
       await expect(
         service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData }, buy),
@@ -811,6 +813,7 @@ describe('BuyService', () => {
       async (paymentMethod) => {
         jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
         jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
+        jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
         jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
 
         const resolution = service.getBankInfo({ currency: 'EUR', paymentMethod, userData: lowKycUserData }, buy);
@@ -863,6 +866,93 @@ describe('BuyService', () => {
         isPersonalIban: true,
       });
       expect(bankInfo.bank).not.toBe(IbanBankName.FRICK);
+    });
+
+    it('reports KycRequired for an ineligible CHF bank transfer without a personal IBAN', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
+      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+
+      await expect(
+        service.getBankInfo({ currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData }, buy),
+      ).rejects.toThrow(QuoteError.KYC_REQUIRED);
+
+      expect(bankService.getBank).not.toHaveBeenCalled();
+    });
+
+    it('reports PersonalIbanIssuanceFailed for an eligible CHF transfer after issuance fails', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'createForUser').mockRejectedValue(new Error('transient issuance error'));
+
+      await expect(
+        service.getBankInfo({ currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData }, buy),
+      ).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+
+      expect(virtualIbanService.createForUser).toHaveBeenCalledWith(userData, 'CHF');
+      expect(bankService.getBank).not.toHaveBeenCalled();
+    });
+
+    it('continues to the standard bank for CHF CARD below KYC LEVEL_50', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'CHF', paymentMethod: FiatPaymentMethod.CARD, userData: lowKycUserData },
+        buy,
+      );
+
+      expect(bankService.getBank).toHaveBeenCalledWith({
+        currency: 'CHF',
+        paymentMethod: FiatPaymentMethod.CARD,
+        userData: lowKycUserData,
+      });
+      expect(bankInfo).toMatchObject({
+        bank: IbanBankName.OLKY,
+        iban: collectionBank.iban,
+        isPersonalIban: false,
+      });
+    });
+
+    it('reports KycRequired for an ineligible CHF instant transfer without a personal IBAN', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
+      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+
+      await expect(
+        service.getBankInfo(
+          { currency: 'CHF', paymentMethod: FiatPaymentMethod.INSTANT, userData: lowKycUserData },
+          buy,
+        ),
+      ).rejects.toThrow(QuoteError.KYC_REQUIRED);
+    });
+
+    it('reports PersonalIbanCurrencyNotSupported before issuance failure for an unsupported currency', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
+      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(false);
+
+      const resolution = service.getBankInfo({ currency: 'USD', paymentMethod: FiatPaymentMethod.BANK, userData }, buy);
+
+      await expect(resolution).rejects.toThrow(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
+      await expect(resolution).rejects.not.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+    });
+
+    it('reports PersonalIbanIssuanceFailed instead of currency or KYC errors during a Frick outage', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+      jest
+        .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
+        .mockRejectedValue(new Error('transient issuance error'));
+
+      const resolution = service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData }, buy);
+
+      await expect(resolution).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+      await expect(resolution).rejects.not.toThrow(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
+      await expect(resolution).rejects.not.toThrow(QuoteError.KYC_REQUIRED);
     });
   });
 
