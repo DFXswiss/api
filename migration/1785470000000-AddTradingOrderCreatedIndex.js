@@ -36,8 +36,10 @@
  * decision to add it rests on the measured selectivity (2.3%) and the correlation of `created` to
  * physical row order (0.796, discussed below), not on an observed plan change.
  *
- * Why a single-column index and not a covering index: the monthly window matches 123,831 of
- * 5.4 million rows (2.3%) — clearly within the range where an index scan beats a sequential scan.
+ * Why a single-column index and not a covering index: the monthly window matched 123,918 of
+ * 5.4 million rows (2.3%) at measurement time — a snapshot, since the table grows by roughly
+ * 4,350 rows/day; the stable figure the decision rests on is the ~2.3% selectivity, not the
+ * absolute row count. That is clearly within the range where an index scan beats a sequential scan.
  * The correlation of `created` to physical row order is 0.796 per `pg_stats`, so heap accesses via
  * the index are largely sequential. An `INCLUDE (profitChf, txFeeAmountChf)` would bloat the index
  * from an estimated ~103 MB to ~190 MB, and would additionally depend on an up-to-date visibility
