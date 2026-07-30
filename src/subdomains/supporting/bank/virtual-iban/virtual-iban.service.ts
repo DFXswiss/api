@@ -171,9 +171,10 @@ export class VirtualIbanService {
   }
 
   /**
-   * Issuance path shared by implicit providers selected through their supported currency. The explicit
-   * Frick selector retains its separate durable claim/recovery protocol; Yapeal must not be routed through
-   * that Frick-specific intent machinery.
+   * Issuance path for providers without their own protocol - Yapeal today. Bank Frick never reaches
+   * here: both its entry points (explicit selector and implicit EUR resolution) go through
+   * getOrCreateFrickForUser, because this path neither takes the claim/recovery route nor passes the
+   * description Frick requires. Yapeal must not be routed through that Frick-specific machinery either.
    */
   private async createVirtualIban(userData: UserData, currencyName: string, buy?: Buy): Promise<VirtualIban> {
     const currency = await this.fiatService.getFiatByName(currencyName);
@@ -202,7 +203,11 @@ export class VirtualIbanService {
     return saved;
   }
 
-  /** Fail-closed, cross-instance-safe Frick issuance retained for the explicit selector path. */
+  /**
+   * Fail-closed, cross-instance-safe Frick issuance. Used by BOTH entry points: the explicit
+   * personal-IBAN selector and the implicit EUR resolution, which routes here rather than through the
+   * generic createVirtualIban path.
+   */
   async getOrCreateFrickForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
     if (currencyName !== 'EUR') throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
 
