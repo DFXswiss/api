@@ -432,8 +432,32 @@ describe('RealUnitJobService', () => {
   it('should ignore an issuer transfer addressed to someone else', async () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
     // right issuer, right amount, right time — only the recipient differs
+    mockHistory([{ ...settlementEvent, transfer: { from: brokerbotAddress, to: '0xOtherAddress', value: '72' } }]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
+  });
+
+  it('should ignore a self-transfer of the issuer to itself', async () => {
+    // for an account whose own address is the issuer's, both rows of a self-transfer pass the
+    // recipient and the issuer check — only the explicit guard keeps them from settling two quotes
+    const issuerQuote = { ...quote, id: 12, user: { id: 44, address: brokerbotAddress } };
+    const secondIssuerQuote = { ...issuerQuote, id: 13 };
+    jest
+      .spyOn(transactionRequestService, 'getOpenBuyQuotes')
+      .mockResolvedValue([issuerQuote, secondIssuerQuote] as any);
     mockHistory([
-      { ...settlementEvent, transfer: { from: brokerbotAddress, to: '0xOtherAddress', value: '72' } },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-470-to',
+        transfer: { from: brokerbotAddress, to: brokerbotAddress, value: '72' },
+      },
+      {
+        ...settlementEvent,
+        id: 'history-25631176-470-from',
+        transfer: { from: brokerbotAddress, to: brokerbotAddress, value: '72' },
+      },
     ]);
 
     await service.completeSettledQuotes();
