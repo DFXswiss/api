@@ -174,9 +174,22 @@ export class ScryptService extends PricingProvider {
 
     // A warm-up that loaded BOTH streams is exactly what a catch-up round does, so it claims the first slot and a
     // reconnect right after boot waits it out instead of repeating it. If either leg failed the caches are not
-    // whole, and the next reconnect must repair immediately rather than sit out the interval on stale state.
+    // whole: without an immediate retry the only refill path is onReconnect, so a stable socket after a failed
+    // warm-up would leave balanceTransactions / executionReports empty forever. confirmWithdrawalAbsent's
+    // anchor check then returns false permanently and cancelOutstanding never settles — exactly the forbidden
+    // "Scrypt + waiting on a human" combination. Reuse catchUpAfterReconnect (both streams, existing pacing /
+    // retry) rather than inventing a second timer type; trigger is only a true Promise rejection on a leg,
+    // never "empty array" (that is a successful warm-up with no rows).
     void Promise.all([executionWarmUp, balanceWarmUp]).then(([executionLoaded, balanceLoaded]) => {
-      if (executionLoaded && balanceLoaded) this.lastCatchUpAt = Date.now();
+      if (executionLoaded && balanceLoaded) {
+        this.lastCatchUpAt = Date.now();
+        return;
+      }
+
+      this.logger.warn(
+        `Scrypt boot warm-up incomplete (executionLoaded=${executionLoaded}, balanceLoaded=${balanceLoaded}) — triggering catch-up without waiting for a reconnect`,
+      );
+      void this.catchUpAfterReconnect().catch((e) => this.logger.error('Scrypt catch-up retry failed:', e));
     });
 
     this.connection.onReconnect(() => this.catchUpAfterReconnect());
@@ -709,6 +722,48 @@ export class ScryptService extends PricingProvider {
       return false;
     }
 
+    // Old anchor (independent of the newest-anchor check above): force the fresh reply to span the window
+    // relative to the known cache, not only its tip. fetchAll treats a missing `next` as end-of-history with
+    // no cursor/sequence check, so a truncated pagination can look complete. Warm-up, catch-up and this
+    // fetch all share that client — a common-mode suffix cut leaves the same (missing) older slice out of
+    // both cache and fresh. The newest-anchor only guards recency; it still passes when every *recent*
+    // cached id reappears and only older rows (including a potential withdrawal under clReqId) are gone.
+    //
+    // What this gate covers: among cached rows with a readable stamp strictly older than `since`, the
+    // oldest such ClReqID must reappear in fresh. That forces the answer to reach back past `since` and
+    // detects a pagination suffix truncation relative to the known cache in both directions (newest +
+    // oldest anchors together).
+    //
+    // What it does NOT cover: a gap *in the middle* of history that is missing from both the local cache
+    // and the fresh reply (e.g. never successfully cached). There is nothing local to compare against, so
+    // that hole is not client-detectable — no overclaim here.
+    const olderThanSince = cachedWithId
+      .map((t) => ({ t, ts: readableTime(t) }))
+      .filter(
+        (x): x is { t: ScryptBalanceTransaction & { ClReqID: string }; ts: number } =>
+          x.ts != null && x.ts < since.getTime(),
+      );
+    if (!olderThanSince.length) {
+      this.logger.warn(
+        `confirmWithdrawalAbsent(${clReqId}): no cached balance transaction older than since (${since.toISOString()}) — old anchor unavailable; deferring until cache spans the window`,
+      );
+      return false;
+    }
+    let oldestTs = Infinity;
+    let oldestId = olderThanSince[0].t.ClReqID;
+    for (const { t, ts } of olderThanSince) {
+      if (ts < oldestTs) {
+        oldestTs = ts;
+        oldestId = t.ClReqID;
+      }
+    }
+    if (!freshIds.has(oldestId)) {
+      this.logger.warn(
+        `confirmWithdrawalAbsent(${clReqId}): old cache anchor ${oldestId} missing from fresh history — possible truncated pagination; cannot conclude absence`,
+      );
+      return false;
+    }
+
     const missingFromFresh: string[] = [];
     for (const cached of previouslyCached) {
       if (!cached.ClReqID) continue;
@@ -731,6 +786,18 @@ export class ScryptService extends PricingProvider {
         `confirmWithdrawalAbsent(${clReqId}): consistency gate failed — cached references missing from fresh history: ${missingFromFresh.join(
           ', ',
         )}`,
+      );
+      return false;
+    }
+
+    // previouslyCached was snapshotted before fetchAll; freshIds only reflects that in-flight reply.
+    // A live subscription (or catch-up) can write clReqId into this.balanceTransactions while the bulk
+    // fetch is still open — previouslyCached and freshIds both miss it, and returning true would let the
+    // caller abandon and replan a second withdrawal. Only a re-read of the LIVE map after the await sees
+    // that race; if the id is there, absence is not confirmed (false, not a hard failure).
+    if (this.balanceTransactions.has(clReqId)) {
+      this.logger.warn(
+        `confirmWithdrawalAbsent(${clReqId}): reference appeared in the live cache while the history fetch was in flight — cannot conclude absence`,
       );
       return false;
     }

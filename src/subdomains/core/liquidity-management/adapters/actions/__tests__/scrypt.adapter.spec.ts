@@ -587,13 +587,52 @@ describe('ScryptAdapter', () => {
       expect(confirmWithdrawalAbsent).toHaveBeenCalledWith('dfx-lm-4711', order.created);
     });
 
-    it('for an unsupported command asks getOrderStatus for every reference and returns a reason only when all are terminal', async () => {
+    it('for an unsupported command with tradeAsset uses cancelIfOutstanding and returns a reason when every reference settles', async () => {
+      // FIX 4: tradeAsset in paramMap makes a cancel symbol determinable (getTradePair is symmetric;
+      // cancelOrder never reads side). Active path must cancel rather than only poll getOrderStatus.
+      const cancelIfOutstanding = jest
+        .spyOn(scryptService, 'cancelIfOutstanding')
+        .mockResolvedValue(ScryptCancellation.SETTLED);
+      const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus');
+      const order = cancellableOrder({
+        action: sellIfDeficitAction({ tradeAsset: 'USDT' }),
+      });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(
+        'the venue answered for every reference that nothing is left to execute',
+      );
+      expect(cancelIfOutstanding).toHaveBeenCalled();
+      expect(getOrderStatus).not.toHaveBeenCalled();
+    });
+
+    it('for an unsupported command with tradeAsset returns null when any reference will not settle', async () => {
+      // Same active path as known commands: one UNCONFIRMED reference keeps the order quarantined.
+      jest
+        .spyOn(scryptService, 'cancelIfOutstanding')
+        .mockImplementation(async (id: string) =>
+          id === 'dfx-lm-4711-1' ? ScryptCancellation.UNCONFIRMED : ScryptCancellation.SETTLED,
+        );
+      const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus');
+      const order = cancellableOrder({
+        action: sellIfDeficitAction({ tradeAsset: 'USDT' }),
+      });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
+      expect(scryptService.cancelIfOutstanding).toHaveBeenCalled();
+      expect(getOrderStatus).not.toHaveBeenCalled();
+    });
+
+    it('for an unsupported command without tradeAsset asks getOrderStatus only and returns a reason when all are terminal', async () => {
+      // FIX 4 passive fallback: empty paramMap → parseTradeParams throws → no cancel symbol; keep the
+      // getOrderStatus-only branch (no inventing a cancel).
       const getOrderStatus = jest
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) => venueOrder(id, ScryptOrderStatus.FILLED));
       const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
       const order = cancellableOrder({
-        action: sellIfDeficitAction({ tradeAsset: 'USDT' }),
+        action: sellIfDeficitAction({}),
       });
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
@@ -605,18 +644,20 @@ describe('ScryptAdapter', () => {
       expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711');
     });
 
-    it('for an unsupported command returns null when any reference is non-terminal', async () => {
+    it('for an unsupported command without tradeAsset returns null when any reference is non-terminal', async () => {
       jest
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) =>
           venueOrder(id, id === 'dfx-lm-4711-1' ? ScryptOrderStatus.NEW : ScryptOrderStatus.FILLED),
         );
+      const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
       const order = cancellableOrder({
-        action: sellIfDeficitAction({ tradeAsset: 'USDT' }),
+        action: sellIfDeficitAction({}),
       });
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
+      expect(cancelIfOutstanding).not.toHaveBeenCalled();
     });
   });
 

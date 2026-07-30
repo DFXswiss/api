@@ -362,15 +362,20 @@ describe('ScryptService', () => {
     expect((service as any).lastCatchUpAt).toBeGreaterThan(startStamp!);
   });
 
-  it('a warm-up that failed does not claim the catch-up slot', async () => {
+  it('a warm-up that failed schedules catch-up without waiting for a reconnect', async () => {
+    // After FIX 2 a failed warm-up immediately reuses catchUpAfterReconnect. That stamps lastCatchUpAt at
+    // the end of every round (pacing, independent of success) and arms catchUpRetryTimer when legs stay
+    // owed — so lastCatchUpAt is no longer undefined after a failed warm-up. The invariant that matters is
+    // that a retry is scheduled without onReconnect ever firing the registered callback.
     const MockedConnection = ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>;
+    const onReconnect = jest.fn();
     MockedConnection.mockImplementationOnce(
       () =>
         ({
           fetchAll: jest.fn().mockRejectedValue(new Error('Connection closed')),
           fetch: jest.fn().mockResolvedValue([]),
           subscribeToStream: jest.fn().mockReturnValue(() => undefined),
-          onReconnect: jest.fn(),
+          onReconnect,
           send: jest.fn(),
           requestAndWaitForUpdate: jest.fn(),
         }) as any,
@@ -378,10 +383,57 @@ describe('ScryptService', () => {
 
     const freshService = new ScryptService();
     jest.spyOn((freshService as any).logger, 'error').mockImplementation(() => undefined);
+    jest.spyOn((freshService as any).logger, 'warn').mockImplementation(() => undefined);
     await flushPromises();
 
-    // The caches are not whole, so the next reconnect must repair immediately instead of sitting out the interval.
-    expect((freshService as any).lastCatchUpAt).toBeUndefined();
+    // onReconnect only registers the handler; we never invoke that callback. The timer proves the
+    // boot-failure path armed a retry on its own without a reconnect.
+    expect(onReconnect).toHaveBeenCalled();
+    expect(typeof onReconnect.mock.calls[0][0]).toBe('function');
+    expect((freshService as any).catchUpRetryTimer).toBeDefined();
+    (freshService as any).clearCatchUpRetry();
+  });
+
+  it('a failed boot warm-up retries catch-up without a reconnect and respects catchUpMinInterval', async () => {
+    // FIX 2: when warm-up rejects and the socket stays up, catchUpAfterReconnect must run immediately and
+    // its scheduled retry must actually re-enter after catchUpMinInterval — otherwise the empty cache is a
+    // permanent deferral (anchor check forever false) rather than a temporary one.
+    jest.useFakeTimers();
+    const MockedConnection = ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>;
+    const fetchAll = jest.fn().mockRejectedValue(new Error('Connection closed'));
+    const onReconnect = jest.fn();
+    MockedConnection.mockImplementationOnce(
+      () =>
+        ({
+          fetchAll,
+          fetch: jest.fn().mockResolvedValue([]),
+          subscribeToStream: jest.fn().mockReturnValue(() => undefined),
+          onReconnect,
+          send: jest.fn(),
+          requestAndWaitForUpdate: jest.fn(),
+        }) as any,
+    );
+
+    const freshService = new ScryptService();
+    jest.spyOn((freshService as any).logger, 'error').mockImplementation(() => undefined);
+    jest.spyOn((freshService as any).logger, 'warn').mockImplementation(() => undefined);
+    await flushPromises();
+
+    // (1) Retry armed without ever invoking the reconnect callback registered via onReconnect.
+    expect((freshService as any).catchUpRetryTimer).toBeDefined();
+    const reconnectHandler = onReconnect.mock.calls[0]?.[0] as (() => void) | undefined;
+    // Handler is registered; we never call it — refill must not depend on a drop.
+    expect(typeof reconnectHandler).toBe('function');
+
+    // (2) The armed retry is not cosmetic: after catchUpMinInterval further fetchAll calls land.
+    const callsBeforeRetry = fetchAll.mock.calls.length;
+    expect(callsBeforeRetry).toBeGreaterThan(0);
+    jest.advanceTimersByTime((freshService as any).catchUpMinInterval);
+    await flushPromises();
+    expect(fetchAll.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
+
+    (freshService as any).clearCatchUpRetry();
+    jest.useRealTimers();
   });
 
   it('a warm-up that loaded both streams claims the catch-up slot', async () => {
@@ -835,11 +887,17 @@ describe('ScryptService', () => {
     });
 
     it('returns false when the fresh history contains the sought reference', async () => {
+      // FIX 3 requires an old cache anchor (timestamp < since) in addition to a newest anchor; without the
+      // old row this test would fail at the old-anchor gate instead of at "soughtId present in fresh".
+      (service as any).balanceTransactions.set('old-anchor', {
+        ...balanceTx({ ClReqID: 'old-anchor', Timestamp: '2026-01-01T00:00:00.000Z' }),
+      });
       (service as any).balanceTransactions.set('anchor-ref', {
         ...balanceTx({ ClReqID: 'anchor-ref', Timestamp: '2026-07-15T12:00:00.000Z' }),
       });
       instance.fetchAll.mockResolvedValue([
         balanceTx({ ClReqID: soughtId, TransactionID: 'tx-sought' }),
+        balanceTx({ ClReqID: 'old-anchor', TransactionID: 'tx-old', Timestamp: '2026-01-01T00:00:00.000Z' }),
         balanceTx({ ClReqID: 'anchor-ref', TransactionID: 'tx-anchor', Timestamp: '2026-07-15T12:00:00.000Z' }),
       ]);
 
@@ -897,12 +955,80 @@ describe('ScryptService', () => {
       expect(warnSpy).toHaveBeenCalled();
     });
 
-    it('returns true when the overall-newest cache anchor is in fresh and the sought reference is absent', async () => {
+    it('defers when only the newest cache anchor exists — FIX 3 also requires an anchor older than since', async () => {
+      // Cache setup intentionally has only a post-since newest anchor (no row older than since). Before FIX 3
+      // this constellation could confirm absence; now the old-anchor gate must defer (false + warn).
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
       (service as any).balanceTransactions.set('anchor-ref', {
         ...balanceTx({ ClReqID: 'anchor-ref', Timestamp: '2026-07-20T00:00:00.000Z' }),
       });
       instance.fetchAll.mockResolvedValue([
         balanceTx({ ClReqID: 'anchor-ref', TransactionID: 'tx-a', Timestamp: '2026-07-20T00:00:00.000Z' }),
+        balanceTx({ ClReqID: 'unrelated-in-history', TransactionID: 'tx-u', Timestamp: '2026-07-21T00:00:00.000Z' }),
+      ]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it('returns false when the sought reference appears in the live cache while the history fetch is in flight', async () => {
+      // FIX 1: previouslyCached / freshIds both miss a live push that lands during fetchAll; only a post-await
+      // re-read of this.balanceTransactions sees it. Anchors (newest + old) must both pass so the failure is
+      // specifically the live-race gate, not an earlier anchor/gate.
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      const oldAnchor = balanceTx({ ClReqID: 'old-anchor', Timestamp: '2026-01-01T00:00:00.000Z' });
+      const newAnchor = balanceTx({ ClReqID: 'new-anchor', Timestamp: '2026-07-20T00:00:00.000Z' });
+      (service as any).balanceTransactions.set('old-anchor', oldAnchor);
+      (service as any).balanceTransactions.set('new-anchor', newAnchor);
+
+      instance.fetchAll.mockImplementationOnce(async () => {
+        // Live push mid-flight: same path as the constructor subscription's cacheBalanceTransaction.
+        (service as any).cacheBalanceTransaction(
+          balanceTx({ ClReqID: soughtId, TransactionID: 'tx-live', Timestamp: '2026-07-10T00:00:00.000Z' }),
+        );
+        // Fresh history does NOT contain soughtId — without the live re-check this would look like absence.
+        return [
+          balanceTx({ ClReqID: 'old-anchor', TransactionID: 'tx-old', Timestamp: '2026-01-01T00:00:00.000Z' }),
+          balanceTx({ ClReqID: 'new-anchor', TransactionID: 'tx-new', Timestamp: '2026-07-20T00:00:00.000Z' }),
+        ];
+      });
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+      expect(warnSpy.mock.calls.some((c) => String(c[0]).includes(soughtId))).toBe(true);
+    });
+
+    it('returns false when the old cache anchor is missing from fresh history — truncated pagination must not confirm absence', async () => {
+      // FIX 3 suffix cut: newest anchor reappears, old anchor does not, soughtId also absent. Gate must fire
+      // before the absence conclusion and warn.
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      (service as any).balanceTransactions.set('old-anchor', {
+        ...balanceTx({ ClReqID: 'old-anchor', Timestamp: '2026-01-01T00:00:00.000Z' }),
+      });
+      (service as any).balanceTransactions.set('new-anchor', {
+        ...balanceTx({ ClReqID: 'new-anchor', Timestamp: '2026-07-20T00:00:00.000Z' }),
+      });
+      instance.fetchAll.mockResolvedValue([
+        balanceTx({ ClReqID: 'new-anchor', TransactionID: 'tx-new', Timestamp: '2026-07-20T00:00:00.000Z' }),
+        // old-anchor deliberately omitted; soughtId also absent
+        balanceTx({ ClReqID: 'someone-else', TransactionID: 'tx-else', Timestamp: '2026-07-15T00:00:00.000Z' }),
+      ]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it('returns true when both newest and old cache anchors are in fresh and the sought reference is absent', async () => {
+      // FIX 3 happy path: reply spans the known window (old + newest), in-window gate passes, soughtId gone.
+      (service as any).balanceTransactions.set('old-anchor', {
+        ...balanceTx({ ClReqID: 'old-anchor', Timestamp: '2026-01-01T00:00:00.000Z' }),
+      });
+      (service as any).balanceTransactions.set('new-anchor', {
+        ...balanceTx({ ClReqID: 'new-anchor', Timestamp: '2026-07-20T00:00:00.000Z' }),
+      });
+      instance.fetchAll.mockResolvedValue([
+        balanceTx({ ClReqID: 'old-anchor', TransactionID: 'tx-old', Timestamp: '2026-01-01T00:00:00.000Z' }),
+        balanceTx({ ClReqID: 'new-anchor', TransactionID: 'tx-new', Timestamp: '2026-07-20T00:00:00.000Z' }),
         balanceTx({ ClReqID: 'unrelated-in-history', TransactionID: 'tx-u', Timestamp: '2026-07-21T00:00:00.000Z' }),
       ]);
 

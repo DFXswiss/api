@@ -319,12 +319,29 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
 
     // A command no longer in ScryptAdapterCommands (rename/removal) still reaches this adapter via
-    // getReconciliationIntegration. We cannot derive a storno symbol from parseTradeParams / SELL vs BUY,
-    // so we must not invent a cancel. Instead ask the venue about every reference individually: only a
-    // terminal status (or a confirmed absence for withdraw above) is a venue answer, not a guess. null on
-    // any reference keeps the order waiting on the venue for another pass.
+    // getReconciliationIntegration. getTradePair matches securities in either direction
+    // (Base/Quote or Quote/Base) and cancelOrder only uses the resulting symbol — never side — so from/to
+    // order does not matter for a cancel as long as tradeAsset and the rule asset form a known pair.
+    // When tradeAsset is present in paramMap we therefore take the same active cancelIfOutstanding path as
+    // a known command (incl. UnknownOrder inference inside cancelIfOutstanding). Only when parseTradeParams
+    // cannot yield a tradeAsset is there genuinely no symbol: then we keep the passive getOrderStatus-only
+    // branch (isTerminalScryptOrderStatus stays required there). null on any reference keeps the order
+    // waiting on the venue for another pass — never invent a cancel without a symbol.
     const knownCommands = Object.values(ScryptAdapterCommands) as string[];
-    if (!knownCommands.includes(order.action.command)) {
+    const isKnownCommand = knownCommands.includes(order.action.command);
+
+    let derivedTradeAsset: string | undefined;
+    if (!isKnownCommand) {
+      try {
+        derivedTradeAsset = this.parseTradeParams(order.action.paramMap).tradeAsset;
+      } catch {
+        derivedTradeAsset = undefined; // genuinely no symbol determinable — passive fallback is the only option
+      }
+    }
+
+    if (!isKnownCommand && !derivedTradeAsset) {
+      // Passive only: no tradeAsset in params, so no cancel symbol is determinable. Ask the venue about
+      // every reference individually; only a terminal status is a venue answer, not a guess.
       for (const reference of references) {
         // `null` = venue has no record; `undefined` = could not be asked (same distinction as adoptLiveReplacement).
         const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
@@ -348,8 +365,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return 'the venue reports every reference of this unsupported command in a terminal state';
     }
 
+    // Known command, or unsupported command with a determinable tradeAsset (FIX 4): same active storno path.
+    // parseTradeParams is pure; for the unsupported+tradeAsset case it already succeeded above.
     const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
     const asset = order.pipeline.rule.targetAsset.dexName;
+    // For an unknown command the SELL branch is false, so we default to [tradeAsset, asset]. That from/to
+    // order is still fine: getTradePair is symmetric and cancelOrder never reads side — only symbol matters.
     const [from, to] = order.action.command === ScryptAdapterCommands.SELL ? [asset, tradeAsset] : [tradeAsset, asset];
 
     const executed: CorrelationId[] = [];
