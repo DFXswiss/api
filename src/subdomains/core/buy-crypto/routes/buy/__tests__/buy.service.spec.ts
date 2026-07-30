@@ -746,7 +746,10 @@ describe('BuyService', () => {
       await expect(resolution).rejects.not.toBe(transientError);
       await expect(resolution).rejects.toBeInstanceOf(BadRequestException);
       expect(virtualIbanService.getOrCreateFrickForUser).toHaveBeenCalledWith(userData, 'EUR');
-      expect(virtualIbanService.isUserEligible).toHaveBeenCalledTimes(2);
+      // Once, to decide whether to attempt issuance. The error branch reads kycLevel directly instead,
+      // because isUserEligible also folds in provider availability - asking it there would report a
+      // missing KYC level to a customer who holds it whenever the provider is down.
+      expect(virtualIbanService.isUserEligible).toHaveBeenCalledTimes(1);
       expect(bankService.getBank).not.toHaveBeenCalled();
     });
 

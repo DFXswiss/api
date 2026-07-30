@@ -343,36 +343,18 @@ describe('VirtualIbanService', () => {
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
-    it('creates an EUR user-level vIBAN via Frick', async () => {
-      const eur = { id: 4, name: 'EUR' } as Fiat;
-      const frickBank = {
-        id: 19,
-        iban: 'LI32088110105923K000C',
-        receive: true,
-        name: IbanBankName.FRICK,
-      } as Bank;
-      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(eur);
-      jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(false);
-      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
-      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(frickBank);
-      jest.spyOn(frickVibanProvider, 'reserveViban').mockResolvedValue({
-        iban: 'LI75088110105923K000E',
-        bban: '088110105923K000E',
-        providerAccountRef: 'LI75088110105923K000E',
-      });
+    it('routes an EUR user-level request to the Frick issuance entry point', async () => {
+      // Not through createVirtualIban: that one calls reserveViban without a description, which the
+      // Frick provider rejects outright, and it skips the claim/recovery protocol Frick needs.
+      const issued = { id: 7, iban: 'LI75088110105923K000E' } as VirtualIban;
+      jest.spyOn(service, 'getOrCreateFrickForUser').mockResolvedValue(issued);
+      jest.spyOn(frickVibanProvider, 'reserveViban');
 
       const saved = await service.createForUser(userData, 'EUR');
 
-      expect(bankService.getBankInternal).toHaveBeenCalledWith(IbanBankName.FRICK, 'EUR');
-      expect(frickVibanProvider.reserveViban).toHaveBeenCalledWith(frickBank.iban);
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-      expect(saved).toMatchObject({
-        bank: frickBank,
-        currency: eur,
-        iban: 'LI75088110105923K000E',
-        active: true,
-        status: VirtualIbanStatus.ACTIVE,
-      });
+      expect(service.getOrCreateFrickForUser).toHaveBeenCalledWith(userData, 'EUR');
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(saved).toBe(issued);
     });
   });
 
@@ -425,46 +407,15 @@ describe('VirtualIbanService', () => {
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
-    // Documents what this service does when asked, not what the buy flow asks of it: BuyService
-    // deliberately skips the buy-specific step for EUR, because createForBuy issues through the
-    // generic provider path without the advisory lock, merged-account handling and claim recovery
-    // that getOrCreateFrickForUser provides. Do not read this test as the intended EUR route.
-    it('creates an EUR buy-specific vIBAN via Frick', async () => {
+    it('refuses a buy-specific EUR request instead of issuing through the generic path', async () => {
+      // There is no buy-specific equivalent of the Frick claim/recovery protocol, and the generic path
+      // would fail at reserveViban anyway (no description). BuyService already skips this step for
+      // Frick currencies; this guards direct callers.
       const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
-      const eur = { id: 4, name: 'EUR' } as Fiat;
-      const frickBank = {
-        id: 19,
-        iban: 'LI32088110105923K000C',
-        receive: true,
-        name: IbanBankName.FRICK,
-      } as Bank;
-      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
-      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(eur);
-      jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(false);
-      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
-      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(frickBank);
-      jest.spyOn(frickVibanProvider, 'reserveViban').mockResolvedValue({
-        iban: 'LI75088110105923K000E',
-        bban: '088110105923K000E',
-        providerAccountRef: 'LI75088110105923K000E',
-      });
-      jest.spyOn(virtualIbanRepo, 'create').mockImplementation((entity) => entity as VirtualIban);
-      jest.spyOn(virtualIbanRepo, 'save').mockImplementation(async (entity) => entity as VirtualIban);
-      jest.spyOn(virtualIbanRepo, 'invalidateCache').mockImplementation(() => undefined);
+      jest.spyOn(frickVibanProvider, 'reserveViban');
 
-      const saved = await service.createForBuy(userData, buy, 'EUR');
-
-      expect(bankService.getBankInternal).toHaveBeenCalledWith(IbanBankName.FRICK, 'EUR');
-      expect(frickVibanProvider.reserveViban).toHaveBeenCalledWith(frickBank.iban);
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-      expect(saved).toMatchObject({
-        bank: frickBank,
-        currency: eur,
-        buy,
-        iban: 'LI75088110105923K000E',
-        active: true,
-        status: VirtualIbanStatus.ACTIVE,
-      });
+      await expect(service.createForBuy(userData, buy, 'EUR')).rejects.toThrow(BadRequestException);
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
   });
 
