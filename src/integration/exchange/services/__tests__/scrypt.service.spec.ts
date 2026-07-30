@@ -1051,6 +1051,17 @@ describe('ScryptService', () => {
       } satisfies ScryptExecutionReport);
     }
 
+    it('propagates an unconfirmed amend instead of swallowing it', async () => {
+      // Regression guard: the amend used to be wrapped in a catch that cancelled and returned false, so the
+      // caller never learned that a replacement order might be live at the venue under the reserved id.
+      stubAmendPath(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(), 'dfx-lm-7-1')).rejects.toBeInstanceOf(
+        ScryptUnconfirmedWriteError,
+      );
+      expect((service as any).cancelOrder).not.toHaveBeenCalled();
+    });
+
     it('carries the reserved replacement reference on the raised error', async () => {
       stubAmendPath(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
 
