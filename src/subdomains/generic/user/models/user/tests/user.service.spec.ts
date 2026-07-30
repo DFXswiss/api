@@ -237,4 +237,40 @@ describe('UserService', () => {
       await expect(service.getOpenRefCreditEur()).resolves.toBe(0);
     });
   });
+
+  describe('getSignature', () => {
+    function mockQuery(result: { id: number; signature?: string } | null) {
+      const qb = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(result),
+      };
+      jest.spyOn(userRepo, 'createQueryBuilder').mockReturnValue(qb as any);
+      return qb;
+    }
+
+    // Without addSelect, a select: false column is always undefined and login would break.
+    it('addSelects user.signature and filters by userId so the select: false column is loaded', async () => {
+      const userId = 42;
+      const qb = mockQuery({ id: userId, signature: 'sig-value' });
+
+      await service.getSignature(userId);
+
+      expect(qb.addSelect).toHaveBeenCalledWith('user.signature');
+      expect(qb.where).toHaveBeenCalledWith('user.id = :userId', { userId });
+    });
+
+    it('returns the signature when getOne finds a user', async () => {
+      mockQuery({ id: 7, signature: 'the-stored-signature' });
+
+      await expect(service.getSignature(7)).resolves.toBe('the-stored-signature');
+    });
+
+    it('returns undefined when getOne finds no user', async () => {
+      mockQuery(null);
+
+      await expect(service.getSignature(99)).resolves.toBeUndefined();
+    });
+  });
 });

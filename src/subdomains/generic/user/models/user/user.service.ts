@@ -97,9 +97,9 @@ export class UserService {
     return this.userRepo.findOne({ where: { address }, relations });
   }
 
-  // Deliberately the only read path for the login credential in `user.signature`: the column is
-  // `select: false`, so it never leaves through an entity. Keep this narrow - do not add the column
-  // to any other query.
+  // Deliberately the only read path for the login credential in `user.signature`. The column is
+  // `select: false` by default; this method is the only place that reloads it via explicit
+  // `addSelect`. Keep this query narrow - do not add the column to any other query.
   async getSignature(userId: number): Promise<string | undefined> {
     const result = await this.userRepo
       .createQueryBuilder('user')
