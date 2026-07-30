@@ -1468,8 +1468,21 @@ describe('ScryptService', () => {
       const orderCreated = new Date(Date.now() - 30 * 60 * 60 * 1000);
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
-      // pending since well over a day, but seen just now — exactly the case the two timestamps separate
-      (service as any).pendingSince.get('dfx-lm-7').since = new Date(Date.now() - 25 * 60 * 60 * 1000);
+
+      // Age BOTH stamps, then observe the reference again. That second pass is the point: it takes the
+      // known-entry branch, which is the only place lastSeen is refreshed. Without asserting it here, that
+      // refresh could be deleted outright and the sweep below would still find the stamp the first pass
+      // wrote — the test would pass while the entry silently aged into being prunable.
+      const staleAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      (service as any).pendingSince.set('dfx-lm-7', { since: staleAt, lastSeen: staleAt });
+      // a day past its bound, so this pass reaches the cancel — the venue not confirming it is what keeps
+      // such a reference pending indefinitely, which is exactly the case the sweep must not collect
+      jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      expect((service as any).pendingSince.get('dfx-lm-7').lastSeen.getTime()).toBeGreaterThan(staleAt.getTime());
+      // the clock itself must NOT be pushed forward, or the bound would never be reached
+      expect((service as any).pendingSince.get('dfx-lm-7').since).toEqual(staleAt);
 
       // a different reference entering pending for the first time is what triggers the sweep
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
