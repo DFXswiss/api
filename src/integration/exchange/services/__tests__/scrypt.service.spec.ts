@@ -976,12 +976,12 @@ describe('ScryptService', () => {
       expect(warnSpy).toHaveBeenCalled();
     });
 
-    it('returns false and warns when the venue returns an empty history', async () => {
-      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+    it('returns true when the venue returns an empty history — no rows at all is a complete answer, not a reason to wait', async () => {
+      const infoSpy = jest.spyOn(service['logger'], 'info').mockImplementation();
       instance.fetchAll.mockResolvedValue([]);
 
-      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(false);
-      expect(warnSpy).toHaveBeenCalled();
+      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(true);
+      expect(infoSpy).toHaveBeenCalled();
     });
 
     it('returns false when the sought reference appears in the live cache while the history fetch is in flight', async () => {
@@ -1245,6 +1245,76 @@ describe('ScryptService', () => {
       await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
 
       expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
+    });
+  });
+
+  describe('cancelIfOutstandingBySymbol', () => {
+    /** A complete report, so the fixture cannot drift from the contract cancelOrderBySymbol now promises. */
+    function cancelReport(overrides: Partial<ScryptExecutionReport> = {}): ScryptExecutionReport {
+      return {
+        ClOrdID: 'cancel-req-2',
+        OrigClOrdID: 'legacy-ref-1',
+        Symbol: 'XRP/USDT',
+        Side: 'Sell',
+        OrdStatus: ScryptOrderStatus.CANCELED,
+        OrderQty: '10',
+        CumQty: '0',
+        LeavesQty: '0',
+        ...overrides,
+      };
+    }
+
+    it('cancels under the given symbol without deriving a trade pair', async () => {
+      const getTradePairSpy = jest.spyOn(service as any, 'getTradePair');
+      const connection = (service as any).connection;
+      jest.spyOn(connection, 'requestAndWaitForUpdate').mockImplementation(async (..._args: unknown[]) => {
+        const [, [payload]] = _args as [unknown, [{ Symbol: string }]];
+        expect(payload.Symbol).toBe('XRP/USDT');
+        return cancelReport();
+      });
+
+      await expect(service.cancelIfOutstandingBySymbol('legacy-ref-1', 'XRP/USDT')).resolves.toBe(
+        ScryptCancellation.SETTLED,
+      );
+      expect(getTradePairSpy).not.toHaveBeenCalled();
+    });
+
+    it('shares the same evaluation as cancelIfOutstanding — a fill is reported as executed here too', async () => {
+      const connection = (service as any).connection;
+      jest.spyOn(connection, 'requestAndWaitForUpdate').mockResolvedValue(cancelReport({ CumQty: '3' }));
+
+      await expect(service.cancelIfOutstandingBySymbol('legacy-ref-1', 'XRP/USDT')).resolves.toBe(
+        ScryptCancellation.EXECUTED,
+      );
+    });
+
+    it('goes unconfirmed and forgets the cached report the same way cancelIfOutstanding does', async () => {
+      const connection = (service as any).connection;
+      jest
+        .spyOn(connection, 'requestAndWaitForUpdate')
+        .mockRejectedValue(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+      (service as any).executionReports.set('legacy-ref-1', {
+        ClOrdID: 'legacy-ref-1',
+        OrdStatus: ScryptOrderStatus.NEW,
+      });
+
+      await expect(service.cancelIfOutstandingBySymbol('legacy-ref-1', 'XRP/USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+      expect((service as any).executionReports.has('legacy-ref-1')).toBe(false);
+    });
+
+    it('settles a refusal that says there is no such order — same UnknownOrder inference as cancelIfOutstanding', async () => {
+      const connection = (service as any).connection;
+      jest
+        .spyOn(connection, 'requestAndWaitForUpdate')
+        .mockResolvedValue(
+          cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'UnknownOrder' }),
+        );
+
+      await expect(service.cancelIfOutstandingBySymbol('legacy-ref-1', 'XRP/USDT')).resolves.toBe(
+        ScryptCancellation.SETTLED,
+      );
     });
   });
 

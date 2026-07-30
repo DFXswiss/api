@@ -274,7 +274,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * to have the venue say so. All-or-nothing on purpose: one reference the venue would not settle is enough
    * to keep the whole order quarantined, because the funds a rule would get back are the same funds that
    * reference could still spend. Every reference is still asked about — a refusal on one is no reason to
-   * leave the others without an attempt.
+   * leave the others without an attempt. An unsupported/legacy command cancels the same way; it just names
+   * its cancel symbol from the venue's own order-status reply instead of deriving one locally, so there is
+   * no command for which "no symbol" blocks this exit.
    *
    * For withdrawals: Scrypt has no cancel operation. The exit rests on confirmed absence — the venue returned
    * a complete, consistent transaction history that has no record of this reference. That is not the same as
@@ -319,38 +321,35 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
 
     // A command no longer in ScryptAdapterCommands (rename/removal) still reaches this adapter via
-    // getReconciliationIntegration. getTradePair matches securities in either direction
-    // (Base/Quote or Quote/Base) and cancelOrder only uses the resulting symbol — never side — so from/to
-    // order does not matter for a cancel as long as tradeAsset and the rule asset form a known pair.
-    // When tradeAsset is present in paramMap we therefore take the same active cancelIfOutstanding path as
-    // a known command (incl. UnknownOrder inference inside cancelIfOutstanding). Only when parseTradeParams
-    // cannot yield a tradeAsset is there genuinely no symbol: then we keep the passive getOrderStatus-only
-    // branch. There: terminal status OR venue-unknown (`null`) settles a reference; only unreachable
-    // (`undefined`) keeps the order waiting for another pass — never invent a cancel without a symbol.
+    // getReconciliationIntegration. There used to be a second path here for such a command when its
+    // paramMap still carried a `tradeAsset` — but that was only ever a shortcut to a symbol, and a shortcut
+    // that could be wrong: a `tradeAsset` in a stale paramMap is not a guarantee the command was ever a
+    // plain sell/buy, "SELL vs. everything else" is not a real side inference for a command that, by
+    // definition, is not SELL, and getTradePair reads live security configuration that a delisted or
+    // renamed pair could no longer match even though the order itself is still open at the venue under its
+    // original symbol. None of that guessing is needed: the venue's own order-status reply already names
+    // the symbol a reference lives under (ScryptOrderInfo.symbol), so every reference the venue can still
+    // show us is cancellable through the symbol it hands back, with no local trade-pair derivation at all.
+    // One way for every unsupported command, not two: ask first, storno under the venue's own symbol only
+    // if the answer is non-terminal. `null` vs `undefined` is the whole point here (same distinction as
+    // adoptLiveReplacement): null = venue answered and has no record; undefined = could not be asked.
     const knownCommands = Object.values(ScryptAdapterCommands) as string[];
     const isKnownCommand = knownCommands.includes(order.action.command);
 
-    let derivedTradeAsset: string | undefined;
     if (!isKnownCommand) {
-      try {
-        derivedTradeAsset = this.parseTradeParams(order.action.paramMap).tradeAsset;
-      } catch {
-        derivedTradeAsset = undefined; // genuinely no symbol determinable — passive fallback is the only option
-      }
-    }
+      const executed: CorrelationId[] = [];
+      let unsettled = 0;
 
-    if (!isKnownCommand && !derivedTradeAsset) {
-      // Passive only: no tradeAsset in params, so no cancel symbol is determinable. Ask the venue about
-      // every reference individually. `null` vs `undefined` is the whole point here (same distinction as
-      // adoptLiveReplacement): null = venue answered and has no record; undefined = could not be asked.
       for (const reference of references) {
         const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
+
         if (info === undefined) {
           this.logger.warn(
             `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is unreachable; keeping the order quarantined`,
           );
           return null;
         }
+
         if (info === null) {
           // Venue answered: no record for this reference. Same inference as cancelIfOutstanding /
           // refusedAsUnknown (SCRYPT_UNKNOWN_ORDER): nothing left that can execute under it.
@@ -359,26 +358,47 @@ export class ScryptAdapter extends LiquidityActionAdapter {
           );
           continue;
         }
-        if (!isTerminalScryptOrderStatus(info.status)) {
-          this.logger.warn(
-            `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is still non-terminal (${info.status}); keeping the order quarantined`,
-          );
-          return null;
+
+        if (isTerminalScryptOrderStatus(info.status)) continue;
+
+        // Non-terminal, and the venue just named the symbol it lives under in the very same reply — storno
+        // it under exactly that symbol. Evaluated the same way the active path below evaluates a cancel:
+        // SETTLED moves on to the next reference, EXECUTED is recorded so the fill can be reconciled,
+        // anything else keeps the whole order quarantined (a single unsettled reference could still spend
+        // the funds).
+        const outcome = await this.scryptService.cancelIfOutstandingBySymbol(reference, info.symbol);
+
+        if (outcome === ScryptCancellation.SETTLED) continue;
+
+        if (outcome === ScryptCancellation.EXECUTED) {
+          executed.push(reference);
+          continue;
         }
+
+        unsettled++;
+        this.logger.warn(
+          `Order ${order.id}: unsupported command ${order.action.command} — Scrypt would not settle ${reference}, so it may still execute — keeping the order quarantined`,
+        );
       }
 
+      if (unsettled) return null;
+
+      if (executed.length)
+        order.errorMessage = `${order.errorMessage} (executed at Scrypt under ${executed.join(', ')})`;
+
       this.logger.info(
-        `Order ${order.id}: venue reports every reference of unsupported command ${order.action.command} in a terminal state`,
+        `Order ${order.id}: venue reports every reference of unsupported command ${order.action.command} in a terminal state${
+          executed.length ? `; ${executed.join(', ')} had filled` : ''
+        }`,
       );
       return 'the venue reports every reference of this unsupported command in a terminal state';
     }
 
-    // Known command, or unsupported command with a determinable tradeAsset (FIX 4): same active storno path.
-    // parseTradeParams is pure; for the unsupported+tradeAsset case it already succeeded above.
+    // Known command: from/to is derived directly from the rule, so the venue's cancel-and-report is asked
+    // for every reference straight away — no separate status lookup needed first (contrast the branch
+    // above, which cannot derive a trade pair locally and asks first for that reason).
     const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
     const asset = order.pipeline.rule.targetAsset.dexName;
-    // For an unknown command the SELL branch is false, so we default to [tradeAsset, asset]. That from/to
-    // order is still fine: getTradePair is symmetric and cancelOrder never reads side — only symbol matters.
     const [from, to] = order.action.command === ScryptAdapterCommands.SELL ? [asset, tradeAsset] : [tradeAsset, asset];
 
     const executed: CorrelationId[] = [];

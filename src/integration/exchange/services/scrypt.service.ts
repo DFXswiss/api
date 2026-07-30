@@ -625,8 +625,9 @@ export class ScryptService extends PricingProvider {
    * Confirm that the venue's transaction history has no record of this withdrawal reference.
    *
    * Scrypt has no cancel/storno for withdrawals. A quarantined withdrawal therefore cannot be cleared the way
-   * a trade is. The automatic exit is confirmed absence: a fresh bulk fetch returned a non-empty history and
-   * this `clReqId` is not in it. The caller abandons on that basis rather than claiming a not-sent release.
+   * a trade is. The automatic exit is confirmed absence: a fresh bulk fetch was returned and this `clReqId`
+   * is not in it — whether that history has rows or not. The caller abandons on that basis rather than
+   * claiming a not-sent release.
    *
    * No local consistency gate / cache-anchor check. Scrypt withdrawal destinations are exclusively DFX-owned
    * addresses ("Auszahlungsadressen bei Scrypt gehören alle ausnahmslos der DFX AG"). A second payout would
@@ -640,14 +641,17 @@ export class ScryptService extends PricingProvider {
    * Incomplete or truncated venue replies (pagination cut-off, partial answer) can now cause a second
    * withdrawal. That is the deliberate trade-off accepted by the orderer — not an overlooked gap.
    *
-   * Remaining `false` branches react only to an absent or empty venue answer (fetch error, empty history),
-   * not to a missing local anchor. A venue that permanently returns nothing is a total integration failure;
-   * this one order is then the least of the problems, and the existing warm-up / reconnect retry (constructor)
-   * recovers automatically without a human.
+   * Remaining `false` branches react only to a fetch failure or a live-cache race hit (the reference appeared
+   * in the live map while the bulk fetch was in flight). An empty history is no longer one of them: on a
+   * fresh or long-dormant Scrypt account the trade history genuinely has no rows, and the venue answering
+   * successfully with `[]` is a complete, positive statement of absence — the strongest one this method can
+   * get, not a reason to wait. That is not the same case as a real outage: an outage does not come back as an
+   * empty array, it throws, and lands in the catch above. The two look alike only on paper — a thrown error
+   * and a successful empty reply are deliberately handled differently.
    *
-   * @returns true when the fresh history is non-empty, the live cache does not hold `clReqId` after the fetch,
-   * and that history does not contain `clReqId`. false on fetch failure, empty history, live-race hit, or when
-   * the reference is present in the fresh reply.
+   * @returns true when the live cache does not hold `clReqId` after the fetch and the fresh history (empty or
+   * not) does not contain it. false on fetch failure, live-race hit, or when the reference is present in the
+   * fresh reply.
    */
   async confirmWithdrawalAbsent(clReqId: string): Promise<boolean> {
     let fresh: ScryptBalanceTransaction[];
@@ -658,11 +662,13 @@ export class ScryptService extends PricingProvider {
       return false;
     }
 
+    // An empty reply is a valid, complete answer — not a reason to wait. See the JSDoc above for why this is
+    // no longer a `false` branch: it is the venue positively saying this reference does not exist, exactly
+    // the same statement a non-empty history without `clReqId` makes below.
     if (!fresh.length) {
-      this.logger.warn(
-        `confirmWithdrawalAbsent(${clReqId}): venue returned an empty transaction history — cannot conclude absence`,
+      this.logger.info(
+        `confirmWithdrawalAbsent(${clReqId}): venue returned an empty transaction history — the reference cannot exist in a history with no rows at all`,
       );
-      return false;
     }
 
     const freshIds = new Set(fresh.map((t) => t.ClReqID).filter((id): id is string => Boolean(id)));
@@ -964,10 +970,43 @@ export class ScryptService extends PricingProvider {
    *    Terminal is the operative word: a refused cancel carries the order's last known state, so a
    *    partially filled order that could NOT be cancelled reports a fill while staying wide open.
    *  - UNCONFIRMED — no usable answer. Nothing may be concluded from it.
+   *
+   * Symbol resolution is the one thing that differs between this and {@link cancelIfOutstandingBySymbol};
+   * everything else (send, evaluate, guard, catch) lives once in {@link cancelIfOutstandingCore} so neither
+   * can drift from the other.
    */
   async cancelIfOutstanding(clOrdId: string, from: string, to: string): Promise<ScryptCancellation> {
+    return this.cancelIfOutstandingCore(clOrdId, async () => (await this.getTradePair(from, to)).symbol);
+  }
+
+  /**
+   * Same outcome as {@link cancelIfOutstanding}, for a reference whose trade pair cannot be rebuilt locally —
+   * typically a command no longer in `ScryptAdapterCommands` (rename/removal), where a `paramMap` that
+   * happens to still carry a `tradeAsset` is not a guarantee the command was ever a plain sell/buy.
+   *
+   * The venue's own order-status reply already names the symbol a reference lives under
+   * (`ScryptOrderInfo.symbol`), straight from the venue rather than reconstructed from configuration that may
+   * no longer match reality (a delisted or renamed security would make `getTradePair` throw even though the
+   * order in question is still very much live under its original symbol). Every reference the venue can
+   * still show us is therefore cancellable through the symbol it hands back — there is no "symbol not
+   * determinable" wait path left, only the venue not knowing the reference at all (SETTLED, same inference as
+   * the `UnknownOrder` case below) or not answering at all (the caller's own lookup decides what to do with
+   * that, not this method).
+   */
+  async cancelIfOutstandingBySymbol(clOrdId: string, symbol: string): Promise<ScryptCancellation> {
+    return this.cancelIfOutstandingCore(clOrdId, async () => symbol);
+  }
+
+  private async cancelIfOutstandingCore(
+    clOrdId: string,
+    // Deferred rather than a plain string: the symbol lookup used by cancelIfOutstanding has to run INSIDE
+    // this method's try, exactly as it did when cancelOrder resolved it internally — otherwise a failing
+    // getTradePair would escape uncaught instead of settling into UNCONFIRMED like every other cancel failure.
+    resolveSymbol: () => Promise<string>,
+  ): Promise<ScryptCancellation> {
     try {
-      const report = await this.cancelOrder(clOrdId, from, to);
+      const symbol = await resolveSymbol();
+      const report = await this.cancelOrderBySymbol(clOrdId, symbol);
 
       const filled = Number(report.CumQty);
 
@@ -1038,7 +1077,7 @@ export class ScryptService extends PricingProvider {
     } catch (e) {
       // No rejection branch here on purpose: this venue answers a refused cancel with an execution report,
       // not an exception, and that is read above. What reaches this catch is anything that stopped the cancel
-      // from being answered — the trade-pair lookup it starts with, or the send and its wait.
+      // from being answered — the symbol lookup it starts with, or the send and its wait.
       //
       // Not all of those got as far as writing, but this cannot tell which did, and that is the whole reason
       // to treat them alike: an unconfirmed cancel may have taken effect at the venue while the cached report
@@ -1054,6 +1093,10 @@ export class ScryptService extends PricingProvider {
 
   private async cancelOrder(clOrdId: string, from: string, to: string): Promise<ScryptExecutionReport> {
     const { symbol } = await this.getTradePair(from, to);
+    return this.cancelOrderBySymbol(clOrdId, symbol);
+  }
+
+  private async cancelOrderBySymbol(clOrdId: string, symbol: string): Promise<ScryptExecutionReport> {
     const newClOrdId = randomUUID();
 
     const cancelData = {
