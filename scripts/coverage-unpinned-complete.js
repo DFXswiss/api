@@ -98,14 +98,14 @@ function main() {
     if (logicPaths.length > 0) {
       console.log(`Add to ${LABEL_LOGIC}:`);
       for (const rel of logicPaths) {
-        console.log(`  '${rel}',`);
+        console.log(toArrayLine(rel));
       }
       console.log('');
     }
     if (declarativePaths.length > 0) {
       console.log(`Add to ${LABEL_DECLARATIVE}:`);
       for (const rel of declarativePaths) {
-        console.log(`  '${rel}',`);
+        console.log(toArrayLine(rel));
       }
       console.log('');
     }
@@ -126,7 +126,7 @@ function main() {
           md += `### Add to ${LABEL_LOGIC}\n\n`;
           md += '```\n';
           for (const rel of logicPaths) {
-            md += `  '${rel}',\n`;
+            md += `${toArrayLine(rel)}\n`;
           }
           md += '```\n\n';
         }
@@ -134,7 +134,7 @@ function main() {
           md += `### Add to ${LABEL_DECLARATIVE}\n\n`;
           md += '```\n';
           for (const rel of declarativePaths) {
-            md += `  '${rel}',\n`;
+            md += `${toArrayLine(rel)}\n`;
           }
           md += '```\n\n';
         }
@@ -169,6 +169,13 @@ function normalizeToSrc(fileKey) {
 
   // Slice from the 's' of 'src/' — skip the leading slash of '/src/'.
   return fileKey.slice(idx + 1);
+}
+
+// A path is emitted as a single-quoted JS literal, ready to paste into the pinned arrays. POSIX allows
+// any byte but '/' and NUL in a filename, so backslash and apostrophe have to be escaped for the line to
+// stay valid - rare, but the output promises to be paste-ready.
+function toArrayLine(rel) {
+  return `  '${rel.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}',`;
 }
 
 try {

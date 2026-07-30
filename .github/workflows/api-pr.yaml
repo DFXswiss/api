@@ -158,8 +158,9 @@ jobs:
       # The ratchet only protects files that someone entered by hand, so a file that reaches 100% stays
       # unguarded until a human notices. This reads the run's own summary and names those files. Advisory
       # on purpose: a pull request can complete a file it never touched, and failing it for that would
-      # train the team to ignore a red gate. Runs only when the gate itself ran to a verdict, so a report
-      # left on the persistent runner by an earlier build cannot be presented as describing this commit.
+      # train the team to ignore a red gate. The checkout clears the ignored coverage-gate/ directory
+      # before every run, and this step additionally waits for the gate to reach a verdict - so a report
+      # from an earlier build on the persistent runner cannot be read as describing this commit.
       - name: Report complete but unpinned files
         if: ${{ always() && (steps.ratchet.outcome == 'success' || steps.ratchet.outcome == 'failure') }}
         continue-on-error: true
