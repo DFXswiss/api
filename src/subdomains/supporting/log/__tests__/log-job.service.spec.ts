@@ -222,6 +222,37 @@ describe('LogJobService', () => {
     });
   });
 
+  describe('saveTradingLog (chart columns mirror the JSON source)', () => {
+    it('writes totalBalanceChf and btcPriceChf columns using exactly the same values as the JSON message', async () => {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({
+        42: { priceChf: 65432.109, plusBalance: { total: 0 }, minusBalance: { total: 0 } },
+      });
+      jest
+        .spyOn(service as any, 'getBalancesByFinancialType')
+        .mockReturnValue({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } });
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(assetService, 'getBtcCoin').mockResolvedValue(createCustomAsset({ id: 42 }) as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 5000 } }) } as any);
+      const createSpy = jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+
+      await service.saveTradingLog();
+
+      const dataLogCall = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      expect(dataLogCall).toBeDefined();
+      const dto = dataLogCall[0];
+
+      const parsedMessage = JSON.parse(dto.message);
+      expect(dto.totalBalanceChf).toBe(parsedMessage.balancesTotal.totalBalanceChf);
+      expect(dto.btcPriceChf).toBe(parsedMessage.assets['42'].priceChf);
+      expect(dto.btcPriceChf).toBe(65432.109);
+    });
+  });
+
   describe('saveTradingLog (referral-credit liability)', () => {
     // a positive base book so the referral-credit assertions work on round numbers
     const baseBuckets = () => ({

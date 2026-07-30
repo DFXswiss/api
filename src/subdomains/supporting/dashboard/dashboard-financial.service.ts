@@ -262,13 +262,13 @@ export class DashboardFinancialService {
     return { timestamp, byType, byBlockchain };
   }
 
-  // Pure mapping over the SQL projection: for well-formed data, the response matches the previous
-  // mapLogToEntry path exactly, including the `?? 0` field defaults. Two cases are intentionally
-  // different from that old path: (1) a `balancesByFinancialType` entry with the value `null` (e.g.
-  // `{"Crypto": null}`) now keeps the row (with an empty balancesByType entry) instead of the old
-  // per-row try/catch dropping the whole log line — favouring a visible gap over a silently dropped
-  // row; and (2) a wrongly-typed `balancesByFinancialType` property (string, boolean, `null`) —
-  // previously passed through unchanged, breaking the `number | undefined` DTO contract — now
+  // Pure mapping over the SQL projection. For the History path (includeByType=true) the response
+  // matches the previous mapLogToEntry path exactly, including the `?? 0` field defaults, with two
+  // intentional differences from that old path: (1) a `balancesByFinancialType` entry with the value
+  // `null` (e.g. `{"Crypto": null}`) now keeps the row (with an empty balancesByType entry) instead of
+  // the old per-row try/catch dropping the whole log line — favouring a visible gap over a silently
+  // dropped row; and (2) a wrongly-typed `balancesByFinancialType` property (string, boolean, `null`)
+  // — previously passed through unchanged, breaking the `number | undefined` DTO contract — now
   // becomes `undefined` (see the `asNumber` guard in log.repository.ts), honouring that contract
   // rather than avoiding a dropped row. The same visible-gap reasoning as (1) covers a top-level
   // `message: null` (not a sub-field, the whole document): the old path threw on the following
@@ -277,14 +277,19 @@ export class DashboardFinancialService {
   // document is a deliberate change from the old per-row silent drop to failing loud for the whole
   // query (the `message::jsonb` cast throws in SQL); individual scalar fields are only nulled via
   // `jsonb_typeof` guards.
+  //
+  // Chart-only path (includeByType=false): the repository omits plusBalanceChf/minusBalanceChf/
+  // fxPnlChf/balancesByType entirely from the summary. The conditional spreads below then omit them
+  // from the response as well (not 0, not null) — deliberate API contract change for the Overview
+  // screen, which only charts totalBalanceChf/btcPriceChf.
   private mapSummaryToEntry(summary: FinancialLogSummary): FinancialLogEntryDto {
     return {
       timestamp: summary.created,
       totalBalanceChf: summary.totalBalanceChf ?? 0,
-      plusBalanceChf: summary.plusBalanceChf ?? 0,
-      minusBalanceChf: summary.minusBalanceChf ?? 0,
-      fxPnlChf: summary.fxPnlChf ?? 0,
       btcPriceChf: summary.btcPriceChf,
+      ...(summary.plusBalanceChf !== undefined ? { plusBalanceChf: summary.plusBalanceChf ?? 0 } : {}),
+      ...(summary.minusBalanceChf !== undefined ? { minusBalanceChf: summary.minusBalanceChf ?? 0 } : {}),
+      ...(summary.fxPnlChf !== undefined ? { fxPnlChf: summary.fxPnlChf ?? 0 } : {}),
       ...(summary.balancesByType !== undefined ? { balancesByType: summary.balancesByType } : {}),
     };
   }

@@ -32,4 +32,20 @@ export class Log extends IEntity {
 
   @Column({ nullable: true })
   valid?: boolean;
+
+  /**
+   * balancesTotal.totalBalanceChf captured at write time from FinancialDataLog rows
+   * (LogJobService), so the financial-log chart query can read it without parsing the ~43 KB
+   * `message` document. NULL for every other subsystem, and for FinancialDataLog rows written
+   * before this column existed until the backfill migration populates them.
+   */
+  @Column({ type: 'float8', nullable: true })
+  totalBalanceChf?: number;
+
+  /**
+   * The BTC asset's priceChf entry under assets[<btcAssetId>] in the same FinancialDataLog
+   * snapshot, captured at write time for the same reason as totalBalanceChf above.
+   */
+  @Column({ type: 'float8', nullable: true })
+  btcPriceChf?: number;
 }

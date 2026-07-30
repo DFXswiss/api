@@ -276,18 +276,16 @@ describe('DashboardFinancialService', () => {
       );
     });
 
-    it('forwards includeByType=false through to getFinancialLogSummaries and the response omits balancesByType entirely (not an empty object, not null)', async () => {
+    it('forwards includeByType=false through to getFinancialLogSummaries and the response omits plusBalanceChf, minusBalanceChf, fxPnlChf and balancesByType entirely (chart-only contract, not 0, not null)', async () => {
       const btcAsset = { id: 7 } as Awaited<ReturnType<AssetService['getBtcCoin']>>;
       const summaries: FinancialLogSummary[] = [
         {
           created: new Date('2026-07-14T00:00:00Z'),
           id: 1,
           totalBalanceChf: 100,
-          plusBalanceChf: 120,
-          minusBalanceChf: 20,
-          fxPnlChf: 1.5,
           btcPriceChf: 64000,
-          // no balancesByType key: the repository omits it entirely when includeByType is false
+          // plusBalanceChf/minusBalanceChf/fxPnlChf/balancesByType intentionally absent: the
+          // repository's chart-only path never selects them when includeByType is false.
         },
       ];
       jest.spyOn(assetService, 'getBtcCoin').mockResolvedValue(btcAsset);
@@ -297,8 +295,15 @@ describe('DashboardFinancialService', () => {
       const result = await service.getFinancialLog(from, true, false);
 
       expect(getSummariesSpy).toHaveBeenCalledWith(7, from, true, undefined, undefined, undefined, false);
+      expect(result.entries[0]).toEqual({
+        timestamp: summaries[0].created,
+        totalBalanceChf: 100,
+        btcPriceChf: 64000,
+      });
+      expect('plusBalanceChf' in result.entries[0]).toBe(false);
+      expect('minusBalanceChf' in result.entries[0]).toBe(false);
+      expect('fxPnlChf' in result.entries[0]).toBe(false);
       expect('balancesByType' in result.entries[0]).toBe(false);
-      expect(JSON.parse(JSON.stringify(result.entries[0]))).not.toHaveProperty('balancesByType');
     });
   });
 
