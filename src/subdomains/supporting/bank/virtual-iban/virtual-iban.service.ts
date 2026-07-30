@@ -86,7 +86,7 @@ export class VirtualIbanService {
    */
   static readonly FRICK_CREATE_MAX_PROCESSING_MS = 120_000;
 
-  /** Providers eligible for implicit/default personal-IBAN behavior. Frick is explicit opt-in only. */
+  /** Providers eligible for implicit/default personal-IBAN behavior, selected by their supported currency. */
   private readonly genericProviders: VibanProvider[];
 
   constructor(
@@ -98,7 +98,7 @@ export class VirtualIbanService {
     private readonly dataSource: DataSource,
     private readonly notificationService: NotificationService,
   ) {
-    this.genericProviders = [this.yapealVibanProvider];
+    this.genericProviders = [this.yapealVibanProvider, this.frickVibanProvider];
   }
 
   isUserEligible(currencyName: string, userData: UserData): boolean {
@@ -109,11 +109,10 @@ export class VirtualIbanService {
    * Resolves who legally holds the deposit account behind a personal-IBAN bank name (see
    * {@link VibanAccountHolder}). This is the seam that lets buildVirtualIbanResponse (buy.service.ts) —
    * which only has the persisted VirtualIban row, never the VibanProvider instance that issued it — ask
-   * "who owns this account" without threading provider objects through the entity layer. Deliberately
-   * looks across ALL registered providers (not just `genericProviders`, which excludes Frick by design for
-   * unrelated eligibility reasons — see its own doc comment) because a persisted VirtualIban can point at
-   * either bank. Fail-closed: an unrecognized bank name must never silently default to either party's
-   * identity — a wrong default here means showing the wrong recipient name on a real bank transfer.
+   * "who owns this account" without threading provider objects through the entity layer. It deliberately
+   * resolves the persisted bank name against every registered provider. Fail-closed: an unrecognized bank
+   * name must never silently default to either party's identity — a wrong default here means showing the
+   * wrong recipient name on a real bank transfer.
    */
   getAccountHolder(bankName: IbanBankName): VibanAccountHolder {
     const provider = [this.yapealVibanProvider, this.frickVibanProvider].find((p) => p.bankName === bankName);
@@ -121,13 +120,12 @@ export class VirtualIbanService {
     return provider.accountHolder;
   }
 
-  /** Bank Frick is exclusively available through the explicit selector path. */
+  /** Finds the active user-level personal IBAN, including Bank Frick as the regular EUR provider. */
   async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
       where: {
         userData: { id: userData.id },
         currency: { name: currencyName },
-        bank: { name: Not(IbanBankName.FRICK) },
         active: true,
         status: VirtualIbanStatus.ACTIVE,
       },
@@ -149,6 +147,12 @@ export class VirtualIbanService {
     const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
 
+    // createVirtualIban calls reserveViban without a description, which the Frick provider rejects
+    // outright - and it carries none of the claim/recovery protocol Frick issuance needs. Route the
+    // Frick currencies to their own entry point instead of letting them reach the generic path.
+    if (this.frickVibanProvider.currencies.includes(currencyName))
+      return this.getOrCreateFrickForUser(userData, currencyName);
+
     return this.createVirtualIban(userData, currencyName);
   }
 
@@ -156,13 +160,21 @@ export class VirtualIbanService {
     const existingForBuy = await this.getActiveForBuyAndCurrency(buy.id, currencyName);
     if (existingForBuy) throw new ConflictException('Buy already has an active personal IBAN for this currency');
 
+    // No buy-specific equivalent of the Frick claim/recovery protocol exists, and the generic path
+    // would fail at reserveViban anyway. Refuse rather than issue through it; BuyService skips this
+    // step for Frick currencies, so this guards direct callers. Checked after the conflict lookup so
+    // an already-issued IBAN still reports a conflict, as it did before Frick joined the providers.
+    if (this.frickVibanProvider.currencies.includes(currencyName))
+      throw new BadRequestException('Buy-specific personal IBANs are not available for this currency');
+
     return this.createVirtualIban(userData, currencyName, buy);
   }
 
   /**
-   * Merge-base issuance path for implicit providers (currently Yapeal). The durable claim/recovery
-   * protocol is Bank Frick-specific because only Frick exposes the reference-based reconciliation
-   * needed to repair a stranded claim. Do not route Yapeal through Frick intent machinery.
+   * Issuance path for providers without their own protocol - Yapeal today. Bank Frick never reaches
+   * here: both its entry points (explicit selector and implicit EUR resolution) go through
+   * getOrCreateFrickForUser, because this path neither takes the claim/recovery route nor passes the
+   * description Frick requires. Yapeal must not be routed through that Frick-specific machinery either.
    */
   private async createVirtualIban(userData: UserData, currencyName: string, buy?: Buy): Promise<VirtualIban> {
     const currency = await this.fiatService.getFiatByName(currencyName);
@@ -191,7 +203,11 @@ export class VirtualIbanService {
     return saved;
   }
 
-  /** Fail-closed, cross-instance-safe Frick issuance for the explicit selector path. */
+  /**
+   * Fail-closed, cross-instance-safe Frick issuance. Used by BOTH entry points: the explicit
+   * personal-IBAN selector and the implicit EUR resolution, which routes here rather than through the
+   * generic createVirtualIban path.
+   */
   async getOrCreateFrickForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
     if (currencyName !== 'EUR') throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
 
@@ -1645,6 +1661,16 @@ export class VirtualIbanService {
 
   invalidateCacheAfterMerge(): void {
     this.virtualIbanRepo.invalidateCache();
+  }
+
+  /**
+   * Whether any provider covers this currency at all, regardless of whether it is reachable right now.
+   * Kept apart from {@link hasProviderForCurrency} on purpose: "we do not offer personal IBANs in this
+   * currency" is a permanent answer the customer can act on, while an outage is temporary and ours to
+   * fix. Folding the two together would tell someone their currency is unsupported during a blip.
+   */
+  supportsCurrency(currencyName: string): boolean {
+    return this.genericProviders.some((provider) => provider.currencies.includes(currencyName));
   }
 
   private hasProviderForCurrency(currencyName: string): boolean {
