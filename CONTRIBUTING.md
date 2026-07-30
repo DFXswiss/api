@@ -982,7 +982,7 @@ Endpoints that block by design:
 | `GET /v1/node/:node/tx/:txId`        | the transaction reaches one confirmation; bounded at 600 s                                                                                                                        | no — exempt    |
 | `GET /v1/node/:node/:mode/tx/:txId`  | the same                                                                                                                                                                          | no — exempt    |
 
-**The `wait` segment is the default; exemptions must be explicit.** A blocking route without one is acceptable only if it is listed in the table above together with the reason it cannot carry the segment. A blocking route that is neither named `wait` nor listed here is a defect — fix it by renaming the route or by adding an entry, never by leaving it undocumented.
+**The `wait` segment is the default; exemptions must be explicit.** A *passively* waiting route without one is acceptable only if it is listed in the table above together with the reason it cannot carry the segment. A passively waiting route that is neither named `wait` nor listed here is a defect — fix it by renaming the route or by adding an entry, never by leaving it undocumented. Routes of the second kind above — those awaiting an operation they started themselves — need no entry; they are outside this rule by design.
 
 The three current exemptions keep their paths because those are fixed from outside: `/v1/lnurlp/:id` is the LNURL pay-request path encoded into LNURLs already in circulation, and the two node routes are admin-only and `@ApiExcludeEndpoint()`. Because they carry no `wait` segment they stay visible in latency monitoring — read their duration as expected behavior, not as a regression.
 
@@ -990,7 +990,7 @@ This is not cosmetic. Latency monitoring excludes routes matching `^.*/wait(/.*)
 
 Getting the name wrong breaks monitoring in one of two directions:
 
-- **A blocking endpoint without a `wait` segment** appears as a permanent latency outlier and masks real regressions — that is exactly what the exemptions above cost us today, which is why the list must stay short and justified.
+- **A passively waiting endpoint without a `wait` segment** appears as a permanent latency outlier and masks real regressions — that is exactly what the exemptions above cost us today, which is why the list must stay short and justified.
 - **A fast endpoint with a `wait` segment** is silently dropped from the latency view — if it ever becomes slow, nobody notices.
 
 The pattern is segment-anchored, so `/waitlist`, `/waitTime`, `/awaiting` and `/waiting/:id` are unaffected; only a complete `wait` segment matches. Matching runs on the server-side route template (`http.route`), never on the raw request path, which is caller-controlled.
