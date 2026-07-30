@@ -28,7 +28,13 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   addressType?: UserAddressType;
 
-  @Column({ type: 'text', nullable: true })
+  // Login credential: for DeFiChain and custodial Lightning the stored value IS the secret that
+  // authenticates a sign-in (see AuthService.verifySignature). `select: false` keeps it out of every
+  // query by default, so it can never travel out through an entity returned by a controller - several
+  // admin endpoints return entities that reach this column through relations, and `Transaction.user`
+  // is eager, so it arrives even where no relation was requested. Read it only through
+  // UserService.getSignature(), never by widening a query.
+  @Column({ type: 'text', nullable: true, select: false })
   signature?: string;
 
   @Column({ length: 256, nullable: true })

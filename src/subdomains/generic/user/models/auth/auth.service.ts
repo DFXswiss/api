@@ -243,8 +243,12 @@ export class AuthService {
 
   private async doSignIn(user: User, dto: SignInDto & { wallet?: string }, userIp: string, isCustodial: boolean) {
     if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
+      // The column is `select: false` (it is a login credential), so the loaded entity does not carry
+      // it - fetch it explicitly for the comparison paths in verifySignature.
+      const dbSignature = await this.userService.getSignature(user.id);
+
       if (
-        !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature, dto.blockchain))
+        !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, dbSignature, dto.blockchain))
       ) {
         throw new UnauthorizedException('Invalid credentials');
       }
