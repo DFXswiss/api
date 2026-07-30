@@ -92,6 +92,7 @@ export class RealUnitDtoMapper {
     dto.address = account.address;
     dto.addressType = account.addressType;
     dto.history = history.items.map((event) => ({
+      id: event.id,
       timestamp: new Date(Number(event.timestamp) * 1000),
       eventType: event.eventType,
       txHash: event.txHash,

@@ -87,6 +87,7 @@ export interface Transfer {
 }
 
 export interface HistoryEvent {
+  id: string;
   timestamp: number;
   eventType: HistoryEventType;
   txHash: string;

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -27,11 +28,12 @@ export class RealUnitJobService {
     if (!openQuotes.length) return;
 
     const historyCache = new Map<string, HistoryEventDto[]>();
-    // per user: settlement transfers already consumed by completed requests (persisted) or earlier in this
-    // run. The issuer may settle multiple purchases in a single tx (one transfer event each), so consumption
-    // is tracked per transfer event, not per tx. The history carries no per-event id, so a consumed event is
-    // identified by its (tx hash, share amount) pairing and counted to also cover same-amount settlements.
-    const consumedByUser = new Map<number, Map<string, number>>();
+    // event ids consumed by completed requests (of any user - the column is globally unique) or
+    // earlier in this run. The issuer may settle multiple purchases in a single tx, one transfer
+    // event each, so consumption is tracked per transfer event via its indexer event id, not per tx
+    const consumedEventIds = new Set(await this.transactionRequestService.getConsumedSettlementEventIds());
+    // per address: settlement txs of requests completed before event ids were recorded
+    const legacyTxIdsByAddress = new Map<string, Set<string>>();
 
     for (const quote of openQuotes) {
       try {
@@ -44,19 +46,31 @@ export class RealUnitJobService {
           historyCache.set(address, history);
         }
 
-        let consumed = consumedByUser.get(quote.user.id);
-        if (!consumed) {
-          consumed = await this.getConsumedSettlements(quote.user.id);
-          consumedByUser.set(quote.user.id, consumed);
+        let legacyTxIds = legacyTxIdsByAddress.get(address.toLowerCase());
+        if (!legacyTxIds) {
+          legacyTxIds = await this.getLegacySettlementTxIds(address);
+          legacyTxIdsByAddress.set(address.toLowerCase(), legacyTxIds);
         }
 
         // quotes are ordered oldest-first, so match the oldest unconsumed settlement transfer
-        const settlement = this.findUnconsumedSettlement(history, consumed, address, expectedShares, quote.created);
+        const settlement = this.findUnconsumedSettlement(
+          history,
+          consumedEventIds,
+          legacyTxIds,
+          address,
+          expectedShares,
+          quote.created,
+        );
         if (!settlement) continue;
 
-        const key = this.settlementKey(settlement.txHash, expectedShares);
-        consumed.set(key, (consumed.get(key) ?? 0) + 1);
-        await this.transactionRequestService.complete(quote.id, settlement.txHash);
+        const claimed = await this.transactionRequestService.completeSettlement(quote.id, {
+          txId: settlement.txHash,
+          eventId: settlement.id,
+        });
+        // another instance claimed this quote first — leave the event available for the next run
+        if (!claimed) continue;
+
+        consumedEventIds.add(settlement.id);
 
         this.logger.info(
           `Completed settled quote ${quote.id}: ${expectedShares} shares received from ${settlement.transfer.from} in tx ${settlement.txHash}`,
@@ -80,49 +94,47 @@ export class RealUnitJobService {
 
   // --- HELPER METHODS --- //
 
-  private async getConsumedSettlements(userId: number): Promise<Map<string, number>> {
-    const settlements = await this.transactionRequestService.getUsedSettlements(userId);
+  private async getLegacySettlementTxIds(address: string): Promise<Set<string>> {
+    const txIds = await this.transactionRequestService.getLegacySettlementTxIds(address);
 
-    const consumed = new Map<string, number>();
-    for (const settlement of settlements) {
-      const key = this.settlementKey(settlement.settlementTxId, Math.floor(settlement.estimatedAmount));
-      consumed.set(key, (consumed.get(key) ?? 0) + 1);
-    }
-
-    return consumed;
+    // which transfer event of such a tx the request consumed is not recoverable, so the whole tx
+    // stays blocked for this address - a settlement assigned twice is worse than one that needs a
+    // manual completion
+    return new Set(txIds.map((txId) => txId.toLowerCase()));
   }
 
-  // Walks all incoming transfers oldest-first and treats the first n events of each (tx hash, share amount)
-  // pairing as consumed, where n is the number of settlements already recorded for that pairing — so a batch
-  // settlement tx can complete one request per contained transfer event, but never the same event twice.
+  // Matches the oldest incoming transfer that carries the expected share amount, was mined after the
+  // quote was created and has not been consumed by another request.
   private findUnconsumedSettlement(
     history: HistoryEventDto[],
-    consumed: Map<string, number>,
+    consumedEventIds: Set<string>,
+    legacyTxIds: Set<string>,
     address: string,
     expectedShares: number,
     minTimestamp: Date,
   ): HistoryEventDto | undefined {
     const incomingTransfers = Util.sort(
-      history.filter((e) => e.transfer && Util.equalsIgnoreCase(e.transfer.to, address)),
+      history.filter(
+        (e) =>
+          e.transfer &&
+          Util.equalsIgnoreCase(e.transfer.to, address) &&
+          // a settlement is paid out by the issuer. Without this the buyer could complete an open
+          // quote by sending the shares from a second wallet of their own
+          Util.equalsIgnoreCase(e.transfer.from, Config.blockchain.realunit.brokerbotAddress) &&
+          // the indexer writes a self-transfer to this account's history twice, once as …-to and
+          // once as …-from; both rows carry the same transfer and would settle two quotes from one
+          // physical transfer. Only reachable if the account is the issuer itself, but free to rule out
+          !Util.equalsIgnoreCase(e.transfer.from, e.transfer.to),
+      ),
       'timestamp',
     );
 
-    const seen = new Map<string, number>();
-
-    for (const event of incomingTransfers) {
-      const shares = Number(event.transfer.value);
-      const key = this.settlementKey(event.txHash, shares);
-      const position = (seen.get(key) ?? 0) + 1;
-      seen.set(key, position);
-
-      if (position <= (consumed.get(key) ?? 0)) continue;
-      if (shares === expectedShares && event.timestamp >= minTimestamp) return event;
-    }
-
-    return undefined;
-  }
-
-  private settlementKey(txHash: string, shares: number): string {
-    return `${txHash.toLowerCase()}|${shares}`;
+    return incomingTransfers.find(
+      (e) =>
+        !consumedEventIds.has(e.id) &&
+        !legacyTxIds.has(e.txHash.toLowerCase()) &&
+        Number(e.transfer.value) === expectedShares &&
+        e.timestamp >= minTimestamp,
+    );
   }
 }

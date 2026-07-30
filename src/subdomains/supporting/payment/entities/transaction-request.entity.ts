@@ -127,10 +127,17 @@ export class TransactionRequest extends IEntity {
   aktionariatResponse?: string;
 
   // tx hash of the on-chain transfer that settled this request (set by the settlement job);
-  // a settlement tx may contain multiple transfer events (batch settlement), each of which
-  // may complete at most one request per user
+  // kept for the block explorer link — a settlement tx may contain multiple transfer events
+  // (batch settlement), so it does not identify the consumed event
   @Column({ length: 256, nullable: true })
   settlementTxId?: string;
+
+  // id of the indexer history event that settled this request (set by the settlement job).
+  // Unique across all requests: one transfer event settles at most one request, enforced by the
+  // partial unique index so a matching bug cannot assign the same event twice
+  @Index({ unique: true, where: '"settlementEventId" IS NOT NULL' })
+  @Column({ length: 256, nullable: true })
+  settlementEventId?: string;
 
   @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })
   transaction?: Transaction;
