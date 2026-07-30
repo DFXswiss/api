@@ -411,9 +411,23 @@ describe('VirtualIbanService', () => {
       // would fail at reserveViban anyway (no description). BuyService already skips this step for
       // Frick currencies; this guards direct callers.
       const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
+      // No existing IBAN: the conflict lookup runs first, so leaving it mocked would report a conflict
+      // instead of the refusal this test is about.
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
       jest.spyOn(frickVibanProvider, 'reserveViban');
 
       await expect(service.createForBuy(userData, buy, 'EUR')).rejects.toThrow(BadRequestException);
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('reports a conflict before refusing when an EUR buy IBAN already exists', async () => {
+      // Order matters: an already-issued IBAN must still surface as a conflict, exactly as it did
+      // before Frick joined the generic providers.
+      const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue({ id: 9 } as VirtualIban);
+      jest.spyOn(frickVibanProvider, 'reserveViban');
+
+      await expect(service.createForBuy(userData, buy, 'EUR')).rejects.toThrow(ConflictException);
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
   });
