@@ -190,8 +190,11 @@ describe('LiquidityManagementPipelineService', () => {
      * true → reason string (exit), false → null (no exit). The pipeline now receives the reason from the
      * integration rather than inventing one. */
     function stubIntegration(resolution: UncertainOrderResolution, cancelSettles = true): void {
-      // resolveUncertainOrders uses getReconciliationIntegration (system-only), not getIntegration
-      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
+      // resolveUncertainOrders looks up the venue via getReconciliationIntegration (system-only). The SENT
+      // path additionally consults getIntegration: only a registered command may return to IN_PROGRESS.
+      // Stub both with the same adapter so existing tests model the normal registered-command case they
+      // always intended (command: 'sell' / supportedCommands: ['sell']).
+      const integration = {
         supportedCommands: ['sell'],
         executeOrder: jest.fn(),
         checkCompletion: jest.fn(),
@@ -202,7 +205,9 @@ describe('LiquidityManagementPipelineService', () => {
           .mockResolvedValue(
             cancelSettles ? 'the venue answered for every reference that nothing is left to execute' : null,
           ),
-      });
+      };
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue(integration);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(integration);
     }
 
     it('only ever asks about quarantined orders', async () => {
@@ -213,6 +218,8 @@ describe('LiquidityManagementPipelineService', () => {
       expect(findBy).toHaveBeenCalledWith({ status: LiquidityManagementOrderStatus.UNCERTAIN });
     });
 
+    // SENT → IN_PROGRESS covers FIX 1 normal case (command still registered via stubIntegration's
+    // getIntegration mock). The unregistered-command SENT case is asserted separately below.
     it.each([
       [UncertainOrderResolution.SENT, LiquidityManagementOrderStatus.IN_PROGRESS],
       [UncertainOrderResolution.NOT_SENT, LiquidityManagementOrderStatus.FAILED],
@@ -757,6 +764,31 @@ describe('LiquidityManagementPipelineService', () => {
       expect(resolveUncertainOrder).toHaveBeenCalledWith(order);
     });
 
+    it('keeps a venue-confirmed SENT order quarantined when its command is no longer registered', async () => {
+      // Venue knows the reference, but no registered command can checkCompletion. Returning to IN_PROGRESS
+      // would trap the order (see FIX 1); stay UNCERTAIN so the automatic abandon path remains available.
+      const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.SENT);
+      jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
+        supportedCommands: ['sell', 'buy', 'withdraw'], // deliberately omits the order's command
+        executeOrder: jest.fn(),
+        checkCompletion: jest.fn(),
+        validateParams: jest.fn(),
+        resolveUncertainOrder,
+        cancelOutstanding: jest.fn().mockResolvedValue(null),
+      });
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+      const order = agedOrder(30, 'sell-if-deficit', 'Scrypt');
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      const warn = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(order.status).not.toBe(LiquidityManagementOrderStatus.IN_PROGRESS);
+      expect(resolveUncertainOrder).toHaveBeenCalledWith(order);
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/stays quarantined.*no registered command/s));
+    });
+
     it('leaves a non-Scrypt system without resolveUncertainOrder alone (no automatic progress)', async () => {
       // observable behaviour unchanged vs getIntegration: adapter exists but offers no reconciliation
       jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
@@ -1048,6 +1080,29 @@ describe('LiquidityManagementPipelineService', () => {
         await service['resolveUncertainOrders']();
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
       });
+    });
+  });
+
+  describe('checkRunningOrders', () => {
+    it('quarantines a running order whose command is no longer registered', async () => {
+      // Without the null guard in checkOrder this would TypeError, land only in logger.error, and leave the
+      // order stuck in IN_PROGRESS with no automatic or manual exit. OrderOutcomeUnknownException is the
+      // same path startNewOrders already uses for unknown outcomes — quarantine, not a hang.
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        id: 11,
+        status: LiquidityManagementOrderStatus.IN_PROGRESS,
+        correlationId: 'dfx-lm-11',
+        action: { id: 233, system: 'Scrypt', command: 'sell-if-deficit' },
+      });
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'save').mockImplementation(async (o: LiquidityManagementOrder) => o);
+      jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(null);
+
+      await service['checkRunningOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(order.errorMessage).toMatch(/no registered integration.*Scrypt\/sell-if-deficit/s);
+      expect(notificationService.sendMail).toHaveBeenCalled();
     });
   });
 

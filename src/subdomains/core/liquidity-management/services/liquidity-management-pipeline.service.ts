@@ -322,19 +322,24 @@ export class LiquidityManagementPipelineService {
    * Resolve orders quarantined as UNCERTAIN by asking the venue what actually happened.
    *
    * This only ever observes or cancels — it must never re-send anything. An order leaves quarantine when the venue
-   * either confirms it knows the reference (back to IN_PROGRESS, the normal completion check takes over) or
-   * demonstrably does not (FAILED, so the rule may plan anew from a fresh balance). Anything inconclusive
-   * stays put, and past the abandon bound for its kind of request a cancellation is attempted — because a rule
-   * parked forever is the worse failure. It is given up as FAILED only once the venue has confirmed that
-   * nothing under this order can still execute. Age decides when it is worth trying to clean up; the
-   * cancellation decides whether giving up is safe. So the bound is not a deadline after which the order is
-   * certainly gone. For Scrypt (and any system whose adapter implements `resolveUncertainOrder`), an order
-   * whose references the venue will not yet settle keeps waiting past it — on the venue, not on an operator:
-   * reconciliation resolves by system, so a renamed or removed command still reaches the adapter. Systems
-   * whose adapter omits `resolveUncertainOrder` have no automatic venue path; without a pending release they
-   * are skipped every pass until an operator acts (`releasePending`). An operator can still release sooner as
-   * a shortcut; where the adapter can ask, the mechanism that ends the wait is the venue answering (or
-   * confirming absence) on a later pass.
+   * either confirms it knows the reference *and* a registered command still exists to check its completion
+   * (back to IN_PROGRESS, the normal completion check takes over), or demonstrably does not (FAILED, so the
+   * rule may plan anew from a fresh balance). A venue-side SENT for a command that is no longer registered
+   * deliberately stays quarantined: without a completion check, returning it to IN_PROGRESS would leave it
+   * with no exit, so the way out remains the existing automatic cancel/abandon path
+   * (`cancelOutstanding` / `unresolvableTooLong`) — not an operator. Anything inconclusive stays put, and past
+   * the abandon bound for its kind of request a cancellation is attempted — because a rule parked forever is
+   * the worse failure. It is given up as FAILED only once the venue has confirmed that nothing under this
+   * order can still execute. Age decides when it is worth trying to clean up; the cancellation decides whether
+   * giving up is safe. So the bound is not a deadline after which the order is certainly gone. For Scrypt
+   * (and any system whose adapter implements `resolveUncertainOrder`), an order whose references the venue
+   * will not yet settle keeps waiting past it — on the venue, not on an operator: reconciliation resolves by
+   * system, so a renamed or removed command still reaches the adapter and can be observed or cancelled there.
+   * Returning that order to the normal pipeline, however, still requires `getIntegration` (registered command).
+   * Systems whose adapter omits `resolveUncertainOrder` have no automatic venue path; without a pending
+   * release they are skipped every pass until an operator acts (`releasePending`). An operator can still
+   * release sooner as a shortcut; where the adapter can ask, the mechanism that ends the wait is the venue
+   * answering (or confirming absence) on a later pass.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
     // First: anything this process observed and could not write. Retried before new lookups, because an
@@ -422,7 +427,22 @@ export class LiquidityManagementPipelineService {
         }
 
         if (resolution === UncertainOrderResolution.SENT) {
-          if (await this.applyConfirmedObservation(order)) {
+          // Reconciliation looked up by system alone so an unregistered command can still be *observed* —
+          // that is intentional and stays that way (see getReconciliationIntegration above). Putting the
+          // order back into IN_PROGRESS is a different decision: the normal completion path uses the strict
+          // getIntegration (registered commands only). An order whose command is gone would land in
+          // IN_PROGRESS with no adapter that can checkCompletion — every checkRunningOrders pass would
+          // TypeError, never quarantine, and the automatic abandon path would never run. Observing is
+          // allowed for anyone who can ask the venue; advancing out of quarantine is only allowed for
+          // whoever can also finish the job. Leave it UNCERTAIN so cancelOutstanding / unresolvableTooLong
+          // still apply once the bound is reached.
+          if (!this.actionIntegrationFactory.getIntegration(order.action)) {
+            this.logger.warn(
+              `Uncertain liquidity order ${order.id} stays quarantined: venue confirmed it was sent ` +
+                `(system ${order.action.system}, command ${order.action.command}), but no registered command ` +
+                `can check its completion — returning it to IN_PROGRESS would leave it with no exit`,
+            );
+          } else if (await this.applyConfirmedObservation(order)) {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
           }
@@ -868,7 +888,20 @@ export class LiquidityManagementPipelineService {
   }
 
   private async checkOrder(order: LiquidityManagementOrder): Promise<boolean> {
+    // A running order whose command is no longer registered cannot be completed through the normal path.
+    // getIntegration returns null for unregistered commands; without this guard the next line would throw a
+    // TypeError that checkRunningOrders only logs — the order would stay IN_PROGRESS forever, outside
+    // quarantine, where neither automatic abandon nor the manual release endpoint can reach it. Quarantining
+    // via OrderOutcomeUnknownException is not a Scrypt special case: for any system, a live order without an
+    // adapter is better in UNCERTAIN (automatic and manual exits both apply) than in a state where nothing
+    // acts on it.
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
+    if (!actionIntegration) {
+      throw new OrderOutcomeUnknownException(
+        `Liquidity order ${order.id} has no registered integration for ${order.action.system}/${order.action.command} that can check its completion`,
+      );
+    }
+
     const isComplete = await actionIntegration.checkCompletion(order);
 
     if (isComplete) {
