@@ -1,5 +1,5 @@
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { performance } from 'perf_hooks';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 const mockHistogram = {
   enable: jest.fn(),
