@@ -40,6 +40,8 @@ export class FiatOutputService {
   /**
    * Automatic selection is restricted to incumbent banks. Bank Frick is payout-eligible only through
    * an explicit per-output assignment at creation or in the database, never through automatic selection.
+   * All send-enabled personal-IBAN candidates are considered so an excluded candidate cannot hide an
+   * eligible one.
    */
   async selectPayoutBank(
     currency: string,
@@ -49,15 +51,14 @@ export class FiatOutputService {
   ): Promise<{ accountIban: string | undefined; bank: Bank | undefined }> {
     // use virtual IBAN if existing
     if (userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(type)) {
-      const virtualIban = await this.virtualIbanService.getActiveSendingForUserAndCurrency(userData, currency);
-
-      // The lookup already filters for send-enabled banks; retaining this check is redundant but harmless.
-      if (
-        virtualIban?.bank?.send &&
-        virtualIban.bank.name !== IbanBankName.FRICK &&
-        virtualIban.bank.isCountryEnabled(country)
-      )
-        return { accountIban: virtualIban.iban, bank: virtualIban.bank };
+      const candidates = await this.virtualIbanService.getActiveSendingCandidatesForUserAndCurrency(
+        userData,
+        currency,
+      );
+      const virtualIban = candidates.find(
+        (candidate) => candidate.bank.name !== IbanBankName.FRICK && candidate.bank.isCountryEnabled(country),
+      );
+      if (virtualIban) return { accountIban: virtualIban.iban, bank: virtualIban.bank };
     }
 
     // Automatic payout selection excludes Bank Frick by name; it is payout-eligible exclusively through
