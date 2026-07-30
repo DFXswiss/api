@@ -21,6 +21,15 @@ export class TradingRuleService {
 
   // --- PUBLIC API --- //
 
+  // One statement, not a per-rule loop: all rules' maxima must come from the same
+  // READ-COMMITTED snapshot, because LogJobService writes the FinanceLog from this result.
+  // Separate statements per rule could observe an insert into trading_order mid-loop and mix
+  // maxima from different points in time — a single GROUP BY aggregate cannot do that.
+  // The composite index on trading_order ("tradingRuleId", "id") (see the
+  // AddTradingOrderRuleIdIndex migration) lets Postgres answer this with an Index Only Scan.
+  // A correlated per-rule lookup would be faster still, but pg-mem (this repo's test engine for
+  // this query, see trading-rule.service.pg.spec.ts) cannot execute a correlated subquery —
+  // don't "optimize" this into one without first solving that.
   async getCurrentTradingOrders(): Promise<TradingOrder[]> {
     const lastTradingOrderIds = await this.orderRepo
       .createQueryBuilder('tradingOrder')
