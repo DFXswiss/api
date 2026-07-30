@@ -239,10 +239,20 @@ describe('UserService', () => {
   });
 
   describe('getSignature', () => {
+    // Mirrors TypeORM SelectQueryBuilder: select() replaces the selection, addSelect() appends.
     function mockQuery(result: { id: number; signature?: string } | null) {
+      const selected: string[] = [];
       const qb = {
-        select: jest.fn().mockReturnThis(),
-        addSelect: jest.fn().mockReturnThis(),
+        selected,
+        select: jest.fn((expr: string) => {
+          selected.length = 0;
+          selected.push(expr);
+          return qb;
+        }),
+        addSelect: jest.fn((expr: string) => {
+          selected.push(expr);
+          return qb;
+        }),
         where: jest.fn().mockReturnThis(),
         getOne: jest.fn().mockResolvedValue(result),
       };
@@ -250,14 +260,16 @@ describe('UserService', () => {
       return qb;
     }
 
-    // Without addSelect, a select: false column is always undefined and login would break.
-    it('addSelects user.signature and filters by userId so the select: false column is loaded', async () => {
+    // Assert the resulting selection, not merely that addSelect was called: a later select()
+    // would wipe user.signature (TypeORM replaces prior selections), which toHaveBeenCalledWith
+    // on addSelect would not catch.
+    it('includes user.signature in the resulting selection and filters by userId', async () => {
       const userId = 42;
       const qb = mockQuery({ id: userId, signature: 'sig-value' });
 
       await service.getSignature(userId);
 
-      expect(qb.addSelect).toHaveBeenCalledWith('user.signature');
+      expect(qb.selected).toContain('user.signature');
       expect(qb.where).toHaveBeenCalledWith('user.id = :userId', { userId });
     });
 
