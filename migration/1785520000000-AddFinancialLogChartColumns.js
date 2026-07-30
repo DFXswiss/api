@@ -28,9 +28,10 @@
  * the query this replaces for the History screen.
  *
  * The BTC asset id is resolved once via a plain SELECT against `asset` (name='BTC',
- * blockchain='Bitcoin', type='Coin' — the same lookup AssetService.getBtcCoin() performs). If no
- * such asset row exists, `btcPriceChf` is left NULL for every row while `totalBalanceChf` is still
- * backfilled normally; not observed in production, a defensive fallback only.
+ * blockchain='Bitcoin', type='Coin' — the same lookup AssetService.getBtcCoin() performs). The
+ * migration throws if that SELECT does not return exactly one row: a silently empty
+ * `btcPriceChf` column would be indistinguishable from "nothing to backfill", so fail-closed
+ * rather than mask the missing/ambiguous asset with NULL.
  *
  * The backfill runs BEFORE the index build below, so the index is built once over final data
  * rather than being maintained row-by-row while the UPDATE runs.
@@ -67,7 +68,12 @@ module.exports = class AddFinancialLogChartColumns1785520000000 {
     );
     // .at(0) rather than index access: the repo's migration-psql-check scans the raw file for MSSQL
     // bracket quoting and its pattern cannot tell that from a JavaScript array index.
-    const btcAssetId = btcAssetRows.at(0)?.id ?? null;
+    if (btcAssetRows.length !== 1) {
+      throw new Error(
+        `Expected exactly 1 asset row for name='BTC', blockchain='Bitcoin', type='Coin', but found ${btcAssetRows.length}`,
+      );
+    }
+    const btcAssetId = btcAssetRows.at(0).id;
 
     await queryRunner.query(
       `UPDATE "log"
@@ -82,7 +88,7 @@ module.exports = class AddFinancialLogChartColumns1785520000000 {
              ELSE NULL
            END
        WHERE "system" = $2 AND "subsystem" = $3 AND "severity" = $4 AND "message" IS JSON`,
-      [btcAssetId != null ? String(btcAssetId) : null, 'LogService', 'FinancialDataLog', 'Info'],
+      [String(btcAssetId), 'LogService', 'FinancialDataLog', 'Info'],
     );
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
