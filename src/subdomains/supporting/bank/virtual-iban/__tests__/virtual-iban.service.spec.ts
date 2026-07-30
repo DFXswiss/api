@@ -2,7 +2,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataType, newDb } from 'pg-mem';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
