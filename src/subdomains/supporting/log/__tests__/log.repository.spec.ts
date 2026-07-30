@@ -599,9 +599,9 @@ describe('LogRepository', () => {
       expect(JSON.parse(JSON.stringify(rows[0].balancesByType.Crypto))).toEqual({ minusBalanceChf: 5 });
     });
 
-    it('fails loud, naming the log id and the type key, when a balancesByFinancialType entry is not an object (F11, e.g. {"Crypto": null})', async () => {
+    it('keeps the row and yields undefined fields (not 0, not null, no error) when a balancesByFinancialType entry is null, a number, or a string (F16 reverts the F11 throw)', async () => {
       const repo = new LogRepository({} as EntityManager);
-      jest.spyOn(repo, 'query').mockResolvedValue([
+      const querySpy = jest.spyOn(repo, 'query').mockResolvedValue([
         {
           created: new Date('2026-07-14T00:00:00Z'),
           id: 77,
@@ -610,12 +610,22 @@ describe('LogRepository', () => {
           minusBalanceChf: 0,
           fxPnlChf: null,
           btcPriceChf: 0,
-          balancesByFinancialType: { Crypto: null },
+          balancesByFinancialType: { Crypto: null, Fiat: 1, Other: 'bad' },
         },
       ]);
 
-      await expect(repo.getFinancialLogSummaries()).rejects.toThrow(/77/);
-      await expect(repo.getFinancialLogSummaries()).rejects.toThrow(/Crypto/);
+      const rows = await repo.getFinancialLogSummaries();
+
+      expect(querySpy).toHaveBeenCalledTimes(1);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].balancesByType.Crypto.plusBalanceChf).toBeUndefined();
+      expect(rows[0].balancesByType.Crypto.minusBalanceChf).toBeUndefined();
+      expect(rows[0].balancesByType.Fiat.plusBalanceChf).toBeUndefined();
+      expect(rows[0].balancesByType.Fiat.minusBalanceChf).toBeUndefined();
+      expect(rows[0].balancesByType.Other.plusBalanceChf).toBeUndefined();
+      expect(rows[0].balancesByType.Other.minusBalanceChf).toBeUndefined();
+      // Same JSON-serialisation check as the F10 test: undefined values are omitted, never null/0.
+      expect(JSON.parse(JSON.stringify(rows[0].balancesByType))).toEqual({ Crypto: {}, Fiat: {}, Other: {} });
     });
   });
 });

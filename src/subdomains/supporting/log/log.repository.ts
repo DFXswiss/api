@@ -68,7 +68,11 @@ export interface FinancialLogSummary {
    * only when btcAssetId is truthy.
    */
   btcPriceChf: number;
-  balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }>;
+  /**
+   * plusBalanceChf/minusBalanceChf can be `undefined` per type: a real production row had a
+   * `balancesByFinancialType` entry missing one of the two keys (see getFinancialLogSummaries below).
+   */
+  balancesByType: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }>;
 }
 
 @Injectable()
@@ -508,32 +512,26 @@ ${limitClause}`;
       // btcPriceChf: absent/unusable path → 0, matching extractBtcPrice's `?.priceChf ?? 0`.
       const btcPriceChf = r.btcPriceChf == null ? 0 : Number(r.btcPriceChf);
 
-      const balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
+      const balancesByType: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }> = {};
       if (r.balancesByFinancialType != null) {
-        const byType =
-          typeof r.balancesByFinancialType === 'string'
-            ? (JSON.parse(r.balancesByFinancialType) as Record<
-                string,
-                { plusBalanceChf: number; minusBalanceChf: number }
-              >)
-            : (r.balancesByFinancialType as Record<string, { plusBalanceChf: number; minusBalanceChf: number }>);
+        // Always an already-parsed object/array here, never a JSON string: pg-types registers JSON.parse
+        // as the type parser for jsonb (OID 3802) and this repo configures no custom type parser, so the
+        // driver never hands back a raw string for this column.
+        const byType = r.balancesByFinancialType as Record<
+          string,
+          { plusBalanceChf?: number; minusBalanceChf?: number }
+        >;
         for (const [type, data] of Object.entries(byType)) {
-          // Fail loud on a data error instead of an unhandled TypeError on `data.plusBalanceChf` (e.g. a
-          // row shaped like `{"Crypto": null}`) that would abort the whole request. The old mapLogToEntry
-          // wrapped the same property access in a try/catch and silently dropped the affected log row
-          // instead — an unnoticed gap in the chart is exactly what the fail-loud project rule forbids.
-          if (data === null || typeof data !== 'object') {
-            throw new Error(`Financial log ${r.id} has a non-object balancesByFinancialType entry for type "${type}"`);
-          }
-
-          // Raw pass-through, like the old mapLogToEntry (`plusBalanceChf: data.plusBalanceChf`): after
-          // jsonb parsing these are already numbers in production. Number(...) here would turn a
-          // genuinely missing key (`data.plusBalanceChf === undefined`) into NaN, which JSON-serialises
-          // to null instead of the old path's omitted field — a real production case (one row of
-          // 287,990 balancesByFinancialType entries as of writing).
+          // Optional chaining, not a typeof/null throw (F11 reverted): before F11, a primitive entry
+          // (number/string/boolean) never threw here — e.g. `(1).plusBalanceChf` is simply `undefined`,
+          // JS auto-boxes primitives for property access — only `null` threw, and only inside
+          // mapLogToEntry's per-row try/catch, dropping just that one row. F11's `throw` turned the three
+          // previously-harmless primitive cases into a 500 for the whole request too. `?.` restores the
+          // old no-throw behaviour for all of them and, for `null`, is strictly better than either past
+          // behaviour: the row is kept (with an empty balancesByType entry) instead of silently vanishing.
           balancesByType[type] = {
-            plusBalanceChf: data.plusBalanceChf,
-            minusBalanceChf: data.minusBalanceChf,
+            plusBalanceChf: data?.plusBalanceChf,
+            minusBalanceChf: data?.minusBalanceChf,
           };
         }
       }
