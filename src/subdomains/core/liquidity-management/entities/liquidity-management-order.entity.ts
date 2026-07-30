@@ -343,25 +343,33 @@ export class LiquidityManagementOrder extends IEntity {
     // order whose `updated` was not loaded. Absent evidence this must hold the order, never drop it.
     if (!this.updated) return false;
 
-    return Util.minutesDiff(this.updated) > this.abandonBoundMinutes();
+    // `>=`, so that reaching the bound is enough. With `>`, the instant the bound is exactly met left the two
+    // halves of this clock disagreeing: {@link msUntilAbandonable} already reported nothing left — which is
+    // what lets the reconciliation pass run at that moment — while this said not yet. The pass then re-stamped
+    // its cooldown and the order waited out another full interval, so a five-minute bound gave up at six.
+    return Util.minutesDiff(this.updated) >= this.abandonBoundMinutes();
   }
 
   /**
-   * How long until this order may be abandoned, in milliseconds — zero once it already may be, and Infinity
-   * while it never can.
+   * The moment this order becomes abandonable — null while it never does.
    *
-   * The same bound and the same clock as {@link unresolvableTooLong}, stated as a remaining duration so that
-   * a caller deciding *when to look at this order again* can keep its own wait inside it. A reconciliation
-   * pass throttled for longer than this would push the abandonment past the ceiling that bound exists to
-   * impose, and nothing in the throttle itself would reveal that it had.
+   * The same bound and the same clock as {@link unresolvableTooLong}, stated as an absolute instant so that a
+   * caller deciding *when to look at this order again* can keep its own wait on the near side of it. A pass
+   * throttled past this point would push the abandonment beyond the ceiling that bound exists to impose, and
+   * nothing in the throttle itself would reveal that it had.
    *
-   * Infinity without a timestamp, mirroring that method's refusal to run a clock it does not have: no
-   * deadline to respect means no constraint to impose on a caller's wait.
+   * Absolute rather than "time remaining" on purpose. A remaining duration has to be clamped at zero, and that
+   * clamp erases the one fact a throttle needs after the deadline: whether the wait it is about to impose
+   * started before it. Measured against a fixed instant the question does not arise — and the caller can ask
+   * about any moment, not only about now.
+   *
+   * Null without a timestamp, mirroring that method's refusal to run a clock it does not have: no deadline to
+   * respect means no constraint to impose on a caller's wait.
    */
-  msUntilAbandonable(): number {
-    if (!this.updated) return Infinity;
+  abandonableAt(): Date | null {
+    if (!this.updated) return null;
 
-    return Math.max(0, this.abandonBoundMinutes() * 60_000 - (Date.now() - this.updated.getTime()));
+    return new Date(this.updated.getTime() + this.abandonBoundMinutes() * 60_000);
   }
 
   /**

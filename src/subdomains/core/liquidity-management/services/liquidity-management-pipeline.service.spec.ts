@@ -881,6 +881,27 @@ describe('LiquidityManagementPipelineService', () => {
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
       });
 
+      it('does not let its own floor push the abandonment past the deadline', async () => {
+        // A lookup that runs shortly before the bound has less than a floor's worth of time left. Raising the cap
+        // to the floor there schedules the next pass after the deadline — the overshoot the cap exists to prevent,
+        // caused by the cap. Reached the way it happens in practice: the order enters this pass already close to
+        // its bound, with no cooldown recorded, so the first lookup lands 30 seconds short of it.
+        const order = agedOrder(4.5);
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+        jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+        stubIntegration(UncertainOrderResolution.UNRESOLVED);
+
+        // first lookup at 4:30, which stamps the cooldown with only 30 seconds of headroom left
+        await service['resolveUncertainOrders']();
+        expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+
+        // at the bound the order must be gone — a floor measured from 4:30 would hold it until 5:30
+        jest.advanceTimersByTime(30_000);
+        await service['resolveUncertainOrders']();
+
+        expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      });
+
       it('never throttles past the bound at which the order becomes abandonable', async () => {
         // Where the cooldown and the abandon bound meet. This same pass is what gives an expired order up, so
         // a wait longer than what is left of its bound postpones the abandonment — an order weeks old draws

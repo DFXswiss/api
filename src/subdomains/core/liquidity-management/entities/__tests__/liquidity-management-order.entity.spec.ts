@@ -59,7 +59,7 @@ describe('LiquidityManagementOrder', () => {
     });
   });
 
-  describe('msUntilAbandonable', () => {
+  describe('abandonableAt', () => {
     function quarantined(minutes?: number, command = 'sell', system = 'Scrypt'): LiquidityManagementOrder {
       return Object.assign(new LiquidityManagementOrder(), {
         status: LiquidityManagementOrderStatus.UNCERTAIN,
@@ -68,47 +68,80 @@ describe('LiquidityManagementOrder', () => {
       });
     }
 
-    it('is Infinity without a timestamp — no deadline to respect constrains nobody', () => {
-      expect(quarantined(undefined).msUntilAbandonable()).toBe(Infinity);
+    /** Milliseconds from now until the order may be given up; negative once it already may be. */
+    function headroom(order: LiquidityManagementOrder): number {
+      const at = order.abandonableAt();
+      if (!at) throw new Error('expected a deadline');
+
+      return at.getTime() - Date.now();
+    }
+
+    it('is null without a timestamp — no deadline to respect constrains nobody', () => {
+      expect(quarantined(undefined).abandonableAt()).toBeNull();
     });
 
-    it('counts down the trade bound', () => {
+    it('falls the trade bound after the moment quarantine began', () => {
       // 2 of the 5 minutes spent, so 3 left; tolerance covers the clock moving during the test
-      expect(quarantined(2).msUntilAbandonable()).toBeGreaterThan(2.9 * 60_000);
-      expect(quarantined(2).msUntilAbandonable()).toBeLessThanOrEqual(3 * 60_000);
+      expect(headroom(quarantined(2))).toBeGreaterThan(2.9 * 60_000);
+      expect(headroom(quarantined(2))).toBeLessThanOrEqual(3 * 60_000);
     });
 
-    it('is zero once the bound has passed, never negative', () => {
-      expect(quarantined(6).msUntilAbandonable()).toBe(0);
-      expect(quarantined(60 * 24).msUntilAbandonable()).toBe(0);
+    it('lies in the past once the bound has passed, and says by how much', () => {
+      // The sign is the point: a duration clamped at zero cannot say whether a wait started before the
+      // deadline, which is exactly what a throttle has to know after it.
+      expect(headroom(quarantined(6))).toBeLessThan(0);
+      expect(headroom(quarantined(6))).toBeGreaterThan(-1.1 * 60_000);
+      expect(headroom(quarantined(60 * 24))).toBeLessThan(-23 * 60 * 60_000);
     });
 
-    it('counts down the long bound for a transfer', () => {
+    it('falls the long bound for a transfer', () => {
       // an hour into a twelve-hour bound leaves eleven
-      expect(quarantined(60, 'withdraw').msUntilAbandonable()).toBeGreaterThan(10.9 * 60 * 60_000);
-      expect(quarantined(60, 'withdraw').msUntilAbandonable()).toBeLessThanOrEqual(11 * 60 * 60_000);
+      expect(headroom(quarantined(60, 'withdraw'))).toBeGreaterThan(10.9 * 60 * 60_000);
+      expect(headroom(quarantined(60, 'withdraw'))).toBeLessThanOrEqual(11 * 60 * 60_000);
     });
 
-    it('never reports time left on an order that is already abandonable', () => {
-      // The invariant that carries the safety, in the direction that carries it: an order past its bound must
-      // report nothing left, or a caller throttling itself by this value would wait beyond the very ceiling
-      // the bound imposes. The converse is deliberately not asserted — at the single instant where elapsed
-      // equals the bound the remaining time is already zero while the bound is not yet exceeded, and a
-      // non-negative duration cannot express that difference. It costs one cooldown floor, never a missed
-      // abandonment.
-      for (const minutes of [1, 4, 6, 30, 11 * 60, 13 * 60, 60 * 24])
+    it('turns over at the bound itself, not a tick later', () => {
+      // The one instant a live clock cannot be asked about: elapsed exactly equal to the bound. Anything built
+      // from a real `Date.now()` is already a fraction past it, where `>` and `>=` agree — so the clock is held
+      // still. With `>` the pass would run (the deadline has arrived) and abandon nothing (not yet past it),
+      // re-stamp its cooldown, and the order would wait out another interval: five minutes became six.
+      jest.useFakeTimers();
+      try {
+        const order = quarantined(5);
+        expect(headroom(order)).toBe(0);
+        expect(order.unresolvableTooLong()).toBe(true);
+
+        // and one millisecond short of it, both still say no
+        const justInside = Object.assign(new LiquidityManagementOrder(), {
+          status: LiquidityManagementOrderStatus.UNCERTAIN,
+          updated: new Date(Date.now() - (5 * 60_000 - 1)),
+          action: { system: 'Scrypt', command: 'sell' },
+        });
+        expect(headroom(justInside)).toBe(1);
+        expect(justInside.unresolvableTooLong()).toBe(false);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('has passed exactly when the order has become abandonable', () => {
+      // The two halves of one clock, and they must agree in both directions. The deadline having arrived is what
+      // lets the reconciliation pass run at all, and being past the bound is what lets it give the order up: a
+      // state where one holds and the other does not is a pass that runs, re-stamps its cooldown and abandons
+      // nothing — which is how a five-minute bound came to give up at six.
+      for (const minutes of [1, 4, 5, 6, 30, 11 * 60, 12 * 60, 13 * 60, 60 * 24])
         for (const command of ['sell', 'buy', 'withdraw']) {
           const order = quarantined(minutes, command);
-          if (order.unresolvableTooLong()) expect(order.msUntilAbandonable()).toBe(0);
+          expect(headroom(order) <= 0).toBe(order.unresolvableTooLong());
         }
     });
 
     it('applies the same bound to the same action as unresolvableTooLong', () => {
-      // Both read one shared source, so a trade and a transfer must disagree here exactly where they
-      // disagree there: at 30 minutes the trade bound is long spent while the transfer bound is not.
-      expect(quarantined(30, 'sell').msUntilAbandonable()).toBe(0);
+      // Both read one shared source, so a trade and a transfer must disagree here exactly where they disagree
+      // there: at 30 minutes the trade bound is long spent while the transfer bound is not.
+      expect(headroom(quarantined(30, 'sell'))).toBeLessThan(0);
       expect(quarantined(30, 'sell').unresolvableTooLong()).toBe(true);
-      expect(quarantined(30, 'withdraw').msUntilAbandonable()).toBeGreaterThan(0);
+      expect(headroom(quarantined(30, 'withdraw'))).toBeGreaterThan(0);
       expect(quarantined(30, 'withdraw').unresolvableTooLong()).toBe(false);
     });
   });

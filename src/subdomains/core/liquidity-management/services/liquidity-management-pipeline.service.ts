@@ -353,27 +353,35 @@ export class LiquidityManagementPipelineService {
       // its own venue-wait runs on its own clock.
       if (!releasePending) {
         const lastAttemptEnd = this.uncertainResolveAttempts.get(order.id);
-        const sinceAttemptMs = lastAttemptEnd ? Date.now() - lastAttemptEnd.getTime() : Infinity;
+        const abandonableAt = order.abandonableAt();
         const ageMs = Date.now() - order.created.getTime();
+
+        // How long the last lookup had left before this order became abandonable. Negative once that lookup
+        // itself ran after the deadline, and Infinity when there is no deadline or no previous lookup to
+        // measure from.
+        const deadlineHeadroomMs =
+          abandonableAt && lastAttemptEnd ? abandonableAt.getTime() - lastAttemptEnd.getTime() : Infinity;
+
         const intervalMs = Math.min(
           Math.max(ageMs / 10, UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
           UNCERTAIN_RESOLVE_MAX_INTERVAL_MS,
-          // The throttle may never outlast the deadline it has to keep. This is also the pass that abandons an
-          // order whose bound has run out, so a wait reaching past what is left of that bound would push the
-          // abandonment beyond the ceiling the bound exists to impose — a trade quarantined at eight hours old
-          // would be given up after thirty minutes instead of five, and nothing here would say so.
+          // The throttle may never outlast the deadline it has to keep. This same pass is what abandons an
+          // order whose bound has run out, so a wait reaching past that bound postpones the abandonment beyond
+          // the ceiling the bound exists to impose — a trade quarantined when it was already eight hours old
+          // would be given up after thirty minutes instead of five, with nothing here saying so.
           //
-          // Measured as the time that was left when the last lookup FINISHED, not as what is left now. Read
-          // now, this cap would shrink while the wait grows and the two would meet halfway: a five-minute
-          // bound would re-ask at 2.5 minutes, then 3.75, then 4.4 — a geometric series of expensive lookups
-          // before a deadline that had not moved. Adding the elapsed wait back gives exactly the figure from
-          // that moment (bound − (attempt − updated)), so the cap stays put between lookups and needs nothing
-          // stored beyond the stamp that is already kept. Held at the floor once the bound has passed, so a
-          // cancellation the venue will not confirm retries on the cooldown's terms rather than every tick.
-          Math.max(order.msUntilAbandonable() + sinceAttemptMs, UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
+          // Taken as-is while there is headroom, deliberately without the floor: a lookup that ended shortly
+          // before the deadline has less than a floor's worth of time left, and imposing a full interval on it
+          // would schedule the next pass after the deadline — the very overshoot this cap prevents, caused by
+          // the cap. It costs at most one extra lookup, because the pass it permits is the one that gives the
+          // order up.
+          //
+          // Past the deadline the floor governs instead: there is no deadline left to protect, and a
+          // cancellation the venue will not confirm must not retry on every ten-second tick.
+          deadlineHeadroomMs > 0 ? deadlineHeadroomMs : UNCERTAIN_RESOLVE_MIN_INTERVAL_MS,
         );
 
-        if (lastAttemptEnd && sinceAttemptMs < intervalMs) continue;
+        if (lastAttemptEnd && Date.now() - lastAttemptEnd.getTime() < intervalMs) continue;
       }
 
       try {
