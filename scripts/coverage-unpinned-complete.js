@@ -172,10 +172,13 @@ function normalizeToSrc(fileKey) {
 }
 
 // A path is emitted as a single-quoted JS literal, ready to paste into the pinned arrays. POSIX allows
-// any byte but '/' and NUL in a filename, so backslash and apostrophe have to be escaped for the line to
-// stay valid - rare, but the output promises to be paste-ready.
+// any byte but '/' and NUL in a filename, so the four characters that would break such a literal are
+// escaped: backslash and apostrophe, plus CR and LF, which a single-quoted string cannot contain. Tab
+// and U+2028/U+2029 are legal inside one and pass through unchanged. Backslash goes first, otherwise it
+// would escape the backslashes the later replacements introduce.
 function toArrayLine(rel) {
-  return `  '${rel.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}',`;
+  const escaped = rel.replace(/\\/g, '\\\\').replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/'/g, "\\'");
+  return `  '${escaped}',`;
 }
 
 try {
