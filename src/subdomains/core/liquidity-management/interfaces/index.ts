@@ -46,7 +46,8 @@ export interface LiquidityActionIntegration {
    * not name the reference, with no completeness check on that answer.
    *
    * Returns a non-empty reason string only when the venue has answered that nothing under this order is left
-   * to execute (or, for a withdrawal, that its full history has no record of it). The caller writes that
+   * to execute (or, for a withdrawal, that a successful history reply does not name it and it did not surface
+   * in the live cache meanwhile). The caller writes that
    * string into the order and the log as-is — each integration supplies its own wording so the pipeline never
    * invents a reason the venue never gave. `null` means no automatic exit; the order stays quarantined.
    * Read "answered" precisely: a cancellation it accepts, an order it reports terminal, or a successful

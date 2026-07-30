@@ -46,7 +46,7 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
  * Matches the age at which the venue lookup itself gives up on finding an order, so both routes out of a
  * silent order agree. Quarantine is not a verdict — the order is still not declared failed here — it only
  * moves it where the caller's bound can attempt an automatic exit (cancel every trade reference, or confirm
- * a withdrawal is absent from full history). An operator can still release sooner as a shortcut; the human
+ * a withdrawal is unnamed in the venue's history reply). An operator can still release sooner as a shortcut; the human
  * is not the rule path for either command.
  */
 const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 60;
@@ -283,8 +283,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * reply: withdrawal destinations are DFX-owned, so a truncated answer costs an internal rebooking, while a
    * check demanding local anchors would strand the order forever (see `confirmWithdrawalAbsent`). So this is
    * weaker than "the request never arrived" AND weaker than "the history was complete" — it is only "the
-   * venue answered and did not name it". Only a failed or empty-of-answer lookup returns null and leaves the
-   * order quarantined for another pass.
+   * venue answered and did not name it". Exactly three answers return null and leave the order quarantined
+   * for another pass: a lookup that failed, a reply that does name the reference, or the reference surfacing
+   * in the live cache while the lookup was open. An empty reply is none of them — a reference cannot be in a
+   * history with no rows, so that confirms absence.
    *
    * Returns the reason string the caller records on abandon, or null when nothing is settled yet.
    *
@@ -307,7 +309,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
     if (order.action.command === ScryptAdapterCommands.WITHDRAW) {
       const absent = await this.scryptService.confirmWithdrawalAbsent(order.correlationId);
-      return absent ? 'the venue returned its full transaction history and has no record of this withdrawal' : null;
+      return absent ? 'the venue answered with its transaction history and did not name this withdrawal' : null;
     }
 
     const references = this.attemptedReferencesNewestFirst(order);
@@ -781,7 +783,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     //
     // Over-classifying costs another automatic pass against the venue; under-classifying is what moved money
     // without a record. Since absence at the venue is not proof, such an order waits on the venue — for a
-    // cancellation confirmation (trade) or a confirmed absence from full history (withdraw) once its bound
+    // cancellation confirmation (trade) or a history reply that does not name it (withdraw) once its bound
     // is reached — rather than resolving itself here, deliberately the expensive direction, because the cheap
     // one is the dangerous one. An operator can still release sooner as a shortcut.
     return new OrderOutcomeUnknownException(`Scrypt gave no confirmed outcome for the ${description}: ${e.message}`);
@@ -793,7 +795,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * Only a matched reference can confirm a positive. A missing record confirms nothing on its own — Scrypt
    * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined. What
    * ends it is not this method concluding anything, but the caller settling every reference the order ever
-   * claimed: cancel confirmation for trades, or confirmed absence from full history for withdrawals. Once
+   * claimed: cancel confirmation for trades, or an unnaming history reply for withdrawals. Once
    * the venue answers that nothing can still execute, giving up is a fact rather than a guess. An explicit
    * rejection of every attempted trade reference is the one negative that settles here, and returns NOT_SENT.
    */
@@ -883,7 +885,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // only what it saw, and never resolves the order on absence alone.
       //
       // The caller bounds the wait: an order stuck here long enough gets an automatic exit attempt (cancel
-      // every trade reference, or confirm withdrawal absence from full history) rather than being held for
+      // every trade reference, or a history reply that does not name the withdrawal) rather than being held for
       // an operator who may never come, and only that attempt's confirmation abandons it. Both belong there,
       // not here — this method's job is to report what the venue said, not to decide how long a rule may stay
       // blocked or when giving up is safe.

@@ -563,13 +563,13 @@ describe('ScryptAdapter', () => {
       expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId);
     });
 
-    it('abandons a withdrawal once the venue confirms its full history has no record of it', async () => {
+    it('abandons a withdrawal once the venue answers without naming it', async () => {
       const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
       jest.spyOn(scryptService, 'confirmWithdrawalAbsent').mockResolvedValue(true);
       const order = cancellableOrder({ action: withdrawAction() });
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(
-        'the venue returned its full transaction history and has no record of this withdrawal',
+        'the venue answered with its transaction history and did not name this withdrawal',
       );
       expect(cancelIfOutstanding).not.toHaveBeenCalled();
       expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId);
@@ -581,7 +581,7 @@ describe('ScryptAdapter', () => {
       const order = cancellableOrder({ id: 4711, action: withdrawAction(), correlationId: null });
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(
-        'the venue returned its full transaction history and has no record of this withdrawal',
+        'the venue answered with its transaction history and did not name this withdrawal',
       );
       expect(errorSpy).toHaveBeenCalled();
       expect(confirmWithdrawalAbsent).toHaveBeenCalledWith('dfx-lm-4711');

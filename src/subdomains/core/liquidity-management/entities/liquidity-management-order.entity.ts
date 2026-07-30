@@ -50,7 +50,7 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  * runs again.
  *
  * "Gets an attempt" is the whole claim, and it is much weaker than "is bounded": the attempt is a cancellation
- * (or, for a Scrypt withdrawal that has no cancel, a confirmed absence from the venue's full history), and a
+ * (or, for a Scrypt withdrawal that has no cancel, a venue history reply that does not name it), and a
  * venue that will not confirm still holds its order here indefinitely. What these bounds end is the assumption
  * that somebody will eventually look; the manual release stays a shortcut, not the only way out for venues
  * that can answer.
