@@ -31,7 +31,6 @@ const ACTIVE_FLAGS = [
   'instantBuyable',
   'instantSellable',
   'paymentEnabled',
-  'refEnabled',
 ];
 
 function parseCsvLine(line: string): string[] {
@@ -103,5 +102,28 @@ describe('asset seed pricing invariants', () => {
       .map((asset) => asset.uniqueName);
 
     expect(activeUnpricedAssets).toEqual([]);
+  });
+
+  it('lists only real asset.csv columns in ACTIVE_FLAGS', () => {
+    const headerLine = fs
+      .readFileSync(path.join(process.cwd(), 'migration/seed/asset.csv'), 'utf8')
+      .split(/\r?\n/)
+      .find(Boolean)!;
+    const headers = new Set(parseCsvLine(headerLine));
+    const phantomFlags = ACTIVE_FLAGS.filter((flag) => !headers.has(flag));
+
+    expect(phantomFlags).toEqual([]);
+  });
+
+  it('pins the generic-priced pay-in chains that currently have no seed rows', () => {
+    // The active-asset price-rule invariant is vacuously green for any chain with zero CSV rows.
+    // This expected list is the known empty set: a newly emptied chain or a newly seeded one
+    // must update the pin, so the gap does not go unnoticed.
+    const seedBlockchains = new Set(assets.map((asset) => asset.blockchain));
+    const chainsWithoutSeedRows = [...GENERIC_PRICED_PAY_IN_BLOCKCHAINS]
+      .filter((chain) => !seedBlockchains.has(chain))
+      .sort();
+
+    expect(chainsWithoutSeedRows).toEqual(['Citrea', 'InternetComputer'].sort());
   });
 });
