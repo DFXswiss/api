@@ -88,6 +88,17 @@ describe('DashboardFinancialService', () => {
       expect(entry.fxPnlChf).toBe(0);
     });
 
+    it('defaults null totalBalanceChf/plusBalanceChf/minusBalanceChf (as the repository now returns for missing/null source data, F13) to 0 in the response — same as the old mapLogToEntry ?? 0 defaults', () => {
+      const entry = service['mapSummaryToEntry'](
+        summaryWith({ totalBalanceChf: null, plusBalanceChf: null, minusBalanceChf: null, fxPnlChf: null }),
+      );
+
+      expect(entry.totalBalanceChf).toBe(0);
+      expect(entry.plusBalanceChf).toBe(0);
+      expect(entry.minusBalanceChf).toBe(0);
+      expect(entry.fxPnlChf).toBe(0);
+    });
+
     it('produces the same FinancialLogEntryDto the old mapLogToEntry would have for equivalent data', () => {
       // Underlying FinanceLog.message JSON that the old mapper would have parsed:
       // {

@@ -45,9 +45,12 @@
  * `buy_crypto`, `crypto_input`, `payout_order` — are simultaneously write-blocked. If further
  * migrations are pending at the same time, those run in the same transaction too and extend the
  * window further. Splitting this into multiple separate migration files would NOT change this
- * (the same transaction still applies across files run in the same batch). `SET LOCAL
- * lock_timeout` caps only how long we WAIT to acquire a lock, not how long we hold it once
- * acquired. Production scan+sort for the biggest table's `(updated, id)` was measured at 1159 ms
+ * (the same transaction still applies across files run in the same batch). `SET LOCAL lock_timeout` caps only how long we WAIT to acquire a lock, not how long we hold it once
+ * acquired. That timeout is scoped to each individual lock-acquisition attempt — each of the nine
+ * `CREATE INDEX` statements (and, in `down()`, each of the nine `DROP INDEX` statements) gets its own
+ * wait budget, not a single global ceiling shared across the whole migration. An earlier statement can
+ * succeed well inside its 5s budget while a later one still times out and aborts the transaction.
+ * Production scan+sort for the biggest table's `(updated, id)` was measured at 1159 ms
  * — but that number is a `work_mem`-bound External Merge sort spilling ~116 MB to disk, NOT the
  * index build itself, which sorts in `maintenance_work_mem` (256 MB in this instance, in RAM) and
  * should be faster, plus the time to write ~150 MB of index pages. That points to a low
@@ -60,6 +63,16 @@
  * deploy, or external consumers. If a lock conflict occurs, the migration aborts after
  * `lock_timeout` and so does the app start — that is fail-closed and intentional, but it is a
  * deploy abort and must be named as such.
+ *
+ * `down()` reverses this with nine `DROP INDEX` statements and is subject to a stricter lock: PostgreSQL
+ * takes an ACCESS EXCLUSIVE lock for `DROP INDEX` (vs. the SHARE lock `CREATE INDEX` takes above), and
+ * ACCESS EXCLUSIVE conflicts with every other lock mode, including the AccessShareLock a plain `SELECT`
+ * takes — so `down()` blocks reads as well as writes on each table, not writes alone. `down()` runs in
+ * its own migration transaction (same TypeORM default `migrationsTransactionMode: "all"`), so the same
+ * cumulative-window reasoning applies: all nine ACCESS EXCLUSIVE locks are held until COMMIT, and the
+ * first table dropped is blocked — for reads and writes — for the sum of all nine drops. Running
+ * `migration:revert` against a live table is therefore materially more disruptive than `up()`, not
+ * merely its mirror image.
  *
  * Tables and index names:
  *   trading_order              → IDX_47e55a74022f04d725395b9648

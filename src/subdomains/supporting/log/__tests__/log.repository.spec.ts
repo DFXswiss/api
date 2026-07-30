@@ -202,8 +202,10 @@ describe('LogRepository', () => {
           fxPnlChf: '-3245',
           btcPriceChf: '65000.25',
           balancesByFinancialType: {
-            Crypto: { plusBalanceChf: '10', minusBalanceChf: '5', plusBalance: 1, minusBalance: 1 },
-            Fiat: { plusBalanceChf: '90', minusBalanceChf: '40' },
+            // Real jsonb-embedded numbers already arrive as JS numbers via the pg driver — no Number()
+            // coercion happens in this loop anymore (F10), so the mock must reflect that shape.
+            Crypto: { plusBalanceChf: 10, minusBalanceChf: 5, plusBalance: 1, minusBalance: 1 },
+            Fiat: { plusBalanceChf: 90, minusBalanceChf: 40 },
           },
         },
       ]);
@@ -520,7 +522,7 @@ describe('LogRepository', () => {
       expect(params).toEqual(['LogService', FINANCIAL_DATA_LOG_SUBSYSTEM, LogSeverity.INFO, true]);
     });
 
-    it('maps a raw row where balancesTotal is entirely missing (all guards fire) to 0/0/0 and keeps fxPnlChf null, matching the old mapLogToEntry ?? 0 defaults after mapSummaryToEntry', async () => {
+    it('maps a raw row where balancesTotal is entirely missing (all guards fire) to null/null/null (not 0) and keeps fxPnlChf null — the ?? 0 default happens only in mapSummaryToEntry, never in the repository (F13)', async () => {
       const repo = new LogRepository({} as EntityManager);
       const created = new Date('2026-07-14T00:00:00Z');
       jest.spyOn(repo, 'query').mockResolvedValue([
@@ -538,14 +540,14 @@ describe('LogRepository', () => {
 
       const rows = await repo.getFinancialLogSummaries(7);
 
-      expect(rows[0].totalBalanceChf).toBe(0);
-      expect(rows[0].plusBalanceChf).toBe(0);
-      expect(rows[0].minusBalanceChf).toBe(0);
+      expect(rows[0].totalBalanceChf).toBeNull();
+      expect(rows[0].plusBalanceChf).toBeNull();
+      expect(rows[0].minusBalanceChf).toBeNull();
       expect(rows[0].fxPnlChf).toBeNull();
       expect(rows[0].btcPriceChf).toBe(65000.25);
     });
 
-    it('maps a raw row with JSON null for only totalBalanceChf/plusBalanceChf (minusBalanceChf/fxPnlChf unaffected) to 0/0, matching the old null ?? 0 default', async () => {
+    it('maps a raw row with JSON null for only totalBalanceChf/plusBalanceChf (minusBalanceChf/fxPnlChf unaffected) to null/null, not 0 (F13)', async () => {
       const repo = new LogRepository({} as EntityManager);
       const created = new Date('2026-07-14T00:00:00Z');
       jest.spyOn(repo, 'query').mockResolvedValue([
@@ -563,11 +565,57 @@ describe('LogRepository', () => {
 
       const rows = await repo.getFinancialLogSummaries(7);
 
-      expect(rows[0].totalBalanceChf).toBe(0);
-      expect(rows[0].plusBalanceChf).toBe(0);
+      expect(rows[0].totalBalanceChf).toBeNull();
+      expect(rows[0].plusBalanceChf).toBeNull();
       expect(rows[0].minusBalanceChf).toBe(500);
       expect(rows[0].fxPnlChf).toBe(-12.5);
       expect(rows[0].btcPriceChf).toBe(65000.25);
+    });
+
+    it('passes plusBalanceChf through unconverted when the key is missing from one balancesByFinancialType entry, instead of Number(undefined) => NaN => null (F10, matches a real production row)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const created = new Date('2026-07-14T00:00:00Z');
+      jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created,
+          id: 99,
+          totalBalanceChf: 100,
+          plusBalanceChf: 100,
+          minusBalanceChf: 0,
+          fxPnlChf: null,
+          btcPriceChf: 0,
+          balancesByFinancialType: {
+            Crypto: { minusBalanceChf: 5 }, // plusBalanceChf key missing, as observed in production
+          },
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries();
+
+      expect(rows[0].balancesByType.Crypto.plusBalanceChf).toBeUndefined();
+      expect(rows[0].balancesByType.Crypto.minusBalanceChf).toBe(5);
+      // The old mapLogToEntry omitted the key entirely for a missing value; JSON serialisation drops an
+      // undefined-valued key the same way — never NaN, never null.
+      expect(JSON.parse(JSON.stringify(rows[0].balancesByType.Crypto))).toEqual({ minusBalanceChf: 5 });
+    });
+
+    it('fails loud, naming the log id and the type key, when a balancesByFinancialType entry is not an object (F11, e.g. {"Crypto": null})', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created: new Date('2026-07-14T00:00:00Z'),
+          id: 77,
+          totalBalanceChf: 100,
+          plusBalanceChf: 100,
+          minusBalanceChf: 0,
+          fxPnlChf: null,
+          btcPriceChf: 0,
+          balancesByFinancialType: { Crypto: null },
+        },
+      ]);
+
+      await expect(repo.getFinancialLogSummaries()).rejects.toThrow(/77/);
+      await expect(repo.getFinancialLogSummaries()).rejects.toThrow(/Crypto/);
     });
   });
 });
