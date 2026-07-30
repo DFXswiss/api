@@ -1,11 +1,4 @@
-import {
-  Column,
-  DataSource,
-  Entity,
-  getMetadataArgsStorage,
-  PrimaryGeneratedColumn,
-  QueryRunner,
-} from 'typeorm';
+import { Column, DataSource, Entity, getMetadataArgsStorage, PrimaryGeneratedColumn, QueryRunner } from 'typeorm';
 import { User } from '../user.entity';
 
 const PG_URL = process.env.MIGRATION_TEST_PG;
@@ -14,18 +7,14 @@ const SCHEMA = 'signature_column_visibility_spec';
 
 describe('User signature column metadata', () => {
   it('marks signature with select: false so TypeORM excludes it from default queries', () => {
-    const column = getMetadataArgsStorage().columns.find(
-      (c) => c.target === User && c.propertyName === 'signature',
-    );
+    const column = getMetadataArgsStorage().columns.find((c) => c.target === User && c.propertyName === 'signature');
 
     expect(column).toBeDefined();
     expect(column.options.select).toBe(false);
   });
 
   it('does not mark address with select: false (control for metadata reading)', () => {
-    const column = getMetadataArgsStorage().columns.find(
-      (c) => c.target === User && c.propertyName === 'address',
-    );
+    const column = getMetadataArgsStorage().columns.find((c) => c.target === User && c.propertyName === 'address');
 
     expect(column).toBeDefined();
     expect(column.options.select).toBeUndefined();
@@ -105,29 +94,25 @@ describeDb('select: false runtime behaviour (real Postgres)', () => {
     expect(row.hidden).toBeUndefined();
   });
 
-  it(
-    'addSelect returns a select: false column ' +
-      '(the pattern UserService.getSignature() uses)',
-    async () => {
-      const inserted = (await queryRunner.query(
-        `INSERT INTO "select_false_probe" ("visible", "hidden")
+  it('addSelect returns a select: false column ' + '(the pattern UserService.getSignature() uses)', async () => {
+    const inserted = (await queryRunner.query(
+      `INSERT INTO "select_false_probe" ("visible", "hidden")
          VALUES ('visible-value', 'hidden-secret')
          RETURNING "id"`,
-      )) as { id: number }[];
-      const id = inserted[0].id;
+    )) as { id: number }[];
+    const id = inserted[0].id;
 
-      const row = await dataSource
-        .getRepository(SelectFalseProbe)
-        .createQueryBuilder('probe')
-        .select('probe.id')
-        .addSelect('probe.hidden')
-        .where('probe.id = :id', { id })
-        .getOne();
+    const row = await dataSource
+      .getRepository(SelectFalseProbe)
+      .createQueryBuilder('probe')
+      .select('probe.id')
+      .addSelect('probe.hidden')
+      .where('probe.id = :id', { id })
+      .getOne();
 
-      expect(row).toBeDefined();
-      expect(row.hidden).toBe('hidden-secret');
-    },
-  );
+    expect(row).toBeDefined();
+    expect(row.hidden).toBe('hidden-secret');
+  });
 
   it('raw SQL still sees the value (select: false is ORM-level, not a data migration)', async () => {
     const inserted = (await queryRunner.query(
@@ -137,10 +122,9 @@ describeDb('select: false runtime behaviour (real Postgres)', () => {
     )) as { id: number }[];
     const id = inserted[0].id;
 
-    const rows = (await queryRunner.query(
-      `SELECT "hidden" FROM "select_false_probe" WHERE "id" = $1`,
-      [id],
-    )) as { hidden: string }[];
+    const rows = (await queryRunner.query(`SELECT "hidden" FROM "select_false_probe" WHERE "id" = $1`, [id])) as {
+      hidden: string;
+    }[];
 
     expect(rows).toHaveLength(1);
     expect(rows[0].hidden).toBe('hidden-secret');
