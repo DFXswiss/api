@@ -466,6 +466,23 @@ describe('LiquidityManagementPipelineService', () => {
       expect(update.mock.calls[0][0]).toMatchObject({ notSentRecheckDue: RELEASED_AT });
     });
 
+    it('does not report a missed quarantine write as a resolution that happened elsewhere', async () => {
+      // The write cannot tell a race from a narrowing that will never match again, and the second case repeats
+      // forever while the order stays as it is. Claiming the benign one hid exactly that: a release timestamp
+      // with microsecond precision is unmatchable by a JS Date, and it held a live order for hours behind the
+      // reassuring wording. So the line must name both and be a warning, not routine information.
+      const order = releasePendingOrder();
+      jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+      jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+      const warn = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+      stubIntegration(UncertainOrderResolution.UNRESOLVED);
+
+      await service['resolveUncertainOrders']();
+
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/was not updated.*resolved elsewhere.*matched no row/s));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('stuck'));
+    });
+
     it('does not release an unreleased order on the same inconclusive answer', async () => {
       // absence is not proof; without somebody having checked independently there is only one negative
       const order = uncertainOrder();

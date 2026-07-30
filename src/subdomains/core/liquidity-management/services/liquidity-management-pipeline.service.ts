@@ -684,7 +684,21 @@ export class LiquidityManagementPipelineService {
     );
 
     if (!result.affected) {
-      this.logger.info(`Uncertain liquidity order ${order.id} was already resolved elsewhere, skipping`);
+      // Two very different situations, and this write cannot tell them apart: either somebody resolved the
+      // order between the read and here — a race, which the next pass simply sees — or the narrowing above
+      // matched no row and never will, in which case this repeats on every pass while the order stays exactly
+      // as it is. Claiming the benign one was wrong: a release timestamp written with microsecond precision
+      // cannot be matched by a JavaScript Date, which carries milliseconds, and one written by hand in SQL held
+      // a live order for hours behind the reassuring version of this line.
+      //
+      // So it names both and says what to look for. A warning rather than info because a race is rare and
+      // self-correcting while the other case is a silent permanent block, and this line is the only trace it
+      // leaves — the whole failure this branch exists to end.
+      this.logger.warn(
+        `Uncertain liquidity order ${order.id} was not updated: either it was resolved elsewhere, or the ` +
+          `quarantine narrowing matched no row. Repeating on every pass means the latter — the order is stuck.`,
+      );
+
       return false;
     }
 
