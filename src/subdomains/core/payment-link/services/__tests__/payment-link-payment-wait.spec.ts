@@ -57,6 +57,15 @@ describe('PaymentLinkPaymentService', () => {
       await assertion;
     });
 
+    it('should pass a rejection of the wait itself through instead of reporting it as a timeout', async () => {
+      const wait = service.waitForPayment({ id: 4 } as PaymentLinkPayment);
+      const assertion = expect(wait).rejects.toThrow('Payment gone');
+
+      service['paymentWaitMap'].reject(4, 'Payment gone');
+
+      await assertion;
+    });
+
     it('should give a caller joining a pending payment its own full window', async () => {
       // AsyncMap hands both callers the same subscriber. Arming the timeout there would
       // let the first caller's timer decide for the second one, cutting the late joiner

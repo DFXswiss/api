@@ -281,20 +281,20 @@ Most of these require a merchant **JWT** (DFX login) or, where noted, a payment-
 **access key** (`?key=…`); the **Auth** column is authoritative per row (a few, such as
 `assign` and `locations`, are public).
 
-| Method & path                                        | Auth                 | Purpose                                                                        |
-| ---------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------ |
-| `POST /paymentLink`                                  | JWT or `key`         | Create a persistent, managed link (`CreatePaymentLink` body).                  |
-| `GET /paymentLink`                                   | JWT                  | List links / fetch one (`linkId`/`externalLinkId`/`externalPaymentId`).        |
-| `PUT /paymentLink`                                   | JWT                  | Update a link (status, label, webhook, config).                                |
-| `GET /paymentLink/history`                           | JWT or `key`         | Payment history (`status`, `from`, `to`).                                      |
-| `POST /paymentLink/payment`                          | optional JWT / `key` | Create a payment on a link (POS path with `key`).                              |
+| Method & path                                        | Auth                 | Purpose                                                                                                    |
+| ---------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `POST /paymentLink`                                  | JWT or `key`         | Create a persistent, managed link (`CreatePaymentLink` body).                                              |
+| `GET /paymentLink`                                   | JWT                  | List links / fetch one (`linkId`/`externalLinkId`/`externalPaymentId`).                                    |
+| `PUT /paymentLink`                                   | JWT                  | Update a link (status, label, webhook, config).                                                            |
+| `GET /paymentLink/history`                           | JWT or `key`         | Payment history (`status`, `from`, `to`).                                                                  |
+| `POST /paymentLink/payment`                          | optional JWT / `key` | Create a payment on a link (POS path with `key`).                                                          |
 | `GET /paymentLink/payment/wait`                      | JWT or `key`         | Long-poll a link's pending payment to a terminal state; returns the full link. 408 after 110 s (re-issue). |
-| `PUT /paymentLink/payment/confirm`                   | JWT or `key`         | Mark a completed payment confirmed.                                            |
-| `DELETE /paymentLink/payment`                        | optional JWT / `key` | Cancel the pending payment.                                                    |
-| `PUT /paymentLink/pos`                               | JWT                  | Get a POS URL (`{ url }`) for a link.                                          |
-| `GET /paymentLink/config`, `PUT /paymentLink/config` | JWT (account)        | Read/update the account-level link config (incl. POS access key).              |
-| `PUT /paymentLink/assign`                            | none                 | Assign an unassigned link to a route by `publicName`.                          |
-| `GET /paymentLink/locations`                         | none                 | Distinct recipient addresses for a `publicName`.                               |
+| `PUT /paymentLink/payment/confirm`                   | JWT or `key`         | Mark a completed payment confirmed.                                                                        |
+| `DELETE /paymentLink/payment`                        | optional JWT / `key` | Cancel the pending payment.                                                                                |
+| `PUT /paymentLink/pos`                               | JWT                  | Get a POS URL (`{ url }`) for a link.                                                                      |
+| `GET /paymentLink/config`, `PUT /paymentLink/config` | JWT (account)        | Read/update the account-level link config (incl. POS access key).                                          |
+| `PUT /paymentLink/assign`                            | none                 | Assign an unassigned link to a route by `publicName`.                                                      |
+| `GET /paymentLink/locations`                         | none                 | Distinct recipient addresses for a `publicName`.                                                           |
 
 > Administrative endpoints (route-label assignment, internal link/payment edits, sticker
 > PDF generation, exchange-provider enrollment) exist but are internal/admin-only and are
@@ -475,6 +475,7 @@ Three options, from push to pull:
    answer is **HTTP 408** — nothing has been decided, so issue the request again. Treat 408
    as "ask once more", never as "the customer did not pay": a payment that outlives one
    window is normal, and only a terminal status in a 2xx response is a result.
+
 3. **Poll** — read `GET /v1/paymentLink` / `GET /v1/paymentLink/history` (JWT or access
    key) and inspect `payment.status` / `payments[]`.
 

@@ -22,6 +22,14 @@ export enum AmountType {
   FIAT_FEE = 'FiatFee',
 }
 
+// thrown by Util.timeout() when the wrapped promise loses the race, so a caller can tell the
+// timeout apart from a rejection of the promise it wrapped
+export class TimeoutError extends Error {
+  constructor() {
+    super('Timeout');
+  }
+}
+
 export class Util {
   // --- MATH --- //
   static roundReadable(amount: number, type: AmountType, assetPrecision?: number): number {
@@ -640,9 +648,14 @@ export class Util {
   }
 
   static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
-    const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
+    let timer: NodeJS.Timeout;
+    const timeoutPromise = new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new TimeoutError()), timeout);
+    });
 
-    return Promise.race([promise, timeoutPromise]);
+    // clear the timer once the race is decided, so a promise that wins early does not leave
+    // the timer pending for the rest of its duration
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
   }
 
   static async delay(ms: number): Promise<void> {

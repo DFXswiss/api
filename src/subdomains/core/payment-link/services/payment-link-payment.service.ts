@@ -13,7 +13,7 @@ import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AsyncMap } from 'src/shared/utils/async-map';
-import { Util } from 'src/shared/utils/util';
+import { TimeoutError, Util } from 'src/shared/utils/util';
 import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { IsNull, LessThan } from 'typeorm';
@@ -174,7 +174,9 @@ export class PaymentLinkPaymentService {
     // caller of the same payment one shared subscriber, so its timer would be armed by
     // whoever arrived first and would then reject all of them together — a caller joining
     // late would be cut off after whatever is left of someone else's window.
-    return Util.timeout(this.paymentWaitMap.wait(payment.id, 0), Config.payment.waitTimeout * 1000).catch(() => {
+    return Util.timeout(this.paymentWaitMap.wait(payment.id, 0), Config.payment.waitTimeout * 1000).catch((e) => {
+      if (!(e instanceof TimeoutError)) throw e;
+
       throw new RequestTimeoutException('Payment is still pending');
     });
   }
