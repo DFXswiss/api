@@ -47,7 +47,13 @@ export class GsController {
 
     this.logAndCheckTrigger(query, jwt);
 
-    return this.gsService.getExtendedDbData(query, jwt.role);
+    try {
+      return await this.gsService.getExtendedDbData(query, jwt.role);
+    } catch (e) {
+      const { table, identifier } = this.sanitizeLogFields(query);
+      this.logger.verbose(`Custom DB data call for ${table} in ${identifier} failed:`, e);
+      throw new BadRequestException(e.message);
+    }
   }
 
   @Get('support')
