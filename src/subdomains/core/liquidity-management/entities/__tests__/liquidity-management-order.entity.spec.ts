@@ -70,14 +70,14 @@ describe('LiquidityManagementOrder', () => {
 
     /** Milliseconds from now until the order may be given up; negative once it already may be. */
     function headroom(order: LiquidityManagementOrder): number {
-      const at = order.abandonableAt();
+      const at = order.getAbandonableAt();
       if (!at) throw new Error('expected a deadline');
 
       return at.getTime() - Date.now();
     }
 
     it('is null without a timestamp — no deadline to respect constrains nobody', () => {
-      expect(quarantined(undefined).abandonableAt()).toBeNull();
+      expect(quarantined(undefined).getAbandonableAt()).toBeNull();
     });
 
     it('falls the trade bound after the moment quarantine began', () => {

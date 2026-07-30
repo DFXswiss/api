@@ -344,7 +344,7 @@ export class LiquidityManagementOrder extends IEntity {
     if (!this.updated) return false;
 
     // `>=`, so that reaching the bound is enough. With `>`, the instant the bound is exactly met left the two
-    // halves of this clock disagreeing: {@link msUntilAbandonable} already reported nothing left — which is
+    // halves of this clock disagreeing: {@link getAbandonableAt} already reported nothing left — which is
     // what lets the reconciliation pass run at that moment — while this said not yet. The pass then re-stamped
     // its cooldown and the order waited out another full interval, so a five-minute bound gave up at six.
     return Util.minutesDiff(this.updated) >= this.abandonBoundMinutes();
@@ -366,7 +366,7 @@ export class LiquidityManagementOrder extends IEntity {
    * Null without a timestamp, mirroring that method's refusal to run a clock it does not have: no deadline to
    * respect means no constraint to impose on a caller's wait.
    */
-  abandonableAt(): Date | null {
+  getAbandonableAt(): Date | null {
     if (!this.updated) return null;
 
     return new Date(this.updated.getTime() + this.abandonBoundMinutes() * 60_000);

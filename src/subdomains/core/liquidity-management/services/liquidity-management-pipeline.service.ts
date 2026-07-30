@@ -353,7 +353,7 @@ export class LiquidityManagementPipelineService {
       // its own venue-wait runs on its own clock.
       if (!releasePending) {
         const lastAttemptEnd = this.uncertainResolveAttempts.get(order.id);
-        const abandonableAt = order.abandonableAt();
+        const abandonableAt = order.getAbandonableAt();
         const ageMs = Date.now() - order.created.getTime();
 
         // How long the last lookup had left before this order became abandonable. Negative once that lookup
