@@ -547,6 +547,36 @@ describe('LogRepository', () => {
       expect(rows[0].btcPriceChf).toBe(65000.25);
     });
 
+    it('keeps the row with all number fields null (mapped to 0 downstream by mapSummaryToEntry) and does not throw for a top-level `message: null` document — the old mapLogToEntry/JSON.parse path threw on the resulting property access and dropped the whole line for this case; not observed in production (F20b)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      const created = new Date('2026-07-14T00:00:00Z');
+      jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created,
+          id: 3,
+          // Same raw shape the SQL projection produces for a top-level JSON `null` message: every
+          // `jsonb_typeof(message::jsonb -> ...)` guard sees a non-object/non-number operand and nulls
+          // its field, same as a missing key.
+          totalBalanceChf: null,
+          plusBalanceChf: null,
+          minusBalanceChf: null,
+          fxPnlChf: null,
+          btcPriceChf: null,
+          balancesByFinancialType: null,
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries(7);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].totalBalanceChf).toBeNull();
+      expect(rows[0].plusBalanceChf).toBeNull();
+      expect(rows[0].minusBalanceChf).toBeNull();
+      expect(rows[0].fxPnlChf).toBeNull();
+      expect(rows[0].btcPriceChf).toBe(0);
+      expect(rows[0].balancesByType).toEqual({});
+    });
+
     it('maps a raw row with JSON null for only totalBalanceChf/plusBalanceChf (minusBalanceChf/fxPnlChf unaffected) to null/null, not 0 (F13)', async () => {
       const repo = new LogRepository({} as EntityManager);
       const created = new Date('2026-07-14T00:00:00Z');
