@@ -42,8 +42,15 @@ import {
 /**
  * After this long without a usable answer, an order the venue once acknowledged is treated as lost rather
  * than merely slow. Shared by the "cannot be found" and the "stuck pending" paths so both give up together.
+ *
+ * Kept equal to SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES in the adapter, which documents itself as matching
+ * this value — the two are the pair of routes out of a silent order and must not drift apart. Five rather
+ * than sixty so that quarantine plus the abandon bound stay inside the ten-minute ceiling. Safe at this
+ * length because it only fires while the venue does not know the reference at all: an order it is still
+ * working is returned by the status lookup and never reaches here, whatever its age. Measured over 60 days,
+ * Scrypt trades complete in a median of 0.2 and a maximum of 1.0 minutes.
  */
-const ORDER_LOST_AFTER_MINUTES = 60;
+const ORDER_LOST_AFTER_MINUTES = 5;
 
 // The venue answers a refused cancel with an execution report rather than a separate reject message, so the
 // refusal has to be read off these two fields. `UnknownOrder` is the one reason treated as settling

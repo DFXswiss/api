@@ -78,6 +78,22 @@ const ABANDON_UNCERTAIN_MINUTES = {
    */
   TRADE: 5,
   /**
+   * A withdrawal at a venue that answers about its own transaction history — today only Scrypt.
+   *
+   * Five minutes, and deliberately not derived from how long withdrawals take: measured over 60 days they
+   * run to 336 minutes, and 39% of them past ten. That tail does not reach this bound, because the bound
+   * only applies while the venue does NOT name the reference. One it does name is SENT and runs to
+   * completion on its own clock, however long that takes.
+   *
+   * What the short value buys is the ceiling the orderer set: five minutes here plus the five a withdrawal
+   * may stay unobservable (see SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES) is the ten-minute maximum a
+   * quarantined order may take to resolve itself. What it costs is the case where the venue accepted a
+   * withdrawal and publishes it late: it is then given up and reissued. That is an internal rebooking —
+   * every Scrypt withdrawal address is DFX-owned — and accepted on exactly that ground; see
+   * `confirmWithdrawalAbsent` for the same trade-off argued at the check itself.
+   */
+  VENUE_WITHDRAWAL: 5,
+  /**
    * Everything else: transfers, withdrawals, bridges, mints. Twice the slowest withdrawal observed, because
    * the tail here is genuinely long — a bound near the median would reach orders that are simply still
    * running, and reissuing those is what actually moves funds twice.
@@ -112,6 +128,18 @@ const VENUE_INTERNAL_ACTIONS = [
   `${LiquidityManagementSystem.SCRYPT}/buy`.toLowerCase(),
   `${LiquidityManagementSystem.SCRYPT}/sell`.toLowerCase(),
 ];
+
+/**
+ * Withdrawals at a venue that can be asked about its own transaction history, as `system/command` pairs.
+ *
+ * Separate from the general transfer bound on purpose. Lowering TRANSFER itself would also shorten the
+ * bound for bridges, mints and other systems' transfers — and none of those adapters implements
+ * `cancelOutstanding`, so no exit would be attempted there anyway; the only effect would be asking their
+ * venues more often for nothing.
+ *
+ * Same allowlist discipline as {@link VENUE_INTERNAL_ACTIONS}: anything unrecognised keeps the long bound.
+ */
+const VENUE_SELF_RESOLVING_TRANSFERS = [`${LiquidityManagementSystem.SCRYPT}/withdraw`.toLowerCase()];
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -406,9 +434,10 @@ export class LiquidityManagementOrder extends IEntity {
     // Unknown, unloaded or unlisted action falls to the long bound, for the same reason as a missing date.
     const action = `${this.action?.system}/${this.action?.command}`.toLowerCase();
 
-    return VENUE_INTERNAL_ACTIONS.includes(action)
-      ? ABANDON_UNCERTAIN_MINUTES.TRADE
-      : ABANDON_UNCERTAIN_MINUTES.TRANSFER;
+    if (VENUE_INTERNAL_ACTIONS.includes(action)) return ABANDON_UNCERTAIN_MINUTES.TRADE;
+    if (VENUE_SELF_RESOLVING_TRANSFERS.includes(action)) return ABANDON_UNCERTAIN_MINUTES.VENUE_WITHDRAWAL;
+
+    return ABANDON_UNCERTAIN_MINUTES.TRANSFER;
   }
 
   /**

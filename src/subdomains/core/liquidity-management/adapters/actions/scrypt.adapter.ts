@@ -43,13 +43,17 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
 /**
  * How long an acknowledged order may stay unobservable before it is quarantined rather than polled again.
  *
- * Matches the age at which the venue lookup itself gives up on finding an order, so both routes out of a
- * silent order agree. Quarantine is not a verdict — the order is still not declared failed here — it only
+ * Five minutes, matching the age at which the venue lookup itself gives up on finding an order
+ * (`ORDER_LOST_AFTER_MINUTES`), so both routes out of a silent order still agree. Together with the
+ * five-minute abandon bound for these commands that is the ten-minute ceiling a quarantined order may take
+ * to resolve itself. A venue record is written when a request is ACCEPTED, not when it finishes — so its
+ * absence after five minutes says the acceptance is in doubt, which is independent of a withdrawal itself
+ * being allowed to take hours. Quarantine is not a verdict — the order is still not declared failed here — it only
  * moves it where the caller's bound can attempt an automatic exit (cancel every trade reference, or confirm
  * a withdrawal is unnamed in the venue's history reply). An operator can still release sooner as a shortcut; the human
  * is not the rule path for either command.
  */
-const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 60;
+const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 5;
 
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {

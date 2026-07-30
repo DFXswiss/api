@@ -44,9 +44,19 @@ describe('LiquidityManagementOrder', () => {
       expect(quarantined(6, command).unresolvableTooLong()).toBe(true);
     });
 
-    it('applies the long bound to a transfer at the same venue', () => {
-      expect(quarantined(11 * 60, 'withdraw').unresolvableTooLong()).toBe(false);
-      expect(quarantined(13 * 60, 'withdraw').unresolvableTooLong()).toBe(true);
+    it('applies the short bound to scrypt/withdraw — the venue answers about its own history', () => {
+      // Not derived from how long withdrawals take (they reach hours): the bound only applies while the
+      // venue does not name the reference, and it exists to hold the ten-minute ceiling together with the
+      // unobservable window.
+      expect(quarantined(4, 'withdraw').unresolvableTooLong()).toBe(false);
+      expect(quarantined(6, 'withdraw').unresolvableTooLong()).toBe(true);
+    });
+
+    it('leaves the long bound on a transfer at a venue that cannot be asked', () => {
+      // Lowering the shared transfer bound would have reached bridges and mints too, whose adapters cannot
+      // attempt any exit — they would only be polled more often for nothing.
+      expect(quarantined(11 * 60, 'withdraw', 'Kraken').unresolvableTooLong()).toBe(false);
+      expect(quarantined(13 * 60, 'withdraw', 'Kraken').unresolvableTooLong()).toBe(true);
     });
 
     it('applies the long bound to a command that only looks like a trade elsewhere', () => {
@@ -136,10 +146,10 @@ describe('LiquidityManagementOrder', () => {
       expect(headroom(quarantined(60 * 24))).toBeLessThan(-23 * 60 * 60_000);
     });
 
-    it('falls the long bound for a transfer', () => {
+    it('falls the long bound for a transfer nobody can ask about', () => {
       // an hour into a twelve-hour bound leaves eleven
-      expect(headroom(quarantined(60, 'withdraw'))).toBeGreaterThan(10.9 * 60 * 60_000);
-      expect(headroom(quarantined(60, 'withdraw'))).toBeLessThanOrEqual(11 * 60 * 60_000);
+      expect(headroom(quarantined(60, 'withdraw', 'Kraken'))).toBeGreaterThan(10.9 * 60 * 60_000);
+      expect(headroom(quarantined(60, 'withdraw', 'Kraken'))).toBeLessThanOrEqual(11 * 60 * 60_000);
     });
 
     it('turns over at the bound itself, not a tick later', () => {
@@ -179,12 +189,14 @@ describe('LiquidityManagementOrder', () => {
     });
 
     it('applies the same bound to the same action as unresolvableTooLong', () => {
-      // Both read one shared source, so a trade and a transfer must disagree here exactly where they disagree
-      // there: at 30 minutes the trade bound is long spent while the transfer bound is not.
+      // Both read one shared source, so two actions must disagree here exactly where they disagree there: at
+      // 30 minutes both Scrypt bounds are long spent, while a transfer at a venue that cannot be asked is not.
       expect(headroom(quarantined(30, 'sell'))).toBeLessThan(0);
       expect(quarantined(30, 'sell').unresolvableTooLong()).toBe(true);
-      expect(headroom(quarantined(30, 'withdraw'))).toBeGreaterThan(0);
-      expect(quarantined(30, 'withdraw').unresolvableTooLong()).toBe(false);
+      expect(headroom(quarantined(30, 'withdraw'))).toBeLessThan(0);
+      expect(quarantined(30, 'withdraw').unresolvableTooLong()).toBe(true);
+      expect(headroom(quarantined(30, 'withdraw', 'Kraken'))).toBeGreaterThan(0);
+      expect(quarantined(30, 'withdraw', 'Kraken').unresolvableTooLong()).toBe(false);
     });
   });
 

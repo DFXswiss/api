@@ -334,9 +334,11 @@ describe('LiquidityManagementPipelineService', () => {
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
     });
 
-    it('holds a withdrawal far longer than a trade — its p95 alone is over an hour', async () => {
-      // a withdrawal at 30 minutes is entirely normal; abandoning it here would reissue a live transfer
-      const order = agedOrder(30, 'withdraw');
+    it('holds a transfer nobody can ask about far longer than a Scrypt one', async () => {
+      // Scrypt withdrawals now share the short bound: the venue answers about its own history, and the
+      // ten-minute ceiling outweighs the long tail, since a reissued payout only moves funds between our own
+      // accounts. A bridge or mint has neither property, so the long bound stays where it is.
+      const order = agedOrder(30, 'withdraw', 'Kraken');
       expectResolution(order, UncertainOrderResolution.UNRESOLVED);
 
       await service['resolveUncertainOrders']();
@@ -1019,7 +1021,9 @@ describe('LiquidityManagementPipelineService', () => {
         const resolveUncertainOrder = stubResolver();
         const order = uncertainOrder({
           created: new Date(Date.now() - 100 * 60_000),
-          action: { id: 233, system: 'Scrypt', command: 'withdraw' } as LiquidityManagementOrder['action'],
+          // A venue that cannot be asked keeps the twelve-hour bound, so no deadline tightens the interval
+          // and the age formula alone is under test here.
+          action: { id: 233, system: 'Kraken', command: 'withdraw' } as LiquidityManagementOrder['action'],
         });
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
 
@@ -1114,7 +1118,7 @@ describe('LiquidityManagementPipelineService', () => {
       it("leaves the cap governing when the order's own bound is further off than the cap", async () => {
         // The deadline only ever tightens the interval, never loosens it: a transfer has twelve hours, so the
         // cap decides exactly as it did before, and a lookup one millisecond early still must not happen.
-        const order = agedOrder(0, 'withdraw');
+        const order = agedOrder(0, 'withdraw', 'Kraken');
         const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNAVAILABLE);
         jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue({
           supportedCommands: ['withdraw'],
@@ -1144,7 +1148,8 @@ describe('LiquidityManagementPipelineService', () => {
         const resolveUncertainOrder = stubResolver();
         const order = uncertainOrder({
           created: new Date(Date.now() - 8 * 60 * 60_000),
-          action: { id: 233, system: 'Scrypt', command: 'withdraw' } as LiquidityManagementOrder['action'],
+          // Long bound on purpose (see above): this pins the thirty-minute cap, not a deadline.
+          action: { id: 233, system: 'Kraken', command: 'withdraw' } as LiquidityManagementOrder['action'],
         });
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
 
