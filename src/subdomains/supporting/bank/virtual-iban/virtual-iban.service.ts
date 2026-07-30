@@ -102,7 +102,7 @@ export class VirtualIbanService {
   }
 
   isUserEligible(currencyName: string, userData: UserData): boolean {
-    return this.hasProviderForCurrency(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
+    return this.hasAvailableProviderForCurrency(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
   }
 
   /**
@@ -120,23 +120,48 @@ export class VirtualIbanService {
     return provider.accountHolder;
   }
 
-  /** Finds the active user-level personal IBAN, including Bank Frick as the regular EUR provider. */
-  async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
+  /**
+   * Finds an active personal IBAN whose bank can receive customer deposits. Receiving and sending
+   * eligibility can diverge, so one shared lookup cannot serve both directions correctly. The directional
+   * bank predicate excludes rows that can no longer receive, but cannot break ties between qualifying rows;
+   * the explicit newest-first order makes the most recently created operational replacement win deterministically.
+   */
+  async getActiveReceivingForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
       where: {
         userData: { id: userData.id },
         currency: { name: currencyName },
         // A customer can hold several active rows for one currency - e.g. an old Yapeal EUR IBAN
-        // alongside a newer Frick one. Rows whose bank no longer receives must not be returned: this
-        // is a findOne without an ORDER BY, so a retired row can win over a working one, and the
-        // caller then sees "IBAN found, bank does not receive" and gives up. Since the collection
-        // account is no longer a fallback, that surfaced as PersonalIbanIssuanceFailed for every
-        // customer holding a retired Yapeal EUR IBAN.
+        // alongside a newer Frick one. Rows whose bank no longer receives must not be returned:
+        // without this predicate a retired row can win, the caller sees "found, but the bank does not
+        // receive", and with no collection-account fallback left the request fails outright. That is
+        // what surfaced as PersonalIbanIssuanceFailed for every holder of a retired Yapeal EUR IBAN.
         bank: { receive: true },
         active: true,
         status: VirtualIbanStatus.ACTIVE,
       },
       relations: { bank: true },
+      order: { id: 'DESC' },
+    });
+  }
+
+  /**
+   * Finds all active personal-IBAN candidates whose banks can send customer payouts. Sending and receiving
+   * eligibility can diverge, so the directional bank predicate is required but cannot break ties on its own.
+   * The caller applies additional entity-level eligibility rules; newest-first ordering gives it a deterministic
+   * choice among candidates that remain equally qualified after those rules.
+   */
+  async getActiveSendingCandidatesForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban[]> {
+    return this.virtualIbanRepo.find({
+      where: {
+        userData: { id: userData.id },
+        currency: { name: currencyName },
+        bank: { send: true },
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      },
+      relations: { bank: true },
+      order: { id: 'DESC' },
     });
   }
 
@@ -151,7 +176,7 @@ export class VirtualIbanService {
   }
 
   async createForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
-    const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
+    const existing = await this.getActiveReceivingForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
 
     // createVirtualIban calls reserveViban without a description, which the Frick provider rejects
@@ -1672,15 +1697,15 @@ export class VirtualIbanService {
 
   /**
    * Whether any provider covers this currency at all, regardless of whether it is reachable right now.
-   * Kept apart from {@link hasProviderForCurrency} on purpose: "we do not offer personal IBANs in this
+   * Kept apart from {@link hasAvailableProviderForCurrency} on purpose: "we do not offer personal IBANs in this
    * currency" is a permanent answer the customer can act on, while an outage is temporary and ours to
    * fix. Folding the two together would tell someone their currency is unsupported during a blip.
    */
-  supportsCurrency(currencyName: string): boolean {
+  hasProviderSupportingCurrency(currencyName: string): boolean {
     return this.genericProviders.some((provider) => provider.currencies.includes(currencyName));
   }
 
-  private hasProviderForCurrency(currencyName: string): boolean {
+  private hasAvailableProviderForCurrency(currencyName: string): boolean {
     return this.genericProviders.some(
       (provider) => provider.isAvailable() && provider.currencies.includes(currencyName),
     );

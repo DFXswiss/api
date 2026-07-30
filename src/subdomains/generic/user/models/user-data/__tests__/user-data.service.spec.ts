@@ -944,7 +944,7 @@ describe('UserDataService', () => {
     it('deactivates the higher-id active vIBAN when master and slave share currency+bank', async () => {
       const master = buildAccount(1000, 50);
       const slave = buildAccount(2000, 20);
-      // lower id wins (matches getActiveForUserAndCurrency order: { id: 'ASC' })
+      // lower id wins (matches findActiveForUserCurrencyAndBank order: { id: 'ASC' })
       const masterViban = buildActiveViban(11, master, eur, frick);
       const slaveViban = buildActiveViban(22, slave, eur, frick);
 

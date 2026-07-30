@@ -372,7 +372,7 @@ describe('BuyService', () => {
         receive: true,
         sctInst: true,
       } as any;
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(standardBank);
 
@@ -713,7 +713,7 @@ describe('BuyService', () => {
     } as VirtualIban;
 
     it('creates and resolves a personal Frick IBAN for an EUR customer at KYC LEVEL_50', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockResolvedValue(frickVirtualIban);
       jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.DFX);
@@ -723,7 +723,7 @@ describe('BuyService', () => {
         buy,
       );
 
-      expect(virtualIbanService.getActiveForUserAndCurrency).toHaveBeenCalledWith(userData, 'EUR');
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledWith(userData, 'EUR');
       expect(virtualIbanService.getOrCreateFrickForUser).toHaveBeenCalledWith(userData, 'EUR');
       expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
       expect(bankService.getBank).not.toHaveBeenCalled();
@@ -737,7 +737,7 @@ describe('BuyService', () => {
 
     it('swallows a transient EUR personal IBAN issuance error before applying the transfer fallback', async () => {
       const transientError = new Error('transient issuance error');
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockRejectedValue(transientError);
 
@@ -754,9 +754,9 @@ describe('BuyService', () => {
     });
 
     it('reports PersonalIbanIssuanceFailed for an eligible EUR transfer after issuance fails', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
-      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
       jest
         .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
         .mockRejectedValue(new Error('transient issuance error'));
@@ -770,9 +770,9 @@ describe('BuyService', () => {
     });
 
     it('reports KycRequired for an ineligible EUR transfer without a personal IBAN', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
-      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
 
       await expect(
         service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData }, buy),
@@ -782,12 +782,9 @@ describe('BuyService', () => {
       expect(bankService.getBank).not.toHaveBeenCalled();
     });
 
-    it('continues to the standard bank for CARD after a transient EUR personal IBAN issuance error', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+    it('continues to the standard bank for CARD without issuing a personal IBAN', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
-      jest
-        .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
-        .mockRejectedValue(new Error('transient issuance error'));
       jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
 
       const bankInfo = await service.getBankInfo(
@@ -795,7 +792,11 @@ describe('BuyService', () => {
         buy,
       );
 
-      expect(virtualIbanService.getOrCreateFrickForUser).toHaveBeenCalledWith(userData, 'EUR');
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledWith(userData, 'EUR');
+      expect(virtualIbanService.isUserEligible).not.toHaveBeenCalled();
+      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForBuy).not.toHaveBeenCalled();
       expect(bankService.getBank).toHaveBeenCalledWith({
         currency: 'EUR',
         paymentMethod: FiatPaymentMethod.CARD,
@@ -808,12 +809,33 @@ describe('BuyService', () => {
       });
     });
 
+    it('returns an existing active personal IBAN for CARD without issuing another one', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(frickVirtualIban);
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.DFX);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.CARD, userData },
+        buy,
+      );
+
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledWith(userData, 'EUR');
+      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForBuy).not.toHaveBeenCalled();
+      expect(bankService.getBank).not.toHaveBeenCalled();
+      expect(bankInfo).toMatchObject({
+        bank: IbanBankName.FRICK,
+        iban: frickVirtualIban.iban,
+        isPersonalIban: true,
+      });
+    });
+
     it.each([FiatPaymentMethod.BANK, FiatPaymentMethod.INSTANT])(
       'rejects EUR %s with KycRequired below KYC LEVEL_50 instead of returning the collection IBAN',
       async (paymentMethod) => {
-        jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
         jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
-        jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+        jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
         jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
 
         const resolution = service.getBankInfo({ currency: 'EUR', paymentMethod, userData: lowKycUserData }, buy);
@@ -826,7 +848,7 @@ describe('BuyService', () => {
     );
 
     it('continues to the standard bank for CARD below KYC LEVEL_50', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
 
@@ -848,7 +870,7 @@ describe('BuyService', () => {
     });
 
     it('keeps resolving CHF to a Yapeal personal IBAN at KYC LEVEL_50', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'createForUser').mockResolvedValue(yapealVirtualIban);
       jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
@@ -869,9 +891,9 @@ describe('BuyService', () => {
     });
 
     it('reports KycRequired for an ineligible CHF bank transfer without a personal IBAN', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
-      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
 
       await expect(
         service.getBankInfo({ currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData }, buy),
@@ -881,9 +903,9 @@ describe('BuyService', () => {
     });
 
     it('reports PersonalIbanIssuanceFailed for an eligible CHF transfer after issuance fails', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
-      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'createForUser').mockRejectedValue(new Error('transient issuance error'));
 
       await expect(
@@ -895,7 +917,7 @@ describe('BuyService', () => {
     });
 
     it('continues to the standard bank for CHF CARD below KYC LEVEL_50', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
 
@@ -917,9 +939,9 @@ describe('BuyService', () => {
     });
 
     it('reports KycRequired for an ineligible CHF instant transfer without a personal IBAN', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
-      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
 
       await expect(
         service.getBankInfo(
@@ -930,9 +952,9 @@ describe('BuyService', () => {
     });
 
     it('reports PersonalIbanCurrencyNotSupported before issuance failure for an unsupported currency', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
-      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(false);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(false);
 
       const resolution = service.getBankInfo({ currency: 'USD', paymentMethod: FiatPaymentMethod.BANK, userData }, buy);
 
@@ -941,9 +963,9 @@ describe('BuyService', () => {
     });
 
     it('reports PersonalIbanIssuanceFailed instead of currency or KYC errors during a Frick outage', async () => {
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
-      jest.spyOn(virtualIbanService, 'supportsCurrency').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
       jest
         .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
         .mockRejectedValue(new Error('transient issuance error'));
@@ -1048,7 +1070,7 @@ describe('BuyService', () => {
         buy: null,
       } as VirtualIban;
       jest.spyOn(virtualIbanService, 'getActiveForBuyAndCurrency').mockResolvedValue(null);
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockResolvedValue(userLevelVirtualIban);
 
@@ -1088,11 +1110,42 @@ describe('BuyService', () => {
       expect(virtualIbanService.getActiveForBuyAndCurrency).toHaveBeenCalledWith(buy.id, 'CHF');
       expect(virtualIbanService.countActiveForUser).toHaveBeenCalledWith(userData.id);
       expect(virtualIbanService.createForBuy).toHaveBeenCalledWith(userData, buy, 'CHF');
-      expect(virtualIbanService.getActiveForUserAndCurrency).not.toHaveBeenCalled();
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
       expect(resolved).toMatchObject({
         bankId: chfVirtualIban.bank.id,
         virtualIbanId: chfVirtualIban.id,
         bankName: chfVirtualIban.bank.name,
+      });
+    });
+
+    it('keeps CARD vIBAN lookups but skips buy-specific and user-level issuance', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForBuyAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(defaultRouteBank);
+
+      const resolved = await service['resolveBankInfo'](
+        { currency: 'CHF', paymentMethod: FiatPaymentMethod.CARD, userData },
+        buy,
+        asset,
+        wallet,
+      );
+
+      expect(virtualIbanService.getActiveForBuyAndCurrency).toHaveBeenCalledWith(buy.id, 'CHF');
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledWith(userData, 'CHF');
+      expect(virtualIbanService.countActiveForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.isUserEligible).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForBuy).not.toHaveBeenCalled();
+      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
+      expect(bankService.getBank).toHaveBeenCalledWith({
+        currency: 'CHF',
+        paymentMethod: FiatPaymentMethod.CARD,
+        userData,
+      });
+      expect(resolved).toMatchObject({
+        bankId: defaultRouteBank.id,
+        bankName: defaultRouteBank.name,
       });
     });
 
@@ -1159,7 +1212,7 @@ describe('BuyService', () => {
         wallet: { id: 3, buySpecificIbanEnabled: false },
       } as any);
       jest.spyOn(virtualIbanService, 'getActiveForBuyAndCurrency').mockResolvedValue(null);
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(defaultRouteBank);
       jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue(feeResult());
@@ -1215,7 +1268,7 @@ describe('BuyService', () => {
       jest.spyOn(transactionHelper, 'getTxDetails').mockRejectedValue(new Error('fee calc failed'));
       jest.spyOn(virtualIbanService, 'createForUser');
       jest.spyOn(virtualIbanService, 'createForBuy');
-      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency');
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency');
       jest.spyOn(virtualIbanService, 'getActiveForBuyAndCurrency');
       jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser');
       jest.spyOn(virtualIbanService, 'isUserEligible');
@@ -1234,7 +1287,7 @@ describe('BuyService', () => {
 
       expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
       expect(virtualIbanService.createForBuy).not.toHaveBeenCalled();
-      expect(virtualIbanService.getActiveForUserAndCurrency).not.toHaveBeenCalled();
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
       expect(virtualIbanService.getActiveForBuyAndCurrency).not.toHaveBeenCalled();
       expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
       expect(virtualIbanService.isUserEligible).not.toHaveBeenCalled();
