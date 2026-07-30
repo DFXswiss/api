@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { DataType, newDb } from 'pg-mem';
-import { Column, DataSource, Entity, PrimaryColumn } from 'typeorm';
+import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { TradingRuleService } from '../trading-rule.service';
 import { TradingService } from '../trading.service';
 
@@ -20,6 +20,12 @@ class TradingOrderTable {
 
   @Column({ type: 'int' })
   tradingRuleId: number;
+
+  // Relation path for `.innerJoin('tradingOrder.tradingRule', ...)`; createForeignKeyConstraints
+  // is false so the intentionally orphaned fixture row (tradingRuleId with no matching rule) stays insertable.
+  @ManyToOne(() => TradingRuleTable, { nullable: false, createForeignKeyConstraints: false })
+  @JoinColumn({ name: 'tradingRuleId' })
+  tradingRule: TradingRuleTable;
 }
 
 // runs getCurrentTradingOrders against a Postgres-semantics engine (pg-mem) to verify the
