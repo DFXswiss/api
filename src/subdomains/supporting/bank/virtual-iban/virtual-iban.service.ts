@@ -151,10 +151,7 @@ export class VirtualIbanService {
    * The caller applies additional entity-level eligibility rules; newest-first ordering gives it a deterministic
    * choice among candidates that remain equally qualified after those rules.
    */
-  async getActiveSendingCandidatesForUserAndCurrency(
-    userData: UserData,
-    currencyName: string,
-  ): Promise<VirtualIban[]> {
+  async getActiveSendingCandidatesForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban[]> {
     return this.virtualIbanRepo.find({
       where: {
         userData: { id: userData.id },

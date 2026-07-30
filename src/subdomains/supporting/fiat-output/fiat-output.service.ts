@@ -51,10 +51,7 @@ export class FiatOutputService {
   ): Promise<{ accountIban: string | undefined; bank: Bank | undefined }> {
     // use virtual IBAN if existing
     if (userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(type)) {
-      const candidates = await this.virtualIbanService.getActiveSendingCandidatesForUserAndCurrency(
-        userData,
-        currency,
-      );
+      const candidates = await this.virtualIbanService.getActiveSendingCandidatesForUserAndCurrency(userData, currency);
       const virtualIban = candidates.find(
         (candidate) => candidate.bank.name !== IbanBankName.FRICK && candidate.bank.isCountryEnabled(country),
       );

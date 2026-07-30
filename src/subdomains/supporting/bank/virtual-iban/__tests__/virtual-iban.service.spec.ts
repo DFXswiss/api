@@ -36,10 +36,19 @@ import { VirtualIbanLifecycleEvent } from '../virtual-iban-lifecycle-event.entit
 import { VirtualIbanRepository } from '../virtual-iban.repository';
 import { CREATE_PATH_REFERENCE_MARKER, MERGE_SUPERSEDED_MARKER, VirtualIbanService } from '../virtual-iban.service';
 
+// These shadow entities mirror only the columns the receiving lookup actually queries. The production
+// VirtualIban entity is too relation-heavy to synchronize into pg-mem, but the point of these tests is
+// that a real SQL engine evaluates the WHERE clause and the ORDER BY - not that the full schema exists.
+// Every column needs an explicit type: pg-mem rejects an entity whose only column is the generated key
+// (TypeORM emits INSERT ... DEFAULT VALUES, which it cannot parse), and enum-typed columns reflect as
+// Object unless the type is spelled out.
 @Entity({ name: 'receiving_lookup_user_data' })
 class ReceivingLookupUserDataTable {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column({ type: 'varchar', length: 256 })
+  label: string;
 }
 
 @Entity({ name: 'receiving_lookup_fiat' })
@@ -47,7 +56,7 @@ class ReceivingLookupFiatTable {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ length: 256, unique: true })
+  @Column({ type: 'varchar', length: 256, unique: true })
   name: string;
 }
 
@@ -56,13 +65,13 @@ class ReceivingLookupBankTable {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ length: 256 })
+  @Column({ type: 'varchar', length: 256 })
   name: IbanBankName;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   receive: boolean;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   send: boolean;
 }
 
@@ -71,16 +80,16 @@ class ReceivingLookupVirtualIbanTable {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ length: 34, unique: true })
+  @Column({ type: 'varchar', length: 34, unique: true })
   iban: string;
 
   @ManyToOne(() => ReceivingLookupFiatTable, { nullable: false })
   currency: ReceivingLookupFiatTable;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   active: boolean;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   status?: VirtualIbanStatus;
 
   @ManyToOne(() => ReceivingLookupUserDataTable, { nullable: false })
@@ -1672,7 +1681,7 @@ describe('VirtualIbanService', () => {
     });
 
     it('selects the receiving row when an active row on a retired bank is also present', async () => {
-      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({});
+      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({ label: 'lookup' });
       const lookupCurrency = await pgDataSource.getRepository(ReceivingLookupFiatTable).save({ name: 'EUR' });
       const retiredBank = await pgDataSource
         .getRepository(ReceivingLookupBankTable)
@@ -1707,7 +1716,7 @@ describe('VirtualIbanService', () => {
     });
 
     it('selects the most recently created row when two active rows can receive', async () => {
-      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({});
+      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({ label: 'lookup' });
       const lookupCurrency = await pgDataSource.getRepository(ReceivingLookupFiatTable).save({ name: 'CHF' });
       const receivingBank = await pgDataSource
         .getRepository(ReceivingLookupBankTable)
