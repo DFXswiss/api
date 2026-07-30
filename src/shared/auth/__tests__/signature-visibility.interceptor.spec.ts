@@ -105,7 +105,7 @@ describe('SignatureVisibilityInterceptor', () => {
   // registration were dropped - the protection would be silently gone. This pins the wiring itself.
   it('is registered globally as an APP_INTERCEPTOR', async () => {
     const { AppModule } = await import('src/app.module');
-    const providers = Reflect.getMetadata('providers', AppModule) as { provide?: symbol; useClass?: unknown }[];
+    const providers = Reflect.getMetadata('providers', AppModule) as { provide?: unknown; useClass?: unknown }[];
 
     expect(providers.some((p) => p.provide === APP_INTERCEPTOR && p.useClass === SignatureVisibilityInterceptor)).toBe(
       true,
