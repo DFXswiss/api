@@ -83,10 +83,10 @@ export class TxValidationService {
 
   // Solana transfer verification: match at least one destination in the tx that pays the expected
   // owner + asset + amount. `SolanaTransactionDto.destinations[].to` carries the recipient's wallet
-  // OWNER address for both native SOL and SPL transfers (SolanaClient.getTokenInstructions +
-  // updateTokenInstruction resolve to `owner`, not the ATA), so the same owner-equality check
-  // works for both. The mint disambiguates SPL from SOL and enforces the correct asset. Overpayment
-  // is accepted (mirrors validateParsedTransaction); underpayment / wrong owner / wrong mint fails.
+  // OWNER address for both native SOL and SPL transfers (SolanaClient resolves each SPL transfer's
+  // destination ATA to its owner via postTokenBalances), so the same owner-equality check works
+  // for both. The mint disambiguates SPL from SOL and enforces the correct asset. Overpayment is
+  // accepted (mirrors validateParsedTransaction); underpayment / wrong owner / wrong mint fails.
   // Fixes BUG-1260 (Solana anon payment completion accepted any finalized tx).
   validateSolanaTransaction(
     tx: SolanaTransactionDto,

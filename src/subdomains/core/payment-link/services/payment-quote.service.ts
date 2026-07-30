@@ -707,13 +707,13 @@ export class PaymentQuoteService {
     }
   }
 
-  // Fixes BUG-1260 (Solana anon payment completion): previously routed through doVerifiedTxIdPayment,
-  // which only checked that the tx was finalized without an error — recipient/amount/asset were not
-  // validated, so any finalized Solana tx accepted. Mirrors the EVM/Firo model: fetch the parsed
-  // tx, match a destination against the expected recipient + asset + amount. For SPL transfers
-  // `SolanaTransactionDto.destinations[].to` carries the wallet owner (not the ATA — see
-  // SolanaClient.getTokenInstructions/updateTokenInstruction), so the owner address is compared
-  // for both native and token paths; the mint is what disambiguates the asset.
+  // Fixes BUG-1260 (Solana anon payment completion): previously only checked finality via
+  // isTxComplete — recipient/amount/asset were never validated, so any finalized Solana tx
+  // accepted. Mirrors the EVM/Firo model: fetch the parsed tx, match a destination against the
+  // expected recipient + asset + amount. `SolanaTransactionDto.destinations[].to` is the wallet
+  // owner for both native and SPL (SolanaClient resolves each SPL transfer's destination ATA to
+  // its owner via postTokenBalances), so the owner address is compared for both paths; the mint
+  // disambiguates the asset.
   private async doSolanaTxIdPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
       if (!transferInfo.tx) {
