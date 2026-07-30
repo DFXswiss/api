@@ -4264,4 +4264,23 @@ describe('VirtualIbanService', () => {
       expect(blockingRow!.externalIban).toBe(blockingIban);
     });
   });
+  describe('supportsCurrency', () => {
+    it('reports coverage per currency across the generic providers', () => {
+      expect(service.supportsCurrency('EUR')).toBe(true);
+      expect(service.supportsCurrency('CHF')).toBe(true);
+      expect(service.supportsCurrency('USD')).toBe(false);
+    });
+
+    it('stays true while a provider is unreachable', () => {
+      // The whole point of this method: an outage is temporary and ours to fix, so it must not be
+      // reported to the customer as "we do not offer personal IBANs in this currency". Callers that
+      // care about reachability use hasProviderForCurrency instead.
+      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
+      jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(false);
+
+      expect(service.supportsCurrency('EUR')).toBe(true);
+      expect(service.supportsCurrency('CHF')).toBe(true);
+      expect(service.supportsCurrency('USD')).toBe(false);
+    });
+  });
 });
