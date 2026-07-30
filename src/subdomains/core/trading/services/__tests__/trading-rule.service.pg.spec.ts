@@ -5,8 +5,8 @@ import { TradingRuleService } from '../trading-rule.service';
 import { TradingService } from '../trading.service';
 
 // the real TradingOrder / TradingRule entities cannot be registered standalone (relations pull
-// in the whole entity graph), so these tables mirror only the columns the rewritten
-// getCurrentTradingOrders query actually touches — under the real table names
+// in the whole entity graph), so these tables mirror only the columns getCurrentTradingOrders
+// actually touches — under the real table names
 @Entity({ name: 'trading_rule' })
 class TradingRuleTable {
   @PrimaryColumn()
@@ -22,9 +22,9 @@ class TradingOrderTable {
   tradingRuleId: number;
 }
 
-// runs getCurrentTradingOrders against a Postgres-semantics engine (pg-mem), because the
-// correctness of the rewrite is the SQL shape (per-rule MAX + In(...)), not a mocked query
-// builder that never executes
+// runs getCurrentTradingOrders against a Postgres-semantics engine (pg-mem) to verify the
+// aggregation semantics, because a mocked query builder never executes SQL and a wrong shape
+// (e.g. MAX swapped for MIN, or the INNER JOIN removed) would otherwise go unnoticed
 describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () => {
   let dataSource: DataSource;
   let service: TradingRuleService;
@@ -75,7 +75,7 @@ describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () =
     ]);
   }
 
-  it('returns the highest-id order per rule, skips empty rules and orphans, and matches the pre-rewrite aggregate', async () => {
+  it('returns the highest-id order per rule, skips empty rules and orphans', async () => {
     await seedFixture();
 
     const result = await service.getCurrentTradingOrders();
@@ -86,17 +86,31 @@ describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () =
     expect(result).toHaveLength(2);
     expect(result.some((order) => order.id === 10 || order.id === 20)).toBe(false);
     expect(result.some((order) => order.id === 99)).toBe(false);
+  });
 
-    // independently reproduce the CURRENT (pre-rewrite) aggregate against the same seeded tables
-    const legacyRows = await dataSource
-      .getRepository(TradingOrderTable)
-      .createQueryBuilder('tradingOrder')
-      .select('MAX(tradingOrder.id)', 'tradingOrderId')
-      .innerJoin(TradingRuleTable, 'tradingRule', 'tradingRule.id = tradingOrder.tradingRuleId')
-      .groupBy('tradingOrder.tradingRuleId')
-      .getRawMany<{ tradingOrderId: number }>();
+  it('returns an empty array when trading_rule is empty', async () => {
+    const result = await service.getCurrentTradingOrders();
 
-    const legacyIds = legacyRows.map((row) => Number(row.tradingOrderId)).sort((a, b) => a - b);
-    expect(resultIds).toEqual(legacyIds);
+    expect(result).toEqual([]);
+  });
+
+  it('never passes null or undefined order ids into findBy In(...)', async () => {
+    await dataSource.getRepository(TradingRuleTable).save([{ id: 1 }, { id: 2 }]);
+    await dataSource.getRepository(TradingOrderTable).save([
+      { id: 10, tradingRuleId: 1 },
+      { id: 20, tradingRuleId: 1 },
+    ]);
+
+    const findBySpy = jest.spyOn(service['orderRepo'], 'findBy');
+    try {
+      await service.getCurrentTradingOrders();
+
+      expect(findBySpy).toHaveBeenCalled();
+      const findByArg = findBySpy.mock.calls[0][0] as { id: { value: unknown[] } };
+      expect(Array.isArray(findByArg.id.value)).toBe(true);
+      expect(findByArg.id.value.every((id) => id !== null && id !== undefined)).toBe(true);
+    } finally {
+      findBySpy.mockRestore();
+    }
   });
 });

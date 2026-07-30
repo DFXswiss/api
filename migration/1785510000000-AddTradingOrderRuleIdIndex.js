@@ -15,35 +15,37 @@
  * Source: `TradingRuleService.getCurrentTradingOrders`, called from `LogJobService` once per
  * minute as part of the financial-log job.
  *
- * Production `EXPLAIN (ANALYZE, BUFFERS)` for this exact aggregate query showed a Parallel Seq
- * Scan on `trading_order`, rows=1,806,836 per worker process ×3 = 5,420,508 rows scanned,
- * Buffers: shared hit=2394 read=86958 (~680 MB from disk), Execution Time 474.567 ms, Result:
- * 17 rows (there are exactly 17 `trading_rule` rows). That is 5.4 million rows read to compute
- * 17 maxima.
+ * Production `EXPLAIN (ANALYZE, BUFFERS)` for this exact aggregate query (measured externally
+ * against production; not reproducible from this repository) showed Execution Time 489 ms,
+ * Buffers: shared hit=3734 read=85614 — only 4.2% of blocks came from the 1 GB `shared_buffers`
+ * cache, the rest was freshly read from disk on every one-minute run. Table size at the time of
+ * measurement in production: 698 MB. Result: 17 rows (there are exactly 17 `trading_rule` rows).
  *
  * Column order `("tradingRuleId", "id")` is intentional: equality on `tradingRuleId` first so
  * Postgres can jump straight to one rule's leaf range, then `id` so a backward index scan finds
  * the maximum id for that rule without a sort or a table-wide aggregate. The same physical order
- * is what the rewritten `getCurrentTradingOrders` (per-rule `MAX(id)` lookups) needs.
+ * is what enables the Index Only Scan plan change for the unchanged aggregate described below;
+ * it would also be what a correlated per-rule lookup needs, if this repository's test
+ * infrastructure allowed one (see the comment on the service method for that trade-off).
  *
- * Why the index and the query rewrite MUST ship together — measured, not theoretical. The
- * "obvious" rewrite alone (a correlated subquery per rule against the CURRENT index set, without
- * this composite index) was measured in production and is dramatically worse than the status
- * quo:
- * `SELECT r.id, (SELECT MAX(o.id) FROM trading_order o WHERE o."tradingRuleId" = r.id) FROM
- * trading_rule r;`
- * Plan: Index Scan Backward using the primary key on `id` (loops=17), Buffers: shared
- * hit=724515 read=109090, Execution Time 4,329.406 ms — about 9× slower than the current
- * 474.567 ms aggregate. Without an index on `("tradingRuleId", "id")`, Postgres walks the
- * primary key (`id` only) backward once per rule and discards every row that belongs to a
- * different rule while searching; it has no way to jump straight to a given rule's row range.
- * The existing single-column index `IDX_f862025cb7ca5a2d66d14fb89a` on
- * `trading_order ("tradingRuleId")` does not help either: without `id` in the index, Postgres
- * still cannot read the max `id` per group directly from it. PostgreSQL 17.10 (the version in
- * production here) has no index skip scan — that lands in PostgreSQL 18, not before. This is why
- * the rewrite of `TradingRuleService.getCurrentTradingOrders` is only safe to deploy together
- * with this composite index in the same change, never as two separate deploys: the rewrite alone
- * would be ~9× slower than today (474.567 ms vs. 4,329.406 ms).
+ * This migration ships ONLY the index; the query above is not rewritten. Measured externally
+ * against a Postgres 17.10 rebuild with production planner settings, loaded with 5,421,152 rows
+ * (730 MB) and the 17 `trading_rule` rows in real production distribution (not reproducible
+ * from this repository):
+ * - Without this index: Parallel Seq Scan, 93,486 buffer blocks, 8,181 ms (warm).
+ * - With this index: Parallel Index Only Scan, Heap Fetches: 0, 15,020 buffer blocks, 5,676 ms
+ *   (warm).
+ * The planner picks this index for exactly the query above with no code change — this migration
+ * is therefore not a no-op. The index itself is 116 MB. That matches the fresh production
+ * measurement above (489 ms, shared hit=3734 read=85614, only 4.2% cache hit rate, 698 MB
+ * table): a 116 MB index has a realistic chance of staying resident in the 1 GB
+ * `shared_buffers`; the substantially larger table demonstrably does not. A correlated per-rule
+ * lookup (`SELECT r.id, (SELECT MAX(o.id) FROM trading_order o WHERE o."tradingRuleId" = r.id)
+ * FROM trading_rule r;`) would be faster still with this index — Index Only Scan Backward, 52
+ * buffer blocks, 1.5 ms (warm), measured on the same rebuild (same external measurement
+ * disclaimer: not reproducible from this repository) — but is NOT shipped here: it would need a
+ * correlated subquery that this repository's pg-mem-based test suite (pg-mem 3.0.14) cannot
+ * execute. See the comment on `TradingRuleService.getCurrentTradingOrders` for that trade-off.
  *
  * The existing single-column index `IDX_f862025cb7ca5a2d66d14fb89a` on
  * `trading_order ("tradingRuleId")` is NOT removed by this migration. It was created by
@@ -93,12 +95,16 @@
  * `migrationsTransactionMode: "all"`), the same hold-until-COMMIT reasoning applies.
  *
  * Honest disclaimer: whether the Postgres planner will actually pick this new index for the
- * rewritten per-rule `MAX(id)` lookups has NOT been verified in production, because the index
- * does not exist there yet. As a point of reference (not a guarantee), the same style of
- * prediction was made for the `created` index in `AddTradingOrderCreatedIndex1785470000000`
- * (selectivity + cost-model reasoning only, no prior plan-change observation) and was confirmed
- * after that deploy: the query's plan changed from a Seq Scan to an Index Scan, execution time
- * dropped from 141.283 ms to 30.3 ms, and buffer reads dropped from 89,282 to 2,716.
+ * unchanged aggregate query above has NOT been verified in production itself, because the index
+ * does not exist there yet. The rebuild measurement above already shows that the plan changes
+ * from Parallel Seq Scan to Parallel Index Only Scan when this index exists — but that is still
+ * not confirmation on production itself. As a point of reference (not a guarantee), the same
+ * style of prediction was made for the `created` index in
+ * `AddTradingOrderCreatedIndex1785470000000` (selectivity + cost-model reasoning only, no prior
+ * plan-change observation) and was confirmed after that deploy (measured externally against
+ * production; not reproducible from this repository): the query's plan changed from a Seq Scan
+ * to an Index Scan, execution time dropped from 141.283 ms to 30.3 ms, and buffer reads dropped
+ * from 89,282 to 2,716.
  *
  * Index name: `IDX_710fd49e19d248643cb2afa70f` on `trading_order ("tradingRuleId", "id")`.
  * This is not an arbitrary name but the deterministic name TypeORM's DefaultNamingStrategy would

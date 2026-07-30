@@ -21,28 +21,23 @@ export class TradingRuleService {
 
   // --- PUBLIC API --- //
 
+  // One statement, not a per-rule loop: all rules' maxima must come from the same
+  // READ-COMMITTED snapshot, because LogJobService writes the FinanceLog from this result.
+  // Separate statements per rule could observe an insert into trading_order mid-loop and mix
+  // maxima from different points in time — a single GROUP BY aggregate cannot do that.
+  // The composite index on trading_order ("tradingRuleId", "id") (see the
+  // AddTradingOrderRuleIdIndex migration) lets Postgres answer this with an Index Only Scan.
+  // A correlated per-rule lookup would be faster still, but pg-mem (this repo's test engine for
+  // this query, see trading-rule.service.pg.spec.ts) cannot execute a correlated subquery —
+  // don't "optimize" this into one without first solving that.
   async getCurrentTradingOrders(): Promise<TradingOrder[]> {
-    // Per-rule MAX(id) lookups (not one table-wide aggregate) so Postgres can use the composite
-    // index on trading_order ("tradingRuleId", "id"). Must ship with that index — without it this
-    // shape is ~9× slower than the previous GROUP BY scan (see AddTradingOrderRuleIdIndex).
-    // Query count scales linearly with rules (17 rules → 19 queries: 1 + 17 + 1) — N+1 of cheap
-    // ("tradingRuleId", "id") index lookups, one roundtrip each. A single correlated-subquery
-    // alternative was deliberately skipped for pg-mem testability (TradingRuleTable/TradingOrderTable mirrors in trading-rule.service.pg.spec.ts); revisit if rule count grows substantially.
-    const rules = await this.ruleRepo.find({ select: { id: true } });
-
-    const maxIdRows = await Promise.all(
-      rules.map((rule) =>
-        this.orderRepo
-          .createQueryBuilder('tradingOrder')
-          .select('MAX(tradingOrder.id)', 'tradingOrderId')
-          .where('tradingOrder.tradingRuleId = :ruleId', { ruleId: rule.id })
-          .getRawOne<{ tradingOrderId: number | null }>(),
-      ),
-    );
-
-    const lastTradingOrderIds = maxIdRows
-      .map((row) => row?.tradingOrderId)
-      .filter((id): id is number => id !== null && id !== undefined);
+    const lastTradingOrderIds = await this.orderRepo
+      .createQueryBuilder('tradingOrder')
+      .select('MAX(tradingOrder.id)', 'tradingOrderId')
+      .innerJoin('tradingOrder.tradingRule', 'tradingRule')
+      .groupBy('tradingOrder.tradingRuleId')
+      .getRawMany<{ tradingOrderId: number }>()
+      .then((t) => t.map((t) => t.tradingOrderId));
 
     return this.orderRepo.findBy({ id: In(lastTradingOrderIds) });
   }
