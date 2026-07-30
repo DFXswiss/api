@@ -547,7 +547,12 @@ describe('LogRepository', () => {
       expect(rows[0].btcPriceChf).toBe(65000.25);
     });
 
-    it('keeps the row with all number fields null (mapped to 0 downstream by mapSummaryToEntry) and does not throw for a top-level `message: null` document — the old mapLogToEntry/JSON.parse path threw on the resulting property access and dropped the whole line for this case; not observed in production (F20b)', async () => {
+    // This raw shape is what the SQL projection produces for a top-level `message: null` JSON
+    // document. The old mapLogToEntry/JSON.parse path threw on the resulting property access and
+    // dropped the whole line for this case; not observed in production. The downstream null-to-0
+    // mapping for btcPriceChf (mapSummaryToEntry) is covered separately in
+    // dashboard-financial.service.spec.ts:91, not exercised by this repository-level test.
+    it('keeps the row and passes all number fields through as null, sets btcPriceChf to 0, and returns balancesByType as an empty object for a raw row where all projected number fields and balancesByFinancialType are null (F20b)', async () => {
       const repo = new LogRepository({} as EntityManager);
       const created = new Date('2026-07-14T00:00:00Z');
       jest.spyOn(repo, 'query').mockResolvedValue([

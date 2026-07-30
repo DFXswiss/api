@@ -34,12 +34,17 @@
  * NULL on this table). That trade-off is the reason to omit `INCLUDE`.
  *
  * Why only `trading_order` and not the other tables queried in the same `LogJobService` block:
- * `buy_fiat`, `buy_crypto`, `crypto_input`, and `bank_tx` are also queried with
- * `created >= firstDayOfMonth` in the same code path and none of them has a `created` index either,
- * but they are orders of magnitude smaller (`crypto_input` 234 MB, `bank_tx` 147 MB, `buy_crypto`
+ * `buy_fiat`, `buy_crypto`, and `crypto_input` are also queried with `created >= firstDayOfMonth` and
+ * have no index containing `created`. `bank_tx` does have one — `IDX_bank_tx_type_created` on
+ * `("type", "created")`, added by `1784117860216-AddBankTxTypeCreatedIndex.js` for
+ * `BankTxService.getBankTxFee`, the same function `LogJobService` calls in the same minute — but it
+ * only serves one of `getBankTxFee`'s three sub-queries (the `type = ... AND created >= ...` one);
+ * with `type` leading, it can't serve the legacy sum (`created` only, no `type` predicate) or the
+ * inline-charges query (`type IS NULL OR type != ...`). All four tables are excluded here regardless,
+ * because they are orders of magnitude smaller (`crypto_input` 234 MB, `bank_tx` 147 MB, `buy_crypto`
  * 100 MB, `buy_fiat` 35 MB, versus `trading_order` at 922 MB / 5.4 million rows), and no production
- * measurement exists to justify an index for them. This is a deliberate, considered exclusion, not
- * an oversight.
+ * measurement exists to justify an index for them. This is a deliberate, considered exclusion, not an
+ * oversight.
  *
  * CREATE INDEX CONCURRENTLY is not used: migrations in this codebase run transactionally and
  * boot-blockingly (see src/config/config.ts, migrationsRun gated by the SQL_MIGRATE env var).
