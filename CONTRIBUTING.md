@@ -69,6 +69,7 @@ Missing any of these = changes requested.
 - **Boolean flags: positive naming**: `safetyModeActive` not `safetyModuleInactive`
 - **Short, descriptive names — no redundant prefixes**: `uid` not `transactionRequestUid`, `balances` not `assetBalances`, `txId` not `transactionId`
 - **Variable names must precisely reflect the data**: `priceChf` not `amountChf` for a price
+- **`wait` is reserved for long-polling routes**: see [Long-Polling Endpoints Must Be Named `wait`](#long-polling-endpoints-must-be-named-wait) — the segment is load-bearing for latency monitoring
 
 ### Methods
 
@@ -967,23 +968,23 @@ Keep old endpoints for backward compatibility but annotate:
 
 ### Long-Polling Endpoints Must Be Named `wait`
 
-An endpoint that intentionally blocks until an event occurs — a long poll — **must** carry `wait` as its own path segment. Conversely, an endpoint that is expected to answer quickly **must not** use `wait` anywhere in its path.
+An endpoint that intentionally blocks until an event occurs — a long poll — **must** carry `wait` as its own path segment. Conversely, an endpoint that is expected to answer quickly **must not** use `wait` as a path segment.
 
 Current long-polling endpoints:
 
-| Path                               | Blocks until                                                                |
-| ---------------------------------- | --------------------------------------------------------------------------- |
-| `GET /v1/lnurlp/wait/:id`          | the payment-link payment is completed, cancelled or expired                 |
-| `GET /v1/paymentLink/payment/wait` | the same, for the authenticated payment-link flow                           |
+| Path                               | Blocks until                                               |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `GET /v1/lnurlp/wait/:id`          | the payment-link payment is completed, canceled or expired |
+| `GET /v1/paymentLink/payment/wait` | the same, for the authenticated payment-link flow          |
 
-This is not cosmetic. The Grafana panel "Slowest requests" (dashboard `dfx-api-traces`, provisioned from the infrastructure repo) excludes these routes with the TraceQL filter `span.http.route !~ "^.*/wait(/.*)?$"`. A long poll's duration measures how long a *customer* took to act, not how long the API computed — leaving it in the latency table pushes the genuine outliers out of a list capped at 20 rows.
+This is not cosmetic. Latency monitoring excludes long-polling routes from its slowest-requests view by matching the route template against `^.*/wait(/.*)?$`. A long poll's duration measures how long a *customer* took to act, not how long the API computed — leaving it in that view pushes the genuine outliers out of a list with a fixed row cap.
 
 Getting the name wrong breaks monitoring in one of two directions:
 
-- **A blocking endpoint without `wait` in its path** appears as a permanent latency outlier and masks real regressions.
-- **A fast endpoint with `wait` in its path** is silently dropped from the latency table — if it ever becomes slow, nobody notices.
+- **A blocking endpoint without a `wait` segment** appears as a permanent latency outlier and masks real regressions.
+- **A fast endpoint with a `wait` segment** is silently dropped from the latency view — if it ever becomes slow, nobody notices.
 
-The pattern is segment-anchored, so `/waitlist`, `/waitTime`, `/awaiting` and `/waiting/:id` are unaffected; only a complete `wait` segment matches. Matching runs on `http.route` (the server-side route template), never on the raw request path — the raw path is caller-controlled and would let crafted requests slip out of the latency view.
+The pattern is segment-anchored, so `/waitlist`, `/waitTime`, `/awaiting` and `/waiting/:id` are unaffected; only a complete `wait` segment matches. Matching runs on the server-side route template (`http.route`), never on the raw request path, which is caller-controlled.
 
 ### RealUnit: `/quote/*` vs `/brokerbot/*`
 
