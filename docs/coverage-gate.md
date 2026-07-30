@@ -150,7 +150,7 @@ warm caches, is a good deal slower than the 1.5 min it takes in CI.
 
 ## Current state
 
-Measured on develop @ 77a106207.
+Measured on develop @ 77a106207 with this PR's change applied.
 
 The collection glob matches 1,657 files under `src/`. 1,606 of them contain instrumentable code
 and appear in the report. The remaining 51 compile to no executable statements and therefore
