@@ -1004,6 +1004,11 @@ describe('BuyService', () => {
     });
 
     it('does not pass bankInOverride for a buy-bound personal-IBAN customer (no selector)', async () => {
+      // CHF on purpose: the buy-bound step is skipped for EUR now (it would bypass the Frick issuance
+      // machinery), so this case can only be exercised on a currency that still uses it. The point of
+      // the test is unchanged - a buy-bound vIBAN supplies the deposit IBAN without leaking its bank
+      // name into the fee calculation.
+      const chfCurrency = { ...currency, id: 1, name: 'CHF' } as Fiat;
       jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet } as any);
       jest.spyOn(virtualIbanService, 'getActiveForBuyAndCurrency').mockResolvedValue(buySpecificVirtualIban);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(defaultRouteBank);
@@ -1011,7 +1016,7 @@ describe('BuyService', () => {
 
       const dto = {
         amount: 100,
-        currency,
+        currency: chfCurrency,
         asset,
         paymentMethod: FiatPaymentMethod.BANK,
         exactPrice: false,
@@ -1023,13 +1028,13 @@ describe('BuyService', () => {
       // Deposit destination still comes from the buy-bound vIBAN (response correctness).
       expect(response.iban).toBe(buySpecificVirtualIban.iban);
       expect(response.bank).toBe(IbanBankName.MAERKI);
-      expect(virtualIbanService.getActiveForBuyAndCurrency).toHaveBeenCalledWith(buy.id, 'EUR');
+      expect(virtualIbanService.getActiveForBuyAndCurrency).toHaveBeenCalledWith(buy.id, 'CHF');
       expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
       // Fee calc must fall through to getBankIn() — not the buy-bound bank name.
       expect(transactionHelper.getTxDetails).toHaveBeenCalledWith(
         100,
         undefined,
-        currency,
+        chfCurrency,
         asset,
         FiatPaymentMethod.BANK,
         expect.anything(),
