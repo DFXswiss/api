@@ -180,6 +180,13 @@ files) and `PINNED_DECLARATIVE` (purely declarative files), from which `coverage
 generated. Adding a file means appending its path to the matching array, not writing out a
 `coverageThreshold` object entry by hand.
 
+After each gate run the job reports which files already reach 100% on all four metrics but are
+not pinned yet. `scripts/coverage-unpinned-complete.js` reads that run's own `json-summary`
+report and prints the candidates. The step is deliberately non-blocking: a pull request can
+complete a file it never touched, and failing CI for that would train the team to ignore a red
+gate. Anyone extending the list can take the candidates from the job output instead of
+reconciling the report by hand.
+
 The intended next step is the set already within reach: **25 files sit at ≥90% on all four
 metrics**, several of them one or two uncovered branches away. Examples:
 

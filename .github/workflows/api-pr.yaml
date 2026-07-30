@@ -154,6 +154,14 @@ jobs:
         run: npm run test:gate:cov -- --maxWorkers=${{ (github.event_name != 'pull_request'
              || github.event.pull_request.head.repo.full_name == github.repository) && '8' || '3' }}
 
+      # The ratchet only protects files that someone entered by hand, so a file that reaches 100% stays
+      # unguarded until a human notices. This reads the run's own summary and names those files. Advisory
+      # on purpose: a pull request can complete a file it never touched, and failing it for that would
+      # train the team to ignore a red gate.
+      - name: Report complete but unpinned files
+        if: always()
+        run: node scripts/coverage-unpinned-complete.js
+
       # A red gate names the file and the metric but not the uncovered lines. Uploading the lcov
       # report turns diagnosis into a download instead of a 15-minute local rerun.
       - name: Upload coverage report
