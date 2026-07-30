@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { DataType, newDb } from 'pg-mem';
-import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Column, DataSource, Entity, FindOperator, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { TradingRuleService } from '../trading-rule.service';
 import { TradingService } from '../trading.service';
 
@@ -112,9 +112,32 @@ describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () =
       await service.getCurrentTradingOrders();
 
       expect(findBySpy).toHaveBeenCalled();
-      const findByArg = findBySpy.mock.calls[0][0] as { id: { value: unknown[] } };
-      expect(Array.isArray(findByArg.id.value)).toBe(true);
-      expect(findByArg.id.value.every((id) => id !== null && id !== undefined)).toBe(true);
+      const findByArg = findBySpy.mock.calls[0][0];
+
+      // findBy accepts a single condition or an array of them; getCurrentTradingOrders only ever
+      // passes a single { id: In(...) } condition, so an array here would itself be a regression.
+      if (Array.isArray(findByArg)) {
+        throw new Error('expected findBy to receive a single FindOptionsWhere condition, not an array of them');
+      }
+
+      const idCondition = findByArg.id;
+
+      // In(...) produces a real TypeORM FindOperator instance. If that ever changes (e.g. a plain
+      // value or a different operator), this must fail loudly instead of silently skipping the check.
+      if (!(idCondition instanceof FindOperator)) {
+        throw new Error(`expected findBy id condition to be a FindOperator (In(...)), got: ${String(idCondition)}`);
+      }
+
+      // FindOperator<T>.value is typed against the entity's own field type (number here), but
+      // In(...) stores the full array as the operator's underlying value. Widen through the real
+      // FindOperator class -- not an invented shape -- to read it without lying about its declared
+      // element type; unknown is the one legitimate single-step escape hatch for this widening.
+      const idValues = (idCondition as FindOperator<unknown>).value;
+      if (!Array.isArray(idValues)) {
+        throw new Error('expected the FindOperator to carry an array of ids');
+      }
+
+      expect(idValues.every((id) => id !== null && id !== undefined)).toBe(true);
     } finally {
       findBySpy.mockRestore();
     }
