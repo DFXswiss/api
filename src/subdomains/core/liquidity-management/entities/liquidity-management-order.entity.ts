@@ -347,7 +347,7 @@ export class LiquidityManagementOrder extends IEntity {
     // halves of this clock disagreeing: {@link getAbandonableAt} already reported nothing left — which is
     // what lets the reconciliation pass run at that moment — while this said not yet. The pass then re-stamped
     // its cooldown and the order waited out another full interval, so a five-minute bound gave up at six.
-    return Util.minutesDiff(this.updated) >= this.abandonBoundMinutes();
+    return Util.minutesDiff(this.updated) >= this.getAbandonBoundMinutes();
   }
 
   /**
@@ -369,7 +369,7 @@ export class LiquidityManagementOrder extends IEntity {
   getAbandonableAt(): Date | null {
     if (!this.updated) return null;
 
-    return new Date(this.updated.getTime() + this.abandonBoundMinutes() * 60_000);
+    return new Date(this.updated.getTime() + this.getAbandonBoundMinutes() * 60_000);
   }
 
   /**
@@ -377,7 +377,7 @@ export class LiquidityManagementOrder extends IEntity {
    * reads {@link ABANDON_UNCERTAIN_MINUTES}: the deadline and the remaining time to it must never be able to
    * disagree about which bound they are talking about.
    */
-  private abandonBoundMinutes(): number {
+  private getAbandonBoundMinutes(): number {
     // Unknown, unloaded or unlisted action falls to the long bound, for the same reason as a missing date.
     const action = `${this.action?.system}/${this.action?.command}`.toLowerCase();
 

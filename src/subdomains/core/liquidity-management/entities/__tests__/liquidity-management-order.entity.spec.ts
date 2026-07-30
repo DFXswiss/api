@@ -59,7 +59,7 @@ describe('LiquidityManagementOrder', () => {
     });
   });
 
-  describe('abandonableAt', () => {
+  describe('getAbandonableAt', () => {
     function quarantined(minutes?: number, command = 'sell', system = 'Scrypt'): LiquidityManagementOrder {
       return Object.assign(new LiquidityManagementOrder(), {
         status: LiquidityManagementOrderStatus.UNCERTAIN,
