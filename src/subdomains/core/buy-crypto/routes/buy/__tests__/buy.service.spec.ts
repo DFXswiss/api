@@ -741,10 +741,7 @@ describe('BuyService', () => {
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockRejectedValue(transientError);
 
-      const resolution = service.getBankInfo(
-        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData },
-        buy,
-      );
+      const resolution = service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData }, buy);
 
       await expect(resolution).rejects.not.toBe(transientError);
       await expect(resolution).rejects.toBeInstanceOf(BadRequestException);
@@ -773,10 +770,7 @@ describe('BuyService', () => {
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
 
       await expect(
-        service.getBankInfo(
-          { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData },
-          buy,
-        ),
+        service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData }, buy),
       ).rejects.toThrow(QuoteError.KYC_REQUIRED);
 
       expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
@@ -816,10 +810,7 @@ describe('BuyService', () => {
         jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
         jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
 
-        const resolution = service.getBankInfo(
-          { currency: 'EUR', paymentMethod, userData: lowKycUserData },
-          buy,
-        );
+        const resolution = service.getBankInfo({ currency: 'EUR', paymentMethod, userData: lowKycUserData }, buy);
 
         await expect(resolution).rejects.toBeInstanceOf(BadRequestException);
         await expect(resolution).rejects.toThrow(QuoteError.KYC_REQUIRED);
