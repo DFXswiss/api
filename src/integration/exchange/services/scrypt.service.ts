@@ -888,8 +888,11 @@ export class ScryptService extends PricingProvider {
       // be parsed is exactly how a real fill gets dropped, so it settles nothing and the caller waits.
       //
       // Emptiness has to be caught separately: Number('') and Number('   ') are 0, not NaN, so a missing
-      // quantity would otherwise pass the finite check and read as an untouched order.
-      if (!report.CumQty?.trim() || !Number.isFinite(filled)) {
+      // quantity would otherwise pass the finite check and read as an untouched order. A negative one is
+      // rejected for the same reason rather than compared away: a cumulative filled size cannot be below
+      // zero, so a venue reporting one is not describing an untouched order — it is not being understood,
+      // and only the checks below would quietly treat it as though nothing had traded.
+      if (!report.CumQty?.trim() || !Number.isFinite(filled) || filled < 0) {
         this.logger.warn(`Cancel of order ${clOrdId} reported an unreadable filled size (${report.CumQty})`);
 
         return ScryptCancellation.UNCONFIRMED;

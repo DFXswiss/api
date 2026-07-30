@@ -976,6 +976,21 @@ describe('ScryptService', () => {
       );
     });
 
+    it.each(['-1', '-0.5'])(
+      'settles nothing when the filled size is %p — below zero is not untouched',
+      async (cumQty) => {
+        // A negative value is finite and parses cleanly, so it would pass every check above and then lose to
+        // `filled > 0` — reported as an order nothing ever traded. A cumulative filled size cannot be below
+        // zero, so this is a report not being understood, and misreading it grants exactly the false certainty
+        // that lets a live reference be walked away from.
+        stubCancel(cancelReport({ CumQty: cumQty }));
+
+        await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+          ScryptCancellation.UNCONFIRMED,
+        );
+      },
+    );
+
     it('waits past a PendingCancel report instead of taking it for the answer', async () => {
       // the waiter resolves on its first match and then stops listening, so accepting the interim state
       // would freeze it as the result and the real terminal report would never be seen. Exercises the
