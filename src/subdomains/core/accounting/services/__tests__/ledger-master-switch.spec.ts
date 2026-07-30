@@ -103,6 +103,7 @@ describe('Ledger master switch (Config.ledger.enabled) — sustainability guard'
       // directly (LedgerCutoverService.run()) or transitively (isLedgerReady(), which itself reads it) —
       // rather than merely observing that nothing happened to be called.
       let switchWasRead = false;
+      const originalDescriptor = Object.getOwnPropertyDescriptor(Config.ledger, 'enabled');
       Object.defineProperty(Config.ledger, 'enabled', {
         configurable: true,
         enumerable: true,
@@ -112,26 +113,40 @@ describe('Ledger master switch (Config.ledger.enabled) — sustainability guard'
         },
       });
 
-      const testingModule: TestingModule = await Test.createTestingModule({
-        controllers,
-        providers: [...providers, configProvider],
-      })
-        .useMocker(createCountingMocker(counter))
-        .compile();
+      let testingModule: TestingModule | undefined;
 
-      const instance = testingModule.get(entry.ProviderClass);
+      try {
+        testingModule = await Test.createTestingModule({
+          controllers,
+          providers: [...providers, configProvider],
+        })
+          .useMocker(createCountingMocker(counter))
+          .compile();
 
-      // Reset AFTER compile(): module compilation itself may cause harmless construction-time chatter
-      // (e.g. a TypeORM repository reading entity metadata off its injected EntityManager). Only calls made
-      // from HERE ON — i.e. from actually invoking the cron method below — must count.
-      counter.calls = 0;
+        const instance = testingModule.get(entry.ProviderClass);
 
-      await (instance as Record<string, () => Promise<void>>)[entry.methodName]();
+        // Reset AFTER compile(): module compilation itself may cause harmless construction-time chatter
+        // (e.g. a TypeORM repository reading entity metadata off its injected EntityManager). Only calls made
+        // from HERE ON — i.e. from actually invoking the cron method below — must count.
+        counter.calls = 0;
 
-      expect(switchWasRead).toBe(true); // the gate was actually consulted, not just coincidentally silent
-      expect(counter.calls).toBe(0);
+        await (instance as Record<string, () => Promise<void>>)[entry.methodName]();
 
-      await testingModule.close();
+        expect(switchWasRead).toBe(true); // the gate was actually consulted, not just coincidentally silent
+        expect(counter.calls).toBe(0);
+      } finally {
+        // Undo the module compile()'s side effects first, then restore the descriptor — both run regardless
+        // of whether the assertions above passed, failed, or the cron method itself threw. `Config.ledger` is
+        // a single instance SHARED across every iteration of this describe.each; its getter must not leak into
+        // the next entry's run and leave it in a state prepared by THIS iteration.
+        if (testingModule) await testingModule.close();
+
+        if (originalDescriptor) {
+          Object.defineProperty(Config.ledger, 'enabled', originalDescriptor);
+        } else {
+          delete (Config.ledger as { enabled?: boolean }).enabled;
+        }
+      }
     });
   });
 });
