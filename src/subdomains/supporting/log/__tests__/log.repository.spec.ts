@@ -627,5 +627,31 @@ describe('LogRepository', () => {
       // Same JSON-serialisation check as the F10 test: undefined values are omitted, never null/0.
       expect(JSON.parse(JSON.stringify(rows[0].balancesByType))).toEqual({ Crypto: {}, Fiat: {}, Other: {} });
     });
+
+    it('yields undefined for both fields (no error, row kept) when a balancesByFinancialType entry is an object but its properties have the wrong type (string/boolean)', async () => {
+      const repo = new LogRepository({} as EntityManager);
+      jest.spyOn(repo, 'query').mockResolvedValue([
+        {
+          created: new Date('2026-07-14T00:00:00Z'),
+          id: 88,
+          totalBalanceChf: 100,
+          plusBalanceChf: 100,
+          minusBalanceChf: 0,
+          fxPnlChf: null,
+          btcPriceChf: 0,
+          balancesByFinancialType: {
+            Crypto: { plusBalanceChf: 'bad', minusBalanceChf: true },
+          },
+        },
+      ]);
+
+      const rows = await repo.getFinancialLogSummaries();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].balancesByType.Crypto.plusBalanceChf).toBeUndefined();
+      expect(rows[0].balancesByType.Crypto.minusBalanceChf).toBeUndefined();
+      // Wrong-typed values become undefined and are dropped on serialisation — never null/0/string/boolean.
+      expect(JSON.parse(JSON.stringify(rows[0].balancesByType.Crypto))).toEqual({});
+    });
   });
 });

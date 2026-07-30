@@ -522,26 +522,21 @@ ${limitClause}`;
           { plusBalanceChf?: number; minusBalanceChf?: number }
         >;
         for (const [type, data] of Object.entries(byType)) {
-          // Optional chaining, not a typeof/null throw (F11 reverted): before F11, a primitive entry
-          // (number/string/boolean) never threw here — e.g. `(1).plusBalanceChf` is simply `undefined`,
-          // JS auto-boxes primitives for property access — only `null` threw, and only inside
-          // mapLogToEntry's per-row try/catch, dropping just that one row. F11's `throw` turned the three
-          // previously-harmless primitive cases into a 500 for the whole request too. `?.` restores the
-          // old no-throw behaviour for all of them and, for `null`, is strictly better than either past
-          // behaviour: the row is kept (with an empty balancesByType entry) instead of silently vanishing.
-          // Type note (documented, not "fixed"): the signature `plusBalanceChf?: number` /
-          // `minusBalanceChf?: number` promises `number | undefined`, but if `data` is an object whose
-          // property itself has the wrong type (string, boolean, or null), that value passes through
-          // unchanged here — no `typeof` guard. Deliberate, for three reasons: (1) unproven in
-          // production — measured across all matching rows: 287,989 entries with plusBalanceChf and
-          // minusBalanceChf both `number`, one entry with plusBalanceChf missing (minusBalanceChf
-          // numeric), and not a single entry with a string, boolean, or null value; (2) a guard would
-          // break the response equivalence with the previous mapLogToEntry, which passed such values
-          // through unchanged too; (3) unlike the five scalar fields above, there is no `::float8` cast
-          // here, so there is no query-abort risk for a guard to prevent.
+          // Optional chaining keeps non-object entries (null / number / string / boolean) from throwing:
+          // property access yields undefined and the row is retained with empty fields, rather than
+          // failing the whole request.
+          // Only real numbers are kept for plusBalanceChf / minusBalanceChf; any non-number value
+          // (string, boolean, null, nested object, or missing key) becomes undefined so the result
+          // matches the number | undefined contract. On current production data this is a no-op
+          // (287,989 entries both numbers, one missing plusBalanceChf key — no string/boolean/null),
+          // and exists only to protect the contract for future/other data. The previous mapLogToEntry
+          // passed contract-breaking values through unchanged; this closes that hole. Same hardening
+          // idea as the five scalar fields above (jsonb_typeof = 'number' in SQL), applied in
+          // TypeScript because balancesByFinancialType is passed through as a raw JSON object.
+          const asNumber = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
           balancesByType[type] = {
-            plusBalanceChf: data?.plusBalanceChf,
-            minusBalanceChf: data?.minusBalanceChf,
+            plusBalanceChf: asNumber(data?.plusBalanceChf),
+            minusBalanceChf: asNumber(data?.minusBalanceChf),
           };
         }
       }
