@@ -48,6 +48,7 @@ describe('RealUnitJobService', () => {
     jest.spyOn(realunitService, 'getRealuAsset').mockResolvedValue(realuAsset);
     jest.spyOn(transactionRequestService, 'getConsumedSettlementEventIds').mockResolvedValue([]);
     jest.spyOn(transactionRequestService, 'getLegacySettlementTxIds').mockResolvedValue([]);
+    jest.spyOn(transactionRequestService, 'completeSettlement').mockResolvedValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -73,7 +74,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(10, {
       txId: '0xSettlementTx',
       eventId: 'history-25631176-470-to',
     });
@@ -85,7 +86,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should not complete a quote for a transfer that predates the quote', async () => {
@@ -94,7 +95,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should ignore outgoing transfers', async () => {
@@ -103,7 +104,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should ignore non-transfer events', async () => {
@@ -119,7 +120,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should settle at most one quote per settlement tx within a run', async () => {
@@ -129,8 +130,8 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledTimes(1);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledTimes(1);
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(10, {
       txId: '0xSettlementTx',
       eventId: 'history-25631176-470-to',
     });
@@ -145,7 +146,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should complete multiple quotes settled in a single batch tx', async () => {
@@ -169,12 +170,12 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledTimes(2);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledTimes(2);
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(10, {
       txId: '0xBatchTx',
       eventId: 'history-25631176-219-to',
     });
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(11, {
       txId: '0xBatchTx',
       eventId: 'history-25631176-22047-to',
     });
@@ -203,7 +204,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(11, {
       txId: '0xBatchTx',
       eventId: 'history-25631176-22047-to',
     });
@@ -218,7 +219,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should complete a second same-amount quote when the batch tx contains two matching transfers', async () => {
@@ -238,7 +239,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(10, {
       txId: '0xBatchTx',
       eventId: 'history-25631177-471-to',
     });
@@ -268,7 +269,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(11, {
       txId: '0xBatchTx',
       eventId: 'history-25631176-22047-to',
     });
@@ -286,7 +287,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(10, {
       txId: '0xSettlementTx',
       eventId: 'history-25631176-470-to',
     });
@@ -314,8 +315,8 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledTimes(1);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledTimes(1);
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(11, {
       txId: '0xSettlementTx',
       eventId: 'history-25631176-470-to',
     });
@@ -328,7 +329,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should complete a quote from a tx unrelated to a legacy settlement', async () => {
@@ -338,7 +339,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(10, {
       txId: '0xUnrelatedTx',
       eventId: 'history-25631176-999-to',
     });
@@ -354,12 +355,12 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledTimes(2);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledTimes(2);
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(10, {
       txId: '0xSettlementTx',
       eventId: 'history-25631176-470-to',
     });
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, {
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(11, {
       txId: '0xSettlementTx',
       eventId: 'history-25631176-471-to',
     });
@@ -385,7 +386,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should ignore a transfer that did not come from the issuer', async () => {
@@ -394,7 +395,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
   it('should not reuse an event that another account with the same address already consumed', async () => {
@@ -406,6 +407,37 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
+  });
+
+  it('should leave the event available when another instance claimed the quote first', async () => {
+    const secondQuote = { ...quote, id: 11 };
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote, secondQuote] as any);
+    jest.spyOn(transactionRequestService, 'completeSettlement').mockResolvedValue(false);
+    mockHistory([settlementEvent]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledTimes(2);
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(10, {
+      txId: '0xSettlementTx',
+      eventId: 'history-25631176-470-to',
+    });
+    expect(transactionRequestService.completeSettlement).toHaveBeenCalledWith(11, {
+      txId: '0xSettlementTx',
+      eventId: 'history-25631176-470-to',
+    });
+  });
+
+  it('should ignore an issuer transfer addressed to someone else', async () => {
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
+    // right issuer, right amount, right time — only the recipient differs
+    mockHistory([
+      { ...settlementEvent, transfer: { from: brokerbotAddress, to: '0xOtherAddress', value: '72' } },
+    ]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 });

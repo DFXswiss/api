@@ -35,8 +35,8 @@ export class RealUnitJobService {
     // earlier in this run. The issuer may settle multiple purchases in a single tx, one transfer
     // event each, so consumption is tracked per transfer event via its indexer event id, not per tx
     const consumedEventIds = new Set(await this.transactionRequestService.getConsumedSettlementEventIds());
-    // per user: settlement txs of requests completed before event ids were recorded
-    const legacyTxIdsByUser = new Map<number, Set<string>>();
+    // per address: settlement txs of requests completed before event ids were recorded
+    const legacyTxIdsByAddress = new Map<string, Set<string>>();
 
     for (const quote of openQuotes) {
       try {
@@ -49,10 +49,10 @@ export class RealUnitJobService {
           historyCache.set(address, history);
         }
 
-        let legacyTxIds = legacyTxIdsByUser.get(quote.user.id);
+        let legacyTxIds = legacyTxIdsByAddress.get(address.toLowerCase());
         if (!legacyTxIds) {
-          legacyTxIds = await this.getLegacySettlementTxIds(quote.user.id);
-          legacyTxIdsByUser.set(quote.user.id, legacyTxIds);
+          legacyTxIds = await this.getLegacySettlementTxIds(address);
+          legacyTxIdsByAddress.set(address.toLowerCase(), legacyTxIds);
         }
 
         // quotes are ordered oldest-first, so match the oldest unconsumed settlement transfer
@@ -66,11 +66,14 @@ export class RealUnitJobService {
         );
         if (!settlement) continue;
 
-        consumedEventIds.add(settlement.id);
-        await this.transactionRequestService.complete(quote.id, {
+        const claimed = await this.transactionRequestService.completeSettlement(quote.id, {
           txId: settlement.txHash,
           eventId: settlement.id,
         });
+        // another instance claimed this quote first — leave the event available for the next run
+        if (!claimed) continue;
+
+        consumedEventIds.add(settlement.id);
 
         this.logger.info(
           `Completed settled quote ${quote.id}: ${expectedShares} shares received from ${settlement.transfer.from} in tx ${settlement.txHash}`,
@@ -94,11 +97,11 @@ export class RealUnitJobService {
 
   // --- HELPER METHODS --- //
 
-  private async getLegacySettlementTxIds(userId: number): Promise<Set<string>> {
-    const txIds = await this.transactionRequestService.getLegacySettlementTxIds(userId);
+  private async getLegacySettlementTxIds(address: string): Promise<Set<string>> {
+    const txIds = await this.transactionRequestService.getLegacySettlementTxIds(address);
 
     // which transfer event of such a tx the request consumed is not recoverable, so the whole tx
-    // stays blocked for this user - a settlement assigned twice is worse than one that needs a
+    // stays blocked for this address - a settlement assigned twice is worse than one that needs a
     // manual completion
     return new Set(txIds.map((txId) => txId.toLowerCase()));
   }
@@ -119,10 +122,12 @@ export class RealUnitJobService {
           e.transfer &&
           Util.equalsIgnoreCase(e.transfer.to, address) &&
           // a settlement is paid out by the issuer. Without this the buyer could complete an open
-          // quote by sending the shares from a second wallet of their own, and a self-transfer -
-          // which the indexer writes to this account's history twice, once as …-to and once as
-          // …-from - would even settle two quotes from one physical transfer
-          Util.equalsIgnoreCase(e.transfer.from, this.brokerbotAddress),
+          // quote by sending the shares from a second wallet of their own
+          Util.equalsIgnoreCase(e.transfer.from, this.brokerbotAddress) &&
+          // the indexer writes a self-transfer to this account's history twice, once as …-to and
+          // once as …-from; both rows carry the same transfer and would settle two quotes from one
+          // physical transfer. Only reachable if the account is the issuer itself, but free to rule out
+          !Util.equalsIgnoreCase(e.transfer.from, e.transfer.to),
       ),
       'timestamp',
     );
