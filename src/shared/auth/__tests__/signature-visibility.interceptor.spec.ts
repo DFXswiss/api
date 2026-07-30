@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { CallHandler, ExecutionContext } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { firstValueFrom, Observable, of } from 'rxjs';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -98,5 +99,16 @@ describe('SignatureVisibilityInterceptor', () => {
 
     expect(result).toBe(a);
     expect(result.ref).toBe(b);
+  });
+
+  // The cases above exercise the interceptor directly, so none of them would notice if the global
+  // registration were dropped - the protection would be silently gone. This pins the wiring itself.
+  it('is registered globally as an APP_INTERCEPTOR', async () => {
+    const { AppModule } = await import('src/app.module');
+    const providers = Reflect.getMetadata('providers', AppModule) as { provide?: symbol; useClass?: unknown }[];
+
+    expect(providers.some((p) => p.provide === APP_INTERCEPTOR && p.useClass === SignatureVisibilityInterceptor)).toBe(
+      true,
+    );
   });
 });
