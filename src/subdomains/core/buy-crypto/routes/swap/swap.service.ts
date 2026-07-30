@@ -236,11 +236,14 @@ export class SwapService {
     // create the entity
     const swap = this.swapRepo.create({ asset });
     swap.user = await this.userService.getUser(userId);
-    swap.route = await this.routeService.createRoute({ swap });
     swap.deposit = await this.depositService.getNextDeposit(blockchain);
 
-    // save
-    return this.swapRepo.save(swap);
+    // save route and swap together, so that a rejected swap insert does not leave an orphan route
+    return this.swapRepo.manager.transaction(async (manager) => {
+      swap.route = await this.routeService.createRoute({ swap }, manager);
+
+      return manager.save(swap);
+    });
   }
 
   async getUserSwaps(userId: number): Promise<Swap[]> {

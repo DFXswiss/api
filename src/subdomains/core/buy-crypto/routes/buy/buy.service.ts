@@ -183,14 +183,17 @@ export class BuyService {
     // create the entity
     const buy = this.buyRepo.create(dto);
     buy.user = user;
-    buy.route = await this.routeService.createRoute({ buy });
 
     // create hash
     const hash = Util.createHash(userAddress + buy.asset.id + (buy.iban ?? '')).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
-    // save
-    const entity = await this.buyRepo.save(buy);
+    // save route and buy together, so that a rejected buy insert does not leave an orphan route
+    const entity = await this.buyRepo.manager.transaction(async (manager) => {
+      buy.route = await this.routeService.createRoute({ buy }, manager);
+
+      return manager.save(buy);
+    });
 
     if (this.cache) this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
 

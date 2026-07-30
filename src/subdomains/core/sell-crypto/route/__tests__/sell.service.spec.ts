@@ -165,4 +165,43 @@ describe('SellService', () => {
       expect(result.eip5792).toBeUndefined();
     });
   });
+
+  describe('createSell route persistence', () => {
+    // the transaction callback runs against this manager, so a rejected save rolls the route back
+    let manager: { save: jest.Mock };
+
+    beforeEach(() => {
+      manager = { save: jest.fn().mockResolvedValue({ id: 42 }) };
+      jest.spyOn(sellRepo, 'create').mockImplementation((e: any) => ({ ...e }));
+      jest.spyOn(sellRepo, 'findOne').mockResolvedValue(undefined);
+      Object.defineProperty(sellRepo, 'manager', {
+        value: { transaction: (cb: any) => cb(manager) },
+        configurable: true,
+      });
+      jest.spyOn(routeService, 'createRoute').mockResolvedValue({ id: 5 } as any);
+      jest.spyOn(userDataService, 'getUserDataByUser').mockResolvedValue({ id: 7, isDataComplete: true } as any);
+      jest.spyOn(depositService, 'getNextDeposit').mockResolvedValue({ id: 9 } as any);
+      jest.spyOn(bankDataService, 'createIbanForUser').mockResolvedValue({ id: 11 } as any);
+    });
+
+    it('creates the route inside the same transaction as the sell', async () => {
+      await service.createSell(1, { iban: 'DE00', currency: { id: 2 }, blockchain: 'Ethereum' } as any);
+
+      expect(routeService.createRoute).toHaveBeenCalledWith(expect.anything(), manager);
+      expect(manager.save).toHaveBeenCalledTimes(1);
+      expect(sellRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not persist the route outside the transaction when the sell insert is rejected', async () => {
+      manager.save.mockRejectedValue(new Error('duplicate key value violates unique constraint'));
+
+      await expect(
+        service.createSell(1, { iban: 'DE00', currency: { id: 2 }, blockchain: 'Ethereum' } as any),
+      ).rejects.toThrow('duplicate key');
+
+      expect(routeService.createRoute).toHaveBeenCalledTimes(1);
+      expect(routeService.createRoute).toHaveBeenCalledWith(expect.anything(), manager);
+      expect(sellRepo.save).not.toHaveBeenCalled();
+    });
+  });
 });
