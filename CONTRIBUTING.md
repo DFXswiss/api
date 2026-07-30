@@ -968,7 +968,9 @@ Keep old endpoints for backward compatibility but annotate:
 
 ### Long-Polling Endpoints Must Be Named `wait`
 
-An endpoint whose response time is governed by an external event rather than by its own computation — a long poll — **must** carry `wait` as its own path segment, unless it is listed as an explicit exemption below. Conversely, an endpoint expected to answer quickly **must not** use `wait` as a path segment.
+An endpoint that does nothing but wait for someone else to act — its response time is determined solely by when another request or process triggers the event, and it performs no work of its own meanwhile — **must** carry `wait` as its own path segment, unless it is listed as an explicit exemption below. Conversely, an endpoint expected to answer quickly **must not** use `wait` as a path segment.
+
+This does **not** cover an endpoint that starts an operation and then waits for it to finish — broadcasting a transaction and awaiting its confirmation, for example. That duration reflects work the API itself set in motion, which makes it a legitimate monitoring signal, so those endpoints stay visible and must **not** be named `wait`. Current examples: `GET /v1/lnurlp/tx/:id`, `PUT /v1/sell/paymentInfos/:id/confirm` and `PUT /v1/swap/paymentInfos/:id/confirm` (both in their `authorization` branch), `PUT /v1/realunit/sell/:id/confirm` (`eip7702` branch) and `PUT /v1/realunit/transfer/:id/confirm`.
 
 Endpoints that block by design:
 
