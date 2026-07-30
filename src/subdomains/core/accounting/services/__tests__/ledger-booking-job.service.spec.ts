@@ -1,9 +1,11 @@
 import { createMock } from '@golevelup/ts-jest';
 import { CronExpression } from '@nestjs/schedule';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { BankTxConsumer } from '../consumers/bank-tx.consumer';
 import { BuyCryptoConsumer } from '../consumers/buy-crypto.consumer';
 import { BuyFiatConsumer } from '../consumers/buy-fiat.consumer';
@@ -46,6 +48,7 @@ describe('LedgerBookingJobService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LedgerBookingJobService,
+        TestUtil.provideConfig(),
         { provide: SettingService, useValue: settingService },
         { provide: BankTxConsumer, useValue: bankTxConsumer },
         { provide: ExchangeTxConsumer, useValue: exchangeTxConsumer },
@@ -61,6 +64,12 @@ describe('LedgerBookingJobService', () => {
     }).compile();
 
     service = module.get<LedgerBookingJobService>(LedgerBookingJobService);
+    // Existing cutover-gate tests exercise behaviour with the master switch on (default is hard OFF).
+    Config.ledger.enabled = true;
+  });
+
+  afterEach(() => {
+    Config.ledger.enabled = false;
   });
 
   it('is defined', () => {
@@ -76,6 +85,22 @@ describe('LedgerBookingJobService', () => {
     it('is true once ledgerCutoverLogId is set', async () => {
       jest.spyOn(settingService, 'get').mockResolvedValue('1557344');
       expect(await service.isLedgerReady()).toBe(true);
+    });
+
+    it('is false when Config.ledger.enabled is false — short-circuits before settingService.get', async () => {
+      Config.ledger.enabled = false;
+      const getSpy = jest.spyOn(settingService, 'get').mockResolvedValue('1557344');
+
+      expect(await service.isLedgerReady()).toBe(false);
+      expect(getSpy).not.toHaveBeenCalled();
+    });
+
+    it('with Config.ledger.enabled true and cutover set, is true (no regression on enabled path)', async () => {
+      Config.ledger.enabled = true;
+      jest.spyOn(settingService, 'get').mockResolvedValue('1557344');
+
+      expect(await service.isLedgerReady()).toBe(true);
+      expect(settingService.get).toHaveBeenCalled();
     });
   });
 

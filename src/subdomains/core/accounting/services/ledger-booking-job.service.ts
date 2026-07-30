@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -44,8 +45,9 @@ export class LedgerBookingJobService {
     private readonly bootstrapService: LedgerBootstrapService,
   ) {}
 
-  // cutover-gate (Blocker R1-6): no consumer books before bootstrap+opening set the ready marker
+  // master switch (Config.ledger.enabled) short-circuits before any DB; cutover-gate (Blocker R1-6) otherwise
   async isLedgerReady(): Promise<boolean> {
+    if (!Config.ledger.enabled) return false;
     return (await this.settingService.get(CUTOVER_LOG_ID_KEY)) != null;
   }
 

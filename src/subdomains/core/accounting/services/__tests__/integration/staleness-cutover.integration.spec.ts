@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -299,6 +300,7 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           LedgerCutoverService,
+          TestUtil.provideConfig(),
           { provide: SettingService, useValue: settingService },
           { provide: LogService, useValue: logService },
           { provide: LedgerBootstrapService, useValue: bootstrapService },
@@ -321,6 +323,13 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
       }).compile();
 
       service = module.get<LedgerCutoverService>(LedgerCutoverService);
+      // this describe drives the REAL LedgerCutoverService.run() to test cutover semantics, not the master
+      // switch itself — it needs the ledger switched on regardless of the global config default.
+      Config.ledger.enabled = true;
+    });
+
+    afterEach(() => {
+      Config.ledger.enabled = false;
     });
 
     it('runs the full opening once, then the second run is a no-op (Setting flag + UNIQUE backstop)', async () => {
