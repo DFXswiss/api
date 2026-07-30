@@ -69,6 +69,7 @@ Missing any of these = changes requested.
 - **Boolean flags: positive naming**: `safetyModeActive` not `safetyModuleInactive`
 - **Short, descriptive names — no redundant prefixes**: `uid` not `transactionRequestUid`, `balances` not `assetBalances`, `txId` not `transactionId`
 - **Variable names must precisely reflect the data**: `priceChf` not `amountChf` for a price
+- **`wait` is reserved for long-polling routes**: see [Long-Polling Endpoints Must Be Named `wait`](#long-polling-endpoints-must-be-named-wait) — the segment is load-bearing for latency monitoring
 
 ### Methods
 
@@ -964,6 +965,36 @@ Keep old endpoints for backward compatibility but annotate:
 ```typescript
 @ApiOperation({ deprecated: true })
 ```
+
+### Long-Polling Endpoints Must Be Named `wait`
+
+An endpoint that does nothing but wait for someone else to act — its response time is determined solely by when another request or process triggers the event, and it performs no work of its own meanwhile — **must** carry `wait` as its own path segment, unless it is listed as an explicit exemption below. Conversely, an endpoint expected to answer quickly **must not** use `wait` as a path segment.
+
+This does **not** cover an endpoint that starts an operation and then waits for it to finish — broadcasting a transaction and awaiting its confirmation, for example. That duration reflects work the API itself set in motion, which makes it a legitimate monitoring signal, so those endpoints stay visible and must **not** be named `wait`. Current examples: `PUT /v1/sell/paymentInfos/:id/confirm` and `PUT /v1/swap/paymentInfos/:id/confirm` (both in their `authorization` branch), `PUT /v1/realunit/sell/:id/confirm` (`eip7702` branch) and `PUT /v1/realunit/transfer/:id/confirm`.
+
+Endpoints that block by design:
+
+| Path                                 | Blocks until                                                                                                                                                                      | `wait` segment |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `GET /v1/lnurlp/wait/:id`            | the payment resolves: completed, canceled, expired — or, for `MULTIPLE`-mode links, when a quote reaches the configured completion threshold (the payment itself may stay `Pending`) | yes            |
+| `GET /v1/paymentLink/payment/wait`   | the same, for the authenticated payment-link flow                                                                                                                                 | yes            |
+| `GET /v1/lnurlp/:id`                 | a pending payment appears; bounded by `timeout` (default 10 s, caller-controllable)                                                                                               | no — exempt    |
+| `GET /v1/lnurlp/tx/:id`              | the payer's own broadcast reaches one confirmation (`tx` branch); 15 polls at 1 s. The `hex` branch broadcasts without awaiting confirmation, except on ICP, where it first waits for the payer's allowance (3 retries at 2 s) | no — exempt    |
+| `GET /v1/node/:node/tx/:txId`        | the transaction reaches one confirmation; bounded at 600 s                                                                                                                        | no — exempt    |
+| `GET /v1/node/:node/:mode/tx/:txId`  | the same                                                                                                                                                                          | no — exempt    |
+
+**The `wait` segment is the default; exemptions must be explicit.** A *passively* waiting route without one is acceptable only if it is listed in the table above together with the reason it cannot carry the segment. A passively waiting route that is neither named `wait` nor listed here is a defect — fix it by renaming the route or by adding an entry, never by leaving it undocumented. Routes of the second kind above — those awaiting an operation they started themselves — need no entry; they are outside this rule by design.
+
+The four current exemptions keep their paths because those are fixed from outside: `/v1/lnurlp/:id` is the LNURL pay-request path encoded into LNURLs already in circulation, `/v1/lnurlp/tx/:id` is handed to the payer inside the payment request itself, and the two node routes are admin-only and `@ApiExcludeEndpoint()`. Because they carry no `wait` segment they stay visible in latency monitoring — read their duration as expected behavior, not as a regression.
+
+This is not cosmetic. Latency monitoring excludes routes matching `^.*/wait(/.*)?$` from its slowest-requests view. A long poll's duration measures how long a *customer* took to act, not how long the API computed — leaving it in that view pushes the genuine outliers out of a list with a fixed row cap.
+
+Getting the name wrong breaks monitoring in one of two directions:
+
+- **A passively waiting endpoint without a `wait` segment** appears as a permanent latency outlier and masks real regressions — that is exactly what the exemptions above cost us today, which is why the list must stay short and justified.
+- **A fast endpoint with a `wait` segment** is silently dropped from the latency view — if it ever becomes slow, nobody notices.
+
+The pattern is segment-anchored, so `/waitlist`, `/waitTime`, `/awaiting` and `/waiting/:id` are unaffected; only a complete `wait` segment matches. Matching runs on the server-side route template (`http.route`), never on the raw request path, which is caller-controlled.
 
 ### RealUnit: `/quote/*` vs `/brokerbot/*`
 
