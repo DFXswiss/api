@@ -120,7 +120,11 @@ export enum ScryptOrderSide {
  * the same answer as an untouched one.
  */
 export enum ScryptCancellation {
-  /** Nothing can execute under this reference any more: cancelled with nothing filled, or unknown here. */
+  /**
+   * Nothing can execute under this reference any more. Two different qualities of answer: cancelled with
+   * nothing filled settles it outright, while the venue not knowing the reference is an inference from its
+   * own words — see SCRYPT_UNKNOWN_ORDER for what that evidence covers.
+   */
   SETTLED = 'Settled',
   /**
    * It reached a terminal state with something filled. Like a cancelled reference it cannot trade further,

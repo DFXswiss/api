@@ -478,7 +478,8 @@ export class LiquidityManagementPipelineService {
    *
    * The other way out is {@link abandonUncertainOrder}, which concludes nothing about the send itself and
    * rests instead on the venue confirming that nothing can still execute — so that an order nobody releases
-   * cannot block its rule forever.
+   * is not held by that alone. It is not a guarantee against blocking: where the venue will not confirm, or
+   * cannot be asked to cancel, this release stays the only way out.
    */
   private async completeNotSentRelease(order: LiquidityManagementOrder, because: string): Promise<boolean> {
     // The release this pass looked at, captured before the entity is mutated. Ending an order is the one

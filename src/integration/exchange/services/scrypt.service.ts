@@ -867,8 +867,9 @@ export class ScryptService extends PricingProvider {
    *
    * Three outcomes, because a cancel does not only ever mean "nothing happened":
    *  - SETTLED — terminal with nothing filled (cancelled or rejected), or the venue does not know the
-   *    reference at all. Both mean nothing can execute under it, which is the certainty the caller needs to
-   *    give the order up.
+   *    reference at all. Both mean nothing can execute under it, which is what lets the caller give the
+   *    order up — the first outright, the second as an inference from the venue's own words rather than a
+   *    statement about execution. See SCRYPT_UNKNOWN_ORDER for what that inference rests on.
    *  - EXECUTED — it reached a terminal state with something filled. Like a cancelled reference it cannot
    *    trade further, so the caller may give the order up; the fill has already moved the venue balance
    *    that the rule replans from. Reported separately from SETTLED because "something happened here" is
