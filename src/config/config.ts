@@ -800,6 +800,13 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
+    // How long the `wait` routes block before answering 408. Deliberately a constant and not
+    // an environment variable: the value is bounded from above by the CDN in front of the API,
+    // which terminates an origin request after 125 s with a 524 the client cannot interpret.
+    // Staying below that keeps the outcome ours to define. The longest wait observed in
+    // production is 93 s, so the cap does not cut short a payment that would still resolve.
+    waitTimeout: 110, // sec
+
     manualMethods: ['TaprootAsset', 'Spark', 'Arkade'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),

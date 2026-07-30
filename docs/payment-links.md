@@ -271,7 +271,7 @@ endpoints below are public (no authentication) unless an **Auth** value says oth
 | `GET /lnurlp/{id}`           | LNURL-pay step 1 — returns the pay request. Optional `standard`, `timeout`.                                                                                                                               |
 | `GET /lnurlp/cb/{id}`        | LNURL-pay step 2 (callback) — returns the actual invoice/URI. Params: `quote` (required), and per standard `amount` (msat, Bolt11) or `method`+`asset` (PayToAddress), plus optional `tx`/`hex`/`sender`. |
 | `GET /lnurlp/tx/{id}`        | Submit a signed tx `hex` or broadcast `txId` (on-chain methods). Returns `{ txId }`.                                                                                                                      |
-| `GET /lnurlp/wait/{id}`      | Long-poll until the payment reaches a terminal state. Returns `{ status }`.                                                                                                                               |
+| `GET /lnurlp/wait/{id}`      | Long-poll until the payment reaches a terminal state. Returns `{ status }`, or 408 after 110 s (re-issue).                                                                                                |
 | `DELETE /lnurlp/cancel/{id}` | Cancel a pending payment (only if the link is `cancellable`).                                                                                                                                             |
 | `GET /pl?lightning=LNURL1…`  | Human scan target — decodes the embedded LNURL and forwards to `GET /lnurlp/{id}`.                                                                                                                        |
 
@@ -288,7 +288,7 @@ Most of these require a merchant **JWT** (DFX login) or, where noted, a payment-
 | `PUT /paymentLink`                                   | JWT                  | Update a link (status, label, webhook, config).                                |
 | `GET /paymentLink/history`                           | JWT or `key`         | Payment history (`status`, `from`, `to`).                                      |
 | `POST /paymentLink/payment`                          | optional JWT / `key` | Create a payment on a link (POS path with `key`).                              |
-| `GET /paymentLink/payment/wait`                      | JWT or `key`         | Long-poll a link's pending payment to a terminal state; returns the full link. |
+| `GET /paymentLink/payment/wait`                      | JWT or `key`         | Long-poll a link's pending payment to a terminal state; returns the full link. 408 after 110 s (re-issue). |
 | `PUT /paymentLink/payment/confirm`                   | JWT or `key`         | Mark a completed payment confirmed.                                            |
 | `DELETE /paymentLink/payment`                        | optional JWT / `key` | Cancel the pending payment.                                                    |
 | `PUT /paymentLink/pos`                               | JWT                  | Get a POS URL (`{ url }`) for a link.                                          |
@@ -470,6 +470,11 @@ Three options, from push to pull:
    reaches a terminal state. (Authenticated variant: `GET /v1/paymentLink/payment/wait`.)
    Both require the payment to be **currently pending** when you call; if it already
    settled, fall back to a plain read.
+
+   A call blocks for at most **110 seconds**. If the payment is still pending by then, the
+   answer is **HTTP 408** — nothing has been decided, so issue the request again. Treat 408
+   as "ask once more", never as "the customer did not pay": a payment that outlives one
+   window is normal, and only a terminal status in a 2xx response is a result.
 3. **Poll** — read `GET /v1/paymentLink` / `GET /v1/paymentLink/history` (JWT or access
    key) and inspect `payment.status` / `payments[]`.
 

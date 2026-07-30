@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  RequestTimeoutException,
+} from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -164,7 +170,13 @@ export class PaymentLinkPaymentService {
 
   // --- HANDLE WAITS --- //
   async waitForPayment(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
-    return this.paymentWaitMap.wait(payment.id, 0);
+    // The timeout is raced here rather than passed to AsyncMap.wait(): the map hands every
+    // caller of the same payment one shared subscriber, so its timer would be armed by
+    // whoever arrived first and would then reject all of them together — a caller joining
+    // late would be cut off after whatever is left of someone else's window.
+    return Util.timeout(this.paymentWaitMap.wait(payment.id, 0), Config.payment.waitTimeout * 1000).catch(() => {
+      throw new RequestTimeoutException('Payment is still pending');
+    });
   }
 
   async handleBinanceWaiting(result: C2BWebhookResult): Promise<void> {
