@@ -1,10 +1,16 @@
 import { createMock } from '@golevelup/ts-jest';
 import { CallHandler, ExecutionContext } from '@nestjs/common';
+import { MODULE_METADATA } from '@nestjs/common/constants';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { firstValueFrom, Observable, of } from 'rxjs';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { SignatureVisibilityInterceptor } from '../signature-visibility.interceptor';
+
+// Self-referencing shape for the cycle case - the interceptor must terminate on it.
+interface Cyclic {
+  ref?: Cyclic;
+}
 
 describe('SignatureVisibilityInterceptor', () => {
   let interceptor: SignatureVisibilityInterceptor;
@@ -90,12 +96,12 @@ describe('SignatureVisibilityInterceptor', () => {
   });
 
   it('does not loop infinitely on a cyclic object graph', async () => {
-    const a: any = {};
-    const b: any = { ref: a };
+    const a: Cyclic = {};
+    const b: Cyclic = { ref: a };
     a.ref = b;
     handle.mockReturnValue(of(a));
 
-    const result = await run<{ ref: unknown }>({ user: { role: UserRole.SUPPORT } });
+    const result = await run<Cyclic>({ user: { role: UserRole.SUPPORT } });
 
     expect(result).toBe(a);
     expect(result.ref).toBe(b);
@@ -105,7 +111,10 @@ describe('SignatureVisibilityInterceptor', () => {
   // registration were dropped - the protection would be silently gone. This pins the wiring itself.
   it('is registered globally as an APP_INTERCEPTOR', async () => {
     const { AppModule } = await import('src/app.module');
-    const providers = Reflect.getMetadata('providers', AppModule) as { provide?: unknown; useClass?: unknown }[];
+    const providers = Reflect.getMetadata(MODULE_METADATA.PROVIDERS, AppModule) as {
+      provide?: unknown;
+      useClass?: unknown;
+    }[];
 
     expect(providers.some((p) => p.provide === APP_INTERCEPTOR && p.useClass === SignatureVisibilityInterceptor)).toBe(
       true,
