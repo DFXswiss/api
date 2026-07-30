@@ -28,10 +28,10 @@ describe('MonitorEventLoopService', () => {
   let infoSpy: jest.SpyInstance;
 
   const initialElu = { idle: 0, active: 0, utilization: 0 };
-  const firstCurrent = { idle: 100, active: 700, utilization: 0.873 };
-  const firstDelta = { idle: 100, active: 700, utilization: 0.873 };
-  const secondCurrent = { idle: 200, active: 1400, utilization: 0.9 };
-  const secondDelta = { idle: 100, active: 700, utilization: 0.85 };
+  const firstCurrent = { idle: 300, active: 700, utilization: 0.7 };
+  const firstDelta = { idle: 127, active: 873, utilization: 0.873 };
+  const secondCurrent = { idle: 600, active: 1400, utilization: 0.7 };
+  const secondDelta = { idle: 350, active: 650, utilization: 0.65 };
 
   beforeEach(() => {
     mockHistogram.enable.mockClear();
@@ -88,6 +88,10 @@ describe('MonitorEventLoopService', () => {
 
       expect(mockEventLoopUtilization).toHaveBeenCalledWith(firstCurrent, initialElu);
       expect(mockEventLoopUtilization).toHaveBeenCalledWith(secondCurrent, firstCurrent);
+      expect(infoSpy).toHaveBeenNthCalledWith(
+        2,
+        'EventLoop delay: mean 28ms / p95 46ms / max 202ms / utilization 65.0%',
+      );
     });
   });
 });
