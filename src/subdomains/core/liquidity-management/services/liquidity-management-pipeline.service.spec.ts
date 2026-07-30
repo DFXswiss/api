@@ -834,7 +834,7 @@ describe('LiquidityManagementPipelineService', () => {
         // a wait longer than what is left of its bound postpones the abandonment — an order weeks old draws
         // the full thirty-minute interval, six times a trade's own five-minute bound, and the ceiling this
         // branch exists to impose would have been raised with nothing saying so.
-        const order = uncertainOrder({ updated: new Date() });
+        const order = agedOrder(0);
         jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
         jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
         stubIntegration(UncertainOrderResolution.UNRESOLVED);
@@ -853,10 +853,7 @@ describe('LiquidityManagementPipelineService', () => {
       it("leaves the cap governing when the order's own bound is further off than the cap", async () => {
         // The deadline only ever tightens the interval, never loosens it: a transfer has twelve hours, so the
         // cap decides exactly as it did before, and a lookup one millisecond early still must not happen.
-        const order = uncertainOrder({
-          action: { id: 234, system: 'Scrypt', command: 'withdraw' },
-          updated: new Date(),
-        });
+        const order = agedOrder(0, 'withdraw');
         const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNAVAILABLE);
         jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
           supportedCommands: ['withdraw'],
