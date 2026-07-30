@@ -290,6 +290,15 @@ export class Configuration {
     resolvers: [{ resolve: () => this.i18n.fallbackLanguage }],
   };
 
+  // A signature only proves ownership of the exact text that was signed. All environments share the
+  // same wallets and the same message, so a signature created on a lower environment authenticates on
+  // PRD as well — a DEV database read would yield working PRD credentials. PRD therefore keeps the
+  // historical text byte-for-byte (existing PRD signatures stay valid), while every other environment
+  // signs a distinct text and thus produces a signature PRD cannot verify. An unset or unknown
+  // ENVIRONMENT is deliberately treated as non-PRD: it must never accidentally yield a PRD-valid
+  // signature.
+  signMessagePrefix = this.environment === Environment.PRD ? '' : `[${this.environment}]_`;
+
   auth = {
     jwt: {
       secret: process.env.JWT_SECRET,
@@ -312,8 +321,10 @@ export class Configuration {
     // are never affected by this flag.
     tfaStaffEnforced: process.env.TFA_STAFF_ENFORCED !== 'false',
     signMessage:
+      this.signMessagePrefix +
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
     signMessageGeneral:
+      this.signMessagePrefix +
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
   };
 
