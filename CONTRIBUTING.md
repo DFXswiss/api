@@ -965,6 +965,26 @@ Keep old endpoints for backward compatibility but annotate:
 @ApiOperation({ deprecated: true })
 ```
 
+### Long-Polling Endpoints Must Be Named `wait`
+
+An endpoint that intentionally blocks until an event occurs — a long poll — **must** carry `wait` as its own path segment. Conversely, an endpoint that is expected to answer quickly **must not** use `wait` anywhere in its path.
+
+Current long-polling endpoints:
+
+| Path                               | Blocks until                                                                |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| `GET /v1/lnurlp/wait/:id`          | the payment-link payment is completed, cancelled or expired                 |
+| `GET /v1/paymentLink/payment/wait` | the same, for the authenticated payment-link flow                           |
+
+This is not cosmetic. The Grafana panel "Slowest requests" (dashboard `dfx-api-traces`, provisioned from the infrastructure repo) excludes these routes with the TraceQL filter `span.http.route !~ "^.*/wait(/.*)?$"`. A long poll's duration measures how long a *customer* took to act, not how long the API computed — leaving it in the latency table pushes the genuine outliers out of a list capped at 20 rows.
+
+Getting the name wrong breaks monitoring in one of two directions:
+
+- **A blocking endpoint without `wait` in its path** appears as a permanent latency outlier and masks real regressions.
+- **A fast endpoint with `wait` in its path** is silently dropped from the latency table — if it ever becomes slow, nobody notices.
+
+The pattern is segment-anchored, so `/waitlist`, `/waitTime`, `/awaiting` and `/waiting/:id` are unaffected; only a complete `wait` segment matches. Matching runs on `http.route` (the server-side route template), never on the raw request path — the raw path is caller-controlled and would let crafted requests slip out of the latency view.
+
 ### RealUnit: `/quote/*` vs `/brokerbot/*`
 
 The RealUnit purchase and sale flows historically lived under `/v1/realunit/brokerbot/*`. That naming is misleading: most of those endpoints never touch the on-chain Brokerbot smart contract. Treat them as two distinct subsystems:
