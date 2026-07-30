@@ -27,7 +27,9 @@ describe('MonitorEventLoopService', () => {
   let service: MonitorEventLoopService;
   let infoSpy: jest.SpyInstance;
 
-  const initialElu = { idle: 0, active: 0, utilization: 0 };
+  // idle-only rather than all-zero: 0/(0+0) is NaN, so an all-zero fixture would be the
+  // one value in this set that does not satisfy utilization = active / (idle + active).
+  const initialElu = { idle: 100, active: 0, utilization: 0 };
   const firstCurrent = { idle: 300, active: 700, utilization: 0.7 };
   const firstDelta = { idle: 127, active: 873, utilization: 0.873 };
   const secondCurrent = { idle: 600, active: 1400, utilization: 0.7 };

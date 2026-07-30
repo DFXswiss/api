@@ -29,7 +29,6 @@ export class MonitorEventLoopService implements OnModuleDestroy {
     const currentElu = performance.eventLoopUtilization();
     // Two-arg form: one-arg then a bare call would sample two different instants and drift the reference.
     const intervalElu = performance.eventLoopUtilization(currentElu, this.previousElu);
-    this.previousElu = currentElu;
 
     this.logger.info(
       `EventLoop delay: mean ${toMs(this.histogram.mean)}ms / p95 ${toMs(
@@ -37,6 +36,11 @@ export class MonitorEventLoopService implements OnModuleDestroy {
       )}ms / max ${toMs(this.histogram.max)}ms / utilization ${(intervalElu.utilization * 100).toFixed(1)}%`,
     );
 
+    // Advance both windows only after a successful log, so utilization and delay always
+    // describe the same interval. Advancing earlier would widen the delay window alone
+    // if logging threw — the cron wrapper swallows the error and the next line would mix
+    // a 10s utilization window with a 20s delay window.
+    this.previousElu = currentElu;
     this.histogram.reset();
   }
 }
