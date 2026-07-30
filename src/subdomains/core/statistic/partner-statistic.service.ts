@@ -6,14 +6,22 @@ import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repo
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
+import {
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionRequestRepository } from 'src/subdomains/supporting/payment/repositories/transaction-request.repository';
 import { SelectQueryBuilder } from 'typeorm';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 import {
   PartnerAssetBreakdownDto,
+  PartnerCompletionDto,
   PartnerNamedBreakdownDto,
+  PartnerPaymentInfoDirectionDto,
   PartnerReferralDto,
+  PartnerSettlementDirectionDto,
   PartnerStatisticDto,
   PartnerTimelineBucketDto,
   PartnerTimelineDto,
@@ -28,6 +36,7 @@ import {
   PartnerStatisticGranularity,
 } from './partner-statistic.enum';
 import {
+  suppressAdditiveGroup,
   suppressAllTimeVolume,
   suppressBreakdownRows,
   suppressPeriodTotals,
@@ -73,6 +82,7 @@ export class PartnerStatisticService {
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly userRepo: UserRepository,
     private readonly walletRepo: WalletRepository,
+    private readonly txRequestRepo: TransactionRequestRepository,
   ) {}
 
   // --- PUBLIC API --- //
@@ -92,6 +102,7 @@ export class PartnerStatisticService {
       fiatRows,
       blockchainRows,
       paymentMethodRows,
+      completionResult,
     ] = await this.runLimited([
       () => this.aggregateByDirection(walletId, period.from, period.to, PartnerStatisticDirection.BUY),
       () => this.aggregateByDirection(walletId, period.from, period.to, PartnerStatisticDirection.SELL),
@@ -104,6 +115,7 @@ export class PartnerStatisticService {
       () => this.aggregateFiatCurrencies(walletId, period.from, period.to),
       () => this.aggregateBlockchains(walletId, period.from, period.to),
       () => this.aggregatePaymentMethods(walletId, period.from, period.to),
+      () => this.getCompletion(walletId, period.from, period.to),
     ]);
 
     const rawVolume = {
@@ -150,6 +162,7 @@ export class PartnerStatisticService {
       paymentMethods.suppressedCount +
       totalsSuppressed.suppressedCount +
       allTimeSuppressed.suppressedCount +
+      completionResult.suppressedCount +
       (activeUsers === null ? 1 : 0) +
       (newUsers === null ? 1 : 0) +
       (tradingUsersSuppressed === null ? 1 : 0) +
@@ -177,6 +190,7 @@ export class PartnerStatisticService {
         paymentMethods: paymentMethods.rows.map(({ users: _u, ...row }) => row),
       },
       referral,
+      completion: completionResult.completion,
       meta: {
         suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
         suppressedBuckets,
@@ -638,6 +652,173 @@ export class PartnerStatisticService {
     }
 
     return buckets;
+  }
+
+  // --- COMPLETION (stage A + B) --- //
+
+  private async getCompletion(
+    walletId: number,
+    from: Date,
+    to: Date,
+  ): Promise<{ completion: PartnerCompletionDto; suppressedCount: number }> {
+    const [paymentInfoRaw, buySettlement, sellSettlement, swapSettlement] = await this.runLimited([
+      () => this.aggregatePaymentInfoRequests(walletId, from, to),
+      () => this.aggregateSettlement(walletId, from, to, PartnerStatisticDirection.BUY),
+      () => this.aggregateSettlement(walletId, from, to, PartnerStatisticDirection.SELL),
+      () => this.aggregateSettlement(walletId, from, to, PartnerStatisticDirection.SWAP),
+    ]);
+
+    let suppressedCount = 0;
+
+    const paymentInfoRequests = {
+      buy: this.suppressPaymentInfoFunnel(paymentInfoRaw.buy, (n) => {
+        suppressedCount += n;
+      }),
+      sell: this.suppressPaymentInfoFunnel(paymentInfoRaw.sell, (n) => {
+        suppressedCount += n;
+      }),
+      swap: this.suppressPaymentInfoFunnel(paymentInfoRaw.swap, (n) => {
+        suppressedCount += n;
+      }),
+    };
+
+    const settlement = {
+      buy: this.suppressSettlementFunnel(buySettlement, (n) => {
+        suppressedCount += n;
+      }),
+      sell: this.suppressSettlementFunnel(sellSettlement, (n) => {
+        suppressedCount += n;
+      }),
+      swap: this.suppressSettlementFunnel(swapSettlement, (n) => {
+        suppressedCount += n;
+      }),
+    };
+
+    return { completion: { paymentInfoRequests, settlement }, suppressedCount };
+  }
+
+  private async aggregatePaymentInfoRequests(
+    walletId: number,
+    from: Date,
+    to: Date,
+  ): Promise<
+    Record<
+      Direction,
+      { requested: number; paymentReceived: number; waitingForPayment: number; noPaymentReceived: number }
+    >
+  > {
+    const empty = () => ({ requested: 0, paymentReceived: 0, waitingForPayment: 0, noPaymentReceived: 0 });
+    const byDir: Record<Direction, ReturnType<typeof empty>> = {
+      [PartnerStatisticDirection.BUY]: empty(),
+      [PartnerStatisticDirection.SELL]: empty(),
+      [PartnerStatisticDirection.SWAP]: empty(),
+    };
+
+    const rows = await this.txRequestRepo
+      .createQueryBuilder('tr')
+      .innerJoin('tr.user', 'user')
+      .select('tr.type', 'type')
+      .addSelect('tr.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('user.walletId = :walletId', { walletId })
+      .andWhere('tr.created >= :from AND tr.created < :to', { from, to })
+      .groupBy('tr.type')
+      .addGroupBy('tr.status')
+      .getRawMany<{ type: string; status: string; count: string | number }>();
+
+    const typeToDir: Record<string, Direction> = {
+      [TransactionRequestType.BUY]: PartnerStatisticDirection.BUY,
+      [TransactionRequestType.SELL]: PartnerStatisticDirection.SELL,
+      [TransactionRequestType.SWAP]: PartnerStatisticDirection.SWAP,
+    };
+
+    for (const row of rows) {
+      const dir = typeToDir[row.type];
+      if (!dir) continue;
+      const count = this.toCount(row.count);
+      byDir[dir].requested += count;
+      if (row.status === TransactionRequestStatus.COMPLETED) byDir[dir].paymentReceived += count;
+      else if (row.status === TransactionRequestStatus.WAITING_FOR_PAYMENT) byDir[dir].waitingForPayment += count;
+      else if (row.status === TransactionRequestStatus.CREATED) byDir[dir].noPaymentReceived += count;
+    }
+
+    return byDir;
+  }
+
+  private async aggregateSettlement(
+    walletId: number,
+    from: Date,
+    to: Date,
+    direction: Direction,
+  ): Promise<{ received: number; delivered: number; rejected: number; inProgress: number }> {
+    const pass = CheckStatus.PASS;
+    const fail = CheckStatus.FAIL;
+
+    const qb = this.baseTxQuery(direction, walletId, from, to, { amlPassOnly: false });
+    qb.select('COUNT(*)', 'received')
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN tx.amlCheck = :passCheck AND tx.isComplete = true THEN 1 ELSE 0 END), 0)`,
+        'delivered',
+      )
+      .addSelect(`COALESCE(SUM(CASE WHEN tx.amlCheck = :failCheck THEN 1 ELSE 0 END), 0)`, 'rejected')
+      .setParameter('passCheck', pass)
+      .setParameter('failCheck', fail);
+
+    const raw = await qb.getRawOne<{ received: string; delivered: string; rejected: string }>();
+    const received = this.toCount(raw?.received);
+    const delivered = this.toCount(raw?.delivered);
+    const rejected = this.toCount(raw?.rejected);
+    const inProgress = Math.max(received - delivered - rejected, 0);
+
+    return { received, delivered, rejected, inProgress };
+  }
+
+  private suppressPaymentInfoFunnel(
+    raw: { requested: number; paymentReceived: number; waitingForPayment: number; noPaymentReceived: number },
+    onSuppressed: (n: number) => void,
+  ): PartnerPaymentInfoDirectionDto {
+    const { values, rate, suppressedCount } = suppressAdditiveGroup(
+      {
+        requested: raw.requested,
+        paymentReceived: raw.paymentReceived,
+        waitingForPayment: raw.waitingForPayment,
+        noPaymentReceived: raw.noPaymentReceived,
+      },
+      { numeratorKey: 'paymentReceived', denominatorKey: 'requested' },
+    );
+    onSuppressed(suppressedCount);
+
+    return {
+      requested: values.requested,
+      paymentReceived: values.paymentReceived,
+      waitingForPayment: values.waitingForPayment,
+      noPaymentReceived: values.noPaymentReceived,
+      receivedRate: rate,
+    };
+  }
+
+  private suppressSettlementFunnel(
+    raw: { received: number; delivered: number; rejected: number; inProgress: number },
+    onSuppressed: (n: number) => void,
+  ): PartnerSettlementDirectionDto {
+    const { values, rate, suppressedCount } = suppressAdditiveGroup(
+      {
+        received: raw.received,
+        delivered: raw.delivered,
+        rejected: raw.rejected,
+        inProgress: raw.inProgress,
+      },
+      { numeratorKey: 'delivered', denominatorKey: 'received' },
+    );
+    onSuppressed(suppressedCount);
+
+    return {
+      received: values.received,
+      delivered: values.delivered,
+      rejected: values.rejected,
+      inProgress: values.inProgress,
+      deliveredRate: rate,
+    };
   }
 
   // --- QUERY BUILDERS --- //

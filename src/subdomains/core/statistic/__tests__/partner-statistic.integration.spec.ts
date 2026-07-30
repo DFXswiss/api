@@ -113,7 +113,13 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
     `);
 
     // Lightweight service shell for mergeNamedRows only (repos unused for SQL below).
-    service = new PartnerStatisticService({ manager: dataSource.manager } as any, {} as any, {} as any, {} as any);
+    service = new PartnerStatisticService(
+      { manager: dataSource.manager } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
   });
 
   afterEach(async () => {

@@ -6,6 +6,7 @@ import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-f
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
+import { TransactionRequestRepository } from 'src/subdomains/supporting/payment/repositories/transaction-request.repository';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
@@ -25,6 +26,7 @@ import { StatisticService } from './statistic.service';
     BuyFiatRepository,
     UserRepository,
     WalletRepository,
+    TransactionRequestRepository,
   ],
   exports: [],
 })

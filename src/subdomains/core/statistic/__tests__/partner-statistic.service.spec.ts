@@ -7,6 +7,11 @@ import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-f
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import {
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionRequestRepository } from 'src/subdomains/supporting/payment/repositories/transaction-request.repository';
+import {
   PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS,
   PARTNER_STATISTIC_MAX_PERIOD_DAYS,
   PartnerStatisticDirection,
@@ -35,6 +40,12 @@ interface SettlementFixture {
   rejected: number;
 }
 
+interface PaymentInfoRow {
+  type: TransactionRequestType;
+  status: TransactionRequestStatus;
+  count: number;
+}
+
 interface DirectionFixture {
   volume: number;
   transactions: number;
@@ -49,6 +60,7 @@ interface WalletFixture {
   newUsers: number;
   allTime: { buy: number; sell: number; registeredUsers: number; tradingUsers: number };
   referral: { volume: number; partnerRefCredit: number; refCredit: number; paidRefCredit: number };
+  paymentInfo: PaymentInfoRow[];
   settlement: Record<Direction, SettlementFixture>;
   /** Named breakdown rows returned by getRawMany for asset/fiat/blockchain/payment queries. */
   namedRows: { name: string; blockchain?: string; volume: number; transactions: number; users: number }[];
@@ -68,6 +80,7 @@ function emptyFixture(overrides: Partial<WalletFixture> = {}): WalletFixture {
     newUsers: 0,
     allTime: { buy: 0, sell: 0, registeredUsers: 0, tradingUsers: 0 },
     referral: { volume: 0, partnerRefCredit: 0, refCredit: 0, paidRefCredit: 0 },
+    paymentInfo: [],
     settlement: {
       [PartnerStatisticDirection.BUY]: emptySettlement(),
       [PartnerStatisticDirection.SELL]: emptySettlement(),
@@ -148,6 +161,7 @@ describe('PartnerStatisticService', () => {
         merged.referral.partnerRefCredit += f.referral.partnerRefCredit;
         merged.referral.refCredit += f.referral.refCredit;
         merged.referral.paidRefCredit += f.referral.paidRefCredit;
+        merged.paymentInfo.push(...f.paymentInfo);
         for (const d of [
           PartnerStatisticDirection.BUY,
           PartnerStatisticDirection.SELL,
@@ -293,6 +307,10 @@ describe('PartnerStatisticService', () => {
 
     qb.getRawMany = jest.fn(async () => {
       getRawManyCalls += 1;
+      if (kind === 'txRequest' || state.isPaymentInfo) {
+        const f = fixtureFor(state.walletId);
+        return f.paymentInfo.map((r) => ({ type: r.type, status: r.status, count: r.count }));
+      }
       if (state.isTimeline) {
         const f = fixtureFor(state.walletId);
         return f.timelineRows.map((r) => ({
@@ -366,6 +384,10 @@ describe('PartnerStatisticService', () => {
         { provide: BuyFiatRepository, useValue: { createQueryBuilder: jest.fn(() => createQb('buyFiat')) } },
         { provide: UserRepository, useValue: { createQueryBuilder: jest.fn(() => createQb('user')) } },
         { provide: WalletRepository, useValue: { createQueryBuilder: jest.fn(() => createQb('wallet')) } },
+        {
+          provide: TransactionRequestRepository,
+          useValue: { createQueryBuilder: jest.fn(() => createQb('txRequest')) },
+        },
       ],
     }).compile();
 
@@ -445,6 +467,7 @@ describe('PartnerStatisticService', () => {
           allTime: { buy: 5000, sell: 1000, registeredUsers: 100, tradingUsers: 40 },
           newUsers: 8,
           activeUserIds: [1, 2, 3, 4, 5, 6],
+          paymentInfo: [{ type: TransactionRequestType.BUY, status: TransactionRequestStatus.CREATED, count: 10 }],
         }),
       );
 
@@ -467,6 +490,8 @@ describe('PartnerStatisticService', () => {
           'inputAsset.blockchain',
           'outputAsset.name',
           'outputAsset.blockchain',
+          'tr.type',
+          'tr.status',
         ]),
       );
     });
@@ -486,6 +511,7 @@ describe('PartnerStatisticService', () => {
           referral: { volume: 50, partnerRefCredit: 10, refCredit: 0, paidRefCredit: 4 },
           newUsers: 8,
           activeUserIds: [11, 12, 13, 14, 15, 16],
+          paymentInfo: [{ type: TransactionRequestType.BUY, status: TransactionRequestStatus.COMPLETED, count: 20 }],
           settlement: {
             // inProgress = received − delivered − rejected must also be 0 or ≥ k
             [PartnerStatisticDirection.BUY]: { received: 20, delivered: 15, rejected: 0 },
@@ -504,6 +530,7 @@ describe('PartnerStatisticService', () => {
           referral: { volume: 12345, partnerRefCredit: 999, refCredit: 0, paidRefCredit: 111 },
           newUsers: 500,
           activeUserIds: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+          paymentInfo: [{ type: TransactionRequestType.BUY, status: TransactionRequestStatus.COMPLETED, count: 9000 }],
           settlement: {
             [PartnerStatisticDirection.BUY]: { received: 9000, delivered: 8000, rejected: 100 },
             [PartnerStatisticDirection.SELL]: emptySettlement(),
@@ -527,6 +554,8 @@ describe('PartnerStatisticService', () => {
 
       expect(amlFilterClauses.length).toBeGreaterThan(0);
       expect(amlFilterClauses.every((c) => /amlCheck\s*=\s*:check/.test(c))).toBe(true);
+      expect(settlementAmlPassOnly.length).toBeGreaterThan(0);
+      expect(settlementAmlPassOnly.every((v) => v === false)).toBe(true);
 
       expect(result.totals.volume.buy).toBe(1000);
       expect(result.totals.volume.sell).toBe(200);
@@ -540,6 +569,11 @@ describe('PartnerStatisticService', () => {
       expect(result.allTime.registeredUsers).not.toBe(9999);
       expect(result.referral.volume).not.toBe(12345);
       expect(result.totals.newUsers).not.toBe(500);
+
+      expect(result.completion.paymentInfoRequests.buy.paymentReceived).toBe(20);
+      expect(result.completion.paymentInfoRequests.buy.paymentReceived).not.toBe(9000);
+      expect(result.completion.settlement.buy.received).toBe(20);
+      expect(result.completion.settlement.buy.received).not.toBe(9000);
     });
 
     it('returns only wallet B aggregates when called with wallet B (not wallet A)', async () => {
@@ -554,6 +588,110 @@ describe('PartnerStatisticService', () => {
 
       expect(result.totals.volume.buy).toBe(99999);
       expect(result.totals.volume.buy).not.toBe(1000);
+      expect(result.completion.paymentInfoRequests.buy.paymentReceived).toBe(9000);
+      expect(result.completion.settlement.buy.received).toBe(9000);
+    });
+  });
+
+  // --- COMPLETION --- //
+
+  describe('completion funnels', () => {
+    it('computes stage A payment-info funnel counts and receivedRate as paymentReceived/requested', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 1000, transactions: 20, users: 10 },
+          allTime: { buy: 1000, sell: 0, registeredUsers: 20, tradingUsers: 10 },
+          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          paymentInfo: [
+            { type: TransactionRequestType.BUY, status: TransactionRequestStatus.CREATED, count: 80 },
+            { type: TransactionRequestType.BUY, status: TransactionRequestStatus.WAITING_FOR_PAYMENT, count: 5 },
+            { type: TransactionRequestType.BUY, status: TransactionRequestStatus.COMPLETED, count: 15 },
+            { type: TransactionRequestType.SELL, status: TransactionRequestStatus.CREATED, count: 10 },
+            { type: TransactionRequestType.SELL, status: TransactionRequestStatus.COMPLETED, count: 5 },
+            { type: TransactionRequestType.SWAP, status: TransactionRequestStatus.COMPLETED, count: 5 },
+          ],
+          settlement: {
+            [PartnerStatisticDirection.BUY]: { received: 20, delivered: 15, rejected: 0 },
+            [PartnerStatisticDirection.SELL]: { received: 5, delivered: 5, rejected: 0 },
+            [PartnerStatisticDirection.SWAP]: { received: 5, delivered: 5, rejected: 0 },
+          },
+        }),
+      );
+
+      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+      const buyA = result.completion.paymentInfoRequests.buy;
+
+      expect(buyA.requested).toBe(100);
+      expect(buyA.noPaymentReceived).toBe(80);
+      expect(buyA.waitingForPayment).toBe(5);
+      expect(buyA.paymentReceived).toBe(15);
+      expect(buyA.receivedRate).toBe(0.15);
+      expect(buyA.receivedRate).not.toBe(Util.round(100 / 15, 4));
+
+      expect(result.completion.paymentInfoRequests.sell.requested).toBe(15);
+      expect(result.completion.paymentInfoRequests.sell.paymentReceived).toBe(5);
+      expect(result.completion.paymentInfoRequests.swap.paymentReceived).toBe(5);
+    });
+
+    it('computes stage B settlement counts and deliveredRate as delivered/received', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 1000, transactions: 20, users: 10 },
+          allTime: { buy: 1000, sell: 0, registeredUsers: 20, tradingUsers: 10 },
+          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          settlement: {
+            [PartnerStatisticDirection.BUY]: { received: 40, delivered: 30, rejected: 5 },
+            [PartnerStatisticDirection.SELL]: { received: 0, delivered: 0, rejected: 0 },
+            [PartnerStatisticDirection.SWAP]: { received: 20, delivered: 10, rejected: 5 },
+          },
+        }),
+      );
+
+      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+      const buyB = result.completion.settlement.buy;
+
+      expect(buyB.received).toBe(40);
+      expect(buyB.delivered).toBe(30);
+      expect(buyB.rejected).toBe(5);
+      expect(buyB.inProgress).toBe(5);
+      expect(buyB.deliveredRate).toBe(0.75);
+
+      expect(result.completion.settlement.sell.received).toBe(0);
+      expect(result.completion.settlement.sell.deliveredRate).toBeNull();
+      expect(result.completion.settlement.swap.inProgress).toBe(5);
+    });
+
+    it('block-suppresses the entire funnel when any counter is under k', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 1000, transactions: 20, users: 10 },
+          allTime: { buy: 1000, sell: 0, registeredUsers: 20, tradingUsers: 10 },
+          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          paymentInfo: [{ type: TransactionRequestType.BUY, status: TransactionRequestStatus.CREATED, count: 4 }],
+          settlement: {
+            [PartnerStatisticDirection.BUY]: { received: 10, delivered: 3, rejected: 0 },
+            [PartnerStatisticDirection.SELL]: emptySettlement(),
+            [PartnerStatisticDirection.SWAP]: emptySettlement(),
+          },
+        }),
+      );
+
+      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+
+      // Stage A: requested=4 under k → entire group null (zeros stay 0)
+      expect(result.completion.paymentInfoRequests.buy.requested).toBeNull();
+      expect(result.completion.paymentInfoRequests.buy.noPaymentReceived).toBeNull();
+      expect(result.completion.paymentInfoRequests.buy.paymentReceived).toBe(0);
+      expect(result.completion.paymentInfoRequests.buy.receivedRate).toBeNull();
+
+      // Stage B: delivered=3 under k → block entire settlement group
+      expect(result.completion.settlement.buy.received).toBeNull();
+      expect(result.completion.settlement.buy.delivered).toBeNull();
+      expect(result.completion.settlement.buy.deliveredRate).toBeNull();
+      expect(result.completion.settlement.buy.rejected).toBe(0);
     });
   });
 

@@ -202,6 +202,136 @@ export class PartnerReferralDto {
   currency: 'EUR';
 }
 
+// --- COMPLETION (funnels) --- //
+
+/**
+ * Stage A: payment-info quote requests → payment received.
+ * Each UI amount change creates a new transaction_request — this is NOT a user conversion rate.
+ */
+export class PartnerPaymentInfoDirectionDto {
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'Count of payment-info quote requests (transaction_request rows) in the period. ' +
+      'One row is created on every payment-info fetch (e.g. amount change in the UI), not once per purchase intent. ' +
+      'Null when any funnel member is under the suppression threshold (block suppression).',
+  })
+  requested: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Requests that reached status Completed (a payment was linked).',
+  })
+  paymentReceived: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Requests still in status WaitingForPayment.',
+  })
+  waitingForPayment: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Requests left in status Created (quote shown, no payment followed).',
+  })
+  noPaymentReceived: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'paymentReceived / requested (0..1, 4 dp). Share of payment-info requests that got a payment — ' +
+      'not a per-user conversion rate. Null if denominator is 0 or the funnel group was suppressed.',
+  })
+  receivedRate: number | null;
+}
+
+export class PartnerPaymentInfoRequestsDto {
+  @ApiProperty({ type: PartnerPaymentInfoDirectionDto })
+  buy: PartnerPaymentInfoDirectionDto;
+
+  @ApiProperty({ type: PartnerPaymentInfoDirectionDto })
+  sell: PartnerPaymentInfoDirectionDto;
+
+  @ApiProperty({ type: PartnerPaymentInfoDirectionDto })
+  swap: PartnerPaymentInfoDirectionDto;
+}
+
+/**
+ * Stage B: payment received (buy_crypto / buy_fiat created) → delivered or rejected.
+ * Note: `delivered` requires amlCheck=Pass AND isComplete=true, which is a subset of
+ * `totals.transactions` (those only require amlCheck=Pass, including still-in-flight payouts).
+ */
+export class PartnerSettlementDirectionDto {
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'All buy_crypto/buy_fiat rows in the period for this direction (no amlCheck filter). ' +
+      'Null when any funnel member is under the suppression threshold (block suppression).',
+  })
+  received: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'amlCheck=Pass AND isComplete=true. Stricter than totals.transactions (which counts all Pass, ' +
+      'including rows not yet fully paid out).',
+  })
+  delivered: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'amlCheck=Fail (regardless of isComplete).',
+  })
+  rejected: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'received − delivered − rejected (pending AML, in-flight payout, etc.).',
+  })
+  inProgress: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'delivered / received (0..1, 4 dp). Null if denominator is 0 or the funnel group was suppressed.',
+  })
+  deliveredRate: number | null;
+}
+
+export class PartnerSettlementDto {
+  @ApiProperty({ type: PartnerSettlementDirectionDto })
+  buy: PartnerSettlementDirectionDto;
+
+  @ApiProperty({ type: PartnerSettlementDirectionDto })
+  sell: PartnerSettlementDirectionDto;
+
+  @ApiProperty({ type: PartnerSettlementDirectionDto })
+  swap: PartnerSettlementDirectionDto;
+}
+
+export class PartnerCompletionDto {
+  @ApiProperty({
+    type: PartnerPaymentInfoRequestsDto,
+    description: 'Stage A: payment-info requests → payment received (transaction_request funnel).',
+  })
+  paymentInfoRequests: PartnerPaymentInfoRequestsDto;
+
+  @ApiProperty({
+    type: PartnerSettlementDto,
+    description: 'Stage B: payment entered the system → delivered / rejected / in progress.',
+  })
+  settlement: PartnerSettlementDto;
+}
+
 // --- SUMMARY RESPONSE --- //
 
 export class PartnerStatisticDto {
@@ -222,6 +352,9 @@ export class PartnerStatisticDto {
 
   @ApiProperty({ type: PartnerReferralDto })
   referral: PartnerReferralDto;
+
+  @ApiProperty({ type: PartnerCompletionDto })
+  completion: PartnerCompletionDto;
 
   @ApiProperty({ type: PartnerStatisticMetaDto })
   meta: PartnerStatisticMetaDto;
