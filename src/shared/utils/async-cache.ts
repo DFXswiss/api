@@ -13,7 +13,25 @@ export enum CacheItemResetPeriod {
 }
 
 export class AsyncCache<T> {
-  private readonly cache = new Map<string, { updated: Date; data: T; update?: Promise<void> }>();
+  // holds complete entries only: an item without data/updated can never exist, so neither an
+  // in-flight nor a discarded update can leave a half-written entry behind
+  private readonly cache = new Map<string, { updated: Date; data: T }>();
+
+  // updates currently in flight, kept separate from the data so that parallel get() calls for the
+  // same id share a single update() call; the promise resolves with the fetched data
+  private readonly updateCalls = new Map<string, Promise<T>>();
+
+  // Monotonically increasing invalidation counter. A refresh captures it when it starts and writes
+  // its result back only if it is still unchanged. Without this guard, a refresh started before an
+  // invalidate() would repopulate the cache after it - with a fresh timestamp - and thereby undo
+  // the invalidation for up to a full item validity period. Callers rely on an invalidation taking
+  // effect immediately (e.g. FiatService.updatePrice() writing a price and then invalidating the
+  // repository cache), so the stale write-back must be dropped instead.
+  // The counter is deliberately instance-wide and not per key: invalidate('a') therefore also
+  // discards an in-flight refresh for key 'b'. That is intentionally conservative and harmless -
+  // the caller still receives its data, only the cache entry is missing and is re-fetched on the
+  // next access.
+  private generation = 0;
 
   constructor(private readonly itemValiditySeconds?: CacheItemResetPeriod) {}
 
@@ -27,35 +45,56 @@ export class AsyncCache<T> {
 
     const entry = this.cache.get(id);
     if (entry?.data == null || forceUpdate?.(entry.data) || entry.updated <= this.expiration) {
-      await this.updateInternal(id, update, fallbackToCache);
+      // the fetched data is handed through instead of being read back from the cache: a concurrent
+      // invalidate() may have discarded the write-back, but the caller must still get its data
+      return this.updateInternal(id, update, fallbackToCache);
     }
 
-    return this.cache.get(id).data;
+    return entry.data;
   }
 
   invalidate(id?: string): void {
-    if (!id) return this.cache.clear();
+    // bumped by both forms, so every refresh that is currently in flight loses its write-back
+    this.generation++;
+
+    if (!id) {
+      this.cache.clear();
+      this.updateCalls.clear();
+      return;
+    }
 
     this.cache.delete(id);
+    this.updateCalls.delete(id);
   }
 
-  private async updateInternal(id: string, update: () => Promise<T>, fallbackToCache: boolean) {
+  private async updateInternal(id: string, update: () => Promise<T>, fallbackToCache: boolean): Promise<T> {
     try {
       // wait for an existing update
-      const entry = this.cache.get(id);
-      if (entry?.update != null) return await entry.update;
+      const pendingCall = this.updateCalls.get(id);
+      if (pendingCall != null) return await pendingCall;
 
-      const updateCall = update()
+      const generation = this.generation;
+
+      // the type is annotated because the finally handler refers to the promise it belongs to
+      const updateCall: Promise<T> = update()
         .then((data) => {
-          this.cache.set(id, { updated: new Date(), data });
+          if (generation === this.generation) this.cache.set(id, { updated: new Date(), data });
+
+          return data;
         })
-        .finally(() => this.cache.set(id, { ...this.cache.get(id), update: undefined }));
+        .finally(() => {
+          // only clear our own in-flight marker, a newer update may have replaced it in the meantime
+          if (this.updateCalls.get(id) === updateCall) this.updateCalls.delete(id);
+        });
 
-      this.cache.set(id, { ...entry, update: updateCall });
+      this.updateCalls.set(id, updateCall);
 
-      await updateCall;
+      return await updateCall;
     } catch (e) {
-      if (!fallbackToCache || !this.cache.has(id)) throw e;
+      const cachedEntry = this.cache.get(id);
+      if (!fallbackToCache || cachedEntry == null) throw e;
+
+      return cachedEntry.data;
     }
   }
 
