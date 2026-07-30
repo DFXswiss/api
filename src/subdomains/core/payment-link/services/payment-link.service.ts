@@ -311,8 +311,10 @@ export class PaymentLinkService {
     return payRequest;
   }
 
+  // Payment amount 0 yields a Lightning entry without amount; a negative payment yields a negative
+  // BTC amount. Either would become NaN or negative minSendable if only existence were checked.
   private isUsableLightningBtcAmount(amount: number | undefined): amount is number {
-    return typeof amount === 'number' && Number.isFinite(amount) && amount > 0;
+    return typeof amount === 'number' && amount > 0;
   }
 
   private async waitForPendingPayment(uniqueId: string, timeout: number): Promise<PaymentLinkPayment> {
