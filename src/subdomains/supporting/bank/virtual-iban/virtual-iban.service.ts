@@ -126,6 +126,13 @@ export class VirtualIbanService {
       where: {
         userData: { id: userData.id },
         currency: { name: currencyName },
+        // A customer can hold several active rows for one currency - e.g. an old Yapeal EUR IBAN
+        // alongside a newer Frick one. Rows whose bank no longer receives must not be returned: this
+        // is a findOne without an ORDER BY, so a retired row can win over a working one, and the
+        // caller then sees "IBAN found, bank does not receive" and gives up. Since the collection
+        // account is no longer a fallback, that surfaced as PersonalIbanIssuanceFailed for every
+        // customer holding a retired Yapeal EUR IBAN.
+        bank: { receive: true },
         active: true,
         status: VirtualIbanStatus.ACTIVE,
       },

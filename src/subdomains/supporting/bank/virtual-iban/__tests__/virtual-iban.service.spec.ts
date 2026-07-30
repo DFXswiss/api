@@ -1377,7 +1377,11 @@ describe('VirtualIbanService', () => {
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
-    it('getActiveForUserAndCurrency keeps the merge-base selection semantics without excluding Frick', async () => {
+    it('getActiveForUserAndCurrency only considers rows whose bank still receives', async () => {
+      // A customer can hold several active rows per currency - a retired Yapeal EUR IBAN next to a
+      // working Frick one. findOne has no ORDER BY, so without this filter the retired row can win,
+      // the caller sees "found, but the bank does not receive", and with no collection-account
+      // fallback left the request fails outright. That hit every holder of a retired Yapeal EUR IBAN.
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
 
       await service.getActiveForUserAndCurrency(userData, 'CHF');
@@ -1386,6 +1390,7 @@ describe('VirtualIbanService', () => {
         where: {
           userData: { id: 7 },
           currency: { name: 'CHF' },
+          bank: { receive: true },
           active: true,
           status: VirtualIbanStatus.ACTIVE,
         },
