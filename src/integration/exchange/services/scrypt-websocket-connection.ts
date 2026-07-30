@@ -88,16 +88,15 @@ export class ScryptUnconfirmedWriteError extends Error {
 export class ScryptOrderNotFoundError extends Error {}
 
 /**
- * A trade older than PENDING_STUCK_AFTER_MINUTES that still reports PENDING_NEW/PENDING_CANCEL/
- * PENDING_REPLACE, whose outstanding reference the venue then answered on an explicit cancel request with
- * `ScryptCancellation.SETTLED` — one of two distinct qualities of answer, per that enum's own documentation:
- * a terminal cancel with nothing filled, or the venue not recognising the reference at all
- * (`SCRYPT_UNKNOWN_ORDER`), which is an inference from its own words rather than a statement about execution.
+ * A trade whose venue reference this process has continuously observed reporting PENDING_NEW/PENDING_CANCEL/
+ * PENDING_REPLACE for longer than PENDING_STUCK_AFTER_MINUTES, and whose outstanding reference the venue then
+ * answered on an explicit cancel request with `ScryptCancellation.SETTLED` — one of two distinct qualities of
+ * answer, per that enum's own documentation: a terminal cancel with nothing filled, or the venue not
+ * recognising the reference at all (`SCRYPT_UNKNOWN_ORDER`), which is an inference from its own words rather
+ * than a statement about execution.
  *
- * Read the age precisely: it is measured from the order's creation, not from when it entered a pending
- * state. A PENDING_CANCEL or PENDING_REPLACE may well have begun moments ago on an order that was open for
- * hours. What the bound establishes is therefore "old enough that waiting further is not the answer", not
- * "stuck in this particular state that long".
+ * The bound measures how long this process has continuously observed the reference as PENDING, beginning
+ * with its first such observation. It does not measure the age of the order itself.
  *
  * Both qualities of SETTLED carry the weight this error rests on, but not for the same reason. A terminal
  * cancel states it outright. `UnknownOrder` rests on the inference documented at SCRYPT_UNKNOWN_ORDER: a

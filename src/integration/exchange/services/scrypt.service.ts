@@ -126,9 +126,9 @@ export class ScryptService extends PricingProvider {
   // clOrdId, value is the end of the last cancel attempt for that reference.
   private readonly pendingCancelAttempts: Map<string, Date> = new Map();
   // Tracks how long THIS process has continuously seen a reference report a PENDING status — see
-  // PENDING_STUCK_AFTER_MINUTES. Keyed by clOrdId, value is when this reference was first observed as pending.
+  // PENDING_STUCK_AFTER_MINUTES. `since` measures that bound; `lastSeen` is only for 24-hour cleanup.
   // Cleared once the reference leaves the pending states, so a later re-entry starts fresh.
-  private readonly pendingSince: Map<string, Date> = new Map();
+  private readonly pendingSince: Map<string, { since: Date; lastSeen: Date }> = new Map();
   private catchUpInProgress = false;
   private catchUpPending = false;
   private lastCatchUpAt?: number;
@@ -963,18 +963,23 @@ export class ScryptService extends PricingProvider {
         // at most one attempt per PENDING_CANCEL_RETRY_MINUTES per reference — otherwise an UNCONFIRMED answer
         // would draw a fresh cancel on every checkRunningOrders call, which runs nominally every ten seconds,
         // and possibly more often within one pass.
-        const pendingSince = this.pendingSince.get(clOrdId);
-        if (!pendingSince) {
-          this.pendingSince.set(clOrdId, new Date());
+        const pendingEntry = this.pendingSince.get(clOrdId);
+        if (!pendingEntry) {
+          const now = new Date();
+          this.pendingSince.set(clOrdId, { since: now, lastSeen: now });
 
+          // Clean up by `lastSeen`, not `since`: a reference may remain continuously pending indefinitely while
+          // still being observed and retried by the PENDING_CANCEL_RETRY_MINUTES throttle below. Cleaning by
+          // `since` would drop an active reference and incorrectly grant a new grace period on its next tick.
           const dayAgo = Util.hoursBefore(24);
-          for (const [id, at] of this.pendingSince) if (at < dayAgo) this.pendingSince.delete(id);
+          for (const [id, entry] of this.pendingSince) if (entry.lastSeen < dayAgo) this.pendingSince.delete(id);
 
           this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
           return false;
         }
 
-        const pendingMinutes = Util.minutesDiff(pendingSince);
+        pendingEntry.lastSeen = new Date();
+        const pendingMinutes = Util.minutesDiff(pendingEntry.since);
         if (pendingMinutes <= PENDING_STUCK_AFTER_MINUTES) {
           this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
           return false;

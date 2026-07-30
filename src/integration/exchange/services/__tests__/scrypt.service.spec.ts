@@ -1445,30 +1445,65 @@ describe('ScryptService', () => {
       const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
-      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(true);
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
 
       expect(cancelSpy).not.toHaveBeenCalled();
     });
 
-    it('keeps waiting on a pending order past its bound when Scrypt will not confirm a cancel', async () => {
-      // the most important case here: without a confirmed cancel the order may still be live in the book, and
-      // giving it up on unconfirmed evidence could let the onFail chain place a second, genuinely competing buy
+    it('keeps a reference that is still being observed, however long it has been pending', async () => {
+      // The prune sweep runs on lastSeen, never on since. A reference the venue has reported pending for
+      // more than a day is not stale — it is still polled every pass and retried under the cancel throttle.
+      // Pruning it by `since` would drop a live entry and hand it a fresh five-minute grace period, so the
+      // stuck order would never reach its bound at all.
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PENDING_NEW,
         remainingQuantity: 5,
       });
-      jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+      const orderCreated = new Date(Date.now() - 30 * 60 * 60 * 1000);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      // pending since well over a day, but seen just now — exactly the case the two timestamps separate
+      (service as any).pendingSince.get('dfx-lm-7').since = new Date(Date.now() - 25 * 60 * 60 * 1000);
+
+      // a different reference entering pending for the first time is what triggers the sweep
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-8',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      await expect(service.checkTrade('dfx-lm-8', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+
+      expect((service as any).pendingSince.has('dfx-lm-7')).toBe(true);
+    });
+
+    it('keeps waiting on a pending order past its bound when Scrypt will not confirm a cancel', async () => {
+      // the most important case here: without a confirmed cancel the order may still be live in the book, and
+      // giving it up on unconfirmed evidence could let the onFail chain place a second, genuinely competing buy;
+      // resolving false alone would not distinguish waiting after an unconfirmed cancel from never trying one
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
 
       // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
       // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
-      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 120 * 60 * 1000))).resolves.toBe(
         false,
       );
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
     });
 
     it('fails a pending order past its bound once Scrypt confirms nothing can execute under it any more', async () => {
@@ -1482,7 +1517,10 @@ describe('ScryptService', () => {
 
       // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
       // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
-      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
 
       await expect(
         service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 6 * 60 * 1000)),
@@ -1501,7 +1539,10 @@ describe('ScryptService', () => {
 
       // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
       // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
-      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 6 * 60 * 1000))).resolves.toBe(
         true,
@@ -1523,7 +1564,10 @@ describe('ScryptService', () => {
 
       // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
       // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
-      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
@@ -1545,7 +1589,10 @@ describe('ScryptService', () => {
 
       // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
       // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
-      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
       expect(cancelSpy).toHaveBeenCalledTimes(1);
