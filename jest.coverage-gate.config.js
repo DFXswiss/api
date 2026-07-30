@@ -12,7 +12,7 @@
 //   2. The whole suite runs, because a file is frequently covered by specs other than its own.
 //
 // The dedicated Frick gate (jest.frick.config.js) stays separate on purpose: it runs ONLY the
-// seven Frick specs and therefore proves that those specs alone reach 100% - an assertion this
+// ten Frick specs and therefore proves that those specs alone reach 100% - an assertion this
 // repo-wide run cannot make, because here any spec may contribute the coverage.
 const base = require('./package.json').jest;
 
@@ -48,15 +48,19 @@ const PINNED_LOGIC = [
   'src/integration/exchange/dto/trade-result.dto.ts',
   'src/integration/exchange/enums/exchange.enum.ts',
   'src/integration/infrastructure/storage/azure-storage.service.ts',
+  'src/integration/infrastructure/storage/mock-storage.service.ts',
+  'src/integration/infrastructure/storage/s3-storage.service.ts',
   'src/integration/infrastructure/storage/storage.factory.ts',
   'src/integration/infrastructure/storage/storage.service.ts',
   'src/integration/kucoin-pay/kucoin-pay.dto.ts',
   'src/integration/lightning/dto/lnd.dto.ts',
   'src/integration/scorechain/dto/scorechain-screening-dto.mapper.ts',
+  'src/integration/scorechain/entities/scorechain-screening.entity.ts',
   'src/integration/scorechain/exceptions/scorechain-object-not-found.exception.ts',
   'src/integration/sift/dto/sift.dto.ts',
   'src/polyfills.ts',
   'src/shared/auth/allow-tfa-pending.decorator.ts',
+  'src/shared/auth/get-jwt.decorator.ts',
   'src/shared/auth/user-role.enum.ts',
   'src/shared/services/typeorm-logger.ts',
   'src/shared/utils/bitbox-ascii.util.ts',
@@ -90,6 +94,7 @@ const PINNED_LOGIC = [
   'src/subdomains/core/buy-crypto/routes/buy/dto/personal-iban-provider.enum.ts',
   'src/subdomains/core/custody/dto/output/custody-order-history.dto.ts',
   'src/subdomains/core/custody/enums/custody.ts',
+  'src/subdomains/core/custody/mappers/custody-asset-balance-dto.mapper.ts',
   'src/subdomains/core/faucet-request/enums/faucet-request.ts',
   'src/subdomains/core/history/dto/history.dto.ts',
   'src/subdomains/core/history/dto/output/chain-report-history.dto.ts',
@@ -105,6 +110,8 @@ const PINNED_LOGIC = [
   'src/subdomains/core/trading/enums/index.ts',
   'src/subdomains/generic/forwarding/controllers/lnurld-forward.controller.ts',
   'src/subdomains/generic/forwarding/controllers/lnurlw-forward.controller.ts',
+  'src/subdomains/generic/gs/dto/db-query.dto.ts',
+  'src/subdomains/generic/gs/dto/gs-trigger-type.enum.ts',
   'src/subdomains/generic/gs/middleware/debug-query-tree-size.middleware.ts',
   'src/subdomains/generic/kyc/dto/ident-result-data.dto.ts',
   'src/subdomains/generic/kyc/dto/kyc-error.enum.ts',
@@ -378,6 +385,7 @@ const PINNED_DECLARATIVE = [
   'src/subdomains/core/sell-crypto/route/dto/sell.dto.ts',
   'src/subdomains/core/sell-crypto/route/dto/unsigned-tx.dto.ts',
   'src/subdomains/core/sell-crypto/route/dto/update-sell.dto.ts',
+  'src/subdomains/generic/gs/dto/support-data.dto.ts',
   'src/subdomains/generic/kyc/dto/input/kyc-query.dto.ts',
   'src/subdomains/generic/kyc/dto/input/update-kyc-step.dto.ts',
   'src/subdomains/generic/kyc/dto/input/update-name-check-log.dto.ts',
@@ -459,7 +467,7 @@ module.exports = {
     '!**/*.d.ts',
     '!jest-env.setup.ts',
     // Test scaffolding that lives outside a __tests__ directory: imported only by specs
-    // (60 and 28 importers respectively, all of them *.spec.ts). Pinning them would make an
+    // (62 and 29 importers respectively, all of them *.spec.ts). Pinning them would make an
     // untested change to a test helper fail the production gate.
     '!shared/utils/test.util.ts',
     '!shared/utils/test.shared.module.ts',

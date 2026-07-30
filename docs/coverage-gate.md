@@ -3,10 +3,10 @@
 This repo runs two coverage gates in CI. They answer different questions, and neither replaces
 the other.
 
-| Gate             | Config                         | Scope                                    | Question it answers                                      |
-| ---------------- | ------------------------------ | ---------------------------------------- | -------------------------------------------------------- |
-| Frick gate       | `jest.frick.config.js`         | 7 Frick files, run by 7 Frick specs only | Do _these specs alone_ fully cover _these files_?        |
-| Coverage ratchet | `jest.coverage-gate.config.js` | 413 files, whole suite                   | Has coverage regressed anywhere it was already complete? |
+| Gate             | Config                         | Scope                                      | Question it answers                                      |
+| ---------------- | ------------------------------ | ------------------------------------------ | -------------------------------------------------------- |
+| Frick gate       | `jest.frick.config.js`         | 10 Frick files, run by 10 Frick specs only | Do _these specs alone_ fully cover _these files_?        |
+| Coverage ratchet | `jest.coverage-gate.config.js` | 421 files, whole suite                     | Has coverage regressed anywhere it was already complete? |
 
 ## What the ratchet is, and what it is not
 
@@ -16,7 +16,7 @@ file, CI fails.
 
 It is a **regression gate**, not a statement about test quality:
 
-- It does not claim the repo is well tested. Overall coverage is 59.45% of statements and 42.43%
+- It does not claim the repo is well tested. Overall coverage is 59.57% of statements and 42.46%
   of branches; the pinned files are the subset that happens to be complete today.
 - It does not verify that a file's _own_ spec covers it. Under a whole-suite run, coverage may
   come from any spec. The Frick gate is the one that makes the stronger per-spec claim, which is
@@ -25,8 +25,8 @@ It is a **regression gate**, not a statement about test quality:
   ratchet only protects files already on the list, and that list grows by hand (see "How the list
   grows"). That is the price of the threshold approach.
 
-Of the 413 pinned files, **225 carry real logic** (they have functions and/or branches) and
-**188 are purely declarative today** (NestJS modules, constant files with neither). The two groups
+Of the 421 pinned files, **232 carry real logic** (they have functions and/or branches) and
+**189 are purely declarative today** (NestJS modules, constant files with neither). The two groups
 are kept visibly separate in the config so the count is not mistaken for test depth.
 
 Pinning the declarative ones is deliberate and not vacuous. Istanbul reports a metric with a total
@@ -35,7 +35,7 @@ and fails the threshold. Statements and lines are pinned as well, so even top-le
 code that no test reaches turns the gate red.
 
 Test scaffolding is excluded. `shared/utils/test.util.ts` and `shared/utils/test.shared.module.ts`
-live outside a `__tests__` directory but are imported only by specs (60 and 28 importers, all
+live outside a `__tests__` directory but are imported only by specs (62 and 29 importers, all
 `*.spec.ts`). They are filtered out of `collectCoverageFrom`, so an untested change to a test
 helper cannot fail a production gate.
 
@@ -67,7 +67,7 @@ statement executed by a suite counts as executed no matter which worker ran it. 
 cannot turn a covered file into an uncovered one, which is why the CI script does not serialise.
 
 The gate runs the whole suite under full compilation, unlike the sharded `test` job that splits
-the suite three ways and the Frick gate that runs seven specs. Exact per-file numbers are what
+the suite three ways and the Frick gate that runs ten specs. Exact per-file numbers are what
 that costs in run time.
 
 ## Where the gate runs
@@ -150,9 +150,9 @@ warm caches, is a good deal slower than the 1.5 min it takes in CI.
 
 ## Current state
 
-Measured on develop @ e6139b860.
+Measured on develop @ 045e6f8d6 with this PR's tests applied.
 
-The collection glob matches 1,656 files under `src/`. 1,605 of them contain instrumentable code
+The collection glob matches 1,657 files under `src/`. 1,606 of them contain instrumentable code
 and appear in the report. The remaining 51 compile to no executable statements and therefore
 cannot be measured or pinned: 49 are type-only (interfaces, type aliases, response shapes), one
 consists entirely of commented-out code (`integration/exchange/services/p2b.service.ts`) and one
@@ -161,11 +161,11 @@ deleting them would be a separate cleanup.
 
 | Class    | Files | Meaning                                         |
 | -------- | ----- | ----------------------------------------------- |
-| Complete | 413   | Pinned by the ratchet                           |
-| Partial  | 1,062 | Some coverage, below 100 on at least one metric |
-| None     | 130   | No coverage at all                              |
+| Complete | 421   | Pinned by the ratchet                           |
+| Partial  | 1,058 | Some coverage, below 100 on at least one metric |
+| None     | 127   | No coverage at all                              |
 
-Totals: statements 59.45%, branches 42.43%, functions 34.09%, lines 59.81%.
+Totals: statements 59.57%, branches 42.46%, functions 34.16%, lines 59.93%.
 
 Coverage is very unevenly distributed. `subdomains/supporting/payout` has 69 of 102 files
 complete; `subdomains/supporting/dex` has 6 of 170, `subdomains/supporting/payin` 6 of 102, and
@@ -175,20 +175,28 @@ six under `subdomains/generic/admin` have no coverage at all.
 ## How the list grows
 
 Any PR may add files to `coverageThreshold` once they reach 100%.
-`jest.coverage-gate.config.js` holds the 413 paths in two arrays, `PINNED_LOGIC` (logic-carrying
+`jest.coverage-gate.config.js` holds the 421 paths in two arrays, `PINNED_LOGIC` (logic-carrying
 files) and `PINNED_DECLARATIVE` (purely declarative files), from which `coverageThreshold` is
 generated. Adding a file means appending its path to the matching array, not writing out a
 `coverageThreshold` object entry by hand.
 
-The intended next step is the set already within reach: **29 files sit at ≥90% on all four
+The intended next step is the set already within reach: **26 files sit at ≥90% on all four
 metrics**, several of them one or two uncovered branches away. Examples:
 
-| File                                                                        | branches | functions | lines | statements |
-| --------------------------------------------------------------------------- | -------- | --------- | ----- | ---------- |
-| `src/subdomains/core/accounting/services/ledger-cutover.service.ts`         | 98.55    | 100       | 99.33 | 99.1       |
-| `src/subdomains/core/accounting/services/consumers/exchange-tx.consumer.ts` | 96.29    | 100       | 100   | 99.54      |
-| `src/subdomains/core/accounting/services/ledger-reconciliation.service.ts`  | 95.52    | 100       | 99.41 | 99.48      |
-| `src/integration/infrastructure/storage/s3-storage.service.ts`              | 95       | 100       | 100   | 100        |
+| File                                                                         | branches | functions | lines | statements |
+| ---------------------------------------------------------------------------- | -------- | --------- | ----- | ---------- |
+| `src/subdomains/core/accounting/services/ledger-cutover.service.ts`          | 98.55    | 100       | 99.33 | 99.1       |
+| `src/subdomains/core/accounting/services/consumers/exchange-tx.consumer.ts`  | 96.29    | 100       | 100   | 99.54      |
+| `src/subdomains/core/accounting/services/ledger-reconciliation.service.ts`   | 95.52    | 100       | 99.41 | 99.48      |
+| `src/subdomains/core/accounting/services/consumers/payout-order.consumer.ts` | 93.47    | 100       | 100   | 99.44      |
+
+Not every remaining branch is reachable by a test. Some of the open branches are defensive
+fallbacks that cannot fire at runtime — for example `name.split('/').pop() ?? name` (split
+always returns at least one element) and `+(raw.legCount ?? 0)` over a SQL `COUNT(*)`, which is
+never null. Covering such a branch would require inventing a mock the data source cannot
+actually produce, which proves nothing. The correct fix is to remove the unreachable fallback,
+which is also what the project's rule against silent fallbacks calls for.
+`ledger-mark-to-market.service.ts` sits at 92.3% branches for exactly this reason.
 
 To regenerate the full picture, run the gate and read `coverage-gate/coverage-summary.json`.
 
@@ -196,8 +204,8 @@ To regenerate the full picture, run the gate and read `coverage-gate/coverage-su
 below 100, the expected response is to extend the tests. Unpinning is an explicit decision that
 belongs in the PR description, not a silent edit.
 
-That rule stays hard for the 225 logic-carrying files. A foreseeable friction case is different:
-when one of the 188 purely declarative files (a NestJS module, a constants file) first gains
+That rule stays hard for the 232 logic-carrying files. A foreseeable friction case is different:
+when one of the 189 purely declarative files (a NestJS module, a constants file) first gains
 executable logic — for example a `useFactory` on a module — the function metric jumps from 0/0 to
 0/N and the gate turns red. Tests remain the preferred fix, but unpinning that one file is an
 allowed outcome if the PR description names and justifies it (not as a silent edit). For

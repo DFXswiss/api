@@ -67,7 +67,7 @@ export class MockStorageService extends StorageService {
       };
 
     // Fallback to a dummy file (parity with the previous mock) so LOC document reads return bytes.
-    const fileName = name.split('/').pop() ?? name;
+    const fileName = name.slice(name.lastIndexOf('/') + 1);
     const mapping = DUMMY_FILE_MAP[fileName];
     if (mapping)
       return {
