@@ -36,11 +36,12 @@ export class MonitorEventLoopService implements OnModuleDestroy {
       )}ms / max ${toMs(this.histogram.max)}ms / utilization ${(intervalElu.utilization * 100).toFixed(1)}%`,
     );
 
-    // Advance both windows only after a successful log, so utilization and delay always
-    // describe the same interval. Advancing earlier would widen the delay window alone
-    // if logging threw — the cron wrapper swallows the error and the next line would mix
-    // a 10s utilization window with a 20s delay window.
-    this.previousElu = currentElu;
+    // Both windows advance only after a successful log, so utilization and delay always
+    // describe the same interval. The reset runs first: it is the only one of these two
+    // steps that can realistically throw (a native call), while the plain field assignment
+    // below it practically never does. If the reset throws, the ELU reference is left
+    // untouched too, so the two windows stay aligned instead of drifting apart by one line.
     this.histogram.reset();
+    this.previousElu = currentElu;
   }
 }

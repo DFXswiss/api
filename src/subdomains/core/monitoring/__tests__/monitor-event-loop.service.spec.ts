@@ -95,5 +95,41 @@ describe('MonitorEventLoopService', () => {
         'EventLoop delay: mean 28ms / p95 46ms / max 202ms / utilization 65.0%',
       );
     });
+
+    it('keeps the ELU reference and histogram untouched when logging throws, then recovers on the next run', () => {
+      // Fresh fixtures for this test's two runs, distinct from the 0.7 / 0.873 / 0.65 used
+      // above, still satisfying utilization = active / (idle + active).
+      const failingCurrent = { idle: 200, active: 800, utilization: 0.8 };
+      const failingDelta = { idle: 100, active: 700, utilization: 0.875 };
+      const recoveringCurrent = { idle: 500, active: 1500, utilization: 0.75 };
+      const recoveringDelta = { idle: 300, active: 500, utilization: 0.625 };
+
+      // `service` (built in the outer beforeEach) already consumed the shared default queue's
+      // first snapshot for the field initializer. Override the mock for this test's own two
+      // monitorEventLoop() runs so each eventLoopUtilization() call site — the no-arg call for
+      // currentElu and the two-arg call for intervalElu — is served explicitly, in call order.
+      // A trailing implementation throws instead of silently returning undefined for any call
+      // beyond the four expected ones (no stale value is invented for an unaccounted call).
+      mockEventLoopUtilization
+        .mockReset()
+        .mockImplementationOnce(() => failingCurrent)
+        .mockImplementationOnce(() => failingDelta)
+        .mockImplementationOnce(() => recoveringCurrent)
+        .mockImplementationOnce(() => recoveringDelta)
+        .mockImplementation(() => {
+          throw new Error('Unexpected eventLoopUtilization call in monitor-event-loop error-path test');
+        });
+
+      infoSpy.mockImplementationOnce(() => {
+        throw new Error('log failed');
+      });
+
+      expect(() => service.monitorEventLoop()).toThrow('log failed');
+      expect(mockHistogram.reset).not.toHaveBeenCalled();
+
+      service.monitorEventLoop();
+
+      expect(mockEventLoopUtilization).toHaveBeenCalledWith(recoveringCurrent, initialElu);
+    });
   });
 });
