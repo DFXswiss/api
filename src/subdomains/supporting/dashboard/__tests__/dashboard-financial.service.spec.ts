@@ -1,20 +1,27 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
+import { AssetLog, BalancesByFinancialType } from '../../log/dto/log.dto';
 import { Log } from '../../log/log.entity';
 import { FinancialLogSummary } from '../../log/log.repository';
 import { LogService } from '../../log/log.service';
 import { DashboardFinancialService } from '../dashboard-financial.service';
+import { LatestBalanceResponseDto } from '../dto/financial-log.dto';
+import { LatestBalanceStore } from '../latest-balance.store';
 
 describe('DashboardFinancialService', () => {
   let service: DashboardFinancialService;
   let logService: LogService;
   let assetService: AssetService;
+  let latestBalanceStore: LatestBalanceStore;
 
   beforeEach(async () => {
     logService = createMock<LogService>();
     assetService = createMock<AssetService>();
+    latestBalanceStore = createMock<LatestBalanceStore>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -22,6 +29,7 @@ describe('DashboardFinancialService', () => {
         { provide: LogService, useValue: logService },
         { provide: AssetService, useValue: assetService },
         { provide: RefRewardService, useValue: createMock<RefRewardService>() },
+        { provide: LatestBalanceStore, useValue: latestBalanceStore },
       ],
     }).compile();
 
@@ -291,6 +299,183 @@ describe('DashboardFinancialService', () => {
       expect(getSummariesSpy).toHaveBeenCalledWith(7, from, true, undefined, undefined, undefined, false);
       expect('balancesByType' in result.entries[0]).toBe(false);
       expect(JSON.parse(JSON.stringify(result.entries[0]))).not.toHaveProperty('balancesByType');
+    });
+  });
+
+  describe('getLatestBalance (write-through store read)', () => {
+    it('returns undefined when the store is empty and never touches the database', async () => {
+      jest.spyOn(latestBalanceStore, 'get').mockReturnValue(undefined);
+      const getLatestFinancialLogSpy = jest.spyOn(logService, 'getLatestFinancialLog');
+      const getAssetsByIdSpy = jest.spyOn(assetService, 'getAssetsById');
+
+      const result = await service.getLatestBalance();
+
+      expect(result).toBeUndefined();
+      expect(getLatestFinancialLogSpy).toHaveBeenCalledTimes(0);
+      expect(getAssetsByIdSpy).toHaveBeenCalledTimes(0);
+    });
+
+    it('returns exactly the value held in the store (pure store read)', async () => {
+      const cached: LatestBalanceResponseDto = {
+        timestamp: new Date('2026-07-14T12:00:00Z'),
+        byType: [{ name: 'Crypto', plusBalanceChf: 100, minusBalanceChf: 0, netBalanceChf: 100 }],
+        byBlockchain: [{ name: 'Ethereum', plusBalanceChf: 100, minusBalanceChf: 0, netBalanceChf: 100 }],
+      };
+      jest.spyOn(latestBalanceStore, 'get').mockReturnValue(cached);
+
+      await expect(service.getLatestBalance()).resolves.toBe(cached);
+    });
+  });
+
+  describe('setLatestBalance (aggregation write-through)', () => {
+    it('aggregates byType / byBlockchain (Scrypt split, 5000 CHF Other thresholds) and writes the result into the store', () => {
+      // Fixture designed so every aggregation branch is exercised once:
+      //
+      // byType:
+      //   Crypto: plus 10000 / minus 2000 -> net 8000
+      //   Fiat:   plus 3000  / minus 500  -> net 2500
+      //   sorted by net desc => Crypto, Fiat
+      //
+      // Assets / blockchains:
+      //   id=1 Ethereum ETH:   total 10 * priceChf 1000 = 10000 CHF  (large asset within Ethereum)
+      //   id=2 Ethereum DUST:  total 1  * priceChf 100  = 100 CHF    (small asset within Ethereum -> assets.Other)
+      //     Ethereum total = 10100 >= 5000 -> kept; assets: { ETH: 10000, Other: 100 }
+      //   id=3 Bitcoin BTC_SMALL: total 1 * priceChf 2000 = 2000 CHF
+      //     Bitcoin total = 2000 < 5000 -> whole chain folded into top-level Other; assets: { BTC_SMALL: 2000 }
+      //     2000 < 5000 so filteredOtherAssets.Other = 2000
+      //   id=4 Scrypt SCRYPT: liquidity 5 + custom 1 = spot 6 * 3000 = 18000 CHF -> Scrypt Spot
+      //                       pending 2 * 3000 = 6000 CHF -> Scrypt Pending
+      //
+      // byBlockchain before sort: Ethereum 10100, Scrypt Spot 18000, Scrypt Pending 6000
+      // after sort by net desc: Scrypt Spot, Ethereum, Scrypt Pending; Other 2000 appended last (not sorted)
+      const timestamp = new Date('2026-07-14T12:00:00Z');
+      const balancesByFinancialType: BalancesByFinancialType = {
+        Crypto: { plusBalance: 1, plusBalanceChf: 10000, minusBalance: 0, minusBalanceChf: 2000 },
+        Fiat: { plusBalance: 1, plusBalanceChf: 3000, minusBalance: 0, minusBalanceChf: 500 },
+      };
+      const assetLog: AssetLog = {
+        '1': { priceChf: 1000, plusBalance: { total: 10 }, minusBalance: { total: 0 } },
+        '2': { priceChf: 100, plusBalance: { total: 1 }, minusBalance: { total: 0 } },
+        '3': { priceChf: 2000, plusBalance: { total: 1 }, minusBalance: { total: 0 } },
+        '4': {
+          priceChf: 3000,
+          plusBalance: {
+            total: 8,
+            liquidity: { total: 5 },
+            custom: { total: 1 },
+            pending: { total: 2 },
+          },
+          minusBalance: { total: 0 },
+        },
+      };
+      const assets = [
+        { id: 1, name: 'ETH', blockchain: Blockchain.ETHEREUM },
+        { id: 2, name: 'DUST', blockchain: Blockchain.ETHEREUM },
+        { id: 3, name: 'BTC_SMALL', blockchain: Blockchain.BITCOIN },
+        { id: 4, name: 'SCRYPT', blockchain: 'Scrypt' as Blockchain },
+      ] as Asset[];
+
+      const expected: LatestBalanceResponseDto = {
+        timestamp,
+        byType: [
+          { name: 'Crypto', plusBalanceChf: 10000, minusBalanceChf: 2000, netBalanceChf: 8000 },
+          { name: 'Fiat', plusBalanceChf: 3000, minusBalanceChf: 500, netBalanceChf: 2500 },
+        ],
+        byBlockchain: [
+          {
+            name: 'Scrypt Spot',
+            plusBalanceChf: 18000,
+            minusBalanceChf: 0,
+            netBalanceChf: 18000,
+            assets: { SCRYPT: 18000 },
+          },
+          {
+            name: 'Ethereum',
+            plusBalanceChf: 10100,
+            minusBalanceChf: 0,
+            netBalanceChf: 10100,
+            assets: { ETH: 10000, Other: 100 },
+          },
+          {
+            name: 'Scrypt Pending',
+            plusBalanceChf: 6000,
+            minusBalanceChf: 0,
+            netBalanceChf: 6000,
+            assets: { SCRYPT: 6000 },
+          },
+          {
+            name: 'Other',
+            plusBalanceChf: 2000,
+            minusBalanceChf: 0,
+            netBalanceChf: 2000,
+            assets: { Other: 2000 },
+          },
+        ],
+      };
+
+      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+
+      expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
+    });
+
+    it('treats a priceless asset (priceChf: null) neutrally: neither its own blockchain group nor a shared one is skewed', () => {
+      // asset.approxPriceChf is a nullable `double precision` column in production (144 of 430 rows
+      // are NULL there; 136 of those have no financialType at all) -- the AssetLog[id].priceChf: number
+      // type does not reflect that. This is a regression guard for the round-trip removed in this PR:
+      // a priceless asset's contribution is `total * null`, which JS coerces to `total * 0 = 0` (NOT
+      // NaN -- NaN only occurs for `undefined`, which is not the real-world case here). So it must
+      // vanish cleanly whether it sits alone on a blockchain or next to a priced asset on the same one.
+      //
+      // Fall A -- GHOST alone on Polygon, no price:
+      //   plusChf = 5 * null = 0 -> Math.round(0) = 0 -> the `rounded <= 0` clause skips the group
+      //   entirely. Polygon must not show up anywhere in byBlockchain (not even folded into Other).
+      //
+      // Fall B -- GOOD (priced) and BAD (priceless) both on Ethereum:
+      //   GOOD: 2 * 4000 = 8000 CHF
+      //   BAD:  999 * null = 0 CHF
+      //   Ethereum total = 8000 + 0 = 8000 CHF -> >= 5000 THRESHOLD -> kept as its own group, clearly
+      //   above the threshold, exactly as if BAD did not exist.
+      //   assets breakdown: GOOD (8000, >= 5000) stays its own key; BAD contributes 0, which is
+      //   < 5000 so it is folded into the local `assetOther` sum -- but that sum stays 0, so no
+      //   synthetic 'Other' key is added either. No NaN/null anywhere in plusBalanceChf/netBalanceChf.
+      const timestamp = new Date('2026-07-14T12:00:00Z');
+      const balancesByFinancialType: BalancesByFinancialType = {};
+      const assetLog: AssetLog = {
+        '101': {
+          priceChf: null as unknown as number,
+          plusBalance: { total: 5 },
+          minusBalance: { total: 0 },
+        },
+        '102': { priceChf: 4000, plusBalance: { total: 2 }, minusBalance: { total: 0 } },
+        '103': {
+          priceChf: null as unknown as number,
+          plusBalance: { total: 999 },
+          minusBalance: { total: 0 },
+        },
+      };
+      const assets = [
+        { id: 101, name: 'GHOST', blockchain: Blockchain.POLYGON },
+        { id: 102, name: 'GOOD', blockchain: Blockchain.ETHEREUM },
+        { id: 103, name: 'BAD', blockchain: Blockchain.ETHEREUM },
+      ] as Asset[];
+
+      const expected: LatestBalanceResponseDto = {
+        timestamp,
+        byType: [],
+        byBlockchain: [
+          {
+            name: 'Ethereum',
+            plusBalanceChf: 8000,
+            minusBalanceChf: 0,
+            netBalanceChf: 8000,
+            assets: { GOOD: 8000 },
+          },
+        ],
+      };
+
+      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+
+      expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
     });
   });
 });
