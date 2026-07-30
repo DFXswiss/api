@@ -175,11 +175,12 @@ export class ScryptService extends PricingProvider {
     // A warm-up that loaded BOTH streams is exactly what a catch-up round does, so it claims the first slot and a
     // reconnect right after boot waits it out instead of repeating it. If either leg failed the caches are not
     // whole: without an immediate retry the only refill path is onReconnect, so a stable socket after a failed
-    // warm-up would leave balanceTransactions / executionReports empty forever. confirmWithdrawalAbsent's
-    // anchor check then returns false permanently and cancelOutstanding never settles — exactly the forbidden
-    // "Scrypt + waiting on a human" combination. Reuse catchUpAfterReconnect (both streams, existing pacing /
-    // retry) rather than inventing a second timer type; trigger is only a true Promise rejection on a leg,
-    // never "empty array" (that is a successful warm-up with no rows).
+    // warm-up would leave balanceTransactions / executionReports empty forever. An empty cache no longer blocks
+    // confirmWithdrawalAbsent (absence is decided from the fresh venue reply + live recheck only), but findWithdrawal
+    // and that live recheck still benefit from a filled cache, so incomplete boot warm-up must still be retried
+    // promptly rather than waiting for a human or a later reconnect. Reuse catchUpAfterReconnect (both streams,
+    // existing pacing / retry) rather than inventing a second timer type; trigger is only a true Promise rejection
+    // on a leg, never "empty array" (that is a successful warm-up with no rows).
     void Promise.all([executionWarmUp, balanceWarmUp]).then(([executionLoaded, balanceLoaded]) => {
       if (executionLoaded && balanceLoaded) {
         this.lastCatchUpAt = Date.now();
@@ -240,7 +241,17 @@ export class ScryptService extends PricingProvider {
   // Bulk (age-bounded) warm-up/catch-up path only — live subscriptions must cache directly via cacheExecutionReport/cacheBalanceTransaction, see constructor.
   private applyBalanceTransactions(transactions: ScryptBalanceTransaction[]): void {
     const cacheMaxAge = Util.daysBefore(365);
-    for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
+    for (const t of transactions) {
+      // Field priority matches the rest of this file: Timestamp first, TransactTime only when Timestamp is missing.
+      // Missing or unreadable stamp → cache conservatively (never drop). The bulk age filter must not discard a
+      // withdrawal we later need for findWithdrawal or the live recheck in confirmWithdrawalAbsent — a dropped
+      // row is a payout we cannot rediscover. This is a deliberate, documented fallback (cache on doubt), not a
+      // silent default.
+      const raw = t.Timestamp ?? t.TransactTime;
+      if (!raw || Number.isNaN(new Date(raw).getTime()) || new Date(raw) >= cacheMaxAge) {
+        this.cacheBalanceTransaction(t);
+      }
+    }
   }
 
   // After a WS reconnect, re-fetch balance transactions + execution reports so an event missed during the outage
@@ -611,51 +622,34 @@ export class ScryptService extends PricingProvider {
   }
 
   /**
-   * Confirm that the venue's full transaction history has no record of this withdrawal reference.
+   * Confirm that the venue's transaction history has no record of this withdrawal reference.
    *
-   * Scrypt has no cancel/storno operation for withdrawals. A quarantined withdrawal therefore cannot be
-   * cleared the way a trade is (cancel every reference). The only safe automatic exit is confirmed absence:
-   * the venue returned a complete history and this `clReqId` is not in it. That is weaker than "the request
-   * never arrived" — it is only "nothing under this reference exists in a history we can trust" — and the
-   * caller abandons on that basis rather than claiming a not-sent release.
+   * Scrypt has no cancel/storno for withdrawals. A quarantined withdrawal therefore cannot be cleared the way
+   * a trade is. The automatic exit is confirmed absence: a fresh bulk fetch returned a non-empty history and
+   * this `clReqId` is not in it. The caller abandons on that basis rather than claiming a not-sent release.
    *
-   * No cache shortcut is allowed. `findWithdrawal` may return a terminal cached row early because a positive
-   * match answers "does this exist?". Here the question is the opposite — "is there demonstrably nothing?" —
-   * and only a fresh, complete bulk fetch can answer that. A stale cache miss would be a guess.
+   * No local consistency gate / cache-anchor check. Scrypt withdrawal destinations are exclusively DFX-owned
+   * addresses ("Auszahlungsadressen bei Scrypt gehören alle ausnahmslos der DFX AG"). A second payout would
+   * move funds only between DFX accounts — an internal rebooking, not a loss and not a compliance incident
+   * ("eine doppelte Auszahlung wäre absolut akzeptabel"). The former gates traded that accepted non-risk for a
+   * forbidden permanent wait: they required cache anchors that can be structurally absent (no row with
+   * ClReqID, no row older than the order, 365-day cache bound), so confirmWithdrawalAbsent returned false
+   * forever and the order waited on a human to refill the cache. "Die Kombination aus Scrypt und Warten auf
+   * einen Menschen ist NICHT ERLAUBT."
    *
-   * The consistency gate — not the age bound — is the safety barrier. Before concluding absence, every
-   * cached transaction that falls inside the caller's window (or has no readable timestamp) must reappear in
-   * the fresh response. Without that gate an incomplete or truncated reply that simply omits the sought
-   * reference would be read as "does not exist", the order would be abandoned, and a later replan could call
-   * `withdraw()` again. That path only checks `minAmount > balance` and then takes `min(maxAmount, balance)`,
-   * so with enough remaining balance a second attempt goes through — a double payout. The gate exists to
-   * make that impossible from an untrustworthy history.
+   * Incomplete or truncated venue replies (pagination cut-off, partial answer) can now cause a second
+   * withdrawal. That is the deliberate trade-off accepted by the orderer — not an overlooked gap.
    *
-   * The gate alone is not enough when the process cache is empty or holds only rows outside `since`. An
-   * empty `previouslyCached` (restart, failed warm-up, catch-up not yet done) makes the in-window loop a
-   * no-op, so a non-empty but incomplete venue reply would pass as "confirmed absence". The same hole opens
-   * when every cached id is older than `since` and the window is empty: the in-window gate is trivially
-   * satisfied. Both cases refuse with `false` + warn until the cache has an anchor — the overall newest
-   * known `ClReqID` (by readable timestamp over all cached rows, independent of `since`) must reappear in
-   * the fresh history. That is a deferral, not a permanent wait on a human: warm-up and reconnect catch-up
-   * refill the cache within seconds, the next automatic pass re-checks, and the order waits on the venue
-   * (or the next cache fill), never on an operator.
+   * Remaining `false` branches react only to an absent or empty venue answer (fetch error, empty history),
+   * not to a missing local anchor. A venue that permanently returns nothing is a total integration failure;
+   * this one order is then the least of the problems, and the existing warm-up / reconnect retry (constructor)
+   * recovers automatically without a human.
    *
-   * `since` only limits which *cached* rows the in-window gate insists on seeing again: a venue that drops
-   * ancient history must not permanently fail that gate on a long-irrelevant cached id. The overall-newest
-   * anchor is separate and is never filtered by `since`. A failed gate or missing anchor always warns with
-   * the missing references named, so a permanently broken fetch is visible rather than an invisible wait.
-   *
-   * @returns true only when the fresh history is non-empty, has a usable cache anchor present in that
-   * history, passes the in-window consistency gate, and does not contain `clReqId`. false on fetch failure,
-   * empty history, missing anchor, gate failure, or when the reference is present.
+   * @returns true when the fresh history is non-empty, the live cache does not hold `clReqId` after the fetch,
+   * and that history does not contain `clReqId`. false on fetch failure, empty history, live-race hit, or when
+   * the reference is present in the fresh reply.
    */
-  async confirmWithdrawalAbsent(clReqId: string, since: Date): Promise<boolean> {
-    // Snapshot before the fetch: the gate asks whether rows we already knew still appear in the answer we
-    // are about to trust. Reading the map after the await would mix in anything concurrent writers added
-    // during the round-trip, which is not what "already stood in the cache before this fetch" means.
-    const previouslyCached = [...this.balanceTransactions.values()];
-
+  async confirmWithdrawalAbsent(clReqId: string): Promise<boolean> {
     let fresh: ScryptBalanceTransaction[];
     try {
       fresh = await this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION);
@@ -673,128 +667,11 @@ export class ScryptService extends PricingProvider {
 
     const freshIds = new Set(fresh.map((t) => t.ClReqID).filter((id): id is string => Boolean(id)));
 
-    // Anchor before the in-window gate: without at least one known ClReqID in the process cache, the
-    // consistency loop below is a no-op and a partial fresh history would be upgraded to "confirmed
-    // absence". Defer (false + warn) until warm-up / catch-up has filled the cache — automatic, not human.
-    const cachedWithId = previouslyCached.filter((t): t is ScryptBalanceTransaction & { ClReqID: string } =>
-      Boolean(t.ClReqID),
-    );
-    if (!cachedWithId.length) {
-      this.logger.warn(
-        `confirmWithdrawalAbsent(${clReqId}): no cached balance transactions with ClReqID — cannot anchor consistency gate (empty cache after restart/warm-up; deferring until cache is filled)`,
-      );
-      return false;
-    }
-
-    // Overall newest known transaction (independent of `since`) must appear in fresh. A complete history
-    // necessarily includes the newest id we already saw; without this check, a `since` window with no other
-    // cached rows would pass the in-window gate the same way an empty cache does.
-    const readableTime = (t: ScryptBalanceTransaction): number | null => {
-      const raw = t.Timestamp ?? t.TransactTime;
-      if (!raw) return null;
-      const ts = new Date(raw).getTime();
-      return Number.isNaN(ts) ? null : ts;
-    };
-    const anyReadable = cachedWithId.some((t) => readableTime(t) != null);
-    let anchorIds: string[];
-    if (anyReadable) {
-      let bestTs = -Infinity;
-      let bestId = cachedWithId[0].ClReqID;
-      for (const t of cachedWithId) {
-        const ts = readableTime(t);
-        if (ts != null && ts >= bestTs) {
-          bestTs = ts;
-          bestId = t.ClReqID;
-        }
-      }
-      anchorIds = [bestId];
-    } else {
-      // No readable stamps: every cached ClReqID is an anchor — a complete reply must contain them all.
-      anchorIds = [...new Set(cachedWithId.map((t) => t.ClReqID))];
-    }
-    const missingAnchors = anchorIds.filter((id) => !freshIds.has(id));
-    if (missingAnchors.length) {
-      this.logger.warn(
-        `confirmWithdrawalAbsent(${clReqId}): newest/overall cache anchor missing from fresh history: ${missingAnchors.join(
-          ', ',
-        )}`,
-      );
-      return false;
-    }
-
-    // Old anchor (independent of the newest-anchor check above): force the fresh reply to span the window
-    // relative to the known cache, not only its tip. fetchAll treats a missing `next` as end-of-history with
-    // no cursor/sequence check, so a truncated pagination can look complete. Warm-up, catch-up and this
-    // fetch all share that client — a common-mode suffix cut leaves the same (missing) older slice out of
-    // both cache and fresh. The newest-anchor only guards recency; it still passes when every *recent*
-    // cached id reappears and only older rows (including a potential withdrawal under clReqId) are gone.
-    //
-    // What this gate covers: among cached rows with a readable stamp strictly older than `since`, the
-    // oldest such ClReqID must reappear in fresh. That forces the answer to reach back past `since` and
-    // detects a pagination suffix truncation relative to the known cache in both directions (newest +
-    // oldest anchors together).
-    //
-    // What it does NOT cover: a gap *in the middle* of history that is missing from both the local cache
-    // and the fresh reply (e.g. never successfully cached). There is nothing local to compare against, so
-    // that hole is not client-detectable — no overclaim here.
-    const olderThanSince = cachedWithId
-      .map((t) => ({ t, ts: readableTime(t) }))
-      .filter(
-        (x): x is { t: ScryptBalanceTransaction & { ClReqID: string }; ts: number } =>
-          x.ts != null && x.ts < since.getTime(),
-      );
-    if (!olderThanSince.length) {
-      this.logger.warn(
-        `confirmWithdrawalAbsent(${clReqId}): no cached balance transaction older than since (${since.toISOString()}) — old anchor unavailable; deferring until cache spans the window`,
-      );
-      return false;
-    }
-    let oldestTs = Infinity;
-    let oldestId = olderThanSince[0].t.ClReqID;
-    for (const { t, ts } of olderThanSince) {
-      if (ts < oldestTs) {
-        oldestTs = ts;
-        oldestId = t.ClReqID;
-      }
-    }
-    if (!freshIds.has(oldestId)) {
-      this.logger.warn(
-        `confirmWithdrawalAbsent(${clReqId}): old cache anchor ${oldestId} missing from fresh history — possible truncated pagination; cannot conclude absence`,
-      );
-      return false;
-    }
-
-    const missingFromFresh: string[] = [];
-    for (const cached of previouslyCached) {
-      if (!cached.ClReqID) continue;
-
-      // Spec-allowed field priority: Timestamp first, TransactTime only when Timestamp is missing. A missing
-      // or unparseable stamp is never a reason to skip — those rows are always checked (conservative).
-      const raw = cached.Timestamp ?? cached.TransactTime;
-      if (raw) {
-        const ts = new Date(raw);
-        if (!Number.isNaN(ts.getTime()) && ts < since) continue;
-      }
-
-      if (!freshIds.has(cached.ClReqID)) missingFromFresh.push(cached.ClReqID);
-    }
-
-    // Gate first, independently of whether clReqId itself is missing. An incomplete answer that also lacks
-    // the sought reference must not be upgraded to "confirmed absent".
-    if (missingFromFresh.length) {
-      this.logger.warn(
-        `confirmWithdrawalAbsent(${clReqId}): consistency gate failed — cached references missing from fresh history: ${missingFromFresh.join(
-          ', ',
-        )}`,
-      );
-      return false;
-    }
-
-    // previouslyCached was snapshotted before fetchAll; freshIds only reflects that in-flight reply.
-    // A live subscription (or catch-up) can write clReqId into this.balanceTransactions while the bulk
-    // fetch is still open — previouslyCached and freshIds both miss it, and returning true would let the
-    // caller abandon and replan a second withdrawal. Only a re-read of the LIVE map after the await sees
-    // that race; if the id is there, absence is not confirmed (false, not a hard failure).
+    // A live subscription (or catch-up) can write clReqId into this.balanceTransactions while the bulk fetch
+    // is still open — freshIds then misses it, and returning true would let the caller abandon and replan a
+    // second withdrawal. Only a re-read of the LIVE map after the await sees that race; if the id is there,
+    // absence is not confirmed (false, not a hard failure). This is the one remaining positive observation
+    // that can still block absence confirmation without requiring a local cache anchor.
     if (this.balanceTransactions.has(clReqId)) {
       this.logger.warn(
         `confirmWithdrawalAbsent(${clReqId}): reference appeared in the live cache while the history fetch was in flight — cannot conclude absence`,

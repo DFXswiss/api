@@ -301,7 +301,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
 
     if (order.action.command === ScryptAdapterCommands.WITHDRAW) {
-      const absent = await this.scryptService.confirmWithdrawalAbsent(order.correlationId, order.created);
+      const absent = await this.scryptService.confirmWithdrawalAbsent(order.correlationId);
       return absent ? 'the venue returned its full transaction history and has no record of this withdrawal' : null;
     }
 
@@ -325,8 +325,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     // When tradeAsset is present in paramMap we therefore take the same active cancelIfOutstanding path as
     // a known command (incl. UnknownOrder inference inside cancelIfOutstanding). Only when parseTradeParams
     // cannot yield a tradeAsset is there genuinely no symbol: then we keep the passive getOrderStatus-only
-    // branch (isTerminalScryptOrderStatus stays required there). null on any reference keeps the order
-    // waiting on the venue for another pass — never invent a cancel without a symbol.
+    // branch. There: terminal status OR venue-unknown (`null`) settles a reference; only unreachable
+    // (`undefined`) keeps the order waiting for another pass — never invent a cancel without a symbol.
     const knownCommands = Object.values(ScryptAdapterCommands) as string[];
     const isKnownCommand = knownCommands.includes(order.action.command);
 
@@ -341,19 +341,27 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
     if (!isKnownCommand && !derivedTradeAsset) {
       // Passive only: no tradeAsset in params, so no cancel symbol is determinable. Ask the venue about
-      // every reference individually; only a terminal status is a venue answer, not a guess.
+      // every reference individually. `null` vs `undefined` is the whole point here (same distinction as
+      // adoptLiveReplacement): null = venue answered and has no record; undefined = could not be asked.
       for (const reference of references) {
-        // `null` = venue has no record; `undefined` = could not be asked (same distinction as adoptLiveReplacement).
         const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
-        if (info == null || !isTerminalScryptOrderStatus(info.status)) {
+        if (info === undefined) {
           this.logger.warn(
-            `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is ${
-              info == null
-                ? info === null
-                  ? 'unknown to the venue'
-                  : 'unreachable'
-                : `still non-terminal (${info.status})`
-            }; keeping the order quarantined`,
+            `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is unreachable; keeping the order quarantined`,
+          );
+          return null;
+        }
+        if (info === null) {
+          // Venue answered: no record for this reference. Same inference as cancelIfOutstanding /
+          // refusedAsUnknown (SCRYPT_UNKNOWN_ORDER): nothing left that can execute under it.
+          this.logger.info(
+            `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is unknown to the venue — treated as settled`,
+          );
+          continue;
+        }
+        if (!isTerminalScryptOrderStatus(info.status)) {
+          this.logger.warn(
+            `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is still non-terminal (${info.status}); keeping the order quarantined`,
           );
           return null;
         }

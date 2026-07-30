@@ -560,7 +560,7 @@ describe('ScryptAdapter', () => {
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
       expect(cancelIfOutstanding).not.toHaveBeenCalled();
-      expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId, order.created);
+      expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId);
     });
 
     it('abandons a withdrawal once the venue confirms its full history has no record of it', async () => {
@@ -572,7 +572,7 @@ describe('ScryptAdapter', () => {
         'the venue returned its full transaction history and has no record of this withdrawal',
       );
       expect(cancelIfOutstanding).not.toHaveBeenCalled();
-      expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId, order.created);
+      expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId);
     });
 
     it('reconstructs a missing withdrawal correlationId and still confirms absence under dfx-lm-${id}', async () => {
@@ -584,7 +584,7 @@ describe('ScryptAdapter', () => {
         'the venue returned its full transaction history and has no record of this withdrawal',
       );
       expect(errorSpy).toHaveBeenCalled();
-      expect(confirmWithdrawalAbsent).toHaveBeenCalledWith('dfx-lm-4711', order.created);
+      expect(confirmWithdrawalAbsent).toHaveBeenCalledWith('dfx-lm-4711');
     });
 
     it('for an unsupported command with tradeAsset uses cancelIfOutstanding and returns a reason when every reference settles', async () => {
@@ -644,12 +644,50 @@ describe('ScryptAdapter', () => {
       expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711');
     });
 
+    it('for an unsupported command without tradeAsset treats venue-unknown (null) as settled and returns a reason', async () => {
+      // null = venue answered and has no record for that reference — same inference as refusedAsUnknown /
+      // SCRYPT_UNKNOWN_ORDER on the active path; must not keep the order quarantined.
+      const getOrderStatus = jest
+        .spyOn(scryptService, 'getOrderStatus')
+        .mockImplementation(async (id: string) =>
+          id === 'dfx-lm-4711-1' ? null : venueOrder(id, ScryptOrderStatus.FILLED),
+        );
+      const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+      const order = cancellableOrder({
+        action: sellIfDeficitAction({}),
+      });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(
+        'the venue reports every reference of this unsupported command in a terminal state',
+      );
+      expect(cancelIfOutstanding).not.toHaveBeenCalled();
+      expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711-1');
+      expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711');
+    });
+
     it('for an unsupported command without tradeAsset returns null when any reference is non-terminal', async () => {
       jest
         .spyOn(scryptService, 'getOrderStatus')
         .mockImplementation(async (id: string) =>
           venueOrder(id, id === 'dfx-lm-4711-1' ? ScryptOrderStatus.NEW : ScryptOrderStatus.FILLED),
         );
+      const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+      const order = cancellableOrder({
+        action: sellIfDeficitAction({}),
+      });
+      order.recordSpentCorrelationId('dfx-lm-4711-1');
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
+      expect(cancelIfOutstanding).not.toHaveBeenCalled();
+    });
+
+    it('for an unsupported command without tradeAsset returns null when any reference is unreachable', async () => {
+      // undefined (fetch failure / catch) is not a venue answer — keep waiting; must stay distinct from null.
+      jest.spyOn(scryptService, 'getOrderStatus').mockImplementation(async (id: string) => {
+        if (id === 'dfx-lm-4711-1') throw new Error('Connection closed');
+        return venueOrder(id, ScryptOrderStatus.FILLED);
+      });
       const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
       const order = cancellableOrder({
         action: sellIfDeficitAction({}),
