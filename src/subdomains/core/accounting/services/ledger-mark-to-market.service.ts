@@ -183,13 +183,13 @@ export class LedgerMarkToMarketService {
       .getRawOne<{
         native: string | null;
         baseUnits: string | null;
-        legCount: string | null;
-        valuedCount: string | null;
+        legCount: string;
+        valuedCount: string;
         decimals: number | null;
         chf: string | null;
       }>();
 
-    const allValued = raw?.baseUnits != null && +(raw.legCount ?? 0) === +(raw.valuedCount ?? 0);
+    const allValued = raw?.baseUnits != null && +raw.legCount === +raw.valuedCount;
     const nativeBalance =
       raw?.decimals != null && allValued
         ? Util.round(Number(BigInt(raw.baseUnits as string)) / 10 ** raw.decimals, 8)
