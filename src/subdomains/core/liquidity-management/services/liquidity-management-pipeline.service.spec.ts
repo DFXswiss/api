@@ -268,9 +268,12 @@ describe('LiquidityManagementPipelineService', () => {
     });
 
     it('lets a human release win over the clock when both would apply', async () => {
-      // an operator checked the venue and recorded why; the abandon knows nothing and would overwrite that
-      // reason with an anonymous one. The branch order guarantees the release wins — assert it, so that
-      // reordering the chain later cannot silently swap an audited verdict for a clock.
+      // Two exits apply here and they record different verdicts: the release says the venue confirmed the
+      // request never arrived, the abandon says only that nothing is left to execute. The operator's own
+      // reason survives either way — both prefix the existing message rather than replacing it — but which
+      // verdict is added to it matters, and only the release rests on somebody having actually checked. The
+      // branch order decides that, so it is asserted here: reordering the chain later must not quietly file
+      // an audited case under the weaker of the two.
       const order = agedOrder(30);
       order.notSentRecheckDue = RELEASED_AT;
       order.errorMessage = 'Scrypt did not answer (released by account 42: venue checked — ticket OPS-42)';
