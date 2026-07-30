@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Active, isAsset } from 'src/shared/models/active';
-import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { CachedRepository } from 'src/shared/repositories/cached.repository';
 import { EntityManager } from 'typeorm';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 
+// Same cache duration as Fiat and Country (CachedRepository default EVERY_5_MINUTES).
+// Pure reference/master data: no save/update/insert/delete path exists in the codebase.
 @Injectable()
-export class TransactionSpecificationRepository extends BaseRepository<TransactionSpecification> {
+export class TransactionSpecificationRepository extends CachedRepository<TransactionSpecification> {
   constructor(manager: EntityManager) {
     super(TransactionSpecification, manager);
   }
