@@ -73,10 +73,13 @@ describe('DashboardFinancialController', () => {
       expect(spy).toHaveBeenCalledWith(new Date('2026-06-15T00:00:00.000Z'), false, true);
     });
 
-    it('passes undefined to the service when from is omitted', async () => {
+    it.each([
+      { from: undefined as string | undefined, label: 'omitted' },
+      { from: '', label: "empty string ''" },
+    ])('passes undefined to the service when from is $label', async ({ from }) => {
       const spy = jest.spyOn(dashboardFinancialService, 'getFinancialLog').mockResolvedValue(emptyResponse);
 
-      await controller.getFinancialLog(undefined, 'true', 'true');
+      await controller.getFinancialLog(from, 'true', 'true');
 
       expect(spy).toHaveBeenCalledWith(undefined, true, true);
     });
