@@ -482,7 +482,8 @@ export class SolanaClient extends BlockchainClient {
       if (type !== 'transfer' && type !== 'transferChecked') continue;
 
       const destinationAta: string | undefined = info.destination;
-      const rawAmount: string | number | undefined = type === 'transferChecked' ? info.tokenAmount?.amount : info.amount;
+      const rawAmount: string | number | undefined =
+        type === 'transferChecked' ? info.tokenAmount?.amount : info.amount;
       if (!destinationAta || rawAmount == null) continue;
 
       const destinationBalance = postTokenBalances.find(
