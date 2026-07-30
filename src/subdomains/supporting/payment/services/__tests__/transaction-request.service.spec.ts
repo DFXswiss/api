@@ -120,7 +120,9 @@ describe('TransactionRequestService bank selection persistence', () => {
 });
 
 describe('TransactionRequestService settlement persistence', () => {
-  async function createService(repo: ReturnType<typeof createMock<TransactionRequestRepository>>) {
+  async function createService(
+    repo: ReturnType<typeof createMock<TransactionRequestRepository>>,
+  ): Promise<TransactionRequestService> {
     const module = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [

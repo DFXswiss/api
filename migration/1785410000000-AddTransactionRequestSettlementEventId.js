@@ -20,7 +20,7 @@
  * settlement tx hash; which transfer event of a batch tx they consumed is no longer recoverable.
  * Inventing an event id would be worse than leaving them unset: the job in
  * `realunit-job.service.ts` treats rows without `settlementEventId` as legacy and blocks the
- * whole tx for that user (`legacyTxHashes` / `getConsumedSettlements`) instead of guessing.
+ * whole tx for that user (`legacyTxIds` / `getLegacySettlementTxIds()`) instead of guessing.
  *
  * @class
  * @implements {MigrationInterface}
