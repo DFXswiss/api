@@ -59,13 +59,12 @@ const ORDER_LOST_AFTER_MINUTES = 5;
 /**
  * PENDING_NEW / PENDING_CANCEL / PENDING_REPLACE are meant to be a transition lasting seconds — the venue
  * is in the middle of accepting, cancelling or replacing the order. Measured over 60 days, Scrypt trades
- * spend a median of 0.2 and a maximum of 1.0 minutes reaching a terminal or open state, so an order that is
- * already older than five minutes and still answers PENDING is not a slow one, it is a stuck one.
+ * spend a median of 0.2 and a maximum of 1.0 minutes reaching a terminal or open state, so a reference that
+ * has continuously answered PENDING for more than five minutes is not merely slow, it is stuck.
  *
- * Measured from the order's creation, not from when it entered a pending state — a PENDING_CANCEL may have
- * begun seconds ago on an order open for hours. The venue reports a status, not how long it has held it, so
- * the dwell time is not available to measure against. Age is the conservative substitute: it can only ever
- * reach this bound later than a true dwell-time clock would, never earlier.
+ * Measured from when THIS process first observes the venue continuously reporting a PENDING state for the
+ * reference, not from the order's creation. A process restart starts that observation clock afresh; this can
+ * only extend the bound, never cause the adapter to give up too early.
  *
  * Deliberately its own constant rather than reusing ORDER_LOST_AFTER_MINUTES, even though both happen to be
  * five: that one bounds SILENCE from the venue (no status at all), this one bounds an ANSWER that makes no
@@ -88,8 +87,8 @@ const PENDING_STUCK_AFTER_MINUTES = 5;
  * analogous quarantine-cancel throttle uses (`UNCERTAIN_RESOLVE_MIN_INTERVAL_MS` in
  * liquidity-management-pipeline.service.ts), for the same stated reason: "a cancellation the venue will not
  * confirm must not retry on every ten-second tick." This only slows the write down — it does not move
- * PENDING_STUCK_AFTER_MINUTES itself, so the order becomes eligible for a cancel at exactly the same age
- * either way; only how often an unconfirmed attempt may repeat changes.
+ * PENDING_STUCK_AFTER_MINUTES itself, so the order becomes eligible for a cancel after exactly the same
+ * pending dwell time either way; only how often an unconfirmed attempt may repeat changes.
  */
 const PENDING_CANCEL_RETRY_MINUTES = 1;
 
@@ -99,12 +98,14 @@ const PENDING_CANCEL_RETRY_MINUTES = 1;
 //
 // That reading is an inference, not a documented guarantee — the protocol spec lists the reason without
 // defining it, so "never existed" cannot be distinguished from "not processed yet" from the value alone.
-// What it rests on: the caller only cancels an order that has already failed a status lookup and has
-// outlived the window in which its request could still be in flight. Note what that does and does not
-// cover — the lookup stops at the first reference the venue does not show, so for every other reference of
-// the same order this refusal is the only negative answer there is. Age plus one refusal is the strongest
-// evidence this protocol offers. Every other reason (too late, rate limited, already pending) settles
-// nothing and is waited out.
+// What it rests on: the caller only cancels an order after either a failed status lookup has outlived the
+// full ORDER_LOST_AFTER_MINUTES window in which its request could still be in flight, or a successful lookup
+// has continuously reported PENDING for the full PENDING_STUCK_AFTER_MINUTES window. The latter premise is
+// even stronger: the venue just confirmed that the reference existed, then no longer knew it at the cancel —
+// a stronger signal than silence alone. Note what that does and does not cover — the lookup stops at the
+// first reference the venue does not show, so for every other reference of the same order this refusal is the
+// only negative answer there is. Age plus one refusal is the strongest evidence this protocol offers. Every
+// other reason (too late, rate limited, already pending) settles nothing and is waited out.
 const SCRYPT_CANCEL_REJECTED = 'CancelRejected';
 const SCRYPT_UNKNOWN_ORDER = 'UnknownOrder';
 
@@ -124,6 +125,10 @@ export class ScryptService extends PricingProvider {
   // Throttle for the WRITE in the PENDING branch of checkTrade — see PENDING_CANCEL_RETRY_MINUTES. Keyed by
   // clOrdId, value is the end of the last cancel attempt for that reference.
   private readonly pendingCancelAttempts: Map<string, Date> = new Map();
+  // Tracks how long THIS process has continuously seen a reference report a PENDING status — see
+  // PENDING_STUCK_AFTER_MINUTES. Keyed by clOrdId, value is when this reference was first observed as pending.
+  // Cleared once the reference leaves the pending states, so a later re-entry starts fresh.
+  private readonly pendingSince: Map<string, Date> = new Map();
   private catchUpInProgress = false;
   private catchUpPending = false;
   private lastCatchUpAt?: number;
@@ -820,6 +825,13 @@ export class ScryptService extends PricingProvider {
       return false;
     }
 
+    if (
+      orderInfo.status !== ScryptOrderStatus.PENDING_NEW &&
+      orderInfo.status !== ScryptOrderStatus.PENDING_CANCEL &&
+      orderInfo.status !== ScryptOrderStatus.PENDING_REPLACE
+    )
+      this.pendingSince.delete(clOrdId);
+
     switch (orderInfo.status) {
       case ScryptOrderStatus.NEW:
       case ScryptOrderStatus.PARTIALLY_FILLED: {
@@ -951,8 +963,19 @@ export class ScryptService extends PricingProvider {
         // at most one attempt per PENDING_CANCEL_RETRY_MINUTES per reference — otherwise an UNCONFIRMED answer
         // would draw a fresh cancel on every checkRunningOrders call, which runs nominally every ten seconds,
         // and possibly more often within one pass.
-        const ageMinutes = Util.minutesDiff(orderCreated);
-        if (ageMinutes <= PENDING_STUCK_AFTER_MINUTES) {
+        const pendingSince = this.pendingSince.get(clOrdId);
+        if (!pendingSince) {
+          this.pendingSince.set(clOrdId, new Date());
+
+          const dayAgo = Util.hoursBefore(24);
+          for (const [id, at] of this.pendingSince) if (at < dayAgo) this.pendingSince.delete(id);
+
+          this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
+          return false;
+        }
+
+        const pendingMinutes = Util.minutesDiff(pendingSince);
+        if (pendingMinutes <= PENDING_STUCK_AFTER_MINUTES) {
           this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
           return false;
         }
@@ -975,12 +998,15 @@ export class ScryptService extends PricingProvider {
 
         if (cancellation === ScryptCancellation.EXECUTED) {
           this.pendingCancelAttempts.delete(clOrdId);
+          this.pendingSince.delete(clOrdId);
           this.logger.verbose(`Order ${clOrdId} was pending past its bound, but Scrypt confirms it filled`);
           return true;
         }
 
         if (cancellation === ScryptCancellation.SETTLED) {
           this.pendingCancelAttempts.delete(clOrdId);
+          this.pendingSince.delete(clOrdId);
+          const ageMinutes = Util.minutesDiff(orderCreated);
           throw new ScryptOrderStuckPendingError(
             `Order ${clOrdId} is ${Math.round(ageMinutes)} minutes old and currently reports status ` +
               `${orderInfo.status}, past the ${PENDING_STUCK_AFTER_MINUTES}-minute pending bound, and Scrypt ` +

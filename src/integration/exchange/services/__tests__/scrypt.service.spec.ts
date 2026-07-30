@@ -1400,6 +1400,58 @@ describe('ScryptService', () => {
       expect(cancelSpy).not.toHaveBeenCalled();
     });
 
+    it('keeps waiting when an old order has only just entered a pending state', async () => {
+      // Without the dwell-time clock, a price adjustment on an hours-old healthy order would cancel it
+      // because the old logic measured order age instead of time spent pending.
+      //
+      // Two passes on purpose: the FIRST pending poll only records the observation and returns, whatever
+      // the bound is measured against, so asserting it alone would pass just as happily against the age
+      // clock this replaced. The second pass is where the two differ — 120 minutes of age is past the
+      // bound, seconds of dwell time are not — so only this one actually pins the fix down.
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_REPLACE,
+        remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
+      const orderCreated = new Date(Date.now() - 120 * 60 * 1000);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('starts a fresh pending clock when a reference leaves pending before re-entering it', async () => {
+      // Without clearing pendingSince on the intervening non-pending status, a later PENDING entry would
+      // inherit the old, potentially expired wait instead of starting a new observation period.
+      jest
+        .spyOn(service as any, 'getOrderStatus')
+        .mockResolvedValueOnce({
+          id: 'dfx-lm-7',
+          status: ScryptOrderStatus.PENDING_NEW,
+          remainingQuantity: 5,
+        })
+        .mockResolvedValueOnce({
+          id: 'dfx-lm-7',
+          status: ScryptOrderStatus.FILLED,
+          remainingQuantity: 0,
+        })
+        .mockResolvedValueOnce({
+          id: 'dfx-lm-7',
+          status: ScryptOrderStatus.PENDING_NEW,
+          remainingQuantity: 5,
+        });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(true);
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
     it('keeps waiting on a pending order past its bound when Scrypt will not confirm a cancel', async () => {
       // the most important case here: without a confirmed cancel the order may still be live in the book, and
       // giving it up on unconfirmed evidence could let the onFail chain place a second, genuinely competing buy
@@ -1409,6 +1461,10 @@ describe('ScryptService', () => {
         remainingQuantity: 5,
       });
       jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 120 * 60 * 1000))).resolves.toBe(
         false,
@@ -1424,9 +1480,14 @@ describe('ScryptService', () => {
       });
       jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.SETTLED);
 
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+
       await expect(
         service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 6 * 60 * 1000)),
       ).rejects.toBeInstanceOf(ScryptOrderStuckPendingError);
+      expect((service as any).pendingSince.has('dfx-lm-7')).toBe(false);
     });
 
     it('completes a pending order past its bound when Scrypt confirms it filled after all', async () => {
@@ -1438,9 +1499,14 @@ describe('ScryptService', () => {
       });
       jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.EXECUTED);
 
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 6 * 60 * 1000))).resolves.toBe(
         true,
       );
+      expect((service as any).pendingSince.has('dfx-lm-7')).toBe(false);
     });
 
     it('does not retry the cancel write on the very next pass after an unconfirmed attempt', async () => {
@@ -1454,6 +1520,10 @@ describe('ScryptService', () => {
       });
       const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
       const orderCreated = new Date(Date.now() - 6 * 60 * 1000);
+
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
@@ -1473,13 +1543,17 @@ describe('ScryptService', () => {
       const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
       const orderCreated = new Date(Date.now() - 6 * 60 * 1000);
 
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', new Date(Date.now() - 6 * 60 * 1000));
+
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
       expect(cancelSpy).toHaveBeenCalledTimes(1);
 
       // PENDING_CANCEL_RETRY_MINUTES is a private module-level constant (1 minute) with no export to
       // import in this test, so the recorded attempt is backdated directly on the service's private map
       // instead of driving Date.now() itself — this is the one throttle input the test needs to move, and
-      // moving only it keeps the assertion tied to the retry floor, not incidentally to the order's own age.
+      // moving only it keeps the assertion tied to the retry floor, not incidentally to the pending dwell.
       const pastRetryFloor = new Date(Date.now() - 2 * 60 * 1000);
       (service as any).pendingCancelAttempts.set('dfx-lm-7', pastRetryFloor);
 
