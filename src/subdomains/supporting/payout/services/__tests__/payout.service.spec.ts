@@ -4,7 +4,7 @@ import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/_
 import * as processServiceModule from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, LessThan, MoreThan } from 'typeorm';
+import { In, LessThan } from 'typeorm';
 import { RetryPayoutDto } from '../../dto/retry-payout.dto';
 import { createCustomPayoutOrder } from '../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../entities/payout-order.entity';
@@ -525,48 +525,8 @@ describe('PayoutService', () => {
     });
   });
 
-  describe('#getPayoutOrders(...)', () => {
-    let service: PayoutService;
-    let payoutOrderRepo: PayoutOrderRepository;
-
-    beforeEach(() => {
-      payoutOrderRepo = mock<PayoutOrderRepository>();
-
-      service = new PayoutService(
-        mock<PayoutLogService>(),
-        mock<NotificationService>(),
-        payoutOrderRepo,
-        mock<PayoutOrderFactory>(),
-        mock<PayoutStrategyRegistry>(),
-        mock<PrepareStrategyRegistry>(),
-      );
-    });
-
-    afterEach(() => {
-      jest.restoreAllMocks();
-    });
-
-    it('queries orders created after the given date and forwards the requested relations', async () => {
-      const from = new Date('2026-01-01');
-      const relations = { asset: true };
-      const orders = [createCustomPayoutOrder({ id: 100 })];
-      const findSpy = jest.spyOn(payoutOrderRepo, 'find').mockResolvedValue(orders);
-
-      const result = await service.getPayoutOrders(from, relations);
-
-      expect(findSpy).toHaveBeenCalledWith({ where: { created: MoreThan(from) }, relations });
-      expect(result).toBe(orders);
-    });
-
-    it('queries orders without relations when none are provided', async () => {
-      const from = new Date('2026-01-01');
-      const findSpy = jest.spyOn(payoutOrderRepo, 'find').mockResolvedValue([]);
-
-      await service.getPayoutOrders(from);
-
-      expect(findSpy).toHaveBeenCalledWith({ where: { created: MoreThan(from) }, relations: undefined });
-    });
-  });
+  // getPayoutOrderFee replaced getPayoutOrders here; its SQL aggregate is covered against real
+  // Postgres semantics in payout.service.pg.spec.ts, which a mocked repository cannot verify.
 
   describe('#doPayout(...)', () => {
     let service: PayoutService;

@@ -37,7 +37,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { Between, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
@@ -371,8 +371,22 @@ export class BuyFiatService implements OnModuleInit {
     });
   }
 
-  async getBuyFiat(from: Date, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat[]> {
-    return this.buyFiatRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
+  // Summed in SQL for the same reason as BuyCryptoService.getBuyCryptoFee — see the comment there.
+  // cryptoInput is non-nullable on BuyFiat, but stays a LEFT join so a row could never silently drop
+  // out of the total; such a row counts as `regular`.
+  async getBuyFiatFee(from: Date): Promise<{ regular: number; paymentLink: number }> {
+    const { regular, paymentLink } = await this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('SUM(CASE WHEN paymentLinkPayment.id IS NULL THEN buyFiat.totalFeeAmountChf END)', 'regular')
+      .addSelect('SUM(CASE WHEN paymentLinkPayment.id IS NOT NULL THEN buyFiat.totalFeeAmountChf END)', 'paymentLink')
+      .innerJoin('buyFiat.transaction', 'transaction')
+      .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
+      .leftJoin('cryptoInput.paymentLinkPayment', 'paymentLinkPayment')
+      .where('transaction.created > :from', { from })
+      .getRawOne<{ regular: number; paymentLink: number }>();
+
+    // SUM over an empty result set is NULL — no transactions this period means no fees
+    return { regular: regular ?? 0, paymentLink: paymentLink ?? 0 };
   }
 
   async triggerWebhookManual(id: number): Promise<void> {
