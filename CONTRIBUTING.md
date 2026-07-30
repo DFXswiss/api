@@ -968,7 +968,7 @@ Keep old endpoints for backward compatibility but annotate:
 
 ### Long-Polling Endpoints Must Be Named `wait`
 
-A **new** endpoint whose response time is governed by an external event rather than by its own computation — a long poll — **must** carry `wait` as its own path segment. Conversely, an endpoint expected to answer quickly **must not** use `wait` as a path segment.
+An endpoint whose response time is governed by an external event rather than by its own computation — a long poll — **must** carry `wait` as its own path segment, unless it is listed as an explicit exemption below. Conversely, an endpoint expected to answer quickly **must not** use `wait` as a path segment.
 
 Endpoints that block by design:
 
@@ -980,13 +980,15 @@ Endpoints that block by design:
 | `GET /v1/node/:node/tx/:txId`        | the transaction reaches one confirmation; bounded at 600 s                                                                                                                        | no — exempt    |
 | `GET /v1/node/:node/:mode/tx/:txId`  | the same                                                                                                                                                                          | no — exempt    |
 
-The three exempt routes predate this rule and are deliberately **not** renamed: `/v1/lnurlp/:id` is the LNURL pay-request path encoded into LNURLs already in circulation, and the two node routes are admin-only and `@ApiExcludeEndpoint()`. They remain visible in latency monitoring — read their duration as expected behavior, not as a regression. Do not add further exemptions; a new blocking endpoint gets a `wait` segment.
+**The `wait` segment is the default; exemptions must be explicit.** A blocking route without one is acceptable only if it is listed in the table above together with the reason it cannot carry the segment. A blocking route that is neither named `wait` nor listed here is a defect — fix it by renaming the route or by adding an entry, never by leaving it undocumented.
+
+The three current exemptions keep their paths because those are fixed from outside: `/v1/lnurlp/:id` is the LNURL pay-request path encoded into LNURLs already in circulation, and the two node routes are admin-only and `@ApiExcludeEndpoint()`. Because they carry no `wait` segment they stay visible in latency monitoring — read their duration as expected behavior, not as a regression.
 
 This is not cosmetic. Latency monitoring excludes routes matching `^.*/wait(/.*)?$` from its slowest-requests view. A long poll's duration measures how long a *customer* took to act, not how long the API computed — leaving it in that view pushes the genuine outliers out of a list with a fixed row cap.
 
 Getting the name wrong breaks monitoring in one of two directions:
 
-- **A new blocking endpoint without a `wait` segment** appears as a permanent latency outlier and masks real regressions — that is exactly what the exempt routes above cost us today.
+- **A blocking endpoint without a `wait` segment** appears as a permanent latency outlier and masks real regressions — that is exactly what the exemptions above cost us today, which is why the list must stay short and justified.
 - **A fast endpoint with a `wait` segment** is silently dropped from the latency view — if it ever becomes slow, nobody notices.
 
 The pattern is segment-anchored, so `/waitlist`, `/waitTime`, `/awaiting` and `/waiting/:id` are unaffected; only a complete `wait` segment matches. Matching runs on the server-side route template (`http.route`), never on the raw request path, which is caller-controlled.
