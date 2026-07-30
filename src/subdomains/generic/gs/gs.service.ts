@@ -1,6 +1,7 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -77,6 +78,14 @@ interface DebugQueryEmitCtx {
 export class GsService {
   private readonly logger = new DfxLogger(GsService);
 
+  // Sheet exports are latency-tolerant batch consumers: cap their concurrency so sync
+  // bursts cannot monopolize the process at the expense of interactive requests. The item
+  // timeout frees a worker slot even if a query never settles (e.g. a dead connection).
+  private readonly exportQueue = new QueueHandler(240_000, 240_000, 2);
+
+  // applied when a request specifies no maxLine — unbounded exports must be requested explicitly
+  private static readonly DEFAULT_MAX_LINE = 10000;
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
@@ -102,6 +111,13 @@ export class GsService {
   ) {}
 
   async getDbData(query: DbQueryDto, role: UserRole): Promise<DbReturnData> {
+    return this.exportQueue.handle(() => this.executeDbData(query, role));
+  }
+
+  private async executeDbData(query: DbQueryDto, role: UserRole): Promise<DbReturnData> {
+    const cappedByDefault = query.maxLine == null;
+    if (cappedByDefault) query.maxLine = GsService.DEFAULT_MAX_LINE;
+
     const additionalSelect = Array.from(
       new Set([
         ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
@@ -130,6 +146,8 @@ export class GsService {
         if (value?.toString().length >= 50000) delete e[key];
       }),
     );
+
+    this.warnIfCapped(cappedByDefault && data.length >= GsService.DEFAULT_MAX_LINE, query);
 
     const runTime = Util.round((Date.now() - startTime) / 1000, 1);
 
@@ -168,12 +186,32 @@ export class GsService {
   }
 
   async getExtendedDbData(query: DbQueryBaseDto, role: UserRole): Promise<DbReturnData> {
+    return this.exportQueue.handle(() => this.executeExtendedDbData(query, role));
+  }
+
+  private async executeExtendedDbData(query: DbQueryBaseDto, role: UserRole): Promise<DbReturnData> {
+    const cappedByDefault = query.maxLine == null;
+    if (cappedByDefault) query.maxLine = GsService.DEFAULT_MAX_LINE;
+
     switch (query.table) {
       case 'bank_tx': {
-        const data = await this.getExtendedBankTxData(query);
+        const { data, capReached } = await this.getExtendedBankTxData(query);
+        this.warnIfCapped(cappedByDefault && capReached, query);
         return this.transformResultArray(data, query.table, role);
       }
     }
+  }
+
+  private warnIfCapped(hitDefaultCap: boolean, query: DbQueryBaseDto): void {
+    if (hitDefaultCap)
+      this.logger.warn(
+        `GS export for ${
+          query.identifier ? Util.sanitizeLogValue(query.identifier, 64) : 'missing'
+        } hit the default maxLine cap (${GsService.DEFAULT_MAX_LINE}) on table ${Util.sanitizeLogValue(
+          query.table,
+          64,
+        )} — rows beyond the cap were not returned`,
+      );
   }
 
   async getSupportData(query: SupportDataQuery): Promise<SupportReturnData> {
@@ -821,7 +859,9 @@ export class GsService {
     }
   }
 
-  private async getExtendedBankTxData(dbQuery: DbQueryBaseDto): Promise<any[]> {
+  private async getExtendedBankTxData(
+    dbQuery: DbQueryBaseDto,
+  ): Promise<{ data: Record<string, unknown>[]; capReached: boolean }> {
     const select = dbQuery.select ? dbQuery.select.map((e) => dbQuery.table + '.' + e).join(',') : dbQuery.table;
 
     const buyCryptoData = await this.dataSource
@@ -837,7 +877,7 @@ export class GsService {
       .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_CRYPTO })
       .orderBy('bank_tx.id', dbQuery.sorting)
-      .take(dbQuery.maxLine)
+      .limit(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -856,7 +896,7 @@ export class GsService {
       .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_FIAT })
       .orderBy('bank_tx.id', dbQuery.sorting)
-      .take(dbQuery.maxLine)
+      .limit(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -878,17 +918,21 @@ export class GsService {
         fiat: BankTxType.BUY_FIAT,
       })
       .orderBy('bank_tx.id', dbQuery.sorting)
-      .take(dbQuery.maxLine)
+      .limit(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
       });
 
-    return Util.sort(
-      buyCryptoData.concat(buyFiatData, bankTxRestData),
-      dbQuery.select ? 'id' : 'bank_tx_id',
-      dbQuery.sorting,
-    );
+    return {
+      data: Util.sort(
+        buyCryptoData.concat(buyFiatData, bankTxRestData),
+        dbQuery.select ? 'id' : 'bank_tx_id',
+        dbQuery.sorting,
+      ),
+      // each leg is capped individually — only a full leg means rows were actually cut off
+      capReached: [buyCryptoData, buyFiatData, bankTxRestData].some((d) => d.length >= dbQuery.maxLine),
+    };
   }
 
   private filterSelectDocumentColumn(select: string[]): string[] {
