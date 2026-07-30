@@ -102,7 +102,7 @@ export class VirtualIbanService {
   }
 
   isUserEligible(currencyName: string, userData: UserData): boolean {
-    return this.hasProviderForCurrency(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
+    return this.hasAvailableProviderForCurrency(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
   }
 
   /**
@@ -1672,15 +1672,15 @@ export class VirtualIbanService {
 
   /**
    * Whether any provider covers this currency at all, regardless of whether it is reachable right now.
-   * Kept apart from {@link hasProviderForCurrency} on purpose: "we do not offer personal IBANs in this
+   * Kept apart from {@link hasAvailableProviderForCurrency} on purpose: "we do not offer personal IBANs in this
    * currency" is a permanent answer the customer can act on, while an outage is temporary and ours to
    * fix. Folding the two together would tell someone their currency is unsupported during a blip.
    */
-  supportsCurrency(currencyName: string): boolean {
+  hasProviderSupportingCurrency(currencyName: string): boolean {
     return this.genericProviders.some((provider) => provider.currencies.includes(currencyName));
   }
 
-  private hasProviderForCurrency(currencyName: string): boolean {
+  private hasAvailableProviderForCurrency(currencyName: string): boolean {
     return this.genericProviders.some(
       (provider) => provider.isAvailable() && provider.currencies.includes(currencyName),
     );
