@@ -67,7 +67,7 @@ statement executed by a suite counts as executed no matter which worker ran it. 
 cannot turn a covered file into an uncovered one, which is why the CI script does not serialise.
 
 The gate runs the whole suite under full compilation, unlike the sharded `test` job that splits
-the suite three ways and the Frick gate that runs seven specs. Exact per-file numbers are what
+the suite three ways and the Frick gate that runs ten specs. Exact per-file numbers are what
 that costs in run time.
 
 ## Where the gate runs

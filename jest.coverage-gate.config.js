@@ -12,7 +12,7 @@
 //   2. The whole suite runs, because a file is frequently covered by specs other than its own.
 //
 // The dedicated Frick gate (jest.frick.config.js) stays separate on purpose: it runs ONLY the
-// seven Frick specs and therefore proves that those specs alone reach 100% - an assertion this
+// ten Frick specs and therefore proves that those specs alone reach 100% - an assertion this
 // repo-wide run cannot make, because here any spec may contribute the coverage.
 const base = require('./package.json').jest;
 
