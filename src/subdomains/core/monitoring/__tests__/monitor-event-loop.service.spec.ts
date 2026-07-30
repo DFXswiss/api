@@ -1,4 +1,5 @@
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { performance } from 'perf_hooks';
 
 const mockHistogram = {
   enable: jest.fn(),
@@ -11,12 +12,14 @@ const mockHistogram = {
 
 const mockEventLoopUtilization = jest.fn();
 
-jest.mock('perf_hooks', () => ({
-  monitorEventLoopDelay: jest.fn(() => mockHistogram),
-  performance: {
-    eventLoopUtilization: (...args: unknown[]) => mockEventLoopUtilization(...args),
-  },
-}));
+// Spread keeps real performance intact; spyOn avoids Object.create ERR_INVALID_THIS and process-wide mutation.
+jest.mock('perf_hooks', () => {
+  const actual = jest.requireActual<typeof import('perf_hooks')>('perf_hooks');
+  return {
+    ...actual,
+    monitorEventLoopDelay: jest.fn(() => mockHistogram),
+  };
+});
 
 import { MonitorEventLoopService } from '../monitor-event-loop.service';
 
@@ -38,13 +41,29 @@ describe('MonitorEventLoopService', () => {
     mockHistogram.max = 202_000_000;
     mockHistogram.percentile.mockReset().mockReturnValue(46_000_000);
 
+    const snapshots = [initialElu, firstCurrent, secondCurrent];
+    let snapshotIndex = 0;
+
     mockEventLoopUtilization.mockReset();
-    mockEventLoopUtilization
-      .mockReturnValueOnce(initialElu)
-      .mockReturnValueOnce(firstCurrent)
-      .mockReturnValueOnce(firstDelta)
-      .mockReturnValueOnce(secondCurrent)
-      .mockReturnValueOnce(secondDelta);
+    mockEventLoopUtilization.mockImplementation((...args: unknown[]) => {
+      if (args.length === 0) {
+        if (snapshotIndex >= snapshots.length) {
+          throw new Error(`Unexpected eventLoopUtilization() snapshot call #${snapshotIndex + 1}`);
+        }
+        return snapshots[snapshotIndex++];
+      }
+      if (args.length === 2) {
+        const current = args[0];
+        if (current === firstCurrent) return firstDelta;
+        if (current === secondCurrent) return secondDelta;
+        throw new Error('Unexpected eventLoopUtilization(current, previous) with unknown current sample');
+      }
+      throw new Error(`Unexpected eventLoopUtilization arity: ${args.length}`);
+    });
+
+    jest
+      .spyOn(performance, 'eventLoopUtilization')
+      .mockImplementation((...args: unknown[]) => mockEventLoopUtilization(...args));
 
     infoSpy = jest.spyOn(DfxLogger.prototype, 'info').mockImplementation();
 
@@ -67,12 +86,8 @@ describe('MonitorEventLoopService', () => {
       service.monitorEventLoop();
       service.monitorEventLoop();
 
-      // Field init: mock.calls[0] (no args)
-      // First monitorEventLoop: [1] current, [2] delta(current, lastElu=initial)
-      // Second monitorEventLoop: [3] current, [4] delta(current, lastElu=firstCurrent)
-      expect(mockEventLoopUtilization.mock.calls[2][1]).toBe(initialElu);
-      expect(mockEventLoopUtilization.mock.calls[4][1]).toBe(firstCurrent);
-      expect(mockEventLoopUtilization).toHaveBeenNthCalledWith(5, secondCurrent, firstCurrent);
+      expect(mockEventLoopUtilization).toHaveBeenCalledWith(firstCurrent, initialElu);
+      expect(mockEventLoopUtilization).toHaveBeenCalledWith(secondCurrent, firstCurrent);
     });
   });
 });
