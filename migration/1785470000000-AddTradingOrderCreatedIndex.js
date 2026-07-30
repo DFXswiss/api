@@ -16,14 +16,25 @@
  * `firstDayOfMonth` — i.e. once per minute, because that is where the `LogJobService` writes the
  * financial log.
  *
- * Production `EXPLAIN (ANALYZE, BUFFERS)` showed a Parallel Seq Scan on `trading_order`, filter
- * `(created >= '2026-07-30 00:00:00')`, Rows Removed by Filter 1,806,275 (x3 workers), Buffers
- * shared hit=335 read=88994, Execution Time 146.399 ms. This is practically the same cost profile
- * as the scan the sibling migration (`AddLedgerContentChangeScanIndexes`) already fixed for a
- * different query — just from a different source, found via high-frequency `pg_stat_activity`
- * sampling after the sibling migration's indexes were already live in production and being used
- * (confirmed via `pg_stat_user_indexes`), yet the seq-scan load on `trading_order` had not gone
- * down (45s-window delta: 15 scans, 27.1M rows, 3,486 MB).
+ * Production `EXPLAIN (ANALYZE, BUFFERS)` for the actual query predicate — `created >= '2026-07-01
+ * 00:00:00'` (`Util.firstDayOfMonth()` always returns the first day of the month, see
+ * `src/shared/utils/util.ts:410-412`) — showed a Parallel Seq Scan on `trading_order`, Rows Removed
+ * by Filter 1,765,454 (x3 workers), rows=41,306 (x3 workers) = 123,918 matching rows (2.3% of the
+ * table), Buffers shared hit=49 read=89282, Execution Time 141.283 ms. This is practically the same
+ * cost profile as the scan the sibling migration (`AddLedgerContentChangeScanIndexes`) already fixed
+ * for a different query — just from a different source, found via high-frequency
+ * `pg_stat_activity` sampling after the sibling migration's indexes were already live in production
+ * and being used (confirmed via `pg_stat_user_indexes`), yet the seq-scan load on `trading_order`
+ * had not gone down (45s-window delta: 15 scans, 27.1M rows, 3,486 MB). The cost of this scan is
+ * practically independent of the date filter, because a Seq Scan reads the whole table regardless of
+ * how selective the predicate is: a separate measurement with `created >= '2026-07-30 00:00:00'`
+ * (only 454 matching rows) still cost Execution Time 146.399 ms and Buffers read=88994 — almost
+ * identical to the 141.283 ms / read=89282 above. What matters for the index decision is the
+ * query's selectivity (2.3% of the table matches `created >= firstDayOfMonth`), not the runtime of
+ * any one scan. Stated honestly: that the Postgres planner will actually pick this new index for
+ * this query is NOT verified in production, because the index does not yet exist there — the
+ * decision to add it rests on the measured selectivity (2.3%) and the correlation of `created` to
+ * physical row order (0.796, discussed below), not on an observed plan change.
  *
  * Why a single-column index and not a covering index: the monthly window matches 123,831 of
  * 5.4 million rows (2.3%) — clearly within the range where an index scan beats a sequential scan.
