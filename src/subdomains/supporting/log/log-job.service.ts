@@ -173,10 +173,31 @@ export class LogJobService {
       // deliberately left outside any try/catch — it cannot throw and a wrapping catch would only mask a bug.
       const fxPnlChf = this.getFxPnlChf(lastFinanceLog, assetLog, assets);
 
+      // Same source as balancesTotal.totalBalanceChf in the JSON below: the identical rounded
+      // getJsonValue result. Collapsed to null on the (very rare) non-finite case so the column
+      // matches what a reader of `message` would see — JSON has no NaN/Infinity, JSON.stringify
+      // serialises both as null, so storing the raw NaN in a float8 column would silently diverge
+      // from the JSON's own value.
+      const totalBalanceChfColumn = Number.isFinite(totalBalanceChf)
+        ? this.getJsonValue(totalBalanceChf, AmountType.FIAT, true, true)
+        : null;
+
+      // Same source as assets[btcAsset.id].priceChf in the JSON below: assetLog's raw
+      // (unrounded) approxPriceChf value for the BTC asset — that field is never passed through
+      // getJsonValue in the JSON path either, so this column is intentionally NOT rounded here.
+      // null when there is no configured BTC asset, the BTC asset has no assetLog entry (e.g.
+      // filtered out upstream), or the price is missing/non-finite.
+      const btcAsset = await this.assetService.getBtcCoin();
+      const btcAssetPriceChf = btcAsset ? assetLog[btcAsset.id]?.priceChf : undefined;
+      const btcPriceChfColumn =
+        btcAssetPriceChf != null && Number.isFinite(btcAssetPriceChf) ? btcAssetPriceChf : null;
+
       const financialDataLog = await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
         severity: LogSeverity.INFO,
+        totalBalanceChf: totalBalanceChfColumn,
+        btcPriceChf: btcPriceChfColumn,
         message: JSON.stringify({
           assets: assetLog,
           tradings: tradingLog,

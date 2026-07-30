@@ -1,12 +1,20 @@
 export class FinancialLogEntryDto {
   timestamp: Date;
   totalBalanceChf: number;
-  plusBalanceChf: number;
-  minusBalanceChf: number;
-  // per-interval price effect (FX P&L) of the open positions vs. the previous snapshot; 0 for entries
-  // logged before this field existed (see BalancesTotal.fxPnlChf).
-  fxPnlChf: number;
   btcPriceChf: number;
+  /**
+   * Present only when the caller did not opt out via the `byType` query parameter on
+   * GET /v1/dashboard/financial/log (`byType=false`); omitted entirely (not 0, not null) for the
+   * Overview screen that calls this endpoint on every refresh, since that screen only charts
+   * totalBalanceChf/btcPriceChf — same reasoning and same opt-out flag as balancesByType below.
+   * This is a deliberate API contract change: the frontend type for the Overview screen's
+   * response needs a matching update (separate PR).
+   */
+  plusBalanceChf?: number;
+  /** Same includeByType-gated presence as plusBalanceChf. */
+  minusBalanceChf?: number;
+  /** Same includeByType-gated presence as plusBalanceChf. */
+  fxPnlChf?: number;
   /**
    * plusBalanceChf/minusBalanceChf can be missing per type when the source FinancialDataLog
    * snapshot omitted one of the two keys (see FinancialLogSummary.balancesByType); a missing
