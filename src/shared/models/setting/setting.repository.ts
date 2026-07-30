@@ -31,4 +31,8 @@ export class SettingRepository extends CachedRepository<Setting> {
 
     this.invalidateCache();
   }
+
+  async getStatusSettings(): Promise<Setting[]> {
+    return this.createQueryBuilder('setting').where('setting.key LIKE :suffix', { suffix: '%Status' }).getMany();
+  }
 }
