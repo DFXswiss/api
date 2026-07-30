@@ -1689,19 +1689,22 @@ describe('VirtualIbanService', () => {
       const receivingBank = await pgDataSource
         .getRepository(ReceivingLookupBankTable)
         .save({ name: IbanBankName.FRICK, receive: true, send: true });
-      await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
-        iban: 'CH0000000000000000001',
-        userData: lookupUser,
-        currency: lookupCurrency,
-        bank: retiredBank,
-        active: true,
-        status: VirtualIbanStatus.ACTIVE,
-      });
+      // The receiving row is stored FIRST so it carries the lower id. Newest-first ordering would hand
+      // back the retired row, which means only the bank.receive predicate can make this test pass -
+      // insert the other way round and the ordering alone would satisfy it, leaving the predicate untested.
       const receiving = await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
         iban: 'LI0000000000000000002',
         userData: lookupUser,
         currency: lookupCurrency,
         bank: receivingBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+      await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'CH0000000000000000001',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: retiredBank,
         active: true,
         status: VirtualIbanStatus.ACTIVE,
       });
