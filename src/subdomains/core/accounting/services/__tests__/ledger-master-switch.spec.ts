@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
 import { Process } from 'src/shared/services/process.service';
 import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -8,6 +9,14 @@ import { AccountingModule } from '../../accounting.module';
 
 // Ledger-domain Process values, derived from the enum's OWN key names (never hardcoded) — a future
 // `Process.LEDGER_*` entry is picked up automatically, no edit to this file required.
+//
+// Known limitation (accepted, not fixed here): this only sees a cron method that (a) lives on a class
+// registered in AccountingModule's OWN `providers` array and (b) carries a `Process.LEDGER_*` value on its
+// `@DfxCron` metadata. A ledger job registered in a DIFFERENT module, or one whose `@DfxCron` omits
+// `process` (or sets it to something other than a `LEDGER*` enum member), is invisible to this discovery —
+// exactly as it would already be invisible to the existing per-process `DISABLED_PROCESSES` kill-switches,
+// which depend on the very same `process` flag. Not this test's job to fix; CONTRIBUTING requires every
+// cron to carry its own Process flag regardless.
 const LEDGER_PROCESSES = new Set<Process>(
   (Object.keys(Process) as (keyof typeof Process)[])
     .filter((key) => key.startsWith('LEDGER'))
@@ -83,12 +92,29 @@ describe('Ledger master switch (Config.ledger.enabled) — sustainability guard'
   describe.each(
     entries.map((e): [string, LedgerCronEntry] => [`${e.ProviderClass.name}.${e.methodName} (${e.process})`, e]),
   )('%s', (_label, entry) => {
-    it('issues zero calls against any external dependency while Config.ledger.enabled is false', async () => {
+    it('reads Config.ledger.enabled and blocks every external call while it is false', async () => {
       const counter = { calls: 0 };
+      const configProvider = TestUtil.provideConfig({ ledger: { enabled: false } });
+
+      // "Zero calls" alone is too weak a proof: a future ledger cron WITHOUT any gate could coincidentally
+      // return early too (e.g. an unrelated createMock() default) and this test would stay green without
+      // having checked anything. Redefine `enabled` as an accessor on the (freshly built, per-test)
+      // Configuration instance so we can tell whether the gate ACTUALLY consulted the switch — either
+      // directly (LedgerCutoverService.run()) or transitively (isLedgerReady(), which itself reads it) —
+      // rather than merely observing that nothing happened to be called.
+      let switchWasRead = false;
+      Object.defineProperty(Config.ledger, 'enabled', {
+        configurable: true,
+        enumerable: true,
+        get: () => {
+          switchWasRead = true;
+          return false;
+        },
+      });
 
       const testingModule: TestingModule = await Test.createTestingModule({
         controllers,
-        providers: [...providers, TestUtil.provideConfig({ ledger: { enabled: false } })],
+        providers: [...providers, configProvider],
       })
         .useMocker(createCountingMocker(counter))
         .compile();
@@ -102,6 +128,7 @@ describe('Ledger master switch (Config.ledger.enabled) — sustainability guard'
 
       await (instance as Record<string, () => Promise<void>>)[entry.methodName]();
 
+      expect(switchWasRead).toBe(true); // the gate was actually consulted, not just coincidentally silent
       expect(counter.calls).toBe(0);
 
       await testingModule.close();

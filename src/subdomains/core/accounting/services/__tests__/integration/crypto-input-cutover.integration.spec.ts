@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { ConfigService } from 'src/config/config';
+import { Config, ConfigService } from 'src/config/config';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -52,6 +52,7 @@ describe('Ledger crypto_input-funded cutover double-book (§10.2, MAJOR — G-a 
 
   beforeEach(() => {
     new ConfigService(); // sets the Config singleton the booking service + consumers read (§11.2)
+    Config.ledger.enabled = true; // this suite drives the REAL LedgerCutoverService.run() below — needs the ledger on
 
     ledger = new InMemoryLedger();
     ledger.seedAsset('Ethereum/ZCHF', 'ZCHF', WALLET);
