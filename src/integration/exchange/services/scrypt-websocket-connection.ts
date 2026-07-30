@@ -44,6 +44,32 @@ enum ScryptRequestType {
   CANCEL = 'cancel',
 }
 
+// Schemes we accept for a network endpoint. ws additionally supports ws+unix:, which we exclude deliberately —
+// a Scrypt endpoint is remote. Every other scheme makes the ws constructor throw synchronously, which looks
+// identical to an unparseable URL from here and is just as unfixable by retrying.
+const DIALABLE_WS_PROTOCOLS = ['ws:', 'wss:', 'http:', 'https:'];
+
+/**
+ * A URL the client can actually dial. Shared with ScryptService.isConfigured so that "configured" and
+ * "connectable" cannot drift apart: a URL that merely parses would otherwise pass the config guard, register
+ * every subscription, and then fail identically on every attempt with nothing able to fix it.
+ *
+ * Scheme and fragment are the whole test. It rejects `ftp://host` (parses, but the client refuses the scheme),
+ * a bare `host:443` (parses, but as scheme `host:` with no authority) and `wss://host/ws#x` (the ws client
+ * throws on any fragment). No separate host check: all four schemes are special, and for those the URL parser
+ * already rejects an empty host.
+ */
+export function isDialableWsUrl(url: string | undefined): boolean {
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+    return !parsed.hash && DIALABLE_WS_PROTOCOLS.includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
 export const TRANSIENT_WS_ERROR_MARKERS = ['Connection closed', 'unknown reqid'];
 
 export function isTransientWsError(e: Error): boolean {
@@ -152,8 +178,9 @@ export class ScryptWebSocketConnection {
   private readonly reconnectDelay = 5000; // 5 seconds
   private readonly maxReconnectDelay = 60000; // 60s cap for the exponential backoff
   private readonly handshakeTimeoutMs = 15000;
-  private hasEverConnected = false; // first connect subscribes directly; later connects must resubscribe
+  private hasEverConnected = false; // gates the reconnect catch-up callbacks; resubscription is decided by hasOrphanedStreams()
   private isReconnecting = false; // guards against overlapping reconnect loops
+  private loggedUndialableWsUrl = false; // an unretryable URL is reported once, not on every failed attempt
   private reconnectEpoch = 0; // bumped on disconnect / new loop so stale scheduleReconnect continuations no-op
   private reconnectTimer?: NodeJS.Timeout;
   private reconnectCallbacks: Array<() => void | Promise<void>> = [];
@@ -165,6 +192,21 @@ export class ScryptWebSocketConnection {
   // streaming
   private subscriptions: Map<ScryptMessageType, Set<SubscriptionCallback>> = new Map();
   private activeStreams: Set<ScryptMessageType> = new Set();
+  // Streams whose own subscribe() call is still awaiting connect(): it sends its SUBSCRIBE as soon as the
+  // connect resolves, so establishConnection must NOT restore those (that would double-send). Everything else
+  // in activeStreams is orphaned — nobody is waiting to send it — and only we can put it back on the socket.
+  // Claims are per CALL, not per stream: two calls can hold the same stream at once (one dying, one live), so
+  // each releases only its own token. A flag or a count cannot express that once disconnect() clears the map —
+  // the superseded call's release would then consume the newer call's claim, and resubscribeToStreams would
+  // restore a stream whose owner is about to send it too.
+  private pendingOwnerSubscribes: Map<ScryptMessageType, Set<number>> = new Map();
+  private subscribeClaimSeq = 0;
+  // Filters belong to the stream, not to the one call that first sent it: restoring a stream without them would
+  // silently widen the subscription (#4310 finding H). Harmless while every subscription is unfiltered, but
+  // restoring is now also the healing path for a first subscribe, so the trap is one filtered caller away.
+  // Note for the first filtered caller: a cursor-style filter is replayed verbatim, so a StartDate frozen at
+  // subscribe time re-delivers from that date on every restore — such a filter must be re-derived here instead.
+  private streamFilters: Map<ScryptMessageType, Record<string, unknown>> = new Map();
 
   constructor(
     private readonly wsUrl: string,
@@ -233,8 +275,9 @@ export class ScryptWebSocketConnection {
     return this.retryIdempotentRead(doFetch, `fetchAll ${streamName}`);
   }
 
-  // Register a callback fired after a successful RE-connect (not the first connect). Used to re-fetch state that
-  // a bare re-subscribe does not replay (see ScryptService catch-up). Callbacks must not throw / handle their own errors.
+  // Register a callback fired after every reconnect, plus a first connect that healed an earlier failed attempt
+  // (but not a clean first connect). Used to re-fetch state that a bare re-subscribe does not replay (see
+  // ScryptService catch-up). Callbacks must not throw / handle their own errors.
   onReconnect(callback: () => void | Promise<void>): void {
     this.reconnectCallbacks.push(callback);
   }
@@ -296,7 +339,7 @@ export class ScryptWebSocketConnection {
       this.reconnectTimer = undefined;
     }
     this.isReconnecting = false;
-    this.hasEverConnected = false; // full reset: a later reuse re-subscribes as a first connect (no double-send)
+    this.hasEverConnected = false; // full reset: a later reuse starts over, with no catch-up owed on its first connect
     this.reconnectEpoch++; // supersede any in-flight reconnect loop (stale timer/then/catch become no-ops)
     this.connectionState = ConnectionState.DISCONNECTED;
     this.connectionPromise = undefined;
@@ -308,6 +351,11 @@ export class ScryptWebSocketConnection {
     this.pendingRequests.clear();
     this.subscriptions.clear();
     this.activeStreams.clear();
+    // Claims of superseded calls go with them. Leaving them would suppress the restore of a stream that a new
+    // subscribe re-registers before the old call finishes settling — which can take until its handshake times
+    // out. Safe because each call releases only its own token, so this cannot free a newer call's claim.
+    this.pendingOwnerSubscribes.clear();
+    this.streamFilters.clear();
 
     if (this.ws) {
       this.ws.close();
@@ -333,9 +381,50 @@ export class ScryptWebSocketConnection {
       if (this.connectionPromise === promise) {
         this.connectionState = ConnectionState.DISCONNECTED;
         this.connectionPromise = undefined;
+        // A FAILED attempt leaves no socket, so no close event with wasConnected=true will ever arrive to arm
+        // handleDisconnection's loop (#4310 finding A). If we owe the venue subscriptions, the backoff loop is
+        // the only thing that can restore them — without this, a failed first connect stays dead until restart.
+        this.ensureReconnectLoop();
       }
       throw error;
     }
+  }
+
+  // Start the backoff loop unless one is already running. Only when streams are outstanding: a bare failed
+  // request has a caller who will retry on its own, and looping for it would reconnect for nobody.
+  private ensureReconnectLoop(): void {
+    if (this.isReconnecting || this.activeStreams.size === 0) return;
+
+    // A URL we cannot dial fails identically on every attempt, so a loop would warn forever without ever being
+    // able to connect. Say so once and stay down: this needs a config change, not a retry. The message names
+    // all three causes, because an unsupported scheme and a stray fragment both parse perfectly and would
+    // otherwise send the operator hunting for a typo that is not there.
+    if (!isDialableWsUrl(this.wsUrl)) {
+      if (!this.loggedUndialableWsUrl) {
+        this.loggedUndialableWsUrl = true;
+        this.logger.error(
+          'Scrypt WebSocket URL is not dialable (unparseable, unsupported scheme or URL fragment) — not scheduling reconnects',
+        );
+      }
+      return;
+    }
+
+    this.isReconnecting = true;
+    this.scheduleReconnect(0, ++this.reconnectEpoch);
+  }
+
+  // Streams that are supposed to be on the socket but have no subscribe() call waiting to send them.
+  private hasOrphanedStreams(): boolean {
+    for (const streamName of this.activeStreams) {
+      if (!this.isStreamClaimed(streamName)) return true;
+    }
+
+    return false;
+  }
+
+  // True while at least one subscribe() call is still awaiting a connect for this stream and will send it itself.
+  private isStreamClaimed(streamName: ScryptMessageType): boolean {
+    return (this.pendingOwnerSubscribes.get(streamName)?.size ?? 0) > 0;
   }
 
   // Full readiness. Everything awaiting connect()/connectionPromise waits for ALL of this, so no caller can send
@@ -344,21 +433,24 @@ export class ScryptWebSocketConnection {
   // CONNECTING until the very end, so a business call arriving mid-resubscribe joins connectionPromise (via
   // connect()'s CONNECTING branch) rather than proceeding on the half-ready socket.
   private async establishConnection(generation: number): Promise<void> {
-    const isReconnect = this.hasEverConnected;
+    const wasEverConnected = this.hasEverConnected;
     // rejects on error or handshake timeout; a close-before-open without an error is bounded by the
     // handshake timeout (it does not itself reject)
     await this.connectWebSocket(generation);
     this.assertCurrentGeneration(generation);
     this.assertSocketOpen('after handshake');
 
-    if (this.hasEverConnected) {
+    // Restore every stream no subscribe() call is waiting to send. On a genuine first connect each active
+    // stream still has its owner queued behind this promise, so there is nothing to restore here and nothing
+    // gets sent twice; after a failed attempt those owners are gone and only this call can revive the streams.
+    const hasRestoredStreams = this.hasOrphanedStreams();
+    if (hasRestoredStreams) {
       await this.resubscribeToStreams(); // sends on the current socket directly, no ensureConnected (no reentrancy)
       this.assertCurrentGeneration(generation);
       this.assertSocketOpen('after resubscription');
-    } else {
-      this.hasEverConnected = true;
     }
 
+    this.hasEverConnected = true;
     this.connectionState = ConnectionState.CONNECTED; // fully ready only now
     // We are fully connected — clear any reconnect loop, whether it healed us or a business call did.
     this.isReconnecting = false;
@@ -366,7 +458,9 @@ export class ScryptWebSocketConnection {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
-    if (isReconnect) this.fireReconnectCallbacks();
+    // Restoring orphaned streams counts as a reconnect even when no connect ever completed before: the
+    // constructor warm-up died with the failed attempt, so the caches are owed the same catch-up as after a drop.
+    if (wasEverConnected || hasRestoredStreams) this.fireReconnectCallbacks();
   }
 
   private fireReconnectCallbacks(): void {
@@ -395,6 +489,10 @@ export class ScryptWebSocketConnection {
     await this.connect();
 
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      // connect() short-circuits on a CONNECTED state whose socket is already closing, so it resolves without
+      // having reconnected and its catch never runs. Arm here too, or a business call that lands in this window
+      // leaves the streams down until the socket's own close event finally arrives.
+      this.ensureReconnectLoop();
       throw new Error('WebSocket connection failed');
     }
 
@@ -469,12 +567,17 @@ export class ScryptWebSocketConnection {
     });
     this.pendingRequests.clear();
 
-    // reconnect
-    if (wasConnected && !this.isReconnecting) {
-      this.isReconnecting = true;
-      const epoch = ++this.reconnectEpoch;
-      this.logger.warn(`Scrypt WebSocket closed (code: ${code}, reason: ${reason}), scheduling reconnect`);
-      this.scheduleReconnect(0, epoch);
+    // Log every close of a live socket, independently of whether it is this event that arms the loop. Since
+    // subscribe() and ensureConnected() can arm first, folding the two together would drop the close code and
+    // reason exactly in the windows where they are armed — and that line is the outage signal on a flapping
+    // connection (finding G).
+    if (wasConnected) {
+      this.logger.warn(`Scrypt WebSocket closed (code: ${code}, reason: ${reason})`);
+
+      if (!this.isReconnecting) {
+        this.isReconnecting = true;
+        this.scheduleReconnect(0, ++this.reconnectEpoch);
+      }
     }
   }
 
@@ -485,9 +588,22 @@ export class ScryptWebSocketConnection {
       this.logger.error(`Scrypt WebSocket still not reconnected after ${attempt} attempts`);
     this.reconnectTimer = setTimeout(() => {
       if (epoch !== this.reconnectEpoch) return; // this loop was superseded (disconnect or a newer loop)
+      // Everything we owed was unsubscribed while this timer waited. Stand down instead of holding a socket
+      // open that nobody reads — the arm-time guard cannot see a set that empties later.
+      if (this.activeStreams.size === 0) {
+        this.isReconnecting = false;
+        return;
+      }
       void this.connect()
         .then(() => {
           if (epoch !== this.reconnectEpoch) return;
+          // connect() short-circuits on a CONNECTED state whose socket is already closing, so resolving is not
+          // proof of a live socket. Declaring success there would disarm the loop and log a reconnect that never
+          // happened — the outage signal #4310 finding G asked for. Use ensureConnected's readiness definition.
+          if (this.connectionState !== ConnectionState.CONNECTED || this.ws?.readyState !== WebSocket.OPEN) {
+            this.scheduleReconnect(attempt + 1, epoch);
+            return;
+          }
           this.isReconnecting = false;
           this.logger.info(`Scrypt WebSocket reconnected (after ${attempt + 1} attempt(s))`);
         })
@@ -567,11 +683,9 @@ export class ScryptWebSocketConnection {
 
   /**
    * Safe to call for a stream that is already active (it only adds a callback — no new SUBSCRIBE is
-   * sent). Subscribing a brand-new stream while the connection is down/reconnecting can double-send
-   * the SUBSCRIBE frame (the in-flight reconnect's resubscribe and this call both send it). All
-   * current callers either subscribe at construction or, like
-   * ExchangeTxService.onBalanceTransactions(), only add a callback to an already-active stream — see
-   * #4310 follow-up.
+   * sent). Also safe while the connection is down or reconnecting: the stream is claimed in
+   * pendingOwnerSubscribes for the duration of the connect, so an in-flight reconnect leaves it to
+   * this call and the SUBSCRIBE frame goes out exactly once.
    */
   subscribeToStream<T>(
     streamName: ScryptMessageType,
@@ -597,9 +711,13 @@ export class ScryptWebSocketConnection {
     // send subscription
     if (!this.activeStreams.has(streamName)) {
       this.activeStreams.add(streamName);
+      if (filters) this.streamFilters.set(streamName, filters);
       this.sendSubscription(streamName, filters).catch((error) => {
         this.logger.error(`Failed to subscribe to ${streamName}:`, error);
-        this.activeStreams.delete(streamName);
+        // Keep it in activeStreams so the backoff loop restores it, exactly as resubscribeToStreams does on a
+        // mid-resubscribe drop. Dropping it here is what made a failed first connect permanent (#4310 finding A):
+        // the stream was gone before any reconnect could put it back.
+        this.ensureReconnectLoop();
       });
     }
 
@@ -612,6 +730,7 @@ export class ScryptWebSocketConnection {
         if (callbacks.size === 0) {
           this.subscriptions.delete(streamName);
           this.activeStreams.delete(streamName);
+          this.streamFilters.delete(streamName);
           this.sendUnsubscription(streamName).catch((error) => {
             this.logger.error(`Failed to unsubscribe from ${streamName}:`, error);
           });
@@ -621,8 +740,22 @@ export class ScryptWebSocketConnection {
   }
 
   private async sendSubscription(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<void> {
-    await this.ensureConnected();
-    this.sendSubscriptionOnSocket(streamName, filters);
+    // Claim the stream for the duration of the connect so a concurrent establishConnection leaves it to us.
+    const claim = ++this.subscribeClaimSeq;
+    const claims = this.pendingOwnerSubscribes.get(streamName) ?? new Set<number>();
+    claims.add(claim);
+    this.pendingOwnerSubscribes.set(streamName, claims);
+
+    try {
+      await this.ensureConnected();
+      this.sendSubscriptionOnSocket(streamName, filters);
+    } finally {
+      // Release only our own token: disconnect() may have dropped this claim and a newer call may have
+      // re-registered the same stream in the meantime.
+      const held = this.pendingOwnerSubscribes.get(streamName);
+      held?.delete(claim);
+      if (held && held.size === 0) this.pendingOwnerSubscribes.delete(streamName);
+    }
   }
 
   // Send a SUBSCRIBE frame on the CURRENT socket, used during (re)connection where ensureConnected must not be
@@ -668,8 +801,10 @@ export class ScryptWebSocketConnection {
 
   private async resubscribeToStreams(): Promise<void> {
     for (const streamName of this.activeStreams) {
+      if (this.isStreamClaimed(streamName)) continue; // its subscribe() sends once this connect resolves
       try {
-        this.sendSubscriptionOnSocket(streamName); // throws if the socket isn't open; caught + logged, kept for retry
+        // throws if the socket isn't open; caught + logged, kept for retry
+        this.sendSubscriptionOnSocket(streamName, this.streamFilters.get(streamName));
       } catch (error) {
         this.logger.error(`Failed to resubscribe to ${streamName}:`, error);
         // keep it in activeStreams so the next reconnect retries it (do not drop it)

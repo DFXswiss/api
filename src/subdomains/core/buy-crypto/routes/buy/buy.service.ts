@@ -183,14 +183,17 @@ export class BuyService {
     // create the entity
     const buy = this.buyRepo.create(dto);
     buy.user = user;
-    buy.route = await this.routeService.createRoute({ buy });
 
     // create hash
     const hash = Util.createHash(userAddress + buy.asset.id + (buy.iban ?? '')).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
-    // save
-    const entity = await this.buyRepo.save(buy);
+    // save route and buy together, so that a rejected buy insert does not leave an orphan route
+    const entity = await this.buyRepo.manager.transaction(async (manager) => {
+      buy.route = await this.routeService.createRoute({ buy }, manager);
+
+      return manager.save(buy);
+    });
 
     if (this.cache) this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
 
@@ -496,6 +499,8 @@ export class BuyService {
       };
     }
 
+    // CARD keeps the same active-vIBAN lookups as BANK so an existing personal IBAN remains visible,
+    // but it must never issue a new one because card payments use a payment link instead of a deposit IBAN.
     // asset-specific personal IBAN. Deliberately not for EUR: buy-specific issuance runs through the
     // generic createForBuy path, which has none of the advisory-lock, merged-account and claim-recovery
     // handling that Bank Frick issuance needs (getOrCreateFrickForUser). An EUR request falls through
@@ -511,7 +516,7 @@ export class BuyService {
     ) {
       let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, selector.currency);
 
-      if (!virtualIban) {
+      if (!virtualIban && selector.paymentMethod !== FiatPaymentMethod.CARD) {
         // max 10 vIBANs per user
         const activeCount = await this.virtualIbanService.countActiveForUser(selector.userData.id);
         if (activeCount < 10) {
@@ -532,10 +537,17 @@ export class BuyService {
     }
 
     // user-level vIBAN
-    let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
+    let virtualIban = await this.virtualIbanService.getActiveReceivingForUserAndCurrency(
+      selector.userData,
+      selector.currency,
+    );
 
     // create a personal IBAN for an eligible KYC 50+ user
-    if (!virtualIban && this.virtualIbanService.isUserEligible(selector.currency, selector.userData)) {
+    if (
+      !virtualIban &&
+      selector.paymentMethod !== FiatPaymentMethod.CARD &&
+      this.virtualIbanService.isUserEligible(selector.currency, selector.userData)
+    ) {
       // EUR goes through the Frick-specific issuance (advisory lock, merged accounts, claim recovery);
       // every other currency keeps the generic provider path. Both swallow a failure the same way, so a
       // transient issuance error degrades identically instead of breaking one currency harder than the
@@ -569,7 +581,7 @@ export class BuyService {
     // verified customer to complete a level they already hold.
     if (selector.paymentMethod !== FiatPaymentMethod.CARD)
       throw new BadRequestException(
-        !this.virtualIbanService.supportsCurrency(selector.currency)
+        !this.virtualIbanService.hasProviderSupportingCurrency(selector.currency)
           ? QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED
           : selector.userData.kycLevel >= KycLevel.LEVEL_50
             ? QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED

@@ -8,8 +8,13 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
+import { IsNull, Not } from 'typeorm';
 import { FiatPaymentMethod } from '../../dto/payment-method.enum';
-import { TransactionRequest, TransactionRequestType } from '../../entities/transaction-request.entity';
+import {
+  TransactionRequest,
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from '../../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../../repositories/transaction-request.repository';
 import { TransactionRequestService } from '../transaction-request.service';
 
@@ -111,5 +116,109 @@ describe('TransactionRequestService bank selection persistence', () => {
     expect(logged).not.toContain(customerIban);
     expect(logged).not.toContain(JSON.stringify(request));
     expect(logged).not.toContain(JSON.stringify(response));
+  });
+});
+
+describe('TransactionRequestService settlement persistence', () => {
+  async function createService(
+    repo: ReturnType<typeof createMock<TransactionRequestRepository>>,
+  ): Promise<TransactionRequestService> {
+    const module = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        TransactionRequestService,
+        { provide: TransactionRequestRepository, useValue: repo },
+        { provide: SiftService, useValue: createMock<SiftService>() },
+        { provide: AssetService, useValue: createMock<AssetService>() },
+        { provide: FiatService, useValue: createMock<FiatService>() },
+        { provide: BuyService, useValue: createMock<BuyService>() },
+        { provide: SellService, useValue: createMock<SellService>() },
+        { provide: SwapService, useValue: createMock<SwapService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    return module.get(TransactionRequestService);
+  }
+
+  it('completes a request without touching settlement fields', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    const service = await createService(repo);
+
+    await service.complete(7);
+
+    expect(repo.update).toHaveBeenCalledWith(7, {
+      isComplete: true,
+      status: TransactionRequestStatus.COMPLETED,
+    });
+    const payload = repo.update.mock.calls[0][1];
+    expect(payload).not.toHaveProperty('settlementTxId');
+    expect(payload).not.toHaveProperty('settlementEventId');
+  });
+
+  it('claims a request for a settlement only while it is still waiting and unsettled', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    jest.spyOn(repo, 'update').mockResolvedValue({ affected: 1 } as any);
+    const service = await createService(repo);
+
+    const claimed = await service.completeSettlement(7, { txId: '0xTx', eventId: 'history-1-2-to' });
+
+    expect(claimed).toBe(true);
+    expect(repo.update).toHaveBeenCalledWith(
+      { id: 7, status: TransactionRequestStatus.WAITING_FOR_PAYMENT, settlementEventId: IsNull() },
+      {
+        isComplete: true,
+        status: TransactionRequestStatus.COMPLETED,
+        settlementTxId: '0xTx',
+        settlementEventId: 'history-1-2-to',
+      },
+    );
+  });
+
+  it('reports a lost claim when another instance already settled the request', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    jest.spyOn(repo, 'update').mockResolvedValue({ affected: 0 } as any);
+    const service = await createService(repo);
+
+    const claimed = await service.completeSettlement(7, { txId: '0xTx', eventId: 'history-1-2-to' });
+
+    expect(claimed).toBe(false);
+  });
+
+  it('returns consumed settlement event ids across all users', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    jest
+      .spyOn(repo, 'find')
+      .mockResolvedValue([{ settlementEventId: 'history-1-2-to' }, { settlementEventId: 'history-3-4-to' }] as any);
+    const service = await createService(repo);
+
+    const result = await service.getConsumedSettlementEventIds();
+
+    expect(result).toEqual(['history-1-2-to', 'history-3-4-to']);
+    expect(repo.find).toHaveBeenCalledWith({
+      where: { settlementEventId: Not(IsNull()) },
+      select: { settlementEventId: true },
+    });
+  });
+
+  it('returns the legacy settlement txs of every account sharing an address', async () => {
+    const repo = createMock<TransactionRequestRepository>();
+    const qb = {
+      innerJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([{ settlementTxId: '0xTxA' }, { settlementTxId: '0xTxB' }]),
+    };
+    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as any);
+    const service = await createService(repo);
+
+    const result = await service.getLegacySettlementTxIds('0xAddress');
+
+    expect(result).toEqual(['0xTxA', '0xTxB']);
+    expect(repo.createQueryBuilder).toHaveBeenCalledWith('request');
+    expect(qb.where).toHaveBeenCalledWith('LOWER(user.address) = LOWER(:address)', { address: '0xAddress' });
+    expect(qb.andWhere).toHaveBeenCalledWith('request.settlementTxId IS NOT NULL');
+    expect(qb.andWhere).toHaveBeenCalledWith('request.settlementEventId IS NULL');
   });
 });

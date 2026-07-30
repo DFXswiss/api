@@ -884,7 +884,7 @@ export class TransactionHelper implements OnModuleInit {
 
     // vIBAN deposits are received at the vIBAN bank
     if (userData) {
-      const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(userData, from.name);
+      const virtualIban = await this.virtualIbanService.getActiveReceivingForUserAndCurrency(userData, from.name);
       if (virtualIban?.bank.receive) return virtualIban.bank.name;
     }
 

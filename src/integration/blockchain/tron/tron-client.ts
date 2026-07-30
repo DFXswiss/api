@@ -31,6 +31,11 @@ export class TronClient extends BlockchainClient {
     return this.wallet.address;
   }
 
+  // every request carries the Tatum API key as x-api-key; without it the gateway serves the anonymous tier
+  get isConfigured(): boolean {
+    return !!Config.blockchain.tron.tronApiKey;
+  }
+
   async getBlockHeight(): Promise<number> {
     const url = Config.blockchain.tron.tronApiUrl;
     const info = await this.http.get<{ blockNumber: number }>(`${url}/info`, this.httpConfig());

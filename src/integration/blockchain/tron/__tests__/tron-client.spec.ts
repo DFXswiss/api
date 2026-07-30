@@ -9,9 +9,12 @@
  * TronClient's constructor wires up a real TronWallet from a seed that needs live config. To isolate
  * JUST the changed methods, we call the private prototype methods directly via Function.prototype.call
  * against a minimal stub `this`, following the same pattern as cardano/solana/icp-client.spec.ts.
+ *
+ * The second suite covers the config gate that decides whether the client is usable at all - same
+ * prototype-stub approach, since isConfigured only reads Config.
  */
 
-import { ConfigService } from 'src/config/config';
+import { Config, ConfigService } from 'src/config/config';
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TronClient } from '../tron-client';
@@ -24,11 +27,11 @@ function createClientStub(post: jest.Mock): any {
   return client;
 }
 
-describe('TronClient - broadcast boundary', () => {
-  beforeAll(() => {
-    new ConfigService(); // sets module-level Config (tronApiUrl/tronApiKey read inside sendNativeCoin/sendToken)
-  });
+beforeAll(() => {
+  new ConfigService(); // sets module-level Config (tronApiUrl/tronApiKey read inside the client methods)
+});
 
+describe('TronClient - broadcast boundary', () => {
   describe('sendNativeCoin(...)', () => {
     it('returns the txId when the gateway call succeeds', async () => {
       const post = jest.fn().mockResolvedValue({ txId: 'TX_HASH_01' });
@@ -179,5 +182,22 @@ describe('TronClient - broadcast boundary', () => {
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('Tron broadcast returned an empty txId');
     });
+  });
+});
+
+describe('TronClient - isConfigured', () => {
+  it('follows the Tatum API key, which every request sends as x-api-key', () => {
+    const client = Object.create(TronClient.prototype);
+    const apiKey = Config.blockchain.tron.tronApiKey;
+
+    try {
+      Config.blockchain.tron.tronApiKey = undefined;
+      expect(client.isConfigured).toBe(false);
+
+      Config.blockchain.tron.tronApiKey = 'TATUM_API_KEY';
+      expect(client.isConfigured).toBe(true);
+    } finally {
+      Config.blockchain.tron.tronApiKey = apiKey;
+    }
   });
 });

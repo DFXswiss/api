@@ -308,23 +308,55 @@ export class TransactionRequestService {
     return matchingRequest;
   }
 
-  async complete(id: number, settlementTxId?: string): Promise<void> {
+  async complete(id: number): Promise<void> {
     await this.transactionRequestRepo.update(id, {
       isComplete: true,
       status: TransactionRequestStatus.COMPLETED,
-      ...(settlementTxId && { settlementTxId }),
     });
   }
 
-  async getUsedSettlements(userId: number): Promise<{ settlementTxId: string; estimatedAmount: number }[]> {
+  // Atomically claims the request for this settlement. A second job instance that already completed
+  // it - or assigned a different event to it - leaves affected = 0, and the caller must then not
+  // treat the event as consumed. A plain update would let two instances overwrite one another and
+  // release the first event back into the pool
+  async completeSettlement(id: number, settlement: { txId: string; eventId: string }): Promise<boolean> {
+    const result = await this.transactionRequestRepo.update(
+      { id, status: TransactionRequestStatus.WAITING_FOR_PAYMENT, settlementEventId: IsNull() },
+      {
+        isComplete: true,
+        status: TransactionRequestStatus.COMPLETED,
+        settlementTxId: settlement.txId,
+        settlementEventId: settlement.eventId,
+      },
+    );
+
+    return Boolean(result.affected);
+  }
+
+  // every event id already consumed by a completed request. The column is globally unique, so this
+  // set is global too — a user-local view would let two accounts sharing one on-chain address pick
+  // the same event and dead-lock the second one against the unique index
+  async getConsumedSettlementEventIds(): Promise<string[]> {
     return this.transactionRequestRepo
-      .find({
-        where: { user: { id: userId }, settlementTxId: Not(IsNull()) },
-        select: { settlementTxId: true, estimatedAmount: true },
-      })
-      .then((requests) =>
-        requests.map((r) => ({ settlementTxId: r.settlementTxId, estimatedAmount: r.estimatedAmount })),
-      );
+      .find({ where: { settlementEventId: Not(IsNull()) }, select: { settlementEventId: true } })
+      .then((requests) => requests.map((r) => r.settlementEventId));
+  }
+
+  // settlement txs of requests completed before the event id was recorded, for every account sharing
+  // this on-chain address. Per address, not per user: `user.address` is unique only case-sensitively,
+  // so two accounts can share one address and see the same indexer history — and a legacy row carries
+  // no event id the global set could block. Not global either: a batch tx pays out to several
+  // addresses, and only this one's share of it is unaccountable
+  async getLegacySettlementTxIds(address: string): Promise<string[]> {
+    return this.transactionRequestRepo
+      .createQueryBuilder('request')
+      .innerJoin('request.user', 'user')
+      .select('request.settlementTxId', 'settlementTxId')
+      .where('LOWER(user.address) = LOWER(:address)', { address })
+      .andWhere('request.settlementTxId IS NOT NULL')
+      .andWhere('request.settlementEventId IS NULL')
+      .getRawMany<{ settlementTxId: string }>()
+      .then((rows) => rows.map((r) => r.settlementTxId));
   }
 
   async updateEstimatedAmount(id: number, estimatedAmount: number): Promise<void> {

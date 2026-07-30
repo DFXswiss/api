@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { EntityManager } from 'typeorm';
 import { CreateRouteDto } from './dto/create-route.dto';
 import { UpdateRouteDto } from './dto/update-route.dto';
 import { Route } from './route.entity';
@@ -8,10 +9,10 @@ import { RouteRepository } from './route.repository';
 export class RouteService {
   constructor(private readonly routeRepo: RouteRepository) {}
 
-  async createRoute(dto: CreateRouteDto): Promise<Route> {
-    const entity = this.routeRepo.create(dto);
-
-    return this.routeRepo.save(entity);
+  // the route is always created in its owner's transaction, so that a failing owner insert
+  // (buy/sell/swap) rolls the route back instead of orphaning it
+  async createRoute(dto: CreateRouteDto, manager: EntityManager): Promise<Route> {
+    return manager.save(this.routeRepo.create(dto));
   }
 
   async updateRoute(id: number, dto: UpdateRouteDto): Promise<Route> {

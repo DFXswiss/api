@@ -195,7 +195,6 @@ export class SellService {
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = await this.userService.getUser(userId, { userData: true });
-    sell.route = await this.routeService.createRoute({ sell });
     sell.fiat = dto.currency;
     sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
     sell.bankData = await this.bankDataService.createIbanForUser(
@@ -205,7 +204,12 @@ export class SellService {
       BankDataType.USER,
     );
 
-    return this.sellRepo.save(sell);
+    // save route and sell together, so that a rejected sell insert does not leave an orphan route
+    return this.sellRepo.manager.transaction(async (manager) => {
+      sell.route = await this.routeService.createRoute({ sell }, manager);
+
+      return manager.save(sell);
+    });
   }
 
   async updateSell(userId: number, sellId: number, dto: UpdateSellDto): Promise<Sell> {

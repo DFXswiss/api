@@ -28,6 +28,7 @@ import {
 } from '../dto/scrypt.dto';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import {
+  isDialableWsUrl,
   isVenueRejection,
   ScryptAmendRejectedError,
   ScryptMessageType,
@@ -88,9 +89,13 @@ export class ScryptService extends PricingProvider {
 
   readonly name: string = 'Scrypt';
 
+  // A dialable wsUrl counts as configuration, not just the credentials: an environment without one can never
+  // connect, so it skips warm-up and subscriptions entirely instead of registering everything and then failing
+  // identically on every attempt. Uses the connection's own dialability test, so "configured" cannot claim a
+  // URL the client would refuse to dial.
   get isConfigured(): boolean {
-    const { apiKey, apiSecret } = GetConfig().scrypt;
-    return !!apiKey && !!apiSecret;
+    const { wsUrl, apiKey, apiSecret } = GetConfig().scrypt;
+    return isDialableWsUrl(wsUrl) && !!apiKey && !!apiSecret;
   }
 
   constructor() {

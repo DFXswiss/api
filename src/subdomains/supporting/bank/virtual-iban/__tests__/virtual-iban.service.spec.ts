@@ -10,7 +10,17 @@ import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/use
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
-import { DataSource, EntityManager, FindOperator, IsNull } from 'typeorm';
+import {
+  Column,
+  DataSource,
+  Entity,
+  EntityManager,
+  FindOneOptions,
+  FindOperator,
+  IsNull,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Bank } from '../../bank/bank.entity';
 import { BankService } from '../../bank/bank.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
@@ -25,6 +35,69 @@ import { VirtualIbanIssuanceIntent } from '../virtual-iban-issuance-intent.entit
 import { VirtualIbanLifecycleEvent } from '../virtual-iban-lifecycle-event.entity';
 import { VirtualIbanRepository } from '../virtual-iban.repository';
 import { CREATE_PATH_REFERENCE_MARKER, MERGE_SUPERSEDED_MARKER, VirtualIbanService } from '../virtual-iban.service';
+
+// These shadow entities mirror only the columns the receiving lookup actually queries. The production
+// VirtualIban entity is too relation-heavy to synchronize into pg-mem, but the point of these tests is
+// that a real SQL engine evaluates the WHERE clause and the ORDER BY - not that the full schema exists.
+// Every column needs an explicit type: pg-mem rejects an entity whose only column is the generated key
+// (TypeORM emits INSERT ... DEFAULT VALUES, which it cannot parse), and enum-typed columns reflect as
+// Object unless the type is spelled out.
+@Entity({ name: 'receiving_lookup_user_data' })
+class ReceivingLookupUserDataTable {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 256 })
+  label: string;
+}
+
+@Entity({ name: 'receiving_lookup_fiat' })
+class ReceivingLookupFiatTable {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 256, unique: true })
+  name: string;
+}
+
+@Entity({ name: 'receiving_lookup_bank' })
+class ReceivingLookupBankTable {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 256 })
+  name: IbanBankName;
+
+  @Column({ type: 'boolean', default: true })
+  receive: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  send: boolean;
+}
+
+@Entity({ name: 'receiving_lookup_virtual_iban' })
+class ReceivingLookupVirtualIbanTable {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 34, unique: true })
+  iban: string;
+
+  @ManyToOne(() => ReceivingLookupFiatTable, { nullable: false })
+  currency: ReceivingLookupFiatTable;
+
+  @Column({ type: 'boolean', default: true })
+  active: boolean;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  status?: VirtualIbanStatus;
+
+  @ManyToOne(() => ReceivingLookupUserDataTable, { nullable: false })
+  userData: ReceivingLookupUserDataTable;
+
+  @ManyToOne(() => ReceivingLookupBankTable, { nullable: false })
+  bank: ReceivingLookupBankTable;
+}
 
 describe('VirtualIbanService', () => {
   let service: VirtualIbanService;
@@ -1354,11 +1427,11 @@ describe('VirtualIbanService', () => {
   });
 
   describe('read helpers', () => {
-    it('returns the first generic user-level vIBAN selected by the repository', async () => {
+    it('returns the first receiving generic user-level vIBAN selected by the repository', async () => {
       const selected = { id: 3, bank: { name: IbanBankName.YAPEAL } } as VirtualIban;
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(selected);
 
-      await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
     });
 
     it('reuses an existing Frick EUR vIBAN from the user-level lookup', async () => {
@@ -1372,19 +1445,15 @@ describe('VirtualIbanService', () => {
       } as VirtualIban;
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(selected);
 
-      await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
-    it('getActiveForUserAndCurrency only considers rows whose bank still receives', async () => {
-      // A customer can hold several active rows per currency - a retired Yapeal EUR IBAN next to a
-      // working Frick one. findOne has no ORDER BY, so without this filter the retired row can win,
-      // the caller sees "found, but the bank does not receive", and with no collection-account
-      // fallback left the request fails outright. That hit every holder of a retired Yapeal EUR IBAN.
+    it('getActiveReceivingForUserAndCurrency only considers rows whose bank still receives', async () => {
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
 
-      await service.getActiveForUserAndCurrency(userData, 'CHF');
+      await service.getActiveReceivingForUserAndCurrency(userData, 'CHF');
 
       expect(virtualIbanRepo.findOne).toHaveBeenCalledWith({
         where: {
@@ -1395,6 +1464,25 @@ describe('VirtualIbanService', () => {
           status: VirtualIbanStatus.ACTIVE,
         },
         relations: { bank: true },
+        order: { id: 'DESC' },
+      });
+    });
+
+    it('getActiveSendingCandidatesForUserAndCurrency returns newest send-enabled rows first', async () => {
+      jest.spyOn(virtualIbanRepo, 'find').mockResolvedValue([]);
+
+      await service.getActiveSendingCandidatesForUserAndCurrency(userData, 'CHF');
+
+      expect(virtualIbanRepo.find).toHaveBeenCalledWith({
+        where: {
+          userData: { id: 7 },
+          currency: { name: 'CHF' },
+          bank: { send: true },
+          active: true,
+          status: VirtualIbanStatus.ACTIVE,
+        },
+        relations: { bank: true },
+        order: { id: 'DESC' },
       });
     });
 
@@ -1410,14 +1498,15 @@ describe('VirtualIbanService', () => {
         status: VirtualIbanStatus.ACTIVE,
       } as VirtualIban;
 
-      jest.spyOn(virtualIbanRepo, 'findOne').mockImplementation(async (options: any) => {
-        const buyWhere = options?.where?.buy;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockImplementation(async (options: FindOneOptions<VirtualIban>) => {
+        if (!options.where || Array.isArray(options.where)) throw new Error('Expected one vIBAN where clause');
+        const buyWhere = options.where.buy;
         // The regressed filter excluded this row. With merge-base semantics, no buy predicate exists.
         if (buyWhere instanceof FindOperator && buyWhere.type === 'isNull') return null;
         return buyBound;
       });
 
-      await expect(service.getActiveForUserAndCurrency(userData, 'CHF')).resolves.toBe(buyBound);
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'CHF')).resolves.toBe(buyBound);
       expect(virtualIbanRepo.findOne).toHaveBeenCalled();
     });
 
@@ -1539,6 +1628,122 @@ describe('VirtualIbanService', () => {
 
       await service.getVirtualIbanByKey('userData.id', 7);
       expect(qb.where).toHaveBeenCalledWith('userData.id = :param', { param: 7 });
+    });
+  });
+
+  describe('receiving lookup selection (pg-mem)', () => {
+    let pgDataSource: DataSource;
+    let lookupService: VirtualIbanService;
+
+    beforeAll(async () => {
+      const db = newDb();
+      // TypeORM runs SELECT version() / current_database() on connect; pg-mem does not ship them.
+      db.public.registerFunction({
+        name: 'version',
+        returns: DataType.text,
+        implementation: () => 'PostgreSQL 15.0',
+      });
+      db.public.registerFunction({
+        name: 'current_database',
+        returns: DataType.text,
+        implementation: () => 'test',
+      });
+
+      pgDataSource = (await db.adapters.createTypeormDataSource({
+        type: 'postgres',
+        entities: [
+          ReceivingLookupUserDataTable,
+          ReceivingLookupFiatTable,
+          ReceivingLookupBankTable,
+          ReceivingLookupVirtualIbanTable,
+        ],
+        synchronize: true,
+      })) as DataSource;
+      await pgDataSource.initialize();
+    }, 30000);
+
+    afterAll(async () => {
+      if (pgDataSource?.isInitialized) await pgDataSource.destroy();
+    });
+
+    beforeEach(async () => {
+      await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).clear();
+
+      lookupService = new VirtualIbanService(
+        pgDataSource.getRepository(ReceivingLookupVirtualIbanTable) as unknown as VirtualIbanRepository,
+        bankService,
+        fiatService,
+        yapealVibanProvider,
+        frickVibanProvider,
+        pgDataSource,
+        notificationService,
+      );
+    });
+
+    it('selects the receiving row when an active row on a retired bank is also present', async () => {
+      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({ label: 'lookup' });
+      const lookupCurrency = await pgDataSource.getRepository(ReceivingLookupFiatTable).save({ name: 'EUR' });
+      const retiredBank = await pgDataSource
+        .getRepository(ReceivingLookupBankTable)
+        .save({ name: IbanBankName.YAPEAL, receive: false, send: true });
+      const receivingBank = await pgDataSource
+        .getRepository(ReceivingLookupBankTable)
+        .save({ name: IbanBankName.FRICK, receive: true, send: true });
+      // The receiving row is stored FIRST so it carries the lower id. Newest-first ordering would hand
+      // back the retired row, which means only the bank.receive predicate can make this test pass -
+      // insert the other way round and the ordering alone would satisfy it, leaving the predicate untested.
+      const receiving = await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'LI0000000000000000002',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: receivingBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+      await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'CH0000000000000000001',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: retiredBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+
+      await expect(
+        lookupService.getActiveReceivingForUserAndCurrency({ id: lookupUser.id } as UserData, 'EUR'),
+      ).resolves.toMatchObject({
+        id: receiving.id,
+        iban: receiving.iban,
+        bank: { id: receivingBank.id, receive: true },
+      });
+    });
+
+    it('selects the most recently created row when two active rows can receive', async () => {
+      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({ label: 'lookup' });
+      const lookupCurrency = await pgDataSource.getRepository(ReceivingLookupFiatTable).save({ name: 'CHF' });
+      const receivingBank = await pgDataSource
+        .getRepository(ReceivingLookupBankTable)
+        .save({ name: IbanBankName.YAPEAL, receive: true, send: true });
+      await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'CH0000000000000000003',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: receivingBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+      const latest = await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'CH0000000000000000004',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: receivingBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+
+      await expect(
+        lookupService.getActiveReceivingForUserAndCurrency({ id: lookupUser.id } as UserData, 'CHF'),
+      ).resolves.toMatchObject({ id: latest.id, iban: latest.iban });
     });
   });
 
@@ -4269,23 +4474,23 @@ describe('VirtualIbanService', () => {
       expect(blockingRow!.externalIban).toBe(blockingIban);
     });
   });
-  describe('supportsCurrency', () => {
+  describe('hasProviderSupportingCurrency', () => {
     it('reports coverage per currency across the generic providers', () => {
-      expect(service.supportsCurrency('EUR')).toBe(true);
-      expect(service.supportsCurrency('CHF')).toBe(true);
-      expect(service.supportsCurrency('USD')).toBe(false);
+      expect(service.hasProviderSupportingCurrency('EUR')).toBe(true);
+      expect(service.hasProviderSupportingCurrency('CHF')).toBe(true);
+      expect(service.hasProviderSupportingCurrency('USD')).toBe(false);
     });
 
     it('stays true while a provider is unreachable', () => {
       // The whole point of this method: an outage is temporary and ours to fix, so it must not be
       // reported to the customer as "we do not offer personal IBANs in this currency". Callers that
-      // care about reachability use hasProviderForCurrency instead.
+      // care about reachability use hasAvailableProviderForCurrency instead.
       jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
       jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(false);
 
-      expect(service.supportsCurrency('EUR')).toBe(true);
-      expect(service.supportsCurrency('CHF')).toBe(true);
-      expect(service.supportsCurrency('USD')).toBe(false);
+      expect(service.hasProviderSupportingCurrency('EUR')).toBe(true);
+      expect(service.hasProviderSupportingCurrency('CHF')).toBe(true);
+      expect(service.hasProviderSupportingCurrency('USD')).toBe(false);
     });
   });
 });

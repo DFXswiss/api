@@ -9,6 +9,7 @@ export class VirtualIbanMapper {
       bban: virtualIban.bban,
       currency: virtualIban.currency.name,
       active: virtualIban.active,
+      acceptsPayments: virtualIban.bank.receive,
       status: virtualIban.status,
       label: virtualIban.label,
       activatedAt: virtualIban.activatedAt,
