@@ -19,7 +19,7 @@ describe('RealUnitJobService', () => {
   const userAddress = '0xUserAddress';
   // the settlement filter requires from == issuer, so the fixture must use the address the service
   // itself reads. Config is only populated once TestUtil.provideConfig() runs below, so both
-  // constants are assigned in beforeEach instead of at describe scope (evaluated before any
+  // fixtures are assigned in beforeEach instead of at describe scope (evaluated before any
   // beforeEach, when Config would still be undefined)
   let brokerbotAddress: string;
   let settlementEvent: {
