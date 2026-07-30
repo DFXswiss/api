@@ -84,6 +84,7 @@ const PINNED_LOGIC = [
   'src/subdomains/core/accounting/services/ledger-account.service.ts',
   'src/subdomains/core/accounting/services/ledger-booking-job.service.ts',
   'src/subdomains/core/accounting/services/ledger-bootstrap.service.ts',
+  'src/subdomains/core/accounting/services/ledger-mark-to-market.service.ts',
   'src/subdomains/core/aml/enums/aml-list-status.enum.ts',
   'src/subdomains/core/aml/enums/aml-reason.enum.ts',
   'src/subdomains/core/aml/enums/aml-rule.enum.ts',
