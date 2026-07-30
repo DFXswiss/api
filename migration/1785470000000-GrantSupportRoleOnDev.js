@@ -7,8 +7,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class GrantSupportRoleOnDev1785311300000 {
-  name = 'GrantSupportRoleOnDev1785311300000';
+module.exports = class GrantSupportRoleOnDev1785470000000 {
+  name = 'GrantSupportRoleOnDev1785470000000';
 
   /**
    * Grant Support role to 0xB6cA05F0e3e71B1C5568BD423A6682dc78469Ae8 on DEV only,
@@ -37,7 +37,7 @@ module.exports = class GrantSupportRoleOnDev1785311300000 {
                 'GrantSupportRoleOnDev',
                 'Info',
                 jsonb_build_object(
-                    'migration', 'GrantSupportRoleOnDev1785311300000',
+                    'migration', 'GrantSupportRoleOnDev1785470000000',
                     'direction', 'up',
                     'affectedCount', count(*),
                     'userIds', string_agg(id::text, ','),
@@ -82,7 +82,7 @@ module.exports = class GrantSupportRoleOnDev1785311300000 {
                 'GrantSupportRoleOnDev',
                 'Info',
                 jsonb_build_object(
-                    'migration', 'GrantSupportRoleOnDev1785311300000',
+                    'migration', 'GrantSupportRoleOnDev1785470000000',
                     'direction', 'down',
                     'affectedCount', count(*),
                     'userIds', string_agg(id::text, ','),
