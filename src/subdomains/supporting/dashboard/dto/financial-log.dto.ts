@@ -7,7 +7,12 @@ export class FinancialLogEntryDto {
   // logged before this field existed (see BalancesTotal.fxPnlChf).
   fxPnlChf: number;
   btcPriceChf: number;
-  balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }>;
+  /**
+   * plusBalanceChf/minusBalanceChf can be missing per type when the source FinancialDataLog
+   * snapshot omitted one of the two keys (see FinancialLogSummary.balancesByType); a missing
+   * value is left out of the JSON response the same way it always was, never defaulted to 0.
+   */
+  balancesByType: Record<string, { plusBalanceChf?: number; minusBalanceChf?: number }>;
 }
 
 export class FinancialLogResponseDto {

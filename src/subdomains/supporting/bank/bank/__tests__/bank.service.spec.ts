@@ -16,6 +16,7 @@ import { createCustomVirtualIban } from 'src/subdomains/supporting/bank/virtual-
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FindOneOptions, FindOptionsWhere } from 'typeorm';
 import {
   createCustomBank,
   createDefaultBanks,
@@ -24,7 +25,6 @@ import {
   yapealEUR,
   olkyEUR,
   frickEUR,
-  frickCHF,
 } from '../__mocks__/bank.entity.mock';
 import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
@@ -44,6 +44,36 @@ function createBankSelectorInput(
     paymentMethod,
     userData,
   };
+}
+
+function mockFindCachedByForBanks(bankRepo: BankRepository, banks: Bank[]): void {
+  jest
+    .spyOn(bankRepo, 'findCachedBy')
+    .mockImplementation(async (_key: number | string, where: FindOptionsWhere<Bank> | FindOptionsWhere<Bank>[]) => {
+      // getReceiveBanks always supplies one object; fail visibly if that contract changes.
+      if (Array.isArray(where)) throw new Error('mockFindCachedByForBanks does not support array filters');
+
+      const receive = where.receive;
+      if (typeof receive === 'boolean') return banks.filter((bank) => bank.receive === receive);
+      return banks;
+    });
+}
+
+function mockFindCachedForBanks(bankRepo: BankRepository, banks: Bank[]): void {
+  jest
+    .spyOn(bankRepo, 'findCached')
+    .mockImplementation(async (_key: number | string, options?: FindOneOptions<Bank>) => {
+      const where = options?.where;
+      if (!where) return banks;
+      // getBankInternal always supplies one object; fail visibly if that contract changes, rather
+      // than casting the array variant away and silently matching nothing.
+      if (Array.isArray(where)) throw new Error('mockFindCachedForBanks does not support array filters');
+      return banks.filter(
+        (bank) =>
+          (where.name === undefined || bank.name === where.name) &&
+          (where.currency === undefined || bank.currency === where.currency),
+      );
+    });
 }
 
 describe('BankService', () => {
@@ -88,12 +118,8 @@ describe('BankService', () => {
       .mockResolvedValue(createCustomCountry({ yapealEnable: yapealEnable }));
 
     const allBanks = disabledBank ? createDefaultDisabledBanks() : createDefaultBanks();
-    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
-      if (filter?.receive !== undefined) {
-        return allBanks.filter((b) => b.receive === filter.receive);
-      }
-      return allBanks;
-    });
+    mockFindCachedByForBanks(bankRepo, allBanks);
+    mockFindCachedForBanks(bankRepo, []);
   }
 
   it('should be defined', () => {
@@ -153,23 +179,191 @@ describe('BankService', () => {
     expect(result.bic).toBe(yapealEUR.bic);
   });
 
-  it('never offers Bank Frick as a deposit bank, even when it is the first receive bank for the currency', async () => {
-    // Frick is placed first so a missing exclusion guard would wrongly select it; the customer must still
-    // be shown the incumbent bank for each currency.
-    // A preceding test disables the shared olkyEUR mock in place (createDefaultDisabledBanks mutates it),
-    // so restore its natural receive state here to exercise Frick exclusion rather than that leaked state.
-    olkyEUR.receive = true;
-    const frickFirst = [frickEUR, frickCHF, olkyEUR, yapealEUR, yapealCHF];
-    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
-      if (filter?.receive !== undefined) return frickFirst.filter((b) => b.receive === filter.receive);
-      return frickFirst;
+  it('routes BANK EUR deposits to Bank Frick regardless of bank order', async () => {
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true });
+    const frick = createCustomBank({ ...frickEUR, receive: true });
+    mockFindCachedByForBanks(bankRepo, [incumbent, frick]);
+    mockFindCachedForBanks(bankRepo, [incumbent, frick]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.BANK));
+    expect(result).toBe(frick);
+  });
+
+  it('prefers the older asset-linked Bank Frick EUR row for a BANK EUR deposit', async () => {
+    // Production shape: the older row owns the custody asset and its IBAN is used by isBankMatching
+    // and the Financial Log. Returning the newer unbound row would detach the customer IBAN from
+    // that attribution. The mock order mirrors `order: { id: 'DESC' }` from getBankInternal.
+    const assetLinkedFrick = Object.assign(
+      createCustomBank({
+        ...frickEUR,
+        id: 101,
+        receive: true,
+        iban: 'LI75088110105923K0101',
+      }),
+      { asset: {} },
+    );
+    const unboundNewerFrick = createCustomBank({
+      ...frickEUR,
+      id: 202,
+      receive: true,
+      iban: 'LI75088110105923K0202',
     });
+    const banks = [unboundNewerFrick, assetLinkedFrick];
+    mockFindCachedByForBanks(bankRepo, banks);
+    mockFindCachedForBanks(bankRepo, banks);
 
-    const eur = await service.getBank(createBankSelectorInput('EUR'));
-    expect(eur.name).toBe(IbanBankName.OLKY);
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.BANK));
+    expect(result).toBe(assetLinkedFrick);
+    expect(result.iban).toBe('LI75088110105923K0101');
+  });
 
-    const chf = await service.getBank(createBankSelectorInput('CHF', 10000));
-    expect(chf.name).toBe(IbanBankName.YAPEAL);
+  it('picks the EUR Bank Frick row, not its CHF row, for an EUR deposit', async () => {
+    // The CHF row is listed first on purpose: the getBankInternal query matches on bank name AND
+    // currency. Without the currency check a customer paying in EUR could be handed the franc
+    // account's IBAN, and no other test in this file would notice.
+    const frickChfRow = createCustomBank({
+      name: IbanBankName.FRICK,
+      currency: 'CHF',
+      receive: true,
+      iban: 'FRICK-CHF-ROW',
+      bic: 'BFRILI22',
+    });
+    const frickEurRow = createCustomBank({ ...frickEUR, receive: true });
+    mockFindCachedByForBanks(bankRepo, [frickChfRow, frickEurRow]);
+    mockFindCachedForBanks(bankRepo, [frickChfRow, frickEurRow]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR'));
+    expect(result).toBe(frickEurRow);
+    expect(result.currency).toBe('EUR');
+  });
+
+  it('falls back to the established EUR receiver when Bank Frick is not receiving', async () => {
+    const disabledFrick = createCustomBank({ ...frickEUR, receive: false });
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true });
+    mockFindCachedByForBanks(bankRepo, [disabledFrick, incumbent]);
+    mockFindCachedForBanks(bankRepo, [disabledFrick, incumbent]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR'));
+    expect(result).toBe(incumbent);
+  });
+
+  it('does not substitute another Bank Frick row when the attributed one is not receiving', async () => {
+    // The attributed (asset-linked) row is disabled while a second, unbound Frick row still receives.
+    // The rule must not fall through to that one: attribution stays on the disabled row, so paying
+    // into the unbound IBAN would book against a row nothing is keyed on. The incumbent wins instead.
+    const attributedDisabled = createCustomBank({
+      ...frickEUR,
+      id: 19,
+      receive: false,
+      asset: createCustomAsset({}),
+      iban: 'FRICK-ATTRIBUTED-DISABLED',
+    });
+    const unboundReceiving = createCustomBank({
+      ...frickEUR,
+      id: 77,
+      receive: true,
+      asset: null,
+      iban: 'FRICK-UNBOUND-RECEIVING',
+    });
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true });
+    mockFindCachedByForBanks(bankRepo, [attributedDisabled, unboundReceiving, incumbent]);
+    mockFindCachedForBanks(bankRepo, [attributedDisabled, unboundReceiving]);
+
+    const result = await service.getBank(createBankSelectorInput('EUR'));
+    expect(result).toBe(incumbent);
+  });
+
+  it('leaves CHF bank selection unaffected by the Bank Frick EUR rule', async () => {
+    const frick = createCustomBank({ ...frickEUR, receive: true });
+    const chf = createCustomBank({ ...yapealCHF, receive: true });
+    mockFindCachedByForBanks(bankRepo, [frick, chf]);
+    mockFindCachedForBanks(bankRepo, []);
+
+    const result = await service.getBank(createBankSelectorInput('CHF'));
+    expect(result).toBe(chf);
+  });
+
+  it('does not let a Bank Frick CHF row capture a CHF request', async () => {
+    const frickChf = createCustomBank({
+      name: IbanBankName.FRICK,
+      currency: 'CHF',
+      receive: true,
+      iban: 'LI75088110105923K0CHF',
+      bic: 'BFRILI22',
+    });
+    const chf = createCustomBank({ ...yapealCHF, receive: true });
+    mockFindCachedByForBanks(bankRepo, [frickChf, chf]);
+    mockFindCachedForBanks(bankRepo, []);
+
+    const result = await service.getBank(createBankSelectorInput('CHF'));
+    expect(result).toBe(chf);
+  });
+
+  it('uses an instant-capable EUR bank instead of Bank Frick for INSTANT payments', async () => {
+    const frick = createCustomBank({ ...frickEUR, receive: true, sctInst: false });
+    const instantBank = createCustomBank({ ...olkyEUR, receive: true, sctInst: true });
+    mockFindCachedByForBanks(bankRepo, [frick, instantBank]);
+    mockFindCachedForBanks(bankRepo, []);
+
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
+    expect(result).toBe(instantBank);
+  });
+
+  it('falls back to an incumbent EUR bank when no EUR bank supports INSTANT', async () => {
+    const frick = createCustomBank({ ...frickEUR, receive: true, sctInst: false });
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true, sctInst: false });
+    mockFindCachedByForBanks(bankRepo, [frick, incumbent]);
+    mockFindCachedForBanks(bankRepo, []);
+
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
+    expect(result).toBe(incumbent);
+    expect(result).not.toBe(frick);
+  });
+
+  it('uses an incumbent EUR bank instead of Bank Frick for CARD payments', async () => {
+    const frick = createCustomBank({ ...frickEUR, receive: true });
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true });
+    mockFindCachedByForBanks(bankRepo, [frick, incumbent]);
+    mockFindCachedForBanks(bankRepo, []);
+
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.CARD));
+    expect(result).toBe(incumbent);
+    expect(result).not.toBe(frick);
+  });
+
+  it.each([
+    ['Bank Frick first', true],
+    ['incumbent first', false],
+  ])('uses the incumbent EUR fallback for unsupported currency with %s', async (_description, frickFirst) => {
+    const frick = createCustomBank({ ...frickEUR, receive: true });
+    const incumbent = createCustomBank({ ...olkyEUR, receive: true });
+    const banks = frickFirst ? [frick, incumbent] : [incumbent, frick];
+    mockFindCachedByForBanks(bankRepo, banks);
+    mockFindCachedForBanks(bankRepo, []);
+
+    const result = await service.getBank(createBankSelectorInput('GBP'));
+    expect(result).toBe(incumbent);
+    expect(result).not.toBe(frick);
+  });
+
+  it('returns undefined when neither the requested currency nor the EUR fallback can receive', async () => {
+    const disabledGbp = createCustomBank({ currency: 'GBP', receive: false });
+    const disabledEur = createCustomBank({ ...olkyEUR, receive: false });
+    mockFindCachedByForBanks(bankRepo, [disabledGbp, disabledEur]);
+    mockFindCachedForBanks(bankRepo, []);
+
+    const result = await service.getBank(createBankSelectorInput('GBP'));
+    expect(result).toBeUndefined();
+  });
+
+  it('uses an instant-capable EUR fallback when GBP has no instant account', async () => {
+    const gbpBank = createCustomBank({ currency: 'GBP', receive: true, sctInst: false });
+    const eurInstantBank = createCustomBank({ ...olkyEUR, receive: true, sctInst: true });
+    mockFindCachedByForBanks(bankRepo, [gbpBank, eurInstantBank]);
+    mockFindCachedForBanks(bankRepo, []);
+
+    const result = await service.getBank(createBankSelectorInput('GBP', undefined, FiatPaymentMethod.INSTANT));
+    expect(result).toBe(eurInstantBank);
   });
 });
 

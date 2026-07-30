@@ -554,8 +554,10 @@ export class BuyService {
     };
   }
 
+  // getBank() can return undefined, but this builder dereferences the bank unconditionally - callers
+  // must resolve that before calling in, so the parameter states the precondition instead of widening.
   private buildBankResponse(
-    bank: Awaited<ReturnType<BankService['getBank']>>,
+    bank: NonNullable<Awaited<ReturnType<BankService['getBank']>>>,
     reference?: string,
   ): BankInfoDto & { isPersonalIban: boolean; reference?: string } {
     return {

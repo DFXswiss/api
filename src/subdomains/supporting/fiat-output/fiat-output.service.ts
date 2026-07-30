@@ -59,9 +59,10 @@ export class FiatOutputService {
         return { accountIban: virtualIban.iban, bank: virtualIban.bank };
     }
 
-    // Automatic sender-bank selection is incumbent-banks-only. Bank Frick is payout-eligible exclusively
-    // through explicit per-output assignment (accountIban at creation or manual database assignment),
-    // mirroring the deliberate exclusion in BankService.getBank() for the customer-facing deposit selector.
+    // Automatic payout selection excludes Bank Frick by name; it is payout-eligible exclusively through
+    // explicit per-output assignment (accountIban at creation or manual database assignment). This is
+    // independent of the customer-facing deposit direction: BankService.getBank() deliberately routes
+    // EUR deposits to Bank Frick. The payout exclusion and deposit routing therefore do not conflict.
     const banks = (await this.bankService.getSenderBanks(currency)).filter(
       (candidate) => candidate.name !== IbanBankName.FRICK,
     );

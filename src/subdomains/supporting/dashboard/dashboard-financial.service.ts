@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
 import { Log } from '../log/log.entity';
+import { FinancialLogSummary } from '../log/log.repository';
 import { LogService } from '../log/log.service';
 import { FinanceLog } from '../log/dto/log.dto';
 import {
@@ -23,16 +24,13 @@ export class DashboardFinancialService {
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
-    const [logs, btcAsset] = await Promise.all([
-      this.logService.getFinancialLogs(from, dailySample),
-      this.assetService.getBtcCoin(),
-    ]);
+    // BTC price is projected in SQL and needs btcAssetId as a parameter, so resolve getBtcCoin first.
+    // One extra sequential roundtrip vs the previous Promise.all, judged negligible against the
+    // eliminated transfer volume of the full message JSON.
+    const btcAsset = await this.assetService.getBtcCoin();
+    const summaries = await this.logService.getFinancialLogSummaries(btcAsset?.id, from, dailySample);
 
-    const btcAssetId = btcAsset?.id;
-    const entries = logs
-      .map((log) => this.mapLogToEntry(log, btcAssetId))
-      .filter((e): e is FinancialLogEntryDto => e != null);
-
+    const entries = summaries.map((summary) => this.mapSummaryToEntry(summary));
     return { entries };
   }
 
@@ -234,39 +232,25 @@ export class DashboardFinancialService {
     return { timestamp: latest.created, byType, byBlockchain };
   }
 
-  private mapLogToEntry(log: Log, btcAssetId?: number): FinancialLogEntryDto | undefined {
-    try {
-      const financeLog: FinanceLog = JSON.parse(log.message);
-
-      const btcPriceChf = this.extractBtcPrice(financeLog, btcAssetId);
-
-      const balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
-      if (financeLog.balancesByFinancialType) {
-        for (const [type, data] of Object.entries(financeLog.balancesByFinancialType)) {
-          balancesByType[type] = {
-            plusBalanceChf: data.plusBalanceChf,
-            minusBalanceChf: data.minusBalanceChf,
-          };
-        }
-      }
-
-      return {
-        timestamp: log.created,
-        totalBalanceChf: financeLog.balancesTotal?.totalBalanceChf ?? 0,
-        plusBalanceChf: financeLog.balancesTotal?.plusBalanceChf ?? 0,
-        minusBalanceChf: financeLog.balancesTotal?.minusBalanceChf ?? 0,
-        fxPnlChf: financeLog.balancesTotal?.fxPnlChf ?? 0,
-        btcPriceChf,
-        balancesByType,
-      };
-    } catch {
-      return undefined;
-    }
-  }
-
-  private extractBtcPrice(financeLog: FinanceLog, btcAssetId?: number): number {
-    if (!financeLog.assets || !btcAssetId) return 0;
-
-    return financeLog.assets[btcAssetId]?.priceChf ?? 0;
+  // Pure mapping over the SQL projection: for well-formed data, the response matches the previous
+  // mapLogToEntry path exactly, including the `?? 0` field defaults. One case is intentionally
+  // different: if a `balancesByFinancialType` entry has the value `null` (e.g. `{"Crypto": null}`),
+  // the row is now kept (with an empty balancesByType entry) instead of the previous mapLogToEntry's
+  // per-row try/catch silently dropping the whole log line — a silent gap in a financial curve is
+  // worse than an empty partial entry, so this was changed on purpose. A malformed `message` document
+  // still fails loud: the `message::jsonb` cast in SQL throws for that. Individual scalar field
+  // values, though, are tolerated via `jsonb_typeof` guards (nulled rather than thrown), and
+  // non-numeric values inside `balancesByFinancialType` are passed through unchanged
+  // (see log.repository.ts).
+  private mapSummaryToEntry(summary: FinancialLogSummary): FinancialLogEntryDto {
+    return {
+      timestamp: summary.created,
+      totalBalanceChf: summary.totalBalanceChf ?? 0,
+      plusBalanceChf: summary.plusBalanceChf ?? 0,
+      minusBalanceChf: summary.minusBalanceChf ?? 0,
+      fxPnlChf: summary.fxPnlChf ?? 0,
+      btcPriceChf: summary.btcPriceChf,
+      balancesByType: summary.balancesByType,
+    };
   }
 }
