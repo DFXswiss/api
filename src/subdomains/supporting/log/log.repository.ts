@@ -521,19 +521,22 @@ ${limitClause}`;
           string,
           { plusBalanceChf?: number; minusBalanceChf?: number }
         >;
+        // Only real numbers are kept for plusBalanceChf / minusBalanceChf; any non-number value
+        // (string, boolean, null, nested object, or missing key) becomes undefined so the result
+        // matches the number | undefined contract. On current production data this is a no-op
+        // (287,989 entries both numbers, one missing plusBalanceChf key — no string/boolean/null),
+        // and exists only to protect the contract for future/other data. The previous mapLogToEntry
+        // passed contract-breaking values through unchanged; this closes that hole. Same hardening
+        // idea as the five scalar fields above (jsonb_typeof = 'number' in SQL), applied in
+        // TypeScript because balancesByFinancialType is passed through as a raw JSON object. Note:
+        // this is a type check, not a finiteness check — it also lets `Infinity` through (e.g. from
+        // a JSON number like `1e999`, which `JSON.parse` turns into `Infinity`); `NaN` cannot occur
+        // in valid jsonb.
+        const asNumber = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
         for (const [type, data] of Object.entries(byType)) {
           // Optional chaining keeps non-object entries (null / number / string / boolean) from throwing:
           // property access yields undefined and the row is retained with empty fields, rather than
           // failing the whole request.
-          // Only real numbers are kept for plusBalanceChf / minusBalanceChf; any non-number value
-          // (string, boolean, null, nested object, or missing key) becomes undefined so the result
-          // matches the number | undefined contract. On current production data this is a no-op
-          // (287,989 entries both numbers, one missing plusBalanceChf key — no string/boolean/null),
-          // and exists only to protect the contract for future/other data. The previous mapLogToEntry
-          // passed contract-breaking values through unchanged; this closes that hole. Same hardening
-          // idea as the five scalar fields above (jsonb_typeof = 'number' in SQL), applied in
-          // TypeScript because balancesByFinancialType is passed through as a raw JSON object.
-          const asNumber = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
           balancesByType[type] = {
             plusBalanceChf: asNumber(data?.plusBalanceChf),
             minusBalanceChf: asNumber(data?.minusBalanceChf),
