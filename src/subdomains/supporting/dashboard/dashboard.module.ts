@@ -13,6 +13,7 @@ import { DashboardFinancialController } from './dashboard-financial.controller';
 import { DashboardFinancialService } from './dashboard-financial.service';
 import { DashboardReconciliationController } from './dashboard-reconciliation.controller';
 import { DashboardReconciliationService } from './dashboard-reconciliation.service';
+import { LatestBalanceStore } from './latest-balance.store';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DashboardReconciliationService } from './dashboard-reconciliation.servi
     ReferralModule,
   ],
   controllers: [DashboardFinancialController, DashboardReconciliationController],
-  providers: [DashboardFinancialService, DashboardReconciliationService],
+  providers: [DashboardFinancialService, DashboardReconciliationService, LatestBalanceStore],
+  exports: [DashboardFinancialService],
 })
 export class DashboardModule {}

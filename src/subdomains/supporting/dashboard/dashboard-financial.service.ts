@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
+import { AssetLog, BalancesByFinancialType } from '../log/dto/log.dto';
 import { Log } from '../log/log.entity';
 import { FinancialLogSummary } from '../log/log.repository';
 import { LogService } from '../log/log.service';
-import { FinanceLog } from '../log/dto/log.dto';
 import {
   BalanceByGroupDto,
   FinancialChangesEntryDto,
@@ -14,6 +15,7 @@ import {
   LatestBalanceResponseDto,
   RefRewardRecipientDto,
 } from './dto/financial-log.dto';
+import { LatestBalanceStore } from './latest-balance.store';
 
 @Injectable()
 export class DashboardFinancialService {
@@ -21,6 +23,7 @@ export class DashboardFinancialService {
     private readonly logService: LogService,
     private readonly assetService: AssetService,
     private readonly refRewardService: RefRewardService,
+    private readonly latestBalanceStore: LatestBalanceStore,
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean, includeByType?: boolean): Promise<FinancialLogResponseDto> {
@@ -119,20 +122,41 @@ export class DashboardFinancialService {
   }
 
   async getLatestBalance(): Promise<LatestBalanceResponseDto | undefined> {
-    const latest = await this.logService.getLatestFinancialLog();
-    if (!latest) return undefined;
+    return this.latestBalanceStore.get();
+  }
 
-    let financeLog: FinanceLog;
-    try {
-      financeLog = JSON.parse(latest.message);
-    } catch {
-      return undefined;
-    }
+  /**
+   * Called once a minute by LogJobService, immediately after it writes the FinancialDataLog entry
+   * these values are derived from. Builds the same response GET /v1/dashboard/financial/latest used
+   * to compute per-request (see buildLatestBalance below) and puts it in LatestBalanceStore, so the
+   * endpoint never touches the database again. Synchronous and DB-free by construction: assetLog,
+   * balancesByFinancialType and assets are exactly what the caller already holds in memory from the
+   * same run. A failure in here must never propagate into the caller's equity/safety-mode path —
+   * that isolation is the caller's responsibility (its own try/catch around this call), not this
+   * method's.
+   */
+  setLatestBalance(
+    timestamp: Date,
+    assetLog: AssetLog,
+    balancesByFinancialType: BalancesByFinancialType,
+    assets: Asset[],
+  ): void {
+    this.latestBalanceStore.set(this.buildLatestBalance(timestamp, assetLog, balancesByFinancialType, assets));
+  }
 
+  // Unchanged aggregation that used to run inline in getLatestBalance against a freshly parsed
+  // FinancialDataLog message and a database asset lookup: identical logic, moved here verbatim: only
+  // its inputs changed (passed in directly instead of JSON.parse(latest.message) / assetService.getAssetsById).
+  private buildLatestBalance(
+    timestamp: Date,
+    assetLog: AssetLog,
+    balancesByFinancialType: BalancesByFinancialType,
+    assets: Asset[],
+  ): LatestBalanceResponseDto {
     // By type (from existing balancesByFinancialType)
     const byType: BalanceByGroupDto[] = [];
-    if (financeLog.balancesByFinancialType) {
-      for (const [type, data] of Object.entries(financeLog.balancesByFinancialType)) {
+    if (balancesByFinancialType) {
+      for (const [type, data] of Object.entries(balancesByFinancialType)) {
         byType.push({
           name: type,
           plusBalanceChf: data.plusBalanceChf,
@@ -145,12 +169,10 @@ export class DashboardFinancialService {
 
     // By blockchain (aggregate assets)
     const blockchainTotals: Record<string, { plus: number; assets: Record<string, number> }> = {};
-    if (financeLog.assets) {
-      const assetIds = Object.keys(financeLog.assets).map(Number);
-      const assets = await this.assetService.getAssetsById(assetIds);
+    if (assetLog) {
       const assetMap = new Map(assets.map((a) => [a.id, a]));
 
-      for (const [idStr, assetData] of Object.entries(financeLog.assets)) {
+      for (const [idStr, assetData] of Object.entries(assetLog)) {
         const asset = assetMap.get(Number(idStr));
         const blockchain = asset?.blockchain ?? 'Unknown';
         const assetName = asset?.name ?? 'Unknown';
@@ -237,7 +259,7 @@ export class DashboardFinancialService {
       });
     }
 
-    return { timestamp: latest.created, byType, byBlockchain };
+    return { timestamp, byType, byBlockchain };
   }
 
   // Pure mapping over the SQL projection: for well-formed data, the response matches the previous
