@@ -829,6 +829,55 @@ describe('LiquidityManagementPipelineService', () => {
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
       });
 
+      it('never throttles past the bound at which the order becomes abandonable', async () => {
+        // Where the cooldown and the abandon bound meet. This same pass is what gives an expired order up, so
+        // a wait longer than what is left of its bound postpones the abandonment — an order weeks old draws
+        // the full thirty-minute interval, six times a trade's own five-minute bound, and the ceiling this
+        // branch exists to impose would have been raised with nothing saying so.
+        const order = uncertainOrder({ updated: new Date() });
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+        jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+        stubIntegration(UncertainOrderResolution.UNRESOLVED);
+
+        // inside the bound: nothing to give up yet
+        await service['resolveUncertainOrders']();
+        expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+
+        // past the bound, still far short of the thirty-minute cap that would otherwise still be running
+        jest.advanceTimersByTime(6 * 60_000);
+        await service['resolveUncertainOrders']();
+
+        expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      });
+
+      it("leaves the cap governing when the order's own bound is further off than the cap", async () => {
+        // The deadline only ever tightens the interval, never loosens it: a transfer has twelve hours, so the
+        // cap decides exactly as it did before, and a lookup one millisecond early still must not happen.
+        const order = uncertainOrder({
+          action: { id: 234, system: 'Scrypt', command: 'withdraw' },
+          updated: new Date(),
+        });
+        const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNAVAILABLE);
+        jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+          supportedCommands: ['withdraw'],
+          executeOrder: jest.fn(),
+          checkCompletion: jest.fn(),
+          validateParams: jest.fn(),
+          resolveUncertainOrder,
+        });
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+
+        await service['resolveUncertainOrders']();
+
+        jest.advanceTimersByTime(30 * 60_000 - 1);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(1);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
+      });
+
       it('caps the cooldown interval at thirty minutes no matter how old the order is', async () => {
         // Pins the cap to the millisecond. An 8-hour-old order's uncapped wait would be 48 minutes at the
         // first pass and 51 by the time of the boundary check — either way far past the cap, so a lookup at

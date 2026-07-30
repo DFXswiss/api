@@ -59,6 +59,60 @@ describe('LiquidityManagementOrder', () => {
     });
   });
 
+  describe('msUntilAbandonable', () => {
+    function quarantined(minutes?: number, command = 'sell', system = 'Scrypt'): LiquidityManagementOrder {
+      return Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: minutes == null ? undefined : minutesAgo(minutes),
+        action: { system, command },
+      });
+    }
+
+    it('is Infinity without a timestamp — no deadline to respect constrains nobody', () => {
+      expect(quarantined(undefined).msUntilAbandonable()).toBe(Infinity);
+    });
+
+    it('counts down the trade bound', () => {
+      // 2 of the 5 minutes spent, so 3 left; tolerance covers the clock moving during the test
+      expect(quarantined(2).msUntilAbandonable()).toBeGreaterThan(2.9 * 60_000);
+      expect(quarantined(2).msUntilAbandonable()).toBeLessThanOrEqual(3 * 60_000);
+    });
+
+    it('is zero once the bound has passed, never negative', () => {
+      expect(quarantined(6).msUntilAbandonable()).toBe(0);
+      expect(quarantined(60 * 24).msUntilAbandonable()).toBe(0);
+    });
+
+    it('counts down the long bound for a transfer', () => {
+      // an hour into a twelve-hour bound leaves eleven
+      expect(quarantined(60, 'withdraw').msUntilAbandonable()).toBeGreaterThan(10.9 * 60 * 60_000);
+      expect(quarantined(60, 'withdraw').msUntilAbandonable()).toBeLessThanOrEqual(11 * 60 * 60_000);
+    });
+
+    it('never reports time left on an order that is already abandonable', () => {
+      // The invariant that carries the safety, in the direction that carries it: an order past its bound must
+      // report nothing left, or a caller throttling itself by this value would wait beyond the very ceiling
+      // the bound imposes. The converse is deliberately not asserted — at the single instant where elapsed
+      // equals the bound the remaining time is already zero while the bound is not yet exceeded, and a
+      // non-negative duration cannot express that difference. It costs one cooldown floor, never a missed
+      // abandonment.
+      for (const minutes of [1, 4, 6, 30, 11 * 60, 13 * 60, 60 * 24])
+        for (const command of ['sell', 'buy', 'withdraw']) {
+          const order = quarantined(minutes, command);
+          if (order.unresolvableTooLong()) expect(order.msUntilAbandonable()).toBe(0);
+        }
+    });
+
+    it('applies the same bound to the same action as unresolvableTooLong', () => {
+      // Both read one shared source, so a trade and a transfer must disagree here exactly where they
+      // disagree there: at 30 minutes the trade bound is long spent while the transfer bound is not.
+      expect(quarantined(30, 'sell').msUntilAbandonable()).toBe(0);
+      expect(quarantined(30, 'sell').unresolvableTooLong()).toBe(true);
+      expect(quarantined(30, 'withdraw').msUntilAbandonable()).toBeGreaterThan(0);
+      expect(quarantined(30, 'withdraw').unresolvableTooLong()).toBe(false);
+    });
+  });
+
   describe('resolveAsSent / resolveAsNotSent / requestNotSentRelease', () => {
     it('accepts a release without acting on it: the order keeps blocking', () => {
       const order = Object.assign(new LiquidityManagementOrder(), {

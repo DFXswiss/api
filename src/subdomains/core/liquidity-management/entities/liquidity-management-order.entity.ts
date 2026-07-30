@@ -343,13 +343,39 @@ export class LiquidityManagementOrder extends IEntity {
     // order whose `updated` was not loaded. Absent evidence this must hold the order, never drop it.
     if (!this.updated) return false;
 
-    // Unknown, unloaded or unlisted action falls to the long bound, for the same reason.
+    return Util.minutesDiff(this.updated) > this.abandonBoundMinutes();
+  }
+
+  /**
+   * How long until this order may be abandoned, in milliseconds — zero once it already may be, and Infinity
+   * while it never can.
+   *
+   * The same bound and the same clock as {@link unresolvableTooLong}, stated as a remaining duration so that
+   * a caller deciding *when to look at this order again* can keep its own wait inside it. A reconciliation
+   * pass throttled for longer than this would push the abandonment past the ceiling that bound exists to
+   * impose, and nothing in the throttle itself would reveal that it had.
+   *
+   * Infinity without a timestamp, mirroring that method's refusal to run a clock it does not have: no
+   * deadline to respect means no constraint to impose on a caller's wait.
+   */
+  msUntilAbandonable(): number {
+    if (!this.updated) return Infinity;
+
+    return Math.max(0, this.abandonBoundMinutes() * 60_000 - (Date.now() - this.updated.getTime()));
+  }
+
+  /**
+   * The quarantine bound that applies to this order's action, in minutes. Deliberately the single place that
+   * reads {@link ABANDON_UNCERTAIN_MINUTES}: the deadline and the remaining time to it must never be able to
+   * disagree about which bound they are talking about.
+   */
+  private abandonBoundMinutes(): number {
+    // Unknown, unloaded or unlisted action falls to the long bound, for the same reason as a missing date.
     const action = `${this.action?.system}/${this.action?.command}`.toLowerCase();
-    const bound = VENUE_INTERNAL_ACTIONS.includes(action)
+
+    return VENUE_INTERNAL_ACTIONS.includes(action)
       ? ABANDON_UNCERTAIN_MINUTES.TRADE
       : ABANDON_UNCERTAIN_MINUTES.TRANSFER;
-
-    return Util.minutesDiff(this.updated) > bound;
   }
 
   /**

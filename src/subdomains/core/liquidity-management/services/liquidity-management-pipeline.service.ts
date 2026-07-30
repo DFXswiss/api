@@ -356,6 +356,13 @@ export class LiquidityManagementPipelineService {
         const intervalMs = Math.min(
           Math.max(ageMs / 10, UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
           UNCERTAIN_RESOLVE_MAX_INTERVAL_MS,
+          // The throttle may never outlast the deadline it has to keep. This is also the pass that abandons an
+          // order whose bound has run out, so a wait reaching past what is left of that bound would push the
+          // abandonment beyond the ceiling the bound exists to impose — a trade quarantined at eight hours old
+          // would be given up after thirty minutes instead of five, and nothing here would say so. Held at the
+          // floor once the bound has passed, so a cancellation the venue will not confirm keeps retrying on
+          // the cooldown's terms rather than on every ten-second tick.
+          Math.max(order.msUntilAbandonable(), UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
         );
 
         const lastAttemptEnd = this.uncertainResolveAttempts.get(order.id);
