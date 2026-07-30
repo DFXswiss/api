@@ -1,5 +1,34 @@
+import { Like } from 'typeorm';
 import { Setting } from '../setting.entity';
 import { SettingRepository } from '../setting.repository';
+
+describe('SettingRepository.getStatusSettings', () => {
+  function repositoryWithFind(result: Setting[]) {
+    const repository = Object.create(SettingRepository.prototype) as SettingRepository;
+    const find = jest.fn().mockResolvedValue(result);
+    Object.defineProperty(repository, 'find', { value: find });
+    return { repository, find };
+  }
+
+  it('finds status settings in ascending id order', async () => {
+    const settings = [Object.assign(new Setting(), { id: 1, key: 'paymentStatus', value: 'active' })];
+    const { repository, find } = repositoryWithFind(settings);
+
+    await expect(repository.getStatusSettings()).resolves.toBe(settings);
+
+    expect(find).toHaveBeenCalledWith({
+      where: { key: Like('%Status') },
+      order: { id: 'ASC' },
+    });
+  });
+
+  it('passes through an empty result', async () => {
+    const settings: Setting[] = [];
+    const { repository } = repositoryWithFind(settings);
+
+    await expect(repository.getStatusSettings()).resolves.toBe(settings);
+  });
+});
 
 describe('SettingRepository.setDateMax', () => {
   function repositoryWithTransaction(transactionManager: Record<string, jest.Mock>) {
