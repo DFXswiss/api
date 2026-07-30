@@ -86,7 +86,7 @@ export class VirtualIbanService {
    */
   static readonly FRICK_CREATE_MAX_PROCESSING_MS = 120_000;
 
-  /** Providers eligible for implicit/default personal-IBAN behavior. Frick is explicit opt-in only. */
+  /** Providers eligible for implicit/default personal-IBAN behavior, selected by their supported currency. */
   private readonly genericProviders: VibanProvider[];
 
   constructor(
@@ -98,7 +98,7 @@ export class VirtualIbanService {
     private readonly dataSource: DataSource,
     private readonly notificationService: NotificationService,
   ) {
-    this.genericProviders = [this.yapealVibanProvider];
+    this.genericProviders = [this.yapealVibanProvider, this.frickVibanProvider];
   }
 
   isUserEligible(currencyName: string, userData: UserData): boolean {
@@ -109,11 +109,10 @@ export class VirtualIbanService {
    * Resolves who legally holds the deposit account behind a personal-IBAN bank name (see
    * {@link VibanAccountHolder}). This is the seam that lets buildVirtualIbanResponse (buy.service.ts) —
    * which only has the persisted VirtualIban row, never the VibanProvider instance that issued it — ask
-   * "who owns this account" without threading provider objects through the entity layer. Deliberately
-   * looks across ALL registered providers (not just `genericProviders`, which excludes Frick by design for
-   * unrelated eligibility reasons — see its own doc comment) because a persisted VirtualIban can point at
-   * either bank. Fail-closed: an unrecognized bank name must never silently default to either party's
-   * identity — a wrong default here means showing the wrong recipient name on a real bank transfer.
+   * "who owns this account" without threading provider objects through the entity layer. It deliberately
+   * resolves the persisted bank name against every registered provider. Fail-closed: an unrecognized bank
+   * name must never silently default to either party's identity — a wrong default here means showing the
+   * wrong recipient name on a real bank transfer.
    */
   getAccountHolder(bankName: IbanBankName): VibanAccountHolder {
     const provider = [this.yapealVibanProvider, this.frickVibanProvider].find((p) => p.bankName === bankName);
@@ -121,13 +120,12 @@ export class VirtualIbanService {
     return provider.accountHolder;
   }
 
-  /** Bank Frick is exclusively available through the explicit selector path. */
+  /** Finds the active user-level personal IBAN, including Bank Frick as the regular EUR provider. */
   async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
       where: {
         userData: { id: userData.id },
         currency: { name: currencyName },
-        bank: { name: Not(IbanBankName.FRICK) },
         active: true,
         status: VirtualIbanStatus.ACTIVE,
       },
@@ -160,9 +158,9 @@ export class VirtualIbanService {
   }
 
   /**
-   * Merge-base issuance path for implicit providers (currently Yapeal). The durable claim/recovery
-   * protocol is Bank Frick-specific because only Frick exposes the reference-based reconciliation
-   * needed to repair a stranded claim. Do not route Yapeal through Frick intent machinery.
+   * Issuance path shared by implicit providers selected through their supported currency. The explicit
+   * Frick selector retains its separate durable claim/recovery protocol; Yapeal must not be routed through
+   * that Frick-specific intent machinery.
    */
   private async createVirtualIban(userData: UserData, currencyName: string, buy?: Buy): Promise<VirtualIban> {
     const currency = await this.fiatService.getFiatByName(currencyName);
@@ -191,7 +189,7 @@ export class VirtualIbanService {
     return saved;
   }
 
-  /** Fail-closed, cross-instance-safe Frick issuance for the explicit selector path. */
+  /** Fail-closed, cross-instance-safe Frick issuance retained for the explicit selector path. */
   async getOrCreateFrickForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
     if (currencyName !== 'EUR') throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
 

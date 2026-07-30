@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataType, newDb } from 'pg-mem';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
@@ -214,11 +215,11 @@ describe('VirtualIbanService', () => {
       expect(service.isUserEligible('CHF', { ...userData, kycLevel: KycLevel.LEVEL_40 } as UserData)).toBe(false);
     });
 
-    it('returns false for EUR when only explicit-opt-in Frick is available', () => {
+    it('returns true for EUR when Frick is available and KYC is at least LEVEL_50', () => {
       jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(false);
       jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
 
-      expect(service.isUserEligible('EUR', userData)).toBe(false);
+      expect(service.isUserEligible('EUR', userData)).toBe(true);
     });
   });
 
@@ -342,19 +343,36 @@ describe('VirtualIbanService', () => {
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
-    it('never uses Frick for generic EUR user-level creation', async () => {
-      const eur = { id: 4, name: 'EUR' };
-      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(eur as any);
+    it('creates an EUR user-level vIBAN via Frick', async () => {
+      const eur = { id: 4, name: 'EUR' } as Fiat;
+      const frickBank = {
+        id: 19,
+        iban: 'LI32088110105923K000C',
+        receive: true,
+        name: IbanBankName.FRICK,
+      } as Bank;
+      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(eur);
       jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(false);
       jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(frickBank);
+      jest.spyOn(frickVibanProvider, 'reserveViban').mockResolvedValue({
+        iban: 'LI75088110105923K000E',
+        bban: '088110105923K000E',
+        providerAccountRef: 'LI75088110105923K000E',
+      });
 
-      await expect(service.createForUser(userData, 'EUR')).rejects.toThrow(
-        'No personal IBAN provider available for this currency',
-      );
+      const saved = await service.createForUser(userData, 'EUR');
 
-      expect(bankService.getBankInternal).not.toHaveBeenCalled();
-      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(bankService.getBankInternal).toHaveBeenCalledWith(IbanBankName.FRICK, 'EUR');
+      expect(frickVibanProvider.reserveViban).toHaveBeenCalledWith(frickBank.iban);
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(saved).toMatchObject({
+        bank: frickBank,
+        currency: eur,
+        iban: 'LI75088110105923K000E',
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
     });
   });
 
@@ -407,19 +425,42 @@ describe('VirtualIbanService', () => {
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
-    it('never uses Frick for generic EUR buy-specific creation', async () => {
+    it('creates an EUR buy-specific vIBAN via Frick', async () => {
       const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
+      const eur = { id: 4, name: 'EUR' } as Fiat;
+      const frickBank = {
+        id: 19,
+        iban: 'LI32088110105923K000C',
+        receive: true,
+        name: IbanBankName.FRICK,
+      } as Bank;
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
-      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue({ id: 4, name: 'EUR' } as any);
+      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(eur);
       jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(false);
       jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(frickBank);
+      jest.spyOn(frickVibanProvider, 'reserveViban').mockResolvedValue({
+        iban: 'LI75088110105923K000E',
+        bban: '088110105923K000E',
+        providerAccountRef: 'LI75088110105923K000E',
+      });
+      jest.spyOn(virtualIbanRepo, 'create').mockImplementation((entity) => entity as VirtualIban);
+      jest.spyOn(virtualIbanRepo, 'save').mockImplementation(async (entity) => entity as VirtualIban);
+      jest.spyOn(virtualIbanRepo, 'invalidateCache').mockImplementation(() => undefined);
 
-      await expect(service.createForBuy(userData, buy, 'EUR')).rejects.toThrow(
-        'No personal IBAN provider available for this currency',
-      );
+      const saved = await service.createForBuy(userData, buy, 'EUR');
 
-      expect(bankService.getBankInternal).not.toHaveBeenCalled();
-      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(bankService.getBankInternal).toHaveBeenCalledWith(IbanBankName.FRICK, 'EUR');
+      expect(frickVibanProvider.reserveViban).toHaveBeenCalledWith(frickBank.iban);
+      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(saved).toMatchObject({
+        bank: frickBank,
+        currency: eur,
+        buy,
+        iban: 'LI75088110105923K000E',
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
     });
   });
 
@@ -1352,13 +1393,23 @@ describe('VirtualIbanService', () => {
       await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
     });
 
-    it('never returns an existing Frick vIBAN from the generic user-level lookup', async () => {
-      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
+    it('reuses an existing Frick EUR vIBAN from the user-level lookup', async () => {
+      const selected = {
+        id: 4,
+        bank: { name: IbanBankName.FRICK },
+        currency: { name: 'EUR' },
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      } as VirtualIban;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(selected);
 
-      await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBeNull();
+      await expect(service.getActiveForUserAndCurrency(userData, 'EUR')).resolves.toBe(selected);
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
-    it('getActiveForUserAndCurrency keeps the merge-base selection semantics while excluding Frick', async () => {
+    it('getActiveForUserAndCurrency keeps the merge-base selection semantics without excluding Frick', async () => {
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
 
       await service.getActiveForUserAndCurrency(userData, 'CHF');
@@ -1367,7 +1418,6 @@ describe('VirtualIbanService', () => {
         where: {
           userData: { id: 7 },
           currency: { name: 'CHF' },
-          bank: { name: expect.anything() },
           active: true,
           status: VirtualIbanStatus.ACTIVE,
         },

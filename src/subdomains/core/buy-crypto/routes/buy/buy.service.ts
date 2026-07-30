@@ -496,9 +496,15 @@ export class BuyService {
       };
     }
 
-    // asset-specific personal IBAN
+    // asset-specific personal IBAN. Deliberately not for EUR: buy-specific issuance runs through the
+    // generic createForBuy path, which has none of the advisory-lock, merged-account and claim-recovery
+    // handling that Bank Frick issuance needs (getOrCreateFrickForUser). An EUR request falls through
+    // to the user-level step below, which does go through that machinery. Lift this only together with
+    // a buy-specific equivalent of it - the flags gating this branch are off in production today, so
+    // nothing silently depends on the unsafe path.
     if (
       buy &&
+      selector.currency !== 'EUR' &&
       asset?.personalIbanEnabled &&
       wallet?.buySpecificIbanEnabled &&
       selector.userData.kycLevel >= KycLevel.LEVEL_50
@@ -530,7 +536,15 @@ export class BuyService {
 
     // create a personal IBAN for an eligible KYC 50+ user
     if (!virtualIban && this.virtualIbanService.isUserEligible(selector.currency, selector.userData)) {
-      virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency).catch(() => null);
+      // EUR goes through the Frick-specific issuance (advisory lock, merged accounts, claim recovery);
+      // every other currency keeps the generic provider path. Both swallow a failure the same way, so a
+      // transient issuance error degrades identically instead of breaking one currency harder than the
+      // other - the distinction between "not eligible" and "issuance failed" is made below.
+      virtualIban = await (
+        selector.currency === 'EUR'
+          ? this.virtualIbanService.getOrCreateFrickForUser(selector.userData, selector.currency)
+          : this.virtualIbanService.createForUser(selector.userData, selector.currency)
+      ).catch(() => null);
     }
 
     if (virtualIban?.bank.receive) {
@@ -542,7 +556,18 @@ export class BuyService {
       };
     }
 
-    // normal bank selection
+    // No personal IBAN could be resolved, and a collection account must never be shown - so a transfer
+    // fails here instead of falling back to one. Distinguish the two reasons: an eligible customer who
+    // still has no IBAN hit a failed issuance, and telling them to complete KYC they already have would
+    // send them in circles. Card payments use no deposit IBAN at all (the response carries a payment
+    // link), so they keep resolving a bank rather than breaking.
+    if (selector.paymentMethod !== FiatPaymentMethod.CARD)
+      throw new BadRequestException(
+        this.virtualIbanService.isUserEligible(selector.currency, selector.userData)
+          ? QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED
+          : QuoteError.KYC_REQUIRED,
+      );
+
     const bank = await this.bankService.getBank(selector);
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
