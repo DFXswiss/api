@@ -476,7 +476,9 @@ describe('ScryptAdapter', () => {
       const order = cancellableOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
-      await expect(adapter.cancelOutstanding(order)).resolves.toBe(true);
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(
+        'the venue answered for every reference that nothing is left to execute',
+      );
       expect(cancelIfOutstanding).toHaveBeenCalledTimes(2);
     });
 
@@ -489,7 +491,7 @@ describe('ScryptAdapter', () => {
       const order = cancellableOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
-      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+      await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
     });
 
     it('still cancels the older references when the newest one will not settle', async () => {
@@ -503,7 +505,7 @@ describe('ScryptAdapter', () => {
       const order = cancellableOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
-      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+      await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
       expect(cancelIfOutstanding).toHaveBeenCalledWith('dfx-lm-4711-1', 'EUR', 'USDT');
       expect(cancelIfOutstanding).toHaveBeenCalledWith('dfx-lm-4711', 'EUR', 'USDT');
     });
@@ -512,10 +514,12 @@ describe('ScryptAdapter', () => {
       // an empty loop would otherwise fall straight through to "all settled", abandoning the order on a
       // confirmation nobody gave
       const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+      const errorSpy = jest.spyOn(adapter['logger'], 'error').mockImplementation();
       const order = cancellableOrder({ correlationId: null, previousCorrelationIds: null });
 
-      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+      await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
       expect(cancelIfOutstanding).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
     });
 
     it('treats an executed reference as settled — it cannot execute again either', async () => {
@@ -529,17 +533,43 @@ describe('ScryptAdapter', () => {
       const order = cancellableOrder();
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
-      await expect(adapter.cancelOutstanding(order)).resolves.toBe(true);
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(
+        'the venue answered for every reference that nothing is left to execute',
+      );
       // an abandoned order books no output, so the reference that filled has to be named somewhere
       expect(order.errorMessage).toContain('dfx-lm-4711-1');
     });
 
-    it('never cancels a withdrawal — there is no such thing at this venue', async () => {
+    it('does not cancel a withdrawal via cancelIfOutstanding — absence is confirmed instead', async () => {
       const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+      jest.spyOn(scryptService, 'confirmWithdrawalAbsent').mockResolvedValue(false);
       const order = cancellableOrder({ action: withdrawAction() });
 
-      await expect(adapter.cancelOutstanding(order)).resolves.toBe(false);
+      await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
       expect(cancelIfOutstanding).not.toHaveBeenCalled();
+      expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId, order.created);
+    });
+
+    it('abandons a withdrawal once the venue confirms its full history has no record of it', async () => {
+      const cancelIfOutstanding = jest.spyOn(scryptService, 'cancelIfOutstanding');
+      jest.spyOn(scryptService, 'confirmWithdrawalAbsent').mockResolvedValue(true);
+      const order = cancellableOrder({ action: withdrawAction() });
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBe(
+        'the venue returned its full transaction history and has no record of this withdrawal',
+      );
+      expect(cancelIfOutstanding).not.toHaveBeenCalled();
+      expect(scryptService.confirmWithdrawalAbsent).toHaveBeenCalledWith(order.correlationId, order.created);
+    });
+
+    it('refuses a withdrawal without correlationId and never asks the venue', async () => {
+      const confirmWithdrawalAbsent = jest.spyOn(scryptService, 'confirmWithdrawalAbsent');
+      const errorSpy = jest.spyOn(adapter['logger'], 'error').mockImplementation();
+      const order = cancellableOrder({ action: withdrawAction(), correlationId: null });
+
+      await expect(adapter.cancelOutstanding(order)).resolves.toBeNull();
+      expect(errorSpy).toHaveBeenCalled();
+      expect(confirmWithdrawalAbsent).not.toHaveBeenCalled();
     });
   });
 
@@ -565,14 +595,16 @@ describe('ScryptAdapter', () => {
       'reports UNAVAILABLE when the reference is %p — there was nothing to ask about',
       async (correlationId: string | null | undefined) => {
         // UNRESOLVED would say the venue answered and had no record, which the caller is entitled to act on
-        // once its bound expires — abandoning still needs a settled cancellation. With no reference the venue
-        // was never asked at all, so the order has
-        // to keep waiting for a person rather than be failed on a lookup that never ran.
+        // once its bound expires — abandoning still needs a settled exit. With no reference the venue was
+        // never asked at all; since reserve-before-send this is an invariant break (logged as error), not a
+        // planned wait, and still no automatic exit — that would be guessing without a reference to ask about.
         const getOrderStatus = jest.spyOn(scryptService, 'getOrderStatus');
+        const errorSpy = jest.spyOn(adapter['logger'], 'error').mockImplementation();
         const order = createUncertainSellOrder({ correlationId, previousCorrelationIds: null });
 
         await expect(adapter.resolveUncertainOrder(order)).resolves.toBe(UncertainOrderResolution.UNAVAILABLE);
         expect(getOrderStatus).not.toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalled();
       },
     );
 

@@ -49,10 +49,11 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  * careful choice, but where nobody performs the manual release it is not caution, it is a rule that never
  * runs again.
  *
- * "Gets an attempt" is the whole claim, and it is much weaker than "is bounded": the attempt is a cancellation,
- * a venue that will not confirm one still holds its order here indefinitely, and a request the adapter cannot
- * cancel at all — a Scrypt withdrawal, say — is never even attempted. What these bounds end is the assumption
- * that somebody will eventually look; the manual release stays the only other way out.
+ * "Gets an attempt" is the whole claim, and it is much weaker than "is bounded": the attempt is a cancellation
+ * (or, for a Scrypt withdrawal that has no cancel, a confirmed absence from the venue's full history), and a
+ * venue that will not confirm still holds its order here indefinitely. What these bounds end is the assumption
+ * that somebody will eventually look; the manual release stays a shortcut, not the only way out for venues
+ * that can answer.
  *
  * Each bound has to outlast the window in which its order could still be in flight, and that window differs
  * by an order of magnitude between kinds of request, so a single value would be either useless or unsafe.
@@ -81,10 +82,12 @@ const ABANDON_UNCERTAIN_MINUTES = {
    * the tail here is genuinely long — a bound near the median would reach orders that are simply still
    * running, and reissuing those is what actually moves funds twice.
    *
-   * Note what this bound does NOT currently reach: reaching it only triggers a cancellation attempt, and
-   * the one venue that implements cancellation refuses it for withdrawals outright — there is no such thing
-   * as cancelling one there. So a Scrypt withdrawal still waits for a person, and this value governs the
-   * other transfer kinds and any venue that gains a cancellable withdrawal later.
+   * Reaching this bound only starts the automatic exit attempt — it abandons nothing by itself. For trades
+   * that attempt is a cancellation whose venue confirmation lets the order go; for a Scrypt withdrawal,
+   * which has no cancel operation at the venue, it is a confirmed absence from the venue's full transaction
+   * history. Other transfer kinds and venues that cannot answer that question keep waiting past this bound
+   * (on the venue, or until an operator releases them as a shortcut). This value is the age at which trying
+   * is worth it, not a guarantee that giving up is safe.
    */
   TRANSFER: 12 * 60,
 };

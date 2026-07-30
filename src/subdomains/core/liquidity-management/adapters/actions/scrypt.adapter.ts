@@ -44,8 +44,9 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
  *
  * Matches the age at which the venue lookup itself gives up on finding an order, so both routes out of a
  * silent order agree. Quarantine is not a verdict — the order is still not declared failed here — it only
- * moves it somewhere a human can act on, or where the caller's bound eventually attempts a cancellation
- * whose confirmation can end it.
+ * moves it where the caller's bound can attempt an automatic exit (cancel every trade reference, or confirm
+ * a withdrawal is absent from full history). An operator can still release sooner as a shortcut; the human
+ * is not the rule path for either command.
  */
 const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 60;
 
@@ -263,33 +264,54 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   /**
-   * Cancel everything this order could still have live, so the caller may give it up.
+   * Make sure nothing this order could still have live can execute, so the caller may give it up.
    *
-   * Every reference the row ever claimed — sent or merely reserved — not just the current one: the reason an order gets
-   * here is that at least one of them has an outcome nobody could observe, and an unobserved reference is
-   * precisely the one that might be sitting in the book. These are GTC orders — nothing expires them — so
-   * age is no argument at all, and the only way to know a reference cannot fill is to have the venue say so.
+   * For trades: every reference the row ever claimed — sent or merely reserved — not just the current one.
+   * The reason an order gets here is that at least one of them has an outcome nobody could observe, and an
+   * unobserved reference is precisely the one that might be sitting in the book. These are GTC orders —
+   * nothing expires them — so age is no argument at all, and the only way to know a reference cannot fill is
+   * to have the venue say so. All-or-nothing on purpose: one reference the venue would not settle is enough
+   * to keep the whole order quarantined, because the funds a rule would get back are the same funds that
+   * reference could still spend. Every reference is still asked about — a refusal on one is no reason to
+   * leave the others without an attempt.
    *
-   * All-or-nothing on purpose: one reference the venue would not settle is enough to keep the whole order
-   * quarantined, because the funds a rule would get back are the same funds that reference could still
-   * spend. Every reference is still asked about — a refusal on one is no reason to leave the others without
-   * an attempt, since those are precisely the ones that could be sitting open in the book. Withdrawals are not cancellable this way and are left alone — they take the caller's ordinary
-   * route instead.
+   * For withdrawals: Scrypt has no cancel operation. The exit rests on confirmed absence — the venue returned
+   * a complete, consistent transaction history that has no record of this reference. That is not the same as
+   * "the request never arrived"; it is only "nothing under this reference exists in a history we can trust".
+   * Incomplete or inconsistent history returns null and leaves the order quarantined for another pass.
+   *
+   * Returns the reason string the caller records on abandon, or null when nothing is settled yet.
    *
    * The replan that follows reads the venue's balance, which is pushed rather than polled, so a fill that
    * has only just landed may not be in it yet. In practice that push follows a fill within seconds and the
    * abandoned order is the slower half of the race, but it is a window rather than a guarantee — worth
    * knowing if a rule is ever seen planning against a balance that looks one fill stale.
    */
-  async cancelOutstanding(order: LiquidityManagementOrder): Promise<boolean> {
-    if (order.action.command === ScryptAdapterCommands.WITHDRAW) return false;
+  async cancelOutstanding(order: LiquidityManagementOrder): Promise<string | null> {
+    if (order.action.command === ScryptAdapterCommands.WITHDRAW) {
+      if (!order.correlationId) {
+        this.logger.error(
+          `Order ${order.id}: Scrypt withdrawal reached cancelOutstanding with no correlationId — reserve-before-send should make this impossible`,
+        );
+        return null;
+      }
+
+      const absent = await this.scryptService.confirmWithdrawalAbsent(order.correlationId, order.created);
+      return absent ? 'the venue returned its full transaction history and has no record of this withdrawal' : null;
+    }
 
     const references = this.attemptedReferencesNewestFirst(order);
 
     // Nothing ever went out under a reference, so the venue cannot confirm anything about this order — and
     // an empty loop would otherwise fall through to "all settled" without a single question asked. Absent
-    // evidence this must hold the order, never release it.
-    if (!references.length) return false;
+    // evidence this must hold the order, never release it. Since reserve-before-send a Scrypt order should
+    // not reach quarantine without a reference; this is an invariant break, not a planned wait.
+    if (!references.length) {
+      this.logger.error(
+        `Order ${order.id}: Scrypt trade reached cancelOutstanding with no references — reserve-before-send should make this impossible`,
+      );
+      return null;
+    }
 
     const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
     const asset = order.pipeline.rule.targetAsset.dexName;
@@ -323,7 +345,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       );
     }
 
-    if (unsettled) return false;
+    if (unsettled) return null;
 
     // Which reference filled is the one thing an abandoned order can no longer say for itself — its status
     // becomes FAILED and it books no output. The venue's own transaction record carries the money side, but
@@ -336,7 +358,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       }`,
     );
 
-    return true;
+    return 'the venue answered for every reference that nothing is left to execute';
   }
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
@@ -397,8 +419,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       }
 
       // The venue once acknowledged this order and now cannot find it. That is not a failure — it may have
-      // filled or been cancelled outside our view — so it goes to quarantine instead of releasing the rule,
-      // from where a human releases it or the caller's bound eventually attempts a cancellation whose confirmation can end it.
+      // filled or been cancelled outside our view — so it goes to quarantine instead of releasing the rule.
+      // From there the caller's bound attempts a cancellation whose confirmation ends it; an operator can
+      // still release sooner as a shortcut, but is not the rule path.
       if (e instanceof ScryptOrderNotFoundError) throw new OrderOutcomeUnknownException(e.message);
 
       // A rejection is a reply: the venue reached a verdict, so the order really did end.
@@ -484,8 +507,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * request against the same funds happens. But not forever: the manual path only accepts quarantined
    * orders, so an order nobody can ever observe would poll for good with no way out at all. Past the same
    * age at which the venue itself is considered to have lost an order, it goes to quarantine instead —
-   * still not declared failed here, and from there either released by a human or ended by a cancellation
-   * the caller's bound eventually attempts.
+   * still not declared failed here. From there the caller's bound ends it via cancellation confirmation;
+   * an operator can still release sooner as a shortcut.
    */
   private waitOrQuarantine(order: LiquidityManagementOrder, reason: string): boolean {
     if (Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
@@ -669,11 +692,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     // follows rejects the pending request with a generic message that says nothing about whether the venue
     // acted on them. Both become unknown outcomes.
     //
-    // Over-classifying costs an operator a look at the venue; under-classifying is what moved money without
-    // a record. Since absence at the venue is not proof, such an order waits — for a human, or for the
-    // venue to confirm a cancellation once its bound is reached — rather than resolving itself here,
-    // deliberately the expensive direction,
-    // because the cheap one is the dangerous one.
+    // Over-classifying costs another automatic pass against the venue; under-classifying is what moved money
+    // without a record. Since absence at the venue is not proof, such an order waits on the venue — for a
+    // cancellation confirmation (trade) or a confirmed absence from full history (withdraw) once its bound
+    // is reached — rather than resolving itself here, deliberately the expensive direction, because the cheap
+    // one is the dangerous one. An operator can still release sooner as a shortcut.
     return new OrderOutcomeUnknownException(`Scrypt gave no confirmed outcome for the ${description}: ${e.message}`);
   }
 
@@ -682,19 +705,25 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    *
    * Only a matched reference can confirm a positive. A missing record confirms nothing on its own — Scrypt
    * has no terminal "this reference was never accepted" reply — so it leaves the order quarantined. What
-   * ends it is not this method concluding anything, but the caller cancelling every reference the order ever
-   * sent: once the venue confirms none of them can execute, giving up is a fact rather than a guess. An
-   * explicit rejection of every attempted reference is the one negative that settles here, and returns
-   * NOT_SENT.
+   * ends it is not this method concluding anything, but the caller settling every reference the order ever
+   * claimed: cancel confirmation for trades, or confirmed absence from full history for withdrawals. Once
+   * the venue answers that nothing can still execute, giving up is a fact rather than a guess. An explicit
+   * rejection of every attempted trade reference is the one negative that settles here, and returns NOT_SENT.
    */
   async resolveUncertainOrder(order: LiquidityManagementOrder): Promise<UncertainOrderResolution> {
     const { correlationId } = order;
     // UNAVAILABLE, not UNRESOLVED: with no reference there is nothing to ask about, so the venue was never
     // asked. UNRESOLVED would mean it answered and had no record — a claim nobody made, and one the caller
-    // is entitled to act on once its bound expires. Only orders predating the reserve-before-
-    // send guarantee can reach this, and they wait for a person: with no reference there is nothing to
-    // cancel either, so the automatic route out cannot confirm anything about them.
-    if (!correlationId) return UncertainOrderResolution.UNAVAILABLE;
+    // is entitled to act on once its bound expires. Since reserve-before-send a Scrypt order cannot reach
+    // quarantine without a reference; landing here is an invariant break (a bug), not a planned wait for a
+    // person. There is still no automatic exit without a reference — that would be guessing — but the error
+    // log is the response, not an operator who may never come.
+    if (!correlationId) {
+      this.logger.error(
+        `Order ${order.id}: Scrypt order reached resolveUncertainOrder with no correlationId — reserve-before-send should make quarantining without a reference impossible; this is a bug`,
+      );
+      return UncertainOrderResolution.UNAVAILABLE;
+    }
 
     let allAttemptsRejected = false;
 
@@ -762,10 +791,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // otherwise is what would let the rule reissue a request that later materialises — so this reports
       // only what it saw, and never resolves the order on absence alone.
       //
-      // The caller bounds the wait: an order stuck here long enough gets a cancellation attempt rather than
-      // being held for an operator who may never come, and only that attempt's confirmation abandons it.
-      // Both belong there, not here — this method's job is to report what the venue said, not to decide how
-      // long a rule may stay blocked or when giving up is safe.
+      // The caller bounds the wait: an order stuck here long enough gets an automatic exit attempt (cancel
+      // every trade reference, or confirm withdrawal absence from full history) rather than being held for
+      // an operator who may never come, and only that attempt's confirmation abandons it. Both belong there,
+      // not here — this method's job is to report what the venue said, not to decide how long a rule may stay
+      // blocked or when giving up is safe.
       this.logger.warn(
         `Scrypt still has no record of reference ${correlationId} for order ${order.id} — keeping it quarantined`,
       );

@@ -329,7 +329,8 @@ export class LiquidityManagementPipelineService {
    * nothing under this order can still execute. Age decides when it is worth trying to clean up; the
    * cancellation decides whether giving up is safe. So the bound is not a deadline after which the order is
    * certainly gone: an order no integration can look up, or whose references the venue will not settle, keeps
-   * waiting past it, for a person.
+   * waiting past it — on the venue, not on an operator. An operator can still release sooner as a shortcut;
+   * the mechanism that ends the wait is the venue answering (or confirming absence) on a later pass.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
     // First: anything this process observed and could not write. Retried before new lookups, because an
@@ -441,20 +442,22 @@ export class LiquidityManagementPipelineService {
           if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
             anyChanged = true;
         } else if (order.unresolvableTooLong()) {
-          // Old enough that cleaning it up is worth attempting, and nobody has released it. Waiting on for
-          // an operator is not the careful option where nobody performs the release — the rule then never
-          // runs again and the venue stops being served entirely.
+          // Old enough that cleaning it up is worth attempting, and nobody has released it. Leaving it here
+          // forever is not the careful option — the rule then never runs again and the venue stops being
+          // served entirely. Trade and withdraw both reach this path: the integration decides how to make
+          // sure nothing can still execute (cancel every reference, or confirm a withdrawal is absent from
+          // a complete history) and returns the reason wording the abandon step will record.
           //
           // What stands in the way of giving up is never the order itself but the possibility of a request
           // still executing: hand the funds back and a late fill spends them twice. So rather than
           // estimating when that can no longer happen — these are orders nothing expires, so age proves
           // nothing — the possibility is removed. Cancelling is the opposite of re-sending and cannot create
           // anything, and once the venue confirms nothing can execute, abandoning is a fact rather than a
-          // guess. Refuses to settle, or cannot be reached? Then nothing changes and the order waits, which
-          // is the same answer as before but reached for a stated reason.
-          if (!(await actionIntegration.cancelOutstanding?.(order))) continue;
+          // guess. Refuses to settle, or cannot be reached? Then nothing changes and the order waits on the
+          // venue (an operator is only a shortcut past the next automatic pass).
+          const because = await actionIntegration.cancelOutstanding?.(order);
+          if (!because) continue;
 
-          const because = 'the venue answered for every reference that nothing is left to execute';
           if (await this.abandonUncertainOrder(order, because)) anyChanged = true;
         }
         // Otherwise — an order still inside the window in which its request could be live — nothing changes

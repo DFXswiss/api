@@ -597,6 +597,87 @@ export class ScryptService extends PricingProvider {
   }
 
   /**
+   * Confirm that the venue's full transaction history has no record of this withdrawal reference.
+   *
+   * Scrypt has no cancel/storno operation for withdrawals. A quarantined withdrawal therefore cannot be
+   * cleared the way a trade is (cancel every reference). The only safe automatic exit is confirmed absence:
+   * the venue returned a complete history and this `clReqId` is not in it. That is weaker than "the request
+   * never arrived" — it is only "nothing under this reference exists in a history we can trust" — and the
+   * caller abandons on that basis rather than claiming a not-sent release.
+   *
+   * No cache shortcut is allowed. `findWithdrawal` may return a terminal cached row early because a positive
+   * match answers "does this exist?". Here the question is the opposite — "is there demonstrably nothing?" —
+   * and only a fresh, complete bulk fetch can answer that. A stale cache miss would be a guess.
+   *
+   * The consistency gate — not the age bound — is the safety barrier. Before concluding absence, every
+   * cached transaction that falls inside the caller's window (or has no readable timestamp) must reappear in
+   * the fresh response. Without that gate an incomplete or truncated reply that simply omits the sought
+   * reference would be read as "does not exist", the order would be abandoned, and a later replan could call
+   * `withdraw()` again. That path only checks `minAmount > balance` and then takes `min(maxAmount, balance)`,
+   * so with enough remaining balance a second attempt goes through — a double payout. The gate exists to
+   * make that impossible from an untrustworthy history.
+   *
+   * `since` only limits which *cached* rows the gate insists on seeing again: a venue that drops ancient
+   * history must not permanently fail the gate on a long-irrelevant cached id, or the withdrawal would fall
+   * back into endless silent quarantine. A failed gate always warns with the missing references named, so a
+   * permanently broken fetch is visible rather than an invisible wait.
+   *
+   * @returns true only when the fresh history is non-empty, passes the consistency gate, and does not contain
+   * `clReqId`. false on fetch failure, empty history, gate failure, or when the reference is present.
+   */
+  async confirmWithdrawalAbsent(clReqId: string, since: Date): Promise<boolean> {
+    // Snapshot before the fetch: the gate asks whether rows we already knew still appear in the answer we
+    // are about to trust. Reading the map after the await would mix in anything concurrent writers added
+    // during the round-trip, which is not what "already stood in the cache before this fetch" means.
+    const previouslyCached = [...this.balanceTransactions.values()];
+
+    let fresh: ScryptBalanceTransaction[];
+    try {
+      fresh = await this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION);
+    } catch (e) {
+      this.logger.warn(`confirmWithdrawalAbsent(${clReqId}): could not fetch full transaction history: ${e.message}`);
+      return false;
+    }
+
+    if (!fresh.length) {
+      this.logger.warn(
+        `confirmWithdrawalAbsent(${clReqId}): venue returned an empty transaction history — cannot conclude absence`,
+      );
+      return false;
+    }
+
+    const freshIds = new Set(fresh.map((t) => t.ClReqID).filter((id): id is string => Boolean(id)));
+
+    const missingFromFresh: string[] = [];
+    for (const cached of previouslyCached) {
+      if (!cached.ClReqID) continue;
+
+      // Spec-allowed field priority: Timestamp first, TransactTime only when Timestamp is missing. A missing
+      // or unparseable stamp is never a reason to skip — those rows are always checked (conservative).
+      const raw = cached.Timestamp ?? cached.TransactTime;
+      if (raw) {
+        const ts = new Date(raw);
+        if (!Number.isNaN(ts.getTime()) && ts < since) continue;
+      }
+
+      if (!freshIds.has(cached.ClReqID)) missingFromFresh.push(cached.ClReqID);
+    }
+
+    // Gate first, independently of whether clReqId itself is missing. An incomplete answer that also lacks
+    // the sought reference must not be upgraded to "confirmed absent".
+    if (missingFromFresh.length) {
+      this.logger.warn(
+        `confirmWithdrawalAbsent(${clReqId}): consistency gate failed — cached references missing from fresh history: ${missingFromFresh.join(
+          ', ',
+        )}`,
+      );
+      return false;
+    }
+
+    return !freshIds.has(clReqId);
+  }
+
+  /**
    * @param since lower bound for the fallback history fetch. A caller that knows when its reference can
    * earliest have existed passes it here, so a lookup for an absent order does not pull a full 30 days of
    * execution reports over the connection. Defaults to the full 30-day window.

@@ -185,7 +185,9 @@ describe('LiquidityManagementPipelineService', () => {
       });
     }
 
-    /** `cancelSettles` is what the venue says when asked to make sure nothing can execute any more. */
+    /** `cancelSettles` is what the venue says when asked to make sure nothing can execute any more.
+     * true → reason string (exit), false → null (no exit). The pipeline now receives the reason from the
+     * integration rather than inventing one. */
     function stubIntegration(resolution: UncertainOrderResolution, cancelSettles = true): void {
       jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
         supportedCommands: ['sell'],
@@ -193,7 +195,11 @@ describe('LiquidityManagementPipelineService', () => {
         checkCompletion: jest.fn(),
         validateParams: jest.fn(),
         resolveUncertainOrder: jest.fn().mockResolvedValue(resolution),
-        cancelOutstanding: jest.fn().mockResolvedValue(cancelSettles),
+        cancelOutstanding: jest
+          .fn()
+          .mockResolvedValue(
+            cancelSettles ? 'the venue answered for every reference that nothing is left to execute' : null,
+          ),
       });
     }
 
@@ -331,14 +337,16 @@ describe('LiquidityManagementPipelineService', () => {
 
     it('abandons a transfer once even its long bound has run out and the venue settles it', async () => {
       // the bound alone is not enough: this asserts the pipeline's side of the contract, that an aged
-      // transfer whose integration confirms the cancellation does get abandoned. Whether a given venue can
-      // confirm one for a withdrawal at all is the integration's business — Scrypt, for one, cannot.
+      // transfer whose integration returns a reason string from cancelOutstanding does get abandoned.
+      // How the integration settles the question (trade cancel vs. withdrawal absence from full history)
+      // is its business — the pipeline only forwards the returned reason.
       const order = agedOrder(13 * 60, 'withdraw');
       expectResolution(order, UncertainOrderResolution.UNRESOLVED);
 
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(order.errorMessage).toContain('answered for every reference');
     });
 
     it('gives an unrecognised command the long bound, not the short one', async () => {

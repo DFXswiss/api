@@ -807,6 +807,82 @@ describe('ScryptService', () => {
       ]);
     });
   });
+  describe('confirmWithdrawalAbsent', () => {
+    const since = new Date('2026-07-01T00:00:00.000Z');
+    const soughtId = 'dfx-lm-withdraw-9';
+
+    function balanceTx(overrides: Partial<ScryptBalanceTransaction> = {}): ScryptBalanceTransaction {
+      return {
+        TransactionID: 'tx-1',
+        ClReqID: 'other-ref',
+        Currency: 'CHF',
+        TransactionType: ScryptTransactionType.WITHDRAWAL,
+        Status: ScryptTransactionStatus.COMPLETED,
+        Quantity: '100',
+        Timestamp: '2026-07-15T12:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('returns true when a non-empty fresh history has no record of the reference and the gate holds', async () => {
+      instance.fetchAll.mockResolvedValue([balanceTx({ ClReqID: 'unrelated-in-history', TransactionID: 'tx-u' })]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(true);
+    });
+
+    it('returns false when the fresh history contains the sought reference', async () => {
+      instance.fetchAll.mockResolvedValue([balanceTx({ ClReqID: soughtId, TransactionID: 'tx-sought' })]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+    });
+
+    it('returns false and warns when the history fetch fails', async () => {
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      instance.fetchAll.mockRejectedValue(new Error('Connection closed'));
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it('returns false and warns when the venue returns an empty history', async () => {
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      instance.fetchAll.mockResolvedValue([]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it('fails the gate when a cached in-window reference is missing from fresh history — even if the sought id is also absent', async () => {
+      // the gate must block the absence conclusion independently: an incomplete answer that happens to
+      // omit the sought reference must not be upgraded to "confirmed absent"
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      (service as any).balanceTransactions.set('cached-other', {
+        ...balanceTx({ ClReqID: 'cached-other', Timestamp: '2026-07-20T00:00:00.000Z' }),
+      });
+      // fresh has something (so emptiness does not short-circuit) but neither the cached nor the sought id
+      instance.fetchAll.mockResolvedValue([
+        balanceTx({ ClReqID: 'someone-else', TransactionID: 'tx-else', Timestamp: '2026-07-21T00:00:00.000Z' }),
+      ]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it('ignores cached references older than since so a truncated venue retention window cannot fail the gate forever', async () => {
+      (service as any).balanceTransactions.set('ancient-ref', {
+        ...balanceTx({
+          ClReqID: 'ancient-ref',
+          Timestamp: '2026-01-01T00:00:00.000Z', // clearly before since
+        }),
+      });
+      instance.fetchAll.mockResolvedValue([
+        balanceTx({ ClReqID: 'recent-unrelated', TransactionID: 'tx-r', Timestamp: '2026-07-15T00:00:00.000Z' }),
+      ]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId, since)).resolves.toBe(true);
+    });
+  });
+
   describe('cancelIfOutstanding', () => {
     /** A complete report, so the fixture cannot drift from the contract cancelOrder now promises. */
     function cancelReport(overrides: Partial<ScryptExecutionReport> = {}): ScryptExecutionReport {

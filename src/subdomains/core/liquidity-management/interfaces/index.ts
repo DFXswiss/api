@@ -41,16 +41,21 @@ export interface LiquidityActionIntegration {
    * The one thing that makes abandoning a quarantined order dangerous is a request still live at the venue:
    * give the rule its funds back and a late fill spends them twice. Rather than estimating when that can no
    * longer happen, this removes the possibility — cancelling is the opposite of re-sending, so it is the one
-   * write that is always safe against an outcome nobody could observe.
+   * write that is always safe against an outcome nobody could observe. Where the venue has no cancel for the
+   * request kind (a Scrypt withdrawal), the equivalent is a confirmed absence from a complete history.
    *
-   * Returns true only when the venue has answered for every reference that nothing is left to execute. Read
-   * "answered" precisely: a cancellation it accepts, or an order it reports terminal, settles the question
-   * outright — while a refusal saying it has no such order is an inference from the venue's own words, not a
-   * statement about execution. An unconfirmed cancel must return false: it may well have taken effect, but
-   * "may well" is what quarantine already means.
-   * Integrations that cannot cancel omit this, and their orders keep waiting for a person.
+   * Returns a non-empty reason string only when the venue has answered that nothing under this order is left
+   * to execute (or, for a withdrawal, that its full history has no record of it). The caller writes that
+   * string into the order and the log as-is — each integration supplies its own wording so the pipeline never
+   * invents a reason the venue never gave. `null` means no automatic exit; the order stays quarantined.
+   * Read "answered" precisely: a cancellation it accepts, an order it reports terminal, or a complete history
+   * that omits the withdrawal reference settles the question. An unconfirmed cancel, incomplete history, or
+   * failed consistency check must return null: it may well have taken effect, but "may well" is what
+   * quarantine already means.
+   * Integrations that cannot cancel omit this and simply have no automatic exit from quarantine. For Scrypt
+   * every command (trade and withdraw) implements this path — neither waits on an operator as its way out.
    */
-  cancelOutstanding?(order: LiquidityManagementOrder): Promise<boolean>;
+  cancelOutstanding?(order: LiquidityManagementOrder): Promise<string | null>;
 }
 
 export interface LiquidityState {
