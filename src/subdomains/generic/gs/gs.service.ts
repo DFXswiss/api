@@ -205,7 +205,12 @@ export class GsService {
   private warnIfCapped(hitDefaultCap: boolean, query: DbQueryBaseDto): void {
     if (hitDefaultCap)
       this.logger.warn(
-        `GS export for ${query.identifier} hit the default maxLine cap (${GsService.DEFAULT_MAX_LINE}) on table ${query.table} — rows beyond the cap were not returned`,
+        `GS export for ${
+          query.identifier ? Util.sanitizeLogValue(query.identifier, 64) : 'missing'
+        } hit the default maxLine cap (${GsService.DEFAULT_MAX_LINE}) on table ${Util.sanitizeLogValue(
+          query.table,
+          64,
+        )} — rows beyond the cap were not returned`,
       );
   }
 
@@ -854,7 +859,9 @@ export class GsService {
     }
   }
 
-  private async getExtendedBankTxData(dbQuery: DbQueryBaseDto): Promise<{ data: any[]; capReached: boolean }> {
+  private async getExtendedBankTxData(
+    dbQuery: DbQueryBaseDto,
+  ): Promise<{ data: Record<string, unknown>[]; capReached: boolean }> {
     const select = dbQuery.select ? dbQuery.select.map((e) => dbQuery.table + '.' + e).join(',') : dbQuery.table;
 
     const buyCryptoData = await this.dataSource

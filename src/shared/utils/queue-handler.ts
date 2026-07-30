@@ -37,7 +37,10 @@ class QueueItem<T> {
   }
 
   public async doWork(timeout: number) {
-    const promise = timeout ? Util.timeout(this.action(), timeout) : this.action();
+    // Defer the call so a synchronous throw inside the action becomes a rejection
+    // instead of escaping doWork and leaving the item unsettled forever.
+    const action = Promise.resolve().then(() => this.action());
+    const promise = timeout ? Util.timeout(action, timeout) : action;
     await promise.then(this.resolve).catch(this.reject);
   }
 
