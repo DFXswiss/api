@@ -66,7 +66,7 @@ module.exports = class AddFinancialLogChartColumns1785520000000 {
       ['BTC', 'Bitcoin', 'Coin'],
     );
     // .at(0) rather than index access: the repo's migration-psql-check scans the raw file for MSSQL
-    // bracket quoting and its pattern cannot tell [column] from a JavaScript array index.
+    // bracket quoting and its pattern cannot tell that from a JavaScript array index.
     const btcAssetId = btcAssetRows.at(0)?.id ?? null;
 
     await queryRunner.query(
