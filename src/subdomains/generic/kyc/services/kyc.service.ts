@@ -443,11 +443,12 @@ export class KycService {
             order: { sequenceNumber: 'DESC' },
           });
           if (winner?.isOnHold) return winner;
-          if (winner?.isInReview) return undefined; // winner already advanced → nothing left to do
+          if (winner?.isDone) return undefined; // winner already advanced → nothing left to do
           throw e; // 23505 on the right constraint but no provable winner → surface the original error
         });
 
-        if (newStep) await this.kycStepRepo.update(...newStep.manualReview());
+        // a step auto-completed via kycLevel >= LEVEL_50 needs no review
+        if (newStep && !newStep.isCompleted) await this.kycStepRepo.update(...newStep.manualReview());
       }
     }
   }
