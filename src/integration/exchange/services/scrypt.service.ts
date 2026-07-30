@@ -34,6 +34,7 @@ import {
   ScryptAmendRejectedError,
   ScryptMessageType,
   ScryptOrderNotFoundError,
+  ScryptOrderStuckPendingError,
   ScryptUnconfirmedWriteError,
   ScryptVenueRejectionError,
   ScryptWebSocketConnection,
@@ -42,8 +43,9 @@ import {
 /**
  * After this long without a usable answer, an order the venue once acknowledged is treated as lost rather
  * than merely slow. One use only: the branch below where the status lookup returns nothing at all. The
- * pending states deliberately do NOT consult it — they wait however old the order is, because a venue that
- * still reports PENDING_NEW is answering, and this constant is about silence.
+ * pending states deliberately do NOT consult it — a venue that still reports PENDING_NEW is answering, and
+ * this constant is about silence. They are bounded separately by PENDING_STUCK_AFTER_MINUTES, which asks
+ * for a cancel rather than declaring the order lost, because there the reference is known to exist.
  *
  * Kept equal to SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES in the adapter, which documents itself as matching
  * this value — the two are the pair of routes out of a silent order and must not drift apart. Five rather
@@ -53,6 +55,22 @@ import {
  * Scrypt trades complete in a median of 0.2 and a maximum of 1.0 minutes.
  */
 const ORDER_LOST_AFTER_MINUTES = 5;
+
+/**
+ * PENDING_NEW / PENDING_CANCEL / PENDING_REPLACE are meant to be a transition lasting seconds — the venue
+ * is in the middle of accepting, cancelling or replacing the order. Measured over 60 days, Scrypt trades
+ * spend a median of 0.2 and a maximum of 1.0 minutes reaching a terminal or open state, so a trade still
+ * reporting PENDING after five minutes is not a slow one, it is a stuck one.
+ *
+ * Deliberately its own constant rather than reusing ORDER_LOST_AFTER_MINUTES, even though both happen to be
+ * five: that one bounds SILENCE from the venue (no status at all), this one bounds an ANSWER that makes no
+ * progress. Merging them would let a later change meant for one quietly shift the other along with it.
+ *
+ * The bound never ends the order by itself — the exit is canceling and restarting, never a bare give-up: a
+ * trade that might still be sitting in the book must not be abandoned unconfirmed, or the onFail chain could
+ * place a second, genuinely competing buy alongside it.
+ */
+const PENDING_STUCK_AFTER_MINUTES = 5;
 
 // The venue answers a refused cancel with an execution report rather than a separate reject message, so the
 // refusal has to be read off these two fields. `UnknownOrder` is the one reason treated as settling
@@ -652,11 +670,13 @@ export class ScryptService extends PricingProvider {
    *
    * Remaining `false` branches react only to a fetch failure or a live-cache race hit (the reference appeared
    * in the live map while the bulk fetch was in flight). An empty history is no longer one of them: on a
-   * fresh or long-dormant Scrypt account the trade history genuinely has no rows, and the venue answering
-   * successfully with `[]` is a complete, positive statement of absence — the strongest one this method can
-   * get, not a reason to wait. That is not the same case as a real outage: an outage does not come back as an
-   * empty array, it throws, and lands in the catch above. The two look alike only on paper — a thrown error
-   * and a successful empty reply are deliberately handled differently.
+   * fresh or long-dormant Scrypt account the trade history genuinely has no rows, and a successful `[]` is
+   * treated exactly like any other successful reply that does not name the reference — not as a reason to
+   * wait. It is not evidence the history was complete: a truncated reply can arrive this way too, which is
+   * the trade-off stated above, accepted rather than overlooked. That is still not the same case as a real
+   * outage: an outage does not come back as an empty array, it throws, and lands in the catch above. The two
+   * look alike only on paper — a thrown error and a successful empty reply are deliberately handled
+   * differently.
    *
    * @returns true when the live cache does not hold `clReqId` after the fetch and the fresh history (empty or
    * not) does not contain it. false on fetch failure, live-race hit, or when the reference is present in the
@@ -671,9 +691,9 @@ export class ScryptService extends PricingProvider {
       return false;
     }
 
-    // An empty reply is a valid, complete answer — not a reason to wait. See the JSDoc above for why this is
-    // no longer a `false` branch: it is the venue positively saying this reference does not exist, exactly
-    // the same statement a non-empty history without `clReqId` makes below.
+    // An empty reply is a successful answer that does not name the reference — not a reason to wait. See
+    // the JSDoc above for why this is no longer a `false` branch: it carries exactly the weight of a
+    // non-empty history without `clReqId` below, no more, and is not proof the history was complete.
     if (!fresh.length) {
       this.logger.info(
         `confirmWithdrawalAbsent(${clReqId}): venue returned an empty transaction history — the reference cannot exist in a history with no rows at all`,
@@ -884,14 +904,43 @@ export class ScryptService extends PricingProvider {
 
       case ScryptOrderStatus.PENDING_NEW:
       case ScryptOrderStatus.PENDING_CANCEL:
-      case ScryptOrderStatus.PENDING_REPLACE:
-        // Deliberately just waits, however old the order is. A pending report is an OBSERVATION — we know
-        // where the order stands — so it is not an unknown outcome and must not be quarantined: reconciliation
-        // would find the reference, hand the order straight back, and the next completion check would
-        // quarantine it again. An order that stays pending too long is a stuck order, which the monitoring
-        // counter surfaces; it is not an unresolved one.
-        this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
+      case ScryptOrderStatus.PENDING_REPLACE: {
+        // A pending report is an OBSERVATION — we know where the order stands — so on its own it is not an
+        // unknown outcome and must not be quarantined: reconciliation would find the reference, hand the
+        // order straight back, and the next completion check would quarantine it again. But "observed" is not
+        // the same claim as "running": PENDING_* is meant to last seconds (see PENDING_STUCK_AFTER_MINUTES),
+        // so past that bound this stops merely waiting and asks the venue to settle the question. The clock
+        // alone is never the exit, though — only a confirmed cancel is: a trade that might still be sitting in
+        // the book must not be given up on unconfirmed evidence, or the onFail chain could place a second,
+        // genuinely competing buy right next to it.
+        const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
+        if (!orderCreated || ageMinutes <= PENDING_STUCK_AFTER_MINUTES) {
+          this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
+          return false;
+        }
+
+        const cancellation = await this.cancelIfOutstanding(clOrdId, from, to);
+
+        if (cancellation === ScryptCancellation.EXECUTED) {
+          this.logger.verbose(`Order ${clOrdId} was pending past its bound, but Scrypt confirms it filled`);
+          return true;
+        }
+
+        if (cancellation === ScryptCancellation.SETTLED) {
+          throw new ScryptOrderStuckPendingError(
+            `Order ${clOrdId} has been reported ${orderInfo.status} for ${Math.round(ageMinutes)} minutes, ` +
+              `past the ${PENDING_STUCK_AFTER_MINUTES}-minute pending bound, and Scrypt confirms nothing can ` +
+              `execute under it any more`,
+          );
+        }
+
+        // UNCONFIRMED: nothing may be concluded. Without a confirmed cancel the reference may still be live
+        // in the book, so the order keeps waiting rather than being given up unconfirmed.
+        this.logger.warn(
+          `Order ${clOrdId} is pending (${orderInfo.status}) past its bound, but Scrypt would not confirm a cancel, waiting...`,
+        );
         return false;
+      }
     }
   }
 

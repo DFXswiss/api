@@ -89,10 +89,10 @@ const ABANDON_UNCERTAIN_MINUTES = {
    * may stay unobservable (see SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES) is the ten-minute maximum a
    * quarantined order may take to resolve itself. Ten nominal, not to the second: the pass runs on a
    * ten-second cron with a few seconds of jitter, and a deadline missed just after a tick waits out the
-   * one-minute cooldown floor. Read it as ten to eleven minutes plus the venue round-trip. What it costs is the case where the venue accepted a
-   * withdrawal and publishes it late: it is then given up and reissued. That is an internal rebooking —
-   * every Scrypt withdrawal address is DFX-owned — and accepted on exactly that ground; see
-   * `confirmWithdrawalAbsent` for the same trade-off argued at the check itself.
+   * one-minute cooldown floor. Read it as ten to eleven minutes plus the venue round-trip. What it costs is
+   * the case where the venue accepted a withdrawal and publishes it late: it is then given up and reissued.
+   * That is an internal rebooking — every Scrypt withdrawal address is DFX-owned — and accepted on exactly
+   * that ground; see `confirmWithdrawalAbsent` for the same trade-off argued at the check itself.
    */
   VENUE_WITHDRAWAL: 5,
   /**

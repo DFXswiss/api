@@ -88,6 +88,18 @@ export class ScryptUnconfirmedWriteError extends Error {
 export class ScryptOrderNotFoundError extends Error {}
 
 /**
+ * A trade the venue has reported PENDING_NEW/PENDING_CANCEL/PENDING_REPLACE for longer than that transition
+ * should ever take, whose outstanding reference the venue then confirmed — on an explicit cancel request —
+ * that nothing can execute under it any more.
+ *
+ * Distinct from {@link ScryptOrderNotFoundError}: that one means the venue cannot find the order at all, an
+ * unresolved blind spot. Here the venue found it, answered PENDING, and then confirmed on request that the
+ * reference is settled. That confirmation is a verdict, not a gap, so the caller may fail the order instead
+ * of quarantining it.
+ */
+export class ScryptOrderStuckPendingError extends Error {}
+
+/**
  * An amend the venue refused. The replacement was never created, so the ORIGINAL order is still live — and
  * its reference is spent, because the venue requires references to be unique. Carries it so the caller can
  * record it and derive a fresh one next time instead of reusing a burnt reference forever.

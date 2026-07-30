@@ -13,6 +13,7 @@ import {
   isVenueRejection,
   ScryptAmendRejectedError,
   ScryptOrderNotFoundError,
+  ScryptOrderStuckPendingError,
   ScryptUnconfirmedWriteError,
 } from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
@@ -45,8 +46,11 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
  *
  * Five minutes, matching the age at which the venue lookup itself gives up on finding an order
  * (`ORDER_LOST_AFTER_MINUTES`), so both routes out of a silent order still agree. Together with the
- * five-minute abandon bound for these commands that is the ten-minute ceiling a quarantined order may take
- * to resolve itself. A venue record is written when a request is ACCEPTED, not when it finishes — so its
+ * five-minute abandon bound for these commands that is the ten-minute ceiling the orderer set — nominal,
+ * and conditional on the venue answering at all: the pass runs on a ten-second cron with jitter, and a
+ * venue that cannot be reached holds the order past that point, because the exit rests on its answer
+ * rather than on the clock. See ABANDON_UNCERTAIN_MINUTES.VENUE_WITHDRAWAL for the same bound argued
+ * from the other end. A venue record is written when a request is ACCEPTED, not when it finishes — so its
  * absence after five minutes says the acceptance is in doubt, which is independent of a withdrawal itself
  * being allowed to take hours. Quarantine is not a verdict — the order is still not declared failed here — it only
  * moves it where the caller's bound can attempt an automatic exit (cancel every trade reference, or confirm
@@ -54,6 +58,25 @@ const SCRYPT_CORRELATION_PREFIX = 'dfx-lm-';
  * is not the rule path for either command.
  */
 const SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES = 5;
+
+/**
+ * Backstop against a withdrawal that stays stuck reporting "in progress" forever — not a bound against a
+ * merely slow one.
+ *
+ * A venue record without a `txHash` is an observation — the venue has acknowledged the request — but "the
+ * venue answers" is not the same claim as "the transfer is running". Without a ceiling here the only exit
+ * left would be a human noticing, and that is exactly the outcome this system exists to remove. Measured
+ * over 60 days in production, withdrawals took a median of 6.6 minutes to complete, a p95 of 90 minutes,
+ * and the single slowest observed run took 336 minutes (5.6 hours). 24 hours is a good four times that
+ * worst case — far outside anything slowness alone could explain.
+ *
+ * The exit is failing the order so the rule can replan; if the venue pays out afterwards regardless, that
+ * is only an internal rebooking, because every Scrypt withdrawal address is DFX's own. Deliberately NOT
+ * folded into the quarantine bound above: an order with a venue record already on file makes the absence
+ * proof `confirmWithdrawalAbsent` relies on unreachable, and the order would only bounce between
+ * reconciliation and this completion check instead of ever resolving.
+ */
+const SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES = 24 * 60;
 
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {
@@ -238,11 +261,21 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // No record at all, past the age at which the venue is considered to have lost it: we cannot tell
       // whether this withdrawal happened, and the manual path only accepts quarantined orders, so leaving it
       // here would mean no way out at all. A record WITHOUT a hash is different — that is an observation, the
-      // withdrawal is simply still in flight, and quarantining it would only bounce it back and forth.
+      // withdrawal is simply still in flight, but only up to SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES: short of
+      // that bound quarantining it would only bounce it back and forth between reconciliation and this check.
       if (!withdrawal && Util.minutesDiff(order.created) > SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES)
         throw new OrderOutcomeUnknownException(
           `Scrypt has no record of withdrawal ${correlationId} after more than ${SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES} minutes`,
         );
+
+      if (withdrawal) {
+        const ageMinutes = Util.minutesDiff(order.created);
+        if (ageMinutes > SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES)
+          throw new OrderFailedException(
+            `Withdrawal ${correlationId} is ${Math.round(ageMinutes)} minutes old: the venue has reported it ` +
+              `in progress without a transaction hash for longer than the ${SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES}-minute stuck bound`,
+          );
+      }
 
       this.logger.verbose(`No withdrawal id for id ${correlationId} at ${this.scryptService.name} found`);
       return false;
@@ -396,11 +429,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         order.errorMessage = `${order.errorMessage} (executed at Scrypt under ${executed.join(', ')})`;
 
       this.logger.info(
-        `Order ${order.id}: venue reports every reference of unsupported command ${order.action.command} in a terminal state${
+        `Order ${order.id}: venue leaves no reference of unsupported command ${order.action.command} able to execute — each is terminal or unknown to it${
           executed.length ? `; ${executed.join(', ')} had filled` : ''
         }`,
       );
-      return 'the venue reports every reference of this unsupported command in a terminal state';
+      return 'the venue left no reference of this unsupported command able to execute — each is terminal or unknown to it';
     }
 
     // Known command: from/to is derived directly from the rule, so the venue's cancel-and-report is asked
@@ -516,6 +549,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       // From there the caller's bound attempts a cancellation whose confirmation ends it; an operator can
       // still release sooner as a shortcut, but is not the rule path.
       if (e instanceof ScryptOrderNotFoundError) throw new OrderOutcomeUnknownException(e.message);
+
+      // Not a blind spot: the venue named the reference as PENDING and, asked to cancel it past its bound,
+      // confirmed nothing can execute under it any more. That is a verdict, not an observation gap, so the
+      // order fails outright and the rule may replan straight away instead of waiting on a bound already spent.
+      if (e instanceof ScryptOrderStuckPendingError) throw new OrderFailedException(e.message);
 
       // A rejection is a reply: the venue reached a verdict, so the order really did end.
       if (isVenueRejection(e)) throw new OrderFailedException(e.message);

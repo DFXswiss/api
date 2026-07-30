@@ -13,6 +13,7 @@ import {
 } from '../enums';
 import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
+import { LiquidityActionIntegration } from '../interfaces';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
@@ -189,7 +190,7 @@ describe('LiquidityManagementPipelineService', () => {
     /** `cancelSettles` is what the venue says when asked to make sure nothing can execute any more.
      * true → reason string (exit), false → null (no exit). The pipeline now receives the reason from the
      * integration rather than inventing one. */
-    function stubIntegration(resolution: UncertainOrderResolution, cancelSettles = true): void {
+    function stubIntegration(resolution: UncertainOrderResolution, cancelSettles = true): LiquidityActionIntegration {
       // resolveUncertainOrders looks up the venue via getReconciliationIntegration (system-only). The SENT
       // path additionally consults getIntegration: only a registered command may return to IN_PROGRESS.
       // Stub both with the same adapter so existing tests model the normal registered-command case they
@@ -208,6 +209,8 @@ describe('LiquidityManagementPipelineService', () => {
       };
       jest.spyOn(actionIntegrationFactory, 'getReconciliationIntegration').mockReturnValue(integration);
       jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue(integration);
+
+      return integration;
     }
 
     it('only ever asks about quarantined orders', async () => {
@@ -245,10 +248,13 @@ describe('LiquidityManagementPipelineService', () => {
       });
     }
 
-    function expectResolution(order: LiquidityManagementOrder, resolution: UncertainOrderResolution): void {
+    function expectResolution(
+      order: LiquidityManagementOrder,
+      resolution: UncertainOrderResolution,
+    ): LiquidityActionIntegration {
       jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
       jest.spyOn(orderRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-      stubIntegration(resolution);
+      return stubIntegration(resolution);
     }
 
     // both allowlist entries, so dropping or mistyping either one is caught
@@ -344,6 +350,30 @@ describe('LiquidityManagementPipelineService', () => {
       await service['resolveUncertainOrders']();
 
       expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+    });
+
+    it('abandons a Scrypt withdrawal past its own five-minute bound, not the transfer one', async () => {
+      // the failure this prevents: a typo or case mismatch in the allowlist that maps Scrypt withdrawals
+      // to their five-minute bound would leave them on the long transfer bound unnoticed.
+      const order = agedOrder(6, 'withdraw');
+      const integration = expectResolution(order, UncertainOrderResolution.UNRESOLVED);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.FAILED);
+      expect(integration.cancelOutstanding).toHaveBeenCalledWith(order);
+    });
+
+    it('keeps a Scrypt withdrawal quarantined while it is still inside its own five-minute bound', async () => {
+      // the failure this prevents: cancelOutstanding would be called and the withdrawal abandoned before
+      // its own five-minute bound has run out.
+      const order = agedOrder(4, 'withdraw');
+      const integration = expectResolution(order, UncertainOrderResolution.UNRESOLVED);
+
+      await service['resolveUncertainOrders']();
+
+      expect(order.status).toBe(LiquidityManagementOrderStatus.UNCERTAIN);
+      expect(integration.cancelOutstanding).not.toHaveBeenCalled();
     });
 
     it('abandons a transfer once even its long bound has run out and the venue settles it', async () => {

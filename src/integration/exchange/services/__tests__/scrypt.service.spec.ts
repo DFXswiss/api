@@ -10,6 +10,7 @@ import {
 import {
   ScryptAmendRejectedError,
   ScryptMessageType,
+  ScryptOrderStuckPendingError,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
   ScryptVenueRejectionError,
@@ -1385,28 +1386,61 @@ describe('ScryptService', () => {
       expect((service as any).executionReports.has('dfx-lm-7')).toBe(true);
     });
 
-    it('keeps waiting on a pending order however old it is — pending is observed, not unknown', async () => {
-      // quarantining it would make reconciliation find the reference, hand the order back, and the next
-      // completion check quarantine it again: a loop, not a resolution
+    it('keeps waiting on a pending order that is still young, without asking Scrypt to cancel it', async () => {
+      // without this, a fresh PENDING report would trigger a cancel-and-decide it has not earned yet — the
+      // bound exists precisely so a normal, seconds-long transition is never treated as stuck
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PENDING_NEW,
         remainingQuantity: 5,
       });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('keeps waiting on a pending order past its bound when Scrypt will not confirm a cancel', async () => {
+      // the most important case here: without a confirmed cancel the order may still be live in the book, and
+      // giving it up on unconfirmed evidence could let the onFail chain place a second, genuinely competing buy
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 120 * 60 * 1000))).resolves.toBe(
         false,
       );
     });
 
-    it('keeps waiting on a pending order that is still young', async () => {
+    it('fails a pending order past its bound once Scrypt confirms nothing can execute under it any more', async () => {
+      // without this, a trade stuck reporting PENDING forever would have no exit but a human noticing
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PENDING_NEW,
         remainingQuantity: 5,
       });
+      jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.SETTLED);
 
-      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+      await expect(
+        service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 6 * 60 * 1000)),
+      ).rejects.toBeInstanceOf(ScryptOrderStuckPendingError);
+    });
+
+    it('completes a pending order past its bound when Scrypt confirms it filled after all', async () => {
+      // without this, a trade that actually filled would be failed instead of counted as complete
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.EXECUTED);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 6 * 60 * 1000))).resolves.toBe(
+        true,
+      );
     });
 
     it('cancels on an explicit rejection, but reports the refusal and the spent reference', async () => {

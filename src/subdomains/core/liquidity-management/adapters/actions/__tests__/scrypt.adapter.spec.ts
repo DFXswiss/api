@@ -191,7 +191,8 @@ describe('ScryptAdapter', () => {
 
     it('keeps waiting on an aged withdrawal the venue DOES know but has not settled', async () => {
       // a record without a hash is an observation, not an unknown outcome — quarantining it would only
-      // bounce the order between reconciliation and the completion check
+      // bounce the order between reconciliation and the completion check, as long as it is inside the
+      // 24-hour stuck bound; without this test that bound could shrink far enough to break an ordinary wait
       jest.spyOn(scryptService, 'getWithdrawalStatus').mockResolvedValue({
         id: 'w-inflight',
         status: ScryptTransactionStatus.COMPLETED,
@@ -199,6 +200,18 @@ describe('ScryptAdapter', () => {
       const old = createWithdrawOrder({ created: new Date(Date.now() - 120 * 60 * 1000) });
 
       await expect(adapter.checkCompletion(old)).resolves.toBe(false);
+    });
+
+    it('fails a withdrawal the venue has reported without a transaction hash for over 24 hours', async () => {
+      // without this bound, a withdrawal stuck at the venue with no txHash would poll forever with no exit
+      // but a human noticing — exactly the outcome the stuck-withdrawal backstop exists to remove
+      jest.spyOn(scryptService, 'getWithdrawalStatus').mockResolvedValue({
+        id: 'w-stuck',
+        status: ScryptTransactionStatus.COMPLETED,
+      });
+      const stuck = createWithdrawOrder({ created: new Date(Date.now() - 25 * 60 * 60 * 1000) });
+
+      await expect(adapter.checkCompletion(stuck)).rejects.toBeInstanceOf(OrderFailedException);
     });
 
     it('still just waits while the withdrawal is young', async () => {
@@ -600,7 +613,7 @@ describe('ScryptAdapter', () => {
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(
-        'the venue reports every reference of this unsupported command in a terminal state',
+        'the venue left no reference of this unsupported command able to execute — each is terminal or unknown to it',
       );
       expect(cancelIfOutstandingBySymbol).not.toHaveBeenCalled();
       expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711-1');
@@ -622,7 +635,7 @@ describe('ScryptAdapter', () => {
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(
-        'the venue reports every reference of this unsupported command in a terminal state',
+        'the venue left no reference of this unsupported command able to execute — each is terminal or unknown to it',
       );
       expect(cancelIfOutstandingBySymbol).not.toHaveBeenCalled();
       expect(getOrderStatus).toHaveBeenCalledWith('dfx-lm-4711-1');
@@ -648,7 +661,7 @@ describe('ScryptAdapter', () => {
       order.recordSpentCorrelationId('dfx-lm-4711-1');
 
       await expect(adapter.cancelOutstanding(order)).resolves.toBe(
-        'the venue reports every reference of this unsupported command in a terminal state',
+        'the venue left no reference of this unsupported command able to execute — each is terminal or unknown to it',
       );
       expect(cancelIfOutstandingBySymbol).toHaveBeenCalledWith('dfx-lm-4711-1', 'XRP/USDT');
     });
