@@ -232,9 +232,16 @@ export class DashboardFinancialService {
     return { timestamp: latest.created, byType, byBlockchain };
   }
 
-  // Pure mapping over the SQL projection; JSON parse/cast happens in SQL and fails loud there, so
-  // there is nothing left here that can throw on malformed input. Field defaults (`?? 0`) match the
-  // previous mapLogToEntry so the response stays byte-identical for the same underlying data.
+  // Pure mapping over the SQL projection: for well-formed data, the response matches the previous
+  // mapLogToEntry path exactly, including the `?? 0` field defaults. One case is intentionally
+  // different: if a `balancesByFinancialType` entry has the value `null` (e.g. `{"Crypto": null}`),
+  // the row is now kept (with an empty balancesByType entry) instead of the previous mapLogToEntry's
+  // per-row try/catch silently dropping the whole log line — a silent gap in a financial curve is
+  // worse than an empty partial entry, so this was changed on purpose. A malformed `message` document
+  // still fails loud: the `message::jsonb` cast in SQL throws for that. Individual scalar field
+  // values, though, are tolerated via `jsonb_typeof` guards (nulled rather than thrown), and
+  // non-numeric values inside `balancesByFinancialType` are passed through unchanged
+  // (see log.repository.ts).
   private mapSummaryToEntry(summary: FinancialLogSummary): FinancialLogEntryDto {
     return {
       timestamp: summary.created,

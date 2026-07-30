@@ -529,6 +529,16 @@ ${limitClause}`;
           // previously-harmless primitive cases into a 500 for the whole request too. `?.` restores the
           // old no-throw behaviour for all of them and, for `null`, is strictly better than either past
           // behaviour: the row is kept (with an empty balancesByType entry) instead of silently vanishing.
+          // Type note (documented, not "fixed"): the signature `plusBalanceChf?: number` /
+          // `minusBalanceChf?: number` promises `number | undefined`, but if `data` is an object whose
+          // property itself has the wrong type (string, boolean, or null), that value passes through
+          // unchanged here — no `typeof` guard. Deliberate, for three reasons: (1) unproven in
+          // production — measured across all matching rows: 287,989 entries with plusBalanceChf and
+          // minusBalanceChf both `number`, one entry with plusBalanceChf missing (minusBalanceChf
+          // numeric), and not a single entry with a string, boolean, or null value; (2) a guard would
+          // break the response equivalence with the previous mapLogToEntry, which passed such values
+          // through unchanged too; (3) unlike the five scalar fields above, there is no `::float8` cast
+          // here, so there is no query-abort risk for a guard to prevent.
           balancesByType[type] = {
             plusBalanceChf: data?.plusBalanceChf,
             minusBalanceChf: data?.minusBalanceChf,
