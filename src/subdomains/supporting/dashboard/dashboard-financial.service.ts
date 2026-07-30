@@ -23,11 +23,7 @@ export class DashboardFinancialService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  async getFinancialLog(
-    from?: Date,
-    dailySample?: boolean,
-    includeByType?: boolean,
-  ): Promise<FinancialLogResponseDto> {
+  async getFinancialLog(from?: Date, dailySample?: boolean, includeByType?: boolean): Promise<FinancialLogResponseDto> {
     // BTC price is projected in SQL and needs btcAssetId as a parameter, so resolve getBtcCoin first.
     // One extra sequential roundtrip vs the previous Promise.all, judged negligible against the
     // eliminated transfer volume of the full message JSON.
