@@ -44,13 +44,15 @@ const RELEASE_WITHOUT_VENUE_MINUTES = 60;
  * are sent but unconfirmed, and a bank balance is carried over from the last imported batch, so for those
  * the replan could well be sizing itself against a balance the execution has not reached yet.
  *
- * Within an askable venue, though, no outcome is left waiting for an operator who never comes — including the
- * ones where the answer never arrived. Leaving those to a person sounds like the careful choice, but where
- * nobody performs the manual release it is not caution, it is a rule that never runs again.
+ * Within an askable venue, though, an outcome nobody observed at least gets an automatic attempt at cleaning
+ * itself up, rather than only ever an operator who never comes. Leaving those to a person sounds like the
+ * careful choice, but where nobody performs the manual release it is not caution, it is a rule that never
+ * runs again.
  *
- * "Not left waiting for a person" is the claim, and it is weaker than "bounded": a venue that will not settle
- * a reference still holds its order here indefinitely. What these bounds end is the assumption that somebody
- * will eventually look — not the quarantine itself.
+ * "Gets an attempt" is the whole claim, and it is much weaker than "is bounded": the attempt is a cancellation,
+ * a venue that will not confirm one still holds its order here indefinitely, and a request the adapter cannot
+ * cancel at all — a Scrypt withdrawal, say — is never even attempted. What these bounds end is the assumption
+ * that somebody will eventually look; the manual release stays the only other way out.
  *
  * Each bound has to outlast the window in which its order could still be in flight, and that window differs
  * by an order of magnitude between kinds of request, so a single value would be either useless or unsafe.

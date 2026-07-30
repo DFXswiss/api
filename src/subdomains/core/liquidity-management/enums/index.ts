@@ -43,10 +43,10 @@ export enum LiquidityManagementOrderStatus {
   // pipeline (it never resumes on its own) but not for the order: `resolveUncertainOrders` asks the venue
   // what happened and moves it on to IN_PROGRESS or FAILED. See OrderOutcomeUnknownException.
   //
-  // Only where an integration can actually ask the venue does it stop waiting for a person: an order whose
-  // lookup comes back with no record has its references cancelled once it has outlived the window in which
-  // its request could still be in flight (ABANDON_UNCERTAIN_MINUTES, which differs for venue-internal trades
-  // and transfers).
+  // Where an integration can ask the venue, an automatic cleanup is at least attempted: once the order has
+  // outlived the window in which its request could still be in flight (ABANDON_UNCERTAIN_MINUTES, which
+  // differs for venue-internal trades and transfers), the adapter is asked to cancel every reference it
+  // claimed — if it supports cancelling that kind of request at all.
   //
   // Giving up is never concluded from the clock alone: past the bound the venue is asked to cancel every
   // reference the order claimed — sent or merely reserved — and only its answer that none can still execute

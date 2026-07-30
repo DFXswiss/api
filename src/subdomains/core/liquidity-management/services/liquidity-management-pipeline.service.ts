@@ -514,12 +514,15 @@ export class LiquidityManagementPipelineService {
    * having to be the mechanism that unblocks it.
    */
   private async abandonUncertainOrder(order: LiquidityManagementOrder, because: string): Promise<boolean> {
-    // Always null in practice: a pending release routes to an earlier branch, so this path is only ever
-    // reached for an order nobody had released when this pass read it. Narrowing on that absence is exactly
-    // the point — an operator may write a release between the read and this write, and that release carries
-    // an audited reason and is owed one more venue answer. Without it, this write — which rests on the
+    // Usually null, because a pending release is handled by an earlier branch for every answer that concerns
+    // it — but not always: this branch has no release condition of its own, so an order released while the
+    // venue was unreachable reaches it with the marker still set, and is then given up on the cancellation
+    // rather than on the release. Whichever it is, the value read here is the one narrowed on, which is the
+    // point: an operator may write a release between that read and this write, and that release carries an
+    // audited reason and is owed one more venue answer. Without the narrowing this write — which rests on the
     // venue's cancellation but on no evidence about whether the request was ever sent — would silently
-    // overwrite the one resting on a person.
+    // overwrite the one resting on a person. (The reason itself survives either way: the abandonment prefixes
+    // the existing message rather than replacing it.)
     const examined = order.notSentRecheckDue ?? null;
 
     order.abandonUncertain(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
