@@ -1,3 +1,4 @@
+import { GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import {
   ScryptBalanceTransaction,
@@ -896,6 +897,63 @@ describe('ScryptService', () => {
         spentReference: 'dfx-lm-7-1',
       });
       expect((service as any).cancelOrder).toHaveBeenCalled();
+    });
+  });
+  describe('isConfigured', () => {
+    const scryptConfig = GetConfig().scrypt as { wsUrl: string; apiKey: string; apiSecret: string };
+    let original: { wsUrl: string; apiKey: string; apiSecret: string };
+
+    beforeEach(() => {
+      original = { ...scryptConfig };
+    });
+
+    afterEach(() => {
+      Object.assign(scryptConfig, original);
+    });
+
+    it('is false without a wsUrl, so an environment with credentials but no endpoint skips entirely', () => {
+      scryptConfig.wsUrl = '';
+
+      expect(service.isConfigured).toBe(false);
+    });
+
+    it('does not open the websocket when the wsUrl is missing', () => {
+      scryptConfig.wsUrl = '';
+      (ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>).mockClear();
+
+      const unconfigured = new ScryptService();
+      const connection = (ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>).mock
+        .results[0].value as { subscribeToStream: jest.Mock; fetchAll: jest.Mock; onReconnect: jest.Mock };
+
+      expect(unconfigured.isConfigured).toBe(false);
+      // Nothing is opened at all: no warm-up fetch, no subscriptions, no reconnect machinery.
+      expect(connection.subscribeToStream).not.toHaveBeenCalled();
+      expect(connection.fetchAll).not.toHaveBeenCalled();
+      expect(connection.onReconnect).not.toHaveBeenCalled();
+    });
+
+    it('is false for a non-empty url the client could never dial', () => {
+      scryptConfig.wsUrl = 'scrypt.example.com/ws'; // no scheme — new URL() throws on it
+
+      // Must take the loud "not configured" skip rather than registering everything and then failing
+      // identically on every attempt with nothing able to repair it.
+      expect(service.isConfigured).toBe(false);
+    });
+
+    it('is false without an api key', () => {
+      scryptConfig.apiKey = '';
+
+      expect(service.isConfigured).toBe(false);
+    });
+
+    it('is false without an api secret', () => {
+      scryptConfig.apiSecret = '';
+
+      expect(service.isConfigured).toBe(false);
+    });
+
+    it('is true when url and credentials are present', () => {
+      expect(service.isConfigured).toBe(true);
     });
   });
 });

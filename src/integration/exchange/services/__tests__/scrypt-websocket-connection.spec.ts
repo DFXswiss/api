@@ -1,6 +1,7 @@
 import { EventEmitter as MockEventEmitter } from 'events';
 import Ws from 'ws';
 import {
+  isDialableWsUrl,
   ScryptMessageType,
   ScryptRequestTimeoutError,
   ScryptWebSocketConnection,
@@ -458,10 +459,10 @@ describe('ScryptWebSocketConnection', () => {
     loggerWarn.mockClear();
     latestWs().remoteClose(1006, 'gone again');
     expect((connection as any).isReconnecting).toBe(true);
-    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/closed.*scheduling reconnect/));
+    expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/closed \(code: 1006/));
   });
 
-  it('disconnect() resets hasEverConnected so a later re-subscribe sends only one SUBSCRIBE (finding 2 — no double-send on reuse)', async () => {
+  it('disconnect() clears activeStreams so a later re-subscribe sends only one SUBSCRIBE (finding 2 — no double-send on reuse)', async () => {
     const streamName = ScryptMessageType.BALANCE_TRANSACTION;
     await firstConnectWithStream(streamName);
 
@@ -610,7 +611,7 @@ describe('ScryptWebSocketConnection', () => {
     expect((connection as any).connectionState).toBe('connected');
     expect((connection as any).isReconnecting).toBe(false);
     expect(scheduleSpy).not.toHaveBeenCalled();
-    expect(loggerWarn).not.toHaveBeenCalledWith(expect.stringMatching(/scheduling reconnect/));
+    expect(loggerWarn).not.toHaveBeenCalledWith(expect.stringMatching(/closed \(code:/));
   });
 
   it('disconnect() during pre-open handshake supersedes it — socket is terminated and not adopted (B1)', async () => {
@@ -684,8 +685,9 @@ describe('ScryptWebSocketConnection', () => {
     await connection.disconnect();
     expect((connection as any).isReconnecting).toBe(false);
 
-    // Re-arm a timer with a STALE epoch so the setTimeout callback's epoch guard is exercised
-    // (not merely clearTimeout of a still-pending timer). disconnect() already bumped reconnectEpoch.
+    // Re-arm a timer with a STALE epoch. This no longer PINS the epoch guard: disconnect() empties
+    // activeStreams, so deleting the guard would be masked by the stand-down check right behind it, and this
+    // test would still pass. The guard is pinned separately below, with streams still outstanding.
     const staleEpoch = (connection as any).reconnectEpoch - 1;
     (connection as any).scheduleReconnect(0, staleEpoch);
     jest.advanceTimersByTime(60000 * 3);
@@ -693,6 +695,121 @@ describe('ScryptWebSocketConnection', () => {
 
     expect(WebSocket.instances.length).toBe(constructCountBeforeDisconnect);
     expect((connection as any).isReconnecting).toBe(false);
+  });
+
+  it('a stale-epoch timer no-ops even while streams are still outstanding', async () => {
+    const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+    firstWs.remoteClose(1006, 'gone'); // loop armed at the current epoch, streams stay active
+    expect((connection as any).activeStreams.size).toBeGreaterThan(0);
+
+    jest.clearAllTimers(); // drop the live loop's timer so only the stale one below can fire
+    const connectSpy = jest.spyOn(connection as any, 'connect');
+
+    const socketsBefore = WebSocket.instances.length;
+    (connection as any).scheduleReconnect(0, (connection as any).reconnectEpoch - 1);
+    jest.advanceTimersByTime(5000);
+    await flushPromises();
+
+    // Without the epoch guard a superseded loop would run a second connect alongside the live one. Assert the
+    // observable effect too: the spy alone would still pass if the retry path stopped going through connect()
+    // at all, since a spy that is never called satisfies a negative assertion.
+    expect(connectSpy).not.toHaveBeenCalled();
+    expect(WebSocket.instances.length).toBe(socketsBefore);
+
+    // Control: the same timer at the CURRENT epoch does connect, so the assertions above are not vacuous.
+    (connection as any).scheduleReconnect(0, (connection as any).reconnectEpoch);
+    jest.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(WebSocket.instances.length).toBe(socketsBefore + 1);
+  });
+
+  it('does not re-arm (or restart the backoff) when the loop is already armed', async () => {
+    const ws = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+    ws.readyState = WebSocket.CLOSING;
+    await expect(connection.fetch(ScryptMessageType.BALANCE)).rejects.toThrow(/WebSocket connection failed/);
+    expect((connection as any).isReconnecting).toBe(true);
+
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+    const epochBefore = (connection as any).reconnectEpoch;
+
+    ws.remoteClose(1006, 'gone');
+
+    // Re-arming here would supersede the in-flight attempt and reset the backoff to attempt 0 on every
+    // close — a flapping venue would degenerate into a 2.5-5s retry storm instead of backing off.
+    expect(scheduleSpy).not.toHaveBeenCalled();
+    expect((connection as any).reconnectEpoch).toBe(epochBefore);
+  });
+
+  it('a close during the handshake neither logs a close nor arms the loop', async () => {
+    connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+    const ws = latestWs(); // current generation, still CONNECTING
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+
+    ws.remoteClose(1006, 'pre-open drop');
+
+    // A socket that never connected must not report an outage, and must not bypass ensureReconnectLoop's
+    // guards by arming directly.
+    expect((connection as any).connectionState).toBe('connecting');
+    expect((connection as any).isReconnecting).toBe(false);
+    expect(scheduleSpy).not.toHaveBeenCalled();
+    expect(loggerWarn).not.toHaveBeenCalledWith(expect.stringMatching(/closed \(code:/));
+  });
+
+  it('a superseded loop whose attempt rejects neither logs nor reschedules', async () => {
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+    const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+    firstWs.remoteClose(1006, 'gone');
+    const epochA = scheduleSpy.mock.calls[0][1] as number;
+
+    // Hold loop A's attempt in flight, then supersede it before letting it reject.
+    let rejectConnectA!: (e: Error) => void;
+    const gate = new Promise<void>((_, reject) => {
+      rejectConnectA = reject;
+    });
+    const connectSpy = jest.spyOn(connection as any, 'connect').mockImplementation(() => gate);
+
+    await fireReconnectAttempt(0);
+    connectSpy.mockRestore();
+
+    (connection as any).reconnectEpoch = epochA + 1; // a newer loop took over
+    const timerBefore = (connection as any).reconnectTimer;
+    const warnsBefore = loggerWarn.mock.calls.length;
+    const schedulesBefore = scheduleSpy.mock.calls.length;
+
+    rejectConnectA(new Error('superseded attempt failed'));
+    await flushPromises();
+
+    // Without the epoch guard in .catch, a dead loop logs a retry for itself and calls scheduleReconnect,
+    // replacing reconnectTimer with a timer of its own. In production that slot belongs to the newer loop,
+    // so a later disconnect() would then cancel the wrong one.
+    expect(loggerWarn.mock.calls.length).toBe(warnsBefore);
+    expect(scheduleSpy.mock.calls.length).toBe(schedulesBefore);
+    expect((connection as any).reconnectTimer).toBe(timerBefore);
+  });
+
+  it('arms the loop when the SUBSCRIBE frame throws after the connect succeeded', async () => {
+    const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+
+    connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+    connection.subscribeToStream(ScryptMessageType.SECURITY, () => undefined);
+    const ws = latestWs();
+
+    // The socket dies between connect resolving and the second SUBSCRIBE going out, so connect() itself
+    // never rejects and only subscribe()'s catch can arm the loop.
+    ws.send.mockImplementationOnce(() => {
+      ws.readyState = WebSocket.CLOSED;
+    });
+    ws.open();
+    await flushPromises();
+
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.stringMatching(/Failed to subscribe to Security:/),
+      expect.anything(),
+    );
+    expect([...(connection as any).activeStreams]).toContain(ScryptMessageType.SECURITY);
+    expect((connection as any).isReconnecting).toBe(true);
+    expect(scheduleSpy).toHaveBeenCalledWith(0, expect.any(Number));
   });
 
   it('stale reconnect loop settle does not disturb a newer loop after disconnect + drop', async () => {
@@ -1002,6 +1119,393 @@ describe('ScryptWebSocketConnection', () => {
     await flushPromises();
 
     expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  describe('failed first connect (#4310 finding A)', () => {
+    it('keeps the streams and schedules a reconnect when the very first connect never opens', async () => {
+      const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const deadWs = latestWs();
+
+      // Black-hole handshake on the FIRST attempt: nothing was ever CONNECTED, so no close event with
+      // wasConnected=true will arrive to arm handleDisconnection's loop.
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      expect(deadWs.terminate).toHaveBeenCalled();
+      expect(subscribeMessages(deadWs)).toHaveLength(0);
+      // The stream must survive the failure — dropping it is what made this permanent.
+      expect([...(connection as any).activeStreams]).toEqual([ScryptMessageType.BALANCE_TRANSACTION]);
+      expect((connection as any).isReconnecting).toBe(true);
+      expect(scheduleSpy).toHaveBeenCalledWith(0, expect.any(Number));
+
+      await fireReconnectAttempt(0);
+      const healedWs = latestWs();
+      expect(healedWs).not.toBe(deadWs);
+      healedWs.open();
+      await flushPromises();
+
+      expect((connection as any).connectionState).toBe('connected');
+      expect(subscribeMessages(healedWs)).toHaveLength(1);
+      expect(subscribeMessages(healedWs)[0]).toEqual(
+        expect.objectContaining({
+          type: 'subscribe',
+          streams: [expect.objectContaining({ name: ScryptMessageType.BALANCE_TRANSACTION })],
+        }),
+      );
+    });
+
+    it('fires onReconnect callbacks once a failed first connect finally heals', async () => {
+      const onReconnect = jest.fn();
+      connection.onReconnect(onReconnect);
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE, () => undefined);
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      expect(onReconnect).not.toHaveBeenCalled();
+
+      await fireReconnectAttempt(0);
+      latestWs().open();
+      await flushPromises();
+
+      // The constructor warm-up died with the failed attempt, so the caches are owed the same catch-up a
+      // drop would owe — without this the streams come back live over permanently empty caches.
+      expect(onReconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends exactly one SUBSCRIBE per stream when a subscribe lands mid-reconnect', async () => {
+      const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+      firstWs.remoteClose(1006, 'gone');
+
+      await fireReconnectAttempt(0); // new socket exists but is still CONNECTING
+      connection.subscribeToStream(ScryptMessageType.SECURITY, () => undefined);
+
+      const reconnectedWs = latestWs();
+      reconnectedWs.open();
+      await flushPromises();
+
+      const names = subscribeMessages(reconnectedWs).map((msg: any) => msg.streams[0].name);
+      expect(names).toHaveLength(2); // restored stream + the newly subscribed one, neither doubled
+      expect([...names].sort()).toEqual([ScryptMessageType.BALANCE_TRANSACTION, ScryptMessageType.SECURITY].sort());
+    });
+
+    it('does not start a reconnect loop when a failed connect owes no streams', async () => {
+      const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+
+      const settled = (connection as any).connect().then(
+        () => 'resolved',
+        () => 'rejected',
+      );
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      await expect(settled).resolves.toBe('rejected');
+      // Nothing to restore: the caller retries on its own, a loop would reconnect for nobody.
+      expect(scheduleSpy).not.toHaveBeenCalled();
+      expect((connection as any).isReconnecting).toBe(false);
+    });
+
+    it('replays the subscription filters when a stream is restored', async () => {
+      connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined, {
+        StartDate: '2026-01-01T00:00:00.000000Z',
+      });
+
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      await fireReconnectAttempt(0);
+      const healedWs = latestWs();
+      healedWs.open();
+      await flushPromises();
+
+      expect(subscribeMessages(healedWs)[0]).toEqual(
+        expect.objectContaining({
+          streams: [
+            expect.objectContaining({
+              name: ScryptMessageType.EXECUTION_REPORT,
+              StartDate: '2026-01-01T00:00:00.000000Z',
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
+  describe('reconnect loop lifecycle', () => {
+    it('stands down when every stream was unsubscribed while the timer waited', async () => {
+      const unsubscribe = connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const ws = latestWs();
+      ws.open();
+      await flushPromises();
+
+      ws.remoteClose(1006, 'gone');
+      expect((connection as any).isReconnecting).toBe(true);
+
+      unsubscribe();
+      expect((connection as any).activeStreams.size).toBe(0);
+
+      const socketsBefore = WebSocket.instances.length;
+      await fireReconnectAttempt(0);
+
+      expect(WebSocket.instances.length).toBe(socketsBefore); // no socket that nobody would read
+      expect((connection as any).isReconnecting).toBe(false);
+    });
+
+    it('does not report a reconnect when connect() short-circuits on a stale CONNECTED state', async () => {
+      const ws = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+
+      // The socket is on its way out but its close event has not been delivered yet, so connectionState
+      // is still CONNECTED and connect() returns without doing anything.
+      ws.readyState = WebSocket.CLOSING;
+
+      connection.subscribeToStream(ScryptMessageType.SECURITY, () => undefined);
+      await flushPromises();
+      expect((connection as any).isReconnecting).toBe(true);
+
+      const scheduleSpy = jest.spyOn(connection as any, 'scheduleReconnect');
+      await fireReconnectAttempt(0);
+
+      expect(loggerInfo).not.toHaveBeenCalledWith(expect.stringMatching(/reconnected/));
+      expect((connection as any).isReconnecting).toBe(true);
+      // Staying armed is not enough: the loop must actually have a live timer. Dropping the reschedule here
+      // would leave isReconnecting true with nothing pending, and no path re-arms it — a permanent outage
+      // that "still armed" alone cannot tell apart from a healthy loop.
+      expect(scheduleSpy).toHaveBeenCalledWith(1, expect.any(Number));
+      expect(jest.getTimerCount()).toBe(1);
+
+      // And it heals for real once the close event finally lands.
+      ws.remoteClose(1006, 'late close');
+      await fireReconnectAttempt(1);
+      const healedWs = latestWs();
+      healedWs.open();
+      await flushPromises();
+
+      expect((connection as any).isReconnecting).toBe(false);
+      expect(
+        subscribeMessages(healedWs)
+          .map((msg: any) => msg.streams[0].name)
+          .sort(),
+      ).toEqual([ScryptMessageType.BALANCE_TRANSACTION, ScryptMessageType.SECURITY].sort());
+    });
+
+    it('keeps a live subscribe claim when an overlapping earlier call settles', async () => {
+      const onReconnect = jest.fn();
+      connection.onReconnect(onReconnect);
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const firstWs = latestWs(); // still CONNECTING — its subscribe() holds the claim
+
+      await connection.disconnect();
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const secondWs = latestWs();
+      expect(secondWs).not.toBe(firstWs);
+
+      firstWs.fail(new Error('superseded attempt dies')); // must release only its own claim
+      await flushPromises();
+
+      secondWs.open();
+      await flushPromises();
+
+      expect(subscribeMessages(secondWs)).toHaveLength(1);
+      expect(onReconnect).not.toHaveBeenCalled();
+    });
+
+    it('arms the loop when a business call finds the socket closing under a stale CONNECTED state', async () => {
+      const ws = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+      ws.readyState = WebSocket.CLOSING; // close event not delivered yet, so connect() still short-circuits
+
+      // A plain read, not a subscribe: nothing else in this path would arm the loop.
+      await expect(connection.fetch(ScryptMessageType.BALANCE)).rejects.toThrow(/WebSocket connection failed/);
+
+      expect((connection as any).isReconnecting).toBe(true);
+      expect(jest.getTimerCount()).toBe(1);
+    });
+
+    it('still logs the close code and reason when the loop was already armed', async () => {
+      const ws = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);
+      ws.readyState = WebSocket.CLOSING;
+
+      // A read arms the loop first; the close event then arrives with isReconnecting already true.
+      await expect(connection.fetch(ScryptMessageType.BALANCE)).rejects.toThrow(/WebSocket connection failed/);
+      expect((connection as any).isReconnecting).toBe(true);
+
+      ws.remoteClose(1006, 'gone');
+
+      // Folding this log into the arming branch would drop it in exactly the windows where something else
+      // armed first — losing the close code on a flapping connection, which is the outage signal.
+      expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/closed \(code: 1006, reason: gone\)/));
+    });
+
+    it('fires catch-up on a genuine reconnect even when nothing needed restoring', async () => {
+      const onReconnect = jest.fn();
+      connection.onReconnect(onReconnect);
+
+      const unsubscribe = connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const ws = latestWs();
+      ws.open();
+      await flushPromises();
+
+      ws.remoteClose(1006, 'gone'); // arms the loop while BALANCE_TRANSACTION is still active
+
+      // Swap the active stream while the timer waits: the survivor is claimed by its own pending subscribe,
+      // so the reconnect restores nothing and only "we were connected before" can fire the catch-up.
+      unsubscribe();
+      connection.subscribeToStream(ScryptMessageType.SECURITY, () => undefined);
+
+      await fireReconnectAttempt(0);
+      const reconnectedWs = latestWs();
+      reconnectedWs.open();
+      await flushPromises();
+
+      expect(onReconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('a claim left behind by disconnect() does not suppress a later restore', async () => {
+      connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const abandonedWs = latestWs(); // never opens; its subscribe() stays in flight behind the handshake timeout
+
+      await connection.disconnect();
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE_TRANSACTION, () => undefined);
+      const liveWs = latestWs();
+      liveWs.open();
+      await flushPromises();
+      expect(subscribeMessages(liveWs)).toHaveLength(1);
+
+      // Drop the live socket well inside the abandoned attempt's 15s handshake timeout, so its claim would
+      // still be outstanding if disconnect() had left it behind.
+      liveWs.remoteClose(1006, 'gone');
+      await fireReconnectAttempt(0);
+      const restoredWs = latestWs();
+      expect(restoredWs).not.toBe(abandonedWs);
+      restoredWs.open();
+      await flushPromises();
+
+      expect(subscribeMessages(restoredWs)).toHaveLength(1); // restored, not skipped as "someone else's"
+    });
+
+    it('does not schedule reconnects for a URL it cannot dial', async () => {
+      const broken = new ScryptWebSocketConnection('not-a-url', 'api-key', 'api-secret');
+      const brokenError = jest.spyOn((broken as any).logger, 'error').mockImplementation(() => undefined);
+      const scheduleSpy = jest.spyOn(broken as any, 'scheduleReconnect');
+
+      broken.subscribeToStream(ScryptMessageType.BALANCE, () => undefined);
+      await flushPromises();
+      broken.subscribeToStream(ScryptMessageType.SECURITY, () => undefined);
+      await flushPromises();
+
+      // Retrying cannot fix a URL — looping would warn forever without ever connecting.
+      expect(scheduleSpy).not.toHaveBeenCalled();
+      expect((broken as any).isReconnecting).toBe(false);
+      expect(brokenError.mock.calls.filter(([msg]) => /not dialable/.test(String(msg)))).toHaveLength(1);
+    });
+  });
+
+  describe('dialable url', () => {
+    it.each([
+      ['wss://scrypt.example/ws', true],
+      ['ws://scrypt.example/ws', true],
+      ['https://scrypt.example/ws', true],
+      ['http://scrypt.example/ws', true],
+      ['', false],
+      [undefined, false],
+      ['not-a-url', false],
+      ['scrypt.example/ws', false], // no scheme
+      ['scrypt.example:443', false], // parses, but the host lands in the scheme
+      ['ftp://scrypt.example/ws', false], // parses with a host, but the client refuses the scheme
+      ['wss://scrypt.example/ws#v1', false], // the ws client throws on any fragment
+    ])('isDialableWsUrl(%p) === %p', (url, expected) => {
+      expect(isDialableWsUrl(url as string | undefined)).toBe(expected);
+    });
+
+    it('arms no loop and reports once for a scheme the client would refuse', async () => {
+      const broken = new ScryptWebSocketConnection('ftp://scrypt.example/ws', 'api-key', 'api-secret');
+      const brokenError = jest.spyOn((broken as any).logger, 'error').mockImplementation(() => undefined);
+      const scheduleSpy = jest.spyOn(broken as any, 'scheduleReconnect');
+
+      broken.subscribeToStream(ScryptMessageType.BALANCE, () => undefined);
+      // The real ws constructor rejects this scheme synchronously; the mock does not, so drive the attempt to
+      // its handshake timeout to reach the same failure the guard has to answer for.
+      jest.advanceTimersByTime(15000);
+      await flushPromises();
+
+      expect(scheduleSpy).not.toHaveBeenCalled();
+      expect((broken as any).isReconnecting).toBe(false);
+      expect(brokenError.mock.calls.filter(([msg]) => /not dialable/.test(String(msg)))).toHaveLength(1);
+    });
+  });
+
+  describe('state resets (unsubscribe and disconnect)', () => {
+    it('forgets stream filters so a later unfiltered subscribe is not restored with the old filter', async () => {
+      const unsubscribe = connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined, {
+        StartDate: '2026-01-01T00:00:00.000000Z',
+      });
+      latestWs().open();
+      await flushPromises();
+
+      unsubscribe(); // drops the stream and must drop its filter with it
+
+      connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined); // no filter this time
+      await flushPromises();
+      const ws = latestWs();
+      ws.remoteClose(1006, 'gone');
+      await fireReconnectAttempt(0);
+      const reconnectedWs = latestWs();
+      reconnectedWs.open();
+      await flushPromises();
+
+      const restored = subscribeMessages(reconnectedWs)[0] as any;
+      expect(restored.streams[0]).not.toHaveProperty('StartDate');
+    });
+
+    it('clears stream filters on disconnect so a reused connection does not replay them', async () => {
+      connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined, {
+        StartDate: '2026-01-01T00:00:00.000000Z',
+      });
+      latestWs().open();
+      await flushPromises();
+
+      await connection.disconnect();
+
+      connection.subscribeToStream(ScryptMessageType.EXECUTION_REPORT, () => undefined);
+      const reusedWs = latestWs();
+      reusedWs.open();
+      await flushPromises();
+
+      const sent = subscribeMessages(reusedWs)[0] as any;
+      expect(sent.streams[0]).not.toHaveProperty('StartDate');
+
+      // The frame above comes from the new subscribe's own call, so it proves nothing about the stored
+      // filters. Only a restore reads streamFilters — drive one.
+      reusedWs.remoteClose(1006, 'gone');
+      await fireReconnectAttempt(0);
+      const restoredWs = latestWs();
+      restoredWs.open();
+      await flushPromises();
+
+      expect((subscribeMessages(restoredWs)[0] as any).streams[0]).not.toHaveProperty('StartDate');
+    });
+
+    it('resets hasEverConnected so a reused connection does not fire catch-up on its first connect', async () => {
+      const onReconnect = jest.fn();
+      connection.onReconnect(onReconnect);
+
+      const ws = await firstConnectWithStream(ScryptMessageType.BALANCE);
+      expect(ws).toBeDefined();
+      expect(onReconnect).not.toHaveBeenCalled();
+
+      await connection.disconnect();
+
+      connection.subscribeToStream(ScryptMessageType.BALANCE, () => undefined);
+      latestWs().open();
+      await flushPromises();
+
+      // A reused connection starts over — its first connect owes no catch-up.
+      expect(onReconnect).not.toHaveBeenCalled();
+    });
   });
 
   describe('unanswered requests', () => {
