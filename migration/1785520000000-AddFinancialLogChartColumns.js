@@ -65,7 +65,9 @@ module.exports = class AddFinancialLogChartColumns1785520000000 {
       `SELECT id FROM "asset" WHERE "name" = $1 AND "blockchain" = $2 AND "type" = $3`,
       ['BTC', 'Bitcoin', 'Coin'],
     );
-    const btcAssetId = btcAssetRows[0]?.id ?? null;
+    // .at(0) rather than index access: the repo's migration-psql-check scans the raw file for MSSQL
+    // bracket quoting and its pattern cannot tell [column] from a JavaScript array index.
+    const btcAssetId = btcAssetRows.at(0)?.id ?? null;
 
     await queryRunner.query(
       `UPDATE "log"
