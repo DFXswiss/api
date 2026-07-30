@@ -829,6 +829,41 @@ describe('LiquidityManagementPipelineService', () => {
         expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
       });
 
+      it('holds the deadline cap still between lookups instead of letting it shrink', async () => {
+        // The cap is the time that was left when the last lookup finished. Read fresh on every tick it would
+        // shrink while the wait grows, the two would meet halfway, and a five-minute bound would be re-asked
+        // at 2.5 minutes — then 3.75, then 4.4, a geometric series of expensive lookups before a deadline that
+        // never moved. Asserted just before the bound, where the shrinking variant asks and this one does not.
+        const order = agedOrder(0);
+        const resolveUncertainOrder = jest.fn().mockResolvedValue(UncertainOrderResolution.UNAVAILABLE);
+        jest.spyOn(actionIntegrationFactory, 'getIntegration').mockReturnValue({
+          supportedCommands: ['sell'],
+          executeOrder: jest.fn(),
+          checkCompletion: jest.fn(),
+          validateParams: jest.fn(),
+          resolveUncertainOrder,
+        });
+        jest.spyOn(orderRepo, 'findBy').mockResolvedValue([order]);
+
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+
+        // half the bound: exactly where a cap re-read on this tick would coincide with the elapsed wait
+        jest.advanceTimersByTime(2.5 * 60_000);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+
+        // one millisecond short of the bound — still nothing to give up, so still nothing to ask
+        jest.advanceTimersByTime(2.5 * 60_000 - 1);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(1);
+
+        // and exactly at the bound it asks, which is what the cap exists to guarantee
+        jest.advanceTimersByTime(1);
+        await service['resolveUncertainOrders']();
+        expect(resolveUncertainOrder).toHaveBeenCalledTimes(2);
+      });
+
       it('never throttles past the bound at which the order becomes abandonable', async () => {
         // Where the cooldown and the abandon bound meet. This same pass is what gives an expired order up, so
         // a wait longer than what is left of its bound postpones the abandonment — an order weeks old draws

@@ -352,6 +352,8 @@ export class LiquidityManagementPipelineService {
       // pending release bypasses the wait entirely: a manual release must complete on the next tick, and
       // its own venue-wait runs on its own clock.
       if (!releasePending) {
+        const lastAttemptEnd = this.uncertainResolveAttempts.get(order.id);
+        const sinceAttemptMs = lastAttemptEnd ? Date.now() - lastAttemptEnd.getTime() : Infinity;
         const ageMs = Date.now() - order.created.getTime();
         const intervalMs = Math.min(
           Math.max(ageMs / 10, UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
@@ -359,14 +361,19 @@ export class LiquidityManagementPipelineService {
           // The throttle may never outlast the deadline it has to keep. This is also the pass that abandons an
           // order whose bound has run out, so a wait reaching past what is left of that bound would push the
           // abandonment beyond the ceiling the bound exists to impose — a trade quarantined at eight hours old
-          // would be given up after thirty minutes instead of five, and nothing here would say so. Held at the
-          // floor once the bound has passed, so a cancellation the venue will not confirm keeps retrying on
-          // the cooldown's terms rather than on every ten-second tick.
-          Math.max(order.msUntilAbandonable(), UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
+          // would be given up after thirty minutes instead of five, and nothing here would say so.
+          //
+          // Measured as the time that was left when the last lookup FINISHED, not as what is left now. Read
+          // now, this cap would shrink while the wait grows and the two would meet halfway: a five-minute
+          // bound would re-ask at 2.5 minutes, then 3.75, then 4.4 — a geometric series of expensive lookups
+          // before a deadline that had not moved. Adding the elapsed wait back gives exactly the figure from
+          // that moment (bound − (attempt − updated)), so the cap stays put between lookups and needs nothing
+          // stored beyond the stamp that is already kept. Held at the floor once the bound has passed, so a
+          // cancellation the venue will not confirm retries on the cooldown's terms rather than every tick.
+          Math.max(order.msUntilAbandonable() + sinceAttemptMs, UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
         );
 
-        const lastAttemptEnd = this.uncertainResolveAttempts.get(order.id);
-        if (lastAttemptEnd && Date.now() - lastAttemptEnd.getTime() < intervalMs) continue;
+        if (lastAttemptEnd && sinceAttemptMs < intervalMs) continue;
       }
 
       try {
