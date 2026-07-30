@@ -278,10 +278,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
    * its cancel symbol from the venue's own order-status reply instead of deriving one locally, so there is
    * no command for which "no symbol" blocks this exit.
    *
-   * For withdrawals: Scrypt has no cancel operation. The exit rests on confirmed absence — the venue returned
-   * a complete, consistent transaction history that has no record of this reference. That is not the same as
-   * "the request never arrived"; it is only "nothing under this reference exists in a history we can trust".
-   * Incomplete or inconsistent history returns null and leaves the order quarantined for another pass.
+   * For withdrawals: Scrypt has no cancel operation. The exit rests on absence — the venue answered
+   * successfully and that reply has no record of this reference. Deliberately no completeness check on that
+   * reply: withdrawal destinations are DFX-owned, so a truncated answer costs an internal rebooking, while a
+   * check demanding local anchors would strand the order forever (see `confirmWithdrawalAbsent`). So this is
+   * weaker than "the request never arrived" AND weaker than "the history was complete" — it is only "the
+   * venue answered and did not name it". Only a failed or empty-of-answer lookup returns null and leaves the
+   * order quarantined for another pass.
    *
    * Returns the reason string the caller records on abandon, or null when nothing is settled yet.
    *

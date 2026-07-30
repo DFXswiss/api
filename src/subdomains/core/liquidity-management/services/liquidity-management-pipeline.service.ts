@@ -330,9 +330,12 @@ export class LiquidityManagementPipelineService {
    * with no exit, so the way out remains the existing automatic cancel/abandon path
    * (`cancelOutstanding` / `unresolvableTooLong`) — not an operator. Anything inconclusive stays put, and past
    * the abandon bound for its kind of request a cancellation is attempted — because a rule parked forever is
-   * the worse failure. It is given up as FAILED only once the venue has confirmed that nothing under this
-   * order can still execute. Age decides when it is worth trying to clean up; the cancellation decides whether
-   * giving up is safe. So the bound is not a deadline after which the order is certainly gone. For Scrypt
+   * the worse failure. For a cancellable request it is given up as FAILED only once the venue has confirmed
+   * that nothing under this order can still execute. A Scrypt withdrawal cannot be cancelled at all, so there
+   * the bar is lower by design: the venue answered and did not name the reference, without any completeness
+   * check on that answer — a repeated payout goes to a DFX-owned address, whereas insisting on completeness
+   * would strand the order. Age decides when it is worth trying to clean up; what the venue says decides
+   * whether giving up is safe. So the bound is not a deadline after which the order is certainly gone. For Scrypt
    * (and any system whose adapter implements `resolveUncertainOrder`), an order whose references the venue
    * will not yet settle keeps waiting past it — on the venue, not on an operator: reconciliation resolves by
    * system, so a renamed or removed command still reaches the adapter and can be observed or cancelled there.
@@ -509,9 +512,9 @@ export class LiquidityManagementPipelineService {
 
     // Old enough that cleaning it up is worth attempting, and nobody has released it. Leaving it here
     // forever is not the careful option — the rule then never runs again and the venue stops being
-    // served entirely. Trade and withdraw both reach this path: the integration decides how to make
-    // sure nothing can still execute (cancel every reference, or confirm a withdrawal is absent from
-    // a complete history) and returns the reason wording the abandon step will record.
+    // served entirely. Trade and withdraw both reach this path: the integration decides what settles the
+    // question (cancel every reference, or — for a withdrawal, which cannot be cancelled — a venue reply
+    // that does not name the reference) and returns the reason wording the abandon step will record.
     //
     // What stands in the way of giving up is never the order itself but the possibility of a request
     // still executing: hand the funds back and a late fill spends them twice. So rather than
