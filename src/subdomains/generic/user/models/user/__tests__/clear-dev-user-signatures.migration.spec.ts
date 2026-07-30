@@ -27,15 +27,25 @@ describe('ClearDevUserSignatures migration (SQL content)', () => {
     }
   });
 
-  it('up() issues no queries when ENVIRONMENT is not dev', async () => {
-    process.env.ENVIRONMENT = 'prd';
-    const migration = new ClearDevUserSignatures();
-    const queryRunner = { query: jest.fn(async (_sql: string) => []) };
+  // Covers every non-dev value, not just 'prd': the gate is fail-closed by construction
+  // (`!== 'dev'`), and a regression that ran on loc, on an unset value or on an unknown one must
+  // fail here rather than slip through a single-value test.
+  it.each([['prd'], ['loc'], ['staging'], [undefined]])(
+    'up() issues no queries when ENVIRONMENT is %s',
+    async (environment) => {
+      if (environment === undefined) {
+        delete process.env.ENVIRONMENT;
+      } else {
+        process.env.ENVIRONMENT = environment;
+      }
+      const migration = new ClearDevUserSignatures();
+      const queryRunner = { query: jest.fn(async (_sql: string) => []) };
 
-    await migration.up(queryRunner as unknown as QueryRunner);
+      await migration.up(queryRunner as unknown as QueryRunner);
 
-    expect(queryRunner.query.mock.calls).toHaveLength(0);
-  });
+      expect(queryRunner.query.mock.calls).toHaveLength(0);
+    },
+  );
 
   it('up() issues the audited rotation statement on dev (SQL content only, not executed)', async () => {
     process.env.ENVIRONMENT = 'dev';
@@ -288,26 +298,34 @@ describeDb('ClearDevUserSignatures migration (real Postgres)', () => {
     expect(users[0].signature).toBe('sig-plaintext-suppressed');
   });
 
-  it('does nothing on a real database when ENVIRONMENT is not dev', async () => {
-    process.env.ENVIRONMENT = 'prd';
+  // Every non-dev value, not just 'prd' - see the unit-level counterpart above.
+  it.each([['prd'], ['loc'], ['staging'], [undefined]])(
+    'does nothing on a real database when ENVIRONMENT is %s',
+    async (environment) => {
+      if (environment === undefined) {
+        delete process.env.ENVIRONMENT;
+      } else {
+        process.env.ENVIRONMENT = environment;
+      }
 
-    await queryRunner.query(`
-      INSERT INTO "user" ("address", "signature")
-      VALUES ('addr-prd', 'sig-plaintext-prd')
-    `);
+      await queryRunner.query(`
+        INSERT INTO "user" ("address", "signature")
+        VALUES ('addr-nondev', 'sig-plaintext-nondev')
+      `);
 
-    const migration = new ClearDevUserSignatures();
-    await migration.up(queryRunner);
+      const migration = new ClearDevUserSignatures();
+      await migration.up(queryRunner);
 
-    const users = (await queryRunner.query(`SELECT "signature" FROM "user" WHERE "address" = 'addr-prd'`)) as {
-      signature: string | null;
-    }[];
-    expect(users).toHaveLength(1);
-    expect(users[0].signature).toBe('sig-plaintext-prd');
+      const users = (await queryRunner.query(`SELECT "signature" FROM "user" WHERE "address" = 'addr-nondev'`)) as {
+        signature: string | null;
+      }[];
+      expect(users).toHaveLength(1);
+      expect(users[0].signature).toBe('sig-plaintext-nondev');
 
-    const logCount = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "log"`)) as { count: number }[];
-    expect(logCount[0].count).toBe(0);
-  });
+      const logCount = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "log"`)) as { count: number }[];
+      expect(logCount[0].count).toBe(0);
+    },
+  );
 
   it('down() restores nothing against a live database (the rotation stays irreversible)', async () => {
     process.env.ENVIRONMENT = 'dev';
