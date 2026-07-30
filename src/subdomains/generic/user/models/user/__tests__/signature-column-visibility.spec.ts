@@ -1,5 +1,5 @@
-import { Column, DataSource, Entity, getMetadataArgsStorage, PrimaryGeneratedColumn, QueryRunner } from 'typeorm';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Column, DataSource, Entity, getMetadataArgsStorage, PrimaryGeneratedColumn, QueryRunner } from 'typeorm';
 
 const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
