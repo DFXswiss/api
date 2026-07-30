@@ -102,6 +102,7 @@ export enum Process {
   GS_DEBUG = 'GsDebug',
   GS_DB = 'GsDb',
   TRANSACTION_AML_CHECK_LOG = 'TransactionAmlCheckLog',
+  BLOCKCHAIN_CONFIG_CHECK = 'BlockchainConfigCheck',
   // ledger booking consumers + jobs (§11.1; one own flag per @DfxCron method = kill-switch, Hard Constraint #5)
   LEDGER_BOOKING_BANK_TX = 'LedgerBookingBankTx',
   LEDGER_BOOKING_EXCHANGE_TX = 'LedgerBookingExchangeTx',
