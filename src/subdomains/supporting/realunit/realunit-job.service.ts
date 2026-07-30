@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -12,14 +12,11 @@ import { RealUnitService } from './realunit.service';
 @Injectable()
 export class RealUnitJobService {
   private readonly logger = new DfxLogger(RealUnitJobService);
-  private readonly brokerbotAddress: string;
 
   constructor(
     private readonly realunitService: RealUnitService,
     private readonly transactionRequestService: TransactionRequestService,
-  ) {
-    this.brokerbotAddress = GetConfig().blockchain.realunit.brokerbotAddress;
-  }
+  ) {}
 
   // Completes open REALU buy quotes as soon as the shares arrive on-chain. Share allocations
   // triggered outside the DFX payment flow (e.g. booked manually by the issuer) would otherwise
@@ -123,7 +120,7 @@ export class RealUnitJobService {
           Util.equalsIgnoreCase(e.transfer.to, address) &&
           // a settlement is paid out by the issuer. Without this the buyer could complete an open
           // quote by sending the shares from a second wallet of their own
-          Util.equalsIgnoreCase(e.transfer.from, this.brokerbotAddress) &&
+          Util.equalsIgnoreCase(e.transfer.from, Config.blockchain.realunit.brokerbotAddress) &&
           // the indexer writes a self-transfer to this account's history twice, once as …-to and
           // once as …-from; both rows carry the same transfer and would settle two quotes from one
           // physical transfer. Only reachable if the account is the issuer itself, but free to rule out

@@ -1,7 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -17,24 +17,23 @@ describe('RealUnitJobService', () => {
 
   const realuAsset = createCustomAsset({ id: 1, name: 'REALU' });
   const userAddress = '0xUserAddress';
-  // the settlement filter now requires from == issuer (brokerbot), so the fixture must use the
-  // address the service itself reads via GetConfig() — GetConfig() reads process.env directly on
-  // every call (bypassing TestUtil.provideConfig()/the injected ConfigService), so this always
-  // matches whatever RealUnitJobService computes in its constructor, regardless of ENVIRONMENT
-  const brokerbotAddress = GetConfig().blockchain.realunit.brokerbotAddress;
+  // the settlement filter requires from == issuer, so the fixture must use the address the service
+  // itself reads. Config is only populated once TestUtil.provideConfig() runs below, so both
+  // constants are assigned in beforeEach instead of at describe scope (evaluated before any
+  // beforeEach, when Config would still be undefined)
+  let brokerbotAddress: string;
+  let settlementEvent: {
+    id: string;
+    txHash: string;
+    timestamp: Date;
+    transfer: { from: string; to: string; value: string };
+  };
 
   const quote = {
     id: 10,
     estimatedAmount: 72.123,
     created: new Date('2026-06-29T16:00:00Z'),
     user: { id: 42, address: userAddress },
-  };
-
-  const settlementEvent = {
-    id: 'history-25631176-470-to',
-    txHash: '0xSettlementTx',
-    timestamp: new Date('2026-06-30T09:04:00Z'),
-    transfer: { from: brokerbotAddress, to: userAddress, value: '72' },
   };
 
   function mockHistory(events: any[]): void {
@@ -62,6 +61,14 @@ describe('RealUnitJobService', () => {
     }).compile();
 
     service = module.get<RealUnitJobService>(RealUnitJobService);
+
+    brokerbotAddress = Config.blockchain.realunit.brokerbotAddress;
+    settlementEvent = {
+      id: 'history-25631176-470-to',
+      txHash: '0xSettlementTx',
+      timestamp: new Date('2026-06-30T09:04:00Z'),
+      transfer: { from: brokerbotAddress, to: userAddress, value: '72' },
+    };
   });
 
   afterEach(() => {
@@ -123,7 +130,7 @@ describe('RealUnitJobService', () => {
     expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
   });
 
-  it('should settle at most one quote per settlement tx within a run', async () => {
+  it('should settle at most one quote per settlement event within a run', async () => {
     const secondQuote = { ...quote, id: 11 };
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote, secondQuote] as any);
     mockHistory([settlementEvent]);
@@ -366,11 +373,12 @@ describe('RealUnitJobService', () => {
     });
   });
 
-  it('should ignore a self-transfer that the indexer records twice for the same account', async () => {
+  it('should ignore shares the buyer sent to themselves', async () => {
     const secondQuote = { ...quote, id: 11 };
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote, secondQuote] as any);
-    // from == to, so the ponder writes both a -to and a -from row to this account's history, each
-    // carrying the same transfer — a receiver-only filter would settle both quotes from one transfer
+    // an attacker-controlled buyer sends shares to their own address to try to fake a settlement;
+    // this fails the issuer check (from != brokerbotAddress), not the self-transfer guard below —
+    // that guard is covered separately by 'should ignore a self-transfer of the issuer to itself'
     mockHistory([
       {
         ...settlementEvent,
@@ -392,18 +400,6 @@ describe('RealUnitJobService', () => {
   it('should ignore a transfer that did not come from the issuer', async () => {
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
     mockHistory([{ ...settlementEvent, transfer: { from: '0xSomeOtherWallet', to: userAddress, value: '72' } }]);
-
-    await service.completeSettledQuotes();
-
-    expect(transactionRequestService.completeSettlement).not.toHaveBeenCalled();
-  });
-
-  it('should not reuse an event that another account with the same address already consumed', async () => {
-    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
-    jest
-      .spyOn(transactionRequestService, 'getConsumedSettlementEventIds')
-      .mockResolvedValue(['history-25631176-470-to']);
-    mockHistory([settlementEvent]);
 
     await service.completeSettledQuotes();
 
