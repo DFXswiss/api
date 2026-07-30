@@ -561,9 +561,12 @@ export class BuyService {
     // still has no IBAN hit a failed issuance, and telling them to complete KYC they already have would
     // send them in circles. Card payments use no deposit IBAN at all (the response carries a payment
     // link), so they keep resolving a bank rather than breaking.
+    // Ask KYC directly rather than isUserEligible: that one also folds in whether the provider is
+    // reachable right now, so an outage would tell a fully verified customer to complete a KYC level
+    // they already hold. Missing KYC is the customer's to fix; anything else is ours.
     if (selector.paymentMethod !== FiatPaymentMethod.CARD)
       throw new BadRequestException(
-        this.virtualIbanService.isUserEligible(selector.currency, selector.userData)
+        selector.userData.kycLevel >= KycLevel.LEVEL_50
           ? QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED
           : QuoteError.KYC_REQUIRED,
       );

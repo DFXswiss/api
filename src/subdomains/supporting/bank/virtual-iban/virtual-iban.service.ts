@@ -147,10 +147,22 @@ export class VirtualIbanService {
     const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
 
+    // createVirtualIban calls reserveViban without a description, which the Frick provider rejects
+    // outright - and it carries none of the claim/recovery protocol Frick issuance needs. Route the
+    // Frick currencies to their own entry point instead of letting them reach the generic path.
+    if (this.frickVibanProvider.currencies.includes(currencyName))
+      return this.getOrCreateFrickForUser(userData, currencyName);
+
     return this.createVirtualIban(userData, currencyName);
   }
 
   async createForBuy(userData: UserData, buy: Buy, currencyName: string): Promise<VirtualIban> {
+    // No buy-specific equivalent of the Frick claim/recovery protocol exists, and the generic path
+    // would fail at reserveViban anyway. Refuse rather than issue through it; BuyService skips this
+    // step for Frick currencies, so this guards direct callers.
+    if (this.frickVibanProvider.currencies.includes(currencyName))
+      throw new BadRequestException('Buy-specific personal IBANs are not available for this currency');
+
     const existingForBuy = await this.getActiveForBuyAndCurrency(buy.id, currencyName);
     if (existingForBuy) throw new ConflictException('Buy already has an active personal IBAN for this currency');
 
