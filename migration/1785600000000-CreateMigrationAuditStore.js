@@ -17,8 +17,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class CreateMigrationAuditStore1784994000000 {
-  name = 'CreateMigrationAuditStore1784994000000';
+module.exports = class CreateMigrationAuditStore1785600000000 {
+  name = 'CreateMigrationAuditStore1785600000000';
 
   /**
    * @param {QueryRunner} queryRunner

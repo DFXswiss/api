@@ -55,7 +55,7 @@ describe('AddDenarioWalletAndAssets migration (postgres semantics)', () => {
 
   beforeAll(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    AddDenarioWalletAndAssets = require('../../../../../migration/1784994200000-AddDenarioWalletAndAssets');
+    AddDenarioWalletAndAssets = require('../../../../../migration/1785600200000-AddDenarioWalletAndAssets');
   });
 
   beforeEach(async () => {

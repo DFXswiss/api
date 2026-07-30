@@ -11,7 +11,7 @@ const DENARIO_ALIAS = 'denario';
 // because this migration is prd-only (see up()).
 const DENARIO_USER_DATA_ID = 408808;
 const REF_CODE_FORMAT = /^\w{1,3}-\w{1,3}$/;
-const AUDIT_MIGRATION = 'AddDenarioPermanentRef1784994100000';
+const AUDIT_MIGRATION = 'AddDenarioPermanentRef1785600100000';
 const APPLY_ACTION = 'applyDenarioReferralAlias';
 const ROLLBACK_ACTION = 'rollbackDenarioReferralAlias';
 
@@ -195,8 +195,8 @@ async function resolveDenarioRef(queryRunner) {
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddDenarioPermanentRef1784994100000 {
-  name = 'AddDenarioPermanentRef1784994100000';
+module.exports = class AddDenarioPermanentRef1785600100000 {
+  name = 'AddDenarioPermanentRef1785600100000';
 
   /**
    * @param {QueryRunner} queryRunner
