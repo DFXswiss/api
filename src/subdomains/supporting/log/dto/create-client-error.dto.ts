@@ -21,6 +21,7 @@ export class CreateClientErrorDto {
   @ApiPropertyOptional({ description: 'Stack trace' })
   @IsOptional()
   @IsString()
+  @Transform(Util.trim)
   @MaxLength(4000)
   stack?: string;
 
