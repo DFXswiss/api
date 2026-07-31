@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -21,6 +22,10 @@ import { createCustomTransactionRequest } from 'src/subdomains/supporting/paymen
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import {
+  TxStatementDetails,
+  TxStatementType,
+} from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -202,6 +207,80 @@ describe('TransactionController', () => {
         buy.user.wallet,
       );
       expect(transactionHelper.getTxStatementDetails).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getSingleTransactionDetails (malformed id / order-id)', () => {
+    // Both guards reject rather than drop, because id and order-id are the primary selectors here
+    // rather than one of several optional lookup keys.
+    it.each(['NaN', 'Infinity', '1.9', '1e+21', '-1', '0', '2147483648', 'abc'])(
+      'rejects id=%j before it reaches the lookup',
+      async (id) => {
+        await expect(controller.getSingleTransactionDetails(jwt, id)).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(transactionService.getTransactionById).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['NaN', 'Infinity', '1e+21', '2147483648', 'abc'])(
+      'rejects order-id=%j before it reaches the lookup',
+      async (orderId) => {
+        await expect(controller.getSingleTransactionDetails(jwt, undefined, undefined, orderId)).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+
+        expect(transactionService.getTransactionByRequestId).not.toHaveBeenCalled();
+      },
+    );
+
+    it('passes a well-formed id through as a number', async () => {
+      jest.spyOn(transactionService, 'getTransactionById').mockResolvedValue(undefined);
+
+      await expect(controller.getSingleTransactionDetails(jwt, ' 42 ')).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(transactionService.getTransactionById).toHaveBeenCalledWith(42, expect.any(Object));
+    });
+  });
+
+  describe('generateInvoiceFromTransaction (malformed id)', () => {
+    // Regression: `isNaN(+id)` classified all of these as numeric ids, so they reached Postgres as
+    // integers and came back as `invalid input syntax for type integer` -> 500. None of them can be a
+    // real transaction id, so they must go down the UID path instead and never be coerced to a number.
+    const malformedIds = ['NaN', 'Infinity', '1.9', '1e+21', '-1', '99999999999', '0x10', 'abc'];
+
+    beforeEach(() => {
+      Config.invoice.currencies = ['EUR', 'CHF'];
+      jest.spyOn(transactionRequestService, 'getTransactionRequestByUid').mockResolvedValue(undefined);
+      // Resolves rather than rejects on purpose: a rejecting mock would make the assertions below
+      // pass regardless of how the id was classified, which is the bug this pins.
+      jest
+        .spyOn(transactionHelper, 'getTxStatementDetails')
+        .mockResolvedValue({ currency: 'EUR' } as unknown as TxStatementDetails);
+      jest.spyOn(swissQrService, 'createTxStatement').mockResolvedValue('pdf-data');
+    });
+
+    it.each(malformedIds)('passes %j through as a UID, never as a numeric id', async (id) => {
+      await controller.generateInvoiceFromTransaction(jwt, id);
+
+      expect(transactionHelper.getTxStatementDetails).toHaveBeenCalledWith(jwt.account, id, TxStatementType.INVOICE);
+    });
+
+    // A query string decodes `+` to a space, so `/v1/transaction/+42/invoice` arrives padded; it
+    // resolved as id 42 before the guard existed and still must.
+    it.each(['42', ' 42 '])('still resolves the well-formed numeric id %j to a number', async (id) => {
+      await controller.generateInvoiceFromTransaction(jwt, id);
+
+      expect(transactionHelper.getTxStatementDetails).toHaveBeenCalledWith(jwt.account, 42, TxStatementType.INVOICE);
+    });
+
+    it('guards the receipt endpoint the same way', async () => {
+      await controller.generateReceiptFromTransaction(jwt, 'Infinity');
+
+      expect(transactionHelper.getTxStatementDetails).toHaveBeenCalledWith(
+        jwt.account,
+        'Infinity',
+        TxStatementType.RECEIPT,
+      );
     });
   });
 });

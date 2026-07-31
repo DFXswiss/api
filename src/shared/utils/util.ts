@@ -15,6 +15,9 @@ export type KeyType<T, U> = {
 
 type CryptoAlgorithm = 'md5' | 'sha256' | 'sha384' | 'sha512';
 
+/** Postgres INTEGER / SERIAL upper bound (positive ids only). */
+export const PG_INTEGER_MAX = 2_147_483_647;
+
 export enum AmountType {
   ASSET = 'Asset',
   FIAT = 'Fiat',
@@ -511,6 +514,32 @@ export class Util {
 
   static contains(search: string): FindOperator<string> {
     return ILike(`%${search}%`);
+  }
+
+  /**
+   * Parses a request-supplied value into a usable Postgres INTEGER/SERIAL id, or `undefined` if it
+   * is not one.
+   *
+   * Deliberately stricter than `+value` / `Number.isInteger(+value)`: both of those accept values JS
+   * coerces to a finite-looking number but Postgres rejects, which surfaces as a 500 rather than a
+   * 400. Notably `+'Infinity'` is `Infinity` and `Number.isInteger(+'1e+21')` is `true`. Surrounding
+   * whitespace is tolerated because a query string decodes `+` to a space, so `?id=+42` resolved
+   * before this existed.
+   *
+   * Returns the id rather than a boolean so callers cannot re-derive it with a laxer coercion, and
+   * takes `unknown` because query params are not guaranteed to be strings at runtime (`?id=1&id=2`
+   * arrives as an array, which `RegExp.test` would coerce to something that passes).
+   */
+  static toDbId(value: unknown): number | undefined {
+    if (typeof value !== 'string') return undefined;
+
+    const trimmed = value.trim();
+    if (!/^\d+$/.test(trimmed)) return undefined;
+
+    // The digit-only test above already rules out anything non-integral or negative, so the range is
+    // the only remaining constraint — a value above it is also beyond Number.MAX_SAFE_INTEGER.
+    const id = Number(trimmed);
+    return id >= 1 && id <= PG_INTEGER_MAX ? id : undefined;
   }
 
   // --- MISC --- //

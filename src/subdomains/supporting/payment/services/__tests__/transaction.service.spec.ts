@@ -4,6 +4,8 @@ import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UpdateTransactionDto } from '../../dto/update-transaction.dto';
@@ -97,5 +99,50 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     await service.update(99, Object.assign(new UpdateTransactionDto(), { amlType: 'BuyFiat', highRisk: true }));
 
     expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('TransactionService (relation load strategy)', () => {
+  let service: TransactionService;
+  let repo: TransactionRepository;
+
+  beforeEach(async () => {
+    repo = createMock<TransactionRepository>();
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        TransactionService,
+        { provide: TransactionRepository, useValue: repo },
+        { provide: UserDataService, useValue: createMock<UserDataService>() },
+        { provide: BankDataService, useValue: createMock<BankDataService>() },
+        { provide: SpecialExternalAccountService, useValue: createMock<SpecialExternalAccountService>() },
+        { provide: BuyCryptoRepository, useValue: createMock<BuyCryptoRepository>() },
+        { provide: TransactionAmlCheckService, useValue: createMock<TransactionAmlCheckService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    service = module.get<TransactionService>(TransactionService);
+  });
+
+  // The statement path relies on this being forwarded: resolved as a join, its relation tree selects
+  // 1664 columns and Postgres rejects the query outright.
+  it('forwards the relation load strategy to the repository', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await service.getTransactionById(1, { userData: true }, 'query');
+    expect(repo.findOne).toHaveBeenCalledWith(expect.objectContaining({ relationLoadStrategy: 'query' }));
+
+    await service.getTransactionByUid('T0123456789ABCDEF', { userData: true }, 'query');
+    expect(repo.findOne).toHaveBeenLastCalledWith(expect.objectContaining({ relationLoadStrategy: 'query' }));
+  });
+
+  it('leaves the strategy undefined when the caller does not ask for one', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await service.getTransactionById(1, { userData: true });
+
+    expect(repo.findOne).toHaveBeenCalledWith(expect.objectContaining({ relationLoadStrategy: undefined }));
   });
 });
