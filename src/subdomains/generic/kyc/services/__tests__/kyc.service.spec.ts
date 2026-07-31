@@ -12,6 +12,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../../user/models/user-data/user-data.service';
@@ -19,6 +20,7 @@ import { UserStatus } from '../../../user/models/user/user.enum';
 import { IdentDocument } from '../../dto/ident.dto';
 import { KycError } from '../../dto/kyc-error.enum';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
+import { KycStepStatus } from '../../dto/output/kyc-info.dto';
 import { SumSubLevelName } from '../../dto/sum-sub.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
@@ -851,5 +853,81 @@ describe('KycService checkDfxApproval step promotion', () => {
 
     await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
     expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// updateFinancialData / updateFileData call KycStep.update with omitted status or sequenceNumber;
+// the in-memory step (and thus the mapped response) must keep those fields.
+describe('KycService updateFinancialData incomplete draft', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+  });
+
+  it('returns status InProgress and the existing sequenceNumber, and keeps the step status', async () => {
+    const kycStep = Object.assign(new KycStep(), {
+      id: 11,
+      name: KycStepName.FINANCIAL_DATA,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 3,
+    });
+    const user = createMock<UserData>({ accountType: AccountType.PERSONAL });
+    user.getPendingStepOrThrow.mockReturnValue(kycStep);
+    jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+    jest.spyOn(service as any, 'verify2fa').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(user);
+
+    const response = await service.updateFinancialData('hash', '1.2.3.4', 11, { responses: [] });
+
+    expect(response.status).toBe(KycStepStatus.IN_PROGRESS);
+    expect(response.sequenceNumber).toBe(3);
+    expect(kycStep.status).toBe(ReviewStatus.IN_PROGRESS);
+    expect(kycStep.sequenceNumber).toBe(3);
+  });
+});
+
+describe('KycService updateFileData sequenceNumber', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+  let documentService: jest.Mocked<KycDocumentService>;
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    documentService = createMock<KycDocumentService>();
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+    (service as any).documentService = documentService;
+  });
+
+  it('returns the step sequenceNumber unchanged after a file upload', async () => {
+    const kycStep = Object.assign(new KycStep(), {
+      id: 22,
+      name: KycStepName.ADDITIONAL_DOCUMENTS,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 7,
+      userData: { kycLevel: 50 },
+    });
+    const user = createMock<UserData>();
+    user.getPendingStepOrThrow.mockReturnValue(kycStep);
+    jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(user);
+    documentService.uploadUserFile.mockResolvedValue({ url: 'https://example.com/file.pdf' } as never);
+
+    const filePayload = ['data:application/pdf;base64', Buffer.from('x').toString('base64')].join(',');
+    const response = await service.updateFileData(
+      'hash',
+      22,
+      KycStepName.ADDITIONAL_DOCUMENTS,
+      { fileName: 'doc.pdf', file: filePayload },
+      FileType.ADDITIONAL_DOCUMENTS,
+    );
+
+    expect(response.sequenceNumber).toBe(7);
+    expect(kycStep.sequenceNumber).toBe(7);
   });
 });
