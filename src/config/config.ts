@@ -343,6 +343,7 @@ export class Configuration {
 
   kyc = {
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
+    dfxApprovalWorkflowEnabled: process.env.KYC_DFX_APPROVAL_WORKFLOW_ENABLED === 'true',
     identFailAfterDays: 30,
     reminderAfterDays: 2,
     appToken: process.env.KYC_APP_TOKEN,

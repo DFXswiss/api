@@ -8,6 +8,10 @@ import { KycStep } from './kyc-step.entity';
 
 @Entity()
 export class KycFile extends IEntity {
+  @Index('IDX_dfx_kyc_file_generation_key', { unique: true })
+  @Column({ length: 256, nullable: true })
+  generationKey?: string;
+
   @Column({ type: 'text' })
   name: string;
 

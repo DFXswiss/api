@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -15,6 +15,8 @@ import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { NameCheckLog } from '../entities/name-check-log.entity';
 import { KycAdminService } from '../services/kyc-admin.service';
+import { DfxApprovalStatusDto } from '../dto/output/dfx-approval-status.dto';
+import { DfxApprovalWorkflowService } from '../services/dfx-approval-workflow.service';
 import { KycLogService } from '../services/kyc-log.service';
 import { KycService } from '../services/kyc.service';
 import { NameCheckService } from '../services/name-check.service';
@@ -30,7 +32,16 @@ export class KycAdminController {
     private readonly kycLogService: KycLogService,
     private readonly settingService: SettingService,
     private readonly userDataService: UserDataService,
+    private readonly dfxApprovalWorkflowService: DfxApprovalWorkflowService,
   ) {}
+
+  @Get('dfx-approval/:id/status')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getDfxApprovalStatus(@Param('id') id: string): Promise<DfxApprovalStatusDto> {
+    return this.dfxApprovalWorkflowService.getStatus(+id);
+  }
 
   @Put('nameCheck/:id')
   @ApiBearerAuth()

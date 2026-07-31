@@ -69,6 +69,7 @@ export interface KycFileBlob extends Blob {
 }
 
 export class CreateKycFileDto {
+  generationKey?: string;
   name: string;
   type: FileType;
   protected: boolean;

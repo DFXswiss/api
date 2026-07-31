@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { FileSubType } from '../../kyc/dto/kyc-file.dto';
 
 export enum ComplianceDecision {
@@ -53,4 +53,16 @@ export class GenerateOnboardingPdfDto {
   @IsOptional()
   @IsString()
   businessActivities?: string;
+}
+
+export class DfxApprovalDecisionDto extends GenerateOnboardingPdfDto {
+  @IsInt()
+  stepId: number;
+
+  @IsEnum(ComplianceDecision)
+  declare finalDecision: ComplianceDecision;
+
+  @IsString()
+  @IsNotEmpty()
+  declare processedBy: string;
 }

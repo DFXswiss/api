@@ -118,6 +118,47 @@ export class KycDocumentService {
     return { file, url };
   }
 
+  async ensureGeneratedUserFile(
+    generationKey: string,
+    userData: UserData,
+    type: FileType,
+    subType: FileSubType,
+    name: string,
+    data: Buffer,
+    metadata?: Record<string, string>,
+  ): Promise<{ file: KycFile; url: string }> {
+    let file = await this.kycFileService.getByGenerationKey(generationKey);
+    if (file?.valid) {
+      const blobName = this.toFileId(FileCategory.USER, userData.id, type, file.name);
+      await this.storageService.getBlob(blobName);
+      return { file, url: this.storageService.blobUrl(blobName) };
+    }
+
+    if (!file) {
+      try {
+        file = await this.kycFileService.createKycFile({
+          generationKey,
+          name,
+          type,
+          subType,
+          protected: true,
+          valid: false,
+          userData,
+        });
+      } catch (error) {
+        if (!this.isGenerationKeyConflict(error)) throw error;
+        file = await this.kycFileService.getByGenerationKey(generationKey);
+        if (!file) throw error;
+      }
+    }
+
+    const blobName = this.toFileId(FileCategory.USER, userData.id, type, file.name);
+    const url = await this.storageService.uploadWormBlob(blobName, data, ContentType.PDF, metadata);
+    await this.kycFileService.markValid(file);
+
+    return { file, url };
+  }
+
   async downloadFile(category: FileCategory, userDataId: number, type: FileType, name: string): Promise<BlobContent> {
     return this.storageService.getBlob(this.toFileId(category, userDataId, type, name));
   }
@@ -143,5 +184,12 @@ export class KycDocumentService {
 
   private isPermittedFileType(fileType: ContentType): boolean {
     return [ContentType.PNG, ContentType.JPEG, ContentType.JPG, ContentType.PDF].includes(fileType);
+  }
+
+  private isGenerationKeyConflict(error: unknown): boolean {
+    const candidate = error as { code?: string; driverError?: { code?: string; constraint?: string } };
+    const code = candidate.driverError?.code ?? candidate.code;
+    const constraint = candidate.driverError?.constraint;
+    return code === '23505' && (!constraint || constraint === 'IDX_dfx_kyc_file_generation_key');
   }
 }

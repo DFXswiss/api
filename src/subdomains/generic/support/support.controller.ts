@@ -22,7 +22,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
-import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
+import { DfxApprovalDecisionDto, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { RecommendationGraphNeighborsQuery } from './dto/recommendation-graph-neighbors-query.dto';
 import {
   CreateSupportIssueTemplateDto,
@@ -197,6 +197,18 @@ export class SupportController {
     @Body() dto: GenerateOnboardingPdfDto,
   ): Promise<{ pdfData: string; fileName: string }> {
     return this.supportService.generateAndSaveOnboardingPdf(+id, dto);
+  }
+
+  @Post(':id/dfx-approval')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async decidePersonalDfxApproval(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: DfxApprovalDecisionDto,
+  ): Promise<{ pdfData: string; fileName: string }> {
+    return this.supportService.decidePersonalDfxApproval(+id, jwt.account, dto);
   }
 
   @Get('note')

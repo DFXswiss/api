@@ -1,6 +1,8 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test } from '@nestjs/testing';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { ComplianceDecision } from '../dto/onboarding-pdf.dto';
 import { RecommendationGraph } from '../dto/user-data-support.dto';
 import { SupportIssueTemplateService } from '../services/support-issue-template.service';
 import { SupportNoteService } from '../services/support-note.service';
@@ -63,5 +65,17 @@ describe('SupportController', () => {
       expect(spy).toHaveBeenCalledWith(42, 0, 5);
       expect(result).toBe(graph);
     });
+  });
+
+  it('passes the authenticated actor to the atomic personal DfxApproval endpoint', async () => {
+    const dto = { stepId: 11, finalDecision: ComplianceDecision.ACCEPTED, processedBy: 'Compliance Test' };
+    const response = { pdfData: 'cGRm', fileName: 'onboarding.pdf' };
+    const spy = jest.spyOn(supportService, 'decidePersonalDfxApproval').mockResolvedValue(response);
+
+    await expect(controller.decidePersonalDfxApproval({ account: 99 } as JwtPayload, '42', dto)).resolves.toBe(
+      response,
+    );
+
+    expect(spy).toHaveBeenCalledWith(42, 99, dto);
   });
 });

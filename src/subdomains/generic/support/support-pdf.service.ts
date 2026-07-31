@@ -331,25 +331,21 @@ export class SupportPdfService {
           // Get operational activity from KycStep
           const operationalActivityStep = kycSteps.find((s) => s.name === KycStepName.OPERATIONAL_ACTIVITY);
           if (operationalActivityStep?.result) {
-            try {
-              const opResult = JSON.parse(operationalActivityStep.result) as Record<string, unknown>;
-              this.drawOnboardingField(
-                pdf,
-                'Operational Activity',
-                opResult.isOperational != null ? String(opResult.isOperational) : '-',
-                marginX,
-                width,
-              );
-              this.drawOnboardingField(
-                pdf,
-                'Website',
-                opResult.websiteUrl ? String(opResult.websiteUrl) : '-',
-                marginX,
-                width,
-              );
-            } catch {
-              // ignore parse errors
-            }
+            const opResult = this.parseStepResult(operationalActivityStep) as Record<string, unknown>;
+            this.drawOnboardingField(
+              pdf,
+              'Operational Activity',
+              opResult.isOperational != null ? String(opResult.isOperational) : '-',
+              marginX,
+              width,
+            );
+            this.drawOnboardingField(
+              pdf,
+              'Website',
+              opResult.websiteUrl ? String(opResult.websiteUrl) : '-',
+              marginX,
+              width,
+            );
           }
           pdf.moveDown(1);
         }
@@ -357,26 +353,18 @@ export class SupportPdfService {
         // KycSteps with result data (Financial Data, Beneficial Owners)
         const financialDataStep = kycSteps.find((s) => s.name === KycStepName.FINANCIAL_DATA);
         if (financialDataStep?.result) {
-          try {
-            const financialData = JSON.parse(financialDataStep.result) as unknown;
-            this.drawOnboardingSectionHeader(pdf, 'Financial Data', marginX);
-            this.drawOnboardingKeyValueObject(pdf, financialData, marginX, width);
-            pdf.moveDown(1);
-          } catch {
-            // ignore parse errors
-          }
+          const financialData = this.parseStepResult(financialDataStep);
+          this.drawOnboardingSectionHeader(pdf, 'Financial Data', marginX);
+          this.drawOnboardingKeyValueObject(pdf, financialData, marginX, width);
+          pdf.moveDown(1);
         }
 
         const beneficialOwnerStep = kycSteps.find((s) => s.name === KycStepName.BENEFICIAL_OWNER);
         if (beneficialOwnerStep?.result) {
-          try {
-            const beneficialData = JSON.parse(beneficialOwnerStep.result) as unknown;
-            this.drawOnboardingSectionHeader(pdf, 'Beneficial Owners', marginX);
-            this.drawOnboardingKeyValueObject(pdf, beneficialData, marginX, width);
-            pdf.moveDown(1);
-          } catch {
-            // ignore parse errors
-          }
+          const beneficialData = this.parseStepResult(beneficialOwnerStep);
+          this.drawOnboardingSectionHeader(pdf, 'Beneficial Owners', marginX);
+          this.drawOnboardingKeyValueObject(pdf, beneficialData, marginX, width);
+          pdf.moveDown(1);
         }
 
         // Documents Section
@@ -515,10 +503,14 @@ export class SupportPdfService {
       return String(value);
     }
     // For everything else (arrays, objects), use JSON.stringify
+    return JSON.stringify(value);
+  }
+
+  private parseStepResult(step: KycStep): unknown {
     try {
-      return JSON.stringify(value);
-    } catch {
-      return '-';
+      return JSON.parse(step.result);
+    } catch (error) {
+      throw new Error(`${step.name} result is invalid JSON: ${(error as Error).message}`);
     }
   }
 }

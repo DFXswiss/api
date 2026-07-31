@@ -30,6 +30,16 @@ export class KycFileService {
     });
   }
 
+  async getByGenerationKey(generationKey: string): Promise<KycFile | null> {
+    return this.kycFileRepository.findOne({ where: { generationKey } });
+  }
+
+  async markValid(file: KycFile): Promise<void> {
+    await this.kycFileRepository.update(file.id, { valid: true });
+    file.valid = true;
+    this.kycFileRepository.invalidateCache();
+  }
+
   async getUserDataKycFiles(userDataId: number, relations: FindOptionsRelations<KycFile> = {}): Promise<KycFile[]> {
     return this.kycFileRepository.findCached(`userData-${userDataId}-${JSON.stringify(relations)}`, {
       where: { userData: { id: userDataId } },

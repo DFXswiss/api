@@ -27,6 +27,10 @@ import { NameCheckLogRepository } from './repositories/name-check-log.repository
 import { StepLogRepository } from './repositories/step-log.repository';
 import { TfaLogRepository } from './repositories/tfa-log.repository';
 import { DilisenseService } from './services/integration/dilisense.service';
+import { DfxApprovalCheckService } from './services/dfx-approval-check.service';
+import { DfxApprovalDocumentService } from './services/dfx-approval-document.service';
+import { DfxApprovalPdfService } from './services/dfx-approval-pdf.service';
+import { DfxApprovalWorkflowService } from './services/dfx-approval-workflow.service';
 import { FinancialService } from './services/integration/financial.service';
 import { KycDocumentService } from './services/integration/kyc-document.service';
 import { SumsubService } from './services/integration/sum-sub.service';
@@ -74,6 +78,10 @@ import { TfaService } from './services/tfa.service';
     StepLogRepository,
     TfaLogRepository,
     DilisenseService,
+    DfxApprovalCheckService,
+    DfxApprovalDocumentService,
+    DfxApprovalPdfService,
+    DfxApprovalWorkflowService,
     FinancialService,
     KycFileService,
     KycLogRepository,
@@ -94,6 +102,7 @@ import { TfaService } from './services/tfa.service';
     KycService,
     KycFileService,
     ScorechainDocumentService,
+    DfxApprovalWorkflowService,
   ],
 })
 export class KycModule {}
