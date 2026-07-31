@@ -1,5 +1,5 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -112,6 +112,13 @@ describe('GsController', () => {
       expect(caught).toBeInstanceOf(BadRequestException);
       expect((caught as BadRequestException).message).toBe('boom');
       expect(verboseSpy.mock.calls[1][0]).toBe('DB data call for asset in x?forged failed:');
+    });
+  });
+
+  describe('getSupportData', () => {
+    it('is disabled: rejects and never reaches the GS service', async () => {
+      await expect(controller.getSupportData()).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(service.getSupportData).not.toHaveBeenCalled();
     });
   });
 });

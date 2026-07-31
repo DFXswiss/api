@@ -1,4 +1,13 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+  ServiceUnavailableException,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -11,7 +20,6 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { DebugQueryDto, DebugQueryResult } from './dto/debug-query.dto';
-import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
 
 @Controller('gs')
@@ -56,12 +64,16 @@ export class GsController {
     }
   }
 
+  // Disabled on purpose: the `key` query parameter is not restricted to a known set of columns
+  // before it reaches the query builders behind `GsService.getSupportData`. Do not re-enable this
+  // route — and do not add another caller for that service method — until `key` is validated
+  // against an allowlist of the target entity's columns.
   @Get('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
-    return this.gsService.getSupportData(query);
+  async getSupportData(): Promise<never> {
+    throw new ServiceUnavailableException('Endpoint disabled');
   }
 
   // Structured debug endpoint. Takes a JSON description of the query (table, select, where,
