@@ -49,6 +49,8 @@ export enum BankTxIndicator {
 }
 
 @Entity()
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((b: BankTx) => [b.updated, b.id])
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
   accountServiceRef: string;

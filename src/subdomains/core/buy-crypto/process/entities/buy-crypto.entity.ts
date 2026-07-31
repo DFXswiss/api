@@ -70,6 +70,8 @@ export interface CreditorData {
 }
 
 @Entity()
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((b: BuyCrypto) => [b.updated, b.id])
 export class BuyCrypto extends IEntity {
   // References
   @OneToOne(() => BankTx, { nullable: true })

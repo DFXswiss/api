@@ -28,6 +28,8 @@ export type TargetAmount = number;
 // IDX_liquidity_order_inflight_purchase is deliberately migration-owned for stable schema management.
 // Do not re-declare it here or let schema generation remove the partial unique index.
 @Index((order: LiquidityOrder) => [order.context, order.correlationId])
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((order: LiquidityOrder) => [order.updated, order.id])
 export class LiquidityOrder extends IEntity {
   @Column({ length: 256 })
   type: LiquidityOrderType;
