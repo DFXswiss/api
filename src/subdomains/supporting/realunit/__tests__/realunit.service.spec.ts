@@ -3098,12 +3098,94 @@ describe('RealUnitService', () => {
       expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
 
-    it('resolveSignedRegistrationMessage returns undefined when a valid signature does not belong to the claimed wallet', async () => {
+    // chainId 1 = the PRD REALU chain (Ethereum); this block runs with env 'prd'.
+    const chainIdDomain = { ...domain, chainId: 1 };
+
+    // The four accepted shapes: each verifies, forwards the signed bytes, and is named in the log.
+    it.each([
+      ['legacy domain / UTF-8 fields', domain, utf8Fields],
+      ['legacy domain / BitBox ASCII fields', domain, asciiFields],
+      ['chainId 1 domain / UTF-8 fields', { ...domain, chainId: 1 }, utf8Fields],
+      ['chainId 1 domain / BitBox ASCII fields', { ...domain, chainId: 1 }, asciiFields],
+    ])('accepts and reports %s', async (expected, signingDomain, signedFields) => {
+      const wallet = hardwareWallet.address;
+      const fields = (signedFields as any)(wallet);
+      const signature = await hardwareWallet._signTypedData(signingDomain, types, fields);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), buildDto(utf8Fields(wallet), signature));
+
+      expect(ok).toBe(true);
+      expect(forwardedPayload()).toEqual(expect.objectContaining(fields));
+      expect((service as any).logger.info).toHaveBeenCalledWith(expect.stringContaining(`matched ${expected}`));
+    });
+
+    it('accepts a BitBox signature over the chainId-extended domain and forwards the signed ASCII fields', async () => {
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData(chainIdDomain, types, asciiFields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const payload = forwardedPayload();
+      expect(payload.name).toBe('Erika Mueller');
+      expect(verifyTypedData(chainIdDomain, types, asciiFields(wallet), payload.signature).toLowerCase()).toBe(
+        wallet.toLowerCase(),
+      );
+      // Recovery under the legacy domain does NOT match. Aktionariat rebuilds the
+      // domain itself, so it must attempt the chainId-extended variant too or this
+      // registration fails on their side as "Invalid signature".
+      expect(recoverFromForwarded(payload).toLowerCase()).not.toBe(wallet.toLowerCase());
+    });
+
+    it('rejects a signature over a foreign chainId (the domain must match the REALU token chain)', async () => {
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData({ ...domain, chainId: 5 }, types, asciiFields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      expect((service as any).resolveRegistrationSignature(dto)).toBeUndefined();
+    });
+
+    it('builds each candidate message once, whatever the matching variant costs to reach', async () => {
+      // Matches only on the last attempt — a per-attempt rebuild would show as 4+ calls.
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData(chainIdDomain, types, asciiFields(wallet));
+      const build = jest.spyOn(service as any, 'buildRegistrationMessage');
+
+      expect((service as any).resolveRegistrationSignature(buildDto(utf8Fields(wallet), signature))).toBeDefined();
+
+      expect(build).toHaveBeenCalledTimes(2);
+    });
+
+    // The extended domain is the only environment-dependent part: Sepolia on DEV/LOC, Ethereum on PRD.
+    it('takes the chainId from the token chain of the environment', async () => {
+      mockEnvironment = 'dev';
+      const wallet = hardwareWallet.address;
+      const sign = (chainId: number) =>
+        hardwareWallet._signTypedData({ ...domain, chainId }, types, asciiFields(wallet));
+      const resolve = (signature: string) =>
+        (service as any).resolveRegistrationSignature(buildDto(utf8Fields(wallet), signature));
+
+      expect(resolve(await sign(11155111))).toBeDefined();
+      expect(resolve(await sign(1))).toBeUndefined();
+    });
+
+    it('warns when the signature matches no accepted variant', async () => {
+      // Well-formed signature from the wrong wallet: recovers cleanly, matches no variant.
+      const foreign = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
+      const dto = buildDto(utf8Fields(hardwareWallet.address), foreign);
+
+      await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect((service as any).logger.warn).toHaveBeenCalledWith(expect.stringContaining('matched no accepted variant'));
+    });
+
+    it('resolveRegistrationSignature returns undefined when a valid signature does not belong to the claimed wallet', async () => {
       // Valid signature from the software wallet, but the dto claims a different wallet address.
       const signature = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
       const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
 
-      expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
+      expect((service as any).resolveRegistrationSignature(dto)).toBeUndefined();
     });
 
     it('persists the per-wallet registration and writes an INFO audit log on success', async () => {
@@ -3541,11 +3623,11 @@ describe('RealUnitService', () => {
     });
 
     it('falls back to the raw (non-transliterated) message when the signature cannot be resolved', async () => {
-      // resolveSignedRegistrationMessage returns undefined -> the `?? buildRegistrationMessage(dto, false)`
+      // resolveRegistrationSignature returns undefined -> the `?? buildRegistrationMessage(dto, false)`
       // fallback builds the forwarded payload from the raw UTF-8 fields.
       const wallet = softwareWallet.address;
       const dto = buildDto(utf8Fields(wallet), '0xdeadbeef');
-      jest.spyOn(service as any, 'resolveSignedRegistrationMessage').mockReturnValue(undefined);
+      jest.spyOn(service as any, 'resolveRegistrationSignature').mockReturnValue(undefined);
       httpService.post.mockResolvedValue({} as any);
 
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
@@ -5059,13 +5141,13 @@ describe('RealUnitService', () => {
       }
     });
 
-    it('resolveSignedRegistrationMessage normalizes a signature that lacks the 0x prefix', async () => {
+    it('resolveRegistrationSignature normalizes a signature that lacks the 0x prefix', async () => {
       const fields = humanFields();
       const signature = await wallet._signTypedData(domain, types, fields);
       const dto = { ...fields, signature: signature.slice(2), lang: 'DE', kycData: {} };
-      const message = (service as any).resolveSignedRegistrationMessage(dto);
-      expect(message).toBeDefined();
-      expect(message.walletAddress).toBe(wallet.address);
+      const resolved = (service as any).resolveRegistrationSignature(dto);
+      expect(resolved).toBeDefined();
+      expect(resolved.message.walletAddress).toBe(wallet.address);
     });
   });
 

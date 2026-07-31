@@ -207,6 +207,33 @@ type SignedRegistrationMessage = Pick<
   | 'walletAddress'
 >;
 
+type RegistrationEip712Domain = typeof REGISTRATION_EIP712_DOMAIN & { chainId?: number };
+
+enum RegistrationFieldEncoding {
+  UTF8 = 'Utf8',
+  BITBOX_ASCII = 'BitboxAscii',
+}
+
+interface RegistrationSignatureVariant {
+  domain: RegistrationEip712Domain;
+  encoding: RegistrationFieldEncoding;
+}
+
+// The fields exactly as they were signed, plus the variant they recovered under.
+interface ResolvedRegistrationSignature {
+  message: SignedRegistrationMessage;
+  variant: RegistrationSignatureVariant;
+}
+
+// The encoding half is indicative only: for data that is already pure printable ASCII both encodings
+// are byte-identical, so such a registration always reports UTF-8. The domain half is always exact.
+function describeVariant({ domain, encoding }: RegistrationSignatureVariant): string {
+  const domainName = domain.chainId ? `chainId ${domain.chainId} domain` : 'legacy domain';
+  const fields = encoding === RegistrationFieldEncoding.BITBOX_ASCII ? 'BitBox ASCII fields' : 'UTF-8 fields';
+
+  return `${domainName} / ${fields}`;
+}
+
 @Injectable()
 export class RealUnitService {
   private readonly logger = new DfxLogger(RealUnitService);
@@ -1160,7 +1187,7 @@ export class RealUnitService {
   }
 
   private verifyRealUnitRegistrationSignature(data: RealUnitRegistrationDto): boolean {
-    return this.resolveSignedRegistrationMessage(data) != null;
+    return this.resolveRegistrationSignature(data) != null;
   }
 
   // Builds the EIP-712 message in either the raw or the BitBox-safe ASCII
@@ -1186,21 +1213,31 @@ export class RealUnitService {
     };
   }
 
-  // Returns the EIP-712 fields exactly as the wallet signed them — raw UTF-8
-  // (legacy software wallets, kept working by #3709) or BitBox-safe ASCII
-  // (current app / any BitBox, whose firmware rejects non-ASCII bytes). Returns
-  // undefined if the signature matches neither. Aktionariat re-verifies the
-  // signature against the payload we POST in forwardRegistration, so the
-  // forwarded bytes must be exactly these — forwarding any other variant fails
-  // as "Invalid signature".
-  private resolveSignedRegistrationMessage(data: RealUnitRegistrationDto): SignedRegistrationMessage | undefined {
-    const signature = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
+  // Returns the message exactly as the wallet signed it (Aktionariat re-verifies the
+  // forwarded bytes), plus the variant it recovered under; undefined if no accepted
+  // shape matches. The chainId-extended domain exists because the BitBox02 refuses
+  // chainId-less typed data over Bluetooth (BitBoxSwiss/bitbox02-firmware#2019).
+  private resolveRegistrationSignature(data: RealUnitRegistrationDto): ResolvedRegistrationSignature | undefined {
+    const { UTF8, BITBOX_ASCII } = RegistrationFieldEncoding;
 
-    for (const transliterate of [false, true]) {
-      const message = this.buildRegistrationMessage(data, transliterate);
-      const recovered = verifyTypedData(REGISTRATION_EIP712_DOMAIN, REGISTRATION_EIP712_TYPES, message, signature);
-      if (Util.equalsIgnoreCase(recovered, data.walletAddress)) return message;
-    }
+    const signature = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
+    const utf8 = this.buildRegistrationMessage(data, false);
+    const ascii = this.buildRegistrationMessage(data, true);
+
+    const isSignedBy = (domain: RegistrationEip712Domain, message: SignedRegistrationMessage): boolean =>
+      Util.equalsIgnoreCase(verifyTypedData(domain, REGISTRATION_EIP712_TYPES, message, signature), data.walletAddress);
+
+    const legacy = REGISTRATION_EIP712_DOMAIN;
+    if (isSignedBy(legacy, utf8)) return { message: utf8, variant: { domain: legacy, encoding: UTF8 } };
+    if (isSignedBy(legacy, ascii)) return { message: ascii, variant: { domain: legacy, encoding: BITBOX_ASCII } };
+
+    // Always set for Ethereum/Sepolia; the guard satisfies the chain map's type.
+    const chainId = EvmUtil.getChainId(this.tokenBlockchain);
+    if (!chainId) return undefined;
+
+    const extended = { ...REGISTRATION_EIP712_DOMAIN, chainId };
+    if (isSignedBy(extended, utf8)) return { message: utf8, variant: { domain: extended, encoding: UTF8 } };
+    if (isSignedBy(extended, ascii)) return { message: ascii, variant: { domain: extended, encoding: BITBOX_ASCII } };
 
     return undefined;
   }
@@ -1504,7 +1541,17 @@ export class RealUnitService {
     // representation that was signed — raw UTF-8 (legacy software wallets) or BitBox-safe ASCII
     // (current app / BitBox). Forwarding the wrong variant fails as "Invalid signature". The
     // UTF-8 originals stay on user_data for PDF/mail.
-    const signedMessage = this.resolveSignedRegistrationMessage(dto) ?? this.buildRegistrationMessage(dto, false);
+    // A miss still forwards (fallback below) and fails at Aktionariat as "Invalid signature" — the warn attributes it.
+    const resolved = this.resolveRegistrationSignature(dto);
+    if (resolved) {
+      this.logger.info(
+        `RealUnit registration signature matched ${describeVariant(resolved.variant)} (${dto.walletAddress})`,
+      );
+    } else {
+      this.logger.warn(`RealUnit registration signature matched no accepted variant (${dto.walletAddress})`);
+    }
+
+    const signedMessage = resolved?.message ?? this.buildRegistrationMessage(dto, false);
     const payload: AktionariatRegistrationDto = {
       ...signedMessage,
       signature: dto.signature,
