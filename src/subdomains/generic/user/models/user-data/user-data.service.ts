@@ -601,13 +601,23 @@ export class UserDataService {
   // kycFileId is the actual backstop, this just retries so the loser gets the next free id.
   // max+1 over a sequence (nextval) to keep ids gapless: a sequence burns a number on every
   // rolled-back txn and doesn't follow manual/merge kycFileId writes.
-  async assignNextKycFileId(userData: UserData, attempt = 0): Promise<UserData> {
-    // Postgres `ORDER BY … DESC` is NULLS FIRST, so exclude nulls to get the real max.
+  /**
+   * Next free id in the sequence. Shared with KycFileIdBackfillService so there is one allocator
+   * — the value is a compliance file number and two implementations would eventually drift.
+   *
+   * Postgres `ORDER BY … DESC` is NULLS FIRST, so nulls have to be excluded to get the real max.
+   */
+  async getNextKycFileId(): Promise<number> {
     const last = await this.userDataRepo.findOne({
       where: { kycFileId: Not(IsNull()) },
       order: { kycFileId: 'DESC' },
     });
-    const kycFileId = (last?.kycFileId ?? 0) + 1;
+
+    return (last?.kycFileId ?? 0) + 1;
+  }
+
+  async assignNextKycFileId(userData: UserData, attempt = 0): Promise<UserData> {
+    const kycFileId = await this.getNextKycFileId();
 
     try {
       return await this.updateUserDataInternal(userData, { kycFileId, amlListAddedDate: new Date() });

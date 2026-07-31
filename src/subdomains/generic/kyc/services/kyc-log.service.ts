@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
-import { EntityManager } from 'typeorm';
+import { EntityManager, In, MoreThanOrEqual } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
@@ -18,6 +18,19 @@ export class KycLogService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly kycDocumentService: KycDocumentService,
   ) {}
+
+  /** Of the given accounts, those that took part in a merge at or after `since`. */
+  async getMergedUserDataIdsSince(userDataIds: number[], since: Date): Promise<number[]> {
+    if (!userDataIds.length) return [];
+
+    const logs = await this.kycLogRepo.find({
+      where: { userData: { id: In(userDataIds) }, type: KycLogType.MERGE, created: MoreThanOrEqual(since) },
+      relations: { userData: true },
+      loadEagerRelations: false,
+    });
+
+    return [...new Set(logs.map((l) => l.userData.id))];
+  }
 
   async createMergeLog(user: UserData, log: string, manager?: EntityManager): Promise<void> {
     const repo = manager?.getRepository(KycLog) ?? this.kycLogRepo;

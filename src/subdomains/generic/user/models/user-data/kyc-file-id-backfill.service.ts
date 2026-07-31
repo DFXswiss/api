@@ -16,6 +16,7 @@ import { UserService } from '../user/user.service';
 import { UserData } from './user-data.entity';
 import { UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
+import { UserDataService } from './user-data.service';
 
 // Both bounds are the observed edges of the outage in the id sequence itself, not a deploy date:
 // assignment ran normally up to kycFileId 6172 (2026-05-21T14:00:08Z), produced nothing at all for
@@ -29,8 +30,9 @@ import { UserDataRepository } from './user-data.repository';
 const AFFECTED_WINDOW_START = new Date('2026-05-21T14:00:08Z');
 const AFFECTED_WINDOW_END = new Date('2026-07-03T15:47:39Z');
 
-// Matches the live AML volume window in both preparation services:
-// Util.daysBefore(30, tx.created) … Util.daysAfter(30, tx.created).
+// Matches the live AML volume span in both preparation services:
+// Util.daysBefore(30, tx.created) … Util.daysAfter(30, tx.created), the forward half capped at the
+// verdict (see computeCrossing).
 const VOLUME_WINDOW_DAYS = 30;
 
 const MAX_ASSIGNMENT_ATTEMPTS = 5;
@@ -51,8 +53,14 @@ export interface BackfillReport {
   candidates: number;
   crossings: number;
   assigned: number;
+  /** Already carried an id by the time the write ran — a live tick or an earlier run got there. */
   skipped: number;
-  sample: Crossing[];
+  /** Threw during assignment. `assigned + skipped + failed` always equals `crossings`. */
+  failed: number;
+  /** Merged since the window opened; volume can no longer be attributed. For manual review. */
+  excludedMergedIds: number[];
+  /** Every crossing, not a sample — the dry run has to be reviewable in full before the live pass. */
+  crossingDetail: Crossing[];
   dryRun: boolean;
 }
 
@@ -68,14 +76,15 @@ export interface BackfillStartResult {
  *
  * Reproduces the live rule rather than approximating it: per-transaction volume comes from
  * `TransactionHelper.getVolumeSince`, the same call `aml.service.postProcessing` is fed by, so the
- * volume window (±30d) and its inclusion rule (`amlCheck != FAIL`) match by construction. Note
- * that the rule for selecting the crossing transaction itself is narrower — see
- * `loadWindowTransactions`. The transaction's own contribution uses the stored `amountInChf`, the
- * value priced at AML time, rather than re-pricing at today's rate.
+ * ±30d span and its inclusion rule (`amlCheck != FAIL`) match by construction — though the span is
+ * cut off at the verdict, see `computeCrossing`, and the rule for selecting the crossing itself is
+ * narrower, see `isEligibleCrossing`. The transaction's own contribution uses the stored
+ * `amountInChf`, the value priced at AML time, rather than re-pricing at today's rate.
  *
- * The first transaction whose volume exceeds `monthlyDefaultWoKyc` is the crossing; its `created`
- * becomes `amlListAddedDate`, so `getKycFileYearlyStats` keeps the per-year shape it would have
- * had. Crossings are assigned oldest-first so ids stay monotonic with time.
+ * The first transaction whose volume exceeds `monthlyDefaultWoKyc` is the crossing, and its
+ * `created` supplies `amlListAddedDate` where the row does not already carry one, so
+ * `getKycFileYearlyStats` keeps the per-year shape it would have had. Crossings are assigned
+ * oldest-first so ids stay monotonic with time.
  *
  * Idempotent: candidates are filtered on `kycFileId IS NULL`, the UPDATE is conditional on the
  * same, and the partial unique index from #4023 is the DB-level backstop behind the retry.
@@ -91,6 +100,7 @@ export class KycFileIdBackfillService {
     @InjectRepository(BuyCrypto) private readonly buyCryptoRepo: Repository<BuyCrypto>,
     @InjectRepository(BuyFiat) private readonly buyFiatRepo: Repository<BuyFiat>,
     private readonly userService: UserService,
+    private readonly userDataService: UserDataService,
     private readonly transactionHelper: TransactionHelper,
     private readonly kycLogService: KycLogService,
   ) {}
@@ -117,9 +127,12 @@ export class KycFileIdBackfillService {
   }
 
   private async run(options: BackfillOptions): Promise<BackfillReport> {
-    const candidateIds = await this.findCandidateIds();
+    const { candidateIds, excludedMergedIds } = await this.findCandidateIds();
 
-    this.logger.info(`Backfill starting: ${candidateIds.length} candidates (dryRun=${options.dryRun})`);
+    this.logger.info(
+      `Backfill starting: ${candidateIds.length} candidates, ${excludedMergedIds.length} excluded as merged ` +
+        `(dryRun=${options.dryRun})`,
+    );
 
     const threshold = Config.tradingLimits.monthlyDefaultWoKyc;
     const crossings: Crossing[] = [];
@@ -139,7 +152,9 @@ export class KycFileIdBackfillService {
       crossings: crossings.length,
       assigned: 0,
       skipped: 0,
-      sample: crossings.slice(0, 20),
+      failed: 0,
+      excludedMergedIds,
+      crossingDetail: crossings,
       dryRun: options.dryRun,
     };
 
@@ -149,15 +164,14 @@ export class KycFileIdBackfillService {
       try {
         const kycFileId = await this.assign(crossing);
 
-        if (kycFileId == null) {
-          report.skipped++;
-          continue;
-        }
-
-        report.assigned++;
-        await this.writeLog(crossing, kycFileId);
+        if (kycFileId == null) report.skipped++;
+        else report.assigned++;
       } catch (e) {
-        this.logger.error(`Backfill failed for userData ${crossing.userDataId}:`, e);
+        report.failed++;
+        this.logger.error(
+          `Backfill failed for userData ${crossing.userDataId} (crossing tx ${crossing.crossingTxId}):`,
+          e,
+        );
       }
     }
 
@@ -172,7 +186,7 @@ export class KycFileIdBackfillService {
    * Deliberately a superset — this only decides who gets examined, and `computeCrossing` applies
    * the real trigger rule. Narrowing here would just duplicate that predicate in a second place.
    */
-  private async findCandidateIds(): Promise<number[]> {
+  private async findCandidateIds(): Promise<{ candidateIds: number[]; excludedMergedIds: number[] }> {
     const window = { from: AFFECTED_WINDOW_START, to: AFFECTED_WINDOW_END };
 
     const [fromBuyCrypto, fromBuyFiat] = await Promise.all([
@@ -183,9 +197,9 @@ export class KycFileIdBackfillService {
         .leftJoin('buy.user', 'buyUser')
         .leftJoin('cryptoRoute.user', 'routeUser')
         .select('COALESCE(buyUser.userDataId, routeUser.userDataId)', 'userDataId')
-        .where('bc.amlCheck != :fail', { fail: CheckStatus.FAIL })
-        .andWhere('bc.created >= :from', window)
-        .andWhere('bc.created < :to', window)
+        .where('bc.amlCheck = :pass', { pass: CheckStatus.PASS })
+        .andWhere('bc.priceDefinitionAllowedDate >= :from', window)
+        .andWhere('bc.priceDefinitionAllowedDate < :to', window)
         .groupBy('COALESCE(buyUser.userDataId, routeUser.userDataId)')
         .getRawMany<{ userDataId: number | null }>(),
       this.buyFiatRepo
@@ -193,22 +207,32 @@ export class KycFileIdBackfillService {
         .leftJoin('bf.sell', 'sell')
         .leftJoin('sell.user', 'sellUser')
         .select('sellUser.userDataId', 'userDataId')
-        .where('bf.amlCheck != :fail', { fail: CheckStatus.FAIL })
-        .andWhere('bf.created >= :from', window)
-        .andWhere('bf.created < :to', window)
+        .where('bf.amlCheck = :pass', { pass: CheckStatus.PASS })
+        .andWhere('bf.priceDefinitionAllowedDate >= :from', window)
+        .andWhere('bf.priceDefinitionAllowedDate < :to', window)
         .groupBy('sellUser.userDataId')
         .getRawMany<{ userDataId: number | null }>(),
     ]);
 
     const withTx = [...fromBuyCrypto, ...fromBuyFiat].map((r) => r.userDataId).filter((id): id is number => id != null);
-    if (!withTx.length) return [];
+    if (!withTx.length) return { candidateIds: [], excludedMergedIds: [] };
 
     const candidates = await this.userDataRepo.find({
       where: { id: In([...new Set(withTx)]), kycFileId: IsNull(), status: Not(UserDataStatus.MERGED) },
       select: { id: true },
+      loadEagerRelations: false,
     });
 
-    return candidates.map((c) => c.id);
+    // Accounts merged since the outage began are set aside rather than backfilled. Volume is read
+    // from the account's *current* users, so a merge folds two histories into one: two accounts
+    // that each moved 600 CHF while separate now look like a single account that moved 1200 and
+    // would be handed an id neither of them earned. Untangling that needs the merge history
+    // replayed, which is not worth building into a one-shot — they are reported for manual review
+    // instead, erring toward missing a row rather than inventing a compliance record.
+    const ids = candidates.map((c) => c.id);
+    const excludedMergedIds = await this.kycLogService.getMergedUserDataIdsSince(ids, AFFECTED_WINDOW_START);
+
+    return { candidateIds: ids.filter((id) => !excludedMergedIds.includes(id)), excludedMergedIds };
   }
 
   /**
@@ -226,10 +250,17 @@ export class KycFileIdBackfillService {
    * correctness boundary, so it should be assertable without a database.
    */
   private isEligibleCrossing(tx: BuyCrypto | BuyFiat): boolean {
+    const verdictAt = tx.priceDefinitionAllowedDate;
+
     return (
       tx.amlCheck === CheckStatus.PASS &&
-      tx.created >= AFFECTED_WINDOW_START &&
-      tx.created < AFFECTED_WINDOW_END &&
+      // The window bounds are assignment times, so they have to be compared against when the
+      // verdict was rendered — not when the transaction was created. A transaction created before
+      // the outage but held in review until inside it did lose its assignment; one created inside
+      // it but only approved afterwards did not.
+      verdictAt != null &&
+      verdictAt >= AFFECTED_WINDOW_START &&
+      verdictAt < AFFECTED_WINDOW_END &&
       // Payment pay-ins never trigger the assignment (aml.service.postProcessing).
       tx.cryptoInput?.txType !== PayInType.PAYMENT &&
       tx.amountInChf != null
@@ -249,9 +280,19 @@ export class KycFileIdBackfillService {
     for (const tx of txs) {
       if (!this.isEligibleCrossing(tx)) continue;
 
+      // Same helper and same ±30d span as the live rule, but the forward half is cut off at the
+      // moment the verdict was rendered. Live, that half is all but empty — transactions after the
+      // one being judged do not exist yet, and any created since carry a null `amlCheck`, which
+      // `!= FAIL` excludes. Replaying months later the whole span is populated, so leaving it open
+      // lets a *later* transaction push an *earlier* one over the threshold: a crossing the live
+      // rule never saw, and an id it never issued.
+      // `isEligibleCrossing` has already established priceDefinitionAllowedDate is set.
+      const spanEnd = Util.daysAfter(VOLUME_WINDOW_DAYS, tx.created);
+      const dateTo = tx.priceDefinitionAllowedDate < spanEnd ? tx.priceDefinitionAllowedDate : spanEnd;
+
       const previousVolume = await this.transactionHelper.getVolumeSince(
         Util.daysBefore(VOLUME_WINDOW_DAYS, tx.created),
-        Util.daysAfter(VOLUME_WINDOW_DAYS, tx.created),
+        dateTo,
         users,
         tx,
       );
@@ -291,10 +332,12 @@ export class KycFileIdBackfillService {
           { cryptoRoute: { user: { id: In(userIds) } }, ...inWindow },
         ],
         relations: { cryptoInput: true },
+        loadEagerRelations: false,
       }),
       this.buyFiatRepo.find({
         where: { sell: { user: { id: In(userIds) } }, ...inWindow },
         relations: { cryptoInput: true },
+        loadEagerRelations: false,
       }),
     ]);
 
@@ -304,19 +347,37 @@ export class KycFileIdBackfillService {
   /**
    * Assigns the next free id, or returns null when the row already has one — a concurrent live AML
    * tick or an overlapping run got there first, and the conditional UPDATE makes that a no-op
-   * rather than an overwrite. Only the UPDATE is retried, so nothing downstream can re-assign.
+   * rather than an overwrite.
+   *
+   * The audit entry is written *before* the column changes and carries both the previous and the
+   * next value, per CONTRIBUTING's before→after rule: if the log write fails the row is left
+   * alone. That ordering matters here because the UPDATE also touches `amlListAddedDate`, which a
+   * row can legitimately already carry with a null `kycFileId` (a merge copies the slave's date
+   * across, and compliance can set it directly) — so the write is potentially destructive and the
+   * prior value has to be recoverable from the log alone.
+   *
+   * Only the UPDATE is retried, so a downstream failure can never hand the row a second id.
    */
   private async assign(crossing: Crossing, attempt = 0): Promise<number | null> {
-    const last = await this.userDataRepo.findOne({
-      where: { kycFileId: Not(IsNull()) },
-      order: { kycFileId: 'DESC' },
+    const before = await this.userDataRepo.findOne({
+      where: { id: crossing.userDataId },
+      select: { id: true, kycFileId: true, amlListAddedDate: true },
+      loadEagerRelations: false,
     });
-    const kycFileId = (last?.kycFileId ?? 0) + 1;
+    if (!before || before.kycFileId != null) return null;
+
+    const kycFileId = await this.userDataService.getNextKycFileId();
+
+    // Never clear a date the row already carries: the live rule only ever set this alongside a
+    // fresh id, so an existing value came from somewhere else and is not ours to overwrite.
+    const amlListAddedDate = before.amlListAddedDate ?? crossing.crossingDate;
+
+    if (attempt === 0) await this.writeLog(crossing, before, { kycFileId, amlListAddedDate });
 
     try {
       const { affected } = await this.userDataRepo.update(
         { id: crossing.userDataId, kycFileId: IsNull() },
-        { kycFileId, amlListAddedDate: crossing.crossingDate },
+        { kycFileId, amlListAddedDate },
       );
 
       return affected ? kycFileId : null;
@@ -330,13 +391,21 @@ export class KycFileIdBackfillService {
     }
   }
 
-  /** Written only after the assignment has committed: a failure here must not hand out a second id. */
-  private async writeLog(crossing: Crossing, kycFileId: number): Promise<void> {
+  private async writeLog(
+    crossing: Crossing,
+    before: Pick<UserData, 'kycFileId' | 'amlListAddedDate'>,
+    next: { kycFileId: number; amlListAddedDate: Date },
+  ): Promise<void> {
+    const previous = `kycFileId ${before.kycFileId ?? 'null'}, amlListAddedDate ${
+      before.amlListAddedDate?.toISOString() ?? 'null'
+    }`;
+    const applied = `kycFileId ${next.kycFileId}, amlListAddedDate ${next.amlListAddedDate.toISOString()}`;
+
     await this.kycLogService.createLogInternal(
       Object.assign(new UserData(), { id: crossing.userDataId }),
       KycLogType.KYC,
-      `Backfilled kycFileId ${kycFileId}, amlListAddedDate ${crossing.crossingDate.toISOString()} ` +
-        `(crossing ${crossing.crossingTxType} ${crossing.crossingTxId}, ${crossing.volumeAtCrossing} CHF).`,
+      `Backfill (#4041): ${previous} -> ${applied}. Crossing ${crossing.crossingTxType} ` +
+        `${crossing.crossingTxId} at ${crossing.crossingDate.toISOString()}, ${crossing.volumeAtCrossing} CHF.`,
     );
   }
 }

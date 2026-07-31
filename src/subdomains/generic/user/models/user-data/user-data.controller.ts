@@ -28,7 +28,7 @@ import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
-import { KycFileIdBackfillQuery } from './dto/kyc-file-id-backfill.dto';
+import { isDryRun, KycFileIdBackfillQuery } from './dto/kyc-file-id-backfill.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { BackfillStartResult, KycFileIdBackfillService } from './kyc-file-id-backfill.service';
 import { UserData, UserDataComplianceUpdateCols, UserDataSupportUpdateCols } from './user-data.entity';
@@ -199,6 +199,6 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPER_ADMIN), UserActiveGuard())
   backfillKycFileIds(@Query() query: KycFileIdBackfillQuery): BackfillStartResult {
-    return this.kycFileIdBackfillService.start({ dryRun: query.dryRun !== 'false' });
+    return this.kycFileIdBackfillService.start({ dryRun: isDryRun(query) });
   }
 }

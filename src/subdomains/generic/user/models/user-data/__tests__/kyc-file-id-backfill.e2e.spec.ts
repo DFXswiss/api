@@ -1,7 +1,7 @@
 import { Controller, INestApplication, Post, Query, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { KycFileIdBackfillQuery } from '../dto/kyc-file-id-backfill.dto';
+import { isDryRun, KycFileIdBackfillQuery } from '../dto/kyc-file-id-backfill.dto';
 
 // `dryRun` decides whether this endpoint writes to a compliance table, and there is no undo. The
 // previous implementation failed *open*: a `@Transform` mapped every value except the exact string
@@ -11,12 +11,15 @@ import { KycFileIdBackfillQuery } from '../dto/kyc-file-id-backfill.dto';
 // Driven through the real global `ValidationPipe` rather than the handler in isolation, because the
 // transform/validate ordering is exactly where that bug lived — a handler-level unit test calling
 // the method directly would have passed against the broken version.
+// Calls the same `isDryRun` the production controller does, not a copy of the expression. The
+// guards on the real controller are factory-returned instances that `overrideGuard()` cannot
+// cleanly stub (see gs.controller.e2e.spec.ts), so the route is re-declared here; the decision
+// under test is not.
 @Controller('userData')
 class TestController {
   @Post('backfillKycFileIds')
   backfill(@Query() query: KycFileIdBackfillQuery): { dryRun: boolean } {
-    // Mirrors the production controller: dry-run unless the caller opted out explicitly.
-    return { dryRun: query.dryRun !== 'false' };
+    return { dryRun: isDryRun(query) };
   }
 }
 

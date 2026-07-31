@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -10,6 +11,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Crossing, KycFileIdBackfillService } from '../kyc-file-id-backfill.service';
 import { UserDataRepository } from '../user-data.repository';
+import { UserDataService } from '../user-data.service';
 import { User } from '../../user/user.entity';
 import { UserService } from '../../user/user.service';
 
@@ -22,6 +24,8 @@ jest.mock('src/config/config', () => ({
 const IN_WINDOW = new Date('2026-06-01T00:00:00Z');
 // After #4023 restored assignment, so the live rule had already resumed.
 const AFTER_WINDOW = new Date('2026-07-10T00:00:00Z');
+// Before the outage opened.
+const BEFORE_WINDOW = new Date('2026-05-01T00:00:00Z');
 
 /**
  * Covers the predicate that decides which transaction may be *the* crossing.
@@ -40,8 +44,18 @@ describe('KycFileIdBackfillService', () => {
   let buyCryptoRepo: { find: jest.Mock };
   let buyFiatRepo: { find: jest.Mock };
 
-  const buyCrypto = (over: Partial<BuyCrypto>): BuyCrypto =>
-    Object.assign(new BuyCrypto(), { id: 1, created: IN_WINDOW, amlCheck: CheckStatus.PASS, amountInChf: 0 }, over);
+  // `priceDefinitionAllowedDate` is the PASS-verdict timestamp (aml-helper.service.ts) and defaults
+  // to `created` here; the window is tested against it, not against `created`.
+  const buyCrypto = (over: Partial<BuyCrypto>): BuyCrypto => {
+    const tx = Object.assign(
+      new BuyCrypto(),
+      { id: 1, created: IN_WINDOW, amlCheck: CheckStatus.PASS, amountInChf: 0 },
+      over,
+    );
+    tx.priceDefinitionAllowedDate ??= tx.created;
+
+    return tx;
+  };
 
   /** Volume the live rule would have seen, minus the transaction's own contribution. */
   const previousVolume = (chf: number) => transactionHelper.getVolumeSince.mockResolvedValue(chf);
@@ -56,6 +70,7 @@ describe('KycFileIdBackfillService', () => {
       providers: [
         KycFileIdBackfillService,
         { provide: UserDataRepository, useValue: createMock<UserDataRepository>() },
+        { provide: UserDataService, useValue: createMock<UserDataService>() },
         { provide: getRepositoryToken(BuyCrypto), useValue: buyCryptoRepo },
         { provide: getRepositoryToken(BuyFiat), useValue: buyFiatRepo },
         { provide: UserService, useValue: createMock<UserService>() },
@@ -128,5 +143,58 @@ describe('KycFileIdBackfillService', () => {
 
     // Strictly greater, matching `last30dVolume > monthlyDefaultWoKyc`.
     await expect(computeCrossing()).resolves.toBeNull();
+  });
+
+  describe('window is tested against the verdict time, not creation', () => {
+    it('includes a transaction created before the outage but approved inside it', async () => {
+      // Held in review across the boundary — its assignment was still lost.
+      buyCryptoRepo.find.mockResolvedValue([
+        buyCrypto({ id: 1, created: BEFORE_WINDOW, priceDefinitionAllowedDate: IN_WINDOW, amountInChf: 4000 }),
+      ]);
+
+      await expect(computeCrossing()).resolves.toMatchObject({ crossingTxId: 1 });
+    });
+
+    it('excludes a transaction created inside the outage but only approved after it closed', async () => {
+      // By then #4023 had restored assignment, so the live rule handled it.
+      buyCryptoRepo.find.mockResolvedValue([
+        buyCrypto({ id: 1, created: IN_WINDOW, priceDefinitionAllowedDate: AFTER_WINDOW, amountInChf: 4000 }),
+      ]);
+
+      await expect(computeCrossing()).resolves.toBeNull();
+    });
+  });
+
+  describe('volume is capped at the verdict time', () => {
+    it('does not let a later transaction push an earlier one over the threshold', async () => {
+      // Live, the forward half of the ±30d span is all but empty: transactions after the one being
+      // judged do not exist yet. Replayed months later it is fully populated, so an uncapped span
+      // manufactures a crossing the live rule never saw.
+      const verdictAt = new Date('2026-06-01T12:00:00Z');
+      buyCryptoRepo.find.mockResolvedValue([
+        buyCrypto({ id: 1, created: IN_WINDOW, priceDefinitionAllowedDate: verdictAt, amountInChf: 600 }),
+      ]);
+      // Only volume from *before* the verdict counts; a 600 CHF sibling created days later must not.
+      transactionHelper.getVolumeSince.mockImplementation(async (_from, to) => (to > verdictAt ? 600 : 0));
+
+      await expect(computeCrossing()).resolves.toBeNull();
+
+      const [, dateTo] = transactionHelper.getVolumeSince.mock.calls[0];
+      expect(dateTo).toEqual(verdictAt);
+    });
+
+    it('still spans the full ±30d when the verdict came later than the span', async () => {
+      const created = IN_WINDOW;
+      buyCryptoRepo.find.mockResolvedValue([
+        buyCrypto({ id: 1, created, priceDefinitionAllowedDate: new Date('2026-07-01T00:00:00Z'), amountInChf: 600 }),
+      ]);
+      previousVolume(600);
+
+      await expect(computeCrossing()).resolves.toMatchObject({ crossingTxId: 1, volumeAtCrossing: 1200 });
+
+      const [dateFrom, dateTo] = transactionHelper.getVolumeSince.mock.calls[0];
+      expect(dateFrom).toEqual(Util.daysBefore(30, created));
+      expect(dateTo).toEqual(Util.daysAfter(30, created));
+    });
   });
 });
