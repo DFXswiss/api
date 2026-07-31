@@ -30,6 +30,7 @@ Every PR must include:
 3. **Service updates** (if DTOs/interfaces changed)
 4. **Frontend synchronization** (if API contracts changed)
 5. **Cron job inventory** (if a `@DfxCron` job was added, removed or re-scheduled) — [docs/cron-jobs.md](docs/cron-jobs.md)
+6. **Endpoint inventory** (if routes were added, removed, renamed or re-scoped) — [docs/endpoints.md](docs/endpoints.md)
 
 Missing any of these = changes requested.
 
@@ -510,6 +511,19 @@ export class SupportIssueController {
 
 - Status 200 for GET (not 201)
 - Plain string responses are annoying — return JSON objects
+
+### Endpoint Inventory
+
+[docs/endpoints.md](docs/endpoints.md) lists every route this service exposes. **Any change to the set of routes must be reflected there in the same PR** — adding, removing, renaming or re-scoping an endpoint, and equally a change to a `@Controller` base path, which moves every route beneath it.
+
+The file is grouped by controller file. Add or amend the row in path order and record whether the endpoint carries `@ApiExcludeEndpoint()`.
+
+Two details are easy to get wrong when editing the list by hand:
+
+- a file may declare more than one `@Controller` class, and a route belongs to the scope that **precedes** it, not to the first one in the file — `custody.controller.ts` declares both `custody` and `custody/admin`
+- `@Controller()` without an argument puts its routes at the root, not under a prefix
+
+To verify a change, compare against the routes the framework logs at startup: every `Mapped {<path>, <METHOD>}` line is one registered route. If a route you added does not appear there, it is not reachable — two routing decorators on the same handler, for instance, keep only one path.
 
 ### Cron Jobs
 
