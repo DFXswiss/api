@@ -209,13 +209,11 @@ type SignedRegistrationMessage = Pick<
 
 type RegistrationEip712Domain = typeof REGISTRATION_EIP712_DOMAIN & { chainId?: number };
 
-// How the free-text fields were represented when they were signed.
 enum RegistrationFieldEncoding {
   UTF8 = 'utf8',
   BITBOX_ASCII = 'bitboxAscii',
 }
 
-// One shape a valid registration signature can have been produced over.
 interface RegistrationSignatureVariant {
   domain: RegistrationEip712Domain;
   encoding: RegistrationFieldEncoding;
@@ -227,8 +225,6 @@ interface ResolvedRegistrationSignature {
   variant: RegistrationSignatureVariant;
 }
 
-// Name for the logs, derived from the variant rather than stored next to it so
-// the two cannot drift apart.
 function describeVariant({ domain, encoding }: RegistrationSignatureVariant): string {
   const domainName = domain.chainId ? `chainId ${domain.chainId} domain` : 'legacy domain';
   const fields = encoding === RegistrationFieldEncoding.BITBOX_ASCII ? 'BitBox ASCII fields' : 'UTF-8 fields';
@@ -1215,39 +1211,17 @@ export class RealUnitService {
     };
   }
 
-  // Returns the EIP-712 fields exactly as the wallet signed them, plus the
-  // variant they recovered under; undefined if no accepted variant matches.
-  // Aktionariat re-verifies the signature against the payload we POST in
-  // forwardRegistration, so the forwarded bytes must be exactly this message —
-  // forwarding any other variant fails as "Invalid signature".
-  //
-  // These four attempts are every shape we accept, written out rather than
-  // iterated: a signature carries no hint of which shape produced it, so the
-  // only way to identify it is to try each. At most one can match — the shapes
-  // differ in the signed digest, so a signature made under one recovers to an
-  // unrelated address under every other. Trying several therefore widens the
-  // search without weakening the check.
-  //
-  // Domain — the legacy chainId-less domain covers every registration signed so
-  // far and every software wallet today. The chainId-extended domain covers
-  // hardware wallets: the BitBox02 firmware warns on typed data without a
-  // chainId, and over Bluetooth confirming that warning answers with a NACK
-  // instead of a signature (BitBoxSwiss/bitbox02-firmware#2019), so the app
-  // signs the extended domain there. chainId is the REALU token chain — the
-  // same value the app receives as apiConfig.asset.chainId.
-  //
-  // Encoding — realunit-app transliterates the free-text fields to BitBox-safe
-  // ASCII (Krüger → Krueger); older versions signed raw UTF-8 (kept by #3709).
+  // Returns the message exactly as the wallet signed it (Aktionariat re-verifies the
+  // forwarded bytes), plus the variant it recovered under; undefined if no accepted
+  // shape matches. The chainId-extended domain exists because the BitBox02 refuses
+  // chainId-less typed data over Bluetooth (BitBoxSwiss/bitbox02-firmware#2019).
   private resolveRegistrationSignature(data: RealUnitRegistrationDto): ResolvedRegistrationSignature | undefined {
     const { UTF8, BITBOX_ASCII } = RegistrationFieldEncoding;
 
-    // Per-request work, done once: the normalised signature and the two
-    // candidate messages (the two field encodings a wallet may have signed).
     const signature = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
     const utf8 = this.buildRegistrationMessage(data, false);
     const ascii = this.buildRegistrationMessage(data, true);
 
-    // Whether the signature over this message under this domain recovers to the claimed wallet.
     const isSignedBy = (domain: RegistrationEip712Domain, message: SignedRegistrationMessage): boolean =>
       Util.equalsIgnoreCase(verifyTypedData(domain, REGISTRATION_EIP712_TYPES, message, signature), data.walletAddress);
 
@@ -1255,8 +1229,7 @@ export class RealUnitService {
     if (isSignedBy(legacy, utf8)) return { message: utf8, variant: { domain: legacy, encoding: UTF8 } };
     if (isSignedBy(legacy, ascii)) return { message: ascii, variant: { domain: legacy, encoding: BITBOX_ASCII } };
 
-    // Without a chainId for the token chain there is no extended domain to try. It cannot
-    // happen for Ethereum/Sepolia — the early return satisfies the chain map's type.
+    // Always set for Ethereum/Sepolia; the guard satisfies the chain map's type.
     const chainId = EvmUtil.getChainId(this.tokenBlockchain);
     if (!chainId) return undefined;
 
@@ -1566,11 +1539,7 @@ export class RealUnitService {
     // representation that was signed — raw UTF-8 (legacy software wallets) or BitBox-safe ASCII
     // (current app / BitBox). Forwarding the wrong variant fails as "Invalid signature". The
     // UTF-8 originals stay on user_data for PDF/mail.
-    // Naming the matched variant makes the accepted mix observable: it is how we
-    // see chainId-domain (hardware-wallet) registrations arrive, and how we would
-    // notice the legacy variant going dark. A miss is logged too — it is the one
-    // signal that separates a local resolution failure from an Aktionariat-side
-    // rejection, which otherwise look identical downstream ("Invalid signature").
+    // A miss still forwards (fallback below) and fails at Aktionariat as "Invalid signature" — the warn attributes it.
     const resolved = this.resolveRegistrationSignature(dto);
     if (resolved) {
       this.logger.info(

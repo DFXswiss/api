@@ -3098,16 +3098,10 @@ describe('RealUnitService', () => {
       expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
 
-    // The BitBox02 firmware refuses to sign typed data whose domain has no chainId
-    // ("typed data has no chain ID" on the device), so the app signs hardware-wallet
-    // registrations over the chainId-extended domain. chainId 1 = the PRD REALU chain
-    // (Ethereum); this block runs with env 'prd'.
+    // chainId 1 = the PRD REALU chain (Ethereum); this block runs with env 'prd'.
     const chainIdDomain = { ...domain, chainId: 1 };
 
-    // The four shapes we accept, asserted one by one: each must verify, each must
-    // forward the bytes it was signed over, and each must be named correctly in the
-    // log an operator reads. Together these pin the whole verification contract, so
-    // widening or narrowing it breaks a named test.
+    // The four accepted shapes: each verifies, forwards the signed bytes, and is named in the log.
     it.each([
       ['legacy domain / UTF-8 fields', domain, utf8Fields],
       ['legacy domain / BitBox ASCII fields', domain, asciiFields],
@@ -3153,8 +3147,7 @@ describe('RealUnitService', () => {
     });
 
     it('builds each candidate message once, whatever the matching variant costs to reach', async () => {
-      // Four attempts share two messages. This signature matches only on the last
-      // attempt, so a per-attempt rebuild would show up here as four calls.
+      // Matches only on the last attempt — a per-attempt rebuild would show as 4+ calls.
       const wallet = hardwareWallet.address;
       const signature = await hardwareWallet._signTypedData(chainIdDomain, types, asciiFields(wallet));
       const build = jest.spyOn(service as any, 'buildRegistrationMessage');
@@ -3165,8 +3158,7 @@ describe('RealUnitService', () => {
     });
 
     it('warns when the signature matches no accepted variant', async () => {
-      // Well-formed signature, but from the software wallet while the dto claims the
-      // hardware one — so it recovers cleanly under every variant and matches none.
+      // Well-formed signature from the wrong wallet: recovers cleanly, matches no variant.
       const foreign = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
       const dto = buildDto(utf8Fields(hardwareWallet.address), foreign);
 
