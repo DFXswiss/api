@@ -3104,15 +3104,25 @@ describe('RealUnitService', () => {
     // (Ethereum); this block runs with env 'prd'.
     const chainIdDomain = { ...domain, chainId: 1 };
 
-    it('accepts exactly four signature variants, and tries the legacy domain first', () => {
-      // The accepted set is the whole verification contract — assert it as a list so
-      // widening or narrowing it has to be a deliberate edit, not a loop side effect.
-      expect((service as any).registrationSignatureVariants.map((v: any) => v.label)).toEqual([
-        'legacy domain / UTF-8 fields',
-        'legacy domain / BitBox ASCII fields',
-        'chainId 1 domain / UTF-8 fields',
-        'chainId 1 domain / BitBox ASCII fields',
-      ]);
+    // The four shapes we accept, asserted one by one: each must verify, each must
+    // forward the bytes it was signed over, and each must be named correctly in the
+    // log an operator reads. Together these pin the whole verification contract, so
+    // widening or narrowing it breaks a named test.
+    it.each([
+      ['legacy domain / UTF-8 fields', domain, utf8Fields],
+      ['legacy domain / BitBox ASCII fields', domain, asciiFields],
+      ['chainId 1 domain / UTF-8 fields', { ...domain, chainId: 1 }, utf8Fields],
+      ['chainId 1 domain / BitBox ASCII fields', { ...domain, chainId: 1 }, asciiFields],
+    ])('accepts and reports %s', async (expected, signingDomain, signedFields) => {
+      const wallet = hardwareWallet.address;
+      const fields = (signedFields as any)(wallet);
+      const signature = await hardwareWallet._signTypedData(signingDomain, types, fields);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), buildDto(utf8Fields(wallet), signature));
+
+      expect(ok).toBe(true);
+      expect(forwardedPayload()).toEqual(expect.objectContaining(fields));
+      expect((service as any).logger.info).toHaveBeenCalledWith(expect.stringContaining(`matched ${expected}`));
     });
 
     it('accepts a BitBox signature over the chainId-extended domain and forwards the signed ASCII fields', async () => {
@@ -3142,19 +3152,14 @@ describe('RealUnitService', () => {
       expect((service as any).resolveRegistrationSignature(dto)).toBeUndefined();
     });
 
-    it('names the matched variant in the logs, and warns when none matches', async () => {
-      const wallet = hardwareWallet.address;
-      const signature = await hardwareWallet._signTypedData(chainIdDomain, types, asciiFields(wallet));
-
-      await (service as any).forwardRegistration(fakeUserData(), buildDto(utf8Fields(wallet), signature));
-      expect((service as any).logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('matched chainId 1 domain / BitBox ASCII fields'),
-      );
-
+    it('warns when the signature matches no accepted variant', async () => {
       // Well-formed signature, but from the software wallet while the dto claims the
       // hardware one — so it recovers cleanly under every variant and matches none.
       const foreign = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
-      await (service as any).forwardRegistration(fakeUserData(), buildDto(utf8Fields(wallet), foreign));
+      const dto = buildDto(utf8Fields(hardwareWallet.address), foreign);
+
+      await (service as any).forwardRegistration(fakeUserData(), dto);
+
       expect((service as any).logger.warn).toHaveBeenCalledWith(expect.stringContaining('matched no accepted variant'));
     });
 

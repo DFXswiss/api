@@ -209,19 +209,31 @@ type SignedRegistrationMessage = Pick<
 
 type RegistrationEip712Domain = typeof REGISTRATION_EIP712_DOMAIN & { chainId?: number };
 
-// One shape a valid registration signature can have been produced over: an
-// EIP-712 domain plus the representation of the signed fields. `label` exists
-// so a verification can name in the logs which shape it recovered under.
+// How the free-text fields were represented when they were signed.
+enum RegistrationFieldEncoding {
+  UTF8 = 'utf8',
+  BITBOX_ASCII = 'bitboxAscii',
+}
+
+// One shape a valid registration signature can have been produced over.
 interface RegistrationSignatureVariant {
-  label: string;
   domain: RegistrationEip712Domain;
-  transliterate: boolean;
+  encoding: RegistrationFieldEncoding;
 }
 
 // The fields exactly as they were signed, plus the variant they recovered under.
 interface ResolvedRegistrationSignature {
   message: SignedRegistrationMessage;
   variant: RegistrationSignatureVariant;
+}
+
+// Name for the logs, derived from the variant rather than stored next to it so
+// the two cannot drift apart.
+function describeVariant({ domain, encoding }: RegistrationSignatureVariant): string {
+  const domainName = domain.chainId ? `chainId ${domain.chainId} domain` : 'legacy domain';
+  const fields = encoding === RegistrationFieldEncoding.BITBOX_ASCII ? 'BitBox ASCII fields' : 'UTF-8 fields';
+
+  return `${domainName} / ${fields}`;
 }
 
 @Injectable()
@@ -1203,11 +1215,18 @@ export class RealUnitService {
     };
   }
 
-  // Every shape a valid registration signature can have been produced over, in
-  // the order they are tried. At most one can ever match: the shapes differ in
-  // the signed digest, so a signature made under one recovers to an unrelated
-  // address under every other — which is why accepting several is not a
-  // weakening of the check, only a wider search.
+  // Returns the EIP-712 fields exactly as the wallet signed them, plus the
+  // variant they recovered under; undefined if no accepted variant matches.
+  // Aktionariat re-verifies the signature against the payload we POST in
+  // forwardRegistration, so the forwarded bytes must be exactly this message —
+  // forwarding any other variant fails as "Invalid signature".
+  //
+  // These four attempts are every shape we accept, written out rather than
+  // iterated: a signature carries no hint of which shape produced it, so the
+  // only way to identify it is to try each. At most one can match — the shapes
+  // differ in the signed digest, so a signature made under one recovers to an
+  // unrelated address under every other. Trying several therefore widens the
+  // search without weakening the check.
   //
   // Domain — the legacy chainId-less domain covers every registration signed so
   // far and every software wallet today. The chainId-extended domain covers
@@ -1219,38 +1238,36 @@ export class RealUnitService {
   //
   // Encoding — realunit-app transliterates the free-text fields to BitBox-safe
   // ASCII (Krüger → Krueger); older versions signed raw UTF-8 (kept by #3709).
-  private get registrationSignatureVariants(): RegistrationSignatureVariant[] {
-    const legacyDomain = REGISTRATION_EIP712_DOMAIN;
+  private resolveRegistrationSignature(data: RealUnitRegistrationDto): ResolvedRegistrationSignature | undefined {
+    const legacy = REGISTRATION_EIP712_DOMAIN;
     const chainId = EvmUtil.getChainId(this.tokenBlockchain);
-    const chainIdDomain = chainId ? { ...REGISTRATION_EIP712_DOMAIN, chainId } : undefined;
+    const withChainId = chainId ? { ...REGISTRATION_EIP712_DOMAIN, chainId } : undefined;
 
-    return [
-      { label: 'legacy domain / UTF-8 fields', domain: legacyDomain, transliterate: false },
-      { label: 'legacy domain / BitBox ASCII fields', domain: legacyDomain, transliterate: true },
-      ...(chainIdDomain
-        ? [
-            { label: `chainId ${chainId} domain / UTF-8 fields`, domain: chainIdDomain, transliterate: false },
-            { label: `chainId ${chainId} domain / BitBox ASCII fields`, domain: chainIdDomain, transliterate: true },
-          ]
-        : []),
-    ];
+    return (
+      this.recoverRegistration(data, legacy, RegistrationFieldEncoding.UTF8) ??
+      this.recoverRegistration(data, legacy, RegistrationFieldEncoding.BITBOX_ASCII) ??
+      this.recoverRegistration(data, withChainId, RegistrationFieldEncoding.UTF8) ??
+      this.recoverRegistration(data, withChainId, RegistrationFieldEncoding.BITBOX_ASCII)
+    );
   }
 
-  // Returns the EIP-712 fields exactly as the wallet signed them, plus the
-  // variant they recovered under; undefined if no accepted variant matches.
-  // Aktionariat re-verifies the signature against the payload we POST in
-  // forwardRegistration, so the forwarded bytes must be exactly this message —
-  // forwarding any other variant fails as "Invalid signature".
-  private resolveRegistrationSignature(data: RealUnitRegistrationDto): ResolvedRegistrationSignature | undefined {
+  // One attempt: rebuild the message in the given encoding, recover the signer
+  // under the given domain, and keep it only if it is the claimed wallet. An
+  // absent domain means the attempt does not apply (no chainId for the token
+  // chain), which is a miss rather than a match.
+  private recoverRegistration(
+    data: RealUnitRegistrationDto,
+    domain: RegistrationEip712Domain | undefined,
+    encoding: RegistrationFieldEncoding,
+  ): ResolvedRegistrationSignature | undefined {
+    if (!domain) return undefined;
+
     const signature = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
+    const message = this.buildRegistrationMessage(data, encoding === RegistrationFieldEncoding.BITBOX_ASCII);
+    const recovered = verifyTypedData(domain, REGISTRATION_EIP712_TYPES, message, signature);
+    if (!Util.equalsIgnoreCase(recovered, data.walletAddress)) return undefined;
 
-    for (const variant of this.registrationSignatureVariants) {
-      const message = this.buildRegistrationMessage(data, variant.transliterate);
-      const recovered = verifyTypedData(variant.domain, REGISTRATION_EIP712_TYPES, message, signature);
-      if (Util.equalsIgnoreCase(recovered, data.walletAddress)) return { message, variant };
-    }
-
-    return undefined;
+    return { message, variant: { domain, encoding } };
   }
 
   async forwardRegistrationToAktionariat(id: number): Promise<void> {
@@ -1559,7 +1576,9 @@ export class RealUnitService {
     // rejection, which otherwise look identical downstream ("Invalid signature").
     const resolved = this.resolveRegistrationSignature(dto);
     if (resolved) {
-      this.logger.info(`RealUnit registration signature matched ${resolved.variant.label} (${dto.walletAddress})`);
+      this.logger.info(
+        `RealUnit registration signature matched ${describeVariant(resolved.variant)} (${dto.walletAddress})`,
+      );
     } else {
       this.logger.warn(`RealUnit registration signature matched no accepted variant (${dto.walletAddress})`);
     }
