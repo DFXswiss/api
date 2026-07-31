@@ -1,1206 +1,588 @@
 # HTTP endpoints
 
-Complete inventory of every HTTP endpoint this service exposes: **533 handlers** across 93 controller files. 223 of them are marked `@ApiExcludeEndpoint` and therefore do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **533 handlers** across 93 controller files. 223 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
-This file is an inventory, not a usage guide. For request and response shapes use the Swagger schema; for payment links see [payment-links.md](payment-links.md).
+## Columns
+
+| Column | Meaning |
+| ------ | ------- |
+| **Swagger** | `public` — in the Swagger schema; `hidden` — carries `@ApiExcludeEndpoint` |
+| **Eager** | Whether the load path triggers TypeORM's automatic eager relations. `yes` — reached through `find`/`findOne` on a repository; `no` — reached only through `createQueryBuilder` with an explicit field list or raw SQL, or no database access at all; `?` — the call chain could not be resolved statically |
+| **Cols** | Columns the query actually selects, measured from the TypeORM metadata (largest load site reachable from the handler) |
+| **Fields** | Fields of the response DTO, nested DTOs included |
+| **Ratio** | Cols ÷ Fields — how much is loaded per field returned |
+
+`—` means the value could not be determined statically, **not** that it is zero. See *Coverage* below.
 
 ## Why this list exists
 
-It is the base for per-endpoint analysis. The intended next step is an additional column marking whether an endpoint is a **read path** — one that only reads data and renders it (invoices, receipts, history, exports) — or a write path that has to load complete entities in order to persist them. That distinction decides where a query may safely select individual fields instead of loading whole object graphs, and it cannot be derived from the HTTP verb: `PUT /transaction/:id/invoice` writes nothing, it renders a PDF.
+`Eager = yes` marks the endpoints that load whole object graphs instead of the fields they return. TypeORM expands eager relations recursively, so a plain `findOne()` on `UserData` already selects 253 columns across 8 joins, and one on `LimitRequest` selects 434 across 15 — before any `relations` option is added. Endpoints reached only through a query builder with an explicit field list do not have that property.
 
-## How this list is produced
+The `Ratio` column quantifies it where both sides are known. It is the basis for deciding which read paths are worth converting to explicit projections.
 
-Derived from the `@Get` / `@Post` / `@Put` / `@Patch` / `@Delete` decorators in `src/**/*.controller.ts`, with each endpoint attributed to the `@Controller` scope that precedes it — four files declare two controller classes with different base paths, and one declares `@Controller()` without an argument, placing its routes at the root.
+## How the values are produced
 
-The result was cross-checked against the route list the framework registers at startup: all 526 distinct method/path pairs match, in both directions.
+- **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Four files declare two controller classes with different base paths, one declares `@Controller()` without an argument. Cross-checked in both directions against the routes the framework registers at startup: all 526 distinct method/path pairs match.
+- **Eager** — from the call chain between handler and repository (up to four levels). The rule is mechanical: eager relations apply to the `find*` family, not to `createQueryBuilder` or raw SQL.
+- **Cols** — measured against the real entity metadata: the query is built and its SELECT list counted. Not an estimate.
+- **Fields** — field count of the declared response DTO, nested DTOs resolved recursively.
+
+## Coverage
+
+| | Endpoints | Share |
+| --- | --- | --- |
+| Eager determined (`yes`/`no`) | 437 | 82 % |
+| — of those `yes` | 244 | |
+| — of those `no` | 193 | |
+| Eager unresolved (`?`) | 96 | 18 % |
+| Column count measured | 245 | 46 % |
+| Response DTO recognised | 215 | 40 % |
+| Both, so `Ratio` available | 111 | 21 % |
+
+The gaps are honest limits of static analysis, not zeros. `Eager = ?` means a call in the chain could not be attributed — typically a service resolved through inheritance or a dynamically chosen target. A missing `Cols` means no load site was attributable to the handler; a missing `Fields` means the endpoint declares no DTO return type (`void`, a raw string, `StreamableFile`, or an entity).
+
+Where both sides are known, the median ratio is **16×** — 14 endpoints exceed 100×.
 
 ## Known discrepancy
 
-`POST /paymentLink/integrations/kucoin/webhook/cancel` appears in the source but is **not registered at runtime**. Its handler in `src/subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` carries two `@Post` decorators, and the framework stores a single path per handler, so only `.../webhook/success` takes effect. The endpoint is listed below for completeness and marked accordingly; it is a defect to be fixed separately, not a documentation gap.
+`POST /paymentLink/integrations/kucoin/webhook/cancel` appears in the source but is **not registered at runtime**: its handler in `c2b-payment-link.controller.ts` carries two `@Post` decorators, and the framework stores a single path per handler, so only `.../webhook/success` takes effect. Listed below for completeness and marked accordingly.
 
 ## Endpoints
 
-### AppController
-
-`src/app.controller.ts` — 7 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/` | `home` | public |
-| GET | `/app` | `createRefNew` | public |
-| GET | `/app/:app` | `redirectToStore` | hidden |
-| GET | `/app/advertisements` | `getAds` | hidden |
-| GET | `/app/announcements` | `getAnnouncements` | public |
-| GET | `/app/settings/flags` | `getFlags` | hidden |
-| GET | `/version` | `getVersion` | hidden |
-
-### AlchemyController
-
-`src/integration/alchemy/controllers/alchemy.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/alchemy/addressWebhook` | `addressWebhook` | public |
-| GET | `/alchemy/addresses/:webhookId` | `addresses` | public |
-
-### YapealWebhookController
-
-`src/integration/bank/controllers/yapeal-webhook.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/bank/yapeal/webhook` | `handleYapealWebhook` | public |
-
-### BlockchainApiController
-
-`src/integration/blockchain/api/controllers/blockchain-api.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/blockchain/balances` | `getBalances` | public |
-| POST | `/blockchain/broadcast` | `broadcastTransaction` | public |
-| POST | `/blockchain/transaction` | `createTransaction` | public |
-
-### NodeController
-
-`src/integration/blockchain/bitcoin/node/node.controller.ts` — 6 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/node/:node/:mode/cmd` | `cmdForMode` | hidden |
-| POST | `/node/:node/:mode/rpc` | `rpcForMode` | hidden |
-| GET | `/node/:node/:mode/tx/:txId` | `waitForTxForMode` | hidden |
-| POST | `/node/:node/cmd` | `cmd` | hidden |
-| POST | `/node/:node/rpc` | `rpc` | public |
-| GET | `/node/:node/tx/:txId` | `waitForTx` | hidden |
-
-### DEuroController
-
-`src/integration/blockchain/deuro/controllers/deuro.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/deuro/info` | `getInfo` | public |
-
-### FrankencoinController
-
-`src/integration/blockchain/frankencoin/controllers/frankencoin.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/frankencoin/info` | `getInfo` | public |
-
-### JuiceController
-
-`src/integration/blockchain/juice/controllers/juice.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/juice/info` | `getInfo` | public |
-
-### ExchangeController
-
-`src/integration/exchange/controllers/exchange.controller.ts` — 9 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/exchange/:exchange/balances` | `getBalance` | public |
-| GET | `/exchange/:exchange/price` | `getPrice` | hidden |
-| PUT | `/exchange/:exchange/sync` | `syncExchange` | hidden |
-| GET | `/exchange/:exchange/trade` | `getTrades` | hidden |
-| POST | `/exchange/:exchange/trade` | `trade` | hidden |
-| GET | `/exchange/:exchange/trade/history` | `getTradeHistory` | hidden |
-| POST | `/exchange/:exchange/withdraw` | `withdrawFunds` | hidden |
-| GET | `/exchange/:exchange/withdraw/:id` | `getWithdraw` | public |
-| GET | `/exchange/trade/:id` | `getTrade` | hidden |
-
-### IknaController
-
-`src/integration/ikna/controllers/ikna.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/ikna/bfs/:id` | `getBfsResult` | hidden |
-| POST | `/ikna/bfs/address` | `createBfsAddressRequest` | public |
-| GET | `/ikna/tag` | `getIknaAddressTag` | hidden |
-
-### ScorechainController
-
-`src/integration/scorechain/controllers/scorechain.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/scorechain/screening` | `screen` | public |
-
-### TatumController
-
-`src/integration/tatum/controllers/tatum.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/tatum/addressWebhook` | `addressWebhook` | public |
-
-### AssetController
-
-`src/shared/models/asset/asset.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/asset` | `getAllAsset` | public |
-| PUT | `/asset/:id` | `updateAsset` | public |
-
-### CountryController
-
-`src/shared/models/country/country.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/country` | `getAllCountry` | public |
-
-### FiatController
-
-`src/shared/models/fiat/fiat.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/fiat` | `getAllFiat` | public |
-
-### LanguageController
-
-`src/shared/models/language/language.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/language` | `getAllLanguage` | public |
-
-### SettingController
-
-`src/shared/models/setting/setting.controller.ts` — 5 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/setting` | `getSettings` | public |
-| PUT | `/setting/:key` | `updateSetting` | hidden |
-| PUT | `/setting/customSignUpFees` | `updateCustomSignUpFees` | hidden |
-| PUT | `/setting/disabledProcesses` | `updateProcess` | hidden |
-| GET | `/setting/infoBanner` | `getInfoBanner` | public |
-
-### LedgerController
-
-`src/subdomains/core/accounting/controllers/ledger.controller.ts` — 6 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/dashboard/accounting/ledger/accounts` | `getAccounts` | public |
-| GET | `/dashboard/accounting/ledger/accounts/:accountId/legs` | `getAccountDetail` | hidden |
-| GET | `/dashboard/accounting/ledger/equity-comparison` | `getEquityComparison` | hidden |
-| GET | `/dashboard/accounting/ledger/margin` | `getMargin` | hidden |
-| GET | `/dashboard/accounting/ledger/reconciliation` | `getReconStatus` | hidden |
-| GET | `/dashboard/accounting/ledger/suspense` | `getSuspense` | hidden |
-
-### BuyCryptoController
-
-`src/subdomains/core/buy-crypto/process/buy-crypto.controller.ts` — 8 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/buyCrypto/:id` | `update` | hidden |
-| PUT | `/buyCrypto/:id/amlCheck` | `manualPassAmlCheck` | hidden |
-| DELETE | `/buyCrypto/:id/amlCheck` | `resetAmlCheck` | hidden |
-| POST | `/buyCrypto/:id/refund` | `refundBuyCrypto` | hidden |
-| POST | `/buyCrypto/:id/scorechain` | `retriggerScorechain` | hidden |
-| POST | `/buyCrypto/:id/webhook` | `triggerWebhook` | public |
-| PUT | `/buyCrypto/refVolumes` | `updateRefVolumes` | hidden |
-| PUT | `/buyCrypto/volumes` | `updateBuyVolumes` | hidden |
-
-### BuyController
-
-`src/subdomains/core/buy-crypto/routes/buy/buy.controller.ts` — 11 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/buy` | `getAllBuy` | public |
-| POST | `/buy` | `createBuy` | hidden |
-| GET | `/buy/:id` | `getBuy` | hidden |
-| PUT | `/buy/:id` | `updateBuyRoute` | public |
-| GET | `/buy/:id/history` | `getBuyRouteHistory` | hidden |
-| PUT | `/buy/paymentInfos` | `createBuyWithPaymentInfo` | public |
-| PUT | `/buy/paymentInfos/:id/confirm` | `confirmBuy` | public |
-| PUT | `/buy/paymentInfos/:id/invoice` | `generateInvoicePDF` | public |
-| GET | `/buy/personalIban` | `getAllPersonalIbans` | public |
-| POST | `/buy/personalIban` | `AuthGuard` | public |
-| PUT | `/buy/quote` | `getBuyQuote` | hidden |
-
-### CryptoRouteController
-
-`src/subdomains/core/buy-crypto/routes/swap/crypto-route.controller.ts` — 5 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/cryptoRoute` | `getAllCrypto` | public |
-| POST | `/cryptoRoute` | `createCrypto` | hidden |
-| GET | `/cryptoRoute/:id` | `getCrypto` | hidden |
-| PUT | `/cryptoRoute/:id` | `updateCryptoRoute` | hidden |
-| GET | `/cryptoRoute/:id/history` | `getCryptoRouteHistory` | hidden |
-
-### SwapController
-
-`src/subdomains/core/buy-crypto/routes/swap/swap.controller.ts` — 9 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/swap` | `getAllSwap` | public |
-| POST | `/swap` | `createSwap` | hidden |
-| GET | `/swap/:id` | `getSwap` | hidden |
-| PUT | `/swap/:id` | `updateSwapRoute` | public |
-| GET | `/swap/:id/history` | `getSwapRouteHistory` | hidden |
-| PUT | `/swap/paymentInfos` | `createSwapWithPaymentInfo` | public |
-| PUT | `/swap/paymentInfos/:id/confirm` | `confirmSwap` | public |
-| GET | `/swap/paymentInfos/:id/tx` | `depositTx` | public |
-| PUT | `/swap/quote` | `getSwapQuote` | hidden |
-
-### CustodyAccountController
-
-`src/subdomains/core/custody/controllers/custody-account.controller.ts` — 12 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/custody/account` | `getCustodyAccounts` | public |
-| POST | `/custody/account` | `createCustodyAccount` | public |
-| GET | `/custody/account/:id` | `getCustodyAccount` | public |
-| PUT | `/custody/account/:id` | `updateCustodyAccount` | public |
-| GET | `/custody/account/:id/access` | `getAccessList` | public |
-| POST | `/custody/account/:id/access` | `grantAccess` | public |
-| PUT | `/custody/account/:id/access/:accessId` | `updateAccess` | public |
-| DELETE | `/custody/account/:id/access/:accessId` | `revokeAccess` | public |
-| GET | `/custody/account/:id/balance` | `getAccountBalance` | public |
-| GET | `/custody/account/:id/history` | `getAccountHistory` | public |
-| GET | `/custody/account/:id/order` | `getAccountOrders` | public |
-| GET | `/custody/account/:id/pdf` | `getAccountPdf` | public |
-
-### CustodyAdminController, CustodyController
-
-`src/subdomains/core/custody/controllers/custody.controller.ts` — 10 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/custody` | `getUserCustodyBalance` | public |
-| POST | `/custody` | `createCustodyAccount` | public |
-| POST | `/custody/admin/order/:id/approve` | `approveOrder` | public |
-| GET | `/custody/admin/orders` | `getOrders` | public |
-| PUT | `/custody/admin/user/:id/balance` | `updateUserBalance` | public |
-| GET | `/custody/history` | `getUserCustodyHistory` | public |
-| GET | `/custody/order` | `getOrders` | public |
-| POST | `/custody/order` | `createOrder` | public |
-| POST | `/custody/order/:id/confirm` | `confirmOrder` | public |
-| GET | `/custody/pdf` | `getCustodyPdf` | public |
-
-### FaucetRequestController
-
-`src/subdomains/core/faucet-request/controller/faucet-request.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/faucet` | `faucetRequest` | public |
-
-### HistoryController
-
-`src/subdomains/core/history/controllers/history.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/history` | `getHistory` | public |
-| GET | `/history/:exportType` | `getApiHistory` | hidden |
-| GET | `/history/csv` | `getCsv` | hidden |
-| POST | `/history/csv` | `createCsv` | public |
-
-### TransactionController
-
-`src/subdomains/core/history/controllers/transaction.controller.ts` — 16 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/transaction` | `getTransactions` | public |
-| PUT | `/transaction/:id/invoice` | `generateInvoiceFromTransaction` | public |
-| PUT | `/transaction/:id/receipt` | `generateReceiptFromTransaction` | public |
-| GET | `/transaction/:id/refund` | `AuthGuard` | public |
-| PUT | `/transaction/:id/refund` | `AuthGuard` | public |
-| PUT | `/transaction/:id/target` | `setTransactionTarget` | hidden |
-| GET | `/transaction/ChainReport` | `getCsvChainReport` | hidden |
-| GET | `/transaction/CoinTracking` | `getCsvCT` | public |
-| GET | `/transaction/csv` | `getCsv` | public |
-| PUT | `/transaction/csv` | `createCsv` | public |
-| GET | `/transaction/detail` | `getTransactionDetails` | hidden |
-| PUT | `/transaction/detail/csv` | `createDetailCsv` | public |
-| GET | `/transaction/detail/single` | `getSingleTransactionDetails` | public |
-| GET | `/transaction/single` | `getSingleTransaction` | public |
-| GET | `/transaction/target` | `getTransactionTargets` | hidden |
-| GET | `/transaction/unassigned` | `getUnassignedTransactions` | public |
-
-### LiquidityBalanceController
-
-`src/subdomains/core/liquidity-management/controllers/balance.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/liquidityManagement/balance` | `getBalances` | public |
-
-### LiquidityManagementOrderController
-
-`src/subdomains/core/liquidity-management/controllers/order.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/liquidityManagement/order/:id/resolveUncertain` | `resolveUncertainOrder` | hidden |
-| GET | `/liquidityManagement/order/in-progress` | `getProcessingOrders` | public |
-
-### LiquidityManagementPipelineController
-
-`src/subdomains/core/liquidity-management/controllers/pipeline.controller.ts` — 5 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/liquidityManagement/pipeline/:id/status` | `getPipelineStatus` | hidden |
-| POST | `/liquidityManagement/pipeline/buy` | `buyLiquidity` | public |
-| GET | `/liquidityManagement/pipeline/in-progress` | `getProcessingPipelines` | hidden |
-| POST | `/liquidityManagement/pipeline/sell` | `sellLiquidity` | hidden |
-| GET | `/liquidityManagement/pipeline/stopped` | `getStoppedPipelines` | hidden |
-
-### LiquidityManagementRuleController
-
-`src/subdomains/core/liquidity-management/controllers/rule.controller.ts` — 6 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/liquidityManagement/rule` | `createRule` | public |
-| GET | `/liquidityManagement/rule/:id` | `getRule` | hidden |
-| PUT | `/liquidityManagement/rule/:id` | `updateRule` | hidden |
-| PATCH | `/liquidityManagement/rule/:id/deactivate` | `deactivateRule` | hidden |
-| PATCH | `/liquidityManagement/rule/:id/reactivate` | `reactivateRule` | hidden |
-| PATCH | `/liquidityManagement/rule/:id/settings` | `setReactivationTime` | hidden |
-
-### HealthController
-
-`src/subdomains/core/monitoring/health.controller.ts` — 6 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/health` | `getHealth` | public |
-| GET | `/health/banking` | `getBankingHealth` | public |
-| GET | `/health/external` | `getExternalHealth` | public |
-| GET | `/health/liquidity` | `getLiquidityHealth` | public |
-| GET | `/health/nodes` | `getNodeHealth` | public |
-| GET | `/health/payment` | `getPaymentHealth` | public |
-
-### MonitoringController
-
-`src/subdomains/core/monitoring/monitoring.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/monitoring/data` | `getSystemState` | public |
-| POST | `/monitoring/data` | `onWebhook` | hidden |
-
-### C2BPaymentLinkController
-
-`src/subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` — 5 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/paymentLink/integration/binance/activate/:id` | `activateBinancePay` | public |
-| POST | `/paymentLink/integration/binance/webhook` | `binancePayWebhook` | hidden |
-| POST | `/paymentLink/integration/kucoin/activate/:id` | `activateKucoinPay` | public |
-| POST | `/paymentLink/integrations/kucoin/webhook/cancel` | `kucoinPayWebhook` | hidden — not registered, see above |
-| POST | `/paymentLink/integrations/kucoin/webhook/success` | `kucoinPayWebhook` | hidden |
-
-### PaymentLinkController, PaymentLinkShortController
-
-`src/subdomains/core/payment-link/controllers/payment-link.controller.ts` — 22 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/paymentLink` | `getAllPaymentLinks` | public |
-| POST | `/paymentLink` | `createPaymentLink` | public |
-| PUT | `/paymentLink` | `updatePaymentLink` | public |
-| PUT | `/paymentLink/:id` | `updatePaymentLinkAdmin` | hidden |
-| DELETE | `/paymentLink/:id` | `deletePaymentLink` | hidden |
-| PUT | `/paymentLink/:id/pos` | `createPosLinkAdmin` | hidden |
-| PUT | `/paymentLink/assign` | `assignPaymentLink` | public |
-| GET | `/paymentLink/config` | `getUserPaymentLinksConfig` | public |
-| PUT | `/paymentLink/config` | `updateUserPaymentLinksConfig` | public |
-| GET | `/paymentLink/history` | `getPaymentHistory` | public |
-| GET | `/paymentLink/locations` | `getLocations` | public |
-| POST | `/paymentLink/merchant` | `createMerchant` | public |
-| GET | `/paymentLink/payment` | `createInvoicePayment` | hidden |
-| POST | `/paymentLink/payment` | `createPayment` | public |
-| DELETE | `/paymentLink/payment` | `cancelPayment` | public |
-| PUT | `/paymentLink/payment/:id` | `updatePaymentLinkPayment` | public |
-| PUT | `/paymentLink/payment/confirm` | `confirmPayment` | public |
-| GET | `/paymentLink/payment/wait` | `waitForPayment` | public |
-| PUT | `/paymentLink/pos` | `createPosLink` | public |
-| GET | `/paymentLink/recipient` | `getPaymentRecipient` | public |
-| GET | `/paymentLink/stickers` | `generateOcpStickers` | hidden |
-| GET | `/plp` | `createInvoicePayment` | public |
-
-### PaymentStandardController
-
-`src/subdomains/core/payment-link/controllers/payment-standard.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/paymentLink/standard` | `getAll` | public |
-| GET | `/paymentLink/standard/:id` | `getById` | public |
-
-### WalletAppController
-
-`src/subdomains/core/payment-link/controllers/wallet-app.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/paymentLink/walletApp` | `getAll` | public |
-| GET | `/paymentLink/walletApp/:id` | `getById` | public |
-| GET | `/paymentLink/walletApp/recommended` | `getRecommended` | public |
-
-### RefController
-
-`src/subdomains/core/referral/process/ref.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/ref` | `createRef` | public |
-
-### RefRewardController
-
-`src/subdomains/core/referral/reward/ref-reward.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/reward/ref` | `createPendingRefRewards` | hidden |
-| PUT | `/reward/ref/:id` | `updateRefReward` | hidden |
-| POST | `/reward/ref/manual` | `createManualRefReward` | hidden |
-| PUT | `/reward/ref/volumes` | `updateVolumes` | public |
-
-### RouteController
-
-`src/subdomains/core/route/route.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/route` | `getAllRoutes` | public |
-| PUT | `/route/:id` | `updateRoute` | hidden |
-
-### BuyFiatController
-
-`src/subdomains/core/sell-crypto/process/buy-fiat.controller.ts` — 8 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/buyFiat/:id` | `update` | hidden |
-| PUT | `/buyFiat/:id/amlCheck` | `manualPassAmlCheck` | hidden |
-| DELETE | `/buyFiat/:id/amlCheck` | `resetAmlCheck` | hidden |
-| POST | `/buyFiat/:id/refund` | `refundBuyFiat` | hidden |
-| POST | `/buyFiat/:id/scorechain` | `retriggerScorechain` | hidden |
-| POST | `/buyFiat/:id/webhook` | `triggerWebhook` | public |
-| PUT | `/buyFiat/refVolumes` | `updateRefVolumes` | hidden |
-| PUT | `/buyFiat/volumes` | `updateVolumes` | hidden |
-
-### SellController
-
-`src/subdomains/core/sell-crypto/route/sell.controller.ts` — 9 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/sell` | `getAllSell` | public |
-| POST | `/sell` | `createSell` | hidden |
-| GET | `/sell/:id` | `getSell` | hidden |
-| PUT | `/sell/:id` | `updateSell` | public |
-| GET | `/sell/:id/history` | `getSellRouteHistory` | hidden |
-| PUT | `/sell/paymentInfos` | `createSellWithPaymentInfo` | public |
-| PUT | `/sell/paymentInfos/:id/confirm` | `confirmSell` | public |
-| GET | `/sell/paymentInfos/:id/tx` | `depositTx` | public |
-| PUT | `/sell/quote` | `getSellQuote` | hidden |
-
-### StatisticController
-
-`src/subdomains/core/statistic/statistic.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/statistic` | `getAll` | public |
-| GET | `/statistic/status` | `getStatus` | public |
-| GET | `/statistic/transactions` | `getTransactions` | public |
-
-### TradingRuleController
-
-`src/subdomains/core/trading/controllers/trading-rule.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/trading/rule/:id` | `update` | public |
-
-### AdminController
-
-`src/subdomains/generic/admin/admin.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/admin/lightning/rotate-webhook-secrets` | `rotateLightningWebhookSecrets` | hidden |
-| POST | `/admin/mail` | `sendMail` | public |
-| POST | `/admin/payout` | `payout` | hidden |
-| POST | `/admin/sendLetter` | `sendLetter` | hidden |
-
-### LnurldForwardController
-
-`src/subdomains/generic/forwarding/controllers/lnurld-forward.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/lnurld/:id` | `lnurldForward` | public |
-| GET | `/lnurld/cb/:id/:var` | `lnurldCallbackForward` | public |
-
-### LnUrlPForwardController
-
-`src/subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts` — 6 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/lnurlp/:id` | `lnUrlPForward` | public |
-| POST | `/lnurlp/:id` | `activatePublicPayment` | public |
-| DELETE | `/lnurlp/cancel/:id` | `cancelPayment` | public |
-| GET | `/lnurlp/cb/:id` | `lnUrlPCallbackForward` | public |
-| GET | `/lnurlp/tx/:id` | `txHexForward` | public |
-| GET | `/lnurlp/wait/:id` | `waitForPayment` | public |
-
-### LnUrlWForwardController
-
-`src/subdomains/generic/forwarding/controllers/lnurlw-forward.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/lnurlw/:id` | `lnUrlWForward` | public |
-| GET | `/lnurlw/cb/:id` | `lnUrlWCallbackForward` | public |
-
-### PaymentForwardController
-
-`src/subdomains/generic/forwarding/controllers/payment-forward.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/pl` | `lnUrlPForward` | public |
-
-### GsEvmController
-
-`src/subdomains/generic/gs/gs-evm.controller.ts` — 6 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/gs/evm/bridgeApproval` | `approveBridge` | hidden |
-| POST | `/gs/evm/coinTransaction` | `sendCoinTransaction` | hidden |
-| POST | `/gs/evm/contractApproval` | `approveContract` | hidden |
-| POST | `/gs/evm/contractTransaction` | `sendContractTransaction` | hidden |
-| POST | `/gs/evm/rawTransaction` | `sendRawTransaction` | public |
-| POST | `/gs/evm/tokenTransaction` | `sendTokenTransaction` | hidden |
-
-### GsController
-
-`src/subdomains/generic/gs/gs.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/gs/db` | `getDbData` | public |
-| POST | `/gs/db/custom` | `getExtendedData` | hidden |
-| POST | `/gs/debug` | `executeDebugQuery` | hidden |
-| GET | `/gs/support` | `getSupportData` | hidden |
-
-### KycAdminController
-
-`src/subdomains/generic/kyc/controllers/kyc-admin.controller.ts` — 8 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/kyc/admin/blacklist/ip` | `addIpToBlacklist` | hidden |
-| DELETE | `/kyc/admin/blacklist/ip` | `deleteIpToBlacklist` | hidden |
-| POST | `/kyc/admin/ident/file/sync` | `syncIdentFiles` | hidden |
-| POST | `/kyc/admin/log` | `createLog` | hidden |
-| PUT | `/kyc/admin/log/:id` | `updateLog` | hidden |
-| PUT | `/kyc/admin/nameCheck/:id` | `updateNameCheckLog` | public |
-| PUT | `/kyc/admin/step/:id` | `updateKycStep` | hidden |
-| POST | `/kyc/admin/webhook` | `triggerWebhook` | hidden |
-
-### KycClientController
-
-`src/subdomains/generic/kyc/controllers/kyc-client.controller.ts` — 5 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/kyc/client/payments` | `getAllPayments` | public |
-| GET | `/kyc/client/users` | `getAllKycData` | public |
-| GET | `/kyc/client/users/:id/documents` | `getKycFiles` | public |
-| GET | `/kyc/client/users/:id/documents/:type` | `getKycFile` | public |
-| GET | `/kyc/client/users/:id/payments` | `getUserPayments` | public |
-
-### KycController
-
-`src/subdomains/generic/kyc/controllers/kyc.controller.ts` — 34 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/kyc` | `getKycLevel` | public |
-| PUT | `/kyc` | `continueKyc` | public |
-| GET | `/kyc/2fa` | `check2fa` | public |
-| POST | `/kyc/2fa` | `start2fa` | public |
-| POST | `/kyc/2fa/verify` | `verify2fa` | public |
-| GET | `/kyc/:step` | `initiateStep` | public |
-| GET | `/kyc/countries` | `getKycCountries` | public |
-| DELETE | `/kyc/data/:type/:id` | `cancelStep` | hidden |
-| PUT | `/kyc/data/additional/:id` | `updateAdditionalDocumentsData` | public |
-| PUT | `/kyc/data/address/:id` | `updateAddressChangeData` | public |
-| PUT | `/kyc/data/authority/:id` | `updateAuthorityData` | public |
-| PUT | `/kyc/data/beneficial/:id` | `updateBeneficialData` | public |
-| PUT | `/kyc/data/confirmation/:id` | `updateSoleProprietorshipConfirmationData` | public |
-| PUT | `/kyc/data/contact/:id` | `updateContactData` | hidden |
-| GET | `/kyc/data/financial/:id` | `getFinancialData` | public |
-| PUT | `/kyc/data/financial/:id` | `updateFinancialData` | public |
-| PUT | `/kyc/data/legal/:id` | `updateCommercialRegisterData` | public |
-| PUT | `/kyc/data/name/:id` | `updateNameChangeData` | public |
-| PUT | `/kyc/data/nationality/:id` | `updateNationalityData` | public |
-| PUT | `/kyc/data/operational/:id` | `updateOperationalData` | public |
-| PUT | `/kyc/data/owner/:id` | `updateOwnerDirectoryData` | public |
-| PUT | `/kyc/data/payment/:id` | `updatePaymentsData` | public |
-| PUT | `/kyc/data/personal/:id` | `updatePersonalData` | public |
-| PUT | `/kyc/data/phone/:id` | `updatePhoneChangeData` | public |
-| PUT | `/kyc/data/recall/:id` | `updateRecallAgreement` | public |
-| PUT | `/kyc/data/recommendation/:id` | `updateRecommendationData` | public |
-| PUT | `/kyc/data/residence/:id` | `updateResidencePermitData` | public |
-| PUT | `/kyc/data/signatory/:id` | `updateSignatoryPowerData` | public |
-| PUT | `/kyc/data/statutes/:id` | `updateStatutesData` | public |
-| GET | `/kyc/file/:id` | `getFile` | hidden |
-| PUT | `/kyc/ident/manual/:id` | `updateIdentData` | hidden |
-| POST | `/kyc/ident/sumsub` | `sumsubWebhook` | public |
-| POST | `/kyc/transfer` | `addKycClient` | hidden |
-| DELETE | `/kyc/transfer` | `removeKycClient` | hidden |
-
-### SupportController
-
-`src/subdomains/generic/support/support.controller.ts` — 27 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/support` | `searchUserByKey` | public |
-| GET | `/support/:id` | `getUserData` | hidden |
-| GET | `/support/:id/ip-log-pdf` | `getIpLogPdf` | hidden |
-| POST | `/support/:id/onboarding-pdf` | `generateOnboardingPdf` | hidden |
-| GET | `/support/:id/scorechain` | `getScorechainScreenings` | hidden |
-| GET | `/support/:id/transaction-pdf` | `getTransactionPdf` | hidden |
-| GET | `/support/call-queues` | `getCallQueues` | hidden |
-| GET | `/support/call-queues/:queue/items` | `getCallQueueItems` | hidden |
-| GET | `/support/call-queues/clerks` | `getCallQueueClerks` | hidden |
-| GET | `/support/kycFileList` | `getKycFileList` | hidden |
-| GET | `/support/kycFileStats` | `getKycFileStats` | hidden |
-| GET | `/support/note` | `getNotes` | hidden |
-| POST | `/support/note` | `createNote` | hidden |
-| PUT | `/support/note/:id` | `updateNote` | hidden |
-| DELETE | `/support/note/:id` | `deleteNote` | hidden |
-| GET | `/support/note/users` | `listNoteUsers` | hidden |
-| GET | `/support/pending-reviews` | `getPendingReviews` | hidden |
-| GET | `/support/pending-reviews/items` | `getPendingReviewItems` | hidden |
-| GET | `/support/pending-transactions` | `getPendingTransactions` | hidden |
-| GET | `/support/recommendation-graph/:id/neighbors` | `getRecommendationGraphNeighbors` | hidden |
-| GET | `/support/template` | `getTemplates` | hidden |
-| POST | `/support/template` | `createTemplate` | hidden |
-| PUT | `/support/template/:id` | `updateTemplate` | hidden |
-| DELETE | `/support/template/:id` | `deleteTemplate` | hidden |
-| GET | `/support/transaction/:id/refund` | `getTransactionRefund` | hidden |
-| PUT | `/support/transaction/:id/refund` | `setTransactionRefund` | hidden |
-| GET | `/support/transactionList` | `getTransactionList` | hidden |
-
-### AuthLnurlController
-
-`src/subdomains/generic/user/models/auth/auth-lnurl.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/lnurla` | `signInWithLnurlAuth` | public |
-| POST | `/lnurla` | `getLnurlAuth` | public |
-| GET | `/lnurla/status` | `lnurlAuthStatus` | public |
-
-### AuthController
-
-`src/subdomains/generic/user/models/auth/auth.controller.ts` — 14 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/auth` | `authenticate` | public |
-| GET | `/auth/2fa` | `check2fa` | hidden |
-| POST | `/auth/2fa` | `setup2fa` | public |
-| POST | `/auth/2fa/verify` | `verify2fa` | public |
-| GET | `/auth/alby` | `signInWithAlby` | hidden |
-| GET | `/auth/alby/redirect/:id` | `redirectAlby` | hidden |
-| GET | `/auth/challenge` | `companyChallenge` | hidden |
-| POST | `/auth/mail` | `signInByMail` | hidden |
-| GET | `/auth/mail/confirm` | `executeMerge` | public |
-| GET | `/auth/mail/redirect` | `redirectMail` | hidden |
-| POST | `/auth/signIn` | `signIn` | hidden |
-| GET | `/auth/signMessage` | `getSignMessage` | public |
-| POST | `/auth/signUp` | `signUp` | public |
-| GET | `/auth/verifySignature` | `verifySignMessage` | public |
-
-### BankDataController
-
-`src/subdomains/generic/user/models/bank-data/bank-data.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/bankData/:id` | `updateBankData` | public |
-| PUT | `/bankData/:id/nameCheck` | `doNameCheck` | hidden |
-
-### CustodyProviderController
-
-`src/subdomains/generic/user/models/custody-provider/custody-provider.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/CustodyProvider` | `createCustodyProvider` | public |
-| PUT | `/CustodyProvider/:id` | `updateCustodyProvider` | hidden |
-
-### KycClientController, KycController
-
-`src/subdomains/generic/user/models/kyc/kyc.controller.ts` — 10 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/kyc` | `getKycProgressV1` | public |
-| POST | `/kyc` | `requestKycV1` | public |
-| GET | `/kyc/:code` | `getKycProgressByCodeV1` | public |
-| POST | `/kyc/:code` | `requestKycByCodeV1` | public |
-| GET | `/kyc/:code/countries` | `getKycCountriesByCodeV1` | public |
-| GET | `/kyc/:id/documents` | `getKycFilesV1` | public |
-| GET | `/kyc/:id/documents/:type` | `getKycFileV1` | public |
-| GET | `/kyc/countries` | `getKycCountriesV1` | public |
-| PUT | `/kyc/transfer` | `transferKycDataV1` | public |
-| GET | `/kyc/users` | `getAllKycDataV1` | public |
-
-### RecommendationController
-
-`src/subdomains/generic/user/models/recommendation/recommendation.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/recommendation` | `getAllRecommendation` | public |
-| POST | `/recommendation` | `createRecommendation` | hidden |
-| PUT | `/recommendation/:id/confirm` | `confirmRecommendation` | hidden |
-| PUT | `/recommendation/:id/reject` | `rejectRecommendation` | hidden |
-
-### UserDataRelationController
-
-`src/subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/userDataRelation` | `create` | public |
-| PUT | `/userDataRelation/:id` | `update` | public |
-| DELETE | `/userDataRelation/:id` | `delete` | public |
-
-### UserDataController
-
-`src/subdomains/generic/user/models/user-data/user-data.controller.ts` — 12 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/userData` | `getAllUserData` | public |
-| POST | `/userData` | `createEmptyUserData` | hidden |
-| GET | `/userData/:id` | `getUserData` | public |
-| PUT | `/userData/:id` | `updateUserData` | hidden |
-| PUT | `/userData/:id/bankDatas` | `addBankData` | hidden |
-| PUT | `/userData/:id/fee` | `addFee` | hidden |
-| DELETE | `/userData/:id/fee` | `removeFee` | hidden |
-| POST | `/userData/:id/kycFile` | `uploadKycFile` | hidden |
-| PUT | `/userData/:id/merge` | `mergeUserData` | hidden |
-| PUT | `/userData/:id/volumes` | `updateVolumes` | hidden |
-| PUT | `/userData/auditPeriodNumbers` | `calculateAuditPeriodNumbers` | hidden |
-| POST | `/userData/download` | `downloadUserData` | public |
-
-### UserController, UserV2Controller
-
-`src/subdomains/generic/user/models/user/user.controller.ts` — 26 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/user` | `getUserV1` | public |
-| GET | `/user` | `AuthGuard` | public |
-| PUT | `/user` | `updateUserV1` | public |
-| PUT | `/user` | `updateUser` | public |
-| DELETE | `/user` | `AuthGuard` | public |
-| DELETE | `/user` | `deleteAccount` | public |
-| PUT | `/user/:id` | `updateUserAdmin` | hidden |
-| DELETE | `/user/account` | `deleteUserAccount` | public |
-| PUT | `/user/addresses/:address` | `updateAddress` | public |
-| DELETE | `/user/addresses/:address` | `AuthGuard` | public |
-| PUT | `/user/apiFilter/CT` | `updateApiFilter` | public |
-| POST | `/user/apiKey/CT` | `createApiKey` | public |
-| DELETE | `/user/apiKey/CT` | `deleteApiKey` | public |
-| POST | `/user/change` | `changeUser` | public |
-| POST | `/user/data` | `updateKycData` | hidden |
-| GET | `/user/detail` | `getUserDetailV1` | public |
-| PUT | `/user/discountCodes` | `addDiscountCode` | public |
-| PUT | `/user/mail` | `updateUserMail` | public |
-| POST | `/user/mail/verify` | `verifyMail` | public |
-| PUT | `/user/name` | `updateUserName` | public |
-| GET | `/user/profile` | `getProfile` | public |
-| GET | `/user/ref` | `getRefInfo` | public |
-| GET | `/user/ref` | `getRef` | public |
-| PUT | `/user/ref` | `updateRefAsset` | public |
-| PUT | `/user/specialCodes` | `addSpecialCode` | public |
-| GET | `/user/volumes` | `getVolumes` | hidden |
-
-### WalletController
-
-`src/subdomains/generic/user/models/wallet/wallet.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/wallet` | `createWallet` | public |
-| PUT | `/wallet/:id` | `updateWallet` | hidden |
-
-### DepositController
-
-`src/subdomains/supporting/address-pool/deposit/deposit.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/deposit` | `createDeposits` | public |
-| PUT | `/deposit/lightningWebhook` | `updateLightningDepositWebhook` | hidden |
-
-### BalanceController
-
-`src/subdomains/supporting/balance/controllers/balance.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/balance/pdf` | `getBalancePdf` | public |
-| GET | `/balance/pdf/blockchains` | `getSupportedBlockchains` | public |
-
-### BankTxRepeatController
-
-`src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/bankTxRepeat/:id` | `update` | public |
-
-### BankTxReturnController
-
-`src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/bankTxReturn/:id` | `update` | public |
-| POST | `/bankTxReturn/:id/refund` | `refundBuyCrypto` | hidden |
-
-### BankTxController
-
-`src/subdomains/supporting/bank-tx/bank-tx/bank-tx.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/bankTx` | `uploadSepaFiles` | public |
-| PUT | `/bankTx/:id` | `update` | hidden |
-| DELETE | `/bankTx/:id/buyCrypto` | `reset` | hidden |
-
-### BankAccountController
-
-`src/subdomains/supporting/bank/bank-account/bank-account.controller.ts` — 5 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/bankAccount` | `AuthGuard` | public |
-| POST | `/bankAccount` | `createBankAccount` | public |
-| PUT | `/bankAccount/:id` | `updateBankAccount` | public |
-| POST | `/bankAccount/bic` | `addBankAccountBic` | hidden |
-| POST | `/bankAccount/iban` | `addBankAccountIban` | public |
-
-### BankController
-
-`src/subdomains/supporting/bank/bank/bank.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/bank` | `getAllBanks` | public |
-| PUT | `/bank/receiveIban` | `checkReceiveIban` | public |
-
-### DashboardFinancialController
-
-`src/subdomains/supporting/dashboard/dashboard-financial.controller.ts` — 5 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/dashboard/financial/changes` | `getFinancialChanges` | hidden |
-| GET | `/dashboard/financial/changes/latest` | `getLatestChanges` | hidden |
-| GET | `/dashboard/financial/latest` | `getLatestBalance` | hidden |
-| GET | `/dashboard/financial/log` | `getFinancialLog` | public |
-| GET | `/dashboard/financial/ref-recipients` | `getRefRewardRecipients` | hidden |
-
-### DashboardReconciliationController
-
-`src/subdomains/supporting/dashboard/dashboard-reconciliation.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/dashboard/financial/reconciliation` | `getReconciliation` | public |
-| GET | `/dashboard/financial/reconciliation/overview` | `getOverview` | hidden |
-
-### DexController
-
-`src/subdomains/supporting/dex/dex.controller.ts` — 7 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/dex/check-liquidity` | `checkLiquidity` | public |
-| PUT | `/dex/complete-orders` | `completeOrders` | hidden |
-| GET | `/dex/liquidity-after-purchase` | `fetchTargetLiquidityAfterPurchase` | hidden |
-| POST | `/dex/purchase-liquidity` | `purchaseLiquidity` | hidden |
-| POST | `/dex/reserve-liquidity` | `reserveLiquidity` | hidden |
-| GET | `/dex/transfer-completion` | `checkTransferCompletion` | hidden |
-| POST | `/dex/transfer-liquidity` | `transferLiquidity` | hidden |
-
-### FiatOutputController
-
-`src/subdomains/supporting/fiat-output/fiat-output.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/fiatOutput` | `create` | public |
-| PUT | `/fiatOutput/:id` | `update` | hidden |
-
-### LogController
-
-`src/subdomains/supporting/log/log.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/log` | `create` | public |
-| PUT | `/log/:id` | `update` | hidden |
-| PUT | `/log/financial/validity` | `setFinancialLogValidity` | hidden |
-
-### MrosController
-
-`src/subdomains/supporting/mros/mros.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/mros` | `getAll` | hidden |
-| POST | `/mros` | `createMros` | public |
-| GET | `/mros/:id` | `getById` | hidden |
-| PUT | `/mros/:id` | `updateMros` | hidden |
-
-### NotificationController
-
-`src/subdomains/supporting/notification/notification.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/notification/send-mail` | `sendMail` | public |
-
-### PayInWebhookController
-
-`src/subdomains/supporting/payin/controllers/payin-webhook.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/payIn/lnurlpDeposit/:uniqueId` | `deposit` | public |
-| POST | `/payIn/lnurlpPayment/:uniqueId` | `payment` | hidden |
-
-### PayInController
-
-`src/subdomains/supporting/payin/controllers/payin.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/payIn` | `createPayIn` | public |
-| POST | `/payIn/poll` | `pollAddress` | hidden |
-| POST | `/payIn/retry` | `retryUncertainSend` | hidden |
-
-### FeeController
-
-`src/subdomains/supporting/payment/controllers/fee.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/fee` | `createFee` | public |
-
-### SpecialExternalAccountController
-
-`src/subdomains/supporting/payment/controllers/special-external-account.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/specialExternalAccount` | `createSpecialExternalAccount` | public |
-
-### TransactionAdminController
-
-`src/subdomains/supporting/payment/controllers/transaction-admin.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/transaction/admin/:id` | `updateTransaction` | public |
-| POST | `/transaction/admin/:id/stop` | `stopTransaction` | hidden |
-| POST | `/transaction/admin/:txId/riskAssessment` | `createRiskAssessment` | hidden |
-| PUT | `/transaction/admin/:txId/riskAssessment/:id` | `updateRiskAssessment` | hidden |
-
-### PayoutController
-
-`src/subdomains/supporting/payout/payout.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| POST | `/payout` | `doPayout` | public |
-| GET | `/payout/completion` | `checkOrderCompletion` | hidden |
-| POST | `/payout/retry` | `retryUncertainPayout` | hidden |
-| POST | `/payout/speedup` | `speedupTransaction` | hidden |
-
-### PricingController
-
-`src/subdomains/supporting/pricing/pricing.controller.ts` — 3 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/pricing` | `getRawPrice` | hidden |
-| PUT | `/pricing` | `updatePrices` | hidden |
-| GET | `/pricing/price` | `getPrice` | public |
-
-### RealUnitComplianceController
-
-`src/subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` — 5 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/realunit/compliance/customers` | `searchCustomers` | public |
-| GET | `/realunit/compliance/customers/:id` | `getCustomer` | hidden |
-| GET | `/realunit/compliance/customers/:id/dossier` | `downloadCustomerDossier` | hidden |
-| GET | `/realunit/compliance/customers/:id/files` | `getCustomerFiles` | hidden |
-| GET | `/realunit/compliance/customers/:id/files/:uid` | `downloadCustomerFile` | hidden |
-
-### RealUnitLegalController
-
-`src/subdomains/supporting/realunit/controllers/realunit-legal.controller.ts` — 2 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/realunit/legal` | `getLegal` | public |
-| PUT | `/realunit/legal` | `acceptLegal` | public |
-
-### RealUnitSupportController
-
-`src/subdomains/supporting/realunit/controllers/realunit-support.controller.ts` — 10 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/realunit/support/:id` | `updateSupportIssue` | hidden |
-| GET | `/realunit/support/:id/data` | `getIssueData` | hidden |
-| POST | `/realunit/support/:id/message` | `createSupportMessage` | hidden |
-| GET | `/realunit/support/:id/message/:messageId/file` | `getFile` | hidden |
-| GET | `/realunit/support/:id/messages` | `getIssueMessages` | hidden |
-| GET | `/realunit/support/activity` | `getSupportIssueActivity` | hidden |
-| GET | `/realunit/support/clerks` | `getRealUnitSupportClerks` | hidden |
-| GET | `/realunit/support/counts` | `getSupportIssueCounts` | hidden |
-| GET | `/realunit/support/list` | `getSupportIssueList` | public |
-| GET | `/realunit/support/statistics` | `getSupportIssueStatistics` | hidden |
-
-### RealUnitController
-
-`src/subdomains/supporting/realunit/controllers/realunit.controller.ts` — 47 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/realunit/account/:address` | `getAccountSummary` | public |
-| GET | `/realunit/account/:address/history` | `getAccountHistory` | public |
-| GET | `/realunit/admin/quotes` | `getAdminQuotes` | public |
-| PUT | `/realunit/admin/quotes/:id/confirm-payment` | `confirmPaymentReceived` | hidden |
-| PUT | `/realunit/admin/registration/:id/forward` | `forwardRegistration` | hidden |
-| GET | `/realunit/admin/transactions` | `getAdminTransactions` | hidden |
-| POST | `/realunit/balance/pdf` | `getBalancePdf` | public |
-| GET | `/realunit/brokerbot/buyPrice` | `getBrokerbotBuyPrice` | public |
-| GET | `/realunit/brokerbot/buyShares` | `getBrokerbotBuyShares` | public |
-| GET | `/realunit/brokerbot/info` | `getBrokerbotInfo` | public |
-| GET | `/realunit/brokerbot/price` | `getBrokerbotPrice` | public |
-| GET | `/realunit/brokerbot/sellPrice` | `getBrokerbotSellPrice` | public |
-| GET | `/realunit/brokerbot/sellShares` | `getBrokerbotSellShares` | public |
-| PUT | `/realunit/buy` | `getPaymentInfo` | public |
-| PUT | `/realunit/buy/:id/confirm` | `confirmBuy` | public |
-| GET | `/realunit/confirm-aktionariat` | `confirmAktionariat` | public |
-| GET | `/realunit/holders` | `getHolders` | public |
-| GET | `/realunit/pay/:id/status` | `getOcpPayStatus` | public |
-| PUT | `/realunit/pay/submit` | `submitOcpPay` | public |
-| PUT | `/realunit/pay/unsigned-transaction` | `getOcpPayUnsignedTransaction` | public |
-| GET | `/realunit/price` | `getRealUnitPrice` | public |
-| GET | `/realunit/price/history` | `getHistoricalPrice` | public |
-| GET | `/realunit/quote/buyPrice` | `getQuoteBuyPrice` | public |
-| GET | `/realunit/quote/buyShares` | `getQuoteBuyShares` | public |
-| GET | `/realunit/quote/info` | `getQuoteInfo` | public |
-| GET | `/realunit/quote/price` | `getQuotePrice` | public |
-| GET | `/realunit/quote/sellPrice` | `getQuoteSellPrice` | public |
-| GET | `/realunit/quote/sellShares` | `getQuoteSellShares` | public |
-| POST | `/realunit/register/complete` | `completeRegistration` | public |
-| GET | `/realunit/register/date` | `getRegistrationDate` | public |
-| POST | `/realunit/register/email` | `registerEmail` | public |
-| GET | `/realunit/register/status` | `isRegistered` | public |
-| POST | `/realunit/register/wallet` | `completeRegistrationForWalletAddress` | public |
-| GET | `/realunit/registration` | `getRegistrationInfo` | public |
-| PUT | `/realunit/sell` | `getSellPaymentInfo` | public |
-| PUT | `/realunit/sell/:id/broadcast` | `broadcastSellTransaction` | public |
-| PUT | `/realunit/sell/:id/confirm` | `confirmSell` | public |
-| PUT | `/realunit/sell/:id/unsigned-transactions` | `getSellUnsignedTransactions` | public |
-| PUT | `/realunit/swap` | `getSwapPaymentInfo` | public |
-| PUT | `/realunit/swap/:id/broadcast` | `broadcastSwapTransaction` | public |
-| PUT | `/realunit/swap/:id/unsigned-transaction` | `getSwapUnsignedTransaction` | public |
-| GET | `/realunit/tokenInfo` | `getTokenInfo` | public |
-| POST | `/realunit/transactions/receipt/multi` | `generateHistoryMultiReceipt` | public |
-| POST | `/realunit/transactions/receipt/single` | `generateHistoryReceipt` | public |
-| PUT | `/realunit/transfer` | `prepareTransfer` | public |
-| PUT | `/realunit/transfer/:id/confirm` | `confirmTransfer` | public |
-| GET | `/realunit/wallet/status` | `getWalletStatus` | public |
-
-### RecallController
-
-`src/subdomains/supporting/recall/recall.controller.ts` — 4 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/recall` | `getAll` | hidden |
-| POST | `/recall` | `createRecall` | public |
-| GET | `/recall/:id` | `getById` | hidden |
-| PUT | `/recall/:id` | `updateRecall` | hidden |
-
-### LimitRequestController
-
-`src/subdomains/supporting/support-issue/limit-request.controller.ts` — 1 endpoint
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| PUT | `/limitRequest/:id` | `updateUserData` | public |
-
-### SupportIssueController
-
-`src/subdomains/supporting/support-issue/support-issue.controller.ts` — 18 endpoints
-
-| Method | Path | Handler | Swagger |
-| ------ | ---- | ------- | ------- |
-| GET | `/support/issue` | `getIssues` | public |
-| POST | `/support/issue` | `createIssue` | public |
-| GET | `/support/issue/:id` | `getIssue` | hidden |
-| PUT | `/support/issue/:id` | `updateSupportIssue` | public |
-| PUT | `/support/issue/:id/close` | `closeIssue` | public |
-| GET | `/support/issue/:id/data` | `getIssueData` | hidden |
-| POST | `/support/issue/:id/message` | `createSupportMessage` | hidden |
-| GET | `/support/issue/:id/message/:messageId/file` | `getFile` | public |
-| GET | `/support/issue/activity` | `getSupportIssueActivity` | hidden |
-| GET | `/support/issue/clerk` | `getSupportIssueClerk` | hidden |
-| GET | `/support/issue/clerks` | `getSupportIssueClerks` | hidden |
-| GET | `/support/issue/counts` | `getSupportIssueCounts` | hidden |
-| POST | `/support/issue/escalation/telegram-bind` | `bindEscalationChat` | hidden |
-| GET | `/support/issue/escalation/telegram-chats` | `getEscalationChats` | hidden |
-| POST | `/support/issue/escalation/telegram-test` | `testEscalationChat` | hidden |
-| GET | `/support/issue/list` | `getSupportIssueList` | public |
-| GET | `/support/issue/statistics` | `getSupportIssueStatistics` | hidden |
-| POST | `/support/issue/support` | `createIssueBySupport` | public |
-
+| Method | Path | Swagger | Eager | Cols | Fields | Ratio | Handler | File |
+| ------ | ---- | ------- | ----- | ---: | -----: | ----: | ------- | ---- |
+| GET | `/` | public | no | — | — | — | `AppController.home` | `app.controller.ts` |
+| POST | `/CustodyProvider` | public | ? | — | — | — | `CustodyProviderController.createCustodyProvider` | `subdomains/generic/user/models/custody-provider/custody-provider.controller.ts` |
+| PUT | `/CustodyProvider/:id` | hidden | yes | 6 | — | — | `CustodyProviderController.updateCustodyProvider` | `subdomains/generic/user/models/custody-provider/custody-provider.controller.ts` |
+| POST | `/admin/lightning/rotate-webhook-secrets` | hidden | no | — | — | — | `AdminController.rotateLightningWebhookSecrets` | `subdomains/generic/admin/admin.controller.ts` |
+| POST | `/admin/mail` | public | ? | — | — | — | `AdminController.sendMail` | `subdomains/generic/admin/admin.controller.ts` |
+| POST | `/admin/payout` | hidden | yes | 156 | — | — | `AdminController.payout` | `subdomains/generic/admin/admin.controller.ts` |
+| POST | `/admin/sendLetter` | hidden | no | — | — | — | `AdminController.sendLetter` | `subdomains/generic/admin/admin.controller.ts` |
+| POST | `/alchemy/addressWebhook` | public | ? | — | — | — | `AlchemyController.addressWebhook` | `integration/alchemy/controllers/alchemy.controller.ts` |
+| GET | `/alchemy/addresses/:webhookId` | public | no | — | — | — | `AlchemyController.addresses` | `integration/alchemy/controllers/alchemy.controller.ts` |
+| GET | `/app` | public | yes | 6 | — | — | `AppController.createRefNew` | `app.controller.ts` |
+| GET | `/app/:app` | hidden | yes | 6 | — | — | `AppController.redirectToStore` | `app.controller.ts` |
+| GET | `/app/advertisements` | hidden | no | — | — | — | `AppController.getAds` | `app.controller.ts` |
+| GET | `/app/announcements` | public | no | — | 3 | — | `AppController.getAnnouncements` | `app.controller.ts` |
+| GET | `/app/settings/flags` | hidden | no | — | 7 | — | `AppController.getFlags` | `app.controller.ts` |
+| GET | `/asset` | public | no | — | 3 | — | `AssetController.getAllAsset` | `shared/models/asset/asset.controller.ts` |
+| PUT | `/asset/:id` | public | yes | 33 | — | — | `AssetController.updateAsset` | `shared/models/asset/asset.controller.ts` |
+| POST | `/auth` | public | ? | — | 1 | — | `AuthController.authenticate` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/2fa` | hidden | no | — | — | — | `AuthController.check2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth/2fa` | public | no | — | 3 | — | `AuthController.setup2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth/2fa/verify` | public | yes | 253 | — | — | `AuthController.verify2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/alby` | hidden | ? | — | — | — | `AuthController.signInWithAlby` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/alby/redirect/:id` | hidden | ? | — | — | — | `AuthController.redirectAlby` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/challenge` | hidden | yes | 20 | 1 | 20× | `AuthController.companyChallenge` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth/mail` | hidden | yes | 20 | — | — | `AuthController.signInByMail` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/mail/confirm` | public | yes | 470 | 2 | 235× | `AuthController.executeMerge` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/mail/redirect` | hidden | yes | 253 | 1 | 253× | `AuthController.redirectMail` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth/signIn` | hidden | yes | 23 | 1 | 23× | `AuthController.signIn` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/signMessage` | public | no | — | 1 | — | `AuthController.getSignMessage` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth/signUp` | public | no | — | 1 | — | `AuthController.signUp` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/verifySignature` | public | yes | 6 | 1 | 6× | `AuthController.verifySignMessage` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/balance/pdf` | public | no | — | 1 | — | `BalanceController.getBalancePdf` | `subdomains/supporting/balance/controllers/balance.controller.ts` |
+| GET | `/balance/pdf/blockchains` | public | no | — | — | — | `BalanceController.getSupportedBlockchains` | `subdomains/supporting/balance/controllers/balance.controller.ts` |
+| GET | `/bank` | public | yes | 13 | 4 | 3× | `BankController.getAllBanks` | `subdomains/supporting/bank/bank/bank.controller.ts` |
+| PUT | `/bank/receiveIban` | public | yes | 101 | 1 | 101× | `BankController.checkReceiveIban` | `subdomains/supporting/bank/bank/bank.controller.ts` |
+| POST | `/bank/yapeal/webhook` | public | no | — | — | — | `YapealWebhookController.handleYapealWebhook` | `integration/bank/controllers/yapeal-webhook.controller.ts` |
+| GET | `/bankAccount` | public | yes | 261 | 14 | 19× | `BankAccountController.AuthGuard` | `subdomains/supporting/bank/bank-account/bank-account.controller.ts` |
+| POST | `/bankAccount` | public | yes | 253 | 14 | 18× | `BankAccountController.createBankAccount` | `subdomains/supporting/bank/bank-account/bank-account.controller.ts` |
+| PUT | `/bankAccount/:id` | public | yes | 261 | 14 | 19× | `BankAccountController.updateBankAccount` | `subdomains/supporting/bank/bank-account/bank-account.controller.ts` |
+| POST | `/bankAccount/bic` | hidden | yes | 26 | — | — | `BankAccountController.addBankAccountBic` | `subdomains/supporting/bank/bank-account/bank-account.controller.ts` |
+| POST | `/bankAccount/iban` | public | yes | 26 | — | — | `BankAccountController.addBankAccountIban` | `subdomains/supporting/bank/bank-account/bank-account.controller.ts` |
+| PUT | `/bankData/:id` | public | yes | 31 | — | — | `BankDataController.updateBankData` | `subdomains/generic/user/models/bank-data/bank-data.controller.ts` |
+| PUT | `/bankData/:id/nameCheck` | hidden | yes | 261 | — | — | `BankDataController.doNameCheck` | `subdomains/generic/user/models/bank-data/bank-data.controller.ts` |
+| POST | `/bankTx` | public | yes | 61 | — | — | `BankTxController.uploadSepaFiles` | `subdomains/supporting/bank-tx/bank-tx/bank-tx.controller.ts` |
+| PUT | `/bankTx/:id` | hidden | yes | 1051 | — | — | `BankTxController.update` | `subdomains/supporting/bank-tx/bank-tx/bank-tx.controller.ts` |
+| DELETE | `/bankTx/:id/buyCrypto` | hidden | yes | 247 | — | — | `BankTxController.reset` | `subdomains/supporting/bank-tx/bank-tx/bank-tx.controller.ts` |
+| PUT | `/bankTxRepeat/:id` | public | yes | 240 | — | — | `BankTxRepeatController.update` | `subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.controller.ts` |
+| PUT | `/bankTxReturn/:id` | public | yes | 438 | — | — | `BankTxReturnController.update` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.controller.ts` |
+| POST | `/bankTxReturn/:id/refund` | hidden | yes | 727 | — | — | `BankTxReturnController.refundBuyCrypto` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.controller.ts` |
+| POST | `/blockchain/balances` | public | yes | 33 | 4 | 8× | `BlockchainApiController.getBalances` | `integration/blockchain/api/controllers/blockchain-api.controller.ts` |
+| POST | `/blockchain/broadcast` | public | no | — | 1 | — | `BlockchainApiController.broadcastTransaction` | `integration/blockchain/api/controllers/blockchain-api.controller.ts` |
+| POST | `/blockchain/transaction` | public | yes | 33 | 4 | 8× | `BlockchainApiController.createTransaction` | `integration/blockchain/api/controllers/blockchain-api.controller.ts` |
+| GET | `/buy` | public | yes | 56 | 30 | 2× | `BuyController.getAllBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| POST | `/buy` | hidden | yes | 364 | 30 | 12× | `BuyController.createBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| GET | `/buy/:id` | hidden | yes | 134 | 30 | 4× | `BuyController.getBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| PUT | `/buy/:id` | public | yes | 56 | 30 | 2× | `BuyController.updateBuyRoute` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| GET | `/buy/:id/history` | hidden | yes | 497 | — | — | `BuyController.getBuyRouteHistory` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| PUT | `/buy/paymentInfos` | public | no | — | 69 | — | `BuyController.createBuyWithPaymentInfo` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| PUT | `/buy/paymentInfos/:id/confirm` | public | yes | 504 | — | — | `BuyController.confirmBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| PUT | `/buy/paymentInfos/:id/invoice` | public | yes | 504 | 1 | 504× | `BuyController.generateInvoicePDF` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| GET | `/buy/personalIban` | public | yes | 101 | 9 | 11× | `BuyController.getAllPersonalIbans` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| POST | `/buy/personalIban` | public | no | — | 9 | — | `BuyController.AuthGuard` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| PUT | `/buy/quote` | hidden | yes | 23 | 29 | 1× | `BuyController.getBuyQuote` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| PUT | `/buyCrypto/:id` | hidden | yes | 1090 | — | — | `BuyCryptoController.update` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| PUT | `/buyCrypto/:id/amlCheck` | hidden | yes | 363 | — | — | `BuyCryptoController.manualPassAmlCheck` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| DELETE | `/buyCrypto/:id/amlCheck` | hidden | yes | 422 | — | — | `BuyCryptoController.resetAmlCheck` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| POST | `/buyCrypto/:id/refund` | hidden | yes | 1051 | — | — | `BuyCryptoController.refundBuyCrypto` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| POST | `/buyCrypto/:id/scorechain` | hidden | yes | 717 | — | — | `BuyCryptoController.retriggerScorechain` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| POST | `/buyCrypto/:id/webhook` | public | yes | 844 | — | — | `BuyCryptoController.triggerWebhook` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| PUT | `/buyCrypto/refVolumes` | hidden | no | — | — | — | `BuyCryptoController.updateRefVolumes` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| PUT | `/buyCrypto/volumes` | hidden | yes | 487 | — | — | `BuyCryptoController.updateBuyVolumes` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| PUT | `/buyFiat/:id` | hidden | yes | 1033 | — | — | `BuyFiatController.update` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| PUT | `/buyFiat/:id/amlCheck` | hidden | yes | 201 | — | — | `BuyFiatController.manualPassAmlCheck` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| DELETE | `/buyFiat/:id/amlCheck` | hidden | yes | 490 | — | — | `BuyFiatController.resetAmlCheck` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| POST | `/buyFiat/:id/refund` | hidden | yes | 803 | — | — | `BuyFiatController.refundBuyFiat` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| POST | `/buyFiat/:id/scorechain` | hidden | yes | 517 | — | — | `BuyFiatController.retriggerScorechain` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| POST | `/buyFiat/:id/webhook` | public | yes | 644 | — | — | `BuyFiatController.triggerWebhook` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| PUT | `/buyFiat/refVolumes` | hidden | no | — | — | — | `BuyFiatController.updateRefVolumes` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| PUT | `/buyFiat/volumes` | hidden | yes | 201 | — | — | `BuyFiatController.updateVolumes` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| GET | `/country` | public | yes | 23 | 12 | 2× | `CountryController.getAllCountry` | `shared/models/country/country.controller.ts` |
+| GET | `/cryptoRoute` | public | no | — | — | — | `CryptoRouteController.getAllCrypto` | `subdomains/core/buy-crypto/routes/swap/crypto-route.controller.ts` |
+| POST | `/cryptoRoute` | hidden | no | — | — | — | `CryptoRouteController.createCrypto` | `subdomains/core/buy-crypto/routes/swap/crypto-route.controller.ts` |
+| GET | `/cryptoRoute/:id` | hidden | no | — | — | — | `CryptoRouteController.getCrypto` | `subdomains/core/buy-crypto/routes/swap/crypto-route.controller.ts` |
+| PUT | `/cryptoRoute/:id` | hidden | no | — | — | — | `CryptoRouteController.updateCryptoRoute` | `subdomains/core/buy-crypto/routes/swap/crypto-route.controller.ts` |
+| GET | `/cryptoRoute/:id/history` | hidden | no | — | — | — | `CryptoRouteController.getCryptoRouteHistory` | `subdomains/core/buy-crypto/routes/swap/crypto-route.controller.ts` |
+| GET | `/custody` | public | yes | 253 | 12 | 21× | `CustodyController.getUserCustodyBalance` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| POST | `/custody` | public | yes | 20 | 1 | 20× | `CustodyController.createCustodyAccount` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | `/custody/account` | public | yes | 253 | 8 | 32× | `CustodyAccountController.getCustodyAccounts` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| POST | `/custody/account` | public | no | — | 8 | — | `CustodyAccountController.createCustodyAccount` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| GET | `/custody/account/:id` | public | yes | 253 | 8 | 32× | `CustodyAccountController.getCustodyAccount` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| PUT | `/custody/account/:id` | public | ? | — | 8 | — | `CustodyAccountController.updateCustodyAccount` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| GET | `/custody/account/:id/access` | public | yes | 238 | 4 | 60× | `CustodyAccountController.getAccessList` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| POST | `/custody/account/:id/access` | public | no | — | 4 | — | `CustodyAccountController.grantAccess` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| PUT | `/custody/account/:id/access/:accessId` | public | no | — | 4 | — | `CustodyAccountController.updateAccess` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| DELETE | `/custody/account/:id/access/:accessId` | public | no | — | — | — | `CustodyAccountController.revokeAccess` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| GET | `/custody/account/:id/balance` | public | yes | 253 | 12 | 21× | `CustodyAccountController.getAccountBalance` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| GET | `/custody/account/:id/history` | public | yes | 253 | 6 | 42× | `CustodyAccountController.getAccountHistory` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| GET | `/custody/account/:id/order` | public | ? | — | 8 | — | `CustodyAccountController.getAccountOrders` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| GET | `/custody/account/:id/pdf` | public | yes | 253 | 1 | 253× | `CustodyAccountController.getAccountPdf` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
+| POST | `/custody/admin/order/:id/approve` | public | yes | 217 | — | — | `CustodyAdminController.approveOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | `/custody/admin/orders` | public | no | — | — | — | `CustodyAdminController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| PUT | `/custody/admin/user/:id/balance` | public | yes | 118 | — | — | `CustodyAdminController.updateUserBalance` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | `/custody/history` | public | yes | 253 | 6 | 42× | `CustodyController.getUserCustodyHistory` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | `/custody/order` | public | no | — | 8 | — | `CustodyController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| POST | `/custody/order` | public | yes | 377 | 50 | 8× | `CustodyController.createOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| POST | `/custody/order/:id/confirm` | public | yes | 525 | — | — | `CustodyController.confirmOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | `/custody/pdf` | public | yes | 253 | 1 | 253× | `CustodyController.getCustodyPdf` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | `/dashboard/accounting/ledger/accounts` | public | yes | 54 | 13 | 4× | `LedgerController.getAccounts` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
+| GET | `/dashboard/accounting/ledger/accounts/:accountId/legs` | hidden | yes | 8 | 24 | 0× | `LedgerController.getAccountDetail` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
+| GET | `/dashboard/accounting/ledger/equity-comparison` | hidden | no | — | 10 | — | `LedgerController.getEquityComparison` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
+| GET | `/dashboard/accounting/ledger/margin` | hidden | no | — | 11 | — | `LedgerController.getMargin` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
+| GET | `/dashboard/accounting/ledger/reconciliation` | hidden | yes | 54 | 11 | 5× | `LedgerController.getReconStatus` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
+| GET | `/dashboard/accounting/ledger/suspense` | hidden | no | — | 12 | — | `LedgerController.getSuspense` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
+| GET | `/dashboard/financial/changes` | hidden | no | — | 5 | — | `DashboardFinancialController.getFinancialChanges` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
+| GET | `/dashboard/financial/changes/latest` | hidden | no | — | 4 | — | `DashboardFinancialController.getLatestChanges` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
+| GET | `/dashboard/financial/latest` | hidden | no | — | 8 | — | `DashboardFinancialController.getLatestBalance` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
+| GET | `/dashboard/financial/log` | public | no | — | 8 | — | `DashboardFinancialController.getFinancialLog` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
+| GET | `/dashboard/financial/reconciliation` | public | yes | 46 | — | — | `DashboardReconciliationController.getReconciliation` | `subdomains/supporting/dashboard/dashboard-reconciliation.controller.ts` |
+| GET | `/dashboard/financial/reconciliation/overview` | hidden | yes | 33 | — | — | `DashboardReconciliationController.getOverview` | `subdomains/supporting/dashboard/dashboard-reconciliation.controller.ts` |
+| GET | `/dashboard/financial/ref-recipients` | hidden | no | — | 3 | — | `DashboardFinancialController.getRefRewardRecipients` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
+| POST | `/deposit` | public | no | — | — | — | `DepositController.createDeposits` | `subdomains/supporting/address-pool/deposit/deposit.controller.ts` |
+| PUT | `/deposit/lightningWebhook` | hidden | no | — | — | — | `DepositController.updateLightningDepositWebhook` | `subdomains/supporting/address-pool/deposit/deposit.controller.ts` |
+| GET | `/deuro/info` | public | yes | 11 | — | — | `DEuroController.getInfo` | `integration/blockchain/deuro/controllers/deuro.controller.ts` |
+| GET | `/dex/check-liquidity` | public | ? | — | — | — | `DexController.checkLiquidity` | `subdomains/supporting/dex/dex.controller.ts` |
+| PUT | `/dex/complete-orders` | hidden | yes | 156 | — | — | `DexController.completeOrders` | `subdomains/supporting/dex/dex.controller.ts` |
+| GET | `/dex/liquidity-after-purchase` | hidden | yes | 156 | — | — | `DexController.fetchTargetLiquidityAfterPurchase` | `subdomains/supporting/dex/dex.controller.ts` |
+| POST | `/dex/purchase-liquidity` | hidden | ? | — | — | — | `DexController.purchaseLiquidity` | `subdomains/supporting/dex/dex.controller.ts` |
+| POST | `/dex/reserve-liquidity` | hidden | ? | — | — | — | `DexController.reserveLiquidity` | `subdomains/supporting/dex/dex.controller.ts` |
+| GET | `/dex/transfer-completion` | hidden | ? | — | — | — | `DexController.checkTransferCompletion` | `subdomains/supporting/dex/dex.controller.ts` |
+| POST | `/dex/transfer-liquidity` | hidden | ? | — | — | — | `DexController.transferLiquidity` | `subdomains/supporting/dex/dex.controller.ts` |
+| GET | `/exchange/:exchange/balances` | public | no | — | — | — | `ExchangeController.getBalance` | `integration/exchange/controllers/exchange.controller.ts` |
+| GET | `/exchange/:exchange/price` | hidden | no | — | — | — | `ExchangeController.getPrice` | `integration/exchange/controllers/exchange.controller.ts` |
+| PUT | `/exchange/:exchange/sync` | hidden | yes | 33 | — | — | `ExchangeController.syncExchange` | `integration/exchange/controllers/exchange.controller.ts` |
+| GET | `/exchange/:exchange/trade` | hidden | no | — | — | — | `ExchangeController.getTrades` | `integration/exchange/controllers/exchange.controller.ts` |
+| POST | `/exchange/:exchange/trade` | hidden | no | — | — | — | `ExchangeController.trade` | `integration/exchange/controllers/exchange.controller.ts` |
+| GET | `/exchange/:exchange/trade/history` | hidden | no | — | — | — | `ExchangeController.getTradeHistory` | `integration/exchange/controllers/exchange.controller.ts` |
+| POST | `/exchange/:exchange/withdraw` | hidden | no | — | — | — | `ExchangeController.withdrawFunds` | `integration/exchange/controllers/exchange.controller.ts` |
+| GET | `/exchange/:exchange/withdraw/:id` | public | no | — | — | — | `ExchangeController.getWithdraw` | `integration/exchange/controllers/exchange.controller.ts` |
+| GET | `/exchange/trade/:id` | hidden | no | — | — | — | `ExchangeController.getTrade` | `integration/exchange/controllers/exchange.controller.ts` |
+| POST | `/faucet` | public | yes | 33 | 23 | 1× | `FaucetRequestController.faucetRequest` | `subdomains/core/faucet-request/controller/faucet-request.controller.ts` |
+| POST | `/fee` | public | yes | 65 | — | — | `FeeController.createFee` | `subdomains/supporting/payment/controllers/fee.controller.ts` |
+| GET | `/fiat` | public | yes | 23 | 4 | 6× | `FiatController.getAllFiat` | `shared/models/fiat/fiat.controller.ts` |
+| POST | `/fiatOutput` | public | yes | 377 | — | — | `FiatOutputController.create` | `subdomains/supporting/fiat-output/fiat-output.controller.ts` |
+| PUT | `/fiatOutput/:id` | hidden | yes | 59 | — | — | `FiatOutputController.update` | `subdomains/supporting/fiat-output/fiat-output.controller.ts` |
+| GET | `/frankencoin/info` | public | yes | 11 | — | — | `FrankencoinController.getInfo` | `integration/blockchain/frankencoin/controllers/frankencoin.controller.ts` |
+| POST | `/gs/db` | public | ? | — | — | — | `GsController.getDbData` | `subdomains/generic/gs/gs.controller.ts` |
+| POST | `/gs/db/custom` | hidden | ? | — | — | — | `GsController.getExtendedData` | `subdomains/generic/gs/gs.controller.ts` |
+| POST | `/gs/debug` | hidden | ? | — | — | — | `GsController.executeDebugQuery` | `subdomains/generic/gs/gs.controller.ts` |
+| POST | `/gs/evm/bridgeApproval` | hidden | no | — | — | — | `GsEvmController.approveBridge` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/coinTransaction` | hidden | no | — | — | — | `GsEvmController.sendCoinTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/contractApproval` | hidden | no | — | — | — | `GsEvmController.approveContract` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/contractTransaction` | hidden | no | — | — | — | `GsEvmController.sendContractTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/rawTransaction` | public | no | — | — | — | `GsEvmController.sendRawTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/tokenTransaction` | hidden | yes | 33 | — | — | `GsEvmController.sendTokenTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| GET | `/gs/support` | hidden | yes | 907 | — | — | `GsController.getSupportData` | `subdomains/generic/gs/gs.controller.ts` |
+| GET | `/health` | public | no | — | — | — | `HealthController.getHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | `/health/banking` | public | no | — | — | — | `HealthController.getBankingHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | `/health/external` | public | no | — | — | — | `HealthController.getExternalHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | `/health/liquidity` | public | no | — | — | — | `HealthController.getLiquidityHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | `/health/nodes` | public | no | — | — | — | `HealthController.getNodeHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | `/health/payment` | public | no | — | — | — | `HealthController.getPaymentHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | `/history` | public | no | — | 35 | — | `HistoryController.getHistory` | `subdomains/core/history/controllers/history.controller.ts` |
+| GET | `/history/:exportType` | hidden | yes | 331 | 1 | 331× | `HistoryController.getApiHistory` | `subdomains/core/history/controllers/history.controller.ts` |
+| GET | `/history/csv` | hidden | no | — | — | — | `HistoryController.getCsv` | `subdomains/core/history/controllers/history.controller.ts` |
+| POST | `/history/csv` | public | no | — | — | — | `HistoryController.createCsv` | `subdomains/core/history/controllers/history.controller.ts` |
+| GET | `/ikna/bfs/:id` | hidden | no | — | — | — | `IknaController.getBfsResult` | `integration/ikna/controllers/ikna.controller.ts` |
+| POST | `/ikna/bfs/address` | public | no | — | — | — | `IknaController.createBfsAddressRequest` | `integration/ikna/controllers/ikna.controller.ts` |
+| GET | `/ikna/tag` | hidden | no | — | — | — | `IknaController.getIknaAddressTag` | `integration/ikna/controllers/ikna.controller.ts` |
+| GET | `/juice/info` | public | yes | 11 | — | — | `JuiceController.getInfo` | `integration/blockchain/juice/controllers/juice.controller.ts` |
+| GET | `/kyc` | public | ? | — | 13 | — | `KycController.getKycLevel` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| GET | `/kyc` | public | no | — | — | — | `KycController.getKycProgressV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| POST | `/kyc` | public | no | — | — | — | `KycController.requestKycV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| PUT | `/kyc` | public | ? | — | 5 | — | `KycController.continueKyc` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| GET | `/kyc/2fa` | public | ? | — | — | — | `KycController.check2fa` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| POST | `/kyc/2fa` | public | ? | — | 3 | — | `KycController.start2fa` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| POST | `/kyc/2fa/verify` | public | ? | — | — | — | `KycController.verify2fa` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| GET | `/kyc/:code` | public | no | — | — | — | `KycController.getKycProgressByCodeV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| POST | `/kyc/:code` | public | no | — | — | — | `KycController.requestKycByCodeV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| GET | `/kyc/:code/countries` | public | yes | 23 | 12 | 2× | `KycController.getKycCountriesByCodeV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| GET | `/kyc/:id/documents` | public | yes | 78 | 2 | 39× | `KycClientController.getKycFilesV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| GET | `/kyc/:id/documents/:type` | public | yes | 328 | — | — | `KycClientController.getKycFileV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| GET | `/kyc/:step` | public | ? | — | 5 | — | `KycController.initiateStep` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/admin/blacklist/ip` | hidden | ? | — | — | — | `KycAdminController.addIpToBlacklist` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
+| DELETE | `/kyc/admin/blacklist/ip` | hidden | ? | — | — | — | `KycAdminController.deleteIpToBlacklist` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
+| POST | `/kyc/admin/ident/file/sync` | hidden | ? | 243 | — | — | `KycAdminController.syncIdentFiles` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
+| POST | `/kyc/admin/log` | hidden | yes | 253 | — | — | `KycAdminController.createLog` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
+| PUT | `/kyc/admin/log/:id` | hidden | yes | 17 | — | — | `KycAdminController.updateLog` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
+| PUT | `/kyc/admin/nameCheck/:id` | public | yes | 245 | — | — | `KycAdminController.updateNameCheckLog` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
+| PUT | `/kyc/admin/step/:id` | hidden | yes | 385 | — | — | `KycAdminController.updateKycStep` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
+| POST | `/kyc/admin/webhook` | hidden | yes | 243 | — | — | `KycAdminController.triggerWebhook` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
+| GET | `/kyc/client/payments` | public | ? | — | — | — | `KycClientController.getAllPayments` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
+| GET | `/kyc/client/users` | public | ? | — | 1 | — | `KycClientController.getAllKycData` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
+| GET | `/kyc/client/users/:id/documents` | public | ? | — | 2 | — | `KycClientController.getKycFiles` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
+| GET | `/kyc/client/users/:id/documents/:type` | public | ? | — | — | — | `KycClientController.getKycFile` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
+| GET | `/kyc/client/users/:id/payments` | public | ? | — | — | — | `KycClientController.getUserPayments` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
+| GET | `/kyc/countries` | public | ? | — | 12 | — | `KycController.getKycCountries` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| GET | `/kyc/countries` | public | yes | 23 | 12 | 2× | `KycController.getKycCountriesV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| DELETE | `/kyc/data/:type/:id` | hidden | ? | — | — | — | `KycController.cancelStep` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/additional/:id` | public | ? | — | — | — | `KycController.updateAdditionalDocumentsData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/address/:id` | public | ? | — | — | — | `KycController.updateAddressChangeData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/authority/:id` | public | ? | — | — | — | `KycController.updateAuthorityData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/beneficial/:id` | public | ? | — | — | — | `KycController.updateBeneficialData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/confirmation/:id` | public | ? | — | — | — | `KycController.updateSoleProprietorshipConfirmationData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/contact/:id` | hidden | ? | — | — | — | `KycController.updateContactData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| GET | `/kyc/data/financial/:id` | public | ? | — | — | — | `KycController.getFinancialData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/financial/:id` | public | ? | — | — | — | `KycController.updateFinancialData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/legal/:id` | public | ? | — | — | — | `KycController.updateCommercialRegisterData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/name/:id` | public | ? | — | — | — | `KycController.updateNameChangeData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/nationality/:id` | public | ? | — | — | — | `KycController.updateNationalityData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/operational/:id` | public | ? | — | — | — | `KycController.updateOperationalData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/owner/:id` | public | ? | — | — | — | `KycController.updateOwnerDirectoryData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/payment/:id` | public | ? | — | — | — | `KycController.updatePaymentsData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/personal/:id` | public | ? | — | — | — | `KycController.updatePersonalData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/phone/:id` | public | ? | — | — | — | `KycController.updatePhoneChangeData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/recall/:id` | public | ? | — | — | — | `KycController.updateRecallAgreement` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/recommendation/:id` | public | ? | — | — | — | `KycController.updateRecommendationData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/residence/:id` | public | ? | — | — | — | `KycController.updateResidencePermitData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/signatory/:id` | public | ? | — | — | — | `KycController.updateSignatoryPowerData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/data/statutes/:id` | public | ? | — | — | — | `KycController.updateStatutesData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| GET | `/kyc/file/:id` | hidden | ? | — | 5 | — | `KycController.getFile` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/ident/manual/:id` | hidden | ? | — | — | — | `KycController.updateIdentData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| POST | `/kyc/ident/sumsub` | public | ? | — | — | — | `KycController.sumsubWebhook` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| POST | `/kyc/transfer` | hidden | ? | — | — | — | `KycController.addKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| PUT | `/kyc/transfer` | public | yes | 331 | — | — | `KycController.transferKycDataV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| DELETE | `/kyc/transfer` | hidden | ? | — | — | — | `KycController.removeKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| GET | `/kyc/users` | public | yes | 561 | 3 | 187× | `KycClientController.getAllKycDataV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| GET | `/language` | public | yes | 7 | 5 | 1× | `LanguageController.getAllLanguage` | `shared/models/language/language.controller.ts` |
+| PUT | `/limitRequest/:id` | public | yes | 434 | — | — | `LimitRequestController.updateUserData` | `subdomains/supporting/support-issue/limit-request.controller.ts` |
+| GET | `/liquidityManagement/balance` | public | yes | 40 | — | — | `LiquidityBalanceController.getBalances` | `subdomains/core/liquidity-management/controllers/balance.controller.ts` |
+| PUT | `/liquidityManagement/order/:id/resolveUncertain` | hidden | yes | 139 | — | — | `LiquidityManagementOrderController.resolveUncertainOrder` | `subdomains/core/liquidity-management/controllers/order.controller.ts` |
+| GET | `/liquidityManagement/order/in-progress` | public | yes | 139 | — | — | `LiquidityManagementOrderController.getProcessingOrders` | `subdomains/core/liquidity-management/controllers/order.controller.ts` |
+| GET | `/liquidityManagement/pipeline/:id/status` | hidden | yes | 112 | — | — | `LiquidityManagementPipelineController.getPipelineStatus` | `subdomains/core/liquidity-management/controllers/pipeline.controller.ts` |
+| POST | `/liquidityManagement/pipeline/buy` | public | no | — | — | — | `LiquidityManagementPipelineController.buyLiquidity` | `subdomains/core/liquidity-management/controllers/pipeline.controller.ts` |
+| GET | `/liquidityManagement/pipeline/in-progress` | hidden | yes | 112 | — | — | `LiquidityManagementPipelineController.getProcessingPipelines` | `subdomains/core/liquidity-management/controllers/pipeline.controller.ts` |
+| POST | `/liquidityManagement/pipeline/sell` | hidden | no | — | — | — | `LiquidityManagementPipelineController.sellLiquidity` | `subdomains/core/liquidity-management/controllers/pipeline.controller.ts` |
+| GET | `/liquidityManagement/pipeline/stopped` | hidden | yes | 112 | — | — | `LiquidityManagementPipelineController.getStoppedPipelines` | `subdomains/core/liquidity-management/controllers/pipeline.controller.ts` |
+| POST | `/liquidityManagement/rule` | public | ? | — | 9 | — | `LiquidityManagementRuleController.createRule` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
+| GET | `/liquidityManagement/rule/:id` | hidden | yes | 83 | 9 | 9× | `LiquidityManagementRuleController.getRule` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
+| PUT | `/liquidityManagement/rule/:id` | hidden | yes | 83 | — | — | `LiquidityManagementRuleController.updateRule` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
+| PATCH | `/liquidityManagement/rule/:id/deactivate` | hidden | yes | 83 | 9 | 9× | `LiquidityManagementRuleController.deactivateRule` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
+| PATCH | `/liquidityManagement/rule/:id/reactivate` | hidden | yes | 83 | 9 | 9× | `LiquidityManagementRuleController.reactivateRule` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
+| PATCH | `/liquidityManagement/rule/:id/settings` | hidden | yes | 83 | 9 | 9× | `LiquidityManagementRuleController.setReactivationTime` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
+| GET | `/lnurla` | public | ? | — | 2 | — | `AuthLnurlController.signInWithLnurlAuth` | `subdomains/generic/user/models/auth/auth-lnurl.controller.ts` |
+| POST | `/lnurla` | public | ? | — | 2 | — | `AuthLnurlController.getLnurlAuth` | `subdomains/generic/user/models/auth/auth-lnurl.controller.ts` |
+| GET | `/lnurla/status` | public | ? | — | 2 | — | `AuthLnurlController.lnurlAuthStatus` | `subdomains/generic/user/models/auth/auth-lnurl.controller.ts` |
+| GET | `/lnurld/:id` | public | no | — | — | — | `LnurldForwardController.lnurldForward` | `subdomains/generic/forwarding/controllers/lnurld-forward.controller.ts` |
+| GET | `/lnurld/cb/:id/:var` | public | no | — | — | — | `LnurldForwardController.lnurldCallbackForward` | `subdomains/generic/forwarding/controllers/lnurld-forward.controller.ts` |
+| GET | `/lnurlp/:id` | public | ? | — | — | — | `LnUrlPForwardController.lnUrlPForward` | `subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts` |
+| POST | `/lnurlp/:id` | public | yes | 490 | — | — | `LnUrlPForwardController.activatePublicPayment` | `subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts` |
+| DELETE | `/lnurlp/cancel/:id` | public | yes | 545 | 14 | 39× | `LnUrlPForwardController.cancelPayment` | `subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts` |
+| GET | `/lnurlp/cb/:id` | public | no | — | — | — | `LnUrlPForwardController.lnUrlPCallbackForward` | `subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts` |
+| GET | `/lnurlp/tx/:id` | public | ? | — | — | — | `LnUrlPForwardController.txHexForward` | `subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts` |
+| GET | `/lnurlp/wait/:id` | public | yes | 545 | 1 | 545× | `LnUrlPForwardController.waitForPayment` | `subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts` |
+| GET | `/lnurlw/:id` | public | no | — | — | — | `LnUrlWForwardController.lnUrlWForward` | `subdomains/generic/forwarding/controllers/lnurlw-forward.controller.ts` |
+| GET | `/lnurlw/cb/:id` | public | no | — | — | — | `LnUrlWForwardController.lnUrlWCallbackForward` | `subdomains/generic/forwarding/controllers/lnurlw-forward.controller.ts` |
+| POST | `/log` | public | ? | — | — | — | `LogController.create` | `subdomains/supporting/log/log.controller.ts` |
+| PUT | `/log/:id` | hidden | yes | 11 | — | — | `LogController.update` | `subdomains/supporting/log/log.controller.ts` |
+| PUT | `/log/financial/validity` | hidden | no | — | — | — | `LogController.setFinancialLogValidity` | `subdomains/supporting/log/log.controller.ts` |
+| GET | `/monitoring/data` | public | no | — | — | — | `MonitoringController.getSystemState` | `subdomains/core/monitoring/monitoring.controller.ts` |
+| POST | `/monitoring/data` | hidden | no | — | — | — | `MonitoringController.onWebhook` | `subdomains/core/monitoring/monitoring.controller.ts` |
+| GET | `/mros` | hidden | yes | 243 | — | — | `MrosController.getAll` | `subdomains/supporting/mros/mros.controller.ts` |
+| POST | `/mros` | public | yes | 253 | — | — | `MrosController.createMros` | `subdomains/supporting/mros/mros.controller.ts` |
+| GET | `/mros/:id` | hidden | yes | 243 | — | — | `MrosController.getById` | `subdomains/supporting/mros/mros.controller.ts` |
+| PUT | `/mros/:id` | hidden | yes | 78 | — | — | `MrosController.updateMros` | `subdomains/supporting/mros/mros.controller.ts` |
+| POST | `/node/:node/:mode/cmd` | hidden | ? | — | — | — | `NodeController.cmdForMode` | `integration/blockchain/bitcoin/node/node.controller.ts` |
+| POST | `/node/:node/:mode/rpc` | hidden | no | — | — | — | `NodeController.rpcForMode` | `integration/blockchain/bitcoin/node/node.controller.ts` |
+| GET | `/node/:node/:mode/tx/:txId` | hidden | ? | — | — | — | `NodeController.waitForTxForMode` | `integration/blockchain/bitcoin/node/node.controller.ts` |
+| POST | `/node/:node/cmd` | hidden | ? | — | — | — | `NodeController.cmd` | `integration/blockchain/bitcoin/node/node.controller.ts` |
+| POST | `/node/:node/rpc` | public | no | — | — | — | `NodeController.rpc` | `integration/blockchain/bitcoin/node/node.controller.ts` |
+| GET | `/node/:node/tx/:txId` | hidden | ? | — | — | — | `NodeController.waitForTx` | `integration/blockchain/bitcoin/node/node.controller.ts` |
+| POST | `/notification/send-mail` | public | ? | — | — | — | `NotificationController.sendMail` | `subdomains/supporting/notification/notification.controller.ts` |
+| POST | `/payIn` | public | ? | — | — | — | `PayInController.createPayIn` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
+| POST | `/payIn/lnurlpDeposit/:uniqueId` | public | ? | — | — | — | `PayInWebhookController.deposit` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
+| POST | `/payIn/lnurlpPayment/:uniqueId` | hidden | ? | — | — | — | `PayInWebhookController.payment` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
+| POST | `/payIn/poll` | hidden | ? | — | — | — | `PayInController.pollAddress` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
+| POST | `/payIn/retry` | hidden | yes | — | — | — | `PayInController.retryUncertainSend` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
+| GET | `/paymentLink` | public | no | 513 | 15 | 34× | `PaymentLinkController.getAllPaymentLinks` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| POST | `/paymentLink` | public | yes | 472 | 15 | 31× | `PaymentLinkController.createPaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | `/paymentLink` | public | no | — | 15 | — | `PaymentLinkController.updatePaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | `/paymentLink/:id` | hidden | yes | 513 | — | — | `PaymentLinkController.updatePaymentLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| DELETE | `/paymentLink/:id` | hidden | yes | 195 | — | — | `PaymentLinkController.deletePaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | `/paymentLink/:id/pos` | hidden | yes | 513 | — | — | `PaymentLinkController.createPosLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | `/paymentLink/assign` | public | yes | 472 | 15 | 31× | `PaymentLinkController.assignPaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | `/paymentLink/config` | public | yes | 253 | 1 | 253× | `PaymentLinkController.getUserPaymentLinksConfig` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | `/paymentLink/config` | public | ? | — | — | — | `PaymentLinkController.updateUserPaymentLinksConfig` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | `/paymentLink/history` | public | no | — | 16 | — | `PaymentLinkController.getPaymentHistory` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| POST | `/paymentLink/integration/binance/activate/:id` | public | ? | — | — | — | `C2BPaymentLinkController.activateBinancePay` | `subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` |
+| POST | `/paymentLink/integration/binance/webhook` | hidden | no | — | — | — | `C2BPaymentLinkController.binancePayWebhook` | `subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` |
+| POST | `/paymentLink/integration/kucoin/activate/:id` | public | ? | — | — | — | `C2BPaymentLinkController.activateKucoinPay` | `subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` |
+| POST | `/paymentLink/integrations/kucoin/webhook/cancel` ⚠️ | hidden | no | — | — | — | `C2BPaymentLinkController.kucoinPayWebhook` | `subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` |
+| POST | `/paymentLink/integrations/kucoin/webhook/success` | hidden | no | — | — | — | `C2BPaymentLinkController.kucoinPayWebhook` | `subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` |
+| GET | `/paymentLink/locations` | public | yes | 513 | 5 | 103× | `PaymentLinkController.getLocations` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| POST | `/paymentLink/merchant` | public | ? | — | — | — | `PaymentLinkController.createMerchant` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | `/paymentLink/payment` | hidden | yes | 472 | — | — | `PaymentLinkController.createInvoicePayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| POST | `/paymentLink/payment` | public | yes | 472 | 15 | 31× | `PaymentLinkController.createPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| DELETE | `/paymentLink/payment` | public | no | — | 15 | — | `PaymentLinkController.cancelPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | `/paymentLink/payment/:id` | public | yes | 32 | — | — | `PaymentLinkController.updatePaymentLinkPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | `/paymentLink/payment/confirm` | public | no | — | 15 | — | `PaymentLinkController.confirmPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | `/paymentLink/payment/wait` | public | no | — | 15 | — | `PaymentLinkController.waitForPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | `/paymentLink/pos` | public | no | — | 1 | — | `PaymentLinkController.createPosLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | `/paymentLink/recipient` | public | no | — | 10 | — | `PaymentLinkController.getPaymentRecipient` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | `/paymentLink/standard` | public | no | — | — | — | `PaymentStandardController.getAll` | `subdomains/core/payment-link/controllers/payment-standard.controller.ts` |
+| GET | `/paymentLink/standard/:id` | public | no | — | — | — | `PaymentStandardController.getById` | `subdomains/core/payment-link/controllers/payment-standard.controller.ts` |
+| GET | `/paymentLink/stickers` | hidden | no | — | — | — | `PaymentLinkController.generateOcpStickers` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | `/paymentLink/walletApp` | public | no | — | 33 | — | `WalletAppController.getAll` | `subdomains/core/payment-link/controllers/wallet-app.controller.ts` |
+| GET | `/paymentLink/walletApp/:id` | public | yes | 15 | 33 | 0× | `WalletAppController.getById` | `subdomains/core/payment-link/controllers/wallet-app.controller.ts` |
+| GET | `/paymentLink/walletApp/recommended` | public | yes | 15 | 33 | 0× | `WalletAppController.getRecommended` | `subdomains/core/payment-link/controllers/wallet-app.controller.ts` |
+| POST | `/payout` | public | ? | — | — | — | `PayoutController.doPayout` | `subdomains/supporting/payout/payout.controller.ts` |
+| GET | `/payout/completion` | hidden | no | — | — | — | `PayoutController.checkOrderCompletion` | `subdomains/supporting/payout/payout.controller.ts` |
+| POST | `/payout/retry` | hidden | yes | 123 | — | — | `PayoutController.retryUncertainPayout` | `subdomains/supporting/payout/payout.controller.ts` |
+| POST | `/payout/speedup` | hidden | yes | 123 | — | — | `PayoutController.speedupTransaction` | `subdomains/supporting/payout/payout.controller.ts` |
+| GET | `/pl` | public | ? | — | — | — | `PaymentForwardController.lnUrlPForward` | `subdomains/generic/forwarding/controllers/payment-forward.controller.ts` |
+| GET | `/plp` | public | yes | 472 | — | — | `PaymentLinkShortController.createInvoicePayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | `/pricing` | hidden | no | — | — | — | `PricingController.getRawPrice` | `subdomains/supporting/pricing/pricing.controller.ts` |
+| PUT | `/pricing` | hidden | yes | 53 | — | — | `PricingController.updatePrices` | `subdomains/supporting/pricing/pricing.controller.ts` |
+| GET | `/pricing/price` | public | no | — | — | — | `PricingController.getPrice` | `subdomains/supporting/pricing/pricing.controller.ts` |
+| GET | `/realunit/account/:address` | public | no | — | 9 | — | `RealUnitController.getAccountSummary` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/account/:address/history` | public | no | — | 25 | — | `RealUnitController.getAccountHistory` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/admin/quotes` | public | no | — | 8 | — | `RealUnitController.getAdminQuotes` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/admin/quotes/:id/confirm-payment` | hidden | yes | 61 | — | — | `RealUnitController.confirmPaymentReceived` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/admin/registration/:id/forward` | hidden | yes | 323 | — | — | `RealUnitController.forwardRegistration` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/admin/transactions` | hidden | no | — | 8 | — | `RealUnitController.getAdminTransactions` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/balance/pdf` | public | yes | 33 | 1 | 33× | `RealUnitController.getBalancePdf` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/brokerbot/buyPrice` | public | no | — | 5 | — | `RealUnitController.getBrokerbotBuyPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/brokerbot/buyShares` | public | no | — | 5 | — | `RealUnitController.getBrokerbotBuyShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/brokerbot/info` | public | no | — | 8 | — | `RealUnitController.getBrokerbotInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/brokerbot/price` | public | no | — | 3 | — | `RealUnitController.getBrokerbotPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/brokerbot/sellPrice` | public | no | — | 4 | — | `RealUnitController.getBrokerbotSellPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/brokerbot/sellShares` | public | no | — | 4 | — | `RealUnitController.getBrokerbotSellShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/buy` | public | yes | 364 | 37 | 10× | `RealUnitController.getPaymentInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/buy/:id/confirm` | public | no | — | 1 | — | `RealUnitController.confirmBuy` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/compliance/customers` | public | yes | 253 | 7 | 36× | `RealUnitComplianceController.searchCustomers` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
+| GET | `/realunit/compliance/customers/:id` | hidden | yes | 826 | 93 | 9× | `RealUnitComplianceController.getCustomer` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
+| GET | `/realunit/compliance/customers/:id/dossier` | hidden | no | — | — | — | `RealUnitComplianceController.downloadCustomerDossier` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
+| GET | `/realunit/compliance/customers/:id/files` | hidden | no | — | 4 | — | `RealUnitComplianceController.getCustomerFiles` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
+| GET | `/realunit/compliance/customers/:id/files/:uid` | hidden | yes | 264 | 5 | 53× | `RealUnitComplianceController.downloadCustomerFile` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
+| GET | `/realunit/confirm-aktionariat` | public | no | — | 3 | — | `RealUnitController.confirmAktionariat` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/holders` | public | no | — | 10 | — | `RealUnitController.getHolders` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/legal` | public | no | — | 6 | — | `RealUnitLegalController.getLegal` | `subdomains/supporting/realunit/controllers/realunit-legal.controller.ts` |
+| PUT | `/realunit/legal` | public | ? | — | 6 | — | `RealUnitLegalController.acceptLegal` | `subdomains/supporting/realunit/controllers/realunit-legal.controller.ts` |
+| GET | `/realunit/pay/:id/status` | public | yes | 32 | 1 | 32× | `RealUnitController.getOcpPayStatus` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/pay/submit` | public | ? | — | 1 | — | `RealUnitController.submitOcpPay` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/pay/unsigned-transaction` | public | ? | — | 5 | — | `RealUnitController.getOcpPayUnsignedTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/price` | public | no | — | 4 | — | `RealUnitController.getRealUnitPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/price/history` | public | no | — | 4 | — | `RealUnitController.getHistoricalPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/quote/buyPrice` | public | no | — | 5 | — | `RealUnitController.getQuoteBuyPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/quote/buyShares` | public | no | — | 5 | — | `RealUnitController.getQuoteBuyShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/quote/info` | public | no | — | 8 | — | `RealUnitController.getQuoteInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/quote/price` | public | no | — | 3 | — | `RealUnitController.getQuotePrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/quote/sellPrice` | public | no | — | 4 | — | `RealUnitController.getQuoteSellPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/quote/sellShares` | public | no | — | 4 | — | `RealUnitController.getQuoteSellShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/register/complete` | public | yes | 23 | — | — | `RealUnitController.completeRegistration` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/register/date` | public | no | — | — | — | `RealUnitController.getRegistrationDate` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/register/email` | public | ? | — | 1 | — | `RealUnitController.registerEmail` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/register/status` | public | no | — | — | — | `RealUnitController.isRegistered` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/register/wallet` | public | no | — | — | — | `RealUnitController.completeRegistrationForWalletAddress` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/registration` | public | no | — | 20 | — | `RealUnitController.getRegistrationInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/sell` | public | yes | 253 | 46 | 6× | `RealUnitController.getSellPaymentInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/sell/:id/broadcast` | public | no | — | — | — | `RealUnitController.broadcastSellTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/sell/:id/confirm` | public | no | — | — | — | `RealUnitController.confirmSell` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/sell/:id/unsigned-transactions` | public | no | — | — | — | `RealUnitController.getSellUnsignedTransactions` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/support/:id` | hidden | yes | 421 | — | — | `RealUnitSupportController.updateSupportIssue` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | `/realunit/support/:id/data` | hidden | yes | 951 | 67 | 14× | `RealUnitSupportController.getIssueData` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| POST | `/realunit/support/:id/message` | hidden | yes | 441 | 5 | 88× | `RealUnitSupportController.createSupportMessage` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | `/realunit/support/:id/message/:messageId/file` | hidden | yes | 428 | — | — | `RealUnitSupportController.getFile` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | `/realunit/support/:id/messages` | hidden | yes | 421 | 5 | 84× | `RealUnitSupportController.getIssueMessages` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | `/realunit/support/activity` | hidden | no | — | — | — | `RealUnitSupportController.getSupportIssueActivity` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | `/realunit/support/clerks` | hidden | no | — | — | — | `RealUnitSupportController.getRealUnitSupportClerks` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | `/realunit/support/counts` | hidden | no | — | — | — | `RealUnitSupportController.getSupportIssueCounts` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | `/realunit/support/list` | public | no | — | — | — | `RealUnitSupportController.getSupportIssueList` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | `/realunit/support/statistics` | hidden | no | — | 13 | — | `RealUnitSupportController.getSupportIssueStatistics` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| PUT | `/realunit/swap` | public | ? | — | 27 | — | `RealUnitController.getSwapPaymentInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/swap/:id/broadcast` | public | no | — | — | — | `RealUnitController.broadcastSwapTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/swap/:id/unsigned-transaction` | public | no | — | 1 | — | `RealUnitController.getSwapUnsignedTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/tokenInfo` | public | no | — | 7 | — | `RealUnitController.getTokenInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/transactions/receipt/multi` | public | yes | 33 | 1 | 33× | `RealUnitController.generateHistoryMultiReceipt` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/transactions/receipt/single` | public | yes | 33 | 1 | 33× | `RealUnitController.generateHistoryReceipt` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/transfer` | public | ? | — | 19 | — | `RealUnitController.prepareTransfer` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/transfer/:id/confirm` | public | no | — | — | — | `RealUnitController.confirmTransfer` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/wallet/status` | public | no | — | 20 | — | `RealUnitController.getWalletStatus` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/recall` | hidden | yes | 174 | — | — | `RecallController.getAll` | `subdomains/supporting/recall/recall.controller.ts` |
+| POST | `/recall` | public | yes | 61 | — | — | `RecallController.createRecall` | `subdomains/supporting/recall/recall.controller.ts` |
+| GET | `/recall/:id` | hidden | yes | 174 | — | — | `RecallController.getById` | `subdomains/supporting/recall/recall.controller.ts` |
+| PUT | `/recall/:id` | hidden | yes | 10 | — | — | `RecallController.updateRecall` | `subdomains/supporting/recall/recall.controller.ts` |
+| GET | `/recommendation` | public | no | — | 9 | — | `RecommendationController.getAllRecommendation` | `subdomains/generic/user/models/recommendation/recommendation.controller.ts` |
+| POST | `/recommendation` | hidden | no | — | 9 | — | `RecommendationController.createRecommendation` | `subdomains/generic/user/models/recommendation/recommendation.controller.ts` |
+| PUT | `/recommendation/:id/confirm` | hidden | yes | 643 | — | — | `RecommendationController.confirmRecommendation` | `subdomains/generic/user/models/recommendation/recommendation.controller.ts` |
+| PUT | `/recommendation/:id/reject` | hidden | yes | 643 | — | — | `RecommendationController.rejectRecommendation` | `subdomains/generic/user/models/recommendation/recommendation.controller.ts` |
+| GET | `/ref` | public | no | — | — | — | `RefController.createRef` | `subdomains/core/referral/process/ref.controller.ts` |
+| POST | `/reward/ref` | hidden | yes | 156 | — | — | `RefRewardController.createPendingRefRewards` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
+| PUT | `/reward/ref/:id` | hidden | yes | 156 | — | — | `RefRewardController.updateRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
+| POST | `/reward/ref/manual` | hidden | yes | 33 | — | — | `RefRewardController.createManualRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
+| PUT | `/reward/ref/volumes` | public | yes | 78 | — | — | `RefRewardController.updateVolumes` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
+| GET | `/route` | public | yes | 124 | 68 | 2× | `RouteController.getAllRoutes` | `subdomains/core/route/route.controller.ts` |
+| PUT | `/route/:id` | hidden | yes | 174 | — | — | `RouteController.updateRoute` | `subdomains/core/route/route.controller.ts` |
+| POST | `/scorechain/screening` | public | no | — | — | — | `ScorechainController.screen` | `integration/scorechain/controllers/scorechain.controller.ts` |
+| GET | `/sell` | public | yes | 124 | 24 | 5× | `SellController.getAllSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| POST | `/sell` | hidden | yes | 253 | 24 | 11× | `SellController.createSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| GET | `/sell/:id` | hidden | yes | 377 | 24 | 16× | `SellController.getSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| PUT | `/sell/:id` | public | yes | 124 | 24 | 5× | `SellController.updateSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| GET | `/sell/:id/history` | hidden | yes | 470 | — | — | `SellController.getSellRouteHistory` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| PUT | `/sell/paymentInfos` | public | no | — | 93 | — | `SellController.createSellWithPaymentInfo` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| PUT | `/sell/paymentInfos/:id/confirm` | public | yes | 504 | 35 | 14× | `SellController.confirmSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| GET | `/sell/paymentInfos/:id/tx` | public | yes | 504 | 15 | 34× | `SellController.depositTx` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| PUT | `/sell/quote` | hidden | yes | 23 | 29 | 1× | `SellController.getSellQuote` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| GET | `/setting` | public | yes | 5 | — | — | `SettingController.getSettings` | `shared/models/setting/setting.controller.ts` |
+| PUT | `/setting/:key` | hidden | no | — | — | — | `SettingController.updateSetting` | `shared/models/setting/setting.controller.ts` |
+| PUT | `/setting/customSignUpFees` | hidden | no | — | — | — | `SettingController.updateCustomSignUpFees` | `shared/models/setting/setting.controller.ts` |
+| PUT | `/setting/disabledProcesses` | hidden | no | — | — | — | `SettingController.updateProcess` | `shared/models/setting/setting.controller.ts` |
+| GET | `/setting/infoBanner` | public | no | — | 5 | — | `SettingController.getInfoBanner` | `shared/models/setting/setting.controller.ts` |
+| POST | `/specialExternalAccount` | public | yes | 7 | — | — | `SpecialExternalAccountController.createSpecialExternalAccount` | `subdomains/supporting/payment/controllers/special-external-account.controller.ts` |
+| GET | `/statistic` | public | no | — | 3 | — | `StatisticController.getAll` | `subdomains/core/statistic/statistic.controller.ts` |
+| GET | `/statistic/status` | public | no | — | — | — | `StatisticController.getStatus` | `subdomains/core/statistic/statistic.controller.ts` |
+| GET | `/statistic/transactions` | public | yes | 419 | 8 | 52× | `StatisticController.getTransactions` | `subdomains/core/statistic/statistic.controller.ts` |
+| GET | `/support` | public | yes | 61 | — | — | `SupportController.searchUserByKey` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/:id` | hidden | yes | 826 | — | — | `SupportController.getUserData` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/:id/ip-log-pdf` | hidden | no | — | 16 | — | `SupportController.getIpLogPdf` | `subdomains/generic/support/support.controller.ts` |
+| POST | `/support/:id/onboarding-pdf` | hidden | no | — | 11 | — | `SupportController.generateOnboardingPdf` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/:id/scorechain` | hidden | ? | — | 16 | — | `SupportController.getScorechainScreenings` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/:id/transaction-pdf` | hidden | no | — | 16 | — | `SupportController.getTransactionPdf` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/call-queues` | hidden | ? | — | — | — | `SupportController.getCallQueues` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/call-queues/:queue/items` | hidden | yes | 253 | — | — | `SupportController.getCallQueueItems` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/call-queues/clerks` | hidden | no | — | — | — | `SupportController.getCallQueueClerks` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/issue` | public | yes | 450 | 18 | 25× | `SupportIssueController.getIssues` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| POST | `/support/issue` | public | no | — | 18 | — | `SupportIssueController.createIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/:id` | hidden | yes | 450 | 18 | 25× | `SupportIssueController.getIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| PUT | `/support/issue/:id` | public | yes | 421 | — | — | `SupportIssueController.updateSupportIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| PUT | `/support/issue/:id/close` | public | yes | 450 | 18 | 25× | `SupportIssueController.closeIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/:id/data` | hidden | yes | 951 | 67 | 14× | `SupportIssueController.getIssueData` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| POST | `/support/issue/:id/message` | hidden | yes | 441 | 5 | 88× | `SupportIssueController.createSupportMessage` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/:id/message/:messageId/file` | public | yes | 428 | — | — | `SupportIssueController.getFile` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/activity` | hidden | no | — | — | — | `SupportIssueController.getSupportIssueActivity` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/clerk` | hidden | no | — | 18 | — | `SupportIssueController.getSupportIssueClerk` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/clerks` | hidden | no | — | — | — | `SupportIssueController.getSupportIssueClerks` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/counts` | hidden | no | — | — | — | `SupportIssueController.getSupportIssueCounts` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| POST | `/support/issue/escalation/telegram-bind` | hidden | no | — | — | — | `SupportIssueController.bindEscalationChat` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/escalation/telegram-chats` | hidden | no | — | — | — | `SupportIssueController.getEscalationChats` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| POST | `/support/issue/escalation/telegram-test` | hidden | no | — | — | — | `SupportIssueController.testEscalationChat` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/list` | public | no | — | — | — | `SupportIssueController.getSupportIssueList` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/issue/statistics` | hidden | no | — | 13 | — | `SupportIssueController.getSupportIssueStatistics` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| POST | `/support/issue/support` | public | yes | 20 | 18 | 1× | `SupportIssueController.createIssueBySupport` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | `/support/kycFileList` | hidden | yes | 253 | — | — | `SupportController.getKycFileList` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/kycFileStats` | hidden | no | — | — | — | `SupportController.getKycFileStats` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/note` | hidden | yes | 9 | 11 | 1× | `SupportController.getNotes` | `subdomains/generic/support/support.controller.ts` |
+| POST | `/support/note` | hidden | yes | 253 | 11 | 23× | `SupportController.createNote` | `subdomains/generic/support/support.controller.ts` |
+| PUT | `/support/note/:id` | hidden | yes | 239 | 11 | 22× | `SupportController.updateNote` | `subdomains/generic/support/support.controller.ts` |
+| DELETE | `/support/note/:id` | hidden | yes | 9 | — | — | `SupportController.deleteNote` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/note/users` | hidden | no | — | 3 | — | `SupportController.listNoteUsers` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/pending-reviews` | hidden | ? | — | — | — | `SupportController.getPendingReviews` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/pending-reviews/items` | hidden | yes | 261 | — | — | `SupportController.getPendingReviewItems` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/pending-transactions` | hidden | yes | 672 | — | — | `SupportController.getPendingTransactions` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/recommendation-graph/:id/neighbors` | hidden | no | — | — | — | `SupportController.getRecommendationGraphNeighbors` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/template` | hidden | yes | 8 | 8 | 1× | `SupportController.getTemplates` | `subdomains/generic/support/support.controller.ts` |
+| POST | `/support/template` | hidden | yes | 253 | 8 | 32× | `SupportController.createTemplate` | `subdomains/generic/support/support.controller.ts` |
+| PUT | `/support/template/:id` | hidden | yes | 8 | 8 | 1× | `SupportController.updateTemplate` | `subdomains/generic/support/support.controller.ts` |
+| DELETE | `/support/template/:id` | hidden | yes | 8 | — | — | `SupportController.deleteTemplate` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/transaction/:id/refund` | hidden | yes | 13 | 20 | 1× | `SupportController.getTransactionRefund` | `subdomains/generic/support/support.controller.ts` |
+| PUT | `/support/transaction/:id/refund` | hidden | yes | 253 | — | — | `SupportController.setTransactionRefund` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/transactionList` | hidden | no | — | — | — | `SupportController.getTransactionList` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/swap` | public | yes | 68 | 34 | 2× | `SwapController.getAllSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| POST | `/swap` | hidden | yes | 68 | 34 | 2× | `SwapController.createSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| GET | `/swap/:id` | hidden | yes | 146 | 34 | 4× | `SwapController.getSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| PUT | `/swap/:id` | public | yes | 68 | 34 | 2× | `SwapController.updateSwapRoute` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| GET | `/swap/:id/history` | hidden | yes | 509 | — | — | `SwapController.getSwapRouteHistory` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| PUT | `/swap/paymentInfos` | public | no | — | 82 | — | `SwapController.createSwapWithPaymentInfo` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| PUT | `/swap/paymentInfos/:id/confirm` | public | yes | 504 | 35 | 14× | `SwapController.confirmSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| GET | `/swap/paymentInfos/:id/tx` | public | yes | 504 | 15 | 34× | `SwapController.depositTx` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| PUT | `/swap/quote` | hidden | yes | 23 | 28 | 1× | `SwapController.getSwapQuote` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| POST | `/tatum/addressWebhook` | public | no | — | — | — | `TatumController.addressWebhook` | `integration/tatum/controllers/tatum.controller.ts` |
+| PUT | `/trading/rule/:id` | public | yes | 87 | — | — | `TradingRuleController.update` | `subdomains/core/trading/controllers/trading-rule.controller.ts` |
+| GET | `/transaction` | public | no | — | 35 | — | `TransactionController.getTransactions` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| PUT | `/transaction/:id/invoice` | public | yes | 1220 | 1 | 1220× | `TransactionController.generateInvoiceFromTransaction` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| PUT | `/transaction/:id/receipt` | public | yes | 1220 | 1 | 1220× | `TransactionController.generateReceiptFromTransaction` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/transaction/:id/refund` | public | no | — | 20 | — | `TransactionController.AuthGuard` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| PUT | `/transaction/:id/refund` | public | no | — | — | — | `TransactionController.AuthGuard` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| PUT | `/transaction/:id/target` | hidden | yes | 1051 | — | — | `TransactionController.setTransactionTarget` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/transaction/ChainReport` | hidden | no | — | 12 | — | `TransactionController.getCsvChainReport` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/transaction/CoinTracking` | public | no | — | 1 | — | `TransactionController.getCsvCT` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| PUT | `/transaction/admin/:id` | public | yes | 253 | — | — | `TransactionAdminController.updateTransaction` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
+| POST | `/transaction/admin/:id/stop` | hidden | ? | — | — | — | `TransactionAdminController.stopTransaction` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
+| POST | `/transaction/admin/:txId/riskAssessment` | hidden | ? | — | — | — | `TransactionAdminController.createRiskAssessment` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
+| PUT | `/transaction/admin/:txId/riskAssessment/:id` | hidden | yes | 13 | — | — | `TransactionAdminController.updateRiskAssessment` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
+| GET | `/transaction/csv` | public | no | — | — | — | `TransactionController.getCsv` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| PUT | `/transaction/csv` | public | no | — | — | — | `TransactionController.createCsv` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/transaction/detail` | hidden | no | — | 2 | — | `TransactionController.getTransactionDetails` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| PUT | `/transaction/detail/csv` | public | no | — | — | — | `TransactionController.createDetailCsv` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/transaction/detail/single` | public | no | — | 35 | — | `TransactionController.getSingleTransactionDetails` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/transaction/single` | public | no | — | 35 | — | `TransactionController.getSingleTransaction` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/transaction/target` | hidden | yes | 134 | — | — | `TransactionController.getTransactionTargets` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/transaction/unassigned` | public | yes | 261 | 23 | 11× | `TransactionController.getUnassignedTransactions` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | `/user` | public | yes | 328 | 21 | 16× | `UserController.getUserV1` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | `/user` | public | no | — | 56 | — | `UserV2Controller.AuthGuard` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user` | public | yes | 406 | 14 | 29× | `UserController.updateUserV1` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user` | public | yes | 253 | 56 | 5× | `UserV2Controller.updateUser` | `subdomains/generic/user/models/user/user.controller.ts` |
+| DELETE | `/user` | public | no | — | — | — | `UserController.AuthGuard` | `subdomains/generic/user/models/user/user.controller.ts` |
+| DELETE | `/user` | public | yes | 344 | — | — | `UserV2Controller.deleteAccount` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/:id` | hidden | yes | 308 | — | — | `UserController.updateUserAdmin` | `subdomains/generic/user/models/user/user.controller.ts` |
+| DELETE | `/user/account` | public | yes | 344 | — | — | `UserController.deleteUserAccount` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/addresses/:address` | public | yes | 351 | 56 | 6× | `UserV2Controller.updateAddress` | `subdomains/generic/user/models/user/user.controller.ts` |
+| DELETE | `/user/addresses/:address` | public | no | — | — | — | `UserV2Controller.AuthGuard` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/apiFilter/CT` | public | yes | 308 | — | — | `UserController.updateApiFilter` | `subdomains/generic/user/models/user/user.controller.ts` |
+| POST | `/user/apiKey/CT` | public | yes | 253 | 2 | 126× | `UserController.createApiKey` | `subdomains/generic/user/models/user/user.controller.ts` |
+| DELETE | `/user/apiKey/CT` | public | ? | — | — | — | `UserController.deleteApiKey` | `subdomains/generic/user/models/user/user.controller.ts` |
+| POST | `/user/change` | public | no | — | 1 | — | `UserController.changeUser` | `subdomains/generic/user/models/user/user.controller.ts` |
+| POST | `/user/data` | hidden | yes | 406 | 14 | 29× | `UserController.updateKycData` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | `/user/detail` | public | yes | 328 | 14 | 23× | `UserController.getUserDetailV1` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/discountCodes` | public | ? | — | — | — | `UserController.addDiscountCode` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/mail` | public | yes | 351 | — | — | `UserV2Controller.updateUserMail` | `subdomains/generic/user/models/user/user.controller.ts` |
+| POST | `/user/mail/verify` | public | yes | 351 | 56 | 6× | `UserV2Controller.verifyMail` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/name` | public | yes | 78 | — | — | `UserController.updateUserName` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | `/user/profile` | public | yes | 253 | 24 | 11× | `UserV2Controller.getProfile` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | `/user/ref` | public | no | — | — | — | `UserController.getRefInfo` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | `/user/ref` | public | yes | 78 | 28 | 3× | `UserV2Controller.getRef` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/ref` | public | yes | 273 | 28 | 10× | `UserV2Controller.updateRefAsset` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/specialCodes` | public | ? | — | — | — | `UserController.addSpecialCode` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | `/user/volumes` | hidden | no | — | — | — | `UserController.getVolumes` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | `/userData` | public | yes | 253 | — | — | `UserDataController.getAllUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| POST | `/userData` | hidden | yes | 16 | — | — | `UserDataController.createEmptyUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| GET | `/userData/:id` | public | yes | 253 | — | — | `UserDataController.getUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| PUT | `/userData/:id` | hidden | yes | 384 | — | — | `UserDataController.updateUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| PUT | `/userData/:id/bankDatas` | hidden | yes | 284 | — | — | `UserDataController.addBankData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| PUT | `/userData/:id/fee` | hidden | yes | 253 | — | — | `UserDataController.addFee` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| DELETE | `/userData/:id/fee` | hidden | yes | 253 | — | — | `UserDataController.removeFee` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| POST | `/userData/:id/kycFile` | hidden | yes | 253 | — | — | `UserDataController.uploadKycFile` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| PUT | `/userData/:id/merge` | hidden | yes | 331 | — | — | `UserDataController.mergeUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| PUT | `/userData/:id/volumes` | hidden | no | — | — | — | `UserDataController.updateVolumes` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| PUT | `/userData/auditPeriodNumbers` | hidden | no | — | — | — | `UserDataController.calculateAuditPeriodNumbers` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| POST | `/userData/download` | public | no | — | — | — | `UserDataController.downloadUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| POST | `/userDataRelation` | public | yes | 253 | — | — | `UserDataRelationController.create` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
+| PUT | `/userDataRelation/:id` | public | yes | 7 | — | — | `UserDataRelationController.update` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
+| DELETE | `/userDataRelation/:id` | public | ? | — | — | — | `UserDataRelationController.delete` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
+| GET | `/version` | hidden | no | — | 3 | — | `AppController.getVersion` | `app.controller.ts` |
+| POST | `/wallet` | public | ? | — | — | — | `WalletController.createWallet` | `subdomains/generic/user/models/wallet/wallet.controller.ts` |
+| PUT | `/wallet/:id` | hidden | yes | 20 | — | — | `WalletController.updateWallet` | `subdomains/generic/user/models/wallet/wallet.controller.ts` |
+
+⚠️ = not registered at runtime, see *Known discrepancy* above.
