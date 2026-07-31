@@ -2,16 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CreateClientErrorDto } from './dto/create-client-error.dto';
 
-// Parameter names that carry credentials or personal data. Matched as a substring of the name, so
-// compound spellings (accessToken, walletAddress, refreshToken) are covered too — an exact-name
-// list silently stops protecting the moment the frontend renames a parameter.
-const SENSITIVE_NAMES = 'session|signature|address|mail|token|key|secret|otp|code|auth|jwt';
+// Every URL in the text is cut down to its origin and path. This is what carries the redaction:
+// the query and the fragment are dropped whole, so it makes no difference how a parameter is
+// named, spelled or encoded. Matching parameter names instead loses a round to every new
+// encoding — percent-encoded, double-encoded, an encoded character inside the name itself.
+const URL_REGEX = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
 
-// Deliberately not anchored on a leading ? or &: message and stack are free text, not URLs, so a
-// sensitive assignment can sit at the start of the string, behind a #, behind a ; or inside a
-// percent-encoded URL. Over-redacting a harmless value is the cheaper mistake here.
-const SENSITIVE_ASSIGNMENT_REGEX = new RegExp(
-  `\\b([\\w-]*(?:${SENSITIVE_NAMES})[\\w-]*)\\s*(=|%3D)\\s*[^\\s&#;]*`,
+// Outside a URL, a bare assignment is still worth masking — but only for names that are
+// unambiguously secret. A broad substring list fails the other way round: `code` would redact
+// statusCode and countryCode, `key` would redact monkey and keyboardLayout, and the diagnostic
+// value this endpoint exists for would go with them. Names are matched as substrings so compound
+// spellings (accessToken, refreshToken, emailAddress) are covered.
+const SECRET_NAMES = 'session|signature|password|secret|token|otp|jwt|auth|mail|apikey|api_key';
+
+// Accepts = or : as the separator, percent-encoded or not, with optional quotes around it, so
+// `session: x`, `{"token":"x"}` and `session=x` are all caught.
+const SECRET_ASSIGNMENT_REGEX = new RegExp(
+  `\\b([\\w-]*(?:${SECRET_NAMES})[\\w-]*)\\s*["']?\\s*(=|:|%3D|%3A)\\s*["']?[^\\s,&#;"']*`,
   'gi',
 );
 
@@ -85,13 +92,22 @@ export class ClientErrorService {
     return route?.split(/[?#;]/)[0];
   }
 
-  // Redacts sensitive assignments, then embeds the value as a JSON string. The quoting is what
-  // makes the line unforgeable: line breaks, control characters and ANSI escapes come out as
-  // escape sequences, so a payload can neither open a log line of its own nor repaint a terminal
-  // that is tailing the log.
+  // Strips URL parameters, masks bare secret assignments, then embeds the value as a JSON string.
+  // The quoting is what makes the line unforgeable: line breaks, control characters and ANSI
+  // escapes come out as escape sequences, so a payload can neither open a log line of its own nor
+  // repaint a terminal that is tailing the log.
+  //
+  // What this does NOT promise: a secret that carries no recognisable name and sits outside a URL
+  // is indistinguishable from an ordinary diagnostic string, and is logged. The guarantee is that
+  // the way this app actually carries credentials — as URL parameters — cannot reach the log.
   private static quote(value?: string): string {
     if (value == null) return '""';
 
-    return JSON.stringify(value.replace(SENSITIVE_ASSIGNMENT_REGEX, '$1$2<redacted>').replace(EXOTIC_LINE_BREAKS, ' '));
+    const redacted = value
+      .replace(URL_REGEX, (match) => ClientErrorService.toPath(match) ?? match)
+      .replace(SECRET_ASSIGNMENT_REGEX, '$1$2<redacted>')
+      .replace(EXOTIC_LINE_BREAKS, ' ');
+
+    return JSON.stringify(redacted);
   }
 }

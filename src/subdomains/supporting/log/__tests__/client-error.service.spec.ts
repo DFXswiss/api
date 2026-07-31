@@ -62,28 +62,41 @@ describe('ClientErrorService', () => {
   });
 
   // --- REDACTING --- //
-  // The endpoint is unauthenticated, so every field is attacker-controlled. These are the shapes a
-  // credential can arrive in; a prefix-anchored match would let all but the last one through.
+  // The endpoint is unauthenticated, so every field is attacker-controlled. A URL is cut to its
+  // path, which is what makes the encoding of a parameter irrelevant; matching parameter names
+  // alone loses a round to every new encoding.
+
+  it.each([
+    ['a query string', `GET https://app.example.com/buy?session=${TOKEN}&asset=BTC failed`],
+    ['a fragment', `https://app.example.com/cb#session=${TOKEN}`],
+    ['a matrix parameter', `https://app.example.com/buy;session=${TOKEN}`],
+    ['a percent-encoded parameter', `https://app.example.com/buy?session%3D${TOKEN}`],
+    ['a double-encoded parameter', `https://app.example.com/buy?session%253D${TOKEN}`],
+    ['a percent-encoded parameter name', `https://app.example.com/buy?sess%69on=${TOKEN}`],
+  ])('drops %s from a URL', (_case, message) => {
+    service.logError(dto({ message }));
+
+    expect(loggedLine()).not.toContain(TOKEN);
+  });
 
   it.each([
     ['at the start of the value', `session=${TOKEN} lookup failed`],
-    ['behind a URL fragment', `https://app.example.com/cb#session=${TOKEN}`],
-    ['inside a percent-encoded URL', `redirect to https%3A%2F%2Fapp.example.com%2Fbuy%3Fsession%3D${TOKEN}`],
-    ['in a compound parameter name', `GET /kyc?accessToken=${TOKEN} failed`],
-    ['behind a matrix parameter', `GET /buy;session=${TOKEN}`],
-    ['in a plain query string', `GET /buy?session=${TOKEN} failed`],
-    ['regardless of case', `GET /buy?Signature=${TOKEN}`],
-  ])('redacts a credential %s', (_case, message) => {
+    ['behind a colon', `session: ${TOKEN}`],
+    ['in JSON', `{"token":"${TOKEN}"}`],
+    ['in a compound name', `accessToken=${TOKEN}`],
+    ['in a quoted value', `session="${TOKEN} more"`],
+    ['regardless of case', `Signature=${TOKEN}`],
+  ])('masks a bare secret assignment %s', (_case, message) => {
     service.logError(dto({ message }));
 
     expect(loggedLine()).toContain('<redacted>');
     expect(loggedLine()).not.toContain(TOKEN);
   });
 
-  it.each(['session', 'signature', 'address', 'mail', 'token', 'key', 'secret', 'otp', 'code', 'auth', 'jwt'])(
-    'redacts the %s parameter',
-    (param) => {
-      service.logError(dto({ message: `GET /buy?${param}=${TOKEN}` }));
+  it.each(['session', 'signature', 'password', 'secret', 'token', 'otp', 'jwt', 'auth', 'mail', 'apikey'])(
+    'masks the %s assignment',
+    (name) => {
+      service.logError(dto({ message: `${name}=${TOKEN}` }));
 
       expect(loggedLine()).not.toContain(TOKEN);
     },
@@ -95,11 +108,29 @@ describe('ClientErrorService', () => {
     expect(loggedLine()).not.toContain(TOKEN);
   });
 
-  it('keeps values that are not sensitive', () => {
-    service.logError(dto({ message: 'GET /buy?asset=BTC&amount=300 failed' }));
+  // The counterpart failure: a name list broad enough to catch everything also redacts the fields
+  // that make a report worth reading. These are the ones a frontend error actually carries.
+  it.each([
+    'statusCode=502',
+    'errorCode=E_TIMEOUT',
+    'countryCode=CH',
+    'currencyCode=CHF',
+    'zipCode=8000',
+    'keyboardLayout=qwerty',
+    'monkey=banana',
+    'asset=BTC',
+    'amount=300',
+    'chunkId=738',
+  ])('keeps the diagnostic value %s', (value) => {
+    service.logError(dto({ message: `failed with ${value}` }));
 
-    expect(loggedLine()).toContain('asset=BTC');
-    expect(loggedLine()).toContain('amount=300');
+    expect(loggedLine()).toContain(value);
+  });
+
+  it('keeps the asset path of a failed chunk, which is the point of the report', () => {
+    service.logError(dto({ message: 'Loading chunk 738 failed (missing: https://app.example.com/static/js/738.js)' }));
+
+    expect(loggedLine()).toContain('https://app.example.com/static/js/738.js');
   });
 
   it('discards the query string, fragment and matrix parameters of a route', () => {

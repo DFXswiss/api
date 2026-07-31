@@ -25,7 +25,9 @@ export class CreateClientErrorDto {
   @MaxLength(4000)
   stack?: string;
 
-  @ApiPropertyOptional({ description: 'Route the error occurred on (query string is discarded server-side)' })
+  @ApiPropertyOptional({
+    description: 'Route the error occurred on (query string, fragment and matrix parameters are discarded server-side)',
+  })
   @IsOptional()
   @IsString()
   @Transform(Util.trim)
