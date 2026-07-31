@@ -1293,6 +1293,77 @@ describe('BuyService', () => {
       expect(virtualIbanService.isUserEligible).not.toHaveBeenCalled();
       expect(bankService.getBank).not.toHaveBeenCalled();
     });
+
+    // getTxDetails already resolves the user's active vIBAN to pick the receiving bank for the fee. It
+    // hands that result back so the deposit-destination step reuses it instead of repeating the query.
+    describe('active vIBAN reuse between fee calculation and deposit destination', () => {
+      const userLevelVirtualIban = {
+        id: 778,
+        iban: 'CH4431999123000889013',
+        bank: defaultRouteBank,
+        currency,
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      } as VirtualIban;
+
+      beforeEach(() => {
+        jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet } as any);
+        jest.spyOn(bankService, 'getBank').mockResolvedValue(defaultRouteBank);
+      });
+
+      it('does not repeat the lookup when getTxDetails resolved an active vIBAN', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: userLevelVirtualIban } as any);
+
+        const response = await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.BANK,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(response.iban).toBe(userLevelVirtualIban.iban);
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
+      });
+
+      // CARD on purpose: a BANK transfer with no personal IBAN fails closed by design, so the "none
+      // found" outcome can only be observed on the payment method that still resolves a bank.
+      it('does not repeat the lookup when getTxDetails resolved that there is none', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: null } as any);
+
+        await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.CARD,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
+      });
+
+      it('resolves it itself when getTxDetails ran no lookup', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: undefined } as any);
+        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+
+        await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.CARD,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 
   describe('createBuy route persistence', () => {

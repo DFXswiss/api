@@ -35,13 +35,25 @@ import { TransactionRequestType } from 'src/subdomains/supporting/payment/entiti
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, Not, Repository } from 'typeorm';
 import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { GetBuyPaymentInfoDto, PersonalIbanProvider } from './dto/get-buy-payment-info.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
+
+// Single relation set for the whole payment-info request, loaded once and passed down. Both halves of
+// the request used to load the user separately with different relations, which is how `user.wallet`
+// went missing in createBuyPaymentInfo (buyCheck reads it) while toPaymentInfoDto had it.
+//   - userData.organization: `UserData.address` reads organization.street/country for ORGANIZATION and
+//     SOLE_PROPRIETORSHIP accounts. TypeORM joins the eager relations of a requested relation one level
+//     only, so organization.country is joined only when organization is requested explicitly.
+//   - wallet: read as user.wallet (not userData.wallet) by buyCheck and getTxDetails.
+const PAYMENT_INFO_USER_RELATIONS: FindOptionsRelations<User> = {
+  userData: { organization: true },
+  wallet: true,
+};
 
 @Injectable()
 export class BuyService {
@@ -141,7 +153,7 @@ export class BuyService {
   }
 
   async createBuyPaymentInfo(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    const user = await this.userService.getUser(jwt.user, PAYMENT_INFO_USER_RELATIONS);
     if (dto.personalIbanProvider === PersonalIbanProvider.FRICK && dto.paymentMethod !== FiatPaymentMethod.BANK) {
       throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
     }
@@ -154,7 +166,7 @@ export class BuyService {
       (e) => e.message?.includes('duplicate key'),
     );
 
-    return this.toPaymentInfoDto(jwt.user, buy, dto);
+    return this.toPaymentInfoDto(jwt.user, buy, dto, user);
   }
 
   async createBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
@@ -267,11 +279,13 @@ export class BuyService {
     return this.buyRepo;
   }
 
-  async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, {
-      userData: { users: true, organization: true },
-      wallet: true,
-    });
+  async toPaymentInfoDto(
+    userId: number,
+    buy: Buy,
+    dto: GetBuyPaymentInfoDto,
+    preloadedUser?: User,
+  ): Promise<BuyPaymentInfoDto> {
+    const user = preloadedUser ?? (await this.userService.getUser(userId, PAYMENT_INFO_USER_RELATIONS));
 
     // Explicit personal-IBAN selector dispatch is exhaustive and fail-closed. Frick resolves the
     // deposit destination before fee calculation so bankInOverride can pass the Frick bank name
@@ -327,6 +341,7 @@ export class BuyService {
       feeSource,
       feeTarget,
       priceSteps,
+      activeVirtualIban,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -354,6 +369,8 @@ export class BuyService {
         buy,
         dto.asset,
         user.wallet,
+        undefined,
+        activeVirtualIban,
       );
     }
 
@@ -476,6 +493,7 @@ export class BuyService {
     asset?: Asset,
     wallet?: Wallet,
     personalIbanProvider?: PersonalIbanProvider,
+    activeVirtualIban?: VirtualIban | null,
   ): Promise<{
     bankInfo: BankInfoDto & { isPersonalIban: boolean; reference?: string };
     bankId: number;
@@ -536,11 +554,12 @@ export class BuyService {
       }
     }
 
-    // user-level vIBAN
-    let virtualIban = await this.virtualIbanService.getActiveReceivingForUserAndCurrency(
-      selector.userData,
-      selector.currency,
-    );
+    // user-level vIBAN — reuse the caller's lookup when it already ran one for this (userData, currency);
+    // null means "resolved, none found", undefined means "not resolved".
+    let virtualIban =
+      activeVirtualIban !== undefined
+        ? activeVirtualIban
+        : await this.virtualIbanService.getActiveReceivingForUserAndCurrency(selector.userData, selector.currency);
 
     // create a personal IBAN for an eligible KYC 50+ user
     if (
