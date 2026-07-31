@@ -38,11 +38,12 @@ abstract class CustodyAccountAccessGuard implements CanActivate {
 
     // Same constraints as the controller: digits only, finite safe positive int in SERIAL range.
     // (Guards map validation failures to 403; the controller answers 400 on grant routes.)
-    if (!Util.isDbId(id)) {
+    const parsed = Util.toDbId(id);
+    if (!parsed) {
       throw new ForbiddenException('Invalid custody account ID');
     }
 
-    return Number(id);
+    return parsed;
   }
 }
 

@@ -213,7 +213,7 @@ describe('TransactionController', () => {
     // Regression: `isNaN(+id)` classified all of these as numeric ids, so they reached Postgres as
     // integers and came back as `invalid input syntax for type integer` -> 500. None of them can be a
     // real transaction id, so they must go down the UID path instead and never be coerced to a number.
-    const malformedIds = ['NaN', 'Infinity', '1.9', '1e+21', '-1', '99999999999', ' 12 ', '0x10'];
+    const malformedIds = ['NaN', 'Infinity', '1.9', '1e+21', '-1', '99999999999', '0x10', 'abc'];
 
     beforeEach(() => {
       Config.invoice.currencies = ['EUR', 'CHF'];
@@ -232,8 +232,10 @@ describe('TransactionController', () => {
       expect(transactionHelper.getTxStatementDetails).toHaveBeenCalledWith(jwt.account, id, TxStatementType.INVOICE);
     });
 
-    it('still resolves a well-formed numeric id to a number', async () => {
-      await controller.generateInvoiceFromTransaction(jwt, '42');
+    // A query string decodes `+` to a space, so `/v1/transaction/+42/invoice` arrives padded; it
+    // resolved as id 42 before the guard existed and still must.
+    it.each(['42', ' 42 '])('still resolves the well-formed numeric id %j to a number', async (id) => {
+      await controller.generateInvoiceFromTransaction(jwt, id);
 
       expect(transactionHelper.getTxStatementDetails).toHaveBeenCalledWith(jwt.account, 42, TxStatementType.INVOICE);
     });

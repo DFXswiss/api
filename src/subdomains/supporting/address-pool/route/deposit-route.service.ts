@@ -42,12 +42,10 @@ export class DepositRouteService {
   }
 
   async getPaymentRoute(idOrLabel: string, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
-    // Util.isDbId, not !isNaN(+x): the latter routes 'Infinity'/'1.9'/'1e+21' down the id branch and
+    // Util.toDbId, not !isNaN(+x): the latter routes 'Infinity'/'1.9'/'1e+21' down the id branch and
     // hands them to Postgres as an integer, which 500s on an endpoint anonymous callers can reach.
-    const isRouteId = Util.isDbId(idOrLabel);
-    const route = isRouteId
-      ? await this.getById(+idOrLabel, options)
-      : await this.getByLabel(undefined, idOrLabel, options);
+    const routeId = Util.toDbId(idOrLabel);
+    const route = routeId ? await this.getById(routeId, options) : await this.getByLabel(undefined, idOrLabel, options);
 
     if (route?.deposit.blockchains !== Blockchain.LIGHTNING) throw new NotFoundException(`Payment route not found`);
 

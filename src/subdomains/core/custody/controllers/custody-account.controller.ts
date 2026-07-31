@@ -249,10 +249,11 @@ export class CustodyAccountController {
    * Rejects non-digits, Infinity (e.g. 309 nines), zero, and values outside column range → 400.
    */
   private parsePositiveIntParam(value: string, name: string): number {
-    if (!Util.isDbId(value)) {
+    const id = Util.toDbId(value);
+    if (!id) {
       throw new BadRequestException(`Invalid ${name}`);
     }
 
-    return Number(value);
+    return id;
   }
 }

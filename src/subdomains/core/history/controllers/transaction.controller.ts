@@ -505,7 +505,7 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
-    const txIdOrUid = Util.isDbId(id) ? +id : id;
+    const txIdOrUid = Util.toDbId(id) ?? id;
 
     // For string UIDs, first try to find a TransactionRequest (for pending transactions)
     if (typeof txIdOrUid === 'string') {
@@ -572,7 +572,7 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
-    const txIdOrUid = Util.isDbId(id) ? +id : id;
+    const txIdOrUid = Util.toDbId(id) ?? id;
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       jwt.account,
       txIdOrUid,
@@ -801,8 +801,9 @@ export class TransactionController {
 
     let tx: Transaction | TransactionRequest;
     if (id) {
-      if (!Util.isDbId(id)) throw new BadRequestException('id must be an integer');
-      tx = await this.transactionService.getTransactionById(+id, baseRelations);
+      const transactionId = Util.toDbId(id);
+      if (!transactionId) throw new BadRequestException('id must be an integer');
+      tx = await this.transactionService.getTransactionById(transactionId, baseRelations);
     }
 
     const uidParam = uid ?? orderUid;
@@ -814,8 +815,8 @@ export class TransactionController {
     }
 
     if (orderId) {
-      if (!Util.isDbId(orderId)) throw new BadRequestException('order-id must be an integer');
-      const requestId = +orderId;
+      const requestId = Util.toDbId(orderId);
+      if (!requestId) throw new BadRequestException('order-id must be an integer');
       tx =
         (await this.transactionService.getTransactionByRequestId(requestId, baseRelations)) ??
         (await this.transactionRequestService.getTransactionRequest(requestId, { user: { userData: true } }));

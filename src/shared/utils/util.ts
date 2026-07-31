@@ -517,22 +517,29 @@ export class Util {
   }
 
   /**
-   * True if a request-supplied value is a usable Postgres INTEGER/SERIAL id.
+   * Parses a request-supplied value into a usable Postgres INTEGER/SERIAL id, or `undefined` if it
+   * is not one.
    *
-   * Deliberately stricter than `!isNaN(+value)` / `Number.isInteger(+value)`: both of those accept
-   * values JS coerces to a finite-looking number but Postgres rejects, which surfaces as a 500 rather
-   * than a 400. Notably `+'Infinity'` is `Infinity` and `+'1e+21'` is an integer by `Number.isInteger`.
-   * The digit-only test rejects all of them before they reach SQL.
+   * Deliberately stricter than `+value` / `Number.isInteger(+value)`: both of those accept values JS
+   * coerces to a finite-looking number but Postgres rejects, which surfaces as a 500 rather than a
+   * 400. Notably `+'Infinity'` is `Infinity` and `Number.isInteger(+'1e+21')` is `true`. Surrounding
+   * whitespace is tolerated because a query string decodes `+` to a space, so `?id=+42` resolved
+   * before this existed.
    *
-   * Takes `unknown` on purpose: query params are not guaranteed to be strings at runtime (`?id=1&id=2`
-   * arrives as an array), and `RegExp.test` would silently coerce those to something that passes.
+   * Returns the id rather than a boolean so callers cannot re-derive it with a laxer coercion, and
+   * takes `unknown` because query params are not guaranteed to be strings at runtime (`?id=1&id=2`
+   * arrives as an array, which `RegExp.test` would coerce to something that passes).
    */
-  static isDbId(value: unknown): boolean {
-    if (typeof value !== 'string' || !/^\d+$/.test(value)) return false;
+  static toDbId(value: unknown): number | undefined {
+    if (typeof value !== 'string') return undefined;
 
-    // The digit-only test above already rules out anything non-integral or negative, so the upper
-    // bound is the only remaining constraint — a value above it is also beyond Number.MAX_SAFE_INTEGER.
-    return Number(value) >= 1 && Number(value) <= PG_INTEGER_MAX;
+    const trimmed = value.trim();
+    if (!/^\d+$/.test(trimmed)) return undefined;
+
+    // The digit-only test above already rules out anything non-integral or negative, so the range is
+    // the only remaining constraint — a value above it is also beyond Number.MAX_SAFE_INTEGER.
+    const id = Number(trimmed);
+    return id >= 1 && id <= PG_INTEGER_MAX ? id : undefined;
   }
 
   // --- MISC --- //

@@ -81,6 +81,31 @@ describe('PaymentLinkController', () => {
     });
   });
 
+  describe('assignPaymentLink', () => {
+    // The presence check must run on the PARSED id: a malformed linkId leaves no usable identifier,
+    // and this endpoint has no auth guard, so reaching the service with both absent would let the
+    // query match an arbitrary unassigned link.
+    it.each(['abc', 'Infinity', '1e+21', '0', '2147483648'])(
+      'rejects a malformed linkId %j when no externalLinkId is supplied',
+      async (linkId) => {
+        await expect(
+          controller.assignPaymentLink(linkId, undefined, { publicName: 'attacker' } as never),
+        ).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(paymentLinkService.assignPaymentLink).not.toHaveBeenCalled();
+      },
+    );
+
+    it('ignores a malformed linkId when an externalLinkId is supplied', async () => {
+      jest.spyOn(PaymentLinkDtoMapper, 'toLinkDto').mockReturnValue({} as PaymentLinkDto);
+      jest.spyOn(paymentLinkService, 'assignPaymentLink').mockResolvedValue({} as PaymentLink);
+
+      await controller.assignPaymentLink('abc', 'shop-1', { publicName: 'shop' } as never);
+
+      expect(paymentLinkService.assignPaymentLink).toHaveBeenCalledWith(undefined, 'shop-1', { publicName: 'shop' });
+    });
+  });
+
   describe('generateOcpStickers ids parsing', () => {
     const run = (ids: string) =>
       controller.generateOcpStickers(

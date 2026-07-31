@@ -89,7 +89,7 @@ export class PaymentLinkController {
   ): Promise<PaymentLinkDto | PaymentLinkDto[]> {
     if (linkId || externalLinkId || externalPaymentId)
       return this.paymentLinkService
-        .getOrThrow(+jwt.user, this.parseLinkId(linkId), externalLinkId, externalPaymentId)
+        .getOrThrow(+jwt.user, Util.toDbId(linkId), externalLinkId, externalPaymentId)
         .then(PaymentLinkDtoMapper.toLinkDto);
 
     return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.toLinkDtoList);
@@ -142,7 +142,7 @@ export class PaymentLinkController {
     @Body() dto: UpdatePaymentLinkDto,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .update(+jwt.user, dto, this.parseLinkId(linkId), externalLinkId, externalPaymentId)
+      .update(+jwt.user, dto, Util.toDbId(linkId), externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -160,7 +160,7 @@ export class PaymentLinkController {
     @Query('externalPaymentId') externalPaymentId: string,
   ): Promise<PaymentLinkPosDto> {
     return this.paymentLinkService
-      .createPosLinkUser(+jwt.user, this.parseLinkId(linkId), externalLinkId, externalPaymentId)
+      .createPosLinkUser(+jwt.user, Util.toDbId(linkId), externalLinkId, externalPaymentId)
       .then((url) => ({ url }));
   }
 
@@ -173,10 +173,12 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Body() dto: AssignPaymentLinkDto,
   ): Promise<PaymentLinkDto> {
-    if (!linkId && !externalLinkId) throw new BadRequestException('id or externalId is required');
-    return this.paymentLinkService
-      .assignPaymentLink(this.parseLinkId(linkId), externalLinkId, dto)
-      .then(PaymentLinkDtoMapper.toLinkDto);
+    // Checked on the parsed id, not the raw string: a malformed linkId leaves no usable identifier,
+    // and the service's `where` would then match an arbitrary unassigned link on this open endpoint.
+    const id = Util.toDbId(linkId);
+    if (!id && !externalLinkId) throw new BadRequestException('id or externalId is required');
+
+    return this.paymentLinkService.assignPaymentLink(id, externalLinkId, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   // -- CONFIG --- //
@@ -214,9 +216,9 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   async createInvoicePayment(@Query() dto: CreateInvoicePaymentDto): Promise<PaymentLinkPayRequestDto> {
     if (dto.r) {
-      // A non-id `r` is a route label, not a malformed id — Util.isDbId keeps 'Infinity'/'1e+21' out
+      // A non-id `r` is a route label, not a malformed id — Util.toDbId keeps 'Infinity'/'1e+21' out
       // of the id branch (and out of SQL) by routing them to the label lookup instead.
-      const isRouteId = Util.isDbId(dto.r);
+      const isRouteId = Boolean(Util.toDbId(dto.r));
       if (isRouteId) {
         dto.routeId ??= dto.r;
       } else {
@@ -255,13 +257,7 @@ export class PaymentLinkController {
   ): Promise<PaymentLinkDto> {
     const link = key
       ? await this.paymentLinkService.createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
-      : await this.paymentLinkService.createPayment(
-          dto,
-          jwt && +jwt.user,
-          this.parseLinkId(linkId),
-          externalLinkId,
-          route,
-        );
+      : await this.paymentLinkService.createPayment(dto, jwt && +jwt.user, Util.toDbId(linkId), externalLinkId, route);
 
     return PaymentLinkDtoMapper.toLinkDto(link);
   }
@@ -282,7 +278,7 @@ export class PaymentLinkController {
     @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .waitForPayment(+jwt?.user, this.parseLinkId(linkId), externalLinkId, externalPaymentId, key)
+      .waitForPayment(+jwt?.user, Util.toDbId(linkId), externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -302,7 +298,7 @@ export class PaymentLinkController {
     @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .confirmPayment(+jwt?.user, this.parseLinkId(linkId), externalLinkId, externalPaymentId, key)
+      .confirmPayment(+jwt?.user, Util.toDbId(linkId), externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -324,7 +320,7 @@ export class PaymentLinkController {
     @Query('route') route: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(jwt && +jwt.user, this.parseLinkId(linkId), externalLinkId, externalPaymentId, key, route)
+      .cancelPayment(jwt && +jwt.user, Util.toDbId(linkId), externalLinkId, externalPaymentId, key, route)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -415,12 +411,12 @@ export class PaymentLinkController {
       throw new UnauthorizedException('Authentication required for POS mode');
     }
 
-    // Util.isDbId, not Number.isInteger(+id): the latter accepts '1e+21' and '2147483648', which
+    // Util.toDbId, not Number.isInteger(+id): the latter accepts '1e+21' and '2147483648', which
     // reach Postgres as out-of-range integers and 500 on an endpoint anonymous callers can reach.
     const idArray = ids?.split(',').map((id) => {
-      const linkId = id.trim();
-      if (!Util.isDbId(linkId)) throw new BadRequestException('ids must be a comma-separated list of integers');
-      return +linkId;
+      const linkId = Util.toDbId(id);
+      if (!linkId) throw new BadRequestException('ids must be a comma-separated list of integers');
+      return linkId;
     });
     const externalIdArray = externalIds?.split(',').map((id) => id.trim());
     const pdfBuffer = await this.paymentLinkStickerService.generateOcpStickersPdf(
@@ -444,18 +440,6 @@ export class PaymentLinkController {
   }
 
   // --- HELPER METHODS --- //
-
-  /**
-   * `linkId` is one of several optional lookup keys, so a malformed value is dropped rather than
-   * rejected — the request still resolves via externalLinkId/externalPaymentId/key, which is what
-   * `+linkId` did implicitly by producing a falsy NaN. The point is only to keep 'Infinity'/'1.9'/
-   * '1e+21' out of SQL, where they became a Postgres 500 instead of being ignored.
-   */
-  private parseLinkId(linkId?: string): number | undefined {
-    const trimmed = linkId?.trim();
-
-    return Util.isDbId(trimmed) ? +trimmed : undefined;
-  }
 
   private async getAndCheckUserId(jwt?: JwtPayload, key?: string): Promise<number> {
     if (key) {

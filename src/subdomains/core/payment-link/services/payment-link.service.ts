@@ -159,11 +159,12 @@ export class PaymentLinkService {
     // Validated here rather than on the DTO because `route` wins over `routeId` and the `r` alias is
     // resolved in the controller after validation — so a junk routeId is only an error when it is the
     // value actually used. Unguarded, `+dto.routeId` hands Postgres NaN/Infinity/1e+21 and 500s.
-    if (!dto.route && !Util.isDbId(dto.routeId)) throw new BadRequestException('routeId must be a positive integer');
+    const routeId = Util.toDbId(dto.routeId);
+    if (!dto.route && !routeId) throw new BadRequestException('routeId must be a positive integer');
 
     const route = dto.route
       ? await this.depositRouteService.getByLabel(undefined, dto.route)
-      : await this.depositRouteService.getById(+dto.routeId);
+      : await this.depositRouteService.getById(routeId);
 
     if (route?.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
@@ -495,6 +496,11 @@ export class PaymentLinkService {
     externalId: string | undefined,
     dto: AssignPaymentLinkDto,
   ): Promise<PaymentLink> {
+    // Both identifiers absent would leave `where: { status: UNASSIGNED }` — TypeORM drops undefined
+    // keys, so the query would match an arbitrary unassigned link and assign it to the caller. This
+    // endpoint is unauthenticated, so that must be impossible however the caller reached it.
+    if (!id && !externalId) throw new BadRequestException('id or externalId is required');
+
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { id, externalId, status: PaymentLinkStatus.UNASSIGNED },
       relations: { route: { user: { userData: { organization: true } } } },

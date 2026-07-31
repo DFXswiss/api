@@ -458,7 +458,19 @@ describe('TransactionHelper', () => {
     await txHelper.getTxStatementDetails(userData.id, transaction.id, TxStatementType.INVOICE);
     await txHelper.getTxStatementDetails(userData.id, uid, TxStatementType.INVOICE);
 
-    expect(transactionService.getTransactionById).toHaveBeenCalledWith(transaction.id, expect.any(Object), 'query');
-    expect(transactionService.getTransactionByUid).toHaveBeenCalledWith(uid, expect.any(Object), 'query');
+    // The tree is pinned, not just the strategy: pruning is only safe because organization,
+    // buyFiat.outputAsset and cryptoInput.asset are eager, so a branch silently reappearing here
+    // (or an eager flag being dropped elsewhere) should fail loudly rather than cost round-trips.
+    const expectedRelations = {
+      userData: true,
+      buyCrypto: { buy: { user: { wallet: true } }, cryptoInput: true },
+      buyFiat: { cryptoInput: true },
+      refReward: true,
+      bankTxReturn: true,
+      request: true,
+    };
+
+    expect(transactionService.getTransactionById).toHaveBeenCalledWith(transaction.id, expectedRelations, 'query');
+    expect(transactionService.getTransactionByUid).toHaveBeenCalledWith(uid, expectedRelations, 'query');
   });
 });

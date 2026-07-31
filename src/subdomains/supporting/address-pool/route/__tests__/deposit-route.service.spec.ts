@@ -29,7 +29,7 @@ describe('DepositRouteService', () => {
     // integers and came back as `invalid input syntax for type integer` -> 500 on
     // GET /v1/paymentLink/recipient, which is reachable without authentication. They are not valid
     // ids, so they must be looked up as route labels instead.
-    it.each(['NaN', 'Infinity', '1.9', '1e+21', '-1', '0', ' 12 ', '2147483648'])(
+    it.each(['NaN', 'Infinity', '1.9', '1e+21', '-1', '0', '0x10', '2147483648'])(
       'looks up %j as a label, never as an id',
       async (idOrLabel) => {
         jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
@@ -42,10 +42,11 @@ describe('DepositRouteService', () => {
       },
     );
 
-    it('still resolves a well-formed id through the id branch', async () => {
+    // `?id=+42` decodes to ' 42', which resolved as id 42 before the guard existed.
+    it.each(['42', ' 42 '])('still resolves the well-formed id %j through the id branch', async (idOrLabel) => {
       jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
 
-      await expect(service.getPaymentRoute('42')).rejects.toThrow('Payment route not found');
+      await expect(service.getPaymentRoute(idOrLabel)).rejects.toThrow('Payment route not found');
 
       expect(depositRouteRepo.findOne).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ id: 42 }) }),

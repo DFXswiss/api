@@ -96,36 +96,46 @@ describe('sanitizeLogValue', () => {
   });
 });
 
-describe('isDbId', () => {
+describe('toDbId', () => {
   // Regression: request params were coerced with `!isNaN(+x)` / `Number.isInteger(+x)`, both of which
   // accept values Postgres rejects as an integer. Reaching SQL, they surfaced as 500s on endpoints
   // anonymous callers can reach (GET /v1/paymentLink/payment, /v1/plp, /v1/paymentLink/recipient).
-  it.each(['NaN', 'Infinity', '-Infinity', '1.9', '1e+21', '1E5', '0x10', '+42', '-1', ' 12 ', '12\n', 'abc', ''])(
+  it.each(['Infinity', '-Infinity', '1.9', '1e+21', '1E5', '0x10', '0b11', '-1', 'abc', '', '  '])(
     'rejects %j',
     (value) => {
-      expect(Util.isDbId(value)).toBe(false);
+      expect(Util.toDbId(value)).toBeUndefined();
     },
   );
 
+  it('rejects NaN, which the old isNaN(+x) coercion also caught', () => {
+    expect(Util.toDbId('NaN')).toBeUndefined();
+  });
+
   it('rejects 0, since SERIAL ids start at 1', () => {
-    expect(Util.isDbId('0')).toBe(false);
+    expect(Util.toDbId('0')).toBeUndefined();
   });
 
   it('rejects ids beyond the Postgres INTEGER range', () => {
-    expect(Util.isDbId('2147483647')).toBe(true);
-    expect(Util.isDbId('2147483648')).toBe(false);
-    expect(Util.isDbId('9'.repeat(309))).toBe(false);
+    expect(Util.toDbId('2147483647')).toBe(2147483647);
+    expect(Util.toDbId('2147483648')).toBeUndefined();
+    expect(Util.toDbId('9'.repeat(309))).toBeUndefined();
   });
 
   // Query params are not guaranteed to be strings: `?id=1&id=2` arrives as an array, which
   // `RegExp.test` would coerce to a passing value.
   it.each([[['12']], [12], [null], [undefined], [{}]])('rejects the non-string %p', (value) => {
-    expect(Util.isDbId(value)).toBe(false);
+    expect(Util.toDbId(value)).toBeUndefined();
   });
 
-  it('accepts a plain positive integer', () => {
-    expect(Util.isDbId('1')).toBe(true);
-    expect(Util.isDbId('42')).toBe(true);
-    expect(Util.isDbId('007')).toBe(true);
+  it('returns the parsed id for a plain positive integer', () => {
+    expect(Util.toDbId('1')).toBe(1);
+    expect(Util.toDbId('42')).toBe(42);
+    expect(Util.toDbId('007')).toBe(7);
+  });
+
+  // A query string decodes `+` to a space, so `?id=+42` arrives padded and resolved before this
+  // existed. Trimming lives here so every call site treats padding the same way.
+  it.each([' 42', '42 ', ' 42 ', '\t42\n'])('tolerates the surrounding whitespace in %j', (value) => {
+    expect(Util.toDbId(value)).toBe(42);
   });
 });
