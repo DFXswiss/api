@@ -73,8 +73,30 @@ describe('ClientErrorService', () => {
     ['a percent-encoded parameter', `https://app.example.com/buy?session%3D${TOKEN}`],
     ['a double-encoded parameter', `https://app.example.com/buy?session%253D${TOKEN}`],
     ['a percent-encoded parameter name', `https://app.example.com/buy?sess%69on=${TOKEN}`],
+    ['a parameter with no recognisable name', `https://app.example.com/cb?x=${TOKEN}`],
   ])('drops %s from a URL', (_case, message) => {
     service.logError(dto({ message }));
+
+    expect(loggedLine()).not.toContain(TOKEN);
+  });
+
+  // A URL does not need a scheme to carry a credential. A relative path is the normal shape for an
+  // app calling its own API, which makes this the common case rather than the exotic one.
+  it.each([
+    ['a relative path', `GET /buy?address=${TOKEN} failed`],
+    ['a relative path with no recognisable name', `GET /cb?x=${TOKEN}`],
+    ['a protocol-relative URL', `//app.example.com/buy?walletAddress=${TOKEN}`],
+    ['a fully percent-encoded URL', `https%3A%2F%2Fapp.example.com%2Fbuy%3Faddress%3D${TOKEN}`],
+  ])('drops parameters from %s', (_case, message) => {
+    service.logError(dto({ message }));
+
+    expect(loggedLine()).not.toContain(TOKEN);
+  });
+
+  // Credentials in the authority sit in front of every separator, so cutting at the query misses
+  // them entirely.
+  it('drops a credential embedded in the authority', () => {
+    service.logError(dto({ message: `https://admin:${TOKEN}@app.example.com/buy` }));
 
     expect(loggedLine()).not.toContain(TOKEN);
   });
@@ -125,6 +147,22 @@ describe('ClientErrorService', () => {
     service.logError(dto({ message: `failed with ${value}` }));
 
     expect(loggedLine()).toContain(value);
+  });
+
+  // Ordinary prose puts a colon after words that contain a secret name as a substring. Matching
+  // those would eat the half of the sentence that says what actually happened — and these are the
+  // sentences a frontend error most often consists of.
+  it.each([
+    '401 Unauthorized: invalid credentials',
+    'Error: Unauthorized: Session expired',
+    'Failed to open in Gmail: no app found',
+    'authMethod: MetaMask',
+    'OAuthProvider: google',
+    'TypeError: x is not a function',
+  ])('keeps the prose "%s"', (message) => {
+    service.logError(dto({ message }));
+
+    expect(loggedLine()).toContain(message);
   });
 
   it('keeps the asset path of a failed chunk, which is the point of the report', () => {
