@@ -4,11 +4,7 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycStatus, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { IdentDocumentType } from '../dto/ident-result-data.dto';
 import { FileSubType } from '../dto/kyc-file.dto';
-import {
-  DfxApprovalBlocker,
-  DfxApprovalBlockerDto,
-  DfxApprovalStatusDto,
-} from '../dto/output/dfx-approval-status.dto';
+import { DfxApprovalBlocker, DfxApprovalBlockerDto, DfxApprovalStatusDto } from '../dto/output/dfx-approval-status.dto';
 import { KycFile } from '../entities/kyc-file.entity';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName } from '../enums/kyc-step-name.enum';
@@ -56,8 +52,7 @@ export class DfxApprovalCheckService {
 
     if (![UserDataStatus.NA, UserDataStatus.ACTIVE, UserDataStatus.KYC_ONLY].includes(userData.status))
       add(DfxApprovalBlocker.INVALID_USER_STATUS);
-    if (![KycStatus.NA, KycStatus.COMPLETED].includes(userData.kycStatus))
-      add(DfxApprovalBlocker.INVALID_KYC_STATUS);
+    if (![KycStatus.NA, KycStatus.COMPLETED].includes(userData.kycStatus)) add(DfxApprovalBlocker.INVALID_KYC_STATUS);
 
     const country = userData.verifiedCountry ?? userData.country;
     if (!country) {
