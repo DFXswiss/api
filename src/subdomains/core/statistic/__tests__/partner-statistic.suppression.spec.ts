@@ -1,12 +1,9 @@
 import { PARTNER_STATISTIC_SUPPRESSION_THRESHOLD } from '../partner-statistic.enum';
 import {
   isUnderThreshold,
-  suppressAdditiveGroup,
   suppressAllTimeVolume,
   suppressBreakdownRows,
-  suppressCount,
   suppressPeriodTotals,
-  suppressRate,
   suppressScalar,
   suppressTimelineBuckets,
 } from '../partner-statistic.suppression';
@@ -49,26 +46,6 @@ describe('Partner statistic suppression', () => {
       expect(isUnderThreshold(PARTNER_STATISTIC_SUPPRESSION_THRESHOLD - 1)).toBe(true);
       expect(isUnderThreshold(PARTNER_STATISTIC_SUPPRESSION_THRESHOLD)).toBe(false);
       expect(isUnderThreshold(0)).toBe(false);
-    });
-  });
-
-  describe('suppressRate (completion)', () => {
-    it('returns numerator/denominator (not swapped) and nulls zero or suppressed sides', () => {
-      expect(suppressRate(0, 0)).toBeNull();
-      expect(suppressRate(5, 0)).toBeNull();
-      expect(suppressRate(null, 10)).toBeNull();
-      expect(suppressRate(5, null)).toBeNull();
-      expect(suppressRate(15, 100)).toBe(0.15);
-      expect(suppressRate(15, 100)).not.toBe(suppressRate(100, 15));
-      expect(suppressRate(1, 3)).toBe(0.3333);
-    });
-  });
-
-  describe('suppressCount', () => {
-    it('flags suppression only for 1..k-1', () => {
-      expect(suppressCount(0)).toEqual({ value: 0, suppressed: false });
-      expect(suppressCount(3)).toEqual({ value: null, suppressed: true });
-      expect(suppressCount(5)).toEqual({ value: 5, suppressed: false });
     });
   });
 
@@ -139,6 +116,15 @@ describe('Partner statistic suppression', () => {
       expect(two.rows.map((r) => r.name)).toEqual(['C']);
       expect(two.suppressedCount).toBe(2);
       expect(two.rows).toHaveLength(1);
+    });
+
+    it('skips complementary when only zero-tx rows remain after dropping one under-k row', () => {
+      const { rows, suppressedCount } = suppressBreakdownRows([
+        { name: 'A', volume: 10, transactions: 3 },
+        { name: 'B', volume: 0, transactions: 0 },
+      ]);
+      expect(rows.map((r) => r.name)).toEqual(['B']);
+      expect(suppressedCount).toBe(1);
     });
   });
 
@@ -349,6 +335,7 @@ describe('Partner statistic suppression', () => {
       expect(atK.transactions.total).toBe(5);
       expect(atK.volume.buy).toBe(500);
       expect(atK.suppressedCount).toBe(0);
+      expect(atK.averageTransactionVolume).toBe(100);
     });
 
     it('suppresses when transaction count is high but person count is under k', () => {
@@ -370,49 +357,6 @@ describe('Partner statistic suppression', () => {
       expect(volume.total).toBe(0);
       expect(transactions.total).toBe(0);
       expect(averageTransactionVolume).toBeNull();
-      expect(suppressedCount).toBe(0);
-    });
-  });
-
-  describe('suppressAdditiveGroup (funnel block rule)', () => {
-    it('nulls every non-zero member and the rate when any member is under k', () => {
-      const { values, rate, suppressedCount } = suppressAdditiveGroup(
-        { received: 20, delivered: 12, rejected: 3, inProgress: 5 },
-        { numeratorKey: 'delivered', denominatorKey: 'received' },
-      );
-      // rejected=3 under k → block
-      expect(values.received).toBeNull();
-      expect(values.delivered).toBeNull();
-      expect(values.rejected).toBeNull();
-      expect(values.inProgress).toBeNull();
-      expect(rate).toBeNull();
-      expect(suppressedCount).toBeGreaterThanOrEqual(1);
-      // reconstruction of rejected via 20-12-5 must not be possible from visible non-nulls
-      expect(Object.values(values).every((v) => v === null || v === 0)).toBe(true);
-    });
-
-    it('keeps zeros visible when the group is block-suppressed for another under-k member', () => {
-      const { values, rate, suppressedCount } = suppressAdditiveGroup(
-        { received: 20, delivered: 12, rejected: 3, inProgress: 0 },
-        { numeratorKey: 'delivered', denominatorKey: 'received' },
-      );
-      expect(values.rejected).toBeNull();
-      expect(values.inProgress).toBe(0);
-      expect(values.received).toBeNull();
-      expect(rate).toBeNull();
-      expect(suppressedCount).toBe(3);
-    });
-
-    it('keeps the group when every member is 0 or ≥ k', () => {
-      const { values, rate, suppressedCount } = suppressAdditiveGroup(
-        { received: 20, delivered: 15, rejected: 0, inProgress: 5 },
-        { numeratorKey: 'delivered', denominatorKey: 'received' },
-      );
-      expect(values.received).toBe(20);
-      expect(values.delivered).toBe(15);
-      expect(values.rejected).toBe(0);
-      expect(values.inProgress).toBe(5);
-      expect(rate).toBe(0.75);
       expect(suppressedCount).toBe(0);
     });
   });

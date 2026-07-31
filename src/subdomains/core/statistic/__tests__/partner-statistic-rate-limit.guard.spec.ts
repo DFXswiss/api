@@ -1,4 +1,3 @@
-import { InternalServerErrorException } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { Config, ConfigService } from 'src/config/config';
 import { PartnerStatisticRateLimitGuard } from '../partner-statistic-rate-limit.guard';
@@ -24,10 +23,17 @@ describe('PartnerStatisticRateLimitGuard', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('throws InternalServerError when jwt.user is missing (fail-closed, no IP fallback)', () => {
-    expect(() => getTracker({ realIp: '9.9.9.9' })).toThrow(InternalServerErrorException);
+  it('throws plain Error when jwt.user is missing (fail-closed, no IP fallback)', () => {
+    expect(() => getTracker({ realIp: '9.9.9.9' })).toThrow(Error);
     expect(() => getTracker({ realIp: '9.9.9.9' })).toThrow(/authenticated wallet/);
-    expect(() => getTracker({})).toThrow(InternalServerErrorException);
+    expect(() => getTracker({})).toThrow(Error);
+    try {
+      getTracker({});
+      fail('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).constructor.name).toBe('Error');
+    }
   });
 
   describe('handleRequest', () => {

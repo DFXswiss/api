@@ -1,4 +1,8 @@
-import { PARTNER_STATISTIC_SUPPRESSION_THRESHOLD, PartnerStatisticDirection } from './partner-statistic.enum';
+import {
+  PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
+  PartnerStatisticDirection,
+  PartnerStatisticDirectionField,
+} from './partner-statistic.enum';
 
 /**
  * k-anonymity helpers for partner statistics.
@@ -7,11 +11,10 @@ import { PARTNER_STATISTIC_SUPPRESSION_THRESHOLD, PartnerStatisticDirection } fr
  * The effective count is min(transactions, distinctUsers) when both are known;
  * otherwise the transaction count alone.
  *
- * Additive groups (period totals by direction, payment-info funnel, settlement
- * funnel, timeline bucket directions) use block suppression: if any member is
- * under the threshold, the entire group (members + derived sums/rates) is
- * suppressed. Partial nulling would let totals − visible recover the hidden
- * member exactly.
+ * Additive groups (period totals by direction, timeline bucket directions) use
+ * block suppression: if any member is under the threshold, the entire group
+ * (members + derived sums/rates) is suppressed. Partial nulling would let
+ * totals − visible recover the hidden member exactly.
  *
  * Zero is never suppressed: 0 means “none”, null means “withheld”.
  */
@@ -39,23 +42,6 @@ export function suppressScalar(
   return isUnderThreshold(value, users, threshold) ? null : value;
 }
 
-/** Share numerator/denominator (0..1). Null if either side is suppressed or denominator is 0. */
-export function suppressRate(numerator: number | null, denominator: number | null, decimals = 4): number | null {
-  if (numerator == null || denominator == null || denominator === 0) return null;
-  const factor = 10 ** decimals;
-  return Math.round((numerator / denominator) * factor) / factor;
-}
-
-/** Applies suppressScalar and reports whether the value was withheld (not zero). */
-export function suppressCount(
-  value: number,
-  threshold = PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
-  users?: number,
-): { value: number | null; suppressed: boolean } {
-  const next = suppressScalar(value, threshold, users);
-  return { value: next, suppressed: next === null };
-}
-
 export interface SuppressibleRow {
   transactions: number;
   /** Distinct users contributing to this row; when set, min(tx, users) is the gate. */
@@ -73,12 +59,22 @@ export function suppressBreakdownRows<T extends SuppressibleRow>(
   const visible = rows.filter((r) => !isUnderThreshold(r.transactions, r.users, threshold));
   let suppressedCount = rows.length - visible.length;
 
-  if (suppressedCount === 1 && visible.length > 0) {
-    const candidates = visible.filter((r) => effectiveCount(r.transactions, r.users) > 0);
-    if (candidates.length > 0) {
-      const smallest = candidates.reduce((a, b) =>
-        effectiveCount(a.transactions, a.users) <= effectiveCount(b.transactions, b.users) ? a : b,
-      );
+  if (suppressedCount === 1) {
+    // Complementary: suppress the smallest remaining filled row. SQL GROUP BY never emits
+    // 0-count groups, so a filled candidate exists whenever a non-empty visible set remains
+    // after dropping a single under-k row of real traffic. Zero-only remainders (synthetic
+    // fixtures) need no complementary partner — skip.
+    let smallest: T | undefined;
+    for (const r of visible) {
+      if (effectiveCount(r.transactions, r.users) <= 0) continue;
+      if (
+        !smallest ||
+        effectiveCount(r.transactions, r.users) <= effectiveCount(smallest.transactions, smallest.users)
+      ) {
+        smallest = r;
+      }
+    }
+    if (smallest) {
       visible.splice(visible.indexOf(smallest), 1);
       suppressedCount += 1;
     }
@@ -149,14 +145,16 @@ function bucketNeedsSuppression(b: TimelineSuppressible, threshold: number): boo
 
   // Per-direction gate (block rule for the bucket as an additive group).
   for (const dir of DIRECTIONS) {
-    if (isUnderThreshold(txs[dir], users?.[dir], threshold)) return true;
+    const field = PartnerStatisticDirectionField[dir];
+    if (isUnderThreshold(txs[field], users?.[field], threshold)) return true;
   }
 
   // Overall bucket total: if the whole day is under k when summed, hide it too.
   const totalTx = txs.buy + txs.sell + txs.swap;
   if (totalTx === 0) return false;
-  // Distinct users across directions can overlap; without a true UNION we use max as a lower bound
-  // on the person count only when every direction that has txs also has a user count.
+  // Distinct users across directions can overlap; without a true UNION we use max of the
+  // per-direction user counts as a lower bound on the person count whenever a users object
+  // is present (callers always supply all three directions, including zeros).
   if (users) {
     const totalUsers = Math.max(users.buy, users.sell, users.swap);
     return isUnderThreshold(totalTx, totalUsers, threshold);
@@ -212,8 +210,7 @@ export function suppressPeriodTotals(
     };
   }
 
-  const averageTransactionVolume =
-    volume.total != null && transactions.total > 0 ? volume.total / transactions.total : null;
+  const averageTransactionVolume = transactions.total > 0 ? volume.total / transactions.total : null;
 
   return {
     volume: { ...volume },
@@ -245,36 +242,6 @@ export function suppressAllTimeVolume(
     };
   }
   return { volume, suppressedCount: 0 };
-}
-
-/**
- * Block-suppress an additive funnel: if any count is under k, null every member and the rate.
- * Returns how many fields were suppressed (0 or memberCount).
- */
-export function suppressAdditiveGroup(
-  counts: Record<string, number>,
-  rate?: { numeratorKey: string; denominatorKey: string },
-  threshold = PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
-): { values: Record<string, number | null>; rate: number | null; suppressedCount: number } {
-  const keys = Object.keys(counts);
-  const anyUnder = keys.some((k) => isUnderThreshold(counts[k], undefined, threshold));
-
-  if (anyUnder) {
-    // Zeros stay visible (0 means “none”, discloses nothing). All non-zero members and the
-    // derived rate are nulled when any member is under k (block rule).
-    const values: Record<string, number | null> = {};
-    for (const k of keys) values[k] = counts[k] === 0 ? 0 : null;
-    return { values, rate: null, suppressedCount: keys.filter((k) => counts[k] !== 0).length };
-  }
-
-  const values: Record<string, number | null> = {};
-  for (const k of keys) values[k] = counts[k];
-
-  let rateValue: number | null = null;
-  if (rate) {
-    rateValue = suppressRate(values[rate.numeratorKey], values[rate.denominatorKey]);
-  }
-  return { values, rate: rateValue, suppressedCount: 0 };
 }
 
 function txTotal(b: TimelineSuppressible): number {

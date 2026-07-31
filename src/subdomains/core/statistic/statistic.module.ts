@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BitcoinModule } from 'src/integration/blockchain/bitcoin/bitcoin.module';
 import { SharedModule } from 'src/shared/shared.module';
-import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
@@ -20,9 +19,10 @@ import { StatisticService } from './statistic.service';
   providers: [
     StatisticService,
     PartnerStatisticService,
-    // Repositories not re-exported by every parent module — same pattern as FiatOutputModule.
-    BuyCryptoRepository,
+    // BuyCryptoRepository is exported by BuyCryptoModule (already imported) — do not re-provide.
+    // BuyFiatRepository is not in SellCryptoModule.exports — provide locally.
     BuyFiatRepository,
+    // UserRepository / WalletRepository are not in UserModule.exports — provide locally.
     UserRepository,
     WalletRepository,
   ],

@@ -1,4 +1,4 @@
-import { ExecutionContext, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ExecutionContext, Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { Config } from 'src/config/config';
 
@@ -17,7 +17,7 @@ export class PartnerStatisticRateLimitGuard extends ThrottlerGuard {
     // Unreachable when this guard is ordered after AuthGuard + RoleGuard(CLIENT_COMPANY):
     // jwt.user is set. Falling back to IP would silently weaken the budget (NAT share-out or
     // no useful key) — fail closed instead of pretending rate limiting still works.
-    throw new InternalServerErrorException('Partner statistic rate limit requires an authenticated wallet');
+    throw new Error('Partner statistic rate limit requires an authenticated wallet');
   }
 
   async handleRequest(context: ExecutionContext, limit: number, ttl: number): Promise<boolean> {

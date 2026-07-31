@@ -1,7 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
@@ -9,6 +8,7 @@ import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wall
 import {
   PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS,
   PARTNER_STATISTIC_MAX_PERIOD_DAYS,
+  PARTNER_STATISTIC_QUERY_CONCURRENCY,
   PartnerStatisticDirection,
   PartnerStatisticGranularity,
 } from '../partner-statistic.enum';
@@ -24,17 +24,11 @@ type Direction = PartnerStatisticDirection;
  * (or from `new Date()` via fake timers) so tests do not go stale as wall-clock years pass.
  */
 const TEST_NOW = new Date('2024-06-15T12:00:00.000Z');
-const PERIOD_FROM = Util.daysBefore(30, TEST_NOW);
+const PERIOD_FROM = new Date('2024-05-16T00:00:00.000Z');
 const PERIOD_TO = TEST_NOW;
 /** Wednesday UTC before TEST_NOW (Saturday) — mid-week so week-edge buckets are partial. */
-const MID_WEEK_FROM = Util.daysBefore(3, TEST_NOW);
-const MID_WEEK_TO = Util.daysAfter(7, MID_WEEK_FROM);
-
-interface SettlementFixture {
-  received: number;
-  delivered: number;
-  rejected: number;
-}
+const MID_WEEK_FROM = new Date('2024-06-12T00:00:00.000Z');
+const MID_WEEK_TO = new Date('2024-06-19T00:00:00.000Z');
 
 interface DirectionFixture {
   volume: number;
@@ -50,14 +44,11 @@ interface WalletFixture {
   newUsers: number;
   allTime: { buy: number; sell: number; registeredUsers: number; tradingUsers: number };
   referral: { volume: number; partnerRefCredit: number; refCredit: number; paidRefCredit: number };
-  settlement: Record<Direction, SettlementFixture>;
+  /** When true, wallet getRawOne returns null (missing wallet row). */
+  missingWallet?: boolean;
   /** Named breakdown rows returned by getRawMany for asset/fiat/blockchain/payment queries. */
   namedRows: { name: string; blockchain?: string; volume: number; transactions: number; users: number }[];
   timelineRows: { bucket: Date; volume: number; transactions: number; users: number }[];
-}
-
-function emptySettlement(): SettlementFixture {
-  return { received: 0, delivered: 0, rejected: 0 };
 }
 
 function emptyFixture(overrides: Partial<WalletFixture> = {}): WalletFixture {
@@ -69,15 +60,24 @@ function emptyFixture(overrides: Partial<WalletFixture> = {}): WalletFixture {
     newUsers: 0,
     allTime: { buy: 0, sell: 0, registeredUsers: 0, tradingUsers: 0 },
     referral: { volume: 0, partnerRefCredit: 0, refCredit: 0, paidRefCredit: 0 },
-    settlement: {
-      [PartnerStatisticDirection.BUY]: emptySettlement(),
-      [PartnerStatisticDirection.SELL]: emptySettlement(),
-      [PartnerStatisticDirection.SWAP]: emptySettlement(),
-    },
     namedRows: [],
     timelineRows: [],
     ...overrides,
   };
+}
+
+/** Recursively collect every own-property key name in a JSON-serializable value. */
+function collectKeys(value: unknown, out: Set<string> = new Set()): Set<string> {
+  if (value == null || typeof value !== 'object') return out;
+  if (Array.isArray(value)) {
+    for (const item of value) collectKeys(item, out);
+    return out;
+  }
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out.add(k);
+    collectKeys(v, out);
+  }
+  return out;
 }
 
 interface QbState {
@@ -89,9 +89,6 @@ interface QbState {
   isTimeline: boolean;
   isAllTime: boolean;
   isReferral: boolean;
-  isSettlement: boolean;
-  isPaymentInfo: boolean;
-  amlPassOnly: boolean;
 }
 
 interface GroupByCapture {
@@ -105,11 +102,13 @@ describe('PartnerStatisticService', () => {
   let lastWalletIds: number[];
   let whereClauses: string[];
   let amlFilterClauses: string[];
-  let settlementAmlPassOnly: boolean[];
   let groupByCapture: GroupByCapture;
   let managerCreateQueryBuilderCalls: number;
   let activeUserCountFromManager: number | undefined;
-  let getRawManyCalls: number;
+  let concurrentQueries: number;
+  let maxConcurrentQueries: number;
+  let queryDelayMs: number;
+  let nonNumericVolume: string | number | null | undefined | false;
 
   /**
    * Records walletId from query params when present and returns it for fixture routing.
@@ -149,15 +148,6 @@ describe('PartnerStatisticService', () => {
         merged.referral.partnerRefCredit += f.referral.partnerRefCredit;
         merged.referral.refCredit += f.referral.refCredit;
         merged.referral.paidRefCredit += f.referral.paidRefCredit;
-        for (const d of [
-          PartnerStatisticDirection.BUY,
-          PartnerStatisticDirection.SELL,
-          PartnerStatisticDirection.SWAP,
-        ]) {
-          merged.settlement[d].received += f.settlement[d].received;
-          merged.settlement[d].delivered += f.settlement[d].delivered;
-          merged.settlement[d].rejected += f.settlement[d].rejected;
-        }
         merged.namedRows.push(...f.namedRows);
         merged.timelineRows.push(...f.timelineRows);
       }
@@ -166,7 +156,18 @@ describe('PartnerStatisticService', () => {
     return fixtures.get(walletId) ?? emptyFixture();
   }
 
-  function createQb(kind: 'buyCrypto' | 'buyFiat' | 'user' | 'wallet' | 'txRequest') {
+  async function trackConcurrency<T>(work: () => Promise<T>): Promise<T> {
+    concurrentQueries += 1;
+    maxConcurrentQueries = Math.max(maxConcurrentQueries, concurrentQueries);
+    try {
+      if (queryDelayMs > 0) await new Promise((r) => setTimeout(r, queryDelayMs));
+      return await work();
+    } finally {
+      concurrentQueries -= 1;
+    }
+  }
+
+  function createQb(kind: 'buyCrypto' | 'buyFiat' | 'user' | 'wallet') {
     const state: QbState = {
       selects: [],
       selectAliases: [],
@@ -174,9 +175,6 @@ describe('PartnerStatisticService', () => {
       isTimeline: false,
       isAllTime: false,
       isReferral: false,
-      isSettlement: false,
-      isPaymentInfo: kind === 'txRequest',
-      amlPassOnly: false,
     };
 
     const qb: Record<string, jest.Mock | (() => unknown)> = {};
@@ -193,8 +191,6 @@ describe('PartnerStatisticService', () => {
       if (expr.includes('DATE_TRUNC') || label === 'bucket') state.isTimeline = true;
       if (label === 'registeredUsers' || expr.includes('registeredUsers')) state.isAllTime = true;
       if (label === 'partnerRefCredit' || expr.includes('partnerRefCredit')) state.isReferral = true;
-      if (label === 'received' || label === 'delivered' || label === 'rejected') state.isSettlement = true;
-      if (kind === 'txRequest' || label === 'type' || label === 'status') state.isPaymentInfo = true;
     };
 
     const recordGroupBy = (clause: unknown) => {
@@ -241,9 +237,6 @@ describe('PartnerStatisticService', () => {
       if (walletId !== undefined) state.walletId = walletId;
       if (clauseStr.includes('amlCheck')) {
         amlFilterClauses.push(clauseStr);
-        if (params && typeof params === 'object' && 'check' in (params as object)) {
-          state.amlPassOnly = true;
-        }
       }
       return self();
     });
@@ -255,66 +248,64 @@ describe('PartnerStatisticService', () => {
       to: new Date(TEST_NOW),
     }));
 
-    qb.getRawOne = jest.fn(async () => {
-      const f = fixtureFor(state.walletId);
+    qb.getRawOne = jest.fn(async () =>
+      trackConcurrency(async () => {
+        const f = fixtureFor(state.walletId);
 
-      if (kind === 'wallet' || state.isReferral) {
-        return {
-          volume: f.referral.volume,
-          partnerRefCredit: f.referral.partnerRefCredit,
-          refCredit: f.referral.refCredit,
-          paidRefCredit: f.referral.paidRefCredit,
-        };
-      }
+        if (kind === 'wallet' || state.isReferral) {
+          if (f.missingWallet) return null;
+          return {
+            volume: f.referral.volume,
+            partnerRefCredit: f.referral.partnerRefCredit,
+            refCredit: f.referral.refCredit,
+            paidRefCredit: f.referral.paidRefCredit,
+          };
+        }
 
-      if (kind === 'user' || state.isAllTime) {
-        return {
-          buy: f.allTime.buy,
-          sell: f.allTime.sell,
-          registeredUsers: f.allTime.registeredUsers,
-          tradingUsers: f.allTime.tradingUsers,
-        };
-      }
+        if (kind === 'user' || state.isAllTime) {
+          return {
+            buy: f.allTime.buy,
+            sell: f.allTime.sell,
+            registeredUsers: f.allTime.registeredUsers,
+            tradingUsers: f.allTime.tradingUsers,
+          };
+        }
 
-      if (state.isTimeline) return null;
+        if (state.isTimeline) return null;
 
-      if (state.isSettlement) {
-        settlementAmlPassOnly.push(state.amlPassOnly);
         const dir =
           state.direction ?? (kind === 'buyFiat' ? PartnerStatisticDirection.SELL : PartnerStatisticDirection.BUY);
-        const s = f.settlement[dir];
-        return { received: s.received, delivered: s.delivered, rejected: s.rejected };
-      }
+        const agg =
+          f[dir === PartnerStatisticDirection.BUY ? 'buy' : dir === PartnerStatisticDirection.SELL ? 'sell' : 'swap'];
+        const volume = nonNumericVolume !== false ? nonNumericVolume : agg.volume;
+        return { volume, transactions: agg.transactions, users: agg.users };
+      }),
+    );
 
-      const dir =
-        state.direction ?? (kind === 'buyFiat' ? PartnerStatisticDirection.SELL : PartnerStatisticDirection.BUY);
-      const agg = f[dir];
-      return { volume: agg.volume, transactions: agg.transactions, users: agg.users };
-    });
-
-    qb.getRawMany = jest.fn(async () => {
-      getRawManyCalls += 1;
-      if (state.isTimeline) {
+    qb.getRawMany = jest.fn(async () =>
+      trackConcurrency(async () => {
+        if (state.isTimeline) {
+          const f = fixtureFor(state.walletId);
+          return f.timelineRows.map((r) => ({
+            bucket: r.bucket,
+            volume: r.volume,
+            transactions: r.transactions,
+            users: r.users,
+          }));
+        }
+        // Breakdown path — exercise mergeNamedRows
         const f = fixtureFor(state.walletId);
-        return f.timelineRows.map((r) => ({
-          bucket: r.bucket,
+        return f.namedRows.map((r) => ({
+          name: r.name,
+          blockchain: r.blockchain ?? null,
           volume: r.volume,
           transactions: r.transactions,
           users: r.users,
         }));
-      }
-      // Breakdown path — exercise mergeNamedRows
-      const f = fixtureFor(state.walletId);
-      return f.namedRows.map((r) => ({
-        name: r.name,
-        blockchain: r.blockchain ?? null,
-        volume: r.volume,
-        transactions: r.transactions,
-        users: r.users,
-      }));
-    });
+      }),
+    );
 
-    qb.getCount = jest.fn(async () => fixtureFor(state.walletId).newUsers);
+    qb.getCount = jest.fn(async () => trackConcurrency(async () => fixtureFor(state.walletId).newUsers));
 
     return qb;
   }
@@ -331,12 +322,14 @@ describe('PartnerStatisticService', () => {
       if (walletId !== undefined) state.walletId = walletId;
       return self();
     });
-    qb.getRawOne = jest.fn(async () => {
-      managerCreateQueryBuilderCalls += 1;
-      const f = fixtureFor(state.walletId);
-      const count = activeUserCountFromManager ?? f.activeUserIds.length;
-      return { count };
-    });
+    qb.getRawOne = jest.fn(async () =>
+      trackConcurrency(async () => {
+        managerCreateQueryBuilderCalls += 1;
+        const f = fixtureFor(state.walletId);
+        const count = activeUserCountFromManager ?? f.activeUserIds.length;
+        return { count };
+      }),
+    );
 
     return qb;
   }
@@ -345,12 +338,14 @@ describe('PartnerStatisticService', () => {
     lastWalletIds = [];
     whereClauses = [];
     amlFilterClauses = [];
-    settlementAmlPassOnly = [];
     fixtures = new Map();
     groupByCapture = { groupBys: [], selectAliases: [] };
     managerCreateQueryBuilderCalls = 0;
     activeUserCountFromManager = undefined;
-    getRawManyCalls = 0;
+    concurrentQueries = 0;
+    maxConcurrentQueries = 0;
+    queryDelayMs = 0;
+    nonNumericVolume = false;
     new ConfigService();
 
     const buyCryptoRepo = {
@@ -376,15 +371,18 @@ describe('PartnerStatisticService', () => {
   // --- PERIOD VALIDATION --- //
 
   describe('resolvePeriod', () => {
-    it('defaults to the last 30 days snapped to UTC day boundaries when from/to are omitted', () => {
+    it('defaults to the last 30 inclusive UTC calendar days when from/to are omitted', () => {
       jest.useFakeTimers().setSystemTime(TEST_NOW);
 
       const period = service.resolvePeriod();
       // to = start of day after TEST_NOW's UTC day
       expect(period.to.toISOString()).toBe('2024-06-16T00:00:00.000Z');
+      // Inclusive N=30 → from = toDay − 29 = 2024-05-17
       expect(period.from.toISOString()).toBe(
-        new Date(Date.UTC(2024, 5, 15 - PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS)).toISOString(),
+        new Date(Date.UTC(2024, 5, 15 - (PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS - 1))).toISOString(),
       );
+      const spanDays = (period.to.getTime() - period.from.getTime()) / (24 * 3600 * 1000);
+      expect(spanDays).toBe(PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS);
 
       jest.useRealTimers();
     });
@@ -401,14 +399,14 @@ describe('PartnerStatisticService', () => {
     });
 
     it('rejects periods longer than the max span', () => {
-      const from = Util.daysBefore(PARTNER_STATISTIC_MAX_PERIOD_DAYS + 50, TEST_NOW);
+      const from = new Date(TEST_NOW.getTime() - (PARTNER_STATISTIC_MAX_PERIOD_DAYS + 50) * 24 * 3600 * 1000);
       const to = TEST_NOW;
       expect(() => service.resolvePeriod(from, to)).toThrow(BadRequestException);
       expect(() => service.resolvePeriod(from, to)).toThrow(String(PARTNER_STATISTIC_MAX_PERIOD_DAYS));
     });
 
     it('accepts a period of exactly the max span', () => {
-      const from = Util.daysBefore(PARTNER_STATISTIC_MAX_PERIOD_DAYS - 1, TEST_NOW);
+      const from = new Date(TEST_NOW.getTime() - (PARTNER_STATISTIC_MAX_PERIOD_DAYS - 1) * 24 * 3600 * 1000);
       const to = TEST_NOW;
       expect(() => service.resolvePeriod(from, to)).not.toThrow();
     });
@@ -418,18 +416,91 @@ describe('PartnerStatisticService', () => {
       expect(period.from.toISOString()).toBe('2024-06-01T00:00:00.000Z');
       expect(period.to.toISOString()).toBe('2024-06-02T00:00:00.000Z');
     });
+
+    it('default from is UTC-stable across process timezones and DST edges (D2)', () => {
+      // Instant that lands on different local calendar dates in Berlin vs New York.
+      const to = new Date('2024-11-02T00:30:00.000Z');
+      const period = service.resolvePeriod(undefined, to);
+      // 30 inclusive UTC days ending 2024-11-02 → from 2024-10-04
+      expect(period.from.toISOString()).toBe('2024-10-04T00:00:00.000Z');
+      expect(period.to.toISOString()).toBe('2024-11-03T00:00:00.000Z');
+
+      // Near EU spring-forward (2024-03-31); local daysBefore would shift under Berlin.
+      const toSpring = new Date('2024-04-05T23:30:00.000Z');
+      const p2 = service.resolvePeriod(undefined, toSpring);
+      expect(p2.from.toISOString()).toBe('2024-03-07T00:00:00.000Z');
+      expect(p2.to.toISOString()).toBe('2024-04-06T00:00:00.000Z');
+
+      // Same results under two process TZ values (UTC arithmetic must not consult local setDate).
+      const prev = process.env.TZ;
+      try {
+        for (const tz of ['Europe/Berlin', 'America/New_York']) {
+          process.env.TZ = tz;
+          expect(service.resolvePeriod(undefined, to).from.toISOString()).toBe('2024-10-04T00:00:00.000Z');
+          expect(service.resolvePeriod(undefined, toSpring).from.toISOString()).toBe('2024-03-07T00:00:00.000Z');
+        }
+      } finally {
+        if (prev === undefined) delete process.env.TZ;
+        else process.env.TZ = prev;
+      }
+
+      // Contrast: Util.daysBefore uses local setDate — under non-UTC hosts it can disagree.
+      // We only assert our path is the UTC one above; we do not call Util.daysBefore here.
+    });
   });
 
   describe('parseGranularity', () => {
     it('rejects invalid granularity with a clear message', () => {
       expect(() => service.parseGranularity('year')).toThrow(BadRequestException);
-      expect(() => service.parseGranularity('year')).toThrow(/day, week, month/);
+      expect(() => service.parseGranularity('year')).toThrow(/Day, Week, Month/);
     });
 
-    it('accepts day|week|month', () => {
-      expect(service.parseGranularity('day')).toBe('day');
-      expect(service.parseGranularity('week')).toBe('week');
-      expect(service.parseGranularity('month')).toBe('month');
+    it('accepts Day|Week|Month', () => {
+      expect(service.parseGranularity('Day')).toBe(PartnerStatisticGranularity.DAY);
+      expect(service.parseGranularity('Week')).toBe(PartnerStatisticGranularity.WEEK);
+      expect(service.parseGranularity('Month')).toBe(PartnerStatisticGranularity.MONTH);
+    });
+  });
+
+  describe('parseDate', () => {
+    it('accepts YYYY-MM-DD as UTC midnight', () => {
+      const d = service.parseDate('2026-01-15');
+      expect(d?.toISOString()).toBe('2026-01-15T00:00:00.000Z');
+    });
+
+    it('accepts ISO-8601 with Z', () => {
+      const d = service.parseDate('2026-01-15T12:30:00.000Z');
+      expect(d?.toISOString()).toBe('2026-01-15T12:30:00.000Z');
+    });
+
+    it('accepts ISO-8601 with numeric offset', () => {
+      const d = service.parseDate('2026-01-15T00:00:00+01:00');
+      expect(d?.toISOString()).toBe('2026-01-14T23:00:00.000Z');
+    });
+
+    it('passes through a valid Date instance', () => {
+      const input = new Date('2026-01-15T00:00:00.000Z');
+      expect(service.parseDate(input)).toBe(input);
+    });
+
+    it('returns undefined for null/empty', () => {
+      expect(service.parseDate(undefined)).toBeUndefined();
+      expect(service.parseDate('')).toBeUndefined();
+    });
+
+    it('rejects timestamp without Z/offset (would be process-local under new Date)', () => {
+      expect(() => service.parseDate('2026-01-15T00:00:00')).toThrow(BadRequestException);
+      expect(() => service.parseDate('2026-01-15T00:00:00')).toThrow(/YYYY-MM-DD|ISO-8601|Z or offset/);
+    });
+
+    it('rejects free-text dates', () => {
+      expect(() => service.parseDate('Jan 15 2026')).toThrow(BadRequestException);
+      expect(() => service.parseDate('Jan 15 2026')).toThrow(/YYYY-MM-DD|ISO-8601|Z or offset/);
+    });
+
+    it("rejects numeric string '0' (new Date('0') is a real instant)", () => {
+      expect(() => service.parseDate('0')).toThrow(BadRequestException);
+      expect(() => service.parseDate('0')).toThrow(/YYYY-MM-DD|ISO-8601|Z or offset/);
     });
   });
 
@@ -450,7 +521,7 @@ describe('PartnerStatisticService', () => {
       );
 
       await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
-      await service.getTimeline(1, PERIOD_FROM, Util.daysBefore(16, PERIOD_TO), 'day');
+      await service.getTimeline(1, PERIOD_FROM, new Date('2024-05-30T00:00:00.000Z'), PartnerStatisticGranularity.DAY);
 
       expect(groupByCapture.groupBys.length).toBeGreaterThan(0);
 
@@ -487,12 +558,6 @@ describe('PartnerStatisticService', () => {
           referral: { volume: 50, partnerRefCredit: 10, refCredit: 0, paidRefCredit: 4 },
           newUsers: 8,
           activeUserIds: [11, 12, 13, 14, 15, 16],
-          settlement: {
-            // inProgress = received − delivered − rejected must also be 0 or ≥ k
-            [PartnerStatisticDirection.BUY]: { received: 20, delivered: 15, rejected: 0 },
-            [PartnerStatisticDirection.SELL]: emptySettlement(),
-            [PartnerStatisticDirection.SWAP]: emptySettlement(),
-          },
         }),
       );
       fixtures.set(
@@ -505,11 +570,6 @@ describe('PartnerStatisticService', () => {
           referral: { volume: 12345, partnerRefCredit: 999, refCredit: 0, paidRefCredit: 111 },
           newUsers: 500,
           activeUserIds: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
-          settlement: {
-            [PartnerStatisticDirection.BUY]: { received: 9000, delivered: 8000, rejected: 100 },
-            [PartnerStatisticDirection.SELL]: emptySettlement(),
-            [PartnerStatisticDirection.SWAP]: emptySettlement(),
-          },
         }),
       );
     });
@@ -617,12 +677,32 @@ describe('PartnerStatisticService', () => {
       expect(result.totals.volume.total).toBeNull();
       expect(result.totals.activeUsers).toBeNull();
     });
+
+    it('sums buy+sell+swap into totals.volume.total (not a multiple of one direction)', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 100, transactions: 10, users: 8 },
+          sell: { volume: 40, transactions: 10, users: 8 },
+          swap: { volume: 25, transactions: 10, users: 8 },
+          allTime: { buy: 100, sell: 40, registeredUsers: 20, tradingUsers: 15 },
+          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8],
+          newUsers: 0,
+        }),
+      );
+      activeUserCountFromManager = 10;
+
+      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+      expect(result.totals.volume.total).toBe(165);
+      expect(result.totals.volume.total).not.toBe(100 + 40 + 2 * 25);
+      expect(result.totals.transactions.total).toBe(30);
+    });
   });
 
   // --- M2: active users via manager UNION count --- //
 
   describe('countActiveUsers uses DB COUNT over UNION (M2)', () => {
-    it('returns the manager COUNT and does not load user id rows via getRawMany', async () => {
+    it('returns the manager COUNT (not per-direction buy users) and uses the manager path', async () => {
       fixtures.set(
         1,
         emptyFixture({
@@ -634,13 +714,34 @@ describe('PartnerStatisticService', () => {
       );
       activeUserCountFromManager = 7;
 
-      const beforeMany = getRawManyCalls;
       const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
 
       expect(managerCreateQueryBuilderCalls).toBeGreaterThanOrEqual(1);
+      // activeUsers comes from the UNION COUNT (7), not buyAgg.users (10)
       expect(result.totals.activeUsers).toBe(7);
       expect(result.totals.activeUsers).not.toBe(10);
-      expect(getRawManyCalls).toBeGreaterThanOrEqual(beforeMany);
+    });
+
+    it('gates period totals on the UNION active-user count, not buyAgg.users alone', async () => {
+      // Each direction looks fine (≥ k users), but the true UNION is 3 → totals block-suppressed.
+      // Mutation rawUsers.total = buyAgg.users would keep totals visible (buy users = 10).
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 1000, transactions: 20, users: 10 },
+          sell: { volume: 500, transactions: 15, users: 10 },
+          swap: { volume: 200, transactions: 10, users: 10 },
+          allTime: { buy: 1000, sell: 500, registeredUsers: 50, tradingUsers: 20 },
+          activeUserIds: [1, 2, 3],
+          newUsers: 0,
+        }),
+      );
+      activeUserCountFromManager = 3;
+
+      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+      expect(result.totals.volume.total).toBeNull();
+      expect(result.totals.transactions.total).toBeNull();
+      expect(result.totals.activeUsers).toBeNull();
     });
   });
 
@@ -672,12 +773,97 @@ describe('PartnerStatisticService', () => {
       expect(result.referral.creditOpen).not.toBe(10);
       expect(result.totals.volume.buy).toBe(100);
     });
+
+    it('throws when the wallet row is missing (D6 — not silent zero referral)', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 100, transactions: 10, users: 5 },
+          allTime: { buy: 100, sell: 0, registeredUsers: 10, tradingUsers: 5 },
+          activeUserIds: [1, 2, 3, 4, 5],
+          missingWallet: true,
+        }),
+      );
+
+      await expect(service.getStatistics(1, PERIOD_FROM, PERIOD_TO)).rejects.toThrow(/wallet 1 not found/);
+    });
+  });
+
+  // --- Response-path suppression (Block C) --- //
+
+  describe('response-path k-anonymity (getStatistics / getTimeline)', () => {
+    it('drops under-k breakdown rows, nulls newUsers in 1..k-1, and never exposes users', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          // Totals above k so period totals stay visible — focus on breakdown + newUsers.
+          buy: { volume: 1000, transactions: 20, users: 10 },
+          sell: { volume: 500, transactions: 15, users: 10 },
+          swap: { volume: 200, transactions: 10, users: 8 },
+          allTime: { buy: 5000, sell: 1000, registeredUsers: 50, tradingUsers: 20 },
+          newUsers: 3, // 1..k-1 → null
+          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          namedRows: [
+            { name: 'RARE', blockchain: 'Bitcoin', volume: 10, transactions: 2, users: 2 }, // under k
+            { name: 'COMMON', blockchain: 'Bitcoin', volume: 500, transactions: 20, users: 12 },
+            { name: 'COMMON2', blockchain: 'Ethereum', volume: 400, transactions: 18, users: 11 },
+          ],
+        }),
+      );
+      activeUserCountFromManager = 10;
+
+      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+
+      const assetNames = result.breakdown.assets.map((a) => a.name);
+      expect(assetNames).not.toContain('RARE');
+      expect(assetNames).toContain('COMMON');
+      expect(result.totals.newUsers).toBeNull();
+
+      const keys = collectKeys(JSON.parse(JSON.stringify(result)));
+      expect(keys.has('users')).toBe(false);
+    });
+
+    it('suppresses under-k timeline buckets (suppressed:true, volume null) and strips users', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          timelineRows: [
+            // Day with 3 txs → under k → suppressed (+ complementary may hit another day)
+            { bucket: new Date('2024-06-10T00:00:00.000Z'), volume: 30, transactions: 3, users: 3 },
+            { bucket: new Date('2024-06-11T00:00:00.000Z'), volume: 200, transactions: 20, users: 15 },
+            { bucket: new Date('2024-06-12T00:00:00.000Z'), volume: 300, transactions: 30, users: 20 },
+          ],
+        }),
+      );
+
+      const result = await service.getTimeline(
+        1,
+        '2024-06-10T00:00:00.000Z',
+        '2024-06-12T23:59:59.000Z',
+        PartnerStatisticGranularity.DAY,
+      );
+
+      const under = result.buckets.find((b) => b.date.toISOString() === '2024-06-10T00:00:00.000Z');
+      expect(under).toBeDefined();
+      expect(under!.suppressed).toBe(true);
+      expect(under!.volume).toBeNull();
+      expect(under!.transactions).toBeNull();
+
+      // At least one more day may be complementary-suppressed; a large day stays visible.
+      const large = result.buckets.find((b) => b.date.toISOString() === '2024-06-12T00:00:00.000Z');
+      // complementary suppresses the smallest filled remaining (day 11 with 20), day 12 stays
+      expect(large!.suppressed).toBe(false);
+      expect(large!.volume).not.toBeNull();
+
+      const keys = collectKeys(JSON.parse(JSON.stringify(result)));
+      expect(keys.has('users')).toBe(false);
+    });
   });
 
   // --- mergeNamedRows / breakdown pipeline --- //
 
   describe('mergeNamedRows and breakdown pipeline', () => {
-    it('merges same-name rows across directions and surfaces them in the response', async () => {
+    it('merges same-name rows across directions and takes Math.max of users', async () => {
       fixtures.set(
         1,
         emptyFixture({
@@ -696,9 +882,8 @@ describe('PartnerStatisticService', () => {
 
       const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
 
-      // mergeNamedRows is used for fiat/blockchain/payment; asset rows are not merged by name across dirs
       expect(result.breakdown.fiatCurrencies.length + result.breakdown.blockchains.length).toBeGreaterThan(0);
-      // Direct unit check of mergeNamedRows (mutation: neutralize → this fails)
+
       const merged = service.mergeNamedRows([
         { name: 'BTC', volume: 200, transactions: 10, users: 6 },
         { name: 'BTC', volume: 100, transactions: 5, users: 4 },
@@ -706,6 +891,9 @@ describe('PartnerStatisticService', () => {
       ]);
       expect(merged.find((r) => r.name === 'BTC')?.volume).toBe(300);
       expect(merged.find((r) => r.name === 'BTC')?.transactions).toBe(15);
+      // Math.max(6, 4) = 6 — Math.min would yield 4 and fail this
+      expect(merged.find((r) => r.name === 'BTC')?.users).toBe(6);
+      expect(merged.find((r) => r.name === 'BTC')?.users).not.toBe(4);
       expect(merged).toHaveLength(2);
     });
   });
@@ -714,7 +902,7 @@ describe('PartnerStatisticService', () => {
 
   describe('timeline partial edge buckets (K1)', () => {
     it('marks week-edge buckets as partial when from/to cut mid-week', async () => {
-      const result = await service.getTimeline(1, MID_WEEK_FROM, MID_WEEK_TO, 'week');
+      const result = await service.getTimeline(1, MID_WEEK_FROM, MID_WEEK_TO, PartnerStatisticGranularity.WEEK);
 
       expect(result.buckets.length).toBeGreaterThan(0);
       expect(result.buckets[0].partial).toBe(true);
@@ -722,7 +910,12 @@ describe('PartnerStatisticService', () => {
     });
 
     it('marks full day range buckets as non-partial when aligned to midnight span', async () => {
-      const result = await service.getTimeline(1, '2024-06-10T00:00:00.000Z', '2024-06-12T23:59:59.000Z', 'day');
+      const result = await service.getTimeline(
+        1,
+        '2024-06-10T00:00:00.000Z',
+        '2024-06-12T23:59:59.000Z',
+        PartnerStatisticGranularity.DAY,
+      );
 
       expect(result.buckets.length).toBe(3);
       expect(result.buckets.every((b) => b.partial === false)).toBe(true);
@@ -781,6 +974,28 @@ describe('PartnerStatisticService', () => {
       expect(monthStart.toISOString()).toBe('2024-06-01T00:00:00.000Z');
     });
 
+    it('snaps Mon–Sat back to the Monday of that ISO week (not only Sunday)', () => {
+      // 2024-06-12 Wednesday → Monday 2024-06-10. Mutation day-1 → day would land on Tuesday.
+      const wednesday = new Date('2024-06-12T12:00:00.000Z');
+      expect(service['startOfBucket'](wednesday, PartnerStatisticGranularity.WEEK).toISOString()).toBe(
+        '2024-06-10T00:00:00.000Z',
+      );
+
+      const monday = new Date('2024-06-10T08:00:00.000Z');
+      expect(service['startOfBucket'](monday, PartnerStatisticGranularity.WEEK).toISOString()).toBe(
+        '2024-06-10T00:00:00.000Z',
+      );
+
+      const saturday = new Date('2024-06-15T08:00:00.000Z');
+      expect(service['startOfBucket'](saturday, PartnerStatisticGranularity.WEEK).toISOString()).toBe(
+        '2024-06-10T00:00:00.000Z',
+      );
+      // Mutation `day === 0 ? 6 : day` (drop the −1) would snap Saturday to Friday 14th.
+      expect(service['startOfBucket'](saturday, PartnerStatisticGranularity.WEEK).toISOString()).not.toBe(
+        '2024-06-14T00:00:00.000Z',
+      );
+    });
+
     it('addBucket advances WEEK by 7 days and MONTH across a month boundary', () => {
       const monday = new Date('2024-06-10T00:00:00.000Z');
       expect(service['addBucket'](monday, PartnerStatisticGranularity.WEEK).toISOString()).toBe(
@@ -803,7 +1018,12 @@ describe('PartnerStatisticService', () => {
 
   describe('timezone independence of timeline buckets', () => {
     it('emits exactly three UTC day buckets for a known three-day period (regression for local TZ drift)', async () => {
-      const result = await service.getTimeline(1, '2024-06-10T00:00:00.000Z', '2024-06-12T23:59:59.000Z', 'day');
+      const result = await service.getTimeline(
+        1,
+        '2024-06-10T00:00:00.000Z',
+        '2024-06-12T23:59:59.000Z',
+        PartnerStatisticGranularity.DAY,
+      );
 
       expect(result.buckets).toHaveLength(3);
       expect(result.buckets.map((b) => b.date.toISOString())).toEqual([
@@ -816,12 +1036,18 @@ describe('PartnerStatisticService', () => {
     });
 
     it('binds DATE_TRUNC to UTC in the timeline SQL expression', async () => {
-      await service.getTimeline(1, '2024-06-10T00:00:00.000Z', '2024-06-12T23:59:59.000Z', 'day');
+      await service.getTimeline(
+        1,
+        '2024-06-10T00:00:00.000Z',
+        '2024-06-12T23:59:59.000Z',
+        PartnerStatisticGranularity.DAY,
+      );
 
       const truncs = groupByCapture.groupBys.filter((g) => g.includes('DATE_TRUNC'));
       expect(truncs.length).toBeGreaterThan(0);
       for (const g of truncs) {
         expect(g).toContain("AT TIME ZONE 'UTC'");
+        // SQL unit is lowercase via PartnerStatisticDateTruncUnit, not the PascalCase API value.
         expect(g).toMatch(/DATE_TRUNC\('day',\s*tx\.created\)/);
       }
     });
@@ -835,15 +1061,17 @@ describe('PartnerStatisticService', () => {
     });
 
     it('throws 400 for period over max days', async () => {
-      const from = Util.daysBefore(PARTNER_STATISTIC_MAX_PERIOD_DAYS + 100, TEST_NOW);
-      await expect(service.getTimeline(1, from, TEST_NOW, 'day')).rejects.toThrow(BadRequestException);
+      const from = new Date(TEST_NOW.getTime() - (PARTNER_STATISTIC_MAX_PERIOD_DAYS + 100) * 24 * 3600 * 1000);
+      await expect(service.getTimeline(1, from, TEST_NOW, PartnerStatisticGranularity.DAY)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
   // --- HALF-OPEN INTERVAL --- //
 
   describe('half-open period filter', () => {
-    it('uses >= from AND < to (not BETWEEN inclusive)', async () => {
+    it('uses >= from AND < to on every created filter (not BETWEEN inclusive)', async () => {
       fixtures.set(
         1,
         emptyFixture({
@@ -856,8 +1084,57 @@ describe('PartnerStatisticService', () => {
       await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
 
       const halfOpen = whereClauses.filter((c) => c.includes('created'));
-      expect(halfOpen.some((c) => c.includes('>=') && c.includes('<'))).toBe(true);
+      expect(halfOpen.length).toBeGreaterThan(0);
+      // every — not some: a single mutated direction must fail
+      expect(halfOpen.every((c) => c.includes('>=') && c.includes('<'))).toBe(true);
       expect(halfOpen.every((c) => !/BETWEEN/i.test(c))).toBe(true);
+      expect(halfOpen.every((c) => !/> :from/.test(c) || c.includes('>='))).toBe(true);
+      // Explicit half-open form
+      expect(halfOpen.every((c) => /created\s*>=\s*:from\s+AND\s+.*created\s*<\s*:to/.test(c))).toBe(true);
+    });
+  });
+
+  // --- CONCURRENCY CAP (D1) --- //
+
+  describe('query concurrency cap spans nested fan-outs (D1)', () => {
+    it(`keeps simultaneous SQL executions ≤ ${PARTNER_STATISTIC_QUERY_CONCURRENCY}`, async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 1000, transactions: 20, users: 10 },
+          sell: { volume: 500, transactions: 15, users: 10 },
+          swap: { volume: 200, transactions: 10, users: 8 },
+          allTime: { buy: 5000, sell: 1000, registeredUsers: 50, tradingUsers: 20 },
+          newUsers: 8,
+          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          namedRows: [{ name: 'BTC', blockchain: 'Bitcoin', volume: 200, transactions: 10, users: 8 }],
+        }),
+      );
+      activeUserCountFromManager = 10;
+      queryDelayMs = 15;
+
+      await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+
+      expect(maxConcurrentQueries).toBeGreaterThan(1);
+      expect(maxConcurrentQueries).toBeLessThanOrEqual(PARTNER_STATISTIC_QUERY_CONCURRENCY);
+    });
+  });
+
+  // --- NaN guard (D5) --- //
+
+  describe('non-numeric aggregates (D5)', () => {
+    it('throws instead of turning NaN into JSON null', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 100, transactions: 10, users: 5 },
+          allTime: { buy: 100, sell: 0, registeredUsers: 10, tradingUsers: 5 },
+          activeUserIds: [1, 2, 3, 4, 5],
+        }),
+      );
+      nonNumericVolume = 'not-a-number';
+
+      await expect(service.getStatistics(1, PERIOD_FROM, PERIOD_TO)).rejects.toThrow(/non-numeric volume/);
     });
   });
 });

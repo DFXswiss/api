@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
@@ -24,6 +25,7 @@ import {
   PARTNER_STATISTIC_QUERY_CONCURRENCY,
   PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
   PartnerPaymentMethodMap,
+  PartnerStatisticDateTruncUnit,
   PartnerStatisticDirection,
   PartnerStatisticGranularity,
 } from './partner-statistic.enum';
@@ -36,11 +38,6 @@ import {
 } from './partner-statistic.suppression';
 
 type Direction = PartnerStatisticDirection;
-
-interface BaseTxQueryOptions {
-  /** When true (default), only amlCheck=Pass rows. Settlement stage B sets false. */
-  amlPassOnly?: boolean;
-}
 
 interface AggregateRow {
   volume: string | number | null;
@@ -66,8 +63,54 @@ interface DirectionAgg {
   users: number;
 }
 
+/**
+ * Per-request semaphore for actual SQL executions. Nested fan-outs share one gate so the
+ * concurrency cap applies to queries, not to each runLimited call site.
+ */
+class QueryConcurrencyGate {
+  private active = 0;
+  private readonly waiters: Array<() => void> = [];
+  /** Peak simultaneous holders — used by concurrency tests. */
+  maxActive = 0;
+
+  constructor(private readonly max: number) {}
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      this.release();
+    }
+  }
+
+  private acquire(): Promise<void> {
+    if (this.active < this.max) {
+      this.active += 1;
+      this.maxActive = Math.max(this.maxActive, this.active);
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.waiters.push(() => {
+        this.active += 1;
+        this.maxActive = Math.max(this.maxActive, this.active);
+        resolve();
+      });
+    });
+  }
+
+  private release(): void {
+    this.active -= 1;
+    const next = this.waiters.shift();
+    if (next) next();
+  }
+}
+
 @Injectable()
 export class PartnerStatisticService {
+  /** Request-scoped query gate (set for the duration of getStatistics / getTimeline). */
+  private static readonly queryGateAls = new AsyncLocalStorage<QueryConcurrencyGate>();
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyFiatRepo: BuyFiatRepository,
@@ -78,111 +121,113 @@ export class PartnerStatisticService {
   // --- PUBLIC API --- //
 
   async getStatistics(walletId: number, from?: string | Date, to?: string | Date): Promise<PartnerStatisticDto> {
-    const period = this.resolvePeriod(from, to);
+    return this.withQueryGate(async () => {
+      const period = this.resolvePeriod(from, to);
 
-    const [
-      buyAgg,
-      sellAgg,
-      swapAgg,
-      activeUsersRaw,
-      newUsersRaw,
-      allTimeRaw,
-      referralRaw,
-      assetRows,
-      fiatRows,
-      blockchainRows,
-      paymentMethodRows,
-    ] = await this.runLimited([
-      () => this.aggregateByDirection(walletId, period.from, period.to, PartnerStatisticDirection.BUY),
-      () => this.aggregateByDirection(walletId, period.from, period.to, PartnerStatisticDirection.SELL),
-      () => this.aggregateByDirection(walletId, period.from, period.to, PartnerStatisticDirection.SWAP),
-      () => this.countActiveUsers(walletId, period.from, period.to),
-      () => this.countNewUsers(walletId, period.from, period.to),
-      () => this.getAllTime(walletId),
-      () => this.getReferralRaw(walletId),
-      () => this.aggregateAssets(walletId, period.from, period.to),
-      () => this.aggregateFiatCurrencies(walletId, period.from, period.to),
-      () => this.aggregateBlockchains(walletId, period.from, period.to),
-      () => this.aggregatePaymentMethods(walletId, period.from, period.to),
-    ]);
+      const [
+        buyAgg,
+        sellAgg,
+        swapAgg,
+        activeUsersRaw,
+        newUsersRaw,
+        allTimeRaw,
+        referralRaw,
+        assetRows,
+        fiatRows,
+        blockchainRows,
+        paymentMethodRows,
+      ] = await this.runAll([
+        () => this.aggregateByDirection(walletId, period.from, period.to, PartnerStatisticDirection.BUY),
+        () => this.aggregateByDirection(walletId, period.from, period.to, PartnerStatisticDirection.SELL),
+        () => this.aggregateByDirection(walletId, period.from, period.to, PartnerStatisticDirection.SWAP),
+        () => this.countActiveUsers(walletId, period.from, period.to),
+        () => this.countNewUsers(walletId, period.from, period.to),
+        () => this.getAllTime(walletId),
+        () => this.getReferralRaw(walletId),
+        () => this.aggregateAssets(walletId, period.from, period.to),
+        () => this.aggregateFiatCurrencies(walletId, period.from, period.to),
+        () => this.aggregateBlockchains(walletId, period.from, period.to),
+        () => this.aggregatePaymentMethods(walletId, period.from, period.to),
+      ]);
 
-    const rawVolume = {
-      buy: buyAgg.volume,
-      sell: sellAgg.volume,
-      swap: swapAgg.volume,
-      total: Util.round(buyAgg.volume + sellAgg.volume + swapAgg.volume, Config.defaultVolumeDecimal),
-    };
-    const rawTransactions = {
-      buy: buyAgg.transactions,
-      sell: sellAgg.transactions,
-      swap: swapAgg.transactions,
-      total: buyAgg.transactions + sellAgg.transactions + swapAgg.transactions,
-    };
-    const rawUsers = {
-      buy: buyAgg.users,
-      sell: sellAgg.users,
-      swap: swapAgg.users,
-      total: activeUsersRaw,
-    };
+      const rawVolume = {
+        buy: buyAgg.volume,
+        sell: sellAgg.volume,
+        swap: swapAgg.volume,
+        total: Util.round(buyAgg.volume + sellAgg.volume + swapAgg.volume, Config.defaultVolumeDecimal),
+      };
+      const rawTransactions = {
+        buy: buyAgg.transactions,
+        sell: sellAgg.transactions,
+        swap: swapAgg.transactions,
+        total: buyAgg.transactions + sellAgg.transactions + swapAgg.transactions,
+      };
+      const rawUsers = {
+        buy: buyAgg.users,
+        sell: sellAgg.users,
+        swap: swapAgg.users,
+        total: activeUsersRaw,
+      };
 
-    const totalsSuppressed = suppressPeriodTotals(rawVolume, rawTransactions, rawUsers);
-    const averageTransactionVolume =
-      totalsSuppressed.averageTransactionVolume != null
-        ? Util.round(totalsSuppressed.averageTransactionVolume, Config.defaultVolumeDecimal)
-        : null;
+      const totalsSuppressed = suppressPeriodTotals(rawVolume, rawTransactions, rawUsers);
+      const averageTransactionVolume =
+        totalsSuppressed.averageTransactionVolume != null
+          ? Util.round(totalsSuppressed.averageTransactionVolume, Config.defaultVolumeDecimal)
+          : null;
 
-    const tradingUsersSuppressed = suppressScalar(allTimeRaw.tradingUsers);
-    const allTimeSuppressed = suppressAllTimeVolume(allTimeRaw.volume, allTimeRaw.tradingUsers);
-    const referral = this.applyReferralSuppression(referralRaw, allTimeRaw.tradingUsers);
+      const tradingUsersSuppressed = suppressScalar(allTimeRaw.tradingUsers);
+      const allTimeSuppressed = suppressAllTimeVolume(allTimeRaw.volume, allTimeRaw.tradingUsers);
+      const referral = this.applyReferralSuppression(referralRaw, allTimeRaw.tradingUsers);
 
-    const assets = suppressBreakdownRows(assetRows);
-    const fiatCurrencies = suppressBreakdownRows(fiatRows);
-    const blockchains = suppressBreakdownRows(blockchainRows);
-    const paymentMethods = suppressBreakdownRows(paymentMethodRows);
+      const assets = suppressBreakdownRows(assetRows);
+      const fiatCurrencies = suppressBreakdownRows(fiatRows);
+      const blockchains = suppressBreakdownRows(blockchainRows);
+      const paymentMethods = suppressBreakdownRows(paymentMethodRows);
 
-    const activeUsers = suppressScalar(activeUsersRaw);
-    const newUsers = suppressScalar(newUsersRaw);
+      const activeUsers = suppressScalar(activeUsersRaw);
+      const newUsers = suppressScalar(newUsersRaw);
 
-    const suppressedCount =
-      assets.suppressedCount +
-      fiatCurrencies.suppressedCount +
-      blockchains.suppressedCount +
-      paymentMethods.suppressedCount +
-      totalsSuppressed.suppressedCount +
-      allTimeSuppressed.suppressedCount +
-      (activeUsers === null ? 1 : 0) +
-      (newUsers === null ? 1 : 0) +
-      (tradingUsersSuppressed === null ? 1 : 0) +
-      (referral.volume === null && referralRaw.volume !== 0 ? 1 : 0);
+      const suppressedCount =
+        assets.suppressedCount +
+        fiatCurrencies.suppressedCount +
+        blockchains.suppressedCount +
+        paymentMethods.suppressedCount +
+        totalsSuppressed.suppressedCount +
+        allTimeSuppressed.suppressedCount +
+        (activeUsers === null ? 1 : 0) +
+        (newUsers === null ? 1 : 0) +
+        (tradingUsersSuppressed === null ? 1 : 0) +
+        (referral.volume === null && referralRaw.volume !== 0 ? 1 : 0);
 
-    return {
-      period,
-      currency: 'CHF',
-      totals: {
-        volume: totalsSuppressed.volume,
-        transactions: totalsSuppressed.transactions,
-        averageTransactionVolume,
-        activeUsers,
-        newUsers,
-      },
-      allTime: {
-        volume: allTimeSuppressed.volume,
-        registeredUsers: allTimeRaw.registeredUsers,
-        tradingUsers: tradingUsersSuppressed,
-      },
-      breakdown: {
-        assets: assets.rows.map(({ users: _u, ...row }) => row),
-        fiatCurrencies: fiatCurrencies.rows.map(({ users: _u, ...row }) => row),
-        blockchains: blockchains.rows.map(({ users: _u, ...row }) => row),
-        paymentMethods: paymentMethods.rows.map(({ users: _u, ...row }) => row),
-      },
-      referral,
-      meta: {
-        suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
-        suppressedCount,
-        generatedAt: new Date(),
-      },
-    };
+      return {
+        period,
+        currency: 'CHF',
+        totals: {
+          volume: totalsSuppressed.volume,
+          transactions: totalsSuppressed.transactions,
+          averageTransactionVolume,
+          activeUsers,
+          newUsers,
+        },
+        allTime: {
+          volume: allTimeSuppressed.volume,
+          registeredUsers: allTimeRaw.registeredUsers,
+          tradingUsers: tradingUsersSuppressed,
+        },
+        breakdown: {
+          assets: assets.rows.map(({ users: _u, ...row }) => row),
+          fiatCurrencies: fiatCurrencies.rows.map(({ users: _u, ...row }) => row),
+          blockchains: blockchains.rows.map(({ users: _u, ...row }) => row),
+          paymentMethods: paymentMethods.rows.map(({ users: _u, ...row }) => row),
+        },
+        referral,
+        meta: {
+          suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
+          suppressedCount,
+          generatedAt: new Date(),
+        },
+      };
+    });
   }
 
   async getTimeline(
@@ -191,34 +236,54 @@ export class PartnerStatisticService {
     to?: string | Date,
     granularity: string = PartnerStatisticGranularity.DAY,
   ): Promise<PartnerTimelineDto> {
-    const resolvedGranularity = this.parseGranularity(granularity);
-    const period = this.resolvePeriod(from, to);
+    return this.withQueryGate(async () => {
+      const resolvedGranularity = this.parseGranularity(granularity);
+      const period = this.resolvePeriod(from, to);
 
-    const [buyRows, sellRows, swapRows] = await this.runLimited([
-      () =>
-        this.timelineByDirection(walletId, period.from, period.to, PartnerStatisticDirection.BUY, resolvedGranularity),
-      () =>
-        this.timelineByDirection(walletId, period.from, period.to, PartnerStatisticDirection.SELL, resolvedGranularity),
-      () =>
-        this.timelineByDirection(walletId, period.from, period.to, PartnerStatisticDirection.SWAP, resolvedGranularity),
-    ]);
+      const [buyRows, sellRows, swapRows] = await this.runAll([
+        () =>
+          this.timelineByDirection(
+            walletId,
+            period.from,
+            period.to,
+            PartnerStatisticDirection.BUY,
+            resolvedGranularity,
+          ),
+        () =>
+          this.timelineByDirection(
+            walletId,
+            period.from,
+            period.to,
+            PartnerStatisticDirection.SELL,
+            resolvedGranularity,
+          ),
+        () =>
+          this.timelineByDirection(
+            walletId,
+            period.from,
+            period.to,
+            PartnerStatisticDirection.SWAP,
+            resolvedGranularity,
+          ),
+      ]);
 
-    const filled = this.fillTimelineGaps(period.from, period.to, resolvedGranularity, buyRows, sellRows, swapRows);
-    const { buckets, suppressedCount } = suppressTimelineBuckets(filled);
+      const filled = this.fillTimelineGaps(period.from, period.to, resolvedGranularity, buyRows, sellRows, swapRows);
+      const { buckets, suppressedCount } = suppressTimelineBuckets(filled);
 
-    // Drop internal users field from the public payload.
-    const publicBuckets: PartnerTimelineBucketDto[] = buckets.map(({ users: _u, ...rest }) => rest);
+      // Drop internal users field from the public payload.
+      const publicBuckets: PartnerTimelineBucketDto[] = buckets.map(({ users: _u, ...rest }) => rest);
 
-    return {
-      period,
-      currency: 'CHF',
-      granularity: resolvedGranularity,
-      buckets: publicBuckets,
-      meta: {
-        suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
-        suppressedCount,
-      },
-    };
+      return {
+        period,
+        currency: 'CHF',
+        granularity: resolvedGranularity,
+        buckets: publicBuckets,
+        meta: {
+          suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
+          suppressedCount,
+        },
+      };
+    });
   }
 
   // --- PERIOD / VALIDATION --- //
@@ -228,16 +293,20 @@ export class PartnerStatisticService {
    * Accepts ISO strings or Date; parsing lives here so the controller stays free of date logic.
    * Min span of one day follows from the day snap plus the `fromDay >= toExclusive` rejection —
    * after those two steps the remaining difference is always ≥ 1 day.
+   *
+   * Default period (when `from`/`to` omitted): the last
+   * {@link PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS} **inclusive** UTC calendar days ending on
+   * the resolved `to` day — computed with UTC arithmetic only (not process-local `setDate`).
    */
   resolvePeriod(from?: string | Date, to?: string | Date): { from: Date; to: Date } {
     const resolvedTo = this.parseDate(to) ?? new Date();
-    const resolvedFrom = this.parseDate(from) ?? Util.daysBefore(PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS, resolvedTo);
-
-    // Snap: from → start of its UTC day; to → start of the UTC day after the last included day (exclusive).
-    // Together with the fromDay >= toExclusive check below, this guarantees a minimum span of one day.
-    const fromDay = this.startOfUtcDay(resolvedFrom);
     const toDayStart = this.startOfUtcDay(resolvedTo);
     const toExclusive = this.addUtcDays(toDayStart, 1);
+
+    // Inclusive lookback: N calendar days ending on toDay ⇒ from = toDay − (N − 1).
+    // Pure UTC — never Util.daysBefore (local setDate drifts under non-UTC process TZ).
+    const defaultFromDay = this.addUtcDays(toDayStart, -(PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS - 1));
+    const fromDay = this.startOfUtcDay(this.parseDate(from) ?? defaultFromDay);
 
     if (fromDay.getTime() >= toExclusive.getTime()) {
       throw new BadRequestException('From must be before to');
@@ -261,14 +330,36 @@ export class PartnerStatisticService {
     return value as PartnerStatisticGranularity;
   }
 
+  /**
+   * Accepts only unambiguous UTC-stable forms so process TZ cannot shift the day:
+   * - pure calendar date `YYYY-MM-DD` (ES Date parses this as UTC midnight), or
+   * - full ISO-8601 timestamp with explicit `Z` or numeric offset.
+   * Bare local-looking timestamps (`…T00:00:00` without Z/offset), free text, and
+   * numeric strings are rejected — `new Date(value)` would silently apply process TZ.
+   */
   parseDate(value?: string | Date): Date | undefined {
     if (value == null || value === '') return undefined;
     if (value instanceof Date) {
       if (isNaN(value.getTime())) throw new BadRequestException('Invalid date');
       return value;
     }
+
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
+    // ISO-8601 datetime with mandatory Z or ±HH:MM / ±HHMM offset (minutes required for HHMM form).
+    const isoWithTz = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}(?::?\d{2}))$/;
+
+    if (!dateOnly.test(value) && !isoWithTz.test(value)) {
+      throw new BadRequestException(
+        `Invalid date '${value}'. Expected YYYY-MM-DD or an ISO-8601 timestamp with Z or offset (e.g. 2024-06-15T12:00:00.000Z)`,
+      );
+    }
+
     const date = new Date(value);
-    if (isNaN(date.getTime())) throw new BadRequestException(`Invalid date: ${value}`);
+    if (isNaN(date.getTime())) {
+      throw new BadRequestException(
+        `Invalid date '${value}'. Expected YYYY-MM-DD or an ISO-8601 timestamp with Z or offset (e.g. 2024-06-15T12:00:00.000Z)`,
+      );
+    }
     return date;
   }
 
@@ -285,7 +376,7 @@ export class PartnerStatisticService {
       .addSelect('COUNT(*)', 'transactions')
       .addSelect('COUNT(DISTINCT user.id)', 'users');
 
-    const raw = await qb.getRawOne<AggregateRow>();
+    const raw = await this.runQuery(() => qb.getRawOne<AggregateRow>());
     return {
       volume: this.toVolume(raw?.volume),
       transactions: this.toCount(raw?.transactions),
@@ -303,42 +394,48 @@ export class PartnerStatisticService {
 
     const unionSql = `(${buyQb.getQuery()}) UNION (${sellQb.getQuery()}) UNION (${swapQb.getQuery()})`;
 
-    const raw = await this.buyCryptoRepo.manager
-      .createQueryBuilder()
-      .from(`(${unionSql})`, 'active_users')
-      .select('COUNT(*)', 'count')
-      .setParameters({
-        ...buyQb.getParameters(),
-        ...sellQb.getParameters(),
-        ...swapQb.getParameters(),
-      })
-      .getRawOne<{ count: string | number }>();
+    const raw = await this.runQuery(() =>
+      this.buyCryptoRepo.manager
+        .createQueryBuilder()
+        .from(`(${unionSql})`, 'active_users')
+        .select('COUNT(*)', 'count')
+        .setParameters({
+          ...buyQb.getParameters(),
+          ...sellQb.getParameters(),
+          ...swapQb.getParameters(),
+        })
+        .getRawOne<{ count: string | number }>(),
+    );
 
     return this.toCount(raw?.count);
   }
 
   private async countNewUsers(walletId: number, from: Date, to: Date): Promise<number> {
-    return this.userRepo
-      .createQueryBuilder('user')
-      .where('user.walletId = :walletId', { walletId })
-      .andWhere('user.created >= :from AND user.created < :to', { from, to })
-      .getCount();
+    return this.runQuery(() =>
+      this.userRepo
+        .createQueryBuilder('user')
+        .where('user.walletId = :walletId', { walletId })
+        .andWhere('user.created >= :from AND user.created < :to', { from, to })
+        .getCount(),
+    );
   }
 
   private async getAllTime(
     walletId: number,
   ): Promise<{ volume: { buy: number; sell: number; total: number }; registeredUsers: number; tradingUsers: number }> {
-    const raw = await this.userRepo
-      .createQueryBuilder('user')
-      .select('COALESCE(SUM(user.buyVolume), 0)', 'buy')
-      .addSelect('COALESCE(SUM(user.sellVolume), 0)', 'sell')
-      .addSelect('COUNT(*)', 'registeredUsers')
-      .addSelect(
-        'COALESCE(SUM(CASE WHEN user.buyVolume > 0 OR user.sellVolume > 0 THEN 1 ELSE 0 END), 0)',
-        'tradingUsers',
-      )
-      .where('user.walletId = :walletId', { walletId })
-      .getRawOne<{ buy: string; sell: string; registeredUsers: string; tradingUsers: string }>();
+    const raw = await this.runQuery(() =>
+      this.userRepo
+        .createQueryBuilder('user')
+        .select('COALESCE(SUM(user.buyVolume), 0)', 'buy')
+        .addSelect('COALESCE(SUM(user.sellVolume), 0)', 'sell')
+        .addSelect('COUNT(*)', 'registeredUsers')
+        .addSelect(
+          'COALESCE(SUM(CASE WHEN user.buyVolume > 0 OR user.sellVolume > 0 THEN 1 ELSE 0 END), 0)',
+          'tradingUsers',
+        )
+        .where('user.walletId = :walletId', { walletId })
+        .getRawOne<{ buy: string; sell: string; registeredUsers: string; tradingUsers: string }>(),
+    );
 
     const buy = this.toVolume(raw?.buy);
     const sell = this.toVolume(raw?.sell);
@@ -358,6 +455,8 @@ export class PartnerStatisticService {
    * Reads the wallet **owner** account (all wallets of that owner), not only the querying wallet.
    * Open credit formula matches user.service / ref-reward.service:
    * refCredit + partnerRefCredit − paidRefCredit.
+   *
+   * A missing wallet row is a system fault (walletId comes from a valid JWT), not a zero balance.
    */
   private async getReferralRaw(walletId: number): Promise<{
     volume: number;
@@ -365,20 +464,26 @@ export class PartnerStatisticService {
     creditPaid: number;
     creditOpen: number;
   }> {
-    const raw = await this.walletRepo
-      .createQueryBuilder('wallet')
-      .leftJoin('wallet.owner', 'owner')
-      .select('COALESCE(owner.partnerRefVolume, 0)', 'volume')
-      .addSelect('COALESCE(owner.partnerRefCredit, 0)', 'partnerRefCredit')
-      .addSelect('COALESCE(owner.refCredit, 0)', 'refCredit')
-      .addSelect('COALESCE(owner.paidRefCredit, 0)', 'paidRefCredit')
-      .where('wallet.id = :walletId', { walletId })
-      .getRawOne<{ volume: string; partnerRefCredit: string; refCredit: string; paidRefCredit: string }>();
+    const raw = await this.runQuery(() =>
+      this.walletRepo
+        .createQueryBuilder('wallet')
+        .leftJoin('wallet.owner', 'owner')
+        .select('COALESCE(owner.partnerRefVolume, 0)', 'volume')
+        .addSelect('COALESCE(owner.partnerRefCredit, 0)', 'partnerRefCredit')
+        .addSelect('COALESCE(owner.refCredit, 0)', 'refCredit')
+        .addSelect('COALESCE(owner.paidRefCredit, 0)', 'paidRefCredit')
+        .where('wallet.id = :walletId', { walletId })
+        .getRawOne<{ volume: string; partnerRefCredit: string; refCredit: string; paidRefCredit: string }>(),
+    );
 
-    const volume = this.toVolume(raw?.volume);
-    const partnerRefCredit = this.toVolume(raw?.partnerRefCredit);
-    const refCredit = this.toVolume(raw?.refCredit);
-    const paidRefCredit = this.toVolume(raw?.paidRefCredit);
+    if (raw == null) {
+      throw new Error(`Partner statistic: wallet ${walletId} not found`);
+    }
+
+    const volume = this.toVolume(raw.volume);
+    const partnerRefCredit = this.toVolume(raw.partnerRefCredit);
+    const refCredit = this.toVolume(raw.refCredit);
+    const paidRefCredit = this.toVolume(raw.paidRefCredit);
 
     return {
       volume,
@@ -395,7 +500,8 @@ export class PartnerStatisticService {
     // Referral balances move with individual customer trades. Gate them on tradingUsers so two
     // successive polls cannot recover a single trade’s credit delta when the cohort is under k.
     // These are the partner’s own account figures (owner-scoped), but the leakage path is the same.
-    if (suppressScalar(tradingUsers) === null && tradingUsers > 0) {
+    // suppressScalar is null only for 1..k-1, so a separate `> 0` check is redundant.
+    if (suppressScalar(tradingUsers) === null) {
       return {
         volume: null,
         creditEarned: null,
@@ -412,7 +518,7 @@ export class PartnerStatisticService {
     from: Date,
     to: Date,
   ): Promise<(PartnerAssetBreakdownDto & { users: number })[]> {
-    const [buy, sell, swap] = await this.runLimited([
+    const [buy, sell, swap] = await this.runAll([
       () => this.assetQuery(PartnerStatisticDirection.BUY, walletId, from, to),
       () => this.assetQuery(PartnerStatisticDirection.SELL, walletId, from, to),
       () => this.assetQuery(PartnerStatisticDirection.SWAP, walletId, from, to),
@@ -451,7 +557,7 @@ export class PartnerStatisticService {
         .addGroupBy('outputAsset.blockchain');
     }
 
-    const rows = await qb.getRawMany<NamedAggregateRow>();
+    const rows = await this.runQuery(() => qb.getRawMany<NamedAggregateRow>());
     return rows
       .filter((r) => r.name)
       .map((r) => ({
@@ -485,9 +591,9 @@ export class PartnerStatisticService {
       .addSelect('COUNT(DISTINCT user.id)', 'users')
       .groupBy('fiat.name');
 
-    const [buyRows, sellRows] = await this.runLimited([
-      () => buyQb.getRawMany<NamedAggregateRow>(),
-      () => sellQb.getRawMany<NamedAggregateRow>(),
+    const [buyRows, sellRows] = await this.runAll([
+      () => this.runQuery(() => buyQb.getRawMany<NamedAggregateRow>()),
+      () => this.runQuery(() => sellQb.getRawMany<NamedAggregateRow>()),
     ]);
 
     return this.mergeNamedRows([...buyRows, ...sellRows]);
@@ -500,28 +606,32 @@ export class PartnerStatisticService {
   ): Promise<(PartnerNamedBreakdownDto & { users: number })[]> {
     const queries = ([PartnerStatisticDirection.BUY, PartnerStatisticDirection.SWAP] as Direction[]).map(
       (direction) => () =>
-        this.baseTxQuery(direction, walletId, from, to)
-          .leftJoin('tx.outputAsset', 'outputAsset')
-          .select('outputAsset.blockchain', 'name')
-          .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
-          .addSelect('COUNT(*)', 'transactions')
-          .addSelect('COUNT(DISTINCT user.id)', 'users')
-          .groupBy('outputAsset.blockchain')
-          .getRawMany<NamedAggregateRow>(),
+        this.runQuery(() =>
+          this.baseTxQuery(direction, walletId, from, to)
+            .leftJoin('tx.outputAsset', 'outputAsset')
+            .select('outputAsset.blockchain', 'name')
+            .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
+            .addSelect('COUNT(*)', 'transactions')
+            .addSelect('COUNT(DISTINCT user.id)', 'users')
+            .groupBy('outputAsset.blockchain')
+            .getRawMany<NamedAggregateRow>(),
+        ),
     );
 
     const sellQ = () =>
-      this.baseTxQuery(PartnerStatisticDirection.SELL, walletId, from, to)
-        .leftJoin('tx.cryptoInput', 'cryptoInput')
-        .leftJoin('cryptoInput.asset', 'inputAsset')
-        .select('inputAsset.blockchain', 'name')
-        .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
-        .addSelect('COUNT(*)', 'transactions')
-        .addSelect('COUNT(DISTINCT user.id)', 'users')
-        .groupBy('inputAsset.blockchain')
-        .getRawMany<NamedAggregateRow>();
+      this.runQuery(() =>
+        this.baseTxQuery(PartnerStatisticDirection.SELL, walletId, from, to)
+          .leftJoin('tx.cryptoInput', 'cryptoInput')
+          .leftJoin('cryptoInput.asset', 'inputAsset')
+          .select('inputAsset.blockchain', 'name')
+          .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
+          .addSelect('COUNT(*)', 'transactions')
+          .addSelect('COUNT(DISTINCT user.id)', 'users')
+          .groupBy('inputAsset.blockchain')
+          .getRawMany<NamedAggregateRow>(),
+      );
 
-    const rows = (await this.runLimited([...queries, sellQ])).flat();
+    const rows = (await this.runAll([...queries, sellQ])).flat();
     return this.mergeNamedRows(rows);
   }
 
@@ -531,19 +641,21 @@ export class PartnerStatisticService {
     to: Date,
   ): Promise<(PartnerNamedBreakdownDto & { users: number })[]> {
     const rows = (
-      await this.runLimited(
+      await this.runAll(
         (
           [PartnerStatisticDirection.BUY, PartnerStatisticDirection.SELL, PartnerStatisticDirection.SWAP] as Direction[]
         ).map(
           (direction) => () =>
-            this.baseTxQuery(direction, walletId, from, to)
-              .innerJoin('tx.transaction', 'transaction')
-              .select('transaction.sourceType', 'name')
-              .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
-              .addSelect('COUNT(*)', 'transactions')
-              .addSelect('COUNT(DISTINCT user.id)', 'users')
-              .groupBy('transaction.sourceType')
-              .getRawMany<NamedAggregateRow>(),
+            this.runQuery(() =>
+              this.baseTxQuery(direction, walletId, from, to)
+                .innerJoin('tx.transaction', 'transaction')
+                .select('transaction.sourceType', 'name')
+                .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
+                .addSelect('COUNT(*)', 'transactions')
+                .addSelect('COUNT(DISTINCT user.id)', 'users')
+                .groupBy('transaction.sourceType')
+                .getRawMany<NamedAggregateRow>(),
+            ),
         ),
       )
     ).flat();
@@ -567,7 +679,8 @@ export class PartnerStatisticService {
     // result as UTC so the driver returns an unambiguous absolute instant. Session TimeZone
     // must not shift buckets — DATE_TRUNC on timestamp without tz is field-only; AT TIME ZONE
     // 'UTC' only re-labels the truncated value as timestamptz.
-    const trunc = `DATE_TRUNC('${granularity}', tx.created) AT TIME ZONE 'UTC'`;
+    const unit = PartnerStatisticDateTruncUnit[granularity];
+    const trunc = `DATE_TRUNC('${unit}', tx.created) AT TIME ZONE 'UTC'`;
     const qb = this.baseTxQuery(direction, walletId, from, to)
       .select(trunc, 'bucket')
       .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
@@ -576,7 +689,7 @@ export class PartnerStatisticService {
       .groupBy(trunc)
       .orderBy(trunc, 'ASC');
 
-    const rows = await qb.getRawMany<TimelineRawRow>();
+    const rows = await this.runQuery(() => qb.getRawMany<TimelineRawRow>());
     const map = new Map<string, { volume: number; transactions: number; users: number }>();
     for (const row of rows) {
       // UTC keys on both sides (SQL buckets + fill loop). Period bounds are UTC-normalized in
@@ -641,7 +754,7 @@ export class PartnerStatisticService {
   /**
    * Base query for partner transactions of one direction.
    * Scope is always `user.walletId = :walletId` — never accept walletId from the client.
-   * Default filters amlCheck=Pass (volume/totals/breakdown). Settlement stage B passes amlPassOnly: false.
+   * Always filters amlCheck=Pass (volume/totals/breakdown/timeline).
    * Period is half-open: created >= from AND created < to.
    */
   private baseTxQuery(
@@ -649,13 +762,9 @@ export class PartnerStatisticService {
     walletId: number,
     from: Date,
     to: Date,
-    options: BaseTxQueryOptions = {},
   ): SelectQueryBuilder<BuyCrypto | BuyFiat> {
-    // Fail-closed: without an explicit opt-out, only amlCheck=Pass rows are counted. That is the safe
-    // direction for volume/totals — omitting the filter would inflate figures with rejected traffic.
-    // Settlement stage B is the sole caller that sets amlPassOnly: false (needs Fail / in-progress too).
-    const amlPassOnly = options.amlPassOnly ?? true;
-
+    // Fail-closed: only amlCheck=Pass rows are counted. Omitting the filter would inflate
+    // figures with rejected traffic.
     let qb: SelectQueryBuilder<BuyCrypto | BuyFiat>;
 
     if (direction === PartnerStatisticDirection.SELL) {
@@ -681,9 +790,7 @@ export class PartnerStatisticService {
         .andWhere('tx.created >= :from AND tx.created < :to', { from, to });
     }
 
-    if (amlPassOnly) {
-      qb.andWhere('tx.amlCheck = :check', { check: CheckStatus.PASS });
-    }
+    qb.andWhere('tx.amlCheck = :check', { check: CheckStatus.PASS });
 
     return qb;
   }
@@ -691,24 +798,32 @@ export class PartnerStatisticService {
   // --- HELPERS --- //
 
   /**
-   * Runs async tasks with a hard cap on concurrency so a single partner request cannot saturate
-   * the TypeORM pool (default size 10). Max concurrency: PARTNER_STATISTIC_QUERY_CONCURRENCY (4).
+   * Runs every actual SQL execution through the request-scoped gate so nested fan-outs
+   * (assets/fiat/blockchains/payment methods) share the same concurrency budget of
+   * {@link PARTNER_STATISTIC_QUERY_CONCURRENCY}. Without a shared gate, each nested
+   * `runAll` would open its own pool of workers and a single request could exceed the
+   * TypeORM connection pool.
    */
-  private async runLimited<T extends readonly (() => Promise<unknown>)[]>(
+  private async runQuery<T>(fn: () => Promise<T>): Promise<T> {
+    const gate = PartnerStatisticService.queryGateAls.getStore();
+    // No ALS store outside a request (unit/integration tests, direct private-method calls) —
+    // safe: those paths have no concurrent fan-out and do not share a TypeORM pool budget.
+    if (!gate) return fn();
+    return gate.run(fn);
+  }
+
+  private async withQueryGate<T>(fn: () => Promise<T>): Promise<T> {
+    const existing = PartnerStatisticService.queryGateAls.getStore();
+    if (existing) return fn();
+    const gate = new QueryConcurrencyGate(PARTNER_STATISTIC_QUERY_CONCURRENCY);
+    return PartnerStatisticService.queryGateAls.run(gate, fn);
+  }
+
+  /** Fan-out helper: schedule all tasks; concurrency is enforced inside {@link runQuery}. */
+  private async runAll<T extends readonly (() => Promise<unknown>)[]>(
     tasks: [...T],
-    concurrency = PARTNER_STATISTIC_QUERY_CONCURRENCY,
   ): Promise<{ [K in keyof T]: T[K] extends () => Promise<infer R> ? R : never }> {
-    const results: unknown[] = new Array(tasks.length);
-    let next = 0;
-
-    const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
-      while (next < tasks.length) {
-        const i = next++;
-        results[i] = await tasks[i]();
-      }
-    });
-
-    await Promise.all(workers);
+    const results = await Promise.all(tasks.map((t) => t()));
     return results as { [K in keyof T]: T[K] extends () => Promise<infer R> ? R : never };
   }
 
@@ -725,6 +840,7 @@ export class PartnerStatisticService {
       if (existing) {
         existing.volume = Util.round(existing.volume + volume, Config.defaultVolumeDecimal);
         existing.transactions += transactions;
+        // Person floor across partial GROUP BY chunks: max, never min (min under-counts).
         existing.users = Math.max(existing.users, users);
       } else {
         map.set(row.name, { name: row.name, volume, transactions, users });
@@ -735,19 +851,25 @@ export class PartnerStatisticService {
   }
 
   /**
-   * SQL aggregates always use COALESCE(SUM(...), 0) or COUNT(*), so an empty match set yields 0
-   * (a row is still returned). Null/undefined only appears when getRawOne finds no row at all
-   * (e.g. missing wallet on a left join) — that is absence of data, which is correctly 0 volume.
+   * Coerce a SQL aggregate cell to a finite number.
+   * COUNT(*)/COALESCE(SUM(...), 0) return 0 over an empty match set (a row is still returned).
+   * Non-numeric driver values must not become JSON `null` (which this API uses for suppression).
    */
   private toVolume(value: string | number | null | undefined): number {
-    return Util.round(+(value ?? 0), Config.defaultVolumeDecimal);
+    const n = +(value ?? 0);
+    if (Number.isNaN(n)) {
+      throw new Error(`Partner statistic: non-numeric volume aggregate (${String(value)})`);
+    }
+    return Util.round(n, Config.defaultVolumeDecimal);
   }
 
-  /**
-   * Same as toVolume: COUNT(*) is 0 over an empty set; null/undefined means no row, i.e. zero count.
-   */
+  /** Same as toVolume for integer counts. */
   private toCount(value: string | number | null | undefined): number {
-    return Math.trunc(+(value ?? 0));
+    const n = +(value ?? 0);
+    if (Number.isNaN(n)) {
+      throw new Error(`Partner statistic: non-numeric count aggregate (${String(value)})`);
+    }
+    return Math.trunc(n);
   }
 
   /**

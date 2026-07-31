@@ -25,7 +25,8 @@ export class PartnerStatisticController {
   @ApiQuery({
     name: 'from',
     required: false,
-    description: 'Period start (ISO date). Snapped to UTC day start. Default: 30 days before `to`.',
+    description:
+      'Period start (ISO date). Snapped to UTC day start. Default: start of the last 30 inclusive UTC calendar days ending on `to`.',
   })
   @ApiQuery({
     name: 'to',
@@ -49,7 +50,8 @@ export class PartnerStatisticController {
   @ApiQuery({
     name: 'from',
     required: false,
-    description: 'Period start (ISO date). Snapped to UTC day start. Default: 30 days before `to`.',
+    description:
+      'Period start (ISO date). Snapped to UTC day start. Default: start of the last 30 inclusive UTC calendar days ending on `to`.',
   })
   @ApiQuery({
     name: 'to',
@@ -60,7 +62,7 @@ export class PartnerStatisticController {
     name: 'granularity',
     required: false,
     enum: PartnerStatisticGranularity,
-    description: 'Bucket size. Default: day.',
+    description: 'Bucket size. Default: Day.',
   })
   async getPartnerTimeline(
     @GetJwt() jwt: JwtPayload,
