@@ -6,6 +6,7 @@ import * as path from 'path';
 import { Config, ConfigService, GetConfig } from 'src/config/config';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { Mail } from '../entities/mail/base/mail';
 import { UserMailV2 } from '../entities/mail/user-mail-v2';
 import { MailContext, MailType } from '../enums';
 import { MailFactory, MailKey, MailTranslationKey } from '../factories/mail.factory';
@@ -23,7 +24,7 @@ function leaves(obj: unknown, prefix = ''): string[] {
   return [prefix];
 }
 
-function renderMailHtml(mail: UserMailV2): string {
+function renderMailHtml(mail: Mail): string {
   const templatePath = path.join(
     process.cwd(),
     'src/subdomains/supporting/notification/templates',
@@ -111,6 +112,31 @@ function kycReminderRequest(ud: UserData, w?: Wallet): MailRequest {
         },
         { key: MailKey.DFX_TEAM_CLOSING },
       ],
+    },
+  };
+}
+
+/**
+ * Personal mail shaped like LimitRequestNotificationService / UserDataNotificationService,
+ * but without a welcome line in `prefix` — centralizedWelcome is prepended by the factory.
+ */
+function personalRequest(ud: UserData, w?: Wallet): MailRequest {
+  return {
+    type: MailType.PERSONAL,
+    context: MailContext.LIMIT_REQUEST,
+    input: {
+      userData: ud,
+      wallet: w,
+      title: `${MailTranslationKey.LIMIT_REQUEST}.title`,
+      prefix: [
+        {
+          key: `${MailTranslationKey.LIMIT_REQUEST}.message`,
+          params: { limitAmount: '1000' },
+        },
+      ],
+      banner: 'https://example.com/banner.png',
+      from: 'noreply@example.com',
+      displayName: 'Test',
     },
   };
 }
@@ -646,6 +672,131 @@ describe('Denario mail (factory + denario.hbs + i18n)', () => {
         spy.mockRestore();
       }
     }
+  });
+
+  describe('Personal mail (createPersonalMail + centralizedWelcome guard)', () => {
+    function expectedWelcome(
+      walletFile: 'mail-denario' | 'mail-realunit' | 'mail',
+      lang: string,
+      name: string,
+    ): string {
+      const dir = lang === 'de' ? 'de' : 'en';
+      const file =
+        walletFile === 'mail'
+          ? path.join(process.cwd(), `src/shared/i18n/${dir}/mail.json`)
+          : path.join(process.cwd(), `src/shared/i18n/${dir}/${walletFile}.json`);
+      const general = (JSON.parse(fs.readFileSync(file, 'utf-8')) as { general: { welcome: string } }).general;
+      return general.welcome.replace('{name}', name);
+    }
+
+    /** Bare greeting stem as a full <p>…</p> (the old bug: "Hi " / "Guten Tag " alone). */
+    function assertNoBareWelcomeParagraph(html: string, welcomeTemplate: string): void {
+      const stem = welcomeTemplate.split('{name}')[0].trimEnd(); // "Hi" or "Guten Tag"
+      const stemEsc = escapeHtml(stem);
+      // Only whitespace after the stem inside the paragraph — not "Hi Joshua".
+      expect(html).not.toMatch(new RegExp(`<p>\\s*${escapeRegExp(stemEsc)}\\s+</p>`));
+      expect(html).not.toMatch(new RegExp(`<p>\\s*${escapeRegExp(stemEsc)}\\s*</p>`));
+    }
+
+    it('Denario personal mail with name shows centralized welcome', () => {
+      const welcomeTpl = expectedWelcome('mail-denario', 'en', '{name}');
+      const expected = expectedWelcome('mail-denario', 'en', 'Joshua');
+      const mail = factory.createMail(
+        personalRequest(userData({ firstname: 'Joshua', languageSymbol: 'EN' }), wallet('Denario')),
+      ) as Mail;
+      expect(mail.template).toBe('personal');
+      const html = renderMailHtml(mail);
+      expect(html).toContain(escapeHtml(expected));
+      expect(html).toMatch(new RegExp(`<p>\\s*${escapeRegExp(escapeHtml(expected))}\\s*</p>`));
+      // Template placeholder must not leak.
+      expect(html).not.toContain(welcomeTpl);
+    });
+
+    it('Denario personal mail without name omits welcome entirely', () => {
+      const welcomeTpl = JSON.parse(
+        fs.readFileSync(path.join(process.cwd(), 'src/shared/i18n/en/mail-denario.json'), 'utf-8'),
+      ).general.welcome as string;
+      const mail = factory.createMail(
+        personalRequest(
+          userData({ firstname: undefined, organizationName: undefined, languageSymbol: 'EN' }),
+          wallet('Denario'),
+        ),
+      ) as Mail;
+      const html = renderMailHtml(mail);
+      assertNoBareWelcomeParagraph(html, welcomeTpl);
+      expect(html).not.toContain(escapeHtml(expectedWelcome('mail-denario', 'en', 'Joshua')));
+      // Limit-request body still present (path ran).
+      expect(html).toMatch(/1000/);
+    });
+
+    it('Denario personal mail with whitespace-only firstname omits welcome', () => {
+      const welcomeTpl = JSON.parse(
+        fs.readFileSync(path.join(process.cwd(), 'src/shared/i18n/en/mail-denario.json'), 'utf-8'),
+      ).general.welcome as string;
+      const mail = factory.createMail(
+        personalRequest(
+          userData({ firstname: '   ', organizationName: undefined, languageSymbol: 'EN' }),
+          wallet('Denario'),
+        ),
+      ) as Mail;
+      const html = renderMailHtml(mail);
+      assertNoBareWelcomeParagraph(html, welcomeTpl);
+      expect(html).not.toMatch(/<p>\s*Hi\s+<\/p>/);
+    });
+
+    it('RealUnit personal mail with name shows centralized welcome (DE)', () => {
+      const expected = expectedWelcome('mail-realunit', 'de', 'Joshua');
+      const mail = factory.createMail(
+        personalRequest(userData({ firstname: 'Joshua', languageSymbol: 'DE' }), wallet('RealUnit')),
+      ) as Mail;
+      expect(mail.template).toBe('personal');
+      const html = renderMailHtml(mail);
+      expect(html).toContain(escapeHtml(expected));
+      expect(html).toMatch(new RegExp(`<p>\\s*${escapeRegExp(escapeHtml(expected))}\\s*</p>`));
+    });
+
+    it('RealUnit personal mail without name omits welcome entirely', () => {
+      const welcomeTpl = JSON.parse(
+        fs.readFileSync(path.join(process.cwd(), 'src/shared/i18n/de/mail-realunit.json'), 'utf-8'),
+      ).general.welcome as string;
+      const mail = factory.createMail(
+        personalRequest(
+          userData({ firstname: undefined, organizationName: undefined, languageSymbol: 'DE' }),
+          wallet('RealUnit'),
+        ),
+      ) as Mail;
+      const html = renderMailHtml(mail);
+      assertNoBareWelcomeParagraph(html, welcomeTpl);
+      expect(html).not.toContain(escapeHtml(expectedWelcome('mail-realunit', 'de', 'Joshua')));
+      expect(html).toMatch(/1000|1\.000|1'000|EUR/i);
+    });
+
+    it('RealUnit personal mail with whitespace-only firstname omits welcome', () => {
+      const welcomeTpl = JSON.parse(
+        fs.readFileSync(path.join(process.cwd(), 'src/shared/i18n/de/mail-realunit.json'), 'utf-8'),
+      ).general.welcome as string;
+      const mail = factory.createMail(
+        personalRequest(
+          userData({ firstname: '   ', organizationName: undefined, languageSymbol: 'DE' }),
+          wallet('RealUnit'),
+        ),
+      ) as Mail;
+      const html = renderMailHtml(mail);
+      assertNoBareWelcomeParagraph(html, welcomeTpl);
+      expect(html).not.toMatch(/<p>\s*Guten Tag\s+<\/p>/);
+    });
+
+    it('DFX personal mail never gets centralized welcome (no centralizedWelcome)', () => {
+      const mail = factory.createMail(
+        personalRequest(userData({ firstname: 'Joshua', languageSymbol: 'EN' }), wallet('DFX')),
+      ) as Mail;
+      expect(mail.template).toBe('personal');
+      const html = renderMailHtml(mail);
+      // Welcome is not in prefix; DFX has no centralizedWelcome — no greeting paragraph.
+      expect(html).not.toContain(escapeHtml(expectedWelcome('mail', 'en', 'Joshua')));
+      expect(html).not.toMatch(/<p>\s*Hi Joshua\s*<\/p>/);
+      expect(html).toMatch(/1000/);
+    });
   });
 });
 
