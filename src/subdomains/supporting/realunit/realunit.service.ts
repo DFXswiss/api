@@ -1239,40 +1239,32 @@ export class RealUnitService {
   // Encoding — realunit-app transliterates the free-text fields to BitBox-safe
   // ASCII (Krüger → Krueger); older versions signed raw UTF-8 (kept by #3709).
   private resolveRegistrationSignature(data: RealUnitRegistrationDto): ResolvedRegistrationSignature | undefined {
-    // Per-request, built once: the normalised signature and the two candidate
-    // messages. Both domains recover against the same two messages, so building
-    // them per attempt would just build each one twice.
+    const { UTF8, BITBOX_ASCII } = RegistrationFieldEncoding;
+
+    // Per-request work, done once: the normalised signature and the two
+    // candidate messages (the two field encodings a wallet may have signed).
     const signature = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
-    const message = {
-      [RegistrationFieldEncoding.UTF8]: this.buildRegistrationMessage(data, false),
-      [RegistrationFieldEncoding.BITBOX_ASCII]: this.buildRegistrationMessage(data, true),
-    };
+    const utf8 = this.buildRegistrationMessage(data, false);
+    const ascii = this.buildRegistrationMessage(data, true);
+
+    // Whether the signature over this message under this domain recovers to the claimed wallet.
+    const isSignedBy = (domain: RegistrationEip712Domain, message: SignedRegistrationMessage): boolean =>
+      Util.equalsIgnoreCase(verifyTypedData(domain, REGISTRATION_EIP712_TYPES, message, signature), data.walletAddress);
 
     const legacy = REGISTRATION_EIP712_DOMAIN;
+    if (isSignedBy(legacy, utf8)) return { message: utf8, variant: { domain: legacy, encoding: UTF8 } };
+    if (isSignedBy(legacy, ascii)) return { message: ascii, variant: { domain: legacy, encoding: BITBOX_ASCII } };
+
+    // Without a chainId for the token chain there is no extended domain to try. It cannot
+    // happen for Ethereum/Sepolia — the early return satisfies the chain map's type.
     const chainId = EvmUtil.getChainId(this.tokenBlockchain);
-    const withChainId = chainId ? { ...REGISTRATION_EIP712_DOMAIN, chainId } : undefined;
+    if (!chainId) return undefined;
 
-    // One attempt: recover the signer of one message under one domain, and keep
-    // it only if it is the claimed wallet. An absent domain means the attempt
-    // does not apply (no chainId for the token chain) — a miss, not a match.
-    const attempt = (
-      domain: RegistrationEip712Domain | undefined,
-      encoding: RegistrationFieldEncoding,
-    ): ResolvedRegistrationSignature | undefined => {
-      if (!domain) return undefined;
+    const extended = { ...REGISTRATION_EIP712_DOMAIN, chainId };
+    if (isSignedBy(extended, utf8)) return { message: utf8, variant: { domain: extended, encoding: UTF8 } };
+    if (isSignedBy(extended, ascii)) return { message: ascii, variant: { domain: extended, encoding: BITBOX_ASCII } };
 
-      const recovered = verifyTypedData(domain, REGISTRATION_EIP712_TYPES, message[encoding], signature);
-      if (!Util.equalsIgnoreCase(recovered, data.walletAddress)) return undefined;
-
-      return { message: message[encoding], variant: { domain, encoding } };
-    };
-
-    return (
-      attempt(legacy, RegistrationFieldEncoding.UTF8) ??
-      attempt(legacy, RegistrationFieldEncoding.BITBOX_ASCII) ??
-      attempt(withChainId, RegistrationFieldEncoding.UTF8) ??
-      attempt(withChainId, RegistrationFieldEncoding.BITBOX_ASCII)
-    );
+    return undefined;
   }
 
   async forwardRegistrationToAktionariat(id: number): Promise<void> {
