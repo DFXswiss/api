@@ -516,14 +516,14 @@ export class SupportIssueController {
 
 [docs/endpoints.md](docs/endpoints.md) lists every route this service exposes. **Any change to the set of routes must be reflected there in the same PR** — adding, removing, renaming or re-scoping an endpoint, and equally a change to a `@Controller` base path, which moves every route beneath it.
 
-The file is a single table sorted by path. Add or amend the row in that order and fill every column: whether the endpoint carries `@ApiExcludeEndpoint()`, and whether its load path triggers eager relations.
+Fill in the `Swagger` and `Eager` columns; `Cols`, `Fields` and `Ratio` are measured, not hand-written.
 
 The `Eager` column follows a mechanical rule — eager relations apply to the `find*` family, not to `createQueryBuilder` with an explicit field list or to raw SQL:
 
 - the handler reaches a `find` / `findOne` / `findBy` / `findOneBy` on a repository → `yes`
 - it loads only through `createQueryBuilder(...).select([...])` or `dataSource.query(...)`, or touches no database at all → `no`
 
-This matters because eager relations expand recursively: a plain `findOne()` on `UserData` already selects 253 columns across 8 joins before any `relations` option is added. The `Cols`, `Fields` and `Ratio` columns are optional when adding an endpoint — they are measured, not hand-written.
+This matters because eager relations expand recursively: a plain `findOne()` on `UserData` already selects 253 columns across 8 joins before any `relations` option is added.
 
 Two details are easy to get wrong when editing the list by hand:
 
