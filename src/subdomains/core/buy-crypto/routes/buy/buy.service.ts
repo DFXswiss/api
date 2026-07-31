@@ -280,9 +280,9 @@ export class BuyService {
   }
 
   /**
-   * @param preloadedUser the user for `userId`, saving a second load. Must be loaded with
-   * {@link PAYMENT_INFO_USER_RELATIONS} — `getTxErrors` dereferences `user.wallet` without optional
-   * chaining, so a differently-loaded user fails at runtime rather than degrading.
+   * @param preloadedUser the user for `userId`, saving a second load. Must be loaded with the relations
+   * `{ userData: { organization: true }, wallet: true }` — `getTxErrors` dereferences `user.wallet`
+   * without optional chaining, so a differently-loaded user fails at runtime rather than degrading.
    */
   async toPaymentInfoDto(
     userId: number,

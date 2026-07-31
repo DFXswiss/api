@@ -4,11 +4,11 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import * as processServiceModule from 'src/shared/services/process.service';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import * as processServiceModule from 'src/shared/services/process.service';
 import { PaymentInfoService } from '../payment-info.service';
 
 // The trade-approval gate reads user.wallet. Callers that load the user without the wallet relation see

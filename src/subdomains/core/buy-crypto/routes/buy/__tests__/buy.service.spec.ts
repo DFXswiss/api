@@ -1377,8 +1377,6 @@ describe('BuyService', () => {
         expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
       });
 
-      // CARD on purpose: a BANK transfer with no personal IBAN fails closed by design, so the "none
-      // found" outcome can only be observed on the payment method that still resolves a bank.
       // A negative result is deliberately re-read: it is a whole getTxDetails old, and the issuance branch
       // follows. The fresh read here returns a vIBAN, standing in for one issued concurrently in that
       // window — reusing the stale negative would lose it and fail closed with PersonalIbanIssuanceFailed.
@@ -1402,6 +1400,9 @@ describe('BuyService', () => {
         expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
       });
 
+      // CARD on purpose: a BANK transfer that resolves no personal IBAN fails closed by design, so the
+      // "nothing found either way" outcome can only be observed on the payment method that still
+      // resolves a bank.
       it('resolves it itself when getTxDetails ran no lookup', async () => {
         jest
           .spyOn(transactionHelper, 'getTxDetails')
