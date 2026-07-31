@@ -225,8 +225,8 @@ interface ResolvedRegistrationSignature {
   variant: RegistrationSignatureVariant;
 }
 
-// The encoding half is indicative only: for data without diacritics both encodings are byte-identical,
-// so such a registration always reports UTF-8. The domain half is always exact.
+// The encoding half is indicative only: for data that is already pure ASCII both encodings are
+// byte-identical, so such a registration always reports UTF-8. The domain half is always exact.
 function describeVariant({ domain, encoding }: RegistrationSignatureVariant): string {
   const domainName = domain.chainId ? `chainId ${domain.chainId} domain` : 'legacy domain';
   const fields = encoding === RegistrationFieldEncoding.BITBOX_ASCII ? 'BitBox ASCII fields' : 'UTF-8 fields';
