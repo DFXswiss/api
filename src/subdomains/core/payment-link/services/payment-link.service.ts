@@ -156,6 +156,11 @@ export class PaymentLinkService {
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
+    // Validated here rather than on the DTO because `route` wins over `routeId` and the `r` alias is
+    // resolved in the controller after validation — so a junk routeId is only an error when it is the
+    // value actually used. Unguarded, `+dto.routeId` hands Postgres NaN/Infinity/1e+21 and 500s.
+    if (!dto.route && !Util.isDbId(dto.routeId)) throw new BadRequestException('routeId must be a positive integer');
+
     const route = dto.route
       ? await this.depositRouteService.getByLabel(undefined, dto.route)
       : await this.depositRouteService.getById(+dto.routeId);

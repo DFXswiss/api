@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { PG_INTEGER_MAX } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { EntityManager } from 'typeorm';
@@ -20,9 +21,6 @@ import { CustodyService } from './custody.service';
 
 export const LegacyAccountId = 'legacy';
 export type CustodyAccountId = number | typeof LegacyAccountId;
-
-/** Postgres INTEGER / SERIAL upper bound (positive ids only). */
-export const PG_INTEGER_MAX = 2_147_483_647;
 
 /**
  * Owner-scoped advisory lock key for ordinary creation vs legacy materialisation.

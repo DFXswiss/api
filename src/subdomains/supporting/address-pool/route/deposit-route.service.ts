@@ -42,7 +42,9 @@ export class DepositRouteService {
   }
 
   async getPaymentRoute(idOrLabel: string, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
-    const isRouteId = !isNaN(+idOrLabel);
+    // Util.isDbId, not !isNaN(+x): the latter routes 'Infinity'/'1.9'/'1e+21' down the id branch and
+    // hands them to Postgres as an integer, which 500s on an endpoint anonymous callers can reach.
+    const isRouteId = Util.isDbId(idOrLabel);
     const route = isRouteId
       ? await this.getById(+idOrLabel, options)
       : await this.getByLabel(undefined, idOrLabel, options);

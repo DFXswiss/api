@@ -1,11 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
+import { Util } from 'src/shared/utils/util';
 import { CustodyAccessLevel } from '../enums/custody';
-import {
-  CustodyAccountId,
-  CustodyAccountService,
-  LegacyAccountId,
-  PG_INTEGER_MAX,
-} from '../services/custody-account.service';
+import { CustodyAccountId, CustodyAccountService, LegacyAccountId } from '../services/custody-account.service';
 
 abstract class CustodyAccountAccessGuard implements CanActivate {
   protected abstract readonly requiredLevel: CustodyAccessLevel;
@@ -42,16 +38,11 @@ abstract class CustodyAccountAccessGuard implements CanActivate {
 
     // Same constraints as the controller: digits only, finite safe positive int in SERIAL range.
     // (Guards map validation failures to 403; the controller answers 400 on grant routes.)
-    if (!/^\d+$/.test(id)) {
+    if (!Util.isDbId(id)) {
       throw new ForbiddenException('Invalid custody account ID');
     }
 
-    const parsed = Number(id);
-    if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > PG_INTEGER_MAX) {
-      throw new ForbiddenException('Invalid custody account ID');
-    }
-
-    return parsed;
+    return Number(id);
   }
 }
 

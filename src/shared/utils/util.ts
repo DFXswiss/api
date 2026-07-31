@@ -15,6 +15,9 @@ export type KeyType<T, U> = {
 
 type CryptoAlgorithm = 'md5' | 'sha256' | 'sha384' | 'sha512';
 
+/** Postgres INTEGER / SERIAL upper bound (positive ids only). */
+export const PG_INTEGER_MAX = 2_147_483_647;
+
 export enum AmountType {
   ASSET = 'Asset',
   FIAT = 'Fiat',
@@ -511,6 +514,25 @@ export class Util {
 
   static contains(search: string): FindOperator<string> {
     return ILike(`%${search}%`);
+  }
+
+  /**
+   * True if a request-supplied value is a usable Postgres INTEGER/SERIAL id.
+   *
+   * Deliberately stricter than `!isNaN(+value)` / `Number.isInteger(+value)`: both of those accept
+   * values JS coerces to a finite-looking number but Postgres rejects, which surfaces as a 500 rather
+   * than a 400. Notably `+'Infinity'` is `Infinity` and `+'1e+21'` is an integer by `Number.isInteger`.
+   * The digit-only test rejects all of them before they reach SQL.
+   *
+   * Takes `unknown` on purpose: query params are not guaranteed to be strings at runtime (`?id=1&id=2`
+   * arrives as an array), and `RegExp.test` would silently coerce those to something that passes.
+   */
+  static isDbId(value: unknown): boolean {
+    if (typeof value !== 'string' || !/^\d+$/.test(value)) return false;
+
+    // The digit-only test above already rules out anything non-integral or negative, so the upper
+    // bound is the only remaining constraint — a value above it is also beyond Number.MAX_SAFE_INTEGER.
+    return Number(value) >= 1 && Number(value) <= PG_INTEGER_MAX;
   }
 
   // --- MISC --- //

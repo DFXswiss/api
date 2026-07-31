@@ -95,3 +95,37 @@ describe('sanitizeLogValue', () => {
     expect(Util.sanitizeLogValue('a=b', 64)).toBe('a?b');
   });
 });
+
+describe('isDbId', () => {
+  // Regression: request params were coerced with `!isNaN(+x)` / `Number.isInteger(+x)`, both of which
+  // accept values Postgres rejects as an integer. Reaching SQL, they surfaced as 500s on endpoints
+  // anonymous callers can reach (GET /v1/paymentLink/payment, /v1/plp, /v1/paymentLink/recipient).
+  it.each(['NaN', 'Infinity', '-Infinity', '1.9', '1e+21', '1E5', '0x10', '+42', '-1', ' 12 ', '12\n', 'abc', ''])(
+    'rejects %j',
+    (value) => {
+      expect(Util.isDbId(value)).toBe(false);
+    },
+  );
+
+  it('rejects 0, since SERIAL ids start at 1', () => {
+    expect(Util.isDbId('0')).toBe(false);
+  });
+
+  it('rejects ids beyond the Postgres INTEGER range', () => {
+    expect(Util.isDbId('2147483647')).toBe(true);
+    expect(Util.isDbId('2147483648')).toBe(false);
+    expect(Util.isDbId('9'.repeat(309))).toBe(false);
+  });
+
+  // Query params are not guaranteed to be strings: `?id=1&id=2` arrives as an array, which
+  // `RegExp.test` would coerce to a passing value.
+  it.each([[['12']], [12], [null], [undefined], [{}]])('rejects the non-string %p', (value) => {
+    expect(Util.isDbId(value)).toBe(false);
+  });
+
+  it('accepts a plain positive integer', () => {
+    expect(Util.isDbId('1')).toBe(true);
+    expect(Util.isDbId('42')).toBe(true);
+    expect(Util.isDbId('007')).toBe(true);
+  });
+});
