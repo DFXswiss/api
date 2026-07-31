@@ -81,6 +81,29 @@ describe('PaymentLinkController', () => {
     });
   });
 
+  describe('createInvoicePayment r alias', () => {
+    const baseDto = { amount: '10', message: 'x' };
+
+    beforeEach(() => {
+      jest.spyOn(paymentLinkService, 'createInvoice').mockResolvedValue({ uniqueId: 'pl_1' } as PaymentLink);
+      jest.spyOn(paymentLinkService, 'createPayRequestWithCompletionCheck').mockResolvedValue({} as never);
+    });
+
+    // `r` is either a route id or a route label. Classifying it with !isNaN(+r) sent 'Infinity' and
+    // '1e+21' down the routeId branch and on to Postgres as an integer.
+    it.each(['Infinity', '1e+21', '1.9', 'NaN', 'my-label', '0'])('treats r=%j as a route label', async (r) => {
+      await controller.createInvoicePayment({ ...baseDto, r } as never);
+
+      expect(paymentLinkService.createInvoice).toHaveBeenCalledWith(expect.objectContaining({ route: r }));
+    });
+
+    it.each(['42', ' 42 '])('treats the numeric r=%j as a route id', async (r) => {
+      await controller.createInvoicePayment({ ...baseDto, r } as never);
+
+      expect(paymentLinkService.createInvoice).toHaveBeenCalledWith(expect.objectContaining({ routeId: r }));
+    });
+  });
+
   describe('assignPaymentLink', () => {
     // The presence check must run on the PARSED id: a malformed linkId leaves no usable identifier,
     // and this endpoint has no auth guard, so reaching the service with both absent would let the

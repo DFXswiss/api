@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -206,6 +207,38 @@ describe('TransactionController', () => {
         buy.user.wallet,
       );
       expect(transactionHelper.getTxStatementDetails).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getSingleTransactionDetails (malformed id / order-id)', () => {
+    // Both guards reject rather than drop, because id and order-id are the primary selectors here
+    // rather than one of several optional lookup keys.
+    it.each(['NaN', 'Infinity', '1.9', '1e+21', '-1', '0', '2147483648', 'abc'])(
+      'rejects id=%j before it reaches the lookup',
+      async (id) => {
+        await expect(controller.getSingleTransactionDetails(jwt, id)).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(transactionService.getTransactionById).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['NaN', 'Infinity', '1e+21', '2147483648', 'abc'])(
+      'rejects order-id=%j before it reaches the lookup',
+      async (orderId) => {
+        await expect(controller.getSingleTransactionDetails(jwt, undefined, undefined, orderId)).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+
+        expect(transactionService.getTransactionByRequestId).not.toHaveBeenCalled();
+      },
+    );
+
+    it('passes a well-formed id through as a number', async () => {
+      jest.spyOn(transactionService, 'getTransactionById').mockResolvedValue(undefined);
+
+      await expect(controller.getSingleTransactionDetails(jwt, ' 42 ')).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(transactionService.getTransactionById).toHaveBeenCalledWith(42, expect.any(Object));
     });
   });
 
