@@ -8,7 +8,6 @@ import { FileType } from '../dto/kyc-file.dto';
 import { ContentType } from '../enums/content-type.enum';
 import { KycLog } from '../entities/kyc-log.entity';
 import { KycLogType } from '../enums/kyc.enum';
-import { In, MoreThanOrEqual } from 'typeorm';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycDocumentService } from './integration/kyc-document.service';
 
@@ -24,11 +23,17 @@ export class KycLogService {
   async getMergedUserDataIdsSince(userDataIds: number[], since: Date): Promise<number[]> {
     if (!userDataIds.length) return [];
 
-    const logs = await this.kycLogRepo.find({
-      where: { userData: { id: In(userDataIds) }, type: KycLogType.MERGE, created: MoreThanOrEqual(since) },
-      relations: { userData: true },
-      loadEagerRelations: false,
-    });
+    const logs = await Util.doInBatchesAndJoin(
+      userDataIds,
+      (batch) =>
+        this.kycLogRepo.find({
+          where: { userData: { id: In(batch) }, type: KycLogType.MERGE, created: MoreThanOrEqual(since) },
+          select: { id: true, userData: { id: true } },
+          relations: { userData: true },
+          loadEagerRelations: false,
+        }),
+      100,
+    );
 
     return [...new Set(logs.map((l) => l.userData.id))];
   }

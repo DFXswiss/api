@@ -175,7 +175,12 @@ describe('KycFileIdBackfillService', () => {
 
     await computeCrossing();
 
-    for (const call of [...buyCryptoRepo.find.mock.calls, ...buyFiatRepo.find.mock.calls]) {
+    const calls = [...buyCryptoRepo.find.mock.calls, ...buyFiatRepo.find.mock.calls];
+    // Without this the loop is vacuous, and a refactor to createQueryBuilder would leave the guard
+    // silently asserting nothing.
+    expect(calls.length).toBeGreaterThan(0);
+
+    for (const call of calls) {
       const clauses = [call[0].where].flat();
 
       for (const clause of clauses) {
@@ -204,9 +209,14 @@ describe('KycFileIdBackfillService', () => {
     });
 
     it('still spans the full ±30d when the verdict came later than the span', async () => {
+      // Deliberately well past `created + 30d`, so the assertion distinguishes the capped branch
+      // from the uncapped one — at exactly +30d the two are equal and the test proves nothing.
       const created = IN_WINDOW;
+      const verdictAt = new Date('2026-07-03T00:00:00Z');
+      expect(verdictAt.getTime()).toBeGreaterThan(Util.daysAfter(30, created).getTime());
+
       buyCryptoRepo.find.mockResolvedValue([
-        buyCrypto({ id: 1, created, priceDefinitionAllowedDate: new Date('2026-07-01T00:00:00Z'), amountInChf: 600 }),
+        buyCrypto({ id: 1, created, priceDefinitionAllowedDate: verdictAt, amountInChf: 600 }),
       ]);
       previousVolume(600);
 
@@ -215,6 +225,21 @@ describe('KycFileIdBackfillService', () => {
       const [dateFrom, dateTo] = transactionHelper.getVolumeSince.mock.calls[0];
       expect(dateFrom).toEqual(Util.daysBefore(30, created));
       expect(dateTo).toEqual(Util.daysAfter(30, created));
+    });
+
+    it('restricts the sum to siblings already judged at the verdict', async () => {
+      // The sum filters siblings by source date, not by when they were judged, and `!= FAIL` is
+      // SQL-NULL for an unjudged row — so without this a transfer that was still Pending when the
+      // rule ran would be counted retrospectively.
+      const verdictAt = new Date('2026-06-10T00:00:00Z');
+      buyCryptoRepo.find.mockResolvedValue([
+        buyCrypto({ id: 1, created: IN_WINDOW, priceDefinitionAllowedDate: verdictAt, amountInChf: 600 }),
+      ]);
+
+      await computeCrossing();
+
+      const [, , , , , judgedBy] = transactionHelper.getVolumeSince.mock.calls[0];
+      expect(judgedBy).toEqual(verdictAt);
     });
   });
 });

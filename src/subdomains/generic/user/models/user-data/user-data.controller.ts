@@ -29,9 +29,9 @@ import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
-import { isDryRun, KycFileIdBackfillQuery } from './dto/kyc-file-id-backfill.dto';
+import { BackfillStartResult, isDryRun, KycFileIdBackfillQuery } from './dto/kyc-file-id-backfill.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { BackfillStartResult, KycFileIdBackfillService } from './kyc-file-id-backfill.service';
+import { KycFileIdBackfillService } from './kyc-file-id-backfill.service';
 import { UserData, UserDataComplianceUpdateCols, UserDataSupportUpdateCols } from './user-data.entity';
 import { UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';

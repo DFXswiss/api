@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SiftModule } from 'src/integration/sift/sift.module';
 import { CustodyModule } from 'src/subdomains/core/custody/custody.module';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { SharedModule } from 'src/shared/shared.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { UserDataController } from 'src/subdomains/generic/user/models/user-data/user-data.controller';
@@ -44,8 +46,6 @@ import { RecommendationService } from './models/recommendation/recommendation.se
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { JwtRevocationSyncService } from './models/user-data/jwt-revocation-sync.service';
 import { KycFileIdBackfillService } from './models/user-data/kyc-file-id-backfill.service';
 import { UserDataJobService } from './models/user-data/user-data-job.service';

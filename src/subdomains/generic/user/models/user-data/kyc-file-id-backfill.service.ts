@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -13,6 +14,7 @@ import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entit
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Between, In, IsNull, Not, Repository } from 'typeorm';
 import { UserService } from '../user/user.service';
+import { BackfillStartResult } from './dto/kyc-file-id-backfill.dto';
 import { UserData } from './user-data.entity';
 import { UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
@@ -30,14 +32,17 @@ import { UserDataService } from './user-data.service';
 const AFFECTED_WINDOW_START = new Date('2026-05-21T14:00:08Z');
 const AFFECTED_WINDOW_END = new Date('2026-07-03T15:47:39Z');
 
-// Matches the live AML volume span in both preparation services:
-// Util.daysBefore(30, tx.created) … Util.daysAfter(30, tx.created), the forward half capped at the
-// verdict (see computeCrossing).
+// Matches the live AML volume span in both preparation services, which centre it on
+// `entity.transaction.created`; this anchors on the entity's own `created` instead, sub-minute
+// apart in practice. The forward half is additionally capped at the verdict — see computeCrossing.
 const VOLUME_WINDOW_DAYS = 30;
 
 const MAX_ASSIGNMENT_ATTEMPTS = 5;
 
-export interface BackfillOptions {
+// TypeORM binds one parameter per `In()` element; Postgres caps a statement at 65535.
+const ID_BATCH_SIZE = 100;
+
+interface BackfillOptions {
   dryRun: boolean;
 }
 
@@ -64,27 +69,25 @@ export interface BackfillReport {
   dryRun: boolean;
 }
 
-export interface BackfillStartResult {
-  started: boolean;
-  dryRun: boolean;
-  message: string;
-}
-
 /**
  * One-shot backfill of `kycFileId` / `amlListAddedDate` for rows the AML flow failed to assign
  * during the outage fixed by #4023. Background in PR #4041.
  *
  * Reproduces the live rule rather than approximating it: per-transaction volume comes from
- * `TransactionHelper.getVolumeSince`, the same call `aml.service.postProcessing` is fed by, so the
- * ±30d span and its inclusion rule (`amlCheck != FAIL`) match by construction — though the span is
- * cut off at the verdict, see `computeCrossing`, and the rule for selecting the crossing itself is
- * narrower, see `isEligibleCrossing`. The transaction's own contribution uses the stored
- * `amountInChf`, the value priced at AML time, rather than re-pricing at today's rate.
+ * `TransactionHelper.getVolumeSince`, which is what `getVolumeChfSince` wraps to produce the
+ * `last30dVolume` postProcessing is fed, so the ±30d span and its inclusion rule
+ * (`amlCheck != FAIL`) match by construction. Two things are then narrowed to what the rule could
+ * see at the time — the span and the sibling set, both in `computeCrossing` — and the rule for
+ * selecting the crossing itself is narrower still, see `isEligibleCrossing`. The transaction's own
+ * contribution uses the stored `amountInChf`, the value priced at AML time.
  *
- * The first transaction whose volume exceeds `monthlyDefaultWoKyc` is the crossing, and its
- * `created` supplies `amlListAddedDate` where the row does not already carry one, so
- * `getKycFileYearlyStats` keeps the per-year shape it would have had. Crossings are assigned
- * oldest-first so ids stay monotonic with time.
+ * Everything is keyed on the verdict timestamp rather than on `created`: the window, the scan
+ * order, the sibling cut-off and the date written. Live, assignment fires in the same tick as the
+ * verdict, so that is the axis the outage happened on.
+ *
+ * The first transaction whose volume exceeds `monthlyDefaultWoKyc` is the crossing, and its verdict
+ * timestamp becomes `amlListAddedDate`, so `getKycFileYearlyStats` keeps the per-year shape it
+ * would have had. Crossings are assigned oldest-first so ids stay monotonic with time.
  *
  * Idempotent: candidates are filtered on `kycFileId IS NULL`, the UPDATE is conditional on the
  * same, and the partial unique index from #4023 is the DB-level backstop behind the retry.
@@ -161,6 +164,15 @@ export class KycFileIdBackfillService {
     if (options.dryRun) return report;
 
     for (const crossing of crossings) {
+      // Re-checked every iteration, not just at the endpoint: the run is fire-and-forget and takes
+      // minutes, so a gate tested only at request time cannot stop a pass already writing. Being a
+      // persisted setting, this also reaches a pass started on another pod — which `isRunning`,
+      // being per-process, does not.
+      if (DisabledProcess(Process.KYC_FILE_ID_BACKFILL)) {
+        this.logger.warn(`Backfill aborted after ${report.assigned} assignments: process disabled`);
+        break;
+      }
+
       try {
         const kycFileId = await this.assign(crossing);
 
@@ -217,11 +229,18 @@ export class KycFileIdBackfillService {
     const withTx = [...fromBuyCrypto, ...fromBuyFiat].map((r) => r.userDataId).filter((id): id is number => id != null);
     if (!withTx.length) return { candidateIds: [], excludedMergedIds: [] };
 
-    const candidates = await this.userDataRepo.find({
-      where: { id: In([...new Set(withTx)]), kycFileId: IsNull(), status: Not(UserDataStatus.MERGED) },
-      select: { id: true },
-      loadEagerRelations: false,
-    });
+    // Batched: the id list is every account with a PASS transaction across a six-week window, and
+    // TypeORM emits one bind parameter per element against a Postgres cap of 65535.
+    const candidates = await Util.doInBatchesAndJoin(
+      [...new Set(withTx)],
+      (batch) =>
+        this.userDataRepo.find({
+          where: { id: In(batch), kycFileId: IsNull(), status: Not(UserDataStatus.MERGED) },
+          select: { id: true },
+          loadEagerRelations: false,
+        }),
+      ID_BATCH_SIZE,
+    );
 
     // Accounts merged since the outage began are set aside rather than backfilled. Volume is read
     // from the account's *current* users, so a merge folds two histories into one: two accounts
@@ -280,21 +299,30 @@ export class KycFileIdBackfillService {
     for (const tx of txs) {
       if (!this.isEligibleCrossing(tx)) continue;
 
-      // Same helper and same ±30d span as the live rule, but the forward half is cut off at the
-      // moment the verdict was rendered. Live, that half is all but empty — transactions after the
-      // one being judged do not exist yet, and any created since carry a null `amlCheck`, which
-      // `!= FAIL` excludes. Replaying months later the whole span is populated, so leaving it open
-      // lets a *later* transaction push an *earlier* one over the threshold: a crossing the live
-      // rule never saw, and an id it never issued.
+      // Same helper and same ±30d span as the live rule, restricted to what the rule could
+      // actually see when it ran. Two separate leaks otherwise, both inflating the sum and both
+      // therefore inventing crossings:
+      //
+      //   - the forward half. Live it is all but empty, since transactions after the one being
+      //     judged do not exist yet. Replayed months later it is fully populated, so a *later*
+      //     transaction could push an *earlier* one over the threshold. Cut off at the verdict.
+      //
+      //   - siblings judged afterwards. The sum filters on each sibling's *source* date, not on
+      //     when it was judged, and `amlCheck != FAIL` is SQL-NULL — hence excluding — for a row
+      //     not yet judged. A 5000 CHF transfer whose bankTx predates this verdict but which was
+      //     still Pending at the time counts now and did not then. `judgedBy` restores that.
+      //
       // `isEligibleCrossing` has already established priceDefinitionAllowedDate is set.
+      const judgedBy = tx.priceDefinitionAllowedDate;
       const spanEnd = Util.daysAfter(VOLUME_WINDOW_DAYS, tx.created);
-      const dateTo = tx.priceDefinitionAllowedDate < spanEnd ? tx.priceDefinitionAllowedDate : spanEnd;
 
       const previousVolume = await this.transactionHelper.getVolumeSince(
         Util.daysBefore(VOLUME_WINDOW_DAYS, tx.created),
-        dateTo,
+        judgedBy < spanEnd ? judgedBy : spanEnd,
         users,
         tx,
+        undefined,
+        judgedBy,
       );
       const volume = previousVolume + tx.amountInChf;
 
@@ -351,7 +379,13 @@ export class KycFileIdBackfillService {
       }),
     ]);
 
-    return [...buyCryptos, ...buyFiats].sort((a, b) => a.created.getTime() - b.created.getTime());
+    // Ordered by verdict, not by creation: `computeCrossing` takes the first transaction that
+    // qualifies, and live the assignment fires at the first PASS *verdict*. Ordering by `created`
+    // would let a transaction created earlier but approved later win over one approved first,
+    // stamping a date weeks late and naming the wrong trigger in the audit entry.
+    return [...buyCryptos, ...buyFiats].sort(
+      (a, b) => a.priceDefinitionAllowedDate.getTime() - b.priceDefinitionAllowedDate.getTime(),
+    );
   }
 
   /**
@@ -376,11 +410,15 @@ export class KycFileIdBackfillService {
     });
     if (!before || before.kycFileId != null) return null;
 
-    const kycFileId = await this.userDataService.getNextKycFileId();
+    // A row carrying a date but no id did not get there through the live rule, which only ever
+    // writes the two together — it came from a merge or a compliance edit. Overwriting the date
+    // would destroy it; keeping it would file a fresh ~6200 id under an old year, which
+    // `getMaxKycFileIdByDateRange` then reports as that year's highest. Neither is ours to choose,
+    // so the row is left alone and surfaced for manual handling.
+    if (before.amlListAddedDate != null) return null;
 
-    // Never clear a date the row already carries: the live rule only ever set this alongside a
-    // fresh id, so an existing value came from somewhere else and is not ours to overwrite.
-    const amlListAddedDate = before.amlListAddedDate ?? crossing.crossingDate;
+    const kycFileId = await this.userDataService.getNextKycFileId();
+    const amlListAddedDate = crossing.crossingDate;
 
     // Logged per attempt, not once: a retry re-allocates, so a single entry written on the first
     // attempt would name an id the row never receives. The cost is an entry for an attempt that

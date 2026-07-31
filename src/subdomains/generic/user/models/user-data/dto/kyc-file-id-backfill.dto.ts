@@ -22,3 +22,9 @@ export class KycFileIdBackfillQuery {
  * "not a dry run" and start writing.
  */
 export const isDryRun = (query: KycFileIdBackfillQuery): boolean => query.dryRun !== 'false';
+
+export class BackfillStartResult {
+  started: boolean;
+  dryRun: boolean;
+  message: string;
+}

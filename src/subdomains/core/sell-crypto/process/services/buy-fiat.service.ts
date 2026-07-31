@@ -599,6 +599,7 @@ export class BuyFiatService implements OnModuleInit {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
     excludedId?: number,
+    judgedBy?: Date,
   ): Promise<number> {
     const request = this.buyFiatRepo
       .createQueryBuilder('buyFiat')
@@ -612,6 +613,14 @@ export class BuyFiatService implements OnModuleInit {
     if (excludedId) {
       request.andWhere('buyFiat.id != :excludedId', { excludedId });
     }
+
+    // Historical replay only (see KycFileIdBackfillService): restrict to rows already judged at
+    // `judgedBy`. `amlCheck != FAIL` is SQL-NULL for an unjudged row and therefore excludes it, so
+    // without this a row judged after the fact is counted in a sum that never saw it.
+    if (judgedBy)
+      request
+        .andWhere('buyFiat.priceDefinitionAllowedDate IS NOT NULL')
+        .andWhere('buyFiat.priceDefinitionAllowedDate <= :judgedBy', { judgedBy });
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }

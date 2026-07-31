@@ -381,6 +381,7 @@ export class TransactionHelper implements OnModuleInit {
     users: User[],
     excluded?: BuyCrypto | BuyFiat,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    judgedBy?: Date,
   ): Promise<number> {
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),
@@ -388,6 +389,7 @@ export class TransactionHelper implements OnModuleInit {
       dateTo,
       excluded instanceof BuyCrypto ? excluded.id : undefined,
       type,
+      judgedBy,
     );
     const buyFiatVolume =
       !type || type === 'cryptoInput'
@@ -396,6 +398,7 @@ export class TransactionHelper implements OnModuleInit {
             dateFrom,
             dateTo,
             excluded instanceof BuyFiat ? excluded.id : undefined,
+            judgedBy,
           )
         : 0;
 

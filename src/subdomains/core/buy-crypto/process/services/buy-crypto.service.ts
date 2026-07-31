@@ -861,13 +861,14 @@ export class BuyCryptoService implements OnModuleInit {
     dateTo: Date = new Date(),
     excludedId?: number,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    judgedBy?: Date,
   ): Promise<number> {
-    if (type) return this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, type);
+    if (type) return this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, type, judgedBy);
 
     const volumes = await Promise.all([
-      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'cryptoInput'),
-      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'checkoutTx'),
-      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'bankTx'),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'cryptoInput', judgedBy),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'checkoutTx', judgedBy),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'bankTx', judgedBy),
     ]);
 
     return Util.sum(volumes);
@@ -879,6 +880,7 @@ export class BuyCryptoService implements OnModuleInit {
     dateTo: Date = new Date(),
     excludedId: number | undefined,
     type: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    judgedBy?: Date,
   ): Promise<number> {
     const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(buyCrypto.amountInChf)', 'volume');
 
@@ -910,6 +912,14 @@ export class BuyCryptoService implements OnModuleInit {
       .andWhere('route.userId IN (:...userIds)', { userIds });
 
     if (excludedId) request.andWhere('buyCrypto.id != :excludedId', { excludedId });
+
+    // Historical replay only (see KycFileIdBackfillService): restrict to rows already judged at
+    // `judgedBy`. `amlCheck != FAIL` is SQL-NULL for an unjudged row and therefore excludes it, so
+    // without this a row judged after the fact is counted in a sum that never saw it.
+    if (judgedBy)
+      request
+        .andWhere('buyCrypto.priceDefinitionAllowedDate IS NOT NULL')
+        .andWhere('buyCrypto.priceDefinitionAllowedDate <= :judgedBy', { judgedBy });
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }
