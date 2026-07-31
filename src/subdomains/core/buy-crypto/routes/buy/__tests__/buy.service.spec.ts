@@ -167,6 +167,54 @@ describe('BuyService', () => {
       expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
     });
 
+    // The user is loaded once and handed to toPaymentInfoDto. Loading it a second time there costs two
+    // extra queries, and letting the two loads drift apart is what left user.wallet unloaded for buyCheck.
+    it('loads the user once and reuses it for the payment-info DTO', async () => {
+      const loadedUser = { id: 1, userData, wallet: {} } as any;
+      const getUser = jest.spyOn(userService, 'getUser').mockResolvedValue(loadedUser);
+      jest.spyOn(paymentInfoService, 'buyCheck').mockImplementation(async (d) => d as any);
+      jest.spyOn(service, 'createBuy').mockResolvedValue(buy);
+      jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockResolvedValue(virtualIban);
+      const fees = { min: 0, rate: 0.01, fixed: 0, dfx: 1, network: 0, platform: 0, bank: 0, total: 1 };
+      jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue({
+        timestamp: new Date('2026-07-24T00:00:00Z'),
+        minVolume: 10,
+        minVolumeTarget: 0.001,
+        maxVolume: 10000,
+        maxVolumeTarget: 1,
+        exchangeRate: 100000,
+        rate: 101000,
+        estimatedAmount: 0.00099,
+        sourceAmount: 100,
+        isValid: false,
+        exactPrice: false,
+        feeSource: fees,
+        feeTarget: fees,
+        priceSteps: [],
+      } as any);
+
+      await service.createBuyPaymentInfo({ user: 1, address: '0x123' } as any, dto());
+
+      expect(getUser).toHaveBeenCalledTimes(1);
+      // wallet is the relation buyCheck reads (as user.wallet, not userData.wallet) and organization is
+      // what UserData.address needs - asserted explicitly, because getUser is mocked and would otherwise
+      // hand back a fully-populated user no matter which relations were requested.
+      expect(getUser).toHaveBeenCalledWith(1, { userData: { organization: true }, wallet: true });
+      // and the fee calculation sees the very same instance
+      expect((transactionHelper.getTxDetails as jest.Mock).mock.calls[0][7]).toBe(loadedUser);
+    });
+
+    // the transaction request is attributed to userId, so a preloaded user for someone else would book
+    // the request against the wrong account instead of failing
+    it('refuses a preloaded user that does not match the requested user', async () => {
+      await expect(service.toPaymentInfoDto(1, buy, dto(), { id: 2 } as any)).rejects.toThrow(
+        'preloadedUser does not match userId',
+      );
+
+      expect(transactionHelper.getTxDetails).not.toHaveBeenCalled();
+      expect(transactionRequestService.create).not.toHaveBeenCalled();
+    });
+
     it('selects Frick once before fee calculation, persists exact IDs, and does not leak IDs publicly', async () => {
       const events: string[] = [];
       jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet: {} } as any);
@@ -1331,10 +1379,14 @@ describe('BuyService', () => {
 
       // CARD on purpose: a BANK transfer with no personal IBAN fails closed by design, so the "none
       // found" outcome can only be observed on the payment method that still resolves a bank.
-      it('does not repeat the lookup when getTxDetails resolved that there is none', async () => {
+      // A negative result is deliberately re-read: it is a whole getTxDetails old, and the issuance branch
+      // follows. Reusing it would miss a vIBAN issued concurrently in that window and turn the lost race
+      // into a fail-closed PersonalIbanIssuanceFailed.
+      it('re-resolves when getTxDetails found none, so a concurrently issued vIBAN is not missed', async () => {
         jest
           .spyOn(transactionHelper, 'getTxDetails')
           .mockResolvedValue({ ...feeResult(), activeVirtualIban: null } as any);
+        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
 
         await service.toPaymentInfoDto(1, buy, {
           amount: 100,
@@ -1344,7 +1396,7 @@ describe('BuyService', () => {
           exactPrice: false,
         } as GetBuyPaymentInfoDto);
 
-        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledTimes(1);
       });
 
       it('resolves it itself when getTxDetails ran no lookup', async () => {

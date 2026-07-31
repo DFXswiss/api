@@ -279,12 +279,21 @@ export class BuyService {
     return this.buyRepo;
   }
 
+  /**
+   * @param preloadedUser the user for `userId`, saving a second load. Must be loaded with
+   * {@link PAYMENT_INFO_USER_RELATIONS} — `getTxErrors` dereferences `user.wallet` without optional
+   * chaining, so a differently-loaded user fails at runtime rather than degrading.
+   */
   async toPaymentInfoDto(
     userId: number,
     buy: Buy,
     dto: GetBuyPaymentInfoDto,
     preloadedUser?: User,
   ): Promise<BuyPaymentInfoDto> {
+    // the request is attributed to userId further down, so a mismatch would book it against another account
+    if (preloadedUser && preloadedUser.id !== userId)
+      throw new Error('toPaymentInfoDto: preloadedUser does not match userId');
+
     const user = preloadedUser ?? (await this.userService.getUser(userId, PAYMENT_INFO_USER_RELATIONS));
 
     // Explicit personal-IBAN selector dispatch is exhaustive and fail-closed. Frick resolves the
@@ -554,12 +563,15 @@ export class BuyService {
       }
     }
 
-    // user-level vIBAN — reuse the caller's lookup when it already ran one for this (userData, currency);
-    // null means "resolved, none found", undefined means "not resolved".
+    // user-level vIBAN — reuse the caller's lookup only when it actually found one. A negative result is
+    // deliberately NOT reused: it is up to a full getTxDetails (pricing, fees, limits) old by now, and the
+    // branch below issues an IBAN. A concurrent request that issued one in that window would otherwise be
+    // missed here, createForUser would hit a duplicate and swallow it, and the customer would get a
+    // fail-closed PersonalIbanIssuanceFailed where a fresh read returns the IBAN. Re-reading costs one
+    // SELECT on a path that is about to make an external issuance call anyway.
     let virtualIban =
-      activeVirtualIban !== undefined
-        ? activeVirtualIban
-        : await this.virtualIbanService.getActiveReceivingForUserAndCurrency(selector.userData, selector.currency);
+      activeVirtualIban ??
+      (await this.virtualIbanService.getActiveReceivingForUserAndCurrency(selector.userData, selector.currency));
 
     // create a personal IBAN for an eligible KYC 50+ user
     if (
