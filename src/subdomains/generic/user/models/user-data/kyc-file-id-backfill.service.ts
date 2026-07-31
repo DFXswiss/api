@@ -54,13 +54,21 @@ export interface Crossing {
   volumeAtCrossing: number;
 }
 
-export interface BackfillReport {
+interface BackfillReport {
   candidates: number;
   crossings: number;
   assigned: number;
-  /** Already carried an id by the time the write ran — a live tick or an earlier run got there. */
+  /**
+   * Left untouched: the row had gained an id before the write ran, had vanished, or already
+   * carried an `amlListAddedDate` — see `assign`. Ids are listed in `skippedIds`.
+   */
   skipped: number;
-  /** Threw during assignment. `assigned + skipped + failed` always equals `crossings`. */
+  skippedIds: number[];
+  /**
+   * Threw during assignment. `assigned + skipped + failed` reconciles against `crossings` only for
+   * a live pass that ran to completion — a dry run leaves all three at zero, and the kill-switch
+   * ends the loop early.
+   */
   failed: number;
   /** Merged since the window opened; volume can no longer be attributed. For manual review. */
   excludedMergedIds: number[];
@@ -155,6 +163,7 @@ export class KycFileIdBackfillService {
       crossings: crossings.length,
       assigned: 0,
       skipped: 0,
+      skippedIds: [],
       failed: 0,
       excludedMergedIds,
       crossingDetail: crossings,
@@ -176,8 +185,12 @@ export class KycFileIdBackfillService {
       try {
         const kycFileId = await this.assign(crossing);
 
-        if (kycFileId == null) report.skipped++;
-        else report.assigned++;
+        if (kycFileId == null) {
+          report.skipped++;
+          report.skippedIds.push(crossing.userDataId);
+        } else {
+          report.assigned++;
+        }
       } catch (e) {
         report.failed++;
         this.logger.error(

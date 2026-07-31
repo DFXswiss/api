@@ -11,6 +11,9 @@ import { KycLogType } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycDocumentService } from './integration/kyc-document.service';
 
+// TypeORM binds one parameter per `In()` element; Postgres caps a statement at 65535.
+const ID_BATCH_SIZE = 100;
+
 @Injectable()
 export class KycLogService {
   constructor(
@@ -32,7 +35,7 @@ export class KycLogService {
           relations: { userData: true },
           loadEagerRelations: false,
         }),
-      100,
+      ID_BATCH_SIZE,
     );
 
     return [...new Set(logs.map((l) => l.userData.id))];
