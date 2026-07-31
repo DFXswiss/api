@@ -20,7 +20,11 @@ export class FiatController {
   @ApiOkResponse({ type: FiatDetailDto, isArray: true })
   async getAllFiat(): Promise<FiatDetailDto[]> {
     const specRepo = this.repoFactory.transactionSpecification;
-    const specs = await specRepo.find();
+    // Endpoint is hit ~10.8×/min (peak 30/min). Fiat and country already use findCached;
+    // this was the last uncached DB query per call. Cache sits on the repository layer so that
+    // FiatService.updatePrice() → fiatRepo.invalidateCache() still takes effect immediately
+    // (same principle as why there is no separate controller-level response cache).
+    const specs = await specRepo.findCached('all');
     const countries = await this.countryService.getAllCountry();
 
     return this.fiatService
