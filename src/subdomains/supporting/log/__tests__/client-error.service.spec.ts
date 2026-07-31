@@ -106,6 +106,12 @@ describe('ClientErrorService', () => {
     ['behind a colon', `session: ${TOKEN}`],
     ['in JSON', `{"token":"${TOKEN}"}`],
     ['in a compound name', `accessToken=${TOKEN}`],
+    ['in a compound name behind a colon', `accessToken: ${TOKEN}`],
+    ['in a compound name with the secret part first', `sessionId: ${TOKEN}`],
+    ['in a snake_case name', `access_token=${TOKEN}`],
+    ['in an all-caps name', `SESSIONID=${TOKEN}`],
+    ['behind an authorization scheme', `authorization: Bearer ${TOKEN}`],
+    ['in a value containing a comma', `password=hunter2,${TOKEN}`],
     ['in a quoted value', `session="${TOKEN} more"`],
     ['regardless of case', `Signature=${TOKEN}`],
   ])('masks a bare secret assignment %s', (_case, message) => {
@@ -115,7 +121,7 @@ describe('ClientErrorService', () => {
     expect(loggedLine()).not.toContain(TOKEN);
   });
 
-  it.each(['session', 'signature', 'password', 'secret', 'token', 'otp', 'jwt', 'auth', 'mail', 'apikey'])(
+  it.each(['session', 'signature', 'password', 'secret', 'token', 'otp', 'jwt', 'authorization', 'mail', 'apikey'])(
     'masks the %s assignment',
     (name) => {
       service.logError(dto({ message: `${name}=${TOKEN}` }));
@@ -123,6 +129,15 @@ describe('ClientErrorService', () => {
       expect(loggedLine()).not.toContain(TOKEN);
     },
   );
+
+  // `auth` on its own names authentication, not a credential. Listing it would take authMethod and
+  // OAuthProvider with it, so `authorization` is spelled out instead.
+  it('does not treat auth as a secret name on its own', () => {
+    service.logError(dto({ message: 'authMethod=MetaMask authProvider=walletconnect' }));
+
+    expect(loggedLine()).toContain('authMethod=MetaMask');
+    expect(loggedLine()).toContain('authProvider=walletconnect');
+  });
 
   it('redacts a credential carried in a stack', () => {
     service.logError(dto({ stack: `at load (https://app.example.com/buy?signature=${TOKEN})` }));
@@ -163,6 +178,28 @@ describe('ClientErrorService', () => {
     service.logError(dto({ message }));
 
     expect(loggedLine()).toContain(message);
+  });
+
+  // Cutting a URL at its parameters also cuts a regex literal at a `?` or `#` inside it. The
+  // sentence around it stays readable, which is the trade-off taken here — pinned so a later
+  // change to the pattern does not widen the loss unnoticed.
+  it('keeps the sentence around a regex literal, even though the pattern itself is cut', () => {
+    service.logError(dto({ message: "Invalid email, expected /^\\S+?@\\S+$/ but got 'foo'" }));
+
+    expect(loggedLine()).toContain('Invalid email, expected');
+    expect(loggedLine()).toContain("but got 'foo'");
+  });
+
+  // The endpoint takes free text from anyone, and Node runs it on the one thread that serves every
+  // other request. A pattern that backtracks over long words turns a single post into a stall.
+  it('sanitizes a full-length field without measurable cost', () => {
+    const worstCase = 'token-'.repeat(666); // 3996 chars, just inside the stack field limit
+
+    const start = process.hrtime.bigint();
+    service.logError(dto({ stack: worstCase }));
+    const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
+
+    expect(elapsedMs).toBeLessThan(100);
   });
 
   it('keeps the asset path of a failed chunk, which is the point of the report', () => {

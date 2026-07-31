@@ -7,34 +7,53 @@ import { CreateClientErrorDto } from './dto/create-client-error.dto';
 // how a parameter is named, spelled or encoded. Matching parameter names instead loses a round to
 // every new encoding — percent-encoded, double-encoded, an encoded character inside the name.
 //
-// A scheme is not required. A relative path is the normal shape for an app calling its own API,
-// and a protocol-relative or fully percent-encoded one carries a credential just as well.
-const URL_LIKE_REGEX = /(?:[a-z][a-z0-9+.-]*:\/\/|\/|%2f)[^\s"'<>]*/gi;
+// Anchored on the slash rather than on a scheme, which also covers the shapes that carry no
+// scheme: a relative path — the normal shape for an app calling its own API — and a
+// protocol-relative one. Anchoring matters for cost too: a scheme pattern has to be retried at
+// every position of a long word, and this endpoint takes input from anyone.
+const URL_LIKE_REGEX = /(?:\/|%2f)[^\s"'<>]*/gi;
 
 // Where the meaningful part of a URL ends, percent-encoded or not: ? # ;
 const PARAMETER_START = /[?#;]|%3[fb]|%23/i;
 
-// A credential in the authority (scheme://user:secret@host) has no separator in front of it and
-// would survive the cut above.
-const USERINFO_REGEX = /(:\/\/)[^/\s@]*@/g;
+// A credential in the authority (//user:secret@host) has no separator in front of it and would
+// survive the cut above.
+const USERINFO_REGEX = /^(\/\/)[^/\s@]*@/;
 
-// Outside a URL, a bare assignment is still worth masking — but only for names that are
+// A bare assignment outside a URL is still worth masking — but only for names that are
 // unambiguously secret. A broad list fails the other way round: `code` would redact statusCode and
 // countryCode, `key` would redact keyboardLayout, and the diagnostic value this endpoint exists
 // for would go with them.
-const SECRET_NAMES = 'session|signature|password|secret|token|otp|jwt|auth|mail|apikey|api_key';
+// `auth` is deliberately absent and spelled out instead: as a name part it means authentication,
+// not a credential, and would take `authMethod` with it — while `Unauthorized` is not a name part
+// at all.
+const SECRET_NAMES = [
+  'session',
+  'signature',
+  'password',
+  'secret',
+  'token',
+  'otp',
+  'jwt',
+  'authorization',
+  'mail',
+  'email',
+  'apikey',
+];
 
-// `name=value`. The name may be a compound (accessToken), because ordinary prose does not put a
-// word in front of an equals sign.
-const SECRET_EQUALS_REGEX = new RegExp(`\\b([\\w-]*(?:${SECRET_NAMES})[\\w-]*)\\s*(=|%3D)\\s*["']?[^\\s,&#;"']*`, 'gi');
+// Anchored on the separator, with the name read from the text in front of it. A name pattern
+// placed before the separator has to be retried at every position of a long word, which is
+// quadratic on input this endpoint accepts from anyone.
+// The scheme of an `authorization: Bearer <token>` is matched separately, so that the credential
+// after it is redacted rather than just the word naming the scheme.
+const ASSIGNMENT_REGEX = /(=|%3D|:|%3A)(\s*)(["']?)((?:bearer|basic|digest|token)\s+)?([^\s"']*)/gi;
+const NAME_BEFORE_REGEX = /([\w-]+)(["']?)\s*$/;
 
-// `"name": "value"`. Quoted, so a compound name is safe to match here too.
-const SECRET_JSON_REGEX = new RegExp(`(["'])([\\w-]*(?:${SECRET_NAMES})[\\w-]*)\\1\\s*:\\s*["']?[^\\s,&#;"']*`, 'gi');
+// Splits a name into its parts: accessToken, session_id and api-key all yield their components.
+const NAME_SEGMENT_REGEX = /[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+/g;
 
-// `name: value`. Here the name must stand on its own word boundaries: as a substring it would fire
-// on ordinary prose, and the sentences it would eat are the ones worth reading —
-// `Unauthorized: invalid credentials` contains `auth`, `Gmail: no app found` contains `mail`.
-const SECRET_COLON_REGEX = new RegExp(`\\b(${SECRET_NAMES})\\b\\s*(:|%3A)\\s*["']?[^\\s,&#;"']*`, 'gi');
+// How far back to look for the name of an assignment. Longer than any realistic parameter name.
+const NAME_LOOKBEHIND = 64;
 
 // JSON string escaping covers everything below U+0020, where the ordinary line breaks and the
 // ANSI escape live. These sit above it, survive the escaping, and still break a line or move a
@@ -56,6 +75,9 @@ export class ClientErrorService {
   private suppressedCount = 0;
 
   logError(dto: CreateClientErrorDto, client?: string, userAgent?: string): void {
+    // Checked before the fields are built, so a flood cannot buy sanitizing work it never uses.
+    if (!this.isWithinBudget()) return;
+
     const { message, type, stack, route, version } = dto;
 
     // Context first, free text last and quoted: message, type and stack are attacker-controlled
@@ -70,7 +92,7 @@ export class ClientErrorService {
     ];
     if (stack) fields.push(`stack=${ClientErrorService.quote(stack)}`);
 
-    if (this.isWithinBudget()) this.logger.error(`Client error: ${fields.join(' ')}`);
+    this.logger.error(`Client error: ${fields.join(' ')}`);
   }
 
   // --- BUDGET --- //
@@ -107,23 +129,46 @@ export class ClientErrorService {
     return value?.split(PARAMETER_START)[0].replace(USERINFO_REGEX, '$1');
   }
 
+  // A colon appears all over ordinary prose, so there a secret name only counts as a part of the
+  // name in its own right: `accessToken:` and `sessionId:` are matched, while `Unauthorized:` and
+  // `Gmail:` are not — and those sentences are what a frontend error usually consists of. In front
+  // of an equals sign, or quoted as a JSON key, no sentence collides, so a plain substring is the
+  // safer choice there: it also catches spellings that have no parts to split, such as SESSIONID.
+  private static isSecretName(name: string, quoted: boolean, separator: string): boolean {
+    const isProseSeparator = !quoted && (separator === ':' || separator.toLowerCase() === '%3a');
+    if (!isProseSeparator) return SECRET_NAMES.some((secret) => name.toLowerCase().includes(secret));
+
+    const segments = name.match(NAME_SEGMENT_REGEX) ?? [];
+
+    return segments.some((segment) => SECRET_NAMES.includes(segment.toLowerCase()));
+  }
+
   // Strips URL parameters, masks bare secret assignments, then embeds the value as a JSON string.
   // The quoting is what makes the line unforgeable: line breaks, control characters and ANSI
   // escapes come out as escape sequences, so a payload can neither open a log line of its own nor
   // repaint a terminal that is tailing the log.
   //
-  // What this does NOT promise: a secret that carries no recognisable name and sits outside a URL
-  // or path is indistinguishable from an ordinary diagnostic string, and is logged. The guarantee
-  // is that the way this app carries credentials — as parameters of a URL or path — cannot reach
-  // the log, whatever those parameters are called and however they are encoded.
+  // What is guaranteed: a credential carried the way this app carries one — as a parameter of a URL
+  // or a path — cannot reach the log, whatever it is called and however it is encoded, because the
+  // parameters are dropped rather than inspected.
+  //
+  // What is not: outside a URL, masking depends on recognising the name in front of the value. A
+  // secret under a name this does not know, or with no name at all, is indistinguishable from an
+  // ordinary diagnostic string and is logged.
   private static quote(value?: string): string {
     if (value == null) return '""';
 
     const redacted = value
       .replace(URL_LIKE_REGEX, (match) => ClientErrorService.toPath(match) ?? match)
-      .replace(SECRET_EQUALS_REGEX, '$1$2<redacted>')
-      .replace(SECRET_JSON_REGEX, '$1$2$1:<redacted>')
-      .replace(SECRET_COLON_REGEX, '$1$2<redacted>')
+      .replace(ASSIGNMENT_REGEX, (match, separator, space, quote, scheme, assigned, offset: number, whole: string) => {
+        if (!assigned) return match;
+
+        const name = NAME_BEFORE_REGEX.exec(whole.slice(Math.max(0, offset - NAME_LOOKBEHIND), offset));
+
+        return name && ClientErrorService.isSecretName(name[1], Boolean(name[2]), separator)
+          ? `${separator}${space}${quote}${scheme ?? ''}<redacted>`
+          : match;
+      })
       .replace(EXOTIC_LINE_BREAKS, ' ');
 
     return JSON.stringify(redacted);
