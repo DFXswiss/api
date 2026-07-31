@@ -210,8 +210,8 @@ type SignedRegistrationMessage = Pick<
 type RegistrationEip712Domain = typeof REGISTRATION_EIP712_DOMAIN & { chainId?: number };
 
 enum RegistrationFieldEncoding {
-  UTF8 = 'utf8',
-  BITBOX_ASCII = 'bitboxAscii',
+  UTF8 = 'Utf8',
+  BITBOX_ASCII = 'BitboxAscii',
 }
 
 interface RegistrationSignatureVariant {
@@ -225,6 +225,8 @@ interface ResolvedRegistrationSignature {
   variant: RegistrationSignatureVariant;
 }
 
+// The encoding half is indicative only: for data without diacritics both encodings are byte-identical,
+// so such a registration always reports UTF-8. The domain half is always exact.
 function describeVariant({ domain, encoding }: RegistrationSignatureVariant): string {
   const domainName = domain.chainId ? `chainId ${domain.chainId} domain` : 'legacy domain';
   const fields = encoding === RegistrationFieldEncoding.BITBOX_ASCII ? 'BitBox ASCII fields' : 'UTF-8 fields';

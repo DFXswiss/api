@@ -3157,6 +3157,19 @@ describe('RealUnitService', () => {
       expect(build).toHaveBeenCalledTimes(2);
     });
 
+    // The extended domain is the only environment-dependent part: Sepolia on DEV/LOC, Ethereum on PRD.
+    it('takes the chainId from the token chain of the environment', async () => {
+      mockEnvironment = 'dev';
+      const wallet = hardwareWallet.address;
+      const sign = (chainId: number) =>
+        hardwareWallet._signTypedData({ ...domain, chainId }, types, asciiFields(wallet));
+      const resolve = (signature: string) =>
+        (service as any).resolveRegistrationSignature(buildDto(utf8Fields(wallet), signature));
+
+      expect(resolve(await sign(11155111))).toBeDefined();
+      expect(resolve(await sign(1))).toBeUndefined();
+    });
+
     it('warns when the signature matches no accepted variant', async () => {
       // Well-formed signature from the wrong wallet: recovers cleanly, matches no variant.
       const foreign = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
