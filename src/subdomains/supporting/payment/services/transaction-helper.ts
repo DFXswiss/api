@@ -883,7 +883,7 @@ export class TransactionHelper implements OnModuleInit {
     from: Active,
     paymentMethodIn: PaymentMethod,
     userData?: UserData,
-  ): Promise<{ bankName: CardBankName | IbanBankName | undefined; activeVirtualIban?: VirtualIban | null }> {
+  ): Promise<{ bankName: CardBankName | IbanBankName | undefined; activeVirtualIban?: VirtualIban }> {
     const isBankTransfer =
       isFiat(from) &&
       [FiatPaymentMethod.BANK, FiatPaymentMethod.INSTANT].includes(paymentMethodIn as FiatPaymentMethod);
@@ -894,9 +894,10 @@ export class TransactionHelper implements OnModuleInit {
       };
 
     // vIBAN deposits are received at the vIBAN bank
-    let activeVirtualIban: VirtualIban | null | undefined;
+    let activeVirtualIban: VirtualIban | undefined;
     if (userData) {
-      activeVirtualIban = await this.virtualIbanService.getActiveReceivingForUserAndCurrency(userData, from.name);
+      activeVirtualIban =
+        (await this.virtualIbanService.getActiveReceivingForUserAndCurrency(userData, from.name)) ?? undefined;
       if (activeVirtualIban?.bank.receive) return { bankName: activeVirtualIban.bank.name, activeVirtualIban };
     }
 

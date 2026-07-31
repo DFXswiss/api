@@ -260,15 +260,15 @@ describe('TransactionHelper', () => {
     const eur = createCustomFiat({ name: 'EUR' });
 
     // getBankIn returns the resolved bank together with the vIBAN it looked up, so getTxDetails can hand
-    // that vIBAN to the caller instead of having it repeat the lookup. `activeVirtualIban` is null when the
-    // lookup ran and found none, and undefined when no lookup ran at all.
+    // that vIBAN to the caller instead of having it repeat the lookup. Only a positive result is reusable,
+    // so "none found" and "no lookup ran" are both undefined.
     it('should return the deposit bank for bank transfers', async () => {
       jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(olkyEUR);
 
       await expect(
         txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_30 })),
-      ).resolves.toEqual({ bankName: IbanBankName.OLKY, activeVirtualIban: null });
+      ).resolves.toEqual({ bankName: IbanBankName.OLKY, activeVirtualIban: undefined });
     });
 
     it('should return the vIBAN bank for users with an active vIBAN', async () => {
@@ -286,7 +286,7 @@ describe('TransactionHelper', () => {
 
       await expect(
         txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_50 })),
-      ).resolves.toEqual({ bankName: IbanBankName.OLKY, activeVirtualIban: null });
+      ).resolves.toEqual({ bankName: IbanBankName.OLKY, activeVirtualIban: undefined });
     });
 
     it('should return the instant bank for instant transfers', async () => {

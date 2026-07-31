@@ -4,10 +4,12 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import * as processServiceModule from 'src/shared/services/process.service';
 import { PaymentInfoService } from '../payment-info.service';
-import * as processServiceModule from '../process.service';
 
 // The trade-approval gate reads user.wallet. Callers that load the user without the wallet relation see
 // an undefined wallet, which silently disables both escape hatches below - so these assert the gate
@@ -24,8 +26,8 @@ describe('PaymentInfoService buyCheck trade-approval gate', () => {
     return { amount: 100, currency, asset, paymentMethod: FiatPaymentMethod.BANK } as GetBuyPaymentInfoDto;
   }
 
-  function user(wallet: Record<string, unknown>, tradeApprovalDate?: Date) {
-    return { id: 1, userData: { kycLevel: 50, tradeApprovalDate }, wallet } as any;
+  function user(wallet: Record<string, unknown>, tradeApprovalDate?: Date): User {
+    return { id: 1, userData: { kycLevel: KycLevel.LEVEL_50, tradeApprovalDate }, wallet } as unknown as User;
   }
 
   beforeEach(() => {

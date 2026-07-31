@@ -208,7 +208,7 @@ describe('BuyService', () => {
     // the request against the wrong account instead of failing
     it('refuses a preloaded user that does not match the requested user', async () => {
       await expect(service.toPaymentInfoDto(1, buy, dto(), { id: 2 } as any)).rejects.toThrow(
-        'preloadedUser does not match userId',
+        'Preloaded user does not match userId',
       );
 
       expect(transactionHelper.getTxDetails).not.toHaveBeenCalled();
@@ -1380,23 +1380,26 @@ describe('BuyService', () => {
       // CARD on purpose: a BANK transfer with no personal IBAN fails closed by design, so the "none
       // found" outcome can only be observed on the payment method that still resolves a bank.
       // A negative result is deliberately re-read: it is a whole getTxDetails old, and the issuance branch
-      // follows. Reusing it would miss a vIBAN issued concurrently in that window and turn the lost race
-      // into a fail-closed PersonalIbanIssuanceFailed.
+      // follows. The fresh read here returns a vIBAN, standing in for one issued concurrently in that
+      // window — reusing the stale negative would lose it and fail closed with PersonalIbanIssuanceFailed.
       it('re-resolves when getTxDetails found none, so a concurrently issued vIBAN is not missed', async () => {
         jest
           .spyOn(transactionHelper, 'getTxDetails')
-          .mockResolvedValue({ ...feeResult(), activeVirtualIban: null } as any);
-        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: undefined } as any);
+        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(userLevelVirtualIban);
 
-        await service.toPaymentInfoDto(1, buy, {
+        const response = await service.toPaymentInfoDto(1, buy, {
           amount: 100,
           currency,
           asset,
-          paymentMethod: FiatPaymentMethod.CARD,
+          paymentMethod: FiatPaymentMethod.BANK,
           exactPrice: false,
         } as GetBuyPaymentInfoDto);
 
         expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledTimes(1);
+        // the freshly-read IBAN must reach the response, not the stale "none"
+        expect(response.iban).toBe(userLevelVirtualIban.iban);
+        expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
       });
 
       it('resolves it itself when getTxDetails ran no lookup', async () => {

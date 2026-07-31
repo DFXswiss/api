@@ -26,9 +26,13 @@ export interface TransactionDetails extends TargetEstimation {
   errors: QuoteError[];
   /**
    * The user's active receiving vIBAN as resolved while picking the receiving bank, so a caller that also
-   * needs it for the deposit destination can reuse it instead of repeating the lookup. `null` means the
-   * lookup ran and found none; `undefined` means no lookup ran (non-bank transfer, no userData, or an
-   * overridden bank) and the caller must resolve it itself.
+   * needs it for the deposit destination can reuse it instead of repeating the lookup. Undefined when none
+   * was found, or when no lookup ran at all (non-bank transfer, no userData, or an overridden bank).
+   *
+   * Only a positive result is reusable. A caller must NOT treat undefined as a settled "there is none"
+   * and skip its own read before issuing an IBAN: by then this value is a whole getTxDetails old, and a
+   * vIBAN issued concurrently in that window would be missed — which surfaces as a fail-closed
+   * PersonalIbanIssuanceFailed once the duplicate issuance is swallowed.
    */
-  activeVirtualIban?: VirtualIban | null;
+  activeVirtualIban?: VirtualIban;
 }

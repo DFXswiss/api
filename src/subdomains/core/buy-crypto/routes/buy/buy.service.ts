@@ -291,8 +291,7 @@ export class BuyService {
     preloadedUser?: User,
   ): Promise<BuyPaymentInfoDto> {
     // the request is attributed to userId further down, so a mismatch would book it against another account
-    if (preloadedUser && preloadedUser.id !== userId)
-      throw new Error('toPaymentInfoDto: preloadedUser does not match userId');
+    if (preloadedUser && preloadedUser.id !== userId) throw new Error('Preloaded user does not match userId');
 
     const user = preloadedUser ?? (await this.userService.getUser(userId, PAYMENT_INFO_USER_RELATIONS));
 
@@ -502,7 +501,7 @@ export class BuyService {
     asset?: Asset,
     wallet?: Wallet,
     personalIbanProvider?: PersonalIbanProvider,
-    activeVirtualIban?: VirtualIban | null,
+    activeVirtualIban?: VirtualIban,
   ): Promise<{
     bankInfo: BankInfoDto & { isPersonalIban: boolean; reference?: string };
     bankId: number;
