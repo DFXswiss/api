@@ -259,23 +259,25 @@ describe('TransactionHelper', () => {
   describe('getBankIn', () => {
     const eur = createCustomFiat({ name: 'EUR' });
 
+    // getBankIn returns the resolved bank together with the vIBAN it looked up, so getTxDetails can hand
+    // that vIBAN to the caller instead of having it repeat the lookup. Only a positive result is reusable,
+    // so "none found" and "no lookup ran" are both undefined.
     it('should return the deposit bank for bank transfers', async () => {
       jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(olkyEUR);
 
       await expect(
         txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_30 })),
-      ).resolves.toBe(IbanBankName.OLKY);
+      ).resolves.toEqual({ bankName: IbanBankName.OLKY, activeVirtualIban: undefined });
     });
 
     it('should return the vIBAN bank for users with an active vIBAN', async () => {
-      jest
-        .spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency')
-        .mockResolvedValue(createCustomVirtualIban({ bank: yapealEUR }));
+      const activeVirtualIban = createCustomVirtualIban({ bank: yapealEUR });
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(activeVirtualIban);
 
       await expect(
         txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_50 })),
-      ).resolves.toBe(IbanBankName.YAPEAL);
+      ).resolves.toEqual({ bankName: IbanBankName.YAPEAL, activeVirtualIban });
     });
 
     it('should return the deposit bank for users without an active vIBAN', async () => {
@@ -284,23 +286,32 @@ describe('TransactionHelper', () => {
 
       await expect(
         txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_50 })),
-      ).resolves.toBe(IbanBankName.OLKY);
+      ).resolves.toEqual({ bankName: IbanBankName.OLKY, activeVirtualIban: undefined });
     });
 
     it('should return the instant bank for instant transfers', async () => {
       jest.spyOn(bankService, 'getBank').mockResolvedValue(olkyEUR);
 
-      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.INSTANT, undefined)).resolves.toBe(IbanBankName.OLKY);
+      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.INSTANT, undefined)).resolves.toEqual({
+        bankName: IbanBankName.OLKY,
+        activeVirtualIban: undefined,
+      });
     });
 
     it('should return the default bank for card payments', async () => {
-      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.CARD, undefined)).resolves.toBe(CardBankName.CHECKOUT);
+      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.CARD, undefined)).resolves.toEqual({
+        bankName: CardBankName.CHECKOUT,
+        activeVirtualIban: undefined,
+      });
     });
 
     it('should fall back to the default bank if no deposit bank is found', async () => {
       jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
 
-      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, undefined)).resolves.toBe(IbanBankName.YAPEAL);
+      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, undefined)).resolves.toEqual({
+        bankName: IbanBankName.YAPEAL,
+        activeVirtualIban: undefined,
+      });
     });
   });
 
@@ -322,7 +333,7 @@ describe('TransactionHelper', () => {
     jest.spyOn(txHelper as any, 'getTargetSpecs').mockResolvedValue({ volume: { min: 0, max: 1000 } });
     jest.spyOn(txHelper as any, 'getTargetEstimation').mockResolvedValue({ sourceAmount: 100 });
 
-    await txHelper.getTxDetails(
+    const details = await txHelper.getTxDetails(
       100,
       undefined,
       from,
@@ -340,6 +351,45 @@ describe('TransactionHelper', () => {
 
     expect(getBankIn).not.toHaveBeenCalled();
     expect(getAllFees.mock.calls[0][4]).toBe(IbanBankName.FRICK);
+    // no lookup ran, so the caller must resolve the vIBAN itself rather than treat this as "none found"
+    expect(details.activeVirtualIban).toBeUndefined();
+  });
+
+  it('hands the resolved active vIBAN to the caller so the deposit destination is not looked up again', async () => {
+    const from = createCustomFiat({ name: 'EUR' });
+    const to = createCustomFiat({ name: 'CHF' });
+    const activeVirtualIban = createCustomVirtualIban({ bank: yapealEUR });
+    const user = { userData: createCustomUserData({ kycLevel: KycLevel.LEVEL_50 }) } as any;
+    jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: () => 100 } as any);
+    jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(activeVirtualIban);
+    jest
+      .spyOn(txHelper as any, 'getAllFees')
+      .mockResolvedValue([
+        { network: 0, dfx: { rate: 0, fixed: 0 }, bank: { rate: 0, fixed: 0 }, partner: { rate: 0, fixed: 0 } },
+        0,
+      ]);
+    jest.spyOn(txHelper as any, 'getMinSpecs').mockReturnValue({ minFee: 0, minVolume: 0 });
+    jest.spyOn(txHelper as any, 'getLimits').mockResolvedValue({ kycLimit: 1000, defaultLimit: 1000 });
+    jest.spyOn(txHelper as any, 'getTxErrors').mockReturnValue([]);
+    jest.spyOn(txHelper as any, 'getSourceSpecs').mockResolvedValue({ volume: { min: 0, max: 1000 } });
+    jest.spyOn(txHelper as any, 'getTargetSpecs').mockResolvedValue({ volume: { min: 0, max: 1000 } });
+    jest.spyOn(txHelper as any, 'getTargetEstimation').mockResolvedValue({ sourceAmount: 100 });
+
+    const details = await txHelper.getTxDetails(
+      100,
+      undefined,
+      from,
+      to,
+      FiatPaymentMethod.BANK,
+      FiatPaymentMethod.BANK,
+      false,
+      user,
+      undefined,
+      [],
+    );
+
+    expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledTimes(1);
+    expect(details.activeVirtualIban).toBe(activeVirtualIban);
   });
 
   it('uses the persisted bank selection when regenerating a completed buy invoice', async () => {
