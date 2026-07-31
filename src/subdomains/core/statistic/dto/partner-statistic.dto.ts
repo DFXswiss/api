@@ -17,8 +17,12 @@ export class PartnerStatisticMetaDto {
   @ApiProperty({ description: 'Minimum effective count (min of transactions and distinct users) for disclosure' })
   suppressionThreshold: number;
 
-  @ApiProperty({ description: 'Number of buckets/rows suppressed under the threshold' })
-  suppressedBuckets: number;
+  @ApiProperty({
+    description:
+      'Number of withheld disclosure units: suppressed fields and breakdown rows on the summary, ' +
+      'suppressed timeline buckets on the timeline',
+  })
+  suppressedCount: number;
 
   @ApiProperty({ nullable: true, required: false })
   generatedAt?: Date;

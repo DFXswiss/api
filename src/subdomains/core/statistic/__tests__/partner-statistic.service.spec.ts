@@ -10,6 +10,7 @@ import {
   PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS,
   PARTNER_STATISTIC_MAX_PERIOD_DAYS,
   PartnerStatisticDirection,
+  PartnerStatisticGranularity,
 } from '../partner-statistic.enum';
 import { PartnerStatisticService } from '../partner-statistic.service';
 
@@ -581,7 +582,7 @@ describe('PartnerStatisticService', () => {
       expect(under.allTime.registeredUsers).toBe(10);
       expect(under.allTime.tradingUsers).toBeNull();
       expect(under.referral.volume).toBeNull();
-      expect(under.meta.suppressedBuckets).toBeGreaterThanOrEqual(2);
+      expect(under.meta.suppressedCount).toBeGreaterThanOrEqual(2);
 
       fixtures.set(
         1,
@@ -725,6 +726,76 @@ describe('PartnerStatisticService', () => {
 
       expect(result.buckets.length).toBe(3);
       expect(result.buckets.every((b) => b.partial === false)).toBe(true);
+    });
+  });
+
+  // --- Timeline collision accumulation (WEEK/MONTH re-bucket of day-truncated SQL rows) --- //
+
+  describe('timeline bucket key collision accumulation', () => {
+    it('sums volume/transactions and takes max(users) when two day rows fall into the same week', async () => {
+      // Monday + Wednesday of ISO week 2024-06-10..16 → same WEEK key after startOfBucket.
+      fixtures.set(
+        1,
+        emptyFixture({
+          timelineRows: [
+            { bucket: new Date('2024-06-10T00:00:00.000Z'), volume: 100, transactions: 10, users: 5 },
+            { bucket: new Date('2024-06-12T00:00:00.000Z'), volume: 50, transactions: 7, users: 8 },
+          ],
+        }),
+      );
+
+      const map = await service['timelineByDirection'](
+        1,
+        new Date('2024-06-10T00:00:00.000Z'),
+        new Date('2024-06-17T00:00:00.000Z'),
+        PartnerStatisticDirection.BUY,
+        PartnerStatisticGranularity.WEEK,
+      );
+
+      expect(map.size).toBe(1);
+      const entry = [...map.values()][0];
+      expect(entry.volume).toBe(150);
+      expect(entry.transactions).toBe(17);
+      expect(entry.users).toBe(8);
+      // Not last-write-wins (would be 7/50/8) and not first-write-wins (10/100/5).
+      expect(entry.transactions).not.toBe(7);
+      expect(entry.transactions).not.toBe(10);
+      expect(entry.volume).not.toBe(50);
+      expect(entry.volume).not.toBe(100);
+    });
+  });
+
+  // --- WEEK / MONTH bucket alignment --- //
+
+  describe('startOfBucket and addBucket (WEEK / MONTH)', () => {
+    it('snaps Sunday to the Monday before (ISO week) and any day to month start', () => {
+      // 2024-06-16 is a Sunday UTC.
+      const sunday = new Date('2024-06-16T15:30:00.000Z');
+      const weekStart = service['startOfBucket'](sunday, PartnerStatisticGranularity.WEEK);
+      expect(weekStart.toISOString()).toBe('2024-06-10T00:00:00.000Z');
+      // Wrong Sunday handling (day - 1 without the day===0 ? 6 branch) lands on Saturday 15th.
+      expect(weekStart.toISOString()).not.toBe('2024-06-15T00:00:00.000Z');
+
+      const midMonth = new Date('2024-06-15T12:00:00.000Z');
+      const monthStart = service['startOfBucket'](midMonth, PartnerStatisticGranularity.MONTH);
+      expect(monthStart.toISOString()).toBe('2024-06-01T00:00:00.000Z');
+    });
+
+    it('addBucket advances WEEK by 7 days and MONTH across a month boundary', () => {
+      const monday = new Date('2024-06-10T00:00:00.000Z');
+      expect(service['addBucket'](monday, PartnerStatisticGranularity.WEEK).toISOString()).toBe(
+        '2024-06-17T00:00:00.000Z',
+      );
+
+      const jan = new Date('2024-01-01T00:00:00.000Z');
+      expect(service['addBucket'](jan, PartnerStatisticGranularity.MONTH).toISOString()).toBe(
+        '2024-02-01T00:00:00.000Z',
+      );
+
+      const dec = new Date('2024-12-01T00:00:00.000Z');
+      expect(service['addBucket'](dec, PartnerStatisticGranularity.MONTH).toISOString()).toBe(
+        '2025-01-01T00:00:00.000Z',
+      );
     });
   });
 

@@ -143,7 +143,7 @@ export class PartnerStatisticService {
     const activeUsers = suppressScalar(activeUsersRaw);
     const newUsers = suppressScalar(newUsersRaw);
 
-    const suppressedBuckets =
+    const suppressedCount =
       assets.suppressedCount +
       fiatCurrencies.suppressedCount +
       blockchains.suppressedCount +
@@ -179,7 +179,7 @@ export class PartnerStatisticService {
       referral,
       meta: {
         suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
-        suppressedBuckets,
+        suppressedCount,
         generatedAt: new Date(),
       },
     };
@@ -216,7 +216,7 @@ export class PartnerStatisticService {
       buckets: publicBuckets,
       meta: {
         suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
-        suppressedBuckets: suppressedCount,
+        suppressedCount,
       },
     };
   }
@@ -224,18 +224,17 @@ export class PartnerStatisticService {
   // --- PERIOD / VALIDATION --- //
 
   /**
-   * Snaps `from`/`to` to UTC day boundaries (half-open [from, to)), enforces min 1 day and max span.
+   * Snaps `from`/`to` to UTC day boundaries (half-open [from, to)), enforces max span.
    * Accepts ISO strings or Date; parsing lives here so the controller stays free of date logic.
+   * Min span of one day follows from the day snap plus the `fromDay >= toExclusive` rejection —
+   * after those two steps the remaining difference is always ≥ 1 day.
    */
   resolvePeriod(from?: string | Date, to?: string | Date): { from: Date; to: Date } {
     const resolvedTo = this.parseDate(to) ?? new Date();
     const resolvedFrom = this.parseDate(from) ?? Util.daysBefore(PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS, resolvedTo);
 
-    if (isNaN(resolvedFrom.getTime()) || isNaN(resolvedTo.getTime())) {
-      throw new BadRequestException('Invalid date');
-    }
-
     // Snap: from → start of its UTC day; to → start of the UTC day after the last included day (exclusive).
+    // Together with the fromDay >= toExclusive check below, this guarantees a minimum span of one day.
     const fromDay = this.startOfUtcDay(resolvedFrom);
     const toDayStart = this.startOfUtcDay(resolvedTo);
     const toExclusive = this.addUtcDays(toDayStart, 1);
@@ -245,9 +244,6 @@ export class PartnerStatisticService {
     }
 
     const spanDays = (toExclusive.getTime() - fromDay.getTime()) / (24 * 3600 * 1000);
-    if (spanDays < 1) {
-      throw new BadRequestException('Period must cover at least one full day');
-    }
     if (spanDays > PARTNER_STATISTIC_MAX_PERIOD_DAYS) {
       throw new BadRequestException(
         `Period must not exceed ${PARTNER_STATISTIC_MAX_PERIOD_DAYS} days (got ${Math.ceil(spanDays)})`,

@@ -260,16 +260,11 @@ export function suppressAdditiveGroup(
   const anyUnder = keys.some((k) => isUnderThreshold(counts[k], undefined, threshold));
 
   if (anyUnder) {
+    // Zeros stay visible (0 means “none”, discloses nothing). All non-zero members and the
+    // derived rate are nulled when any member is under k (block rule).
     const values: Record<string, number | null> = {};
     for (const k of keys) values[k] = counts[k] === 0 ? 0 : null;
-    // Zero stays 0 even under block suppression of the group — but if the group is suppressed
-    // because another member is under k, zeros remain visible and non-zeros become null.
-    // Wait: block rule says entire group suppressed. Zeros are still “none” and safe.
-    // Non-zero under-threshold and non-zero over-threshold both null when any member is under.
-    for (const k of keys) {
-      if (counts[k] !== 0) values[k] = null;
-    }
-    return { values, rate: null, suppressedCount: keys.filter((k) => counts[k] !== 0).length || 1 };
+    return { values, rate: null, suppressedCount: keys.filter((k) => counts[k] !== 0).length };
   }
 
   const values: Record<string, number | null> = {};
