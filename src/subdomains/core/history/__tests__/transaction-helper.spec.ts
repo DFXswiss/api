@@ -428,4 +428,49 @@ describe('TransactionHelper', () => {
     expect(buyService.getBankInfoForRequest).not.toHaveBeenCalled();
     expect(buyService.getBankInfo).not.toHaveBeenCalled();
   });
+
+  // Regression: resolved as a single join this relation tree selects 1664 columns (61 joined nodes —
+  // Asset appears 10x and Country 9x, dragged in by eager relations), so one more @Column anywhere in
+  // it trips Postgres' "target lists can have at most 1664 entries" and 500s every invoice/receipt.
+  // Loading relations as separate queries keeps the statement path off that cliff for good.
+  it('loads statement relations as separate queries instead of one join', async () => {
+    const userData = createCustomUserData({
+      accountType: AccountType.PERSONAL,
+      firstname: 'Test',
+      surname: 'User',
+    });
+    const buyCrypto = createCustomBuyCrypto({
+      checkoutTx: createDefaultCheckoutTx(),
+      inputAmount: 125,
+      isComplete: true,
+      outputAmount: 0.005,
+    });
+    const transaction = createCustomTransaction({
+      buyCrypto,
+      sourceType: TransactionSourceType.CHECKOUT_TX,
+      userData,
+    });
+    const uid = 'T0123456789ABCDEF';
+    jest.spyOn(transactionService, 'getTransactionById').mockResolvedValue(transaction);
+    jest.spyOn(transactionService, 'getTransactionByUid').mockResolvedValue(transaction);
+    jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'EUR' }));
+
+    await txHelper.getTxStatementDetails(userData.id, transaction.id, TxStatementType.INVOICE);
+    await txHelper.getTxStatementDetails(userData.id, uid, TxStatementType.INVOICE);
+
+    // The tree is pinned, not just the strategy: pruning is only safe because organization,
+    // buyFiat.outputAsset and cryptoInput.asset are eager, so a branch silently reappearing here
+    // (or an eager flag being dropped elsewhere) should fail loudly rather than cost round-trips.
+    const expectedRelations = {
+      userData: true,
+      buyCrypto: { buy: { user: { wallet: true } }, cryptoInput: true },
+      buyFiat: { cryptoInput: true },
+      refReward: true,
+      bankTxReturn: true,
+      request: true,
+    };
+
+    expect(transactionService.getTransactionById).toHaveBeenCalledWith(transaction.id, expectedRelations, 'query');
+    expect(transactionService.getTransactionByUid).toHaveBeenCalledWith(uid, expectedRelations, 'query');
+  });
 });

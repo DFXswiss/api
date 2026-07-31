@@ -89,7 +89,7 @@ export class PaymentLinkController {
   ): Promise<PaymentLinkDto | PaymentLinkDto[]> {
     if (linkId || externalLinkId || externalPaymentId)
       return this.paymentLinkService
-        .getOrThrow(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+        .getOrThrow(+jwt.user, Util.toDbId(linkId), externalLinkId, externalPaymentId)
         .then(PaymentLinkDtoMapper.toLinkDto);
 
     return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.toLinkDtoList);
@@ -142,7 +142,7 @@ export class PaymentLinkController {
     @Body() dto: UpdatePaymentLinkDto,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .update(+jwt.user, dto, +linkId, externalLinkId, externalPaymentId)
+      .update(+jwt.user, dto, Util.toDbId(linkId), externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -160,7 +160,7 @@ export class PaymentLinkController {
     @Query('externalPaymentId') externalPaymentId: string,
   ): Promise<PaymentLinkPosDto> {
     return this.paymentLinkService
-      .createPosLinkUser(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .createPosLinkUser(+jwt.user, Util.toDbId(linkId), externalLinkId, externalPaymentId)
       .then((url) => ({ url }));
   }
 
@@ -173,12 +173,12 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Body() dto: AssignPaymentLinkDto,
   ): Promise<PaymentLinkDto> {
-    if (!linkId && !externalLinkId) throw new BadRequestException('id or externalId is required');
-    if (linkId && !Number.isInteger(+linkId)) throw new BadRequestException('linkId must be an integer');
+    // Checked on the parsed id, not the raw string: a malformed linkId leaves no usable identifier,
+    // and the service's `where` would then match an arbitrary unassigned link on this open endpoint.
+    const id = Util.toDbId(linkId);
+    if (!id && !externalLinkId) throw new BadRequestException('id or externalId is required');
 
-    return this.paymentLinkService
-      .assignPaymentLink(linkId && +linkId, externalLinkId, dto)
-      .then(PaymentLinkDtoMapper.toLinkDto);
+    return this.paymentLinkService.assignPaymentLink(id, externalLinkId, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   // -- CONFIG --- //
@@ -216,7 +216,9 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   async createInvoicePayment(@Query() dto: CreateInvoicePaymentDto): Promise<PaymentLinkPayRequestDto> {
     if (dto.r) {
-      const isRouteId = !isNaN(+dto.r);
+      // A non-id `r` is a route label, not a malformed id — Util.toDbId keeps 'Infinity'/'1e+21' out
+      // of the id branch (and out of SQL) by routing them to the label lookup instead.
+      const isRouteId = Boolean(Util.toDbId(dto.r));
       if (isRouteId) {
         dto.routeId ??= dto.r;
       } else {
@@ -255,7 +257,7 @@ export class PaymentLinkController {
   ): Promise<PaymentLinkDto> {
     const link = key
       ? await this.paymentLinkService.createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
-      : await this.paymentLinkService.createPayment(dto, jwt && +jwt.user, +linkId, externalLinkId, route);
+      : await this.paymentLinkService.createPayment(dto, jwt && +jwt.user, Util.toDbId(linkId), externalLinkId, route);
 
     return PaymentLinkDtoMapper.toLinkDto(link);
   }
@@ -276,7 +278,7 @@ export class PaymentLinkController {
     @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .waitForPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
+      .waitForPayment(+jwt?.user, Util.toDbId(linkId), externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -296,7 +298,7 @@ export class PaymentLinkController {
     @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .confirmPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
+      .confirmPayment(+jwt?.user, Util.toDbId(linkId), externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -318,7 +320,7 @@ export class PaymentLinkController {
     @Query('route') route: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(jwt && +jwt.user, +linkId, externalLinkId, externalPaymentId, key, route)
+      .cancelPayment(jwt && +jwt.user, Util.toDbId(linkId), externalLinkId, externalPaymentId, key, route)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -409,10 +411,11 @@ export class PaymentLinkController {
       throw new UnauthorizedException('Authentication required for POS mode');
     }
 
+    // Util.toDbId, not Number.isInteger(+id): the latter accepts '1e+21' and '2147483648', which
+    // reach Postgres as out-of-range integers and 500 on an endpoint anonymous callers can reach.
     const idArray = ids?.split(',').map((id) => {
-      const linkId = +id;
-      if (!id.trim() || !Number.isInteger(linkId))
-        throw new BadRequestException('ids must be a comma-separated list of integers');
+      const linkId = Util.toDbId(id);
+      if (!linkId) throw new BadRequestException('ids must be a comma-separated list of integers');
       return linkId;
     });
     const externalIdArray = externalIds?.split(',').map((id) => id.trim());

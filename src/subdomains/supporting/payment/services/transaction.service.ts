@@ -8,7 +8,17 @@ import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repo
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, Brackets, EntityManager, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import {
+  Between,
+  Brackets,
+  EntityManager,
+  FindOneOptions,
+  FindOptionsRelations,
+  In,
+  IsNull,
+  LessThanOrEqual,
+  Not,
+} from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
@@ -16,6 +26,8 @@ import { TransactionRequestType } from '../entities/transaction-request.entity';
 import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 import { SpecialExternalAccountService } from './special-external-account.service';
+
+type RelationLoadStrategy = FindOneOptions<Transaction>['relationLoadStrategy'];
 
 @Injectable()
 export class TransactionService {
@@ -126,8 +138,12 @@ export class TransactionService {
     await this.buyCryptoRepo.save(entity.buyCrypto);
   }
 
-  async getTransactionById(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
-    return this.repo.findOne({ where: { id }, relations });
+  async getTransactionById(
+    id: number,
+    relations: FindOptionsRelations<Transaction> = {},
+    relationLoadStrategy?: RelationLoadStrategy,
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { id }, relations, relationLoadStrategy });
   }
 
   async getTransactionsByIds(ids: number[]): Promise<Transaction[]> {
@@ -135,8 +151,12 @@ export class TransactionService {
     return this.repo.find({ where: { id: In(ids) } });
   }
 
-  async getTransactionByUid(uid: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
-    return this.repo.findOne({ where: { uid }, relations });
+  async getTransactionByUid(
+    uid: string,
+    relations: FindOptionsRelations<Transaction> = {},
+    relationLoadStrategy?: RelationLoadStrategy,
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { uid }, relations, relationLoadStrategy });
   }
 
   async getTransactionByRequestId(

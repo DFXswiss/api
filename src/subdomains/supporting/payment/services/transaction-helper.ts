@@ -505,19 +505,27 @@ export class TransactionHelper implements OnModuleInit {
     txIdOrUid: number | string,
     statementType: TxStatementType,
   ): Promise<TxStatementDetails> {
+    // Only what the statement path actually reads. `userData.organization`, `buyFiat.outputAsset` and
+    // `cryptoInput.asset` arrive via eager relations, and cryptoRoute / buyFiat.sell / refReward.user
+    // are never dereferenced here — under the query strategy below each unread branch is a wasted
+    // round-trip rather than just a wasted join column.
     const relations = {
-      userData: { organization: true },
-      buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
-      buyFiat: { sell: true, cryptoInput: true },
-      refReward: { user: { userData: true } },
+      userData: true,
+      buyCrypto: { buy: { user: { wallet: true } }, cryptoInput: true },
+      buyFiat: { cryptoInput: true },
+      refReward: true,
       bankTxReturn: true,
       request: true,
     };
 
+    // Load relations as separate queries, not one join. Resolved as a join this tree reaches ~1664
+    // selected columns (61 joined nodes — Asset alone appears 10x, Country 9x, all pulled in by eager
+    // relations) and trips Postgres' "target lists can have at most 1664 entries" limit, which made
+    // every invoice/receipt request a 500. A join here is one @Column away from overflowing again.
     const transaction =
       typeof txIdOrUid === 'number'
-        ? await this.transactionService.getTransactionById(txIdOrUid, relations)
-        : await this.transactionService.getTransactionByUid(txIdOrUid, relations);
+        ? await this.transactionService.getTransactionById(txIdOrUid, relations, 'query')
+        : await this.transactionService.getTransactionByUid(txIdOrUid, relations, 'query');
 
     if (!transaction) throw new BadRequestException('Transaction not found');
     if (!transaction.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');

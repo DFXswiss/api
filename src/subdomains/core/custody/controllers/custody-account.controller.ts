@@ -18,6 +18,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/utils/util';
 import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { CreateCustodyAccountAccessDto } from '../dto/input/create-custody-account-access.dto';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
@@ -30,12 +31,7 @@ import { CustodyOrderHistoryDto } from '../dto/output/custody-order-history.dto'
 import { CustodyAccessLevel } from '../enums/custody';
 import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from '../guards/custody-account-access.guard';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
-import {
-  CustodyAccountId,
-  CustodyAccountService,
-  LegacyAccountId,
-  PG_INTEGER_MAX,
-} from '../services/custody-account.service';
+import { CustodyAccountId, CustodyAccountService, LegacyAccountId } from '../services/custody-account.service';
 import { CustodyOrderService } from '../services/custody-order.service';
 import { CustodyPdfService } from '../services/custody-pdf.service';
 import { CustodyService } from '../services/custody.service';
@@ -253,15 +249,11 @@ export class CustodyAccountController {
    * Rejects non-digits, Infinity (e.g. 309 nines), zero, and values outside column range → 400.
    */
   private parsePositiveIntParam(value: string, name: string): number {
-    if (!/^\d+$/.test(value)) {
+    const id = Util.toDbId(value);
+    if (!id) {
       throw new BadRequestException(`Invalid ${name}`);
     }
 
-    const n = Number(value);
-    if (!Number.isSafeInteger(n) || n < 1 || n > PG_INTEGER_MAX) {
-      throw new BadRequestException(`Invalid ${name}`);
-    }
-
-    return n;
+    return id;
   }
 }
