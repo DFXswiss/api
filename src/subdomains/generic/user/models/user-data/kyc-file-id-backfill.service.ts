@@ -301,7 +301,11 @@ export class KycFileIdBackfillService {
       if (volume > threshold)
         return {
           userDataId,
-          crossingDate: tx.created,
+          // The verdict timestamp, not `created`. Live, `amlListAddedDate` is stamped at assignment
+          // — which happens in the same tick as the verdict — so this is the closest proxy. Using
+          // `created` would also misfile a transaction created in one year and approved in the
+          // next, since `getKycFileYearlyStats` buckets on exactly this column.
+          crossingDate: tx.priceDefinitionAllowedDate,
           crossingTxId: tx.id,
           crossingTxType:
             tx instanceof BuyCrypto ? TransactionTypeInternal.BUY_CRYPTO : TransactionTypeInternal.BUY_FIAT,
@@ -313,16 +317,22 @@ export class KycFileIdBackfillService {
   }
 
   /**
-   * Narrows to roughly what `isEligibleCrossing` accepts, so the scan does not pull a candidate's
-   * entire history over the wire. The predicate stays authoritative; this is an optimisation.
+   * Narrows to what `isEligibleCrossing` accepts, so the scan does not pull a candidate's entire
+   * history over the wire. The predicate stays authoritative; this is an optimisation.
    *
-   * Bounded on both sides, unlike the volume behind each candidate: `getVolumeSince` spans its own
-   * ±30d and legitimately reaches outside the window, exactly as the live rule did.
+   * Filters the same column the predicate does. Filtering `created` here instead would not merely
+   * be a looser superset — it narrows on a *different axis*, dropping exactly the transactions the
+   * predicate exists to admit (created before the outage, held in review until inside it). The
+   * crossing would then fall to a later transaction and the compliance date would be wrong rather
+   * than absent.
+   *
+   * Bounded on both sides, unlike the volume behind each candidate: the span legitimately reaches
+   * outside the window, exactly as the live rule did.
    */
   private async loadWindowTransactions(userIds: number[]): Promise<(BuyCrypto | BuyFiat)[]> {
     const inWindow = {
       amlCheck: CheckStatus.PASS,
-      created: Between(AFFECTED_WINDOW_START, AFFECTED_WINDOW_END),
+      priceDefinitionAllowedDate: Between(AFFECTED_WINDOW_START, AFFECTED_WINDOW_END),
     };
 
     const [buyCryptos, buyFiats] = await Promise.all([
@@ -372,7 +382,11 @@ export class KycFileIdBackfillService {
     // fresh id, so an existing value came from somewhere else and is not ours to overwrite.
     const amlListAddedDate = before.amlListAddedDate ?? crossing.crossingDate;
 
-    if (attempt === 0) await this.writeLog(crossing, before, { kycFileId, amlListAddedDate });
+    // Logged per attempt, not once: a retry re-allocates, so a single entry written on the first
+    // attempt would name an id the row never receives. The cost is an entry for an attempt that
+    // then fails or no-ops — which is the direction CONTRIBUTING's fail-closed rule prefers, since
+    // the alternative is a mutation with no audit trail at all.
+    await this.writeLog(crossing, before, { kycFileId, amlListAddedDate }, attempt);
 
     try {
       const { affected } = await this.userDataRepo.update(
@@ -393,18 +407,20 @@ export class KycFileIdBackfillService {
 
   private async writeLog(
     crossing: Crossing,
-    before: Pick<UserData, 'kycFileId' | 'amlListAddedDate'>,
+    before: UserData,
     next: { kycFileId: number; amlListAddedDate: Date },
+    attempt: number,
   ): Promise<void> {
     const previous = `kycFileId ${before.kycFileId ?? 'null'}, amlListAddedDate ${
       before.amlListAddedDate?.toISOString() ?? 'null'
     }`;
     const applied = `kycFileId ${next.kycFileId}, amlListAddedDate ${next.amlListAddedDate.toISOString()}`;
+    const retry = attempt > 0 ? ` (retry ${attempt}, previous attempt lost the id to a concurrent write)` : '';
 
     await this.kycLogService.createLogInternal(
-      Object.assign(new UserData(), { id: crossing.userDataId }),
+      before,
       KycLogType.KYC,
-      `Backfill (#4041): ${previous} -> ${applied}. Crossing ${crossing.crossingTxType} ` +
+      `Backfill (#4041): ${previous} -> ${applied}${retry}. Crossing ${crossing.crossingTxType} ` +
         `${crossing.crossingTxId} at ${crossing.crossingDate.toISOString()}, ${crossing.volumeAtCrossing} CHF.`,
     );
   }

@@ -8,6 +8,7 @@ import { FileType } from '../dto/kyc-file.dto';
 import { ContentType } from '../enums/content-type.enum';
 import { KycLog } from '../entities/kyc-log.entity';
 import { KycLogType } from '../enums/kyc.enum';
+import { In, MoreThanOrEqual } from 'typeorm';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycDocumentService } from './integration/kyc-document.service';
 

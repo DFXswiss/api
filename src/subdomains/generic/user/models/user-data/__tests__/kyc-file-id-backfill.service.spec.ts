@@ -165,6 +165,26 @@ describe('KycFileIdBackfillService', () => {
     });
   });
 
+  it('loads on the same column the eligibility predicate tests', async () => {
+    // The behavioural cases above run against a mocked repository, so the loader's WHERE clause is
+    // invisible to them — which is exactly how it once ended up filtering `created` while the
+    // predicate filtered the verdict. That combination is not a loose superset: it drops the
+    // transactions the predicate exists to admit, handing the crossing to a later one and writing
+    // a wrong compliance date. Asserted here because no behavioural test can see it.
+    buyCryptoRepo.find.mockResolvedValue([]);
+
+    await computeCrossing();
+
+    for (const call of [...buyCryptoRepo.find.mock.calls, ...buyFiatRepo.find.mock.calls]) {
+      const clauses = [call[0].where].flat();
+
+      for (const clause of clauses) {
+        expect(clause).toHaveProperty('priceDefinitionAllowedDate');
+        expect(clause).not.toHaveProperty('created');
+      }
+    }
+  });
+
   describe('volume is capped at the verdict time', () => {
     it('does not let a later transaction push an earlier one over the threshold', async () => {
       // Live, the forward half of the ±30d span is all but empty: transactions after the one being

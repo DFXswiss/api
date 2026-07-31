@@ -1,6 +1,7 @@
-import { Controller, INestApplication, Post, Query, ValidationPipe } from '@nestjs/common';
+import { Controller, INestApplication, Post, Query, ValidationPipe, VersioningType } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { GetConfig } from 'src/config/config';
 import { isDryRun, KycFileIdBackfillQuery } from '../dto/kyc-file-id-backfill.dto';
 
 // `dryRun` decides whether this endpoint writes to a compliance table, and there is no undo. The
@@ -30,7 +31,9 @@ describe('KycFileIdBackfill dryRun parsing', () => {
     const moduleRef = await Test.createTestingModule({ controllers: [TestController] }).compile();
 
     app = moduleRef.createNestApplication();
-    // Matches main.ts.
+    // Matches main.ts: URI versioning plus the global pipe. Versioning is included because the
+    // reference harness documents it as load-bearing for how NestJS builds route paths.
+    app.enableVersioning({ type: VersioningType.URI, defaultVersion: [GetConfig().defaultVersion] });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } }));
     await app.init();
   });
@@ -39,7 +42,8 @@ describe('KycFileIdBackfill dryRun parsing', () => {
     await app.close();
   });
 
-  const post = (query: string) => request(app.getHttpServer()).post(`/userData/backfillKycFileIds${query}`);
+  const post = (query: string) =>
+    request(app.getHttpServer()).post(`/v${GetConfig().defaultVersion}/userData/backfillKycFileIds${query}`);
 
   it('dry-runs when the parameter is omitted', async () => {
     await post('').expect(201).expect({ dryRun: true });

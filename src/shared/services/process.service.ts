@@ -118,6 +118,7 @@ export enum Process {
   LEDGER_MARK_TO_MARKET = 'LedgerMarkToMarket',
   LEDGER_CUTOVER = 'LedgerCutover',
   LEDGER_COA_BOOTSTRAP = 'LedgerCoaBootstrap',
+  KYC_FILE_ID_BACKFILL = 'KycFileIdBackfill',
 }
 
 const safetyProcesses: Process[] = [
