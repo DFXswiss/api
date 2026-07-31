@@ -1,15 +1,7 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  Post,
-  ServiceUnavailableException,
-  UseGuards,
-} from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -20,6 +12,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { DebugQueryDto, DebugQueryResult } from './dto/debug-query.dto';
+import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
 
 @Controller('gs')
@@ -64,16 +57,15 @@ export class GsController {
     }
   }
 
-  // Disabled on purpose: the `key` query parameter is not restricted to a known set of columns
-  // before it reaches the query builders behind `GsService.getSupportData`. Do not re-enable this
-  // route — and do not add another caller for that service method — until `key` is validated
-  // against an allowlist of the target entity's columns.
   @Get('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async getSupportData(): Promise<never> {
-    throw new ServiceUnavailableException('Endpoint disabled');
+  async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
+    // Off by default; the switch in `Config.support` states what has to hold before it goes back on.
+    if (!Config.support.dataEndpointEnabled) throw new ForbiddenException('Endpoint disabled');
+
+    return this.gsService.getSupportData(query);
   }
 
   // Structured debug endpoint. Takes a JSON description of the query (table, select, where,

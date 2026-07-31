@@ -1,13 +1,17 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { DbQueryDto } from 'src/subdomains/generic/gs/dto/db-query.dto';
+import { SupportTable } from 'src/subdomains/generic/gs/dto/gs.dto';
 import { GsTriggerType } from 'src/subdomains/generic/gs/dto/gs-trigger-type.enum';
+import { SupportDataQuery } from 'src/subdomains/generic/gs/dto/support-data.dto';
 import { GsController } from 'src/subdomains/generic/gs/gs.controller';
 import { GsService } from 'src/subdomains/generic/gs/gs.service';
+import { TestUtil } from 'src/shared/utils/test.util';
 
 // Direct regression coverage for `GsController`'s private `logAndCheckTrigger` helper (called
 // from both handlers). Calling the real controller without the NestJS wrapper lets this suite
@@ -31,6 +35,7 @@ describe('GsController', () => {
   beforeEach(() => {
     service = createMock<GsService>();
     controller = new GsController(service);
+    TestUtil.provideConfig(); // installs a fresh `Config` — the support endpoint switch reads it
     verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
   });
@@ -116,9 +121,23 @@ describe('GsController', () => {
   });
 
   describe('getSupportData', () => {
-    it('is disabled: rejects and never reaches the GS service', async () => {
-      await expect(controller.getSupportData()).rejects.toBeInstanceOf(ServiceUnavailableException);
+    const supportQuery = Object.assign(new SupportDataQuery(), { table: SupportTable.USER_DATA, key: 'id', value: 1 });
+
+    it('rejects while the endpoint switch is off, without reaching the GS service', async () => {
+      await expect(controller.getSupportData(supportQuery)).rejects.toBeInstanceOf(ForbiddenException);
       expect(service.getSupportData).not.toHaveBeenCalled();
+    });
+
+    it('ships with the endpoint switch off', () => {
+      expect(Config.support.dataEndpointEnabled).toBe(false);
+    });
+
+    it('reaches the GS service once the switch is flipped on', async () => {
+      Config.support.dataEndpointEnabled = true;
+
+      await controller.getSupportData(supportQuery);
+
+      expect(service.getSupportData).toHaveBeenCalledWith(supportQuery);
     });
   });
 });

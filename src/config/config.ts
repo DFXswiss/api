@@ -649,6 +649,12 @@ export class Configuration {
   ];
 
   support = {
+    // Master switch for the support data endpoint (`GET /gs/support`) — hard-coded (intentionally no
+    // env/DB/setting), default OFF. Its `key` query parameter is not restricted to the columns of the
+    // target entity before it reaches the query builders behind `GsService.getSupportData`. Validate
+    // `key` against an allowlist of those columns before flipping this back on; without that check the
+    // caller decides what the WHERE clause compares.
+    dataEndpointEnabled: false,
     limitRequest: {
       mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
       mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
