@@ -3152,6 +3152,18 @@ describe('RealUnitService', () => {
       expect((service as any).resolveRegistrationSignature(dto)).toBeUndefined();
     });
 
+    it('builds each candidate message once, whatever the matching variant costs to reach', async () => {
+      // Four attempts share two messages. This signature matches only on the last
+      // attempt, so a per-attempt rebuild would show up here as four calls.
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData(chainIdDomain, types, asciiFields(wallet));
+      const build = jest.spyOn(service as any, 'buildRegistrationMessage');
+
+      expect((service as any).resolveRegistrationSignature(buildDto(utf8Fields(wallet), signature))).toBeDefined();
+
+      expect(build).toHaveBeenCalledTimes(2);
+    });
+
     it('warns when the signature matches no accepted variant', async () => {
       // Well-formed signature, but from the software wallet while the dto claims the
       // hardware one — so it recovers cleanly under every variant and matches none.
