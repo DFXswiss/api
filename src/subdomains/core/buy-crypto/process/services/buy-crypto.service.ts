@@ -60,7 +60,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
 import { canManualPass, ManualPassBlacklistErrors } from '../../../aml/enums/aml-error.enum';
@@ -913,13 +913,29 @@ export class BuyCryptoService implements OnModuleInit {
 
     if (excludedId) request.andWhere('buyCrypto.id != :excludedId', { excludedId });
 
-    // Historical replay only (see KycFileIdBackfillService): restrict to rows already judged at
-    // `judgedBy`. `amlCheck != FAIL` is SQL-NULL for an unjudged row and therefore excludes it, so
-    // without this a row judged after the fact is counted in a sum that never saw it.
+    // Historical replay only (see KycFileIdBackfillService): restrict to rows that had already been
+    // judged at `judgedBy`. `amlCheck != FAIL` is SQL-NULL, and therefore excluding, for a row not
+    // yet judged — so without this a row judged after the fact lands in a sum that never saw it.
+    //
+    // Two branches, because the two states carry different evidence. A PASS records exactly when it
+    // was reached (`priceDefinitionAllowedDate`) and can be gated precisely. A Pending / GSheet row
+    // records no verdict timestamp at all, yet the live sum counted it — gating those on
+    // `priceDefinitionAllowedDate` would silently drop every one. They are gated on existence
+    // instead: exact apart from the gap between a row appearing and the next cron tick judging it.
     if (judgedBy)
-      request
-        .andWhere('buyCrypto.priceDefinitionAllowedDate IS NOT NULL')
-        .andWhere('buyCrypto.priceDefinitionAllowedDate <= :judgedBy', { judgedBy });
+      request.andWhere(
+        new Brackets((qb) =>
+          qb
+            .where(
+              'buyCrypto.amlCheck = :judgedPass AND buyCrypto.priceDefinitionAllowedDate IS NOT NULL AND buyCrypto.priceDefinitionAllowedDate <= :judgedBy',
+              { judgedPass: CheckStatus.PASS, judgedBy },
+            )
+            .orWhere('buyCrypto.amlCheck != :judgedPass AND buyCrypto.created <= :judgedBy', {
+              judgedPass: CheckStatus.PASS,
+              judgedBy,
+            }),
+        ),
+      );
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }

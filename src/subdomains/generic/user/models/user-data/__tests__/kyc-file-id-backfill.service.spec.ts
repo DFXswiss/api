@@ -100,8 +100,9 @@ describe('KycFileIdBackfillService', () => {
       buyCrypto({ id: 1, amlCheck: CheckStatus.PENDING, amountInChf: 4000 }),
       buyCrypto({ id: 2, amlCheck: CheckStatus.PASS, amountInChf: 200 }),
     ]);
-    // The Pending 4000 still counts toward the volume — that is the `!= FAIL` rule, and it lives
-    // in getVolumeSince, not in the selection.
+    // The Pending 4000 is not eligible to *be* the crossing but still counts toward the volume —
+    // the `!= FAIL` rule, which lives in getVolumeSince. Stubbed here; that the SQL actually keeps
+    // such a sibling is asserted separately, since a mock cannot see a WHERE clause.
     previousVolume(4000);
 
     await expect(computeCrossing()).resolves.toMatchObject({

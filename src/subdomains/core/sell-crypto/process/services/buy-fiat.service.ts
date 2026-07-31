@@ -37,7 +37,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { Between, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
+import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
@@ -614,13 +614,22 @@ export class BuyFiatService implements OnModuleInit {
       request.andWhere('buyFiat.id != :excludedId', { excludedId });
     }
 
-    // Historical replay only (see KycFileIdBackfillService): restrict to rows already judged at
-    // `judgedBy`. `amlCheck != FAIL` is SQL-NULL for an unjudged row and therefore excludes it, so
-    // without this a row judged after the fact is counted in a sum that never saw it.
+    // Historical replay only — see the matching block in BuyCryptoService.getUserVolumeForType for
+    // why this is two branches rather than one.
     if (judgedBy)
-      request
-        .andWhere('buyFiat.priceDefinitionAllowedDate IS NOT NULL')
-        .andWhere('buyFiat.priceDefinitionAllowedDate <= :judgedBy', { judgedBy });
+      request.andWhere(
+        new Brackets((qb) =>
+          qb
+            .where(
+              'buyFiat.amlCheck = :judgedPass AND buyFiat.priceDefinitionAllowedDate IS NOT NULL AND buyFiat.priceDefinitionAllowedDate <= :judgedBy',
+              { judgedPass: CheckStatus.PASS, judgedBy },
+            )
+            .orWhere('buyFiat.amlCheck != :judgedPass AND buyFiat.created <= :judgedBy', {
+              judgedPass: CheckStatus.PASS,
+              judgedBy,
+            }),
+        ),
+      );
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }

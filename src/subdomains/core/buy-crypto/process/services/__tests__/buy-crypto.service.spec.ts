@@ -452,4 +452,55 @@ describe('BuyCryptoService', () => {
       expect(result.inputAmount).toBe(0.1);
     });
   });
+
+  describe('getUserVolume judgedBy', () => {
+    // The historical-replay gate for KycFileIdBackfillService. It lives entirely in a WHERE clause,
+    // which the backfill's own specs cannot observe — they mock getVolumeSince wholesale. Asserted
+    // here instead, because getting it wrong is silent: an over-broad gate invents compliance file
+    // numbers, an over-narrow one drops the Pending/GSheet siblings the live sum counts.
+    const capture = () => {
+      const predicates: string[] = [];
+      const sub = {
+        where: (c: string) => (predicates.push(c), sub),
+        orWhere: (c: string) => (predicates.push(c), sub),
+      };
+      const qb: any = {
+        select: () => qb,
+        innerJoin: () => qb,
+        where: () => qb,
+        andWhere: (c: any) => {
+          if (typeof c === 'function') c(sub);
+          else if (c?.whereFactory) c.whereFactory(sub);
+          else predicates.push(String(c));
+
+          return qb;
+        },
+        getRawOne: async () => ({ volume: 0 }),
+      };
+      jest.spyOn(buyCryptoRepo, 'createQueryBuilder').mockReturnValue(qb);
+
+      return predicates;
+    };
+
+    it('omits the gate entirely when judgedBy is not given', async () => {
+      const predicates = capture();
+
+      await service.getUserVolume([1], new Date(0), new Date(), undefined, 'bankTx');
+
+      expect(predicates.join(' ')).not.toContain('priceDefinitionAllowedDate');
+    });
+
+    it('gates a PASS sibling on its verdict and a non-PASS sibling on its existence', async () => {
+      const predicates = capture();
+
+      await service.getUserVolume([1], new Date(0), new Date(), undefined, 'bankTx', new Date('2026-06-10'));
+
+      const sql = predicates.join(' ');
+      // A PASS records when it was reached, so it can be gated exactly.
+      expect(sql).toContain('buyCrypto.priceDefinitionAllowedDate <= :judgedBy');
+      // A Pending/GSheet row records no verdict time, yet the live sum counted it — gating those on
+      // priceDefinitionAllowedDate would drop every one. Existence is the available proxy.
+      expect(sql).toContain('buyCrypto.amlCheck != :judgedPass AND buyCrypto.created <= :judgedBy');
+    });
+  });
 });
