@@ -1,0 +1,379 @@
+{
+  "general": {
+    "support": "",
+    "thanks": "",
+    "welcome": "Guten Tag {name}",
+    "team_questions": "",
+    "personal_closing": "Freundliche Grüsse,<br>{closingName}",
+    "button": "[url:Details anzeigen]",
+    "link": ""
+  },
+  "login": {
+    "title": "Denario Login",
+    "salutation": "Sie haben einen Login angefordert",
+    "message": "Klicken Sie den nachfolgenden Link innerhalb von {expiration} Minuten, um sich in der Denario App einzuloggen:<br>[url:{urlText}]"
+  },
+  "payment": {
+    "crypto_input": {
+      "title": "Krypto-Guthaben eingetroffen",
+      "salutation": "Ihr Krypto-Guthaben ist bei uns eingetroffen"
+    },
+    "fiat_input": {
+      "title": "Einzahlung eingetroffen",
+      "salutation": "Ihre Einzahlung ist bei uns eingetroffen und wird verarbeitet",
+      "unassigned": {
+        "title": "Einzahlung zuordnen",
+        "salutation": "Ihre Einzahlung kann nicht automatisch zugeordnet werden",
+        "transaction_button": ""
+      },
+      "currency_exchange": "Hinweis: Das {bankAccount}-Bankkonto ist ein {bankAsset}-Konto. Wenn Sie {inputAsset} senden, wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>Wenn möglich, senden Sie {bankAsset} an dieses Bankkonto."
+    },
+    "warning": "",
+    "crypto_output": {
+      "title": "Krypto-Asset ausgezahlt",
+      "salutation": "Ihre Krypto-Assets wurden an Ihre Adresse ausgezahlt"
+    },
+    "fiat_output": {
+      "title": "Auszahlung verschickt",
+      "salutation": "Ihre Auszahlung wurde an Ihr Bankkonto verschickt"
+    },
+    "processing": {
+      "title": "Transaktion wird verarbeitet",
+      "salutation": "Ihre Transaktion wird nun verarbeitet"
+    },
+    "chargeback": {
+      "unconfirmed": {
+        "title": "Aktion erforderlich",
+        "salutation": "Es ist eine Aktion für Ihre Transaktion erforderlich",
+        "transaction_button": "Sie können die Aktion über folgenden Link ausführen:<br>[url:Klick hier]"
+      },
+      "fiat": {
+        "title": "Guthaben wurde erstattet",
+        "salutation": "Ihr Guthaben wurde an Ihr Bankkonto zurückerstattet"
+      },
+      "crypto": {
+        "title": "Guthaben wurde erstattet",
+        "salutation": "Ihr Guthaben wurde an Ihre Wallet-Adresse zurückerstattet",
+        "payment_link": "Dies ist die Transaktions-ID<br>zu Ihrer Rückzahlung: [url:Link]",
+        "transaction_button": ""
+      },
+      "introduction": "Grund der Rückerstattung:<br>{reason}",
+      "reasons": {
+        "monthly_limit": "Die regulatorische Limite wurde überschritten",
+        "user_data_mismatch": "Der uns mitgeteilte Name stimmt nicht mit dem Inhaber der IBAN überein",
+        "iban_check": "Die angegebene IBAN kann nicht verwendet werden",
+        "kyc_rejected": "Ihre Verifizierung wurde abgelehnt",
+        "name_check": "Aus rechtlichen Gründen können wir den Handel leider nicht durchführen",
+        "annual_limit": "Das Jahreslimit wurde überschritten",
+        "olky_no_kyc": "Für die Nutzung dieses Bankkontos ist eine vollständige Verifizierung erforderlich",
+        "min_deposit_not_reached": "Die Mindesteinzahlungsgrenze wurde nicht erreicht",
+        "name_check_without_kyc": "Ihre Transaktion wurde wegen fehlender Verifizierung storniert. Bitte ergänzen Sie Ihre Daten:<br>[url:{urlText}]",
+        "annual_limit_without_kyc": "Das Jahreslimit ohne Verifizierung (KYC) wurde überschritten",
+        "asset_currently_not_available": "Der Handel ist derzeit nicht verfügbar",
+        "staking_discontinued": "Diese Funktion ist nicht mehr verfügbar",
+        "bank_not_allowed": "Die verwendete Absenderbank ist nicht erlaubt. Bitte verwenden Sie eine andere Bank für Ihre Einzahlung.",
+        "country_not_allowed": "Ihre Einzahlung kann leider nicht bearbeitet werden,<br>weil das Geld aus einem Land stammt, welches wir nicht unterstützen können. Mehr Informationen:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
+        "high_risk_kyc_needed": "Auf Grund von aufsichtsrechtlichen Bestimmungen musste die Transaktion leider abgelehnt werden, da keine vollständige Verifizierung vorliegt.",
+        "high_risk_kyc_needed_checkout": "Auf Grund von aufsichtsrechtlichen Bestimmungen musste die Transaktion leider abgelehnt werden, da keine vollständige Verifizierung vorliegt.<br>Einzahlungen per Banktransaktion stehen Ihnen weiterhin zur Verfügung.",
+        "high_risk_blocked": "Auf Grund von aufsichtsrechtlichen Bestimmungen musste die Transaktion leider abgelehnt werden.",
+        "high_risk_blocked_checkout": "Auf Grund von aufsichtsrechtlichen Bestimmungen musste die Transaktion leider abgelehnt werden.<br>Einzahlungen per Banktransaktion stehen Ihnen weiterhin zur Verfügung.",
+        "fee_too_high": "Die Netzwerkgebühren sind derzeit zu hoch für den Transaktionsbetrag",
+        "receiver_rejected_tx": "Die Empfänger-Node hat die Transaktion abgelehnt",
+        "asset_not_available_with_chosen_bank": "Dieses Asset kann nicht über die gewählte Bankverbindung gehandelt werden",
+        "chf_abroad_tx": "CHF kann nicht auf eine ausländische IBAN ausbezahlt werden",
+        "asset_kyc_needed": "Für das eingezahlte Asset wird eine Verifizierung benötigt",
+        "card_name_mismatch": "Der angegebene Kreditkartenname stimmt nicht mit dem Inhaber des Kontos überein",
+        "user_deactivated": "Ihre verknüpfte Blockchain-Adresse wurde unwiderruflich gelöscht. Sie können die Denario App weiterhin mit anderen Blockchain-Adressen nutzen.",
+        "video_ident_needed": "Für die Transaktion ist eine Video-Verifizierung erforderlich",
+        "missing_liquidity": "Die benötigte Menge an Token konnte nicht im vorgegebenen Zeitfenster gehandelt werden",
+        "test_only": "Test",
+        "kyc_data_needed": "Für die Transaktion werden Ihre Verifizierungsdaten benötigt",
+        "bank_tx_needed": "Um diese Transaktion auszuführen, ist zuvor eine Banküberweisung erforderlich",
+        "manual_check_phone": "Wir konnten Sie unter der angegebenen Telefonnummer nicht erreichen",
+        "manual_check_ip_phone": "Wir konnten Sie unter der angegebenen Telefonnummer nicht erreichen",
+        "manual_check_ip_country_phone": "Wir konnten Sie unter der angegebenen Telefonnummer nicht erreichen",
+        "manual_check_phone_rejected": "Das Telefonat war nicht erfolgreich oder wurde abgelehnt",
+        "merge_incomplete": "Die E-Mail-Bestätigung wurde nicht akzeptiert",
+        "intermediary_without_sender": "Die Absenderbank hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. Der tatsächliche Absender kann daher nicht verifiziert werden.",
+        "name_too_short": "Ihr Name ist zu kurz für die Bankverarbeitung. Banken benötigen mindestens 4 Buchstaben im Namen des Kontoinhabers.",
+        "asset_input_not_allowed": "Das Asset ist derzeit nicht für den Handel verfügbar",
+        "manual_check_external_account_phone": "Wir konnten Sie unter der angegebenen Telefonnummer nicht erreichen"
+      },
+      "kyc_start": "Sie können den Verifizierungsprozess hier starten:<br>[url:{urlText}]"
+    },
+    "pending": {
+      "monthly_limit": {
+        "title": "30-Tage-Limit überschritten",
+        "salutation": "Sie haben Ihr 30-Tage-Volumenlimit überschritten",
+        "line1": "Bitte verifizieren Sie sich per KYC (Know your Customer), um Ihr Limit zu erhöhen.",
+        "line2": "Nach erfolgreicher Verifizierung bearbeiten wir Ihre Transaktion weiter.",
+        "line3": "Limit mit Verifizierung erhöhen?<br>Klicken Sie den nachfolgenden Link, um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die Denario App starten.",
+        "line5": "Falls Sie auf die Verifizierung verzichten möchten, können Sie auch eine Rückerstattung beantragen:<br>[url:Klick hier]"
+      },
+      "annual_limit": {
+        "title": "Jahreslimit überschritten",
+        "salutation": "Sie haben Ihr jährliches Volumenlimit überschritten",
+        "line1": "Bitte beantragen Sie ein neues Jahreslimit.",
+        "line2": "Sobald das neue Limit genehmigt wurde,<br> bearbeiten wir Ihre Transaktion weiter.",
+        "line3": "Limit erhöhen?",
+        "line4": "Sie können eine Limiterhöhung in der Denario App unter Support beantragen.",
+        "line5": "Falls Sie auf die Verifizierung verzichten möchten, können Sie auch eine Rückerstattung beantragen:<br>[url:Klick hier]"
+      },
+      "annual_limit_without_kyc": {
+        "title": "Ausstehende Transaktion – Jahreslimit ohne Verifizierung überschritten",
+        "salutation": "Sie haben Ihr jährliches Volumenlimit ohne Verifizierung überschritten",
+        "line1": "Geschätzter Kunde, vielen Dank für Ihr Vertrauen in die DFX AG.",
+        "line2": "Leider können wir ohne vollständige Verifizierung nicht fortfahren, da Sie Ihr Jahreslimit überschritten haben.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link, um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die Denario App starten.",
+        "line5": "Falls Sie auf die Verifizierung verzichten möchten, können Sie auch eine Rückerstattung beantragen:<br>[url:Klick hier]"
+      },
+      "olky_no_kyc": {
+        "title": "Verifizierung für SEPA Instant erforderlich",
+        "salutation": "Für die Nutzung unserer Bank in Luxemburg ist eine Verifizierung erforderlich",
+        "line1": "Um unser Bankkonto in Luxemburg mit SEPA Instant nutzen zu können, ist eine vollständige Verifizierung erforderlich.",
+        "line2": "Bitte klicken Sie den nachfolgenden Link, um sich zu verifizieren:<br>[url:{urlText}]",
+        "line3": "Alternativ können Sie die Verifizierung auch direkt über die Denario App starten.",
+        "line4": "",
+        "line5": "Falls Sie auf die Verifizierung verzichten möchten, können Sie auch eine Rückerstattung beantragen:<br>[url:Klick hier]"
+      },
+      "name_check_without_kyc": {
+        "title": "Verifizierung für ausstehende Transaktion erforderlich",
+        "salutation": "Für Ihre ausstehende Transaktion ist eine vollständige Verifizierung erforderlich",
+        "line1": "Geschätzter Kunde, vielen Dank für Ihr Vertrauen in die DFX AG.",
+        "line2": "Leider können wir Ihren Auftrag ohne vollständige Verifizierung (KYC) nicht bearbeiten.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link, um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die Denario App starten.",
+        "line5": "Falls Sie auf die Verifizierung verzichten möchten, können Sie auch eine Rückerstattung beantragen:<br>[url:Klick hier]"
+      },
+      "high_risk_kyc_needed": {
+        "title": "Problem mit Ihrer Einzahlung",
+        "salutation": "Verifizierung (KYC) ist erforderlich",
+        "line1": "Geschätzter Kunde, vielen Dank für Ihr Vertrauen.",
+        "line2": "Auf Grund von aufsichtsrechtlichen Bestimmungen dürfen wir Ihre Transaktion ohne vollständige Verifizierung leider nicht ausführen.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link, um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die Denario App starten.",
+        "line5": "Falls Sie auf die Verifizierung verzichten möchten, können Sie auch eine Rückerstattung beantragen:<br>[url:Klick hier]"
+      },
+      "manual_check": {
+        "title": "Einzahlung wird geprüft",
+        "salutation": "Ihre Einzahlung wird geprüft",
+        "line1": "Vielen Dank für Ihr Vertrauen.",
+        "line2": "Leider konnte die Transaktion nicht vollautomatisch freigegeben werden und muss nun manuell durch einen Mitarbeiter geprüft werden.",
+        "line3": "Dies dauert in der Regel 24 Stunden, maximal jedoch 7 Tage.",
+        "line4": "",
+        "line5": ""
+      },
+      "manual_check_bank_data": {
+        "title": "Einzahlung wird geprüft",
+        "salutation": "Ihre Einzahlung wird geprüft",
+        "line1": "Vielen Dank für Ihr Vertrauen.",
+        "line2": "Leider konnte die Transaktion nicht vollautomatisch freigegeben werden und muss nun manuell durch einen Mitarbeiter geprüft werden.",
+        "line3": "Dies dauert in der Regel 24 Stunden, maximal jedoch 7 Tage.",
+        "line4": "",
+        "line5": ""
+      },
+      "asset_kyc_needed": {
+        "title": "Verifizierung (KYC) erforderlich",
+        "salutation": "Verifizierung (KYC) ist erforderlich",
+        "line1": "Vielen Dank für Ihr Vertrauen.",
+        "line2": "Leider benötigen wir für das von Ihnen eingezahlte Asset eine Verifizierung (KYC).",
+        "line3": "Bitte klicken Sie den nachfolgenden Link, um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die Denario App starten.",
+        "line5": "Falls Sie auf die Verifizierung verzichten möchten, können Sie auch eine Rückerstattung beantragen:<br>[url:Klick hier]"
+      },
+      "video_ident_needed": {
+        "title": "Video-Verifizierung (KYC) erforderlich",
+        "salutation": "Video-Verifizierung (KYC) ist erforderlich",
+        "line1": "Vielen Dank für Ihr Vertrauen.",
+        "line2": "Leider benötigen wir für Ihre Transaktion eine Video-Verifizierung (KYC).",
+        "line3": "Bitte klicken Sie den nachfolgenden Link, um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die Denario App starten.",
+        "line5": "Falls Sie auf die Verifizierung verzichten möchten, können Sie auch eine Rückerstattung beantragen:<br>[url:Klick hier]"
+      },
+      "kyc_data_needed": {
+        "title": "KYC-Daten erforderlich",
+        "salutation": "Persönliche Angaben sind erforderlich",
+        "line1": "Leider benötigen wir Ihre KYC-Daten für Ihre Transaktion.",
+        "line2": "Klicken Sie den nachfolgenden Link und schliessen Sie mindestens die ersten Schritte ab, bis Sie Name und Adresse erfasst haben:<br>[url:{urlText}]",
+        "line3": "Alternativ können Sie die Verifizierung auch direkt über die Denario App starten.",
+        "line4": "Sie müssen sich nicht vollständig verifizieren; Name und Adresse reichen aus.",
+        "line5": "Falls Sie stattdessen eine Rückerstattung beantragen möchten:<br>[url:Klick hier]"
+      },
+      "bank_tx_needed": {
+        "title": "Banküberweisung erforderlich",
+        "salutation": "Es ist eine Banküberweisung erforderlich",
+        "line1": "Um Ihre Transaktion ausführen zu können, ist zuerst eine Banküberweisung erforderlich.",
+        "line2": "Bitte tätigen Sie einen Kauf über die Denario App per Banküberweisung.",
+        "line3": "Nachdem diese Transaktion bei uns eingegangen und verarbeitet wurde, wird Ihre ausstehende Transaktion ebenfalls automatisch weiterverarbeitet.",
+        "line4": "Es ist also nur eine Überweisung von Ihrem Bankkonto erforderlich.",
+        "line5": ""
+      },
+      "merge_incomplete": {
+        "title": "E-Mail-Bestätigung ausstehend",
+        "salutation": "Eine Bestätigungsmail wurde an Sie gesendet. Bitte klicken Sie den Link in der E-Mail",
+        "line1": "Leider benötigen wir noch eine Bestätigung von Ihnen, um Ihre Transaktion abzuschliessen.",
+        "line2": "Bitte klicken Sie dazu auf den Link in der vorangegangenen E-Mail.",
+        "line3": "Sobald diese Bestätigung erteilt ist, wird die ausstehende Transaktion ebenfalls automatisch ausgezahlt.",
+        "line4": "",
+        "line5": ""
+      },
+      "bank_release_pending": {
+        "title": "Bankfreigabe ausstehend",
+        "salutation": "Die Bankfreigabe für Ihre Transaktion steht noch aus",
+        "line1": "Ihre Transaktion ist bei uns eingetroffen, wurde aber noch nicht zur weiteren Verwendung freigegeben.",
+        "line2": "Sie brauchen nichts weiter zu tun, die Bank gibt die Transaktion automatisch frei.",
+        "line3": "",
+        "line4": "",
+        "line5": ""
+      }
+    },
+    "transaction_button": ""
+  },
+  "referral": {
+    "title": "Empfehlungsprämie",
+    "salutation": "Ihre Empfehlungsprämie wurde ausgezahlt",
+    "transaction_button": "",
+    "dfx_ambassador": "Vielen Dank für Ihre Weiterempfehlung der Denario App!"
+  },
+  "recommendation": {
+    "recommended": {
+      "title": "Denario-Einladung",
+      "salutation": "Sie wurden zu Denario eingeladen!",
+      "message": "{name} ({mail}) hat Sie eingeladen, die Denario App zu nutzen.",
+      "registration_button": "Klicken Sie den nachfolgenden Button, um sich mit dieser E-Mail-Adresse zu registrieren:<br>[url:Klick hier]",
+      "registration_link": "Oder nutzen Sie den folgenden Link:<br>[url:{urlText}]"
+    },
+    "confirmation": {
+      "title": "Denario-Empfehlung bestätigen",
+      "salutation": "Sie haben eine ausstehende Denario-Empfehlung",
+      "message": "Können Sie {name} ({mail}) für die Nutzung der Denario App bestätigen?",
+      "button": "Klicken Sie den nachfolgenden Button, um die Einladung zu bestätigen oder abzulehnen:<br>[url:Klick hier]",
+      "link": "Oder nutzen Sie den folgenden Link:<br>[url:{urlText}]"
+    }
+  },
+  "kyc": {
+    "success": {
+      "title": "Verifizierung erfolgreich",
+      "salutation": "Ihre Verifizierung ist abgeschlossen",
+      "message": "Ihre Verifizierung wurde erfolgreich abgeschlossen."
+    },
+    "failed": {
+      "title": "Problem bei Ihrer Verifizierung",
+      "salutation": "Es gab ein Problem bei Ihrer Verifizierung",
+      "message": "Der Schritt '{stepName}' konnte aus folgendem Grund nicht abgeschlossen werden:<br>{reason}",
+      "reasons": {
+        "user_data_merged": "Ihr Account wurde zusammengelegt",
+        "user_data_merge_requested": "E-Mail-Bestätigung ausstehend",
+        "user_data_existing": "Unbekannter Fehler",
+        "user_data_blocked": "Unbekannter Fehler",
+        "first_name_not_matching": "Unstimmigkeit bei Ihrem Vornamen",
+        "last_name_not_matching": "Unstimmigkeit bei Ihrem Nachnamen",
+        "nationality_not_matching": "Ihre Nationalität stimmt nicht überein",
+        "nationality_missing": "Ihre Nationalität fehlt",
+        "nationality_not_allowed": "Ihre Nationalität ist nicht erlaubt",
+        "invalid_document_type": "Die Art des Ausweisdokuments ist nicht gültig",
+        "document_type_not_allowed": "Die Art des Ausweisdokuments ist für Ihr Land nicht erlaubt",
+        "identification_number_missing": "Ihre Ausweisnummer fehlt",
+        "invalid_result": "Unbekannter Fehler",
+        "verified_name_missing": "Ihr Accountname fehlt",
+        "first_name_not_matching_verified_name": "Unstimmigkeit zwischen Ihrem Vornamen und dem Accountnamen",
+        "last_name_not_matching_verified_name": "Unstimmigkeit zwischen Ihrem Nachnamen und dem Accountnamen",
+        "organization_name_not_matching_verified_name": "Unstimmigkeit zwischen dem Namen Ihrer Organisation und dem Accountnamen",
+        "country_not_allowed": "Ihr Land ist nicht erlaubt",
+        "blocked": "Unbekannter Fehler",
+        "personal_data_not_matching": "Unstimmigkeit bei Ihren persönlichen Daten",
+        "ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+        "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+        "missing_response": "Es fehlen Daten",
+        "risky_business": "Ihre Firma ist in riskante Geschäfte verwickelt",
+        "bank_recall_fee_not_paid": "Die Recall-Gebühr wurde noch nicht bezahlt"
+      }
+    },
+    "missing_data": {
+      "title": "Fehlende Daten bei Ihrer Verifizierung",
+      "salutation": "Es fehlen noch Daten bei Ihrer Verifizierung",
+      "message": "Beim Schritt '{stepName}' fehlen noch Daten, die Sie ergänzen müssen, um Ihre Verifizierung abzuschliessen."
+    },
+    "reminder": {
+      "title": "Vervollständigen Sie Ihre Verifizierung",
+      "salutation": "Bitte vervollständigen Sie Ihre Verifizierung",
+      "message": "Uns ist aufgefallen, dass Ihre Verifizierung noch nicht vollständig abgeschlossen wurde."
+    },
+    "retry": "Oder versuchen Sie es über den folgenden Link erneut:<br>[url:{urlText}]",
+    "next_step": "Um mit Ihrer Verifizierung fortzufahren, öffnen Sie die Denario App und fahren Sie mit dem KYC fort, oder nutzen Sie den folgenden Link:<br>[url:{urlText}]",
+    "step_names": {
+      "ident": "Identifikation",
+      "personal_data": "Persönliche Daten",
+      "nationality_data": "Nationalität",
+      "legal_entity": "Juristische Person",
+      "owner_directory": "Inhaberverzeichnis",
+      "commercial_register": "Handelsregister",
+      "signatory_power": "Unterschriftsberechtigung",
+      "authority": "Vollmacht",
+      "beneficial_owner": "Wirtschaftlich Berechtigter",
+      "operational_activity": "Operative Tätigkeit",
+      "financial_data": "Zusätzliche Daten",
+      "additional_documents": "Zusätzliche Dokumente",
+      "residence_permit": "Aufenthaltsbewilligung",
+      "dfx_approval": "Genehmigung"
+    }
+  },
+  "account_merge": {
+    "request": {
+      "title": "E-Mail bestätigen",
+      "salutation": "Bestätigen Sie Ihre E-Mail-Adresse",
+      "message": "Klicken Sie den nachfolgenden Link, um Ihre E-Mail-Adresse zu bestätigen. Nach der Bestätigung werden Ihre Accounts zusammengelegt:<br>[url:{urlText}]"
+    },
+    "added_address": {
+      "title": "Wallet-Adresse hinzugefügt",
+      "salutation": "Ihre Wallet-Adresse wurde Ihrem Account hinzugefügt",
+      "message": "Die Adresse {userAddress} wurde Ihrem Account hinzugefügt."
+    },
+    "changed_mail": {
+      "title": "Account-E-Mail wurde geändert",
+      "salutation": "Ihre Account-E-Mail wurde geändert",
+      "message": "Sie haben zwei Accounts mit unterschiedlichen E-Mail-Adressen angelegt, welche nun zusammengelegt wurden. Die E-Mail {userMail} wird ab sofort für Ihren Account verwendet."
+    }
+  },
+  "limit_request": {
+    "title": "Transaktionsvolumen genehmigt",
+    "message": "Ihre Anfrage für ein Transaktionsvolumen von {limitAmount} EUR wurde genehmigt und steht Ihnen nun zur Verfügung."
+  },
+  "account_deactivation": {
+    "title": "Account deaktiviert",
+    "salutation": "Account erfolgreich deaktiviert",
+    "message": "Sie haben Ihren Account erfolgreich deaktiviert. Wenn Sie Ihren Account wieder aktivieren möchten, führen Sie bitte einen Login per Mail durch."
+  },
+  "support_message": {
+    "title": "Neue Support-Nachricht",
+    "salutation": "Sie haben eine Support-Nachricht erhalten",
+    "message": "Sie haben eine neue Nachricht in Ihrem Support-Ticket erhalten. Ihr Ticket können Sie über den folgenden Link einsehen:<br>[url:{urlText}]"
+  },
+  "verification_code": {
+    "default": {
+      "title": "Verifizierungscode",
+      "salutation": "Sie haben einen Verifizierungscode angefordert. Geben Sie ihn unten ein, um fortzufahren:"
+    },
+    "email": {
+      "title": "E-Mail-Verifizierungscode",
+      "salutation": "Geben Sie den Verifizierungscode unten ein, um Ihre neue E-Mail-Adresse zu bestätigen:"
+    },
+    "message": "<span style=\"display:inline-block;background:#f8f9fa;border:2px dashed #dee2e6;border-radius:8px;padding:24px 32px;text-align:center;margin:20px 0 0 0;\"><span style=\"font-size:32px;font-weight:bold;color:#495057;letter-spacing:8px;font-family:'Courier New',monospace;\">{code}</span></span>",
+    "closing": "Dieser Code ist {expiration} Minuten gültig. Bitte teilen Sie diesen Verifizierungscode nicht mit anderen Personen. Wenn Sie keinen Verifizierungscode angefordert haben, können Sie diese E-Mail ignorieren."
+  },
+  "template": {
+    "closing": "Freundliche Grüsse",
+    "sign_off": "Denario",
+    "disclaimer": "Dies ist eine automatisierte Mail. Bitte antworten Sie nicht an diese Adresse.",
+    "legal_address": "Denario AG · Bachstrasse 40 · 5600 Lenzburg · Schweiz",
+    "privacy_label": "Datenschutz",
+    "privacy_url": "https://www.denario.swiss/privacy-policy",
+    "imprint_label": "AGB",
+    "imprint_url": "https://www.denario.swiss/terms-conditions",
+    "website_url": "https://www.denario.swiss/",
+    "logo_url": "https://dfx.swiss/images/mails/denario.png",
+    "logo_alt": "Denario"
+  }
+}
