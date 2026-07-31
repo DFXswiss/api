@@ -207,6 +207,23 @@ type SignedRegistrationMessage = Pick<
   | 'walletAddress'
 >;
 
+type RegistrationEip712Domain = typeof REGISTRATION_EIP712_DOMAIN & { chainId?: number };
+
+// One shape a valid registration signature can have been produced over: an
+// EIP-712 domain plus the representation of the signed fields. `label` exists
+// so a verification can name in the logs which shape it recovered under.
+interface RegistrationSignatureVariant {
+  label: string;
+  domain: RegistrationEip712Domain;
+  transliterate: boolean;
+}
+
+// The fields exactly as they were signed, plus the variant they recovered under.
+interface ResolvedRegistrationSignature {
+  message: SignedRegistrationMessage;
+  variant: RegistrationSignatureVariant;
+}
+
 @Injectable()
 export class RealUnitService {
   private readonly logger = new DfxLogger(RealUnitService);
@@ -1160,7 +1177,7 @@ export class RealUnitService {
   }
 
   private verifyRealUnitRegistrationSignature(data: RealUnitRegistrationDto): boolean {
-    return this.resolveSignedRegistrationMessage(data) != null;
+    return this.resolveRegistrationSignature(data) != null;
   }
 
   // Builds the EIP-712 message in either the raw or the BitBox-safe ASCII
@@ -1186,20 +1203,51 @@ export class RealUnitService {
     };
   }
 
-  // Returns the EIP-712 fields exactly as the wallet signed them — raw UTF-8
-  // (legacy software wallets, kept working by #3709) or BitBox-safe ASCII
-  // (current app / any BitBox, whose firmware rejects non-ASCII bytes). Returns
-  // undefined if the signature matches neither. Aktionariat re-verifies the
-  // signature against the payload we POST in forwardRegistration, so the
-  // forwarded bytes must be exactly these — forwarding any other variant fails
-  // as "Invalid signature".
-  private resolveSignedRegistrationMessage(data: RealUnitRegistrationDto): SignedRegistrationMessage | undefined {
+  // Every shape a valid registration signature can have been produced over, in
+  // the order they are tried. At most one can ever match: the shapes differ in
+  // the signed digest, so a signature made under one recovers to an unrelated
+  // address under every other — which is why accepting several is not a
+  // weakening of the check, only a wider search.
+  //
+  // Domain — the legacy chainId-less domain covers every registration signed so
+  // far and every software wallet today. The chainId-extended domain covers
+  // hardware wallets: the BitBox02 firmware warns on typed data without a
+  // chainId, and over Bluetooth confirming that warning answers with a NACK
+  // instead of a signature (BitBoxSwiss/bitbox02-firmware#2019), so the app
+  // signs the extended domain there. chainId is the REALU token chain — the
+  // same value the app receives as apiConfig.asset.chainId.
+  //
+  // Encoding — realunit-app transliterates the free-text fields to BitBox-safe
+  // ASCII (Krüger → Krueger); older versions signed raw UTF-8 (kept by #3709).
+  private get registrationSignatureVariants(): RegistrationSignatureVariant[] {
+    const legacyDomain = REGISTRATION_EIP712_DOMAIN;
+    const chainId = EvmUtil.getChainId(this.tokenBlockchain);
+    const chainIdDomain = chainId ? { ...REGISTRATION_EIP712_DOMAIN, chainId } : undefined;
+
+    return [
+      { label: 'legacy domain / UTF-8 fields', domain: legacyDomain, transliterate: false },
+      { label: 'legacy domain / BitBox ASCII fields', domain: legacyDomain, transliterate: true },
+      ...(chainIdDomain
+        ? [
+            { label: `chainId ${chainId} domain / UTF-8 fields`, domain: chainIdDomain, transliterate: false },
+            { label: `chainId ${chainId} domain / BitBox ASCII fields`, domain: chainIdDomain, transliterate: true },
+          ]
+        : []),
+    ];
+  }
+
+  // Returns the EIP-712 fields exactly as the wallet signed them, plus the
+  // variant they recovered under; undefined if no accepted variant matches.
+  // Aktionariat re-verifies the signature against the payload we POST in
+  // forwardRegistration, so the forwarded bytes must be exactly this message —
+  // forwarding any other variant fails as "Invalid signature".
+  private resolveRegistrationSignature(data: RealUnitRegistrationDto): ResolvedRegistrationSignature | undefined {
     const signature = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
 
-    for (const transliterate of [false, true]) {
-      const message = this.buildRegistrationMessage(data, transliterate);
-      const recovered = verifyTypedData(REGISTRATION_EIP712_DOMAIN, REGISTRATION_EIP712_TYPES, message, signature);
-      if (Util.equalsIgnoreCase(recovered, data.walletAddress)) return message;
+    for (const variant of this.registrationSignatureVariants) {
+      const message = this.buildRegistrationMessage(data, variant.transliterate);
+      const recovered = verifyTypedData(variant.domain, REGISTRATION_EIP712_TYPES, message, signature);
+      if (Util.equalsIgnoreCase(recovered, data.walletAddress)) return { message, variant };
     }
 
     return undefined;
@@ -1504,7 +1552,19 @@ export class RealUnitService {
     // representation that was signed — raw UTF-8 (legacy software wallets) or BitBox-safe ASCII
     // (current app / BitBox). Forwarding the wrong variant fails as "Invalid signature". The
     // UTF-8 originals stay on user_data for PDF/mail.
-    const signedMessage = this.resolveSignedRegistrationMessage(dto) ?? this.buildRegistrationMessage(dto, false);
+    // Naming the matched variant makes the accepted mix observable: it is how we
+    // see chainId-domain (hardware-wallet) registrations arrive, and how we would
+    // notice the legacy variant going dark. A miss is logged too — it is the one
+    // signal that separates a local resolution failure from an Aktionariat-side
+    // rejection, which otherwise look identical downstream ("Invalid signature").
+    const resolved = this.resolveRegistrationSignature(dto);
+    if (resolved) {
+      this.logger.info(`RealUnit registration signature matched ${resolved.variant.label} (${dto.walletAddress})`);
+    } else {
+      this.logger.warn(`RealUnit registration signature matched no accepted variant (${dto.walletAddress})`);
+    }
+
+    const signedMessage = resolved?.message ?? this.buildRegistrationMessage(dto, false);
     const payload: AktionariatRegistrationDto = {
       ...signedMessage,
       signature: dto.signature,

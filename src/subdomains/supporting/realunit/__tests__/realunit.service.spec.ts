@@ -3098,12 +3098,72 @@ describe('RealUnitService', () => {
       expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
 
-    it('resolveSignedRegistrationMessage returns undefined when a valid signature does not belong to the claimed wallet', async () => {
+    // The BitBox02 firmware refuses to sign typed data whose domain has no chainId
+    // ("typed data has no chain ID" on the device), so the app signs hardware-wallet
+    // registrations over the chainId-extended domain. chainId 1 = the PRD REALU chain
+    // (Ethereum); this block runs with env 'prd'.
+    const chainIdDomain = { ...domain, chainId: 1 };
+
+    it('accepts exactly four signature variants, and tries the legacy domain first', () => {
+      // The accepted set is the whole verification contract — assert it as a list so
+      // widening or narrowing it has to be a deliberate edit, not a loop side effect.
+      expect((service as any).registrationSignatureVariants.map((v: any) => v.label)).toEqual([
+        'legacy domain / UTF-8 fields',
+        'legacy domain / BitBox ASCII fields',
+        'chainId 1 domain / UTF-8 fields',
+        'chainId 1 domain / BitBox ASCII fields',
+      ]);
+    });
+
+    it('accepts a BitBox signature over the chainId-extended domain and forwards the signed ASCII fields', async () => {
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData(chainIdDomain, types, asciiFields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const payload = forwardedPayload();
+      expect(payload.name).toBe('Erika Mueller');
+      expect(verifyTypedData(chainIdDomain, types, asciiFields(wallet), payload.signature).toLowerCase()).toBe(
+        wallet.toLowerCase(),
+      );
+      // Recovery under the legacy domain does NOT match. Aktionariat rebuilds the
+      // domain itself, so it must attempt the chainId-extended variant too or this
+      // registration fails on their side as "Invalid signature".
+      expect(recoverFromForwarded(payload).toLowerCase()).not.toBe(wallet.toLowerCase());
+    });
+
+    it('rejects a signature over a foreign chainId (the domain must match the REALU token chain)', async () => {
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData({ ...domain, chainId: 5 }, types, asciiFields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      expect((service as any).resolveRegistrationSignature(dto)).toBeUndefined();
+    });
+
+    it('names the matched variant in the logs, and warns when none matches', async () => {
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData(chainIdDomain, types, asciiFields(wallet));
+
+      await (service as any).forwardRegistration(fakeUserData(), buildDto(utf8Fields(wallet), signature));
+      expect((service as any).logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('matched chainId 1 domain / BitBox ASCII fields'),
+      );
+
+      // Well-formed signature, but from the software wallet while the dto claims the
+      // hardware one — so it recovers cleanly under every variant and matches none.
+      const foreign = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
+      await (service as any).forwardRegistration(fakeUserData(), buildDto(utf8Fields(wallet), foreign));
+      expect((service as any).logger.warn).toHaveBeenCalledWith(expect.stringContaining('matched no accepted variant'));
+    });
+
+    it('resolveRegistrationSignature returns undefined when a valid signature does not belong to the claimed wallet', async () => {
       // Valid signature from the software wallet, but the dto claims a different wallet address.
       const signature = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
       const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
 
-      expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
+      expect((service as any).resolveRegistrationSignature(dto)).toBeUndefined();
     });
 
     it('persists the per-wallet registration and writes an INFO audit log on success', async () => {
@@ -3541,11 +3601,11 @@ describe('RealUnitService', () => {
     });
 
     it('falls back to the raw (non-transliterated) message when the signature cannot be resolved', async () => {
-      // resolveSignedRegistrationMessage returns undefined -> the `?? buildRegistrationMessage(dto, false)`
+      // resolveRegistrationSignature returns undefined -> the `?? buildRegistrationMessage(dto, false)`
       // fallback builds the forwarded payload from the raw UTF-8 fields.
       const wallet = softwareWallet.address;
       const dto = buildDto(utf8Fields(wallet), '0xdeadbeef');
-      jest.spyOn(service as any, 'resolveSignedRegistrationMessage').mockReturnValue(undefined);
+      jest.spyOn(service as any, 'resolveRegistrationSignature').mockReturnValue(undefined);
       httpService.post.mockResolvedValue({} as any);
 
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
@@ -5059,13 +5119,13 @@ describe('RealUnitService', () => {
       }
     });
 
-    it('resolveSignedRegistrationMessage normalizes a signature that lacks the 0x prefix', async () => {
+    it('resolveRegistrationSignature normalizes a signature that lacks the 0x prefix', async () => {
       const fields = humanFields();
       const signature = await wallet._signTypedData(domain, types, fields);
       const dto = { ...fields, signature: signature.slice(2), lang: 'DE', kycData: {} };
-      const message = (service as any).resolveSignedRegistrationMessage(dto);
-      expect(message).toBeDefined();
-      expect(message.walletAddress).toBe(wallet.address);
+      const resolved = (service as any).resolveRegistrationSignature(dto);
+      expect(resolved).toBeDefined();
+      expect(resolved.message.walletAddress).toBe(wallet.address);
     });
   });
 
