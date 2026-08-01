@@ -144,7 +144,7 @@ export class ClientErrorService {
     const isProseSeparator = !quoted && (separator === ':' || separator.toLowerCase() === '%3a');
     if (!isProseSeparator) return SECRET_NAMES.some((secret) => name.toLowerCase().includes(secret));
 
-    const segments = name.match(NAME_SEGMENT_REGEX) ?? [];
+    const segments: string[] = name.match(NAME_SEGMENT_REGEX) ?? [];
 
     return segments.some((segment) => SECRET_NAMES.includes(segment.toLowerCase()));
   }
