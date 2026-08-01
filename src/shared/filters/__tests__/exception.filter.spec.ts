@@ -11,6 +11,7 @@ import {
 import { ValidationError } from 'class-validator';
 import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
+import { MAX_MASKED_PATTERN } from 'src/shared/middlewares/api-trace.middleware';
 import { ValidationFailedException } from 'src/shared/pipes/detailed-validation.pipe';
 
 describe('ApiExceptionFilter', () => {
@@ -113,6 +114,37 @@ describe('ApiExceptionFilter', () => {
     expect(msg).toContain('abcWARN');
   });
 
+  it('masks only the front of a request-sized reason, and does so quickly', () => {
+    // Masking is regex work over what it is given; the cap throws the rest away anyway.
+    const message = `${'a'.repeat(480)}someone@example.com${'b'.repeat(5_000_000)}`;
+
+    const started = process.hrtime.bigint();
+    filter.catch(new BadRequestException(message), host(req(), { status }));
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('someone@example.com');
+    expect(msg).toContain('***');
+    // Masking this whole message takes seconds; the bound is what is being shown, so the limit is
+    // loose enough to survive a loaded machine and still far below what it would cost unbounded.
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
+  it('does not let the point where masking stopped expose a pattern it split', () => {
+    // Masking only shortens, so text from far past the cap moves into view: three long addresses
+    // collapse to nine characters. A pattern the masking never saw whole would be what moves with
+    // them - unless a pattern length is dropped from the end of what was masked.
+    const scanLength = 500 + 2 * MAX_MASKED_PATTERN;
+    const shrinking = Array.from({ length: 3 }, () => `a@${'d'.repeat(240)}.com`).join(' ');
+    const secret = 'ZZTOPSECRET@example.com';
+    const filler = 'f'.repeat(scanLength - 8 - shrinking.length - 1);
+    filter.catch(new BadRequestException(`${shrinking} ${filler}${secret}`), host(req(), { status }));
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('ZZTOPSEC');
+    expect(msg).toContain('***');
+  });
+
   it('caps a reason as large as the body it came from, and still masks up to the cap', () => {
     // Exception messages interpolate request values, and a request body is large; the reason is
     // cut to the cap, and a pattern that starts inside it is masked even though it runs past it.
@@ -146,52 +178,39 @@ describe('ApiExceptionFilter', () => {
 
     expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
     expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'x' });
+    // the exception's own message stays where it was: it is what it says to us, not to the caller
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
-  it('keeps sending the response when the message cannot be read', () => {
-    const unreadable = new BadRequestException({
-      statusCode: 400,
-      message: [
-        {
-          toString: () => {
-            throw new Error('nope');
-          },
-        },
-      ],
-    });
+  it('takes nothing out of a body it could not pass on, the message included', () => {
+    // What such a body holds is not what it would have sent, so reading any of it reads something
+    // else - and the exception's own message is what it says to us, not to the caller.
+    const divergent = new HttpException({ statusCode: 418, message: 'public' }, 400);
+    divergent.message = 'INTERNAL_SECRET';
 
-    expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
+    filter.catch(divergent, host(req(), { status }));
+
     expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalled();
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
-  it('keeps a failure to write the line away from a caller that already has its answer', () => {
-    warn.mockImplementation(() => {
-      throw new Error('logger down');
-    });
+  it('names the status when a plain error says nothing about itself', () => {
+    filter.catch(new Error(), host(req(), { status }));
 
-    expect(() => filter.catch(new BadRequestException('bad'), host(req(), { status }))).not.toThrow();
-    expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalled();
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
-  it('describes the response it is sending, not the one the exception named', () => {
-    // The status was replaced, so the body the exception carries no longer says what is being sent.
-    const mismatched = new BadRequestException('x');
-    jest.spyOn(mismatched, 'getStatus').mockReturnValue(600);
+  it('names the status when a plain error answers with something that is not text', () => {
+    const odd = new Error('x');
+    Object.defineProperty(odd, 'message', { value: 42 });
 
-    filter.catch(mismatched, host(req(), { status }));
+    filter.catch(odd, host(req(), { status }));
 
-    expect(status).toHaveBeenCalledWith(500);
-    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
-  it('sends the response even when the message cannot be read either', () => {
-    const mute = new BadRequestException('x');
-    jest.spyOn(mute, 'getResponse').mockImplementation(() => {
-      throw new Error('nope');
-    });
+  it('sends the response even when a plain error cannot be asked what it says', () => {
+    const mute = new Error('x');
     Object.defineProperty(mute, 'message', {
       get: () => {
         throw new Error('nope');
@@ -199,7 +218,149 @@ describe('ApiExceptionFilter', () => {
     });
 
     expect(() => filter.catch(mute, host(req(), { status }))).not.toThrow();
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
+  });
+
+  it('passes on a body that serializes itself, as it would have been without any of this', () => {
+    // What such a body holds says nothing about what it sends, so there is nothing to judge and
+    // nothing to take out of it.
+    const rewriting = new HttpException({ statusCode: 418, message: 'INTERNAL_SECRET' }, 400);
+    const body = rewriting.getResponse();
+    Object.defineProperty(body, 'toJSON', { value: () => ({ statusCode: 400, message: 'public' }) });
+
+    filter.catch(rewriting, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith(body);
+  });
+
+  it('names a status that has no name, rather than leaving the message out', () => {
+    const unnamed = new HttpException('x', 599);
+    jest.spyOn(unnamed, 'getResponse').mockImplementation(() => {
+      throw new Error('nope');
+    });
+    Object.defineProperty(unnamed, 'message', {
+      get: () => {
+        throw new Error('nope');
+      },
+    });
+
+    filter.catch(unnamed, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 599, message: 'Error' });
+  });
+
+  it('reads the status once, so a body cannot arrive under a status it does not name', () => {
+    const shifting = new BadRequestException('x');
+    let call = 0;
+    const getStatus = jest.spyOn(shifting, 'getStatus').mockImplementation(() => (call++ === 0 ? 600 : 400));
+
+    filter.catch(shifting, host(req(), { status }));
+
+    expect(getStatus).toHaveBeenCalledTimes(1);
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
+  });
+
+  it('does not take a status it can only be told when it asks as agreement', () => {
+    // An accessor is serialized, so the body does carry a status - and it answers again when it is
+    // serialized, so what it would carry cannot be read here. The body cannot be passed on.
+    const accessor = new BadRequestException('x');
+    Object.defineProperty(accessor.getResponse(), 'statusCode', { get: () => 418, enumerable: true });
+
+    filter.catch(accessor, host(req(), { status }));
+
+    expect(status).toHaveBeenCalledWith(400);
     expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+  });
+
+  it('never reads a body whose status had to be replaced', () => {
+    const replaced = new HttpException({ statusCode: 418, message: 'INTERNAL_SECRET' }, 600);
+    const getResponse = jest.spyOn(replaced, 'getResponse');
+
+    filter.catch(replaced, host(req(), { status }));
+
+    expect(getResponse).not.toHaveBeenCalled();
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
+  });
+
+  it('keeps a failure to report a failed send away from the caller as well', () => {
+    const response = {
+      status: () => {
+        throw new Error('transport down');
+      },
+    };
+    error.mockImplementation(() => {
+      throw new Error('logger down');
+    });
+
+    expect(() => filter.catch(new BadRequestException('bad'), host(req(), response))).not.toThrow();
+  });
+
+  it('drops a body that names a status other than the one being sent', () => {
+    filter.catch(new HttpException({ statusCode: 418, message: 'teapot' }, 400), host(req(), { status }));
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+  });
+
+  it('keeps a body that names no status of its own', () => {
+    filter.catch(new HttpException({ message: 'plain' }, 400), host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ message: 'plain' });
+  });
+
+  it('keeps the diagnostic text when nothing had to be cut away', () => {
+    // The tail only has to go where the masking could have split a pattern and the shortening could
+    // bring its head into view; a short reason loses nothing.
+    filter.catch(new BadRequestException('amount must be a positive number'), host(req(), { status }));
+
+    expect(warn.mock.calls[0][0]).toContain('amount must be a positive number');
+  });
+
+  it('keeps a name put on an array body out of the status it is judged by', () => {
+    // An array is sent as its elements; a name alongside them is not sent at all, so it names no
+    // status to contradict the one being sent.
+    const listed = new HttpException(['a', 'b'], 400);
+    (listed.getResponse() as unknown as { statusCode: number }).statusCode = 418;
+
+    filter.catch(listed, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith(listed.getResponse());
+  });
+
+  it('judges a body whose toJSON is only there when asked for like any other', () => {
+    // An accessor might answer with a function and might not; the serialization would then send
+    // what the body holds, under a status the body does not name.
+    const shifting = new HttpException({ statusCode: 418, message: 'INTERNAL_SECRET' }, 400);
+    Object.defineProperty(shifting.getResponse(), 'toJSON', { get: () => 42 });
+
+    filter.catch(shifting, host(req(), { status }));
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+  });
+
+  it('passes on a body whose status is a value the serialization leaves out', () => {
+    for (const carried of [undefined, () => 418, Symbol('418')]) {
+      json.mockClear();
+      const omitted = new BadRequestException('x');
+      Object.defineProperty(omitted.getResponse(), 'statusCode', { value: carried, enumerable: true });
+
+      filter.catch(omitted, host(req(), { status }));
+
+      expect(json).toHaveBeenCalledWith(omitted.getResponse());
+    }
+  });
+
+  it('sends the response even when asking what the exception is throws', () => {
+    const hostile = new Proxy(new BadRequestException('x'), {
+      getPrototypeOf: () => {
+        throw new Error('nope');
+      },
+    });
+
+    expect(() => filter.catch(hostile, host(req(), { status }))).not.toThrow();
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
   it('sends a server error when the status cannot be read or is not one Express sends', () => {

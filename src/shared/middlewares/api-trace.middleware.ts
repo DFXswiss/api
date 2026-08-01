@@ -21,23 +21,34 @@ export const REDACT_KEY =
 // backtracking on the request path.
 const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
 const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
-const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
+// The boundaries are against digits rather than word characters: an address is as much an address
+// for having a letter or an underscore next to it, and `ip192.0.2.123` is how one usually arrives.
+// A digit on either side still leaves it alone - that is a longer number, not an address.
+const IPV4 = /(^|[^\d])(\d{1,3}(?:\.\d{1,3}){3})(?!\d)/g;
 
 export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
 const MAX_CLIENT = 32; // per trace line: the client header is a name, not a payload
+const MAX_URL = 512; // per log line: a route, and one nobody follows past either way
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
 const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
 const REDACTED = '***';
+const WALLET_SHORT = '0x…';
 const TRUNCATED = '<…truncated…>';
 
+// The longest match the patterns above can produce - the email's 64 + `@` + 255 + `.` + 24. A caller
+// that masks only the front of a value needs it: it is how far a pattern can reach past where that
+// caller stopped looking.
+export const MAX_MASKED_PATTERN = 64 + 1 + 255 + 1 + 24;
+
 export function maskValue(s: string): string {
-  return s.replace(WALLET_ADDRESS, '0x…').replace(EMAIL, REDACTED).replace(IPV4, REDACTED);
+  return s.replace(WALLET_ADDRESS, WALLET_SHORT).replace(EMAIL, REDACTED).replace(IPV4, `$1${REDACTED}`);
 }
 
 export function maskUrl(url: string): string {
-  // The request target is client-supplied and reaches a log line: what is left of it after the
-  // query is dropped is rendered like any other value from the request.
-  return maskLogText(url.split('?')[0]);
+  // The request target is client-supplied and reaches a log line: what is left of it after the query
+  // is dropped is rendered like any other value from the request, and capped like one. The cap comes
+  // after the masking, so a pattern that straddles it is still recognized as one.
+  return capCharacters(maskLogText(url.split('?')[0]), MAX_URL);
 }
 
 // Everything that can break a line or move a cursor in a log viewer: the control characters
@@ -54,14 +65,15 @@ export function singleLine(value: string): string {
 }
 
 /**
- * Renders free-form text for a log line: masked, on one line, masked again.
+ * Renders free-form text for a log line: masked, stripped of everything that could break a line,
+ * masked again.
  *
  * Both passes are needed, because a character that breaks a line also breaks a pattern in either
- * direction. Put inside one, it hides the pattern from a pass that runs before the removal
- * (`victim\u0001@example.com`). Removing it joins what stood on either side, which can hide a
- * pattern that was whole from a pass that runs after (`192.0.2.123\u0000a` becomes `192.0.2.123a`,
- * where the address no longer ends on a word boundary). Neither order sees both, so both run - and
- * the second pass cannot invent a match, since what the first one leaves behind is `***` and `0x…`.
+ * direction. Put inside one, it hides the pattern from the pass before the removal, and the pass
+ * after finds it; removing it joins what stood on either side, which can hide a pattern the pass
+ * after would have to find whole, and the pass before already saw. The second pass can fold what the
+ * first one wrote into a match of its own - `***` reads as the local part of an address - which
+ * costs the text around it and is the direction to be wrong in.
  */
 export function maskLogText(value: string): string {
   return maskValue(singleLine(maskValue(value)));
@@ -163,13 +175,13 @@ function format(value: unknown): string {
   try {
     // redact() handles Buffer + the array case (Array.isArray first), so the
     // raw value is never length/type-inspected here.
-    // `JSON.stringify` escapes the control characters but leaves U+2028 / U+2029 as they are, so
-    // the serialized section is put through the same collapse as the free-form values above - it is
-    // what keeps the trace the single line the caller below documents.
+    // `JSON.stringify` escapes the control characters but leaves U+2028 / U+2029 as they are, and
+    // the trace is the single line the caller below documents.
     s = singleLine(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
   } catch {
     return '(unserializable)';
   }
+
   return s.length > MAX_PART ? `${cutAtCodeUnits(s, MAX_PART)}(${s.length} code units)` : s;
 }
 

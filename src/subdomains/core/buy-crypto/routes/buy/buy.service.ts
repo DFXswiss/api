@@ -492,7 +492,7 @@ export class BuyService {
 
       const virtualIban = await this.virtualIbanService
         .getOrCreateFrickForUser(selector.userData, selector.currency)
-        .catch(() => null);
+        .catch((e) => this.infrastructureFailureOrRethrow(e));
       if (virtualIban?.bank.receive && virtualIban.bank.name === IbanBankName.FRICK) {
         return {
           bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
@@ -564,7 +564,7 @@ export class BuyService {
         selector.currency === 'EUR'
           ? this.virtualIbanService.getOrCreateFrickForUser(selector.userData, selector.currency)
           : this.virtualIbanService.createForUser(selector.userData, selector.currency)
-      ).catch(() => null);
+      ).catch((e) => this.infrastructureFailureOrRethrow(e));
     }
 
     if (virtualIban?.bank.receive) {
@@ -590,6 +590,17 @@ export class BuyService {
       bankId: bank.id,
       bankName: bank.name,
     };
+  }
+
+  // Personal-IBAN issuance can fail two ways that must be told apart before the collection-account
+  // fallback applies. An infrastructure failure (the provider is down) is exactly what the fallback
+  // exists for, so it degrades to null. A business rejection is a BadRequestException - above all the
+  // authoritative KYC_REQUIRED that issuance raises under its own lock against the freshly loaded,
+  // merge-resolved owner - and must propagate: swallowing it would let a stale KYC-50 snapshot on
+  // `selector.userData` pass the fallback's own KYC check and hand a rejected customer a usable account.
+  private infrastructureFailureOrRethrow(error: unknown): null {
+    if (error instanceof BadRequestException) throw error;
+    return null;
   }
 
   // Fallback when a personal IBAN could not be issued for a bank transfer (e.g. the provider is down).
