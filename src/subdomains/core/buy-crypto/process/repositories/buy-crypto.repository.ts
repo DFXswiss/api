@@ -65,8 +65,9 @@ export class BuyCryptoRepository extends BaseRepository<BuyCrypto> {
    * Transactions on a user's buy route, loaded with the history fields only.
    *
    * `routeId` narrows to a single route; without it the caller gets every buy route they own, which
-   * is what `GET /history` relies on. `fields` exists for the mutation test; nothing in production
-   * passes it.
+   * is what `GET /history` relies on. `fields` is what the mutation test in
+   * `buy-crypto-history.projection.spec.ts` re-runs the query with; `BuyCryptoService` calls this
+   * without it.
    */
   async findBuyHistory(
     userId: number,

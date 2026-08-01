@@ -12,6 +12,7 @@ import {
 } from 'src/shared/utils/projection-test.util';
 import { Country } from 'src/shared/models/country/country.entity';
 import { UserDtoMapper } from 'src/subdomains/generic/user/models/user/dto/user-dto.mapper';
+import { UserV2Dto } from 'src/subdomains/generic/user/models/user/dto/user-v2.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import {
   KycLevel,
@@ -116,7 +117,7 @@ describeProjection('GET /user v2 — read-path projection', () => {
   }
 
   /** The response the endpoint produces, through the projected query. */
-  async function userV2Of(id: number, activeUserId?: number, fields = USER_V2_PROJECTION.fields) {
+  async function userV2Of(id: number, activeUserId?: number, fields = USER_V2_PROJECTION.fields): Promise<UserV2Dto> {
     const userData = await userDataRepo.getUserV2(id, fields);
     return UserDtoMapper.mapUser(userData, activeUserId);
   }

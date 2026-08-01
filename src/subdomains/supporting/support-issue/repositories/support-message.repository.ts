@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ReadProjection } from 'src/shared/models/read-projection';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { Util } from 'src/shared/utils/util';
 import { EntityManager } from 'typeorm';
 import { SupportMessage } from '../entities/support-message.entity';
 
@@ -19,6 +20,13 @@ export const SUPPORT_MESSAGE_RESPONSE_FIELDS = [
   'supportMessage.message',
   'supportMessage.fileUrl',
 ];
+
+/** What the list rows show about the messages of an issue. */
+export interface SupportMessageStats {
+  count: number;
+  lastDate?: Date;
+  lastAuthor?: string;
+}
 
 /**
  * The message thread of an issue.
@@ -41,7 +49,8 @@ export class SupportMessageRepository extends BaseRepository<SupportMessage> {
   /**
    * The messages of an issue, newer than `fromMessageId`.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation test in `support-issue-view.projection.spec.ts` re-runs the query
+   * with; `SupportIssueService.getIssue` calls this without it.
    */
   async findThread(
     issueId: number,
@@ -56,6 +65,46 @@ export class SupportMessageRepository extends BaseRepository<SupportMessage> {
         // is not in its FROM clause.
         .andWhere('supportMessage.id > :fromMessageId', { fromMessageId })
         .getMany()
+    );
+  }
+
+  /**
+   * Message count, last date and last author per issue, for the list rows.
+   *
+   * Its own aggregate rather than part of the list query: the list is paginated, and joining the
+   * messages would multiply the rows before the page is cut.
+   */
+  async findStatsFor(issueIds: number[]): Promise<Map<number, SupportMessageStats>> {
+    if (issueIds.length === 0) return new Map();
+
+    const lastOf = (column: string) => (sub) =>
+      sub
+        .select(`m2.${column}`)
+        .from(SupportMessage, 'm2')
+        .where('m2."issueId" = m."issueId"')
+        .orderBy('m2.id', 'DESC')
+        .limit(1);
+
+    // Batched to stay below the parameter limit of a single statement.
+    const rows = await Util.doInBatchesAndJoin(
+      issueIds,
+      (chunk): Promise<{ issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[]> =>
+        this.createQueryBuilder('m')
+          .select('m."issueId"', 'issueId')
+          .addSelect('COUNT(*)', 'count')
+          .addSelect(lastOf('created'), 'lastDate')
+          .addSelect(lastOf('author'), 'lastAuthor')
+          .where('m."issueId" IN (:...ids)', { ids: chunk })
+          .groupBy('m."issueId"')
+          .getRawMany(),
+      1000,
+    );
+
+    return new Map(
+      rows.map((row) => [
+        +row.issueId,
+        { count: +row.count, lastDate: row.lastDate ?? undefined, lastAuthor: row.lastAuthor ?? undefined },
+      ]),
     );
   }
 }

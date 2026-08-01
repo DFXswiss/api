@@ -11,6 +11,7 @@ import {
 } from 'src/subdomains/supporting/support-issue/repositories/support-issue.repository';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueDtoMapper } from 'src/subdomains/supporting/support-issue/dto/support-issue-dto.mapper';
+import { SupportIssueInternalDataDto } from 'src/subdomains/supporting/support-issue/dto/support-issue.dto';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -120,7 +121,11 @@ describeProjection('GET /support/issue/:id/data — read-path projection', () =>
   }
 
   /** The response the endpoint produces, through the projected query. */
-  async function issueDataOf(id: number, fields = SUPPORT_ISSUE_DATA_PROJECTION.fields, hideLimitRequest = false) {
+  async function issueDataOf(
+    id: number,
+    fields = SUPPORT_ISSUE_DATA_PROJECTION.fields,
+    hideLimitRequest = false,
+  ): Promise<SupportIssueInternalDataDto> {
     const issue = await repository.findIssueData(id, fields);
     return SupportIssueDtoMapper.mapSupportIssueData(issue, hideLimitRequest);
   }

@@ -50,12 +50,20 @@ describeProjection('API key — read-path projection', () => {
    *
    * The key is assigned in memory before the secret is derived from it, which is what makes
    * `created` part of the read: `getSecret` hashes the two together.
+   *
+   * The production key mixes in the current time, so two calls a millisecond apart differ. Comparing
+   * whole responses across runs would then report every field as required — true of the timestamp,
+   * and evidence about nothing. The fixture keeps the dependency that matters, the account id, and
+   * leaves the timestamp out.
    */
-  async function apiKeyOf(id: number, fields = API_KEY_PROJECTION.fields) {
+  async function apiKeyOf(
+    id: number,
+    fields = API_KEY_PROJECTION.fields,
+  ): Promise<{ conflict: true } | { key: string; secret: string }> {
     const userData = await userDataRepo.getForApiKey(id, fields);
     if (userData.apiKeyCT) return { conflict: true as const };
 
-    userData.apiKeyCT = ApiKeyService.createKey(userData.id);
+    userData.apiKeyCT = `KEY-FOR-ACCOUNT-${userData.id}`;
 
     return { key: userData.apiKeyCT, secret: ApiKeyService.getSecret(userData) };
   }
@@ -93,10 +101,11 @@ describeProjection('API key — read-path projection', () => {
 
   // --- LEVEL 3: mutation --- //
 
-  it('level 3 — the creation date is required to derive the secret', async () => {
+  it('level 3 — the account id and the creation date are required', async () => {
     const userData = await seedAccount({ apiKeyCT: null });
 
-    await expectEveryFieldRequired(['userData.created'], (omitted) =>
+    // The id feeds the key, the creation date the secret derived from it.
+    await expectEveryFieldRequired(['userData.id', 'userData.created'], (omitted) =>
       apiKeyOf(userData.id, projectionFieldsWithout(API_KEY_PROJECTION.fields, omitted)),
     );
   }, 300000);
@@ -121,12 +130,13 @@ describeProjection('API key — read-path projection', () => {
     // endpoint fetched before.
     const full = await dataSource.getRepository(UserData).findOneBy({ id: userData.id });
 
-    // The key itself is random, so the two rows are given the same one; what has to agree is the
-    // secret derived from it, which is where the creation date enters.
+    // Same key on both rows, so what has to agree is the secret derived from it — which is where
+    // the creation date enters, and the only value the projection can get wrong here.
     const key = ApiKeyService.createKey(full.id);
     projected.apiKeyCT = key;
     full.apiKeyCT = key;
 
     expect(ApiKeyService.getSecret(projected)).toEqual(ApiKeyService.getSecret(full));
+    expect(projected.id).toEqual(full.id);
   }, 120000);
 });

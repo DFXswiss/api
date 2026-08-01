@@ -13,6 +13,7 @@ import {
   SupportIssueListOrderBy,
 } from 'src/subdomains/supporting/support-issue/dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from 'src/subdomains/supporting/support-issue/dto/support-issue-dto.mapper';
+import { SupportIssueListDto } from 'src/subdomains/supporting/support-issue/dto/support-issue.dto';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportMessage } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
 import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
@@ -27,6 +28,7 @@ import {
   SupportIssueListQuery,
   SupportIssueRepository,
 } from 'src/subdomains/supporting/support-issue/repositories/support-issue.repository';
+import { SupportMessageRepository } from 'src/subdomains/supporting/support-issue/repositories/support-message.repository';
 import { DataSource } from 'typeorm';
 
 const SCHEMA = 'support_issue_list_projection_spec';
@@ -44,23 +46,17 @@ const SCHEMA = 'support_issue_list_projection_spec';
 describeProjection('support issue list — read-path projection', () => {
   let dataSource: DataSource;
   let issues: SupportIssueRepository;
+  let messages: SupportMessageRepository;
 
   beforeAll(async () => {
     dataSource = await createProjectionDataSource(SCHEMA);
     issues = new SupportIssueRepository(dataSource.manager);
+    messages = new SupportMessageRepository(dataSource.manager);
   }, 300000);
 
   afterAll(async () => {
     await destroyProjectionDataSource(dataSource, SCHEMA);
   });
-
-  /**
-   * The response fields the projection under test cannot fill.
-   *
-   * They come from the aggregate the endpoint runs over the messages afterwards — a separate query
-   * that names its own columns already — so dropping a field of this projection cannot change them.
-   */
-  const MESSAGE_STATS_FIELDS = ['data[0].messageCount', 'data[0].lastMessageDate', 'data[0].lastMessageAuthor'];
 
   const BASE_QUERY: SupportIssueListQuery = {
     terms: [],
@@ -92,21 +88,45 @@ describeProjection('support issue list — read-path projection', () => {
     return { issue, userData };
   }
 
-  /** The response the endpoint produces, through the projected query. */
-  async function listOf(query: Partial<SupportIssueListQuery>, fields = SUPPORT_ISSUE_LIST_PROJECTION.fields) {
+  /**
+   * The response the endpoint produces: the projected page, and the message aggregate the endpoint
+   * runs over it. Both queries are part of the answer, so both belong in every level.
+   */
+  async function listOf(
+    query: Partial<SupportIssueListQuery>,
+    fields = SUPPORT_ISSUE_LIST_PROJECTION.fields,
+  ): Promise<{ data: SupportIssueListDto[]; total: number }> {
     const [rows, total] = await issues.findIssueList({ ...BASE_QUERY, ...query }, fields);
-    return { data: rows.map((row) => SupportIssueDtoMapper.mapSupportIssueListItem(row)), total };
+    const stats = await messages.findStatsFor(rows.map((row) => row.id));
+
+    return {
+      data: rows.map((row) => SupportIssueDtoMapper.mapSupportIssueListItem(row, stats.get(row.id))),
+      total,
+    };
   }
 
   // --- LEVEL 1: completeness --- //
 
   it('level 1 — a listed issue answers with no empty field', async () => {
     const { issue } = await seedIssue();
+    // The three message fields of a row come from the aggregate, so a row without messages leaves
+    // them legitimately empty — the completeness assertion needs one that has them.
+    await seedEntity<SupportMessage>(dataSource, SupportMessage, { values: { issue } });
 
     const list = await listOf({ departments: [Department.SUPPORT], clerk: issue.clerk });
 
     expect(list.data).toHaveLength(1);
-    expectNoEmptyFields(list, MESSAGE_STATS_FIELDS);
+    expectNoEmptyFields(list);
+  }, 120000);
+
+  it('level 1 — an issue without messages answers with a zero count and no last message', async () => {
+    const { issue } = await seedIssue();
+
+    const [row] = (await listOf({ departments: [Department.SUPPORT], clerk: issue.clerk })).data;
+
+    expect(row.messageCount).toEqual(0);
+    expect(row.lastMessageDate).toBeUndefined();
+    expect(row.lastMessageAuthor).toBeUndefined();
   }, 120000);
 
   // --- LEVEL 2: variants --- //
@@ -194,16 +214,18 @@ describeProjection('support issue list — read-path projection', () => {
   );
 
   it('level 2 — the id branch matches by id alone, and only for a term that fits int4', async () => {
-    const { issue } = await seedIssue({ name: 'no-digits-here', clerk: 'no-digits-either' });
+    const clerk = 'id-branch-clerk';
+    const { issue } = await seedIssue({ name: 'no-digits-here', uid: 'uid-without-digits', clerk });
+    const scoped = (term: string) => listOf({ clerk, terms: [term] });
 
-    // The id branch is what makes a pasted number find the issue: none of the text fields of this
-    // fixture contains a digit, so a match can only come from `issue.id = :termNId`.
-    expect((await listOf({ terms: [String(issue.id)] })).data.map((r) => r.uid)).toEqual([issue.uid]);
+    // Scoped to this issue's clerk, so the only candidate row is this one — and none of its text
+    // fields carries a digit, so a match can only come from `issue.id = :termNId`.
+    expect((await scoped(String(issue.id))).data.map((row) => row.uid)).toEqual([issue.uid]);
 
     // At int4 max the branch is still emitted; one above it the guard has to drop the comparison,
-    // or Postgres raises 22003 and the whole search fails rather than answering nothing.
-    expect((await listOf({ terms: ['2147483647'] })).data.map((r) => r.uid)).not.toContain(issue.uid);
-    expect((await listOf({ terms: ['41791234567'] })).data.map((r) => r.uid)).not.toContain(issue.uid);
+    // or Postgres raises 22003 and the search fails instead of answering nothing.
+    expect((await scoped('2147483647')).data).toHaveLength(0);
+    expect((await scoped('41791234567')).data).toHaveLength(0);
   }, 120000);
 
   it('level 2 — the id tie-break orders rows that share a sort key', async () => {
@@ -243,17 +265,13 @@ describeProjection('support issue list — read-path projection', () => {
 
   it('level 3 — every field feeding the list response is required', async () => {
     const { issue } = await seedIssue();
+    await seedEntity<SupportMessage>(dataSource, SupportMessage, { values: { issue } });
 
-    await expectEveryFieldRequired(
-      SUPPORT_ISSUE_LIST_RESPONSE_FIELDS,
-      (omitted) =>
-        listOf(
-          { departments: [Department.SUPPORT], clerk: issue.clerk },
-          projectionFieldsWithout(SUPPORT_ISSUE_LIST_PROJECTION.fields, omitted),
-        ),
-      // The same three as level 1: they are fed by the separate aggregate over the messages, which
-      // this projection does not cover and which no field of it can influence.
-      MESSAGE_STATS_FIELDS,
+    await expectEveryFieldRequired(SUPPORT_ISSUE_LIST_RESPONSE_FIELDS, (omitted) =>
+      listOf(
+        { departments: [Department.SUPPORT], clerk: issue.clerk },
+        projectionFieldsWithout(SUPPORT_ISSUE_LIST_PROJECTION.fields, omitted),
+      ),
     );
   }, 300000);
 
@@ -261,6 +279,7 @@ describeProjection('support issue list — read-path projection', () => {
 
   it('level 4 — the projected response equals the one from a full load', async () => {
     const { issue } = await seedIssue();
+    await seedEntity<SupportMessage>(dataSource, SupportMessage, { values: { issue } });
 
     const projected = await listOf({ departments: [Department.SUPPORT], clerk: issue.clerk });
     // The unprojected load is the second source: every column of the row, which is what the query
@@ -269,6 +288,9 @@ describeProjection('support issue list — read-path projection', () => {
       .getRepository(SupportIssue)
       .find({ where: { clerk: issue.clerk }, loadEagerRelations: false });
 
-    expect(projected.data).toEqual(full.map((row) => SupportIssueDtoMapper.mapSupportIssueListItem(row)));
+    const stats = await messages.findStatsFor(full.map((row) => row.id));
+    expect(projected.data).toEqual(
+      full.map((row) => SupportIssueDtoMapper.mapSupportIssueListItem(row, stats.get(row.id))),
+    );
   }, 120000);
 });

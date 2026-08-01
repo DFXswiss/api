@@ -36,7 +36,8 @@ export class UserRepository extends BaseRepository<User> {
    * `GET /kyc/:id/documents` reads nothing else off the row: the response is assembled from the
    * document store, keyed by that id. The unprojected load reaches 328 columns for it.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation test in `kyc-data.projection.spec.ts` re-runs the query with;
+   * `KycService` calls this without it.
    */
   async findAccountIdForAddress(
     address: string,

@@ -235,7 +235,8 @@ export class CustodyOrderService {
   /**
    * A user's custody order history.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation test in `custody-order-history.projection.spec.ts` re-runs the
+   * query with; the controller calls this without it.
    */
   async getOrdersByUserData(
     userDataId: number,

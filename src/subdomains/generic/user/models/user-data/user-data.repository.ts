@@ -106,6 +106,8 @@ const volumeFields = (alias: string): string[] =>
  * so both are joined below for their primary key alone.
  */
 export const USER_V2_ACCOUNT_FIELDS = [
+  // The response keys itself by this: `mapUser` returns it as `accountId`.
+  'userData.id',
   'userData.accountType',
   'userData.mail',
   'userData.phone',
@@ -196,9 +198,9 @@ export const USER_V2_PROJECTION = new ReadProjection<UserData>(
     ['user.wallet', 'userWallet'],
   ],
   [...USER_V2_ACCOUNT_FIELDS, ...USER_V2_LANGUAGE_AND_CURRENCY_FIELDS, ...USER_V2_ADDRESS_FIELDS],
-  // Never shown: the account id the response is keyed by, the status the endpoint refuses merged
-  // accounts on, and the wallet key that makes the ORM materialise the joined row.
-  ['userData.id', 'userData.status', 'userWallet.id'],
+  // Never shown: the status the endpoint refuses merged accounts on before it maps anything, and
+  // the wallet key that makes the ORM materialise the joined row.
+  ['userData.status', 'userWallet.id'],
 );
 
 /**
@@ -207,7 +209,12 @@ export const USER_V2_PROJECTION = new ReadProjection<UserData>(
  * `apiKeyCT` is read twice: once to refuse a second key, and once after the new one is assigned,
  * because `ApiKeyService.getSecret` hashes it together with `created`.
  */
-export const API_KEY_RESPONSE_FIELDS = ['userData.apiKeyCT', 'userData.created'];
+export const API_KEY_RESPONSE_FIELDS = [
+  // The key is derived from the account id, and the secret from the key and the creation date.
+  'userData.id',
+  'userData.apiKeyCT',
+  'userData.created',
+];
 
 /**
  * `POST /user/apiKey/CT` — 253 columns before, for two values and the id.
@@ -219,8 +226,6 @@ export const API_KEY_PROJECTION = new ReadProjection<UserData>(
   'userData',
   [],
   API_KEY_RESPONSE_FIELDS,
-  // Not part of the response, but the key is derived from it and the update is scoped by it.
-  ['userData.id'],
 );
 
 @Injectable()
@@ -232,7 +237,8 @@ export class UserDataRepository extends CachedRepository<UserData> {
   /**
    * The account, carrying what an API key is built from.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation tests in `user-profile.projection.spec.ts`, `user-v2.projection.spec.ts`
+   * and `api-key.projection.spec.ts` re-run the query with; the services call these without it.
    */
   async getForApiKey(id: number, fields: ReadonlyArray<string> = API_KEY_PROJECTION.fields): Promise<UserData> {
     return API_KEY_PROJECTION.apply(this.createQueryBuilder('userData'), fields)
@@ -243,7 +249,8 @@ export class UserDataRepository extends CachedRepository<UserData> {
   /**
    * Loads exactly what the v2 user response needs, users and wallets included.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation tests in `user-profile.projection.spec.ts`, `user-v2.projection.spec.ts`
+   * and `api-key.projection.spec.ts` re-run the query with; the services call these without it.
    */
   async getUserV2(id: number, fields: ReadonlyArray<string> = USER_V2_PROJECTION.fields): Promise<UserData> {
     return USER_V2_PROJECTION.apply(this.createQueryBuilder('userData'), fields)
@@ -254,8 +261,8 @@ export class UserDataRepository extends CachedRepository<UserData> {
   /**
    * Loads exactly what the profile response needs.
    *
-   * `fields` exists for the mutation test, which re-runs this query with one field left out; nothing
-   * in production passes it.
+   * `fields` is what the mutation tests in `user-profile.projection.spec.ts`, `user-v2.projection.spec.ts`
+   * and `api-key.projection.spec.ts` re-run the query with; the services call these without it.
    */
   async getProfile(id: number, fields: ReadonlyArray<string> = USER_PROFILE_PROJECTION.fields): Promise<UserData> {
     return USER_PROFILE_PROJECTION.apply(this.createQueryBuilder('userData'), fields)

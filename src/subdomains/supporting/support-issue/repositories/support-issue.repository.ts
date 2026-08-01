@@ -121,6 +121,9 @@ export const SUPPORT_ISSUE_DATA_LIMIT_REQUEST_FIELDS = [
  * `SUPPORT_MESSAGE_RESPONSE_FIELDS`.
  */
 export const SUPPORT_ISSUE_RESPONSE_FIELDS = [
+  // `mapTransaction` decides between a transaction object and `null` on this, so it determines the
+  // response even though it is never shown.
+  'issueTransaction.id',
   'supportIssue.uid',
   'supportIssue.state',
   'supportIssue.type',
@@ -135,9 +138,8 @@ export const SUPPORT_ISSUE_RESPONSE_FIELDS = [
 /**
  * `GET /support/issue` and `GET /support/issue/:id` — 450 columns before, for nine values.
  *
- * `supportIssue.id` is a guard rather than a response field: the mapper never shows it, but
- * `getIssue` loads the message thread by it afterwards. `issueTransaction.id` is what
- * `mapTransaction` checks to decide whether there is a transaction at all.
+ * `supportIssue.id` is a guard rather than a response field: the mapper never shows it and no value
+ * depends on it, but `getIssue` loads the message thread by it afterwards.
  */
 export const SUPPORT_ISSUE_PROJECTION = new ReadProjection<SupportIssue>(
   'supportIssue',
@@ -146,7 +148,7 @@ export const SUPPORT_ISSUE_PROJECTION = new ReadProjection<SupportIssue>(
     ['supportIssue.limitRequest', 'issueLimitRequest'],
   ],
   SUPPORT_ISSUE_RESPONSE_FIELDS,
-  ['supportIssue.id', 'issueTransaction.id'],
+  ['supportIssue.id'],
 );
 
 /**
@@ -259,7 +261,8 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
   /**
    * The issue list, with the page and the unpaged total.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation test in `support-issue-list.projection.spec.ts` re-runs the query
+   * with; `SupportIssueService.getSupportIssueList` calls this without it.
    */
   async findIssueList(
     query: SupportIssueListQuery,
@@ -288,10 +291,8 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
       // larger values with 22003, which would 500 the entire search — a pasted phone number
       // like "41791234567" is a realistic trigger). Keeps the predicate on the PK index (no
       // cast-to-text) and avoids partial-match surprises (term "42" doesn't match id 142).
-      const idTerm =
-        /^\d+$/.test(query.terms[i]) && parseInt(query.terms[i], 10) <= 2147483647
-          ? parseInt(query.terms[i], 10)
-          : null;
+      const numeric = +query.terms[i];
+      const idTerm = /^\d+$/.test(query.terms[i]) && numeric <= 2147483647 ? numeric : null;
       const idClause = idTerm != null ? ` OR issue.id = :${param}Id` : '';
       // The message branch goes through the query builder rather than a literal table name, so the
       // table is resolved the way the ORM resolves every other one — a bare `support_message` is
@@ -325,7 +326,8 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
   /**
    * Loads exactly what the internal issue view needs.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation test in `support-issue-list.projection.spec.ts` re-runs the query
+   * with; `SupportIssueService.getSupportIssueList` calls this without it.
    */
   async findIssueData(
     id: number,

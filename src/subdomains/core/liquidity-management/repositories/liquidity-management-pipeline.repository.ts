@@ -33,7 +33,8 @@ export class LiquidityManagementPipelineRepository extends BaseRepository<Liquid
    * Returns the row rather than the status so that a missing pipeline stays distinguishable from a
    * pipeline whose status is not set — the endpoint answers 404 only for the first.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation test in `pipeline-status.projection.spec.ts` re-runs the query
+   * with; `LiquidityManagementPipelineService.getPipelineStatus` calls this without it.
    */
   async findForStatus(
     id: number,

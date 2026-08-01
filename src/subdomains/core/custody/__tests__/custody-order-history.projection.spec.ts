@@ -4,6 +4,7 @@ import {
   CUSTODY_ORDER_HISTORY_RESPONSE_FIELDS,
 } from 'src/subdomains/core/custody/repositories/custody-order.repository';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
+import { CustodyOrderHistoryDto } from 'src/subdomains/core/custody/dto/output/custody-order-history.dto';
 import { CustodyOrderHistoryDtoMapper } from 'src/subdomains/core/custody/mappers/custody-order-history-dto.mapper';
 import { CustodyOrderStatus, CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -72,7 +73,10 @@ describeProjection('GET /custody/order — read-path projection', () => {
   }
 
   /** The response the endpoint produces, through the projected query. */
-  async function historyOf(userDataId: number, fields = CUSTODY_ORDER_HISTORY_PROJECTION.fields) {
+  async function historyOf(
+    userDataId: number,
+    fields = CUSTODY_ORDER_HISTORY_PROJECTION.fields,
+  ): Promise<CustodyOrderHistoryDto[]> {
     const orders = await CUSTODY_ORDER_HISTORY_PROJECTION.apply(
       dataSource.getRepository(CustodyOrder).createQueryBuilder('custodyOrder'),
       fields,

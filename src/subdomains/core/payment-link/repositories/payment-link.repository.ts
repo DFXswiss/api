@@ -80,7 +80,8 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
   /**
    * One link, carrying what a point-of-sale link is built from.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation test in `pos-link.projection.spec.ts` re-runs the query with;
+   * `PaymentLinkService.createPosLinkAdmin` calls this without it.
    */
   async findForPosLink(id: number, fields: ReadonlyArray<string> = POS_LINK_PROJECTION.fields): Promise<PaymentLink> {
     return POS_LINK_PROJECTION.apply(this.createQueryBuilder('paymentLink'), fields)

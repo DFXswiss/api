@@ -8,6 +8,7 @@ import {
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDtoMapper } from 'src/subdomains/generic/user/models/user/dto/user-dto.mapper';
+import { UserProfileDto } from 'src/subdomains/generic/user/models/user/dto/user-profile.dto';
 import {
   createProjectionDataSource,
   describeProjection,
@@ -61,7 +62,7 @@ describeProjection('GET /user/profile — read-path projection', () => {
   }
 
   /** The response the endpoint produces, through the projected query. */
-  async function profileOf(id: number, fields = USER_PROFILE_PROJECTION.fields) {
+  async function profileOf(id: number, fields = USER_PROFILE_PROJECTION.fields): Promise<UserProfileDto> {
     const userData = await repository.getProfile(id, fields);
     return UserDtoMapper.mapProfile(userData);
   }

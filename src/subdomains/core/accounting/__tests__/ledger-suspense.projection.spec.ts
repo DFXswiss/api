@@ -9,6 +9,7 @@ import {
   seedEntity,
 } from 'src/shared/utils/projection-test.util';
 import { LedgerDtoMapper, SuspenseLegRow } from 'src/subdomains/core/accounting/dto/ledger-dto.mapper';
+import { SuspenseLegDto } from 'src/subdomains/core/accounting/dto/ledger-reconciliation.dto';
 import { AccountType, LedgerAccount } from 'src/subdomains/core/accounting/entities/ledger-account.entity';
 import { LedgerLeg } from 'src/subdomains/core/accounting/entities/ledger-leg.entity';
 import { LedgerTx } from 'src/subdomains/core/accounting/entities/ledger-tx.entity';
@@ -70,7 +71,9 @@ describeProjection('ledger suspense — read-path projection', () => {
   }
 
   /** The response the endpoint produces, through the projected query. */
-  async function suspenseOf(fields = SUSPENSE_LEG_PROJECTION.fields) {
+  async function suspenseOf(
+    fields = SUSPENSE_LEG_PROJECTION.fields,
+  ): Promise<{ totalChf: number; legs: SuspenseLegDto[] }> {
     const now = new Date();
     const rows = await legs.findSuspenseLegs(fields);
     const totalChf = Util.round(Util.sum(rows.map((l) => l.amountChf ?? 0)), 2);

@@ -38,7 +38,8 @@ export class WalletRepository extends CachedRepository<Wallet> {
   /**
    * A wallet with its users' KYC state, and nothing else.
    *
-   * `fields` exists for the mutation test; nothing in production passes it.
+   * `fields` is what the mutation test in `kyc-data.projection.spec.ts` re-runs the query with;
+   * `KycService` calls this without it.
    */
   async findKycData(
     walletId: number,
