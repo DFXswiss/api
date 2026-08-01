@@ -72,10 +72,17 @@ describe('describeCaller', () => {
   });
 
   it('caps each header, so an oversized one cannot flood the log line', () => {
+    // The origin has to be a parsable URL to reach the cap at all - an unparsable one is dropped
+    // by `callerOrigin` before it gets there, which would leave the cap untested.
     const caller = describeCaller(
-      req({ 'x-client': 'c'.repeat(500), origin: 'o'.repeat(500), 'user-agent': 'u'.repeat(500) }),
+      req({
+        'x-client': 'c'.repeat(500),
+        origin: `https://${'a'.repeat(100)}.example.com`,
+        'user-agent': 'u'.repeat(500),
+      }),
     );
 
+    expect(caller).toContain(`origin=https://${'a'.repeat(56)}\u2026`);
     expect(caller.length).toBeLessThan(250);
   });
 
