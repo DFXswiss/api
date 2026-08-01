@@ -229,7 +229,7 @@ describeProjection('support issue list — read-path projection', () => {
   }, 120000);
 
   it('level 2 — the id tie-break orders rows that share a sort key', async () => {
-    // Two issues in the same state, sorted by state: the primary key is equal for both, so the
+    // Two issues in the same state, sorted by state: the primary sort key is equal for both, so the
     // order is decided by the id tie-break alone. Without it the order is whatever storage returns,
     // and a page boundary can drop or repeat a row.
     const first = await seedIssue({ clerk: 'tie-break', state: SupportIssueInternalState.IN_PROGRESS });

@@ -69,9 +69,12 @@ export interface SeedSpec {
   relations?: Record<string, SeedSpec | true>;
 }
 
-// One counter for the whole process. Every generated value is distinct, which is what makes an
-// empty field in a response proof that the query failed to load something — and it keeps unique
-// constraints satisfied when a spec seeds the same entity twice.
+// One counter for the whole process. Every generated number, date and string is distinct, which is
+// what keeps unique constraints satisfied when a spec seeds the same entity twice. Booleans and
+// enums cannot be: a boolean has two values and an enum as many as it declares, so a spec that needs
+// to tell two such columns apart pins them in the fixture. What every generated value is, is
+// non-empty — which is what makes an empty field in a response proof that the query failed to load
+// something.
 let counter = 0;
 const nextSeed = (): number => ++counter;
 
@@ -153,7 +156,7 @@ function isPinned(spec: SeedSpec, column: ColumnMetadata): boolean {
 }
 
 /**
- * Inserts one row with a distinct value in every column, creating required relations recursively.
+ * Inserts one row with a non-empty value in every column, creating required relations recursively.
  *
  * Generated from the metadata on purpose: a hand-written fixture that leaves a field empty makes
  * the completeness test green and the defect invisible.

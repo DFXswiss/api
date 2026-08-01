@@ -47,15 +47,15 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,105 load sites in this repository, **113** load less than a whole row:
-105 query builders that name their columns, three that end in `getCount()` or `getExists()` and
-materialise none, and the five raw statements. The other 992 request whole rows — 957 through the
+**No read model.** Of the 1,105 load sites in this repository, **116** load less than a whole row:
+108 query builders that name their columns, three that end in `getCount()` or `getExists()` and
+materialise none, and the five raw statements. The other 989 request whole rows — 957 through the
 `find` family, and of the 143 query builders, 17 pass the root alias to `.select(...)`, which reads
-like a projection but is not, 17 pass no select at all, and one projects its root but pulls a
+like a projection but is not, 14 pass no select at all, and one projects its root but pulls a
 relation in whole. The same entities serve persistence, business logic and pure output paths such
 as invoices, receipts, history and exports — which need fields, not objects.
 
-Read the first number carefully, because an earlier revision of this document got it wrong. The 87
+Read the first number carefully, because an earlier revision of this document got it wrong. The 90
 query builders that name columns one at a time are almost entirely counts, maxima and id lookups —
 `.select('userData.id', 'id')`, `.select('COUNT(*)', 'count')` and the like — and they select **one
 column at the median**. They are projections, and they were miscounted as full loads because the
@@ -217,9 +217,9 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-A hundred and five sites carry a field list. The table below covers the six that were known when this
-document was written — one query builder and five raw statements — and none of them was converted,
-so it is unchanged. Another 87 are the query builders that name columns one at a time; they are
+A hundred and thirteen sites carry a field list. The table below covers the six that were known when
+this document was written — one query builder and five raw statements — and none of them was
+converted, so it is unchanged. Another 90 are the query builders that name columns one at a time; they are
 not covered by these levels either, which is what their endpoints' `0/4` in
 [endpoints.md](endpoints.md) records. The remaining 17 belong to the endpoints converted so far and
 are covered on all four. Sites a conversion adds are recorded there too, where only
@@ -296,7 +296,7 @@ The projection tests use that same gate. What they add lives in
   specs cannot collide, and fills it from the entity metadata via `synchronize` rather than from
   replayed migrations — the reference for a projection is the entity definition, not the migration
   history. Measured: 112 entities, 99 tables, 1,736 columns, about half a minute per spec file.
-- **The fixtures**, generated from the same metadata. Every scalar column gets a distinct value and
+- **The fixtures**, generated from the same metadata. Every scalar column gets a non-empty value and
   required relations are created recursively, so an empty field in a response proves the query
   failed to load something. Three kinds of value have to be pinned by hand, and all three are the
   fixture's business rather than the projection's: enum columns stored as text (the metadata reports

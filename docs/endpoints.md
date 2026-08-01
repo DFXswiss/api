@@ -219,7 +219,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/dashboard/accounting/ledger/accounts` | hidden | whole rows | 54 | not yet | yes | `LedgerController.getAccounts` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/accounts/:accountId/legs` | hidden | whole rows | 30 | not yet | yes | `LedgerController.getAccountDetail` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/equity-comparison` | hidden | whole rows | 54 | not yet | yes | `LedgerController.getEquityComparison` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
-| GET | 1 |  | `/dashboard/accounting/ledger/margin` | hidden | projected | 11 | 0/4 | yes | `LedgerController.getMargin` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
+| GET | 1 |  | `/dashboard/accounting/ledger/margin` | hidden | projected | 4 | 0/4 | yes | `LedgerController.getMargin` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/reconciliation` | hidden | whole rows | 54 | not yet | yes | `LedgerController.getReconStatus` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/suspense` | hidden | projected | 10 | 4/4 | yes | `LedgerController.getSuspense` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/changes` | hidden | whole rows | 11 | not yet |  | `DashboardFinancialController.getFinancialChanges` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
@@ -255,7 +255,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 1 |  | `/fiatOutput/:id` | hidden | whole rows | 59 | not yet |  | `FiatOutputController.update` | `subdomains/supporting/fiat-output/fiat-output.controller.ts` |
 | GET | 1 |  | `/frankencoin/info` | public | whole rows | 11 | not yet |  | `FrankencoinController.getInfo` | `integration/blockchain/frankencoin/controllers/frankencoin.controller.ts` |
 | POST | 1 |  | `/gs/db` | hidden | caller-defined | 13 | n/a | yes | `GsController.getDbData` | `subdomains/generic/gs/gs.controller.ts` |
-| POST | 1 |  | `/gs/db/custom` | hidden | caller-defined | — | n/a | yes | `GsController.getExtendedData` | `subdomains/generic/gs/gs.controller.ts` |
+| POST | 1 |  | `/gs/db/custom` | hidden | caller-defined | 2 | n/a | yes | `GsController.getExtendedData` | `subdomains/generic/gs/gs.controller.ts` |
 | POST | 1 |  | `/gs/debug` | hidden | projected | — | n/a | yes | `GsController.executeDebugQuery` | `subdomains/generic/gs/gs.controller.ts` |
 | POST | 1 |  | `/gs/evm/bridgeApproval` | hidden | whole rows | 33 | not yet |  | `GsEvmController.approveBridge` | `subdomains/generic/gs/gs-evm.controller.ts` |
 | POST | 1 |  | `/gs/evm/coinTransaction` | hidden | whole rows | 6 | not yet |  | `GsEvmController.sendCoinTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |

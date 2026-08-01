@@ -45,7 +45,7 @@ describeProjection('GET /user/profile — read-path projection', () => {
     await destroyProjectionDataSource(dataSource, SCHEMA);
   });
 
-  /** Fully populated fixture: every column of every participating entity carries a distinct value. */
+  /** Fully populated fixture: every column of every participating entity carries a non-empty value. */
   async function seedAccount(accountType: AccountType): Promise<UserData> {
     return seedEntity<UserData>(dataSource, UserData, {
       values: { accountType },
