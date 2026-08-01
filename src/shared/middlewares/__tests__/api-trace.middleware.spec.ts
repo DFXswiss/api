@@ -185,6 +185,36 @@ describe('apiTraceMiddleware', () => {
     expect(line).toContain('<binary 7 bytes>');
   });
 
+  it('masks an IBAN by value, under a key the name-based redaction does not cover', () => {
+    const { lines } = runTrace(
+      realunitReq({ reference: 'CH9300762011623852957', note: 'CH93 0076 2011 6238 5295 7' }),
+      200,
+      (res) => res.json({}),
+    );
+    const line = lines.join('\n');
+
+    expect(line).not.toContain('CH9300762011623852957');
+    expect(line).not.toContain('6238 5295 7');
+  });
+
+  it('leaves a longer alphanumeric run intact, so a transaction hash is not mistaken for an IBAN', () => {
+    const hash = `CH93${'a1b2c3d4e5'.repeat(4)}`;
+    const { lines } = runTrace(realunitReq({ reference: hash }), 200, (res) => res.json({}));
+
+    expect(lines.join('\n')).toContain(hash);
+  });
+
+  it('keeps the trace on one line, including the separators JSON.stringify leaves raw', () => {
+    // `JSON.stringify` escapes the control characters, but not U+2028 / U+2029.
+    const note = 'first\u2028second\u2029third\nfourth';
+    const { lines } = runTrace(realunitReq({ note }), 200, (res) => res.json({}));
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain('\u2028');
+    expect(lines[0]).not.toContain('\u2029');
+    expect(lines[0]).toContain('first second third');
+  });
+
   it('logs metadata-only for a realunit-app call to a non-realunit path', () => {
     const req = {
       method: 'POST',

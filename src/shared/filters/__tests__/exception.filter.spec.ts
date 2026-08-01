@@ -99,6 +99,32 @@ describe('ApiExceptionFilter', () => {
     expect(msg).not.toContain('foo@bar.com');
   });
 
+  it('keeps the reason on one line, so a value interpolated into it cannot forge a second', () => {
+    // Exception messages interpolate request values (`Invalid address for ...: ${address}`), so a
+    // line break in one of those would otherwise reach the log as a line of its own.
+    filter.catch(
+      new BadRequestException('Invalid address for to: abc\nWARN [ApiExceptionFilter] forged line'),
+      host(req(), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('\n');
+    expect(msg).toContain('abc WARN');
+  });
+
+  it('masks an IBAN in the reason, wherever it sits', () => {
+    filter.catch(
+      new BadRequestException('Account CH9300762011623852957 and CH93 0076 2011 6238 5295 7 rejected'),
+      host(req(), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('CH9300762011623852957');
+    expect(msg).not.toContain('6238 5295 7');
+    // and it masks the account, not the sentence around it
+    expect(msg).toContain('Account *** and *** rejected');
+  });
+
   it('does NOT log routine client errors (401/403/404/429) — they are already in the access log', () => {
     const routine = [
       new UnauthorizedException(),

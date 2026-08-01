@@ -22,6 +22,13 @@ export const REDACT_KEY =
 const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
 const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
 const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
+// Country code, check digits, then the account part - written in one run, or in the groups of four
+// an IBAN is printed in. Both branches are bounded to the 15-34 characters an IBAN has, so a longer
+// alphanumeric run (a transaction hash, a token) has no word boundary where the match could end and
+// stays intact, as with the wallet address above. The grouped branch takes fixed-width groups
+// rather than "alphanumerics and spaces", which would run past the IBAN and swallow the words after
+// it.
+const IBAN = /\b[a-z]{2}\d{2}(?:[a-z0-9]{11,30}|(?: [a-z0-9]{4}){2,6}(?: [a-z0-9]{1,3})?)\b/gi;
 
 export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
@@ -30,7 +37,7 @@ const REDACTED = '***';
 const TRUNCATED = '<…truncated…>';
 
 export function maskValue(s: string): string {
-  return s.replace(WALLET_ADDRESS, '0x…').replace(EMAIL, REDACTED).replace(IPV4, REDACTED);
+  return s.replace(WALLET_ADDRESS, '0x…').replace(EMAIL, REDACTED).replace(IPV4, REDACTED).replace(IBAN, REDACTED);
 }
 
 export function maskUrl(url: string): string {
@@ -41,6 +48,25 @@ export function maskUrl(url: string): string {
 // (which include the ordinary line breaks and the ANSI escape) plus the two Unicode separators
 // that sit outside that category.
 const LINE_BREAKING = /[\p{C}\u2028\u2029]/gu;
+
+/**
+ * Collapses everything that could break a log line into spaces, so a crafted value cannot forge a
+ * second line or smuggle an ANSI escape into the console stream. Every string that reaches a log
+ * line from a request goes through this.
+ */
+export function singleLine(value: string): string {
+  return value.replace(LINE_BREAKING, ' ');
+}
+
+/**
+ * Caps a rendered value, cutting between characters rather than between code units: `slice` would
+ * halve a surrogate pair sitting on the boundary and leave the stray half in front of the ellipsis,
+ * which reaches the log as a replacement character. Bounded work - callers cap what they pass.
+ */
+export function capCharacters(value: string, maxLength: number): string {
+  const characters = [...value];
+  return characters.length > maxLength ? `${characters.slice(0, maxLength).join('')}\u2026` : value;
+}
 
 /**
  * Renders an untrusted value (header, rejected body field) for inclusion in a log line: anything
@@ -57,13 +83,7 @@ const LINE_BREAKING = /[\p{C}\u2028\u2029]/gu;
 export function maskLogValue(value: string, maxLength: number): string {
   if (value.length > MAX_STRING) return `<${value.length} code units>`;
 
-  const masked = maskValue(value.replace(LINE_BREAKING, ' '));
-
-  // Cut between characters, not between code units: `slice` would halve a surrogate pair sitting
-  // on the boundary and leave the stray half in front of the ellipsis, which reaches the log as a
-  // replacement character. Bounded work — the oversize case above already returned.
-  const characters = [...masked];
-  return characters.length > maxLength ? `${characters.slice(0, maxLength).join('')}…` : masked;
+  return capCharacters(maskValue(singleLine(value)), maxLength);
 }
 
 // `budget` bounds the total work per section: each processed node deducts from
@@ -113,7 +133,10 @@ function format(value: unknown): string {
   try {
     // redact() handles Buffer + the array case (Array.isArray first), so the
     // raw value is never length/type-inspected here.
-    s = JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET }));
+    // `JSON.stringify` escapes the control characters but leaves U+2028 / U+2029 as they are, so
+    // the serialized section is put through the same collapse as every other logged value - it is
+    // what keeps the trace the single line the caller below documents.
+    s = singleLine(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
   } catch {
     return '(unserializable)';
   }

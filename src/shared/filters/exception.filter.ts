@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
-import { maskUrl, maskValue } from 'src/shared/middlewares/api-trace.middleware';
+import { capCharacters, maskUrl, maskValue, singleLine } from 'src/shared/middlewares/api-trace.middleware';
 import { ValidationFailedException, describeRejectedValues } from 'src/shared/pipes/detailed-validation.pipe';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { describeCaller } from 'src/shared/utils/request-caller';
@@ -42,7 +42,13 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // value that arrived and a hint at who sent it, a wrong constant in a client can only be
       // guessed at. Both are untrusted input and rendered as such: single-line throughout, and
       // masked and capped wherever what is rendered is a string.
-      const reason = maskValue(this.getReason(exception)).slice(0, ApiExceptionFilter.REASON_MAX_LENGTH);
+      // The reason is untrusted like the rest of the line: an exception message can interpolate a
+      // value the request supplied, so it goes through the same collapse and the same
+      // character-safe cut as the caller markers and the rejected values.
+      const reason = capCharacters(
+        maskValue(singleLine(this.getReason(exception))),
+        ApiExceptionFilter.REASON_MAX_LENGTH,
+      );
       const rejected =
         exception instanceof ValidationFailedException
           ? ` (received: ${describeRejectedValues(exception.validationErrors)})`
