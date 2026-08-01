@@ -169,16 +169,16 @@ describe('Partner statistic suppression', () => {
 
       expect(buckets[0].suppressed).toBe(true);
       expect(buckets[0].volume).toBeNull();
+      // Block rule nulls the whole under-k mixed bucket (sell=1 must not remain visible).
       expect(buckets[0].transactions).toBeNull();
       // Exactly one under-k bucket → complementary also suppresses the only other filled bucket.
       // (The old `if (!buckets[1].suppressed)` body was dead: complementary always fires here.)
       expect(buckets[1].suppressed).toBe(true);
+      expect(buckets[1].volume).toBeNull();
       expect(buckets[1].transactions).toBeNull();
       expect(suppressedCount).toBe(2);
-      // total − visible must not recover sell=1: every filled bucket is withheld.
-      const visibleSell = buckets.filter((b) => !b.suppressed).reduce((sum, b) => sum + (b.transactions?.sell ?? 0), 0);
-      expect(visibleSell).toBe(0);
-      expect(visibleSell).not.toBe(1);
+      // No non-suppressed filled bucket remains — that is what blocks total−visible recovery of
+      // sell=1. (A filtered sum of visible sell would be 0 by construction once both are null.)
     });
 
     it('keeps a bucket at exactly k when no complementary case applies', () => {

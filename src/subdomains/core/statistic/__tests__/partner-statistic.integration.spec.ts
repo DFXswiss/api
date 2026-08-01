@@ -182,11 +182,15 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
   let dataSource: DataSource;
   let service: PartnerStatisticService;
 
+  /** Schema-qualified table name — never rely on session search_path. */
+  const t = (name: string) => `"${SCHEMA}"."${name}"`;
+
   beforeAll(async () => {
     new ConfigService();
     // `schema` qualifies every entity table name so QueryBuilder work is correct on any
-    // pool connection. `SET search_path` alone is per-connection and is lost under
-    // Promise.all fan-out (getStatistics / getTimeline open multiple clients).
+    // pool connection. DDL/DML below also uses fully qualified names — never SET search_path
+    // (session-bound; a pooled client that skipped the SET would create public."user" and
+    // race other suites). max:1 keeps setup + fan-out on one backend when the driver allows.
     // Session TimeZone=UTC is still set so PG-side TIMESTAMP arithmetic stays UTC; it does
     // not fix driver-side JS Date serialization (see file header — process TZ must be UTC).
     dataSource = new DataSource({
@@ -195,7 +199,7 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
       entities: ENTITIES,
       synchronize: false,
       schema: SCHEMA,
-      extra: { options: '-c TimeZone=UTC' },
+      extra: { max: 1, options: '-c TimeZone=UTC' },
     });
     await dataSource.initialize();
   });
@@ -203,10 +207,9 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
   beforeEach(async () => {
     await dataSource.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
     await dataSource.query(`CREATE SCHEMA "${SCHEMA}"`);
-    await dataSource.query(`SET search_path TO "${SCHEMA}"`);
 
     await dataSource.query(`
-      CREATE TABLE "user" (
+      CREATE TABLE ${t('user')} (
         "id" int PRIMARY KEY,
         "walletId" int NOT NULL,
         "buyVolume" numeric DEFAULT 0,
@@ -217,36 +220,36 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
         "refCredit" numeric DEFAULT 0,
         "paidRefCredit" numeric DEFAULT 0
       );
-      CREATE TABLE "wallet" (
+      CREATE TABLE ${t('wallet')} (
         "id" int PRIMARY KEY,
         "ownerId" int
       );
-      CREATE TABLE "buy" (
+      CREATE TABLE ${t('buy')} (
         "id" int PRIMARY KEY,
         "userId" int NOT NULL
       );
-      CREATE TABLE "sell" (
+      CREATE TABLE ${t('sell')} (
         "id" int PRIMARY KEY,
         "userId" int NOT NULL
       );
-      CREATE TABLE "crypto_route" (
+      CREATE TABLE ${t('crypto_route')} (
         "id" int PRIMARY KEY,
         "userId" int NOT NULL
       );
-      CREATE TABLE "asset" (
+      CREATE TABLE ${t('asset')} (
         "id" int PRIMARY KEY,
         "name" varchar(256),
         "blockchain" varchar(256)
       );
-      CREATE TABLE "transaction" (
+      CREATE TABLE ${t('transaction')} (
         "id" int PRIMARY KEY,
         "sourceType" varchar(256)
       );
-      CREATE TABLE "crypto_input" (
+      CREATE TABLE ${t('crypto_input')} (
         "id" int PRIMARY KEY,
         "assetId" int
       );
-      CREATE TABLE "buy_crypto" (
+      CREATE TABLE ${t('buy_crypto')} (
         "id" SERIAL PRIMARY KEY,
         "buyId" int,
         "cryptoRouteId" int,
@@ -257,7 +260,7 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
         "amlCheck" varchar(64),
         "created" TIMESTAMP NOT NULL
       );
-      CREATE TABLE "buy_fiat" (
+      CREATE TABLE ${t('buy_fiat')} (
         "id" SERIAL PRIMARY KEY,
         "sellId" int,
         "cryptoInputId" int,
@@ -271,7 +274,7 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
     `);
 
     await dataSource.query(`
-      INSERT INTO "user" ("id", "walletId", "buyVolume", "sellVolume", "created",
+      INSERT INTO ${t('user')} ("id", "walletId", "buyVolume", "sellVolume", "created",
         "partnerRefVolume", "partnerRefCredit", "refCredit", "paidRefCredit") VALUES
         (1, 1, 100, 0, '2024-06-01 10:00:00', 0, 0, 0, 0),
         (2, 1, 100, 0, '2024-06-01 11:00:00', 0, 0, 0, 0),
@@ -280,15 +283,15 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
         (5, 1, 100, 50, '2024-06-01 14:00:00', 0, 0, 0, 0),
         (6, 2, 999, 0, '2024-06-01 10:00:00', 0, 0, 0, 0),
         (100, 1, 0, 0, '2024-01-01 00:00:00', 42.5, 12.25, 5, 2.25);
-      INSERT INTO "wallet" ("id", "ownerId") VALUES (1, 100), (2, 6);
-      INSERT INTO "buy" ("id", "userId") VALUES (1,1),(2,2),(3,3),(4,4),(5,5),(6,6);
-      INSERT INTO "sell" ("id", "userId") VALUES (1,5);
-      INSERT INTO "asset" ("id", "name", "blockchain") VALUES
+      INSERT INTO ${t('wallet')} ("id", "ownerId") VALUES (1, 100), (2, 6);
+      INSERT INTO ${t('buy')} ("id", "userId") VALUES (1,1),(2,2),(3,3),(4,4),(5,5),(6,6);
+      INSERT INTO ${t('sell')} ("id", "userId") VALUES (1,5);
+      INSERT INTO ${t('asset')} ("id", "name", "blockchain") VALUES
         (1, 'BTC', 'Bitcoin'), (2, 'ETH', 'Ethereum'), (3, 'CHF', NULL);
-      INSERT INTO "transaction" ("id", "sourceType") VALUES
+      INSERT INTO ${t('transaction')} ("id", "sourceType") VALUES
         (1, 'BankTx'), (2, 'BankTx'), (3, 'BankTx'), (4, 'BankTx'), (5, 'BankTx'), (6, 'BankTx'), (7, 'BankTx');
-      INSERT INTO "crypto_input" ("id", "assetId") VALUES (1, 1);
-      INSERT INTO "buy_crypto"
+      INSERT INTO ${t('crypto_input')} ("id", "assetId") VALUES (1, 1);
+      INSERT INTO ${t('buy_crypto')}
         ("buyId", "outputAssetId", "transactionId", "amountInChf", "amlCheck", "created", "inputAsset")
       VALUES
         (1, 1, 1, 100, 'Pass', '2024-06-10 10:00:00', 'CHF'),
@@ -297,7 +300,7 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
         (4, 1, 4, 100, 'Pass', '2024-06-11 10:00:00', 'CHF'),
         (5, 1, 5, 100, 'Pass', '2024-06-11 11:00:00', 'CHF'),
         (6, 2, 6, 9999, 'Pass', '2024-06-10 10:00:00', 'CHF');
-      INSERT INTO "buy_fiat"
+      INSERT INTO ${t('buy_fiat')}
         ("sellId", "cryptoInputId", "outputAssetId", "transactionId", "amountInChf", "amlCheck", "created", "inputAsset")
       VALUES
         -- inputAsset left null so the SELL asset breakdown emits no under-k named row.
@@ -317,7 +320,6 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
   });
 
   afterEach(async () => {
-    await dataSource.query(`SET search_path TO public`);
     await dataSource.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   });
 
@@ -382,10 +384,47 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
     expect(JSON.stringify(result)).not.toMatch(/"users"/);
   });
 
+  it('countActiveUsers is a set across directions (UNION, not UNION ALL)', async () => {
+    // Three users each active on buy AND sell → DISTINCT 3; bag-count (UNION ALL) would be 6.
+    // That bag count is rawUsers.total in suppressPeriodTotals and activeUsers on the DTO —
+    // k=5 would pass for 6 and fail for 3, which is exactly the disclosure the gate blocks.
+    await dataSource.query(`DELETE FROM ${t('buy_crypto')}`);
+    await dataSource.query(`DELETE FROM ${t('buy_fiat')}`);
+    await dataSource.query(`DELETE FROM ${t('sell')}`);
+    await dataSource.query(`DELETE FROM ${t('buy')}`);
+    await dataSource.query(`
+      INSERT INTO ${t('buy')} ("id", "userId") VALUES (1,1),(2,2),(3,3);
+      INSERT INTO ${t('sell')} ("id", "userId") VALUES (1,1),(2,2),(3,3);
+      INSERT INTO ${t('buy_crypto')}
+        ("buyId", "outputAssetId", "transactionId", "amountInChf", "amlCheck", "created", "inputAsset")
+      VALUES
+        (1, 1, 1, 100, 'Pass', '2024-06-10 10:00:00', 'CHF'),
+        (2, 1, 2, 100, 'Pass', '2024-06-10 11:00:00', 'CHF'),
+        (3, 1, 3, 100, 'Pass', '2024-06-10 12:00:00', 'CHF');
+      INSERT INTO ${t('buy_fiat')}
+        ("sellId", "cryptoInputId", "outputAssetId", "transactionId", "amountInChf", "amlCheck", "created", "inputAsset")
+      VALUES
+        (1, 1, 3, 4, 50, 'Pass', '2024-06-10 13:00:00', NULL),
+        (2, 1, 3, 5, 50, 'Pass', '2024-06-10 14:00:00', NULL),
+        (3, 1, 3, 6, 50, 'Pass', '2024-06-10 15:00:00', NULL);
+    `);
+
+    const from = new Date('2024-06-01T00:00:00.000Z');
+    const to = new Date('2024-06-30T00:00:00.000Z');
+    const count = await service['countActiveUsers'](1, from, to);
+    expect(count).toBe(3);
+    expect(count).not.toBe(6);
+
+    // Public path: 3 under k → activeUsers withheld; UNION ALL would surface 6.
+    const result = await service.getStatistics(1, from, to);
+    expect(result.totals.activeUsers).toBeNull();
+    expect(result.totals.activeUsers).not.toBe(6);
+  });
+
   it('half-open period excludes the exclusive end instant (semantic, not only SQL string)', async () => {
     // Insert a buy_crypto exactly at the exclusive end (2024-06-12 00:00) — must not count.
     await dataSource.query(`
-      INSERT INTO "buy_crypto"
+      INSERT INTO ${t('buy_crypto')}
         ("buyId", "outputAssetId", "transactionId", "amountInChf", "amlCheck", "created", "inputAsset")
       VALUES (1, 1, 1, 777, 'Pass', '2024-06-12 00:00:00', 'CHF');
     `);
@@ -417,19 +456,20 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
   });
 
   it('mergeNamedRows still works on real GROUP BY output', async () => {
+    // Entity QB (schema from DataSource) — no search_path, no bare table names.
     const rows = await dataSource
-      .createQueryBuilder()
+      .getRepository(TestBuyCrypto)
+      .createQueryBuilder('tx')
       .select('a.name', 'name')
       .addSelect('a.blockchain', 'blockchain')
-      .addSelect('COALESCE(SUM(tx."amountInChf"), 0)', 'volume')
+      .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
       .addSelect('COUNT(*)', 'transactions')
       .addSelect('COUNT(DISTINCT u.id)', 'users')
-      .from('buy_crypto', 'tx')
-      .innerJoin('buy', 'route', 'route.id = tx."buyId"')
-      .innerJoin('user', 'u', 'u.id = route."userId"')
-      .leftJoin('asset', 'a', 'a.id = tx."outputAssetId"')
-      .where('u."walletId" = :walletId', { walletId: 1 })
-      .andWhere('tx."amlCheck" = :check', { check: 'Pass' })
+      .innerJoin(TestBuy, 'route', 'route.id = tx.buyId')
+      .innerJoin(TestUser, 'u', 'u.id = route.userId')
+      .leftJoin(TestAsset, 'a', 'a.id = tx.outputAssetId')
+      .where('u.walletId = :walletId', { walletId: 1 })
+      .andWhere('tx.amlCheck = :check', { check: 'Pass' })
       .groupBy('a.name')
       .addGroupBy('a.blockchain')
       .getRawMany<{ name: string; blockchain: string; volume: string; transactions: string; users: string }>();

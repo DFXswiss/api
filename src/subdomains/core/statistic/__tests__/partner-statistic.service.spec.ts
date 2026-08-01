@@ -26,9 +26,42 @@ type Direction = PartnerStatisticDirection;
 const TEST_NOW = new Date('2024-06-15T12:00:00.000Z');
 const PERIOD_FROM = new Date('2024-05-16T00:00:00.000Z');
 const PERIOD_TO = TEST_NOW;
+/**
+ * resolvePeriod snaps `to` to exclusive next-day UTC midnight.
+ * Bound :from/:to on getStatistics(…, PERIOD_FROM, PERIOD_TO) must equal these values.
+ */
+const RESOLVED_PERIOD_FROM = PERIOD_FROM;
+const RESOLVED_PERIOD_TO = new Date('2024-06-16T00:00:00.000Z');
 /** Wednesday UTC before TEST_NOW (Saturday) — mid-week so week-edge buckets are partial. */
 const MID_WEEK_FROM = new Date('2024-06-12T00:00:00.000Z');
 const MID_WEEK_TO = new Date('2024-06-19T00:00:00.000Z');
+
+/**
+ * getStatistics clause budgets captured by the unit-test harness.
+ *
+ * How the numbers arise from the production call graph (one getStatistics request):
+ * - SCOPED_BUILDERS (20): 3 direction aggs + 3 active-user UNION legs + newUsers + allTime
+ *   + referral + 3 asset + 2 fiat + 3 blockchain + 3 payment-method = 20 wallet-scoped WHEREs
+ * - AML_FILTERS (17): baseTxQuery × (3 dir + 3 active + 3 asset + 2 fiat + 3 blockchain + 3 payment)
+ * - PERIOD_FILTERS (18): those 17 baseTxQuery half-open bounds + countNewUsers (user.created)
+ * - WHERE_CLAUSES (55): 17×(scope+period+aml) + newUsers(scope+period) + allTime(scope)
+ *   + referral(scope)
+ * - ACTIVE_USER_UNION_LEGS (3): buy / sell / swap getQuery legs in countActiveUsers
+ *
+ * Keep these in one place: a legitimate expansion must update the budget once, not three copies.
+ */
+export const GET_STATISTICS_CLAUSE_BUDGET = {
+  SCOPED_BUILDERS: 20,
+  AML_FILTERS: 17,
+  PERIOD_FILTERS: 18,
+  WHERE_CLAUSES: 55,
+  ACTIVE_USER_UNION_LEGS: 3,
+} as const;
+
+/** Multiset equality: same elements with same multiplicity, order ignored. */
+function expectMultisetEqual(actual: string[], expected: string[]): void {
+  expect([...actual].sort()).toEqual([...expected].sort());
+}
 
 interface DirectionFixture {
   volume: number;
@@ -102,9 +135,13 @@ describe('PartnerStatisticService', () => {
   let lastWalletIds: number[];
   let whereClauses: string[];
   let amlFilterClauses: string[];
+  /** Bound `{ from, to }` from every where/andWhere that supplies period params. */
+  let periodBoundParams: { from: unknown; to: unknown }[];
   let groupByCapture: GroupByCapture;
   let managerCreateQueryBuilderCalls: number;
   let getQueryCalls: number;
+  /** SQL passed to manager.createQueryBuilder().from(…) for the active-user UNION. */
+  let activeUserUnionFromSql: string | undefined;
   let activeUserCountFromManager: number | undefined;
   let concurrentQueries: number;
   let maxConcurrentQueries: number;
@@ -229,10 +266,17 @@ describe('PartnerStatisticService', () => {
     });
     qb.orderBy = jest.fn(() => self());
     qb.setParameter = jest.fn(() => self());
+    const capturePeriodParams = (params?: unknown) => {
+      if (params && typeof params === 'object' && 'from' in params) {
+        const p = params as { from: unknown; to?: unknown };
+        periodBoundParams.push({ from: p.from, to: p.to });
+      }
+    };
     qb.where = jest.fn((clause: unknown, params?: unknown) => {
       whereClauses.push(String(clause));
       const walletId = trackWalletId(params);
       if (walletId !== undefined) state.walletId = walletId;
+      capturePeriodParams(params);
       return self();
     });
     qb.andWhere = jest.fn((clause: unknown, params?: unknown) => {
@@ -240,6 +284,7 @@ describe('PartnerStatisticService', () => {
       whereClauses.push(clauseStr);
       const walletId = trackWalletId(params);
       if (walletId !== undefined) state.walletId = walletId;
+      capturePeriodParams(params);
       if (clauseStr.includes('amlCheck')) {
         amlFilterClauses.push(clauseStr);
       }
@@ -334,7 +379,12 @@ describe('PartnerStatisticService', () => {
     const self = () => qb;
 
     qb.select = jest.fn(() => self());
-    qb.from = jest.fn(() => self());
+    qb.from = jest.fn((table: unknown) => {
+      // countActiveUsers: .from(`(${unionSql})`, 'active_users') — capture the subquery so a
+      // hand-written 4th UNION leg (or UNION ALL) is visible even when getQueryCalls stays 3.
+      if (typeof table === 'string') activeUserUnionFromSql = table;
+      return self();
+    });
     qb.setParameters = jest.fn((params: Record<string, unknown>) => {
       const walletId = trackWalletId(params);
       if (walletId !== undefined) state.walletId = walletId;
@@ -352,14 +402,45 @@ describe('PartnerStatisticService', () => {
     return qb;
   }
 
+  /**
+   * Pins the active-user UNION shape: exactly three set-legs joined by UNION (not UNION ALL),
+   * and no extra hand-written SELECT leg that would skip getQueryCalls.
+   */
+  function expectActiveUserUnionShape(): void {
+    expect(getQueryCalls).toBe(GET_STATISTICS_CLAUSE_BUDGET.ACTIVE_USER_UNION_LEGS);
+    expect(activeUserUnionFromSql).toBeDefined();
+    const sql = activeUserUnionFromSql as string;
+    expect(sql).not.toMatch(/UNION\s+ALL/i);
+    // Outer wrapper is `(${unionSql})`; count bare UNION separators between legs.
+    const unionSeparators = (sql.match(/\bUNION\b/gi) ?? []).length;
+    expect(unionSeparators).toBe(GET_STATISTICS_CLAUSE_BUDGET.ACTIVE_USER_UNION_LEGS - 1);
+  }
+
+  /** Pins half-open period clause text *and* the bound :from/:to values. */
+  function expectPeriodBoundsMatchResolved(): void {
+    const PERIOD_EXACT_RE = /^(?:tx|user)\.created\s*>=\s*:from\s+AND\s+(?:tx|user)\.created\s*<\s*:to$/;
+    const halfOpen = whereClauses.filter((c) => PERIOD_EXACT_RE.test(c));
+    expect(halfOpen).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.PERIOD_FILTERS);
+    // Every period-bearing andWhere must bind the resolved window — clause-only pins miss
+    // `from: new Date(0)` (or a dropped `to`) while the SQL text stays identical.
+    expect(periodBoundParams).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.PERIOD_FILTERS);
+    for (const p of periodBoundParams) {
+      expect(p.from).toEqual(RESOLVED_PERIOD_FROM);
+      expect(p.to).toEqual(RESOLVED_PERIOD_TO);
+      expect(p.from).not.toEqual(new Date(0));
+    }
+  }
+
   beforeEach(async () => {
     lastWalletIds = [];
     whereClauses = [];
     amlFilterClauses = [];
+    periodBoundParams = [];
     fixtures = new Map();
     groupByCapture = { groupBys: [], selectAliases: [] };
     managerCreateQueryBuilderCalls = 0;
     getQueryCalls = 0;
+    activeUserUnionFromSql = undefined;
     activeUserCountFromManager = undefined;
     concurrentQueries = 0;
     maxConcurrentQueries = 0;
@@ -573,10 +654,10 @@ describe('PartnerStatisticService', () => {
       await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
       await service.getTimeline(1, PERIOD_FROM, new Date('2024-05-30T00:00:00.000Z'), PartnerStatisticGranularity.DAY);
 
-      // Full ordered list from getStatistics breakdowns + getTimeline (runAll starts tasks
-      // left-to-right before the first await, so groupBy registration order is stable).
-      // arrayContaining / length>0 missed dropped payment/fiat/blockchain groupBys and
-      // extra columns (assetQuery still contributes outputAsset.blockchain).
+      // Multiset (order-independent): runAll registration order is not a product contract.
+      // toEqual on the full list went red on a pure reordering of aggregateBlockchains /
+      // aggregatePaymentMethods in the getStatistics runAll list — 17-element diff, no
+      // behaviour change. arrayContaining / length>0 still miss dropped or extra columns.
       const EXPECTED_GROUP_BYS = [
         // aggregateAssets: BUY, SELL, SWAP
         'outputAsset.name',
@@ -601,7 +682,7 @@ describe('PartnerStatisticService', () => {
         "DATE_TRUNC('day', tx.created) AT TIME ZONE 'UTC'",
         "DATE_TRUNC('day', tx.created) AT TIME ZONE 'UTC'",
       ];
-      expect(groupByCapture.groupBys).toEqual(EXPECTED_GROUP_BYS);
+      expectMultisetEqual(groupByCapture.groupBys, EXPECTED_GROUP_BYS);
 
       const aliases = new Set(groupByCapture.selectAliases);
       for (const g of groupByCapture.groupBys) {
@@ -646,36 +727,27 @@ describe('PartnerStatisticService', () => {
     it('returns only wallet A aggregates and scopes SQL to user.walletId on every user-related query', async () => {
       const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
 
-      // getStatistics builds exactly this many wallet-scoped WHERE clauses:
-      // 3 direction aggs + 3 active-user union legs + newUsers + allTime + referral
-      // + 3 asset + 2 fiat + 3 blockchain + 3 payment-method = 20.
       // Exact full-clause form (not substring): removing, rewriting, or OR-extending a scope
       // drops the count — unanchored filter+every is vacuum-true on survivors and on
-      // `user.walletId = :walletId OR 1 = 1`.
-      const GET_STATISTICS_SCOPED_BUILDERS = 20;
+      // `user.walletId = :walletId OR 1 = 1`. Budgets: GET_STATISTICS_CLAUSE_BUDGET.
       const SCOPE_EXACT_RE = /^(?:user\.walletId|wallet\.id)\s*=\s*:walletId$/;
       const scopeClauses = whereClauses.filter((c) => SCOPE_EXACT_RE.test(c));
-      expect(scopeClauses).toHaveLength(GET_STATISTICS_SCOPED_BUILDERS);
-      expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_SCOPED_BUILDERS);
+      expect(scopeClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.SCOPED_BUILDERS);
+      expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_CLAUSE_BUDGET.SCOPED_BUILDERS);
       expect(lastWalletIds.every((id) => id === 1)).toBe(true);
       expect(whereClauses.every((c) => !/user\.id\s*=\s*:walletId/.test(c))).toBe(true);
 
-      // baseTxQuery × (3 dir + 3 active + 3 asset + 2 fiat + 3 blockchain + 3 payment) = 17.
       // Pin count + exact clause so omitting SELL/SWAP (or OR-extending the check) fails;
       // length>0 + unanchored every was vacuum-true when only BUY kept the filter.
-      const GET_STATISTICS_AML_FILTERS = 17;
       const AML_EXACT_RE = /^tx\.amlCheck\s*=\s*:check$/;
-      expect(amlFilterClauses).toHaveLength(GET_STATISTICS_AML_FILTERS);
+      expect(amlFilterClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.AML_FILTERS);
       expect(amlFilterClauses.every((c) => AML_EXACT_RE.test(c))).toBe(true);
 
-      // Total captured where/andWhere calls: 17×(scope+period+aml) + newUsers(scope+period)
-      // + allTime(scope) + referral(scope) = 55. Filtered pins (20/17/18) miss an extra
-      // unscoped WHERE that matches none of the three exact regexes (e.g. a free UNION leg).
-      const GET_STATISTICS_WHERE_CLAUSES = 55;
-      expect(whereClauses).toHaveLength(GET_STATISTICS_WHERE_CLAUSES);
-      // countActiveUsers UNION legs only — a WHERE-less 4th leg leaves 55/20/17/18 unchanged.
-      const GET_STATISTICS_ACTIVE_USER_UNION_LEGS = 3;
-      expect(getQueryCalls).toBe(GET_STATISTICS_ACTIVE_USER_UNION_LEGS);
+      // Filtered pins (20/17/18) miss an extra unscoped WHERE that matches none of the three
+      // exact regexes. Total pin + UNION shape (getQuery + from SQL) close that gap.
+      expect(whereClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.WHERE_CLAUSES);
+      expectActiveUserUnionShape();
+      expectPeriodBoundsMatchResolved();
 
       expect(result.totals.volume.buy).toBe(1000);
       expect(result.totals.volume.sell).toBe(200);
@@ -692,19 +764,17 @@ describe('PartnerStatisticService', () => {
     });
 
     it('returns only wallet B aggregates when called with wallet B (not wallet A)', async () => {
-      lastWalletIds = [];
-      whereClauses = [];
+      // beforeEach already clears lastWalletIds / whereClauses / getQueryCalls / periodBoundParams
+      // / activeUserUnionFromSql — no manual partial reset (that left getQueryCalls asymmetric).
       const result = await service.getStatistics(2, PERIOD_FROM, PERIOD_TO);
 
-      const GET_STATISTICS_SCOPED_BUILDERS = 20;
-      const GET_STATISTICS_WHERE_CLAUSES = 55;
-      const GET_STATISTICS_ACTIVE_USER_UNION_LEGS = 3;
       const SCOPE_EXACT_RE = /^(?:user\.walletId|wallet\.id)\s*=\s*:walletId$/;
       const scopeClauses = whereClauses.filter((c) => SCOPE_EXACT_RE.test(c));
-      expect(scopeClauses).toHaveLength(GET_STATISTICS_SCOPED_BUILDERS);
-      expect(whereClauses).toHaveLength(GET_STATISTICS_WHERE_CLAUSES);
-      expect(getQueryCalls).toBe(GET_STATISTICS_ACTIVE_USER_UNION_LEGS);
-      expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_SCOPED_BUILDERS);
+      expect(scopeClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.SCOPED_BUILDERS);
+      expect(whereClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.WHERE_CLAUSES);
+      expectActiveUserUnionShape();
+      expectPeriodBoundsMatchResolved();
+      expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_CLAUSE_BUDGET.SCOPED_BUILDERS);
       expect(lastWalletIds.every((id) => id === 2)).toBe(true);
 
       expect(result.totals.volume.buy).toBe(99999);
@@ -1184,8 +1254,9 @@ describe('PartnerStatisticService', () => {
       // getTimeline fans out BUY/SELL/SWAP; each timelineByDirection groupBy's DATE_TRUNC once
       // and nothing else. Filtering to DATE_TRUNC survivors then pinning length missed an
       // extra .addGroupBy('tx.id') (COUNT(DISTINCT user.id) collapses to 1 per tx row).
+      // Multiset: order of the three direction tasks is not a product contract.
       const TIMELINE_GROUP_BY = "DATE_TRUNC('day', tx.created) AT TIME ZONE 'UTC'";
-      expect(groupByCapture.groupBys).toEqual([TIMELINE_GROUP_BY, TIMELINE_GROUP_BY, TIMELINE_GROUP_BY]);
+      expectMultisetEqual(groupByCapture.groupBys, [TIMELINE_GROUP_BY, TIMELINE_GROUP_BY, TIMELINE_GROUP_BY]);
       for (const g of groupByCapture.groupBys) {
         expect(g).toContain("AT TIME ZONE 'UTC'");
         // SQL unit is lowercase via PartnerStatisticDateTruncUnit, not the PascalCase API value.
@@ -1226,23 +1297,16 @@ describe('PartnerStatisticService', () => {
 
       await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
 
-      // baseTxQuery × 17 (tx.created) + countNewUsers (user.created) = 18 half-open bounds.
-      // Pin count + full-clause exact form: replacing one direction with `1 = 1` or
-      // OR-extending a bound drops/breaks the match set. filter(includes)+every alone was
-      // vacuum-true on survivors (and the previous comment claimed the opposite).
-      const GET_STATISTICS_PERIOD_FILTERS = 18;
-      const GET_STATISTICS_WHERE_CLAUSES = 55;
-      const GET_STATISTICS_ACTIVE_USER_UNION_LEGS = 3;
-      const PERIOD_EXACT_RE = /^(?:tx|user)\.created\s*>=\s*:from\s+AND\s+(?:tx|user)\.created\s*<\s*:to$/;
-      const halfOpen = whereClauses.filter((c) => PERIOD_EXACT_RE.test(c));
-      expect(halfOpen).toHaveLength(GET_STATISTICS_PERIOD_FILTERS);
+      // Clause text + bound values (expectPeriodBoundsMatchResolved). Clause-only pins missed
+      // `from: new Date(0)` while the SQL string stayed identical.
+      expectPeriodBoundsMatchResolved();
       // No BETWEEN and no exclusive-open left bound on any created-related clause that survived.
       const createdRelated = whereClauses.filter((c) => /created/i.test(c));
-      expect(createdRelated).toHaveLength(GET_STATISTICS_PERIOD_FILTERS);
+      expect(createdRelated).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.PERIOD_FILTERS);
       expect(createdRelated.every((c) => !/BETWEEN/i.test(c))).toBe(true);
       // Same total pin as wallet-scope isolation: an extra unscoped WHERE slips past 18 alone.
-      expect(whereClauses).toHaveLength(GET_STATISTICS_WHERE_CLAUSES);
-      expect(getQueryCalls).toBe(GET_STATISTICS_ACTIVE_USER_UNION_LEGS);
+      expect(whereClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.WHERE_CLAUSES);
+      expectActiveUserUnionShape();
     });
   });
 
