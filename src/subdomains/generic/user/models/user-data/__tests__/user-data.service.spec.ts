@@ -48,10 +48,11 @@ import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/v
 import { VirtualIbanIssuanceIntentStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent-status.enum';
 import { VirtualIbanIssuanceIntent } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { UserData } from '../user-data.entity';
-import { KycType, UserDataStatus } from '../user-data.enum';
+import { KycStatus, KycType, UserDataStatus } from '../user-data.enum';
 import { UserDataRepository } from '../user-data.repository';
 import {
   MERGE_POST_COMMIT_EFFECT_COMPLETED_MARKER,
@@ -1633,5 +1634,73 @@ describe('UserDataService', () => {
       expect(savedArg.users).toBeUndefined();
       expect(savedArg.id).toBe(1);
     });
+  });
+
+  describe('setKycStatusCheck', () => {
+    it('writes the audit log before conditionally updating the status', async () => {
+      const userData = Object.assign(new UserData(), { id: 42, kycStatus: KycStatus.COMPLETED });
+      (mergeManager.findOne as jest.Mock).mockResolvedValue(userData);
+      (mergeManager.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await service.setKycStatusCheck(42, KycStatus.COMPLETED, 7);
+
+      expect(kycLogService.createLogInternal).toHaveBeenCalledWith(
+        userData,
+        KycLogType.MANUAL,
+        'KycStatus changed from Completed to Check by user data 7',
+        mergeManager,
+      );
+      expect(mergeManager.update).toHaveBeenCalledWith(
+        UserData,
+        { id: 42, kycStatus: KycStatus.COMPLETED },
+        { kycStatus: KycStatus.CHECK },
+      );
+      expect(kycLogService.createLogInternal.mock.invocationCallOrder[0]).toBeLessThan(
+        (mergeManager.update as jest.Mock).mock.invocationCallOrder[0],
+      );
+      expect(kycNotificationService.kycChanged).toHaveBeenCalledWith(userData);
+      expect((mergeManager.update as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        kycNotificationService.kycChanged.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not update the status when the audit log fails', async () => {
+      const userData = Object.assign(new UserData(), { id: 42, kycStatus: KycStatus.COMPLETED });
+      (mergeManager.findOne as jest.Mock).mockResolvedValue(userData);
+      kycLogService.createLogInternal.mockRejectedValue(new Error('Audit unavailable'));
+
+      await expect(service.setKycStatusCheck(42, KycStatus.COMPLETED, 7)).rejects.toThrow('Audit unavailable');
+
+      expect(mergeManager.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a stale expected status before writing an audit log', async () => {
+      const userData = Object.assign(new UserData(), { id: 42, kycStatus: KycStatus.REJECTED });
+      (mergeManager.findOne as jest.Mock).mockResolvedValue(userData);
+
+      await expect(service.setKycStatusCheck(42, KycStatus.COMPLETED, 7)).rejects.toBeInstanceOf(ConflictException);
+
+      expect(kycLogService.createLogInternal).not.toHaveBeenCalled();
+      expect(mergeManager.update).not.toHaveBeenCalled();
+    });
+
+    it('rolls back the audit log when a concurrent update wins the conditional write', async () => {
+      const userData = Object.assign(new UserData(), { id: 42, kycStatus: KycStatus.COMPLETED });
+      (mergeManager.findOne as jest.Mock).mockResolvedValue(userData);
+      (mergeManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
+
+      await expect(service.setKycStatusCheck(42, KycStatus.COMPLETED, 7)).rejects.toBeInstanceOf(ConflictException);
+
+      expect(kycLogService.createLogInternal).toHaveBeenCalledTimes(1);
+      expect(kycNotificationService.kycChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  it('rejects setting Check through the generic update path before reading the account', async () => {
+    await expect(service.updateUserData(42, { kycStatus: KycStatus.CHECK })).rejects.toThrow(
+      'Use the audited KYC status Check transition',
+    );
+
+    expect(userDataRepo.findOne).not.toHaveBeenCalled();
   });
 });
