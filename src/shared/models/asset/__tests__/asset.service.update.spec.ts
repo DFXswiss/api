@@ -37,6 +37,26 @@ describe('AssetService.updateAssets', () => {
     expect(assetRepo.invalidateCache).toHaveBeenCalledTimes(1);
   });
 
+  // A row that keeps failing used to be harmless because each asset was written on its own. It must
+  // not become a blocker for every asset queued behind it.
+  it('attempts every update even when one in the middle fails', async () => {
+    const three: UpdateResult<Asset>[] = [
+      [7, { decimals: 6 }],
+      [8, { decimals: 8 }],
+      [9, { decimals: 18 }],
+    ];
+    assetRepo.update
+      .mockResolvedValueOnce(undefined as never)
+      .mockRejectedValueOnce(new Error('constraint violation'))
+      .mockResolvedValueOnce(undefined as never);
+
+    await expect(service.updateAssets(three)).rejects.toThrow('8');
+
+    expect(assetRepo.update).toHaveBeenCalledTimes(3);
+    expect(assetRepo.update).toHaveBeenLastCalledWith(9, { decimals: 18 });
+    expect(assetRepo.invalidateCache).toHaveBeenCalledTimes(1);
+  });
+
   it('does not touch the cache when there is nothing to write', async () => {
     await service.updateAssets([]);
 

@@ -132,15 +132,25 @@ export class AssetService {
   async updateAssets(updates: UpdateResult<Asset>[]): Promise<void> {
     if (!updates.length) return;
 
+    // Every update is attempted: one row that keeps failing must not stop the rest from ever being
+    // written. The cache is invalidated in any case, because whatever succeeded is already stored.
+    const failed: number[] = [];
+    let firstError: unknown;
+
     try {
-      for (const update of updates) {
-        await this.assetRepo.update(...update);
+      for (const [id, update] of updates) {
+        try {
+          await this.assetRepo.update(id, update);
+        } catch (e) {
+          failed.push(id);
+          firstError ??= e;
+        }
       }
     } finally {
-      // Also on failure: the updates before it are already written, and leaving them out of the
-      // cache is the very staleness this method exists to prevent.
       this.assetRepo.invalidateCache();
     }
+
+    if (failed.length) throw new Error(`Failed to update asset(s) ${failed.join(', ')}: ${firstError}`);
   }
 
   async getEvmAssetsWithoutDecimals(blockchains: Blockchain[]): Promise<Asset[]> {
