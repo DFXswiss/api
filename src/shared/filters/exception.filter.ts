@@ -159,7 +159,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // this, and so is one that agrees with the status being sent. Anything else is replaced whole:
       // a body that cannot be passed on cannot be read either, because what it holds is not what it
       // would have sent, and the name of the status is the one thing that is certain here.
-      if (ApiExceptionFilter.serializesItself(body) || ApiExceptionFilter.agreesWith(body, status.effective))
+      if (ApiExceptionFilter.isSelfSerializing(body) || ApiExceptionFilter.isConsistentWith(body, status.effective))
         return body;
 
       return { statusCode: status.effective, message: HttpStatus[status.effective] ?? 'Error' };
@@ -183,7 +183,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
   // A body that answers `toJSON` is serialized from what that returns, not from what it holds, so
   // what it holds says nothing about what it sends - which is why it is passed on rather than read.
-  private static serializesItself(body: unknown): boolean {
+  private static isSelfSerializing(body: unknown): boolean {
     if (typeof body !== 'object' || body === null) return false;
 
     // Asked for as a descriptor rather than read: reading it would be one read, and the
@@ -202,7 +202,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // `undefined`, a function, a symbol, a name put on an array alongside its elements. An accessor is the other way round - it
   // is serialized, so it does carry one, and it answers again when it is, so what it would carry
   // cannot be read here. That is not agreement.
-  private static agreesWith(body: unknown, status: number): boolean {
+  private static isConsistentWith(body: unknown, status: number): boolean {
     if (typeof body !== 'object' || body === null || Array.isArray(body)) return true;
 
     const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
