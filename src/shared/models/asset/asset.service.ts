@@ -135,7 +135,7 @@ export class AssetService {
     // Every update is attempted: one row that keeps failing must not stop the rest from ever being
     // written. The cache is invalidated in any case, because whatever succeeded is already stored.
     const failed: number[] = [];
-    let firstError: unknown;
+    const errors: unknown[] = [];
 
     try {
       for (const [id, update] of updates) {
@@ -143,14 +143,14 @@ export class AssetService {
           await this.assetRepo.update(id, update);
         } catch (e) {
           failed.push(id);
-          firstError ??= e;
+          errors.push(e);
         }
       }
     } finally {
       this.assetRepo.invalidateCache();
     }
 
-    if (failed.length) throw new Error(`Failed to update asset(s) ${failed.join(', ')}: ${firstError}`);
+    if (failed.length) throw new AggregateError(errors, `Failed to update asset(s) ${failed.join(', ')}`);
   }
 
   async getEvmAssetsWithoutDecimals(blockchains: Blockchain[]): Promise<Asset[]> {

@@ -32,7 +32,7 @@ describe('AssetService.updateAssets', () => {
   it('invalidates the cache even when an update fails, so the earlier writes are not left stale', async () => {
     assetRepo.update.mockResolvedValueOnce(undefined as never).mockRejectedValueOnce(new Error('deadlock'));
 
-    await expect(service.updateAssets(updates)).rejects.toThrow('deadlock');
+    await expect(service.updateAssets(updates)).rejects.toThrow('9');
 
     expect(assetRepo.invalidateCache).toHaveBeenCalledTimes(1);
   });
@@ -55,6 +55,20 @@ describe('AssetService.updateAssets', () => {
     expect(assetRepo.update).toHaveBeenCalledTimes(3);
     expect(assetRepo.update).toHaveBeenLastCalledWith(9, { decimals: 18 });
     expect(assetRepo.invalidateCache).toHaveBeenCalledTimes(1);
+  });
+
+  // Whoever reads the log needs the database error itself, not a rendering of it.
+  it('carries every original error, not just their text', async () => {
+    const first = new Error('deadlock');
+    const second = new Error('constraint violation');
+    assetRepo.update.mockRejectedValueOnce(first).mockRejectedValueOnce(second);
+
+    const error = await service.updateAssets(updates).catch((e) => e);
+
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.message).toContain('7');
+    expect(error.message).toContain('9');
+    expect(error.errors).toEqual([first, second]);
   });
 
   it('does not touch the cache when there is nothing to write', async () => {
