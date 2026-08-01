@@ -9,6 +9,7 @@ import { PricingProvider } from 'src/subdomains/supporting/pricing/services/inte
 import {
   ScryptBalance,
   ScryptBalanceTransaction,
+  ScryptCancellation,
   ScryptDepositStatus,
   ScryptExecutionReport,
   ScryptMarketDataSnapshot,
@@ -25,6 +26,7 @@ import {
   ScryptTransactionType,
   ScryptWithdrawResponse,
   ScryptWithdrawStatus,
+  isTerminalScryptOrderStatus,
 } from '../dto/scrypt.dto';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import {
@@ -33,6 +35,7 @@ import {
   ScryptAmendRejectedError,
   ScryptMessageType,
   ScryptOrderNotFoundError,
+  ScryptOrderStuckPendingError,
   ScryptUnconfirmedWriteError,
   ScryptVenueRejectionError,
   ScryptWebSocketConnection,
@@ -40,9 +43,72 @@ import {
 
 /**
  * After this long without a usable answer, an order the venue once acknowledged is treated as lost rather
- * than merely slow. Shared by the "cannot be found" and the "stuck pending" paths so both give up together.
+ * than merely slow. One use only: the branch below where the status lookup returns nothing at all. The
+ * pending states deliberately do NOT consult it — a venue that still reports PENDING_NEW is answering, and
+ * this constant is about silence. They are bounded separately by PENDING_STUCK_AFTER_MINUTES, which asks
+ * for a cancel rather than declaring the order lost, because there the reference is known to exist.
+ *
+ * Kept equal to SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES in the adapter, which documents itself as matching
+ * this value — the two are the pair of routes out of a silent order and must not drift apart. Five rather
+ * than sixty so that quarantine plus the abandon bound stay inside the ten-minute ceiling. Safe at this
+ * length because it only fires while the venue does not know the reference at all: an order it is still
+ * working is returned by the status lookup and never reaches here, whatever its age. Measured over 60 days,
+ * Scrypt trades complete in a median of 0.2 and a maximum of 1.0 minutes.
  */
-const ORDER_LOST_AFTER_MINUTES = 60;
+const ORDER_LOST_AFTER_MINUTES = 5;
+
+/**
+ * PENDING_NEW / PENDING_CANCEL / PENDING_REPLACE are meant to be a transition lasting seconds — the venue
+ * is in the middle of accepting, cancelling or replacing the order. Measured over 60 days, Scrypt trades
+ * spend a median of 0.2 and a maximum of 1.0 minutes reaching a terminal or open state, so a reference that
+ * has continuously answered PENDING for more than five minutes is not merely slow, it is stuck.
+ *
+ * Measured from when THIS process first observes the venue continuously reporting a PENDING state for the
+ * reference, not from the order's creation. A process restart starts that observation clock afresh; this can
+ * only extend the bound, never cause the adapter to give up too early.
+ *
+ * Deliberately its own constant rather than reusing ORDER_LOST_AFTER_MINUTES, even though both happen to be
+ * five: that one bounds SILENCE from the venue (no status at all), this one bounds an ANSWER that makes no
+ * progress. Merging them would let a later change meant for one quietly shift the other along with it.
+ *
+ * The bound never ends the order by itself — the exit is canceling and restarting, never a bare give-up: a
+ * trade that might still be sitting in the book must not be abandoned unconfirmed, or the onFail chain could
+ * place a second, genuinely competing buy alongside it.
+ */
+const PENDING_STUCK_AFTER_MINUTES = 5;
+
+/**
+ * Minimum wait between two cancel attempts for the SAME pending reference, once it is past its bound.
+ *
+ * The cancel below is a WRITE to the venue, and `checkRunningOrders` is driven by a cron that runs nominally
+ * every ten seconds, and possibly more often within one pass — the cron itself has a lock, a jitter lead-in
+ * and a process-disable gate, and `processPipelines`'s own `while (hasChanges)` loop can invoke it again
+ * before the next tick. Without a floor here, an UNCONFIRMED answer would draw a fresh cancel on every one of
+ * those calls for as long as the venue keeps not confirming it. One minute, matching the cooldown floor the
+ * analogous quarantine-cancel throttle uses (`UNCERTAIN_RESOLVE_MIN_INTERVAL_MS` in
+ * liquidity-management-pipeline.service.ts), for the same stated reason: "a cancellation the venue will not
+ * confirm must not retry on every ten-second tick." This only slows the write down — it does not move
+ * PENDING_STUCK_AFTER_MINUTES itself, so the order becomes eligible for a cancel after exactly the same
+ * pending dwell time either way; only how often an unconfirmed attempt may repeat changes.
+ */
+const PENDING_CANCEL_RETRY_MINUTES = 1;
+
+// The venue answers a refused cancel with an execution report rather than a separate reject message, so the
+// refusal has to be read off these two fields. `UnknownOrder` is the one reason treated as settling
+// anything.
+//
+// That reading is an inference, not a documented guarantee — the protocol spec lists the reason without
+// defining it, so "never existed" cannot be distinguished from "not processed yet" from the value alone.
+// What it rests on: the caller only cancels an order after either a failed status lookup has outlived the
+// full ORDER_LOST_AFTER_MINUTES window in which its request could still be in flight, or a successful lookup
+// has continuously reported PENDING for the full PENDING_STUCK_AFTER_MINUTES window. The latter premise is
+// even stronger: the venue just confirmed that the reference existed, then no longer knew it at the cancel —
+// a stronger signal than silence alone. Note what that does and does not cover — the lookup stops at the
+// first reference the venue does not show, so for every other reference of the same order this refusal is the
+// only negative answer there is. Age plus one refusal is the strongest evidence this protocol offers. Every
+// other reason (too late, rate limited, already pending) settles nothing and is waited out.
+const SCRYPT_CANCEL_REJECTED = 'CancelRejected';
+const SCRYPT_UNKNOWN_ORDER = 'UnknownOrder';
 
 // The bulk streams a reconnect catch-up restores; the live subscriptions cover everything else.
 type CatchUpStream = ScryptMessageType.EXECUTION_REPORT | ScryptMessageType.BALANCE_TRANSACTION;
@@ -57,6 +123,13 @@ export class ScryptService extends PricingProvider {
   private readonly balances?: AsyncSubscription<Map<string, ScryptBalance>>;
   private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
   private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
+  // Throttle for the WRITE in the PENDING branch of checkTrade — see PENDING_CANCEL_RETRY_MINUTES. Keyed by
+  // clOrdId, value is the end of the last cancel attempt for that reference.
+  private readonly pendingCancelAttempts: Map<string, Date> = new Map();
+  // Tracks how long THIS process has continuously seen a reference report a PENDING status — see
+  // PENDING_STUCK_AFTER_MINUTES. `since` measures that bound; `lastSeen` is only for 24-hour cleanup.
+  // Cleared once the reference leaves the pending states, so a later re-entry starts fresh.
+  private readonly pendingSince: Map<string, { since: Date; lastSeen: Date }> = new Map();
   private catchUpInProgress = false;
   private catchUpPending = false;
   private lastCatchUpAt?: number;
@@ -162,9 +235,23 @@ export class ScryptService extends PricingProvider {
 
     // A warm-up that loaded BOTH streams is exactly what a catch-up round does, so it claims the first slot and a
     // reconnect right after boot waits it out instead of repeating it. If either leg failed the caches are not
-    // whole, and the next reconnect must repair immediately rather than sit out the interval on stale state.
+    // whole: without an immediate retry the only refill path is onReconnect, so a stable socket after a failed
+    // warm-up would leave balanceTransactions / executionReports empty forever. An empty cache no longer blocks
+    // confirmWithdrawalAbsent (absence is decided from the fresh venue reply + live recheck only), but findWithdrawal
+    // and that live recheck still benefit from a filled cache, so incomplete boot warm-up must still be retried
+    // promptly rather than waiting for a human or a later reconnect. Reuse catchUpAfterReconnect (both streams,
+    // existing pacing / retry) rather than inventing a second timer type; trigger is only a true Promise rejection
+    // on a leg, never "empty array" (that is a successful warm-up with no rows).
     void Promise.all([executionWarmUp, balanceWarmUp]).then(([executionLoaded, balanceLoaded]) => {
-      if (executionLoaded && balanceLoaded) this.lastCatchUpAt = Date.now();
+      if (executionLoaded && balanceLoaded) {
+        this.lastCatchUpAt = Date.now();
+        return;
+      }
+
+      this.logger.warn(
+        `Scrypt boot warm-up incomplete (executionLoaded=${executionLoaded}, balanceLoaded=${balanceLoaded}) — triggering catch-up without waiting for a reconnect`,
+      );
+      void this.catchUpAfterReconnect().catch((e) => this.logger.error('Scrypt catch-up retry failed:', e));
     });
 
     this.connection.onReconnect(() => this.catchUpAfterReconnect());
@@ -187,7 +274,7 @@ export class ScryptService extends PricingProvider {
   }
 
   private isTerminalExecutionReport(r: ScryptExecutionReport): boolean {
-    return [ScryptOrderStatus.FILLED, ScryptOrderStatus.CANCELED, ScryptOrderStatus.REJECTED].includes(r.OrdStatus);
+    return isTerminalScryptOrderStatus(r.OrdStatus);
   }
 
   /**
@@ -215,7 +302,17 @@ export class ScryptService extends PricingProvider {
   // Bulk (age-bounded) warm-up/catch-up path only — live subscriptions must cache directly via cacheExecutionReport/cacheBalanceTransaction, see constructor.
   private applyBalanceTransactions(transactions: ScryptBalanceTransaction[]): void {
     const cacheMaxAge = Util.daysBefore(365);
-    for (const t of transactions) if (new Date(t.Timestamp) >= cacheMaxAge) this.cacheBalanceTransaction(t);
+    for (const t of transactions) {
+      // Field priority matches the rest of this file: Timestamp first, TransactTime only when Timestamp is missing.
+      // Missing or unreadable stamp → cache conservatively (never drop). The bulk age filter must not discard a
+      // withdrawal we later need for findWithdrawal or the live recheck in confirmWithdrawalAbsent — a dropped
+      // row is a payout we cannot rediscover. This is a deliberate, documented fallback (cache on doubt), not a
+      // silent default.
+      const raw = t.Timestamp ?? t.TransactTime;
+      if (!raw || Number.isNaN(new Date(raw).getTime()) || new Date(raw) >= cacheMaxAge) {
+        this.cacheBalanceTransaction(t);
+      }
+    }
   }
 
   // After a WS reconnect, re-fetch balance transactions + execution reports so an event missed during the outage
@@ -586,6 +683,75 @@ export class ScryptService extends PricingProvider {
   }
 
   /**
+   * Confirm that the venue's transaction history has no record of this withdrawal reference.
+   *
+   * Scrypt has no cancel/storno for withdrawals. A quarantined withdrawal therefore cannot be cleared the way
+   * a trade is. The automatic exit is confirmed absence: a fresh bulk fetch was returned and this `clReqId`
+   * is not in it — whether that history has rows or not. The caller abandons on that basis rather than
+   * claiming a not-sent release.
+   *
+   * No local consistency gate / cache-anchor check. Scrypt withdrawal destinations are exclusively DFX-owned
+   * addresses ("Auszahlungsadressen bei Scrypt gehören alle ausnahmslos der DFX AG"). A second payout would
+   * move funds only between DFX accounts — an internal rebooking, not a loss and not a compliance incident
+   * ("eine doppelte Auszahlung wäre absolut akzeptabel"). The former gates traded that accepted non-risk for a
+   * forbidden permanent wait: they required cache anchors that can be structurally absent (no row with
+   * ClReqID, no row older than the order, 365-day cache bound), so confirmWithdrawalAbsent returned false
+   * forever and the order waited on a human to refill the cache. "Die Kombination aus Scrypt und Warten auf
+   * einen Menschen ist NICHT ERLAUBT."
+   *
+   * Incomplete or truncated venue replies (pagination cut-off, partial answer) can now cause a second
+   * withdrawal. That is the deliberate trade-off accepted by the orderer — not an overlooked gap.
+   *
+   * Remaining `false` branches react only to a fetch failure or a live-cache race hit (the reference appeared
+   * in the live map while the bulk fetch was in flight). An empty history is no longer one of them: on a
+   * fresh or long-dormant Scrypt account the trade history genuinely has no rows, and a successful `[]` is
+   * treated exactly like any other successful reply that does not name the reference — not as a reason to
+   * wait. It is not evidence the history was complete: a truncated reply can arrive this way too, which is
+   * the trade-off stated above, accepted rather than overlooked. That is still not the same case as a real
+   * outage: an outage does not come back as an empty array, it throws, and lands in the catch above. The two
+   * look alike only on paper — a thrown error and a successful empty reply are deliberately handled
+   * differently.
+   *
+   * @returns true when the live cache does not hold `clReqId` after the fetch and the fresh history (empty or
+   * not) does not contain it. false on fetch failure, live-race hit, or when the reference is present in the
+   * fresh reply.
+   */
+  async confirmWithdrawalAbsent(clReqId: string): Promise<boolean> {
+    let fresh: ScryptBalanceTransaction[];
+    try {
+      fresh = await this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION);
+    } catch (e) {
+      this.logger.warn(`confirmWithdrawalAbsent(${clReqId}): could not fetch full transaction history: ${e.message}`);
+      return false;
+    }
+
+    // An empty reply is a successful answer that does not name the reference — not a reason to wait. See
+    // the JSDoc above for why this is no longer a `false` branch: it carries exactly the weight of a
+    // non-empty history without `clReqId` below, no more, and is not proof the history was complete.
+    if (!fresh.length) {
+      this.logger.info(
+        `confirmWithdrawalAbsent(${clReqId}): venue returned an empty transaction history — the reference cannot exist in a history with no rows at all`,
+      );
+    }
+
+    const freshIds = new Set(fresh.map((t) => t.ClReqID).filter((id): id is string => Boolean(id)));
+
+    // A live subscription (or catch-up) can write clReqId into this.balanceTransactions while the bulk fetch
+    // is still open — freshIds then misses it, and returning true would let the caller abandon and replan a
+    // second withdrawal. Only a re-read of the LIVE map after the await sees that race; if the id is there,
+    // absence is not confirmed (false, not a hard failure). This is the one remaining positive observation
+    // that can still block absence confirmation without requiring a local cache anchor.
+    if (this.balanceTransactions.has(clReqId)) {
+      this.logger.warn(
+        `confirmWithdrawalAbsent(${clReqId}): reference appeared in the live cache while the history fetch was in flight — cannot conclude absence`,
+      );
+      return false;
+    }
+
+    return !freshIds.has(clReqId);
+  }
+
+  /**
    * @param since lower bound for the fallback history fetch. A caller that knows when its reference can
    * earliest have existed passes it here, so a lookup for an absent order does not pull a full 30 days of
    * execution reports over the connection. Defaults to the full 30-day window.
@@ -624,6 +790,17 @@ export class ScryptService extends PricingProvider {
     };
   }
 
+  // Prunes on every write rather than on a timer or a terminal event: this throttle only ever needs the MOST
+  // RECENT attempt, so nothing is lost by dropping an old one, and 24 hours is far beyond
+  // PENDING_STUCK_AFTER_MINUTES (single-digit minutes) — an entry that old belongs to a reference that has
+  // long since resolved or moved on, not one still cycling through the PENDING branch below.
+  private recordPendingCancelAttempt(clOrdId: string): void {
+    this.pendingCancelAttempts.set(clOrdId, new Date());
+
+    const dayAgo = Util.hoursBefore(24);
+    for (const [id, at] of this.pendingCancelAttempts) if (at < dayAgo) this.pendingCancelAttempts.delete(id);
+  }
+
   /**
    * @param replacementClOrdId reference to use if this check has to amend or restart the order. Must be
    * reproducible from the order row by the caller, so a timed-out replacement stays findable.
@@ -632,7 +809,7 @@ export class ScryptService extends PricingProvider {
     clOrdId: string,
     from: string,
     to: string,
-    orderCreated?: Date,
+    orderCreated: Date,
     replacementClOrdId?: string,
     // Invoked immediately before a replacement is sent, so the caller can make the reference durable first.
     // Without that, a replacement whose confirmation is lost is neither the current reference nor a spent
@@ -641,8 +818,8 @@ export class ScryptService extends PricingProvider {
   ): Promise<boolean> {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
-      // If the order is older than 1 hour and still not found, it's lost
-      const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
+      // Past its bound and still not found anywhere: treat it as lost rather than keep polling for it.
+      const ageMinutes = Util.minutesDiff(orderCreated);
       if (ageMinutes > ORDER_LOST_AFTER_MINUTES) {
         throw new ScryptOrderNotFoundError(
           `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — it may have completed or been cancelled outside of tracked state`,
@@ -652,6 +829,13 @@ export class ScryptService extends PricingProvider {
       this.logger.verbose(`No order info for id ${clOrdId} at ${this.name} found`);
       return false;
     }
+
+    if (
+      orderInfo.status !== ScryptOrderStatus.PENDING_NEW &&
+      orderInfo.status !== ScryptOrderStatus.PENDING_CANCEL &&
+      orderInfo.status !== ScryptOrderStatus.PENDING_REPLACE
+    )
+      this.pendingSince.delete(clOrdId);
 
     switch (orderInfo.status) {
       case ScryptOrderStatus.NEW:
@@ -692,7 +876,8 @@ export class ScryptService extends PricingProvider {
             this.logger.verbose(`Could not update order ${clOrdId}, attempting cancel: ${e.message}`);
             let cancelConfirmed = true;
             try {
-              await this.cancelOrder(clOrdId, from, to);
+              const cancelReport = await this.cancelOrder(clOrdId, from, to);
+              cancelConfirmed = cancelReport.OrdStatus === ScryptOrderStatus.CANCELED;
             } catch (cancelError) {
               // The cancel is a write too. Unconfirmed, it may well have taken effect at the venue while the
               // cached report still shows the order open — and a non-terminal entry is never refreshed, so
@@ -771,14 +956,81 @@ export class ScryptService extends PricingProvider {
 
       case ScryptOrderStatus.PENDING_NEW:
       case ScryptOrderStatus.PENDING_CANCEL:
-      case ScryptOrderStatus.PENDING_REPLACE:
-        // Deliberately just waits, however old the order is. A pending report is an OBSERVATION — we know
-        // where the order stands — so it is not an unknown outcome and must not be quarantined: reconciliation
-        // would find the reference, hand the order straight back, and the next completion check would
-        // quarantine it again. An order that stays pending too long is a stuck order, which the monitoring
-        // counter surfaces; it is not an unresolved one.
-        this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
+      case ScryptOrderStatus.PENDING_REPLACE: {
+        // A pending report is an OBSERVATION — we know where the order stands — so on its own it is not an
+        // unknown outcome and must not be quarantined: reconciliation would find the reference, hand the
+        // order straight back, and the next completion check would quarantine it again. But "observed" is not
+        // the same claim as "running": PENDING_* is meant to last seconds (see PENDING_STUCK_AFTER_MINUTES),
+        // so past that bound this stops merely waiting and asks the venue to settle the question. The clock
+        // alone is never the exit, though — only a confirmed cancel is: a trade that might still be sitting in
+        // the book must not be given up on unconfirmed evidence, or the onFail chain could place a second,
+        // genuinely competing buy right next to it. That cancel is a WRITE to the venue, so it is throttled to
+        // at most one attempt per PENDING_CANCEL_RETRY_MINUTES per reference — otherwise an UNCONFIRMED answer
+        // would draw a fresh cancel on every checkRunningOrders call, which runs nominally every ten seconds,
+        // and possibly more often within one pass.
+        const pendingEntry = this.pendingSince.get(clOrdId);
+        if (!pendingEntry) {
+          const now = new Date();
+          this.pendingSince.set(clOrdId, { since: now, lastSeen: now });
+
+          // Clean up by `lastSeen`, not `since`: a reference may remain continuously pending indefinitely while
+          // still being observed and retried by the PENDING_CANCEL_RETRY_MINUTES throttle below. Cleaning by
+          // `since` would drop an active reference and incorrectly grant a new grace period on its next tick.
+          const dayAgo = Util.hoursBefore(24);
+          for (const [id, entry] of this.pendingSince) if (entry.lastSeen < dayAgo) this.pendingSince.delete(id);
+
+          this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
+          return false;
+        }
+
+        pendingEntry.lastSeen = new Date();
+        const pendingMinutes = Util.minutesDiff(pendingEntry.since);
+        if (pendingMinutes <= PENDING_STUCK_AFTER_MINUTES) {
+          this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
+          return false;
+        }
+
+        const lastCancelAttempt = this.pendingCancelAttempts.get(clOrdId);
+        if (lastCancelAttempt && Util.minutesDiff(lastCancelAttempt) < PENDING_CANCEL_RETRY_MINUTES) {
+          this.logger.verbose(
+            `Order ${clOrdId} is pending (${orderInfo.status}) past its bound, but its last cancel attempt was ` +
+              `less than ${PENDING_CANCEL_RETRY_MINUTES} minute(s) ago — waiting before retrying the write`,
+          );
+          return false;
+        }
+
+        let cancellation: ScryptCancellation;
+        try {
+          cancellation = await this.cancelIfOutstanding(clOrdId, from, to);
+        } finally {
+          this.recordPendingCancelAttempt(clOrdId);
+        }
+
+        if (cancellation === ScryptCancellation.EXECUTED) {
+          this.pendingCancelAttempts.delete(clOrdId);
+          this.pendingSince.delete(clOrdId);
+          this.logger.verbose(`Order ${clOrdId} was pending past its bound, but Scrypt confirms it filled`);
+          return true;
+        }
+
+        if (cancellation === ScryptCancellation.SETTLED) {
+          this.pendingCancelAttempts.delete(clOrdId);
+          this.pendingSince.delete(clOrdId);
+          const ageMinutes = Util.minutesDiff(orderCreated);
+          throw new ScryptOrderStuckPendingError(
+            `Order ${clOrdId} is ${Math.round(ageMinutes)} minutes old and currently reports status ` +
+              `${orderInfo.status}, past the ${PENDING_STUCK_AFTER_MINUTES}-minute pending bound, and Scrypt ` +
+              `confirms nothing can execute under it any more`,
+          );
+        }
+
+        // UNCONFIRMED: nothing may be concluded. Without a confirmed cancel the reference may still be live
+        // in the book, so the order keeps waiting rather than being given up unconfirmed.
+        this.logger.warn(
+          `Order ${clOrdId} is pending (${orderInfo.status}) past its bound, but Scrypt would not confirm a cancel, waiting...`,
+        );
         return false;
+      }
     }
   }
 
@@ -845,8 +1097,154 @@ export class ScryptService extends PricingProvider {
     };
   }
 
-  private async cancelOrder(clOrdId: string, from: string, to: string): Promise<boolean> {
+  /**
+   * Ask the venue to make sure a reference cannot execute any more, and report what that established.
+   *
+   * For giving up on an order whose outcome was never observed. The danger there is never the order itself
+   * but a request still live in the book: hand the funds back to a rule while one sits open and a late fill
+   * spends them twice. Cancelling removes that possibility outright, which beats estimating when it has
+   * passed — and unlike a re-send, a cancel can never create anything.
+   *
+   * Three outcomes, because a cancel does not only ever mean "nothing happened":
+   *  - SETTLED — terminal with nothing filled (cancelled or rejected), or the venue does not know the
+   *    reference at all. Both mean nothing can execute under it, which is what lets the caller give the
+   *    order up — the first outright, the second as an inference from the venue's own words rather than a
+   *    statement about execution. See SCRYPT_UNKNOWN_ORDER for what that inference rests on.
+   *  - EXECUTED — it reached a terminal state with something filled. Like a cancelled reference it cannot
+   *    trade further, so the caller may give the order up; the fill has already moved the venue balance
+   *    that the rule replans from. Reported separately from SETTLED because "something happened here" is
+   *    worth seeing in a log and worth reconciling against.
+   *
+   *    Terminal is the operative word: a refused cancel carries the order's last known state, so a
+   *    partially filled order that could NOT be cancelled reports a fill while staying wide open.
+   *  - UNCONFIRMED — no usable answer. Nothing may be concluded from it.
+   *
+   * Symbol resolution is the one thing that differs between this and {@link cancelIfOutstandingBySymbol};
+   * everything else (send, evaluate, guard, catch) lives once in {@link cancelIfOutstandingCore} so neither
+   * can drift from the other.
+   */
+  async cancelIfOutstanding(clOrdId: string, from: string, to: string): Promise<ScryptCancellation> {
+    return this.cancelIfOutstandingCore(clOrdId, async () => (await this.getTradePair(from, to)).symbol);
+  }
+
+  /**
+   * Same outcome as {@link cancelIfOutstanding}, for a reference whose trade pair cannot be rebuilt locally —
+   * typically a command no longer in `ScryptAdapterCommands` (rename/removal), where a `paramMap` that
+   * happens to still carry a `tradeAsset` is not a guarantee the command was ever a plain sell/buy.
+   *
+   * The venue's own order-status reply already names the symbol a reference lives under
+   * (`ScryptOrderInfo.symbol`), straight from the venue rather than reconstructed from configuration that may
+   * no longer match reality (a delisted or renamed security would make `getTradePair` throw even though the
+   * order in question is still very much live under its original symbol). Every reference the venue can
+   * still show us is therefore cancellable through the symbol it hands back — there is no "symbol not
+   * determinable" wait path left, only the venue not knowing the reference at all (SETTLED, same inference as
+   * the `UnknownOrder` case below) or not answering at all (the caller's own lookup decides what to do with
+   * that, not this method).
+   */
+  async cancelIfOutstandingBySymbol(clOrdId: string, symbol: string): Promise<ScryptCancellation> {
+    return this.cancelIfOutstandingCore(clOrdId, async () => symbol);
+  }
+
+  private async cancelIfOutstandingCore(
+    clOrdId: string,
+    // Deferred rather than a plain string: the symbol lookup used by cancelIfOutstanding has to run INSIDE
+    // this method's try, exactly as it did when cancelOrder resolved it internally — otherwise a failing
+    // getTradePair would escape uncaught instead of settling into UNCONFIRMED like every other cancel failure.
+    resolveSymbol: () => Promise<string>,
+  ): Promise<ScryptCancellation> {
+    try {
+      const symbol = await resolveSymbol();
+      const report = await this.cancelOrderBySymbol(clOrdId, symbol);
+
+      const filled = Number(report.CumQty);
+
+      // An unreadable quantity is not a zero one. Concluding "nothing filled" from a value that could not
+      // be parsed is exactly how a real fill gets dropped, so it settles nothing and the caller waits.
+      //
+      // Emptiness has to be caught separately: Number('') and Number('   ') are 0, not NaN, so a missing
+      // quantity would otherwise pass the finite check and read as an untouched order. A negative one is
+      // rejected for the same reason rather than compared away: a cumulative filled size cannot be below
+      // zero, so a venue reporting one is not describing an untouched order — it is not being understood,
+      // and only the checks below would quietly treat it as though nothing had traded.
+      if (!report.CumQty?.trim() || !Number.isFinite(filled) || filled < 0) {
+        this.logger.warn(`Cancel of order ${clOrdId} reported an unreadable filled size (${report.CumQty})`);
+
+        return ScryptCancellation.UNCONFIRMED;
+      }
+
+      const refusedAsUnknown =
+        report.ExecType === SCRYPT_CANCEL_REJECTED && report.CxlRejReason === SCRYPT_UNKNOWN_ORDER;
+
+      // Checked before anything else: a report claiming the venue has no record of this order while
+      // reporting a fill on it disagrees with itself, and that is true whatever its status says. Deciding
+      // on the status first would let the same contradiction through with a terminal one attached.
+      if (refusedAsUnknown && filled > 0) {
+        this.logger.warn(
+          `Cancel of order ${clOrdId} was refused as unknown yet reports ${report.CumQty} filled — the report contradicts itself, settling nothing`,
+        );
+
+        return ScryptCancellation.UNCONFIRMED;
+      }
+
+      // Only a terminal state answers the question this method asks. A refused cancel comes back carrying
+      // the order's LAST KNOWN state, so a partially filled order that could not be cancelled reports a
+      // fill while remaining wide open — reading the fill alone would call that finished and let the
+      // caller walk away from a reference that can still trade.
+      //
+      // Which states are terminal is decided in one place for this venue, not restated here: a rejected
+      // order is just as final as a cancelled one, and a second list would be free to disagree with the
+      // first — leaving an order that provably cannot trade stuck for want of being recognised.
+      if (this.isTerminalExecutionReport(report)) {
+        if (filled > 0) {
+          this.logger.warn(
+            `Cancel of order ${clOrdId} came back terminal with ${report.CumQty} already filled — it executed, and the fill has to be reconciled against the venue balance`,
+          );
+
+          return ScryptCancellation.EXECUTED;
+        }
+
+        return ScryptCancellation.SETTLED;
+      }
+
+      // The venue does not know this reference. Taken together with the order's age and its failed status
+      // lookup, that is treated as settled — see SCRYPT_UNKNOWN_ORDER for what that evidence covers and
+      // why it is an inference rather than a guarantee.
+      if (refusedAsUnknown) {
+        this.logger.verbose(`Scrypt has no such order to cancel for ${clOrdId}`);
+
+        return ScryptCancellation.SETTLED;
+      }
+
+      this.logger.warn(
+        `Cancel of order ${clOrdId} left it in state ${report.OrdStatus}${
+          report.CxlRejReason ? ` (${report.CxlRejReason})` : ''
+        } — nothing settled`,
+      );
+
+      return ScryptCancellation.UNCONFIRMED;
+    } catch (e) {
+      // No rejection branch here on purpose: this venue answers a refused cancel with an execution report,
+      // not an exception, and that is read above. What reaches this catch is anything that stopped the cancel
+      // from being answered — the symbol lookup it starts with, or the send and its wait.
+      //
+      // Not all of those got as far as writing, but this cannot tell which did, and that is the whole reason
+      // to treat them alike: an unconfirmed cancel may have taken effect at the venue while the cached report
+      // still shows the order open, and a non-terminal entry is never refreshed, so every later check would
+      // wait on a picture that cannot change. Dropping it costs one lookup when nothing was ever sent, and
+      // avoids a permanently stale one when something was.
+      this.forgetExecutionReport(clOrdId);
+      this.logger.warn(`Cancel of order ${clOrdId} went unconfirmed: ${e.message}`);
+
+      return ScryptCancellation.UNCONFIRMED;
+    }
+  }
+
+  private async cancelOrder(clOrdId: string, from: string, to: string): Promise<ScryptExecutionReport> {
     const { symbol } = await this.getTradePair(from, to);
+    return this.cancelOrderBySymbol(clOrdId, symbol);
+  }
+
+  private async cancelOrderBySymbol(clOrdId: string, symbol: string): Promise<ScryptExecutionReport> {
     const newClOrdId = randomUUID();
 
     const cancelData = {
@@ -859,11 +1257,25 @@ export class ScryptService extends PricingProvider {
       ScryptMessageType.ORDER_CANCEL_REQUEST,
       [cancelData],
       ScryptMessageType.EXECUTION_REPORT,
-      (reports) => reports.find((r) => r.OrigClOrdID === clOrdId || r.ClOrdID === newClOrdId) ?? null,
+      // PendingCancel is the venue saying "working on it", not an answer. Taking the first report that
+      // merely mentions this order would freeze that intermediate state as the result — and since the
+      // waiter unsubscribes on its first match, the real terminal report that follows would never be seen.
+      (reports) =>
+        reports.find(
+          (r) =>
+            (r.OrigClOrdID === clOrdId || r.ClOrdID === newClOrdId) && r.OrdStatus !== ScryptOrderStatus.PENDING_CANCEL,
+        ) ?? null,
       60000,
     );
 
-    return report.OrdStatus === ScryptOrderStatus.CANCELED;
+    // Deliberately not cached under the cancelled order's own id. The venue tags a cancel confirmation with
+    // the CANCEL request's id, so filing it under the order would make a later status lookup read that
+    // order as terminally cancelled — and a cleanup cancellation says nothing about the order as a whole:
+    // its sibling references may still be unsettled and live. A lookup that then reports the order as known
+    // would take it out of quarantine and let the completion check open a replacement beside them, which is
+    // the double execution this path exists to prevent.
+
+    return report;
   }
 
   private async editOrder(

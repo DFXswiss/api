@@ -71,4 +71,17 @@ export class LiquidityActionIntegrationFactory {
 
     return null;
   }
+
+  /**
+   * Resolve the adapter that can talk to the venue for a quarantined order.
+   *
+   * Unlike {@link getIntegration}, this ignores `supportedCommands`: reconciling an already-quarantined
+   * order cares who can ask the venue, not whether the command is still registered as an executable action.
+   * A command rename or removal must not leave UNCERTAIN rows stranded for an operator forever — the
+   * adapter for the system still knows how to look up and settle references. {@link getIntegration} stays
+   * the gate for starting new work; only a registered command may execute.
+   */
+  getReconciliationIntegration(action: LiquidityManagementAction): LiquidityActionIntegration {
+    return this.adapters.get(action.system) ?? null;
+  }
 }

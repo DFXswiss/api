@@ -33,6 +33,36 @@ export interface LiquidityActionIntegration {
    * quarantine for a human to resolve.
    */
   resolveUncertainOrder?(order: LiquidityManagementOrder): Promise<UncertainOrderResolution>;
+
+  /**
+   * Make sure nothing this order has claimed — sent or merely reserved — can still execute, so it may be
+   * given up safely.
+   *
+   * The one thing that makes abandoning a quarantined order dangerous is a request still live at the venue:
+   * give the rule its funds back and a late fill spends them twice. Rather than estimating when that can no
+   * longer happen, this removes the possibility — cancelling is the opposite of re-sending, so it is the one
+   * write that is always safe against an outcome nobody could observe. Where the venue has no cancel for the
+   * request kind (a Scrypt withdrawal), the substitute is weaker and knowingly so: the venue answered and did
+   * not name the reference, with no completeness check on that answer.
+   *
+   * Returns a non-empty reason string only when the venue has answered that nothing under this order is left
+   * to execute (or, for a withdrawal, that a successful history reply does not name it and it did not surface
+   * in the live cache meanwhile). The caller writes that
+   * string into the order and the log as-is — each integration supplies its own wording so the pipeline never
+   * invents a reason the venue never gave. `null` means no automatic exit; the order stays quarantined.
+   * Read "answered" precisely: a cancellation it accepts, an order it reports terminal, or a successful
+   * history reply that omits the withdrawal reference settles the question. An unconfirmed cancel must return
+   * null: it may well have taken effect, but "may well" is what quarantine already means. A truncated history
+   * is deliberately NOT rejected for withdrawals — that trade-off, and why the alternative was worse, is
+   * argued where the check lives.
+   * Integrations that cannot cancel omit this and simply have no automatic exit from quarantine. For Scrypt,
+   * reconciliation reaches the adapter by system (not by registered command), so every command — including
+   * one no longer in `supportedCommands` — gets either a venue-confirmed reason string or `null`. Known
+   * trade/withdraw commands cancel or confirm absence as before; an unsupported command asks `getOrderStatus`
+   * per reference and cancels any non-terminal one under the symbol that reply itself carries — so "no
+   * derivable symbol" is not a reason to wait. Neither path waits on an operator as its way out.
+   */
+  cancelOutstanding?(order: LiquidityManagementOrder): Promise<string | null>;
 }
 
 export interface LiquidityState {

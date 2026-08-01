@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { ResolveUncertainOrderDto } from '../dto/resolve-uncertain-order.dto';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -17,6 +17,7 @@ import { OrderNotNecessaryException } from '../exceptions/order-not-necessary.ex
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
 import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
+import { LiquidityActionIntegration } from '../interfaces';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
@@ -321,10 +322,28 @@ export class LiquidityManagementPipelineService {
   /**
    * Resolve orders quarantined as UNCERTAIN by asking the venue what actually happened.
    *
-   * This only ever observes — it must not re-send anything. An order leaves quarantine when the venue
-   * either confirms it knows the reference (back to IN_PROGRESS, the normal completion check takes over) or
-   * demonstrably does not (FAILED, so the rule may plan anew from a fresh balance). Anything inconclusive
-   * stays put: an order nobody can account for is safer parked than retried.
+   * This only ever observes or cancels — it must never re-send anything. An order leaves quarantine when the venue
+   * either confirms it knows the reference *and* a registered command still exists to check its completion
+   * (back to IN_PROGRESS, the normal completion check takes over), or demonstrably does not (FAILED, so the
+   * rule may plan anew from a fresh balance). A venue-side SENT for a command that is no longer registered
+   * deliberately stays quarantined: without a completion check, returning it to IN_PROGRESS would leave it
+   * with no exit, so the way out remains the existing automatic cancel/abandon path
+   * (`cancelOutstanding` / `unresolvableTooLong`) — not an operator. Anything inconclusive stays put, and past
+   * the abandon bound for its kind of request a cancellation is attempted — because a rule parked forever is
+   * the worse failure. For a cancellable request it is given up as FAILED only once the venue has confirmed
+   * that nothing under this order can still execute. A Scrypt withdrawal cannot be cancelled at all, so there
+   * the bar is lower by design: the venue answered and did not name the reference, without any completeness
+   * check on that answer — a repeated payout goes to a DFX-owned address, whereas insisting on completeness
+   * would strand the order. Age decides when it is worth trying to clean up; what the venue says decides
+   * whether giving up is safe. So the bound is not a deadline after which the order is certainly gone. For Scrypt
+   * (and any system whose adapter implements `resolveUncertainOrder`), an order whose references the venue
+   * will not yet settle keeps waiting past it — on the venue, not on an operator: reconciliation resolves by
+   * system, so a renamed or removed command still reaches the adapter and can be observed or cancelled there.
+   * Returning that order to the normal pipeline, however, still requires `getIntegration` (registered command).
+   * Systems whose adapter omits `resolveUncertainOrder` have no automatic venue path; without a pending
+   * release they are skipped every pass until an operator acts (`releasePending`). An operator can still
+   * release sooner as a shortcut; where the adapter can ask, the mechanism that ends the wait is the venue
+   * answering (or confirming absence) on a later pass.
    */
   private async resolveUncertainOrders(): Promise<boolean> {
     // First: anything this process observed and could not write. Retried before new lookups, because an
@@ -348,20 +367,43 @@ export class LiquidityManagementPipelineService {
       // pending release bypasses the wait entirely: a manual release must complete on the next tick, and
       // its own venue-wait runs on its own clock.
       if (!releasePending) {
+        const lastAttemptEnd = this.uncertainResolveAttempts.get(order.id);
+        const abandonableAt = order.getAbandonableAt();
         const ageMs = Date.now() - order.created.getTime();
+
+        // How long the last lookup had left before this order became abandonable. Negative once that lookup
+        // itself ran after the deadline, and Infinity when there is no deadline or no previous lookup to
+        // measure from.
+        const deadlineHeadroomMs =
+          abandonableAt && lastAttemptEnd ? abandonableAt.getTime() - lastAttemptEnd.getTime() : Infinity;
+
         const intervalMs = Math.min(
           Math.max(ageMs / 10, UNCERTAIN_RESOLVE_MIN_INTERVAL_MS),
           UNCERTAIN_RESOLVE_MAX_INTERVAL_MS,
+          // The throttle may never outlast the deadline it has to keep. This same pass is what abandons an
+          // order whose bound has run out, so a wait reaching past that bound postpones the abandonment beyond
+          // the ceiling the bound exists to impose — a trade quarantined when it was already eight hours old
+          // would be given up after thirty minutes instead of five, with nothing here saying so.
+          //
+          // Taken as-is while there is headroom, deliberately without the floor: a lookup that ended shortly
+          // before the deadline has less than a floor's worth of time left, and imposing a full interval on it
+          // would schedule the next pass after the deadline — the very overshoot this cap prevents, caused by
+          // the cap. It costs at most one extra lookup, because the pass it permits is the one that gives the
+          // order up.
+          //
+          // Past the deadline the floor governs instead: there is no deadline left to protect, and a
+          // cancellation the venue will not confirm must not retry on every ten-second tick.
+          deadlineHeadroomMs > 0 ? deadlineHeadroomMs : UNCERTAIN_RESOLVE_MIN_INTERVAL_MS,
         );
 
-        const lastAttemptEnd = this.uncertainResolveAttempts.get(order.id);
         if (lastAttemptEnd && Date.now() - lastAttemptEnd.getTime() < intervalMs) continue;
       }
 
       try {
-        // Null when the action's system or command is no longer registered at all — an order can outlive the
-        // adapter that made it, and dereferencing that would throw here on every pass, forever.
-        const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
+        // Null only when the action's *system* has no adapter at all. Command registration is ignored here:
+        // a quarantined order can outlive a command rename/removal, and reconciliation still needs whoever
+        // can ask that venue. Execution of new orders keeps using getIntegration (registered commands only).
+        const actionIntegration = this.actionIntegrationFactory.getReconciliationIntegration(order.action);
 
         if (!actionIntegration?.resolveUncertainOrder) {
           // The one exception to "a release waits for the venue": there is no lookup for this order at all,
@@ -369,6 +411,12 @@ export class LiquidityManagementPipelineService {
           // operator's judgement is all there is, which is why the assertion behind it is required.
           if (releasePending && (await this.completeNotSentRelease(order, 'no integration can look it up')))
             anyChanged = true;
+          // Deliberately no automatic abandon here. Without an integration the venue is never asked, so the
+          // only thing left would be the clock — and the safety of abandoning rests on the rule replanning
+          // from a balance that reflects an execution which did happen. That holds for an exchange read live
+          // at plan time; it does not hold for a chain balance that omits unconfirmed transactions, nor for a
+          // bank balance carried over from the last imported batch. Abandoning on the clock alone would be
+          // guessing with the one class of order nothing here can observe.
           continue;
         }
 
@@ -383,7 +431,30 @@ export class LiquidityManagementPipelineService {
         }
 
         if (resolution === UncertainOrderResolution.SENT) {
-          if (await this.applyConfirmedObservation(order)) {
+          // Reconciliation looked up by system alone so an unregistered command can still be *observed* —
+          // that is intentional and stays that way (see getReconciliationIntegration above). Putting the
+          // order back into IN_PROGRESS is a different decision: the normal completion path uses the strict
+          // getIntegration (registered commands only). An order whose command is gone would land in
+          // IN_PROGRESS with no adapter that can checkCompletion — every checkRunningOrders pass would
+          // TypeError, never quarantine, and the automatic abandon path would never run. Observing is
+          // allowed for anyone who can ask the venue; advancing out of quarantine is only allowed for
+          // whoever can also finish the job. Leave it UNCERTAIN so cancelOutstanding / unresolvableTooLong
+          // still apply once the bound is reached.
+          if (!this.actionIntegrationFactory.getIntegration(order.action)) {
+            this.logger.warn(
+              `Uncertain liquidity order ${order.id} stays quarantined: venue confirmed it was sent ` +
+                `(system ${order.action.system}, command ${order.action.command}), but no registered command ` +
+                `can check its completion — returning it to IN_PROGRESS would leave it with no exit`,
+            );
+
+            // A SENT for a command that no longer exists is a real observation ("the reference exists") but
+            // not one that can return to normal operation. The only remaining exit is the same as for an
+            // unresolvable case: after the bound elapses, cancel and abandon. resolveUncertainOrder answers
+            // "does the reference exist", not "is it still open" — so SENT stays SENT permanently, and the
+            // cleanup path must not depend on a future status change; it has to run independently of whether
+            // the command is still registered.
+            if (await this.attemptQuarantineCleanup(order, actionIntegration)) anyChanged = true;
+          } else if (await this.applyConfirmedObservation(order)) {
             anyChanged = true;
             this.logger.info(`Uncertain liquidity order ${order.id} resolved: venue confirmed it was sent`);
           }
@@ -396,14 +467,23 @@ export class LiquidityManagementPipelineService {
           // checked independently and released the order on that basis. Two negatives, one of them from a
           // person who looked: that is what this release was waiting for.
           if (await this.completeNotSentRelease(order, 'the venue has no record of it either')) anyChanged = true;
+        } else if (releasePending && !order.correlationId) {
+          // Nothing ever went out under a reference, so no lookup can produce an answer — the same dead end
+          // as an order with no integration, and the same reason not to make somebody who already checked
+          // wait out a clock. Without this the release would sit through the full unreachable-venue wait,
+          // because an unaskable order now reports UNAVAILABLE rather than an answer.
+          if (await this.completeNotSentRelease(order, 'no reference exists to look it up')) anyChanged = true;
         } else if (releasePending && order.releaseWaitedOutVenue()) {
           // Nobody has been able to ask this venue anything for long enough. Waiting more does not make an
           // answer likelier; it only keeps an order a person has verified by hand out of reach.
           if (await this.completeNotSentRelease(order, 'the venue could not be reached for long enough'))
             anyChanged = true;
+        } else if (await this.attemptQuarantineCleanup(order, actionIntegration)) {
+          // see attemptQuarantineCleanup
+          anyChanged = true;
         }
-        // Otherwise — a venue that cannot be asked yet, or an inconclusive answer with nobody having
-        // released the order — nothing changes and it keeps blocking.
+        // Otherwise — an order still inside the window in which its request could be live — nothing changes
+        // and it keeps blocking.
       } catch (e) {
         // a failing lookup must never promote the order out of quarantine
         this.logger.error(`Error in resolving uncertain liquidity order ${order.id}:`, e);
@@ -414,12 +494,53 @@ export class LiquidityManagementPipelineService {
   }
 
   /**
+   * Attempt cancel-and-abandon for a quarantined order that has outlived its bound.
+   *
+   * Called from two places that share the same exit and must not invent two clocks for it: the ordinary
+   * end of the if/else-if chain (inconclusive lookup, bound reached), and the SENT branch when the venue
+   * confirmed the reference but no registered command remains to finish the job. The deadline check lives
+   * here — not at either call site — so both paths apply the same bound, and so the SENT path can invoke
+   * cleanup without re-entering the chain or falling through into completeNotSentRelease.
+   *
+   * Returns whether the order was abandoned (and thus whether the caller should count a state change).
+   */
+  private async attemptQuarantineCleanup(
+    order: LiquidityManagementOrder,
+    actionIntegration: LiquidityActionIntegration,
+  ): Promise<boolean> {
+    if (!order.unresolvableTooLong()) return false;
+
+    // Old enough that cleaning it up is worth attempting, and nobody has released it. Leaving it here
+    // forever is not the careful option — the rule then never runs again and the venue stops being
+    // served entirely. Trade and withdraw both reach this path: the integration decides what settles the
+    // question (cancel every reference, or — for a withdrawal, which cannot be cancelled — a venue reply
+    // that does not name the reference) and returns the reason wording the abandon step will record.
+    //
+    // What stands in the way of giving up is never the order itself but the possibility of a request
+    // still executing: hand the funds back and a late fill spends them twice. So rather than
+    // estimating when that can no longer happen — these are orders nothing expires, so age proves
+    // nothing — the possibility is removed. Cancelling is the opposite of re-sending and cannot create
+    // anything, and once the venue confirms nothing can execute, abandoning is a fact rather than a
+    // guess. Refuses to settle, or cannot be reached? Then nothing changes and the order waits on the
+    // venue (an operator is only a shortcut past the next automatic pass).
+    const because = await actionIntegration.cancelOutstanding?.(order);
+    if (!because) return false;
+
+    return this.abandonUncertainOrder(order, because);
+  }
+
+  /**
    * Put a not-sent conclusion into effect: the order becomes an ordinary failure and its rule may plan anew.
    *
-   * The only place an order leaves quarantine downwards. Everything that reaches here has either a venue
+   * The evidence-based way out of quarantine downwards. Everything that reaches here has either a venue
    * verdict behind it, or a person who checked plus a venue that has no record — never a single judgement on
    * its own. The two exceptions are about liveness, not evidence: a venue nothing can ask, and one that has
    * answered nothing for long enough. Silence there stops vetoing the person who checked; it proves nothing.
+   *
+   * The other way out is {@link abandonUncertainOrder}, which concludes nothing about the send itself and
+   * rests instead on the venue confirming that nothing can still execute — so that an order nobody releases
+   * is not held by that alone. It is not a guarantee against blocking: where the venue will not confirm, or
+   * cannot be asked to cancel, this release stays the only way out.
    */
   private async completeNotSentRelease(order: LiquidityManagementOrder, because: string): Promise<boolean> {
     // The release this pass looked at, captured before the entity is mutated. Ending an order is the one
@@ -432,6 +553,44 @@ export class LiquidityManagementPipelineService {
     if (!(await this.leaveQuarantine(order, examined))) return false;
 
     this.logger.info(`Uncertain liquidity order ${order.id} released as never sent: ${because}`);
+
+    return true;
+  }
+
+  /**
+   * Abandon an order with nothing left outstanding at the venue, so its rule runs again.
+   *
+   * The way out of quarantine that rests on no conclusion about whether the request was ever sent — that
+   * stays unknown, which is why `because` may only ever describe what the venue confirmed, never that
+   * nothing was sent. The row must not claim an observation nobody made.
+   *
+   * The clock does not release anything on its own: it only decides when cleaning up is worth attempting.
+   * What permits the release is the venue confirming that none of the order's references can execute.
+   *
+   * Reached only after the venue has confirmed that none of the order's references can execute any more, so
+   * what it ends is a wait, not an open question.
+   *
+   * Logged as a warning, not an info. Nothing here is routine — an order reaching this point means the venue
+   * lost track of a request past its bound — and the entry is what makes that visible without an operator
+   * having to be the mechanism that unblocks it.
+   */
+  private async abandonUncertainOrder(order: LiquidityManagementOrder, because: string): Promise<boolean> {
+    // Usually null, because a pending release is handled by an earlier branch for every answer that concerns
+    // it — but not always: this branch has no release condition of its own, so an order released while the
+    // venue was unreachable reaches it with the marker still set, and is then given up on the cancellation
+    // rather than on the release. Whichever it is, the value read here is the one narrowed on, which is the
+    // point: an operator may write a release between that read and this write, and that release carries an
+    // audited reason and is owed one more venue answer. Without the narrowing this write — which rests on the
+    // venue's cancellation but on no evidence about whether the request was ever sent — would silently
+    // overwrite the one resting on a person. (The reason itself survives either way: the abandonment prefixes
+    // the existing message rather than replacing it.)
+    const examined = order.notSentRecheckDue ?? null;
+
+    order.abandonUncertain(`${order.errorMessage} (abandoned ${new Date().toISOString()}: ${because})`);
+
+    if (!(await this.leaveQuarantine(order, examined))) return false;
+
+    this.logger.warn(`Uncertain liquidity order ${order.id} abandoned: ${because}`);
 
     return true;
   }
@@ -576,8 +735,16 @@ export class LiquidityManagementPipelineService {
       {
         id: order.id,
         status: LiquidityManagementOrderStatus.UNCERTAIN,
-        // narrowed by the caller when the outcome depends on WHICH pending release was examined
-        ...(expectedRecheckDue !== undefined ? { notSentRecheckDue: expectedRecheckDue } : {}),
+        // Narrowed by the caller when the outcome depends on WHICH pending release was examined.
+        //
+        // `IsNull()` rather than a bare null: TypeORM renders a raw null in a where object as `= NULL`
+        // (invalidWhereValuesBehavior.null defaults to "ignore", which falls through to an equality), and
+        // `x = NULL` is UNKNOWN in SQL, so it matches nothing — not even the row whose column really is
+        // NULL. "No release was pending" is the ordinary case for every caller here, so without this the
+        // narrowed update would silently never affect a row and report itself as a lost race.
+        ...(expectedRecheckDue !== undefined
+          ? { notSentRecheckDue: expectedRecheckDue === null ? IsNull() : expectedRecheckDue }
+          : {}),
       },
       {
         status: order.status,
@@ -591,7 +758,21 @@ export class LiquidityManagementPipelineService {
     );
 
     if (!result.affected) {
-      this.logger.info(`Uncertain liquidity order ${order.id} was already resolved elsewhere, skipping`);
+      // Two very different situations, and this write cannot tell them apart: either somebody resolved the
+      // order between the read and here — a race, which the next pass simply sees — or the narrowing above
+      // matched no row and never will, in which case this repeats on every pass while the order stays exactly
+      // as it is. Claiming the benign one was wrong: a release timestamp written with microsecond precision
+      // cannot be matched by a JavaScript Date, which carries milliseconds, and one written by hand in SQL held
+      // a live order for hours behind the reassuring version of this line.
+      //
+      // So it names both and says what to look for. A warning rather than info because a race is rare and
+      // self-correcting while the other case is a silent permanent block, and this line is the only trace it
+      // leaves — the whole failure this branch exists to end.
+      this.logger.warn(
+        `Uncertain liquidity order ${order.id} was not updated: either it was resolved elsewhere, or the ` +
+          `quarantine narrowing matched no row. Repeating on every pass means the latter — the order is stuck.`,
+      );
+
       return false;
     }
 
@@ -628,9 +809,12 @@ export class LiquidityManagementPipelineService {
    * Release a quarantined order by hand, after somebody checked the venue directly.
    *
    * Reconciliation can only ever confirm that a reference exists; it never concludes the opposite, because
-   * no venue reply proves "this was never accepted". Without this path a genuinely unsent request would
-   * block its rule forever. Guarded like the payout subdomain's retry: the caller must assert the check and
-   * name where it happened, and the assertion is recorded on the order.
+   * no venue reply proves "this was never accepted". An order that can at least be cancelled is given up
+   * once the venue confirms nothing can still execute, so this path is what keeps the rest moving: orders no
+   * integration can look up, and venues that will not settle them, which nothing here would otherwise
+   * release. Guarded like the
+   * payout subdomain's retry: the caller must assert the check and name where it happened, and the
+   * assertion is recorded on the order.
    */
   async resolveUncertainOrderManually(
     orderId: number,
@@ -737,7 +921,20 @@ export class LiquidityManagementPipelineService {
   }
 
   private async checkOrder(order: LiquidityManagementOrder): Promise<boolean> {
+    // A running order whose command is no longer registered cannot be completed through the normal path.
+    // getIntegration returns null for unregistered commands; without this guard the next line would throw a
+    // TypeError that checkRunningOrders only logs — the order would stay IN_PROGRESS forever, outside
+    // quarantine, where neither automatic abandon nor the manual release endpoint can reach it. Quarantining
+    // via OrderOutcomeUnknownException is not a Scrypt special case: for any system, a live order without an
+    // adapter is better in UNCERTAIN (automatic and manual exits both apply) than in a state where nothing
+    // acts on it.
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
+    if (!actionIntegration) {
+      throw new OrderOutcomeUnknownException(
+        `Liquidity order ${order.id} has no registered integration for ${order.action.system}/${order.action.command} that can check its completion`,
+      );
+    }
+
     const isComplete = await actionIntegration.checkCompletion(order);
 
     if (isComplete) {

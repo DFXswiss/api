@@ -42,6 +42,17 @@ export enum LiquidityManagementOrderStatus {
   // Quarantine for an order whose request left our side without an observed outcome. Terminal for the
   // pipeline (it never resumes on its own) but not for the order: `resolveUncertainOrders` asks the venue
   // what happened and moves it on to IN_PROGRESS or FAILED. See OrderOutcomeUnknownException.
+  //
+  // Where an integration can ask the venue, an automatic cleanup is at least attempted: once the order has
+  // outlived the window in which its request could still be in flight (ABANDON_UNCERTAIN_MINUTES, which
+  // differs for venue-internal trades and transfers), the adapter is asked to cancel every reference it
+  // claimed — if it supports cancelling that kind of request at all.
+  //
+  // Giving up is never concluded from the clock alone: past the bound the venue is asked to cancel every
+  // reference the order claimed — sent or merely reserved — and only its answer that none can still execute
+  // permits FAILED.
+  // A venue that will not settle them, and an adapter that cannot cancel at all, keep waiting — for
+  // `resolveUncertainOrderManually`.
   UNCERTAIN = 'Uncertain',
 }
 
@@ -51,14 +62,21 @@ export enum UncertainOrderResolution {
   SENT = 'Sent',
   /** The venue demonstrably does not know the order — nothing was executed, the rule may plan anew. */
   NOT_SENT = 'NotSent',
-  /** The venue answered, and the answer settles nothing. Stay in quarantine and look again later. */
+  /**
+   * The venue answered, and the answer settles nothing. Stay in quarantine and look again later — until the
+   * order outlives the abandon bound for its kind of request, at which point the caller tries to cancel
+   * everything it sent. Only that confirmation releases it; the bound alone never does.
+   */
   UNRESOLVED = 'Unresolved',
   /**
-   * The venue could not be asked at all.
+   * The venue could not be asked, or could not be asked completely.
    *
    * Deliberately not the same as UNRESOLVED: that one is an answer, this one is the absence of one, and a
    * caller that retires an order's outstanding work on the strength of a completed lookup must not retire it
    * on a failed one.
+   *
+   * "Not completely" covers an order with no reference to ask about at all: there is nothing to look up, so
+   * nothing was learned.
    */
   UNAVAILABLE = 'Unavailable',
 }
