@@ -70,11 +70,17 @@ describeProjection('ledger suspense — read-path projection', () => {
     return { leg, tx, account };
   }
 
-  /** The response the endpoint produces, through the projected query. */
+  /**
+   * The response the endpoint produces, through the projected query.
+   *
+   * `now` is a parameter because the age is derived from it: a comparison that takes its own
+   * timestamp disagrees with this one across a day boundary, which would fail for the calendar
+   * rather than for the projection.
+   */
   async function suspenseOf(
     fields = SUSPENSE_LEG_PROJECTION.fields,
+    now = new Date(),
   ): Promise<{ totalChf: number; legs: SuspenseLegDto[] }> {
-    const now = new Date();
     const rows = await legs.findSuspenseLegs(fields);
     const totalChf = Util.round(Util.sum(rows.map((l) => l.amountChf ?? 0)), 2);
     const mapped: SuspenseLegRow[] = rows.map((leg) => ({
@@ -150,8 +156,8 @@ describeProjection('ledger suspense — read-path projection', () => {
     await seedLeg();
     const now = new Date();
 
-    const projected = await suspenseOf();
-    // The unprojected load is the second source: the join form the query used before.
+    const projected = await suspenseOf(SUSPENSE_LEG_PROJECTION.fields, now);
+    // The unprojected load is the second source: the same rows selected without a field list.
     const full = await dataSource
       .getRepository(LedgerLeg)
       .createQueryBuilder('leg')
@@ -161,14 +167,17 @@ describeProjection('ledger suspense — read-path projection', () => {
       .orderBy('tx.bookingDate', 'ASC')
       .getMany();
 
-    expect(projected.legs).toEqual(
-      full.map((leg) =>
+    // The whole response, not just the rows: the total is derived from a column the projection has
+    // to carry, so comparing only the legs would leave it unchecked.
+    expect(projected).toEqual({
+      totalChf: Util.round(Util.sum(full.map((leg) => leg.amountChf ?? 0)), 2),
+      legs: full.map((leg) =>
         LedgerDtoMapper.mapSuspenseLeg({
           leg,
           bookingDate: leg.tx.bookingDate,
           age: Util.daysDiff(leg.tx.bookingDate, now),
         }),
       ),
-    );
+    });
   }, 120000);
 });

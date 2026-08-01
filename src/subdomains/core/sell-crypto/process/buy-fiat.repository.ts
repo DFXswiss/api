@@ -20,7 +20,7 @@ export const BUY_FIAT_HISTORY_RESPONSE_FIELDS = [
 /**
  * `GET /sell/:id/history` — filtered by the sell route and its user.
  *
- * Without it the query loads whole `BuyFiat` rows: 470 columns for these nine values.
+ * Without it the query loads whole `BuyFiat` rows for these nine values.
  */
 export const BUY_FIAT_HISTORY_PROJECTION = new ReadProjection<BuyFiat>(
   'buyFiat',

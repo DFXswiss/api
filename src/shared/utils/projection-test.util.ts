@@ -371,12 +371,18 @@ function guardAgainst(
 ): unknown {
   if (entity == null) return entity;
 
-  /** What the query selected, per alias. Guards are selected too — `apply` adds them. */
+  /**
+   * What the query selected, per alias. Guards are selected too — `apply` adds them.
+   *
+   * The path after the alias is kept whole rather than split off at the first segment: an embedded
+   * column is addressed as `alias.address.city`, and keeping only `address` would mark every
+   * column of the embedded as selected.
+   */
   const selected = new Map<string, Set<string>>();
   for (const field of [...fields, ...projection.guards]) {
-    const [alias, property] = field.split('.');
+    const [alias, ...path] = field.split('.');
     if (!selected.has(alias)) selected.set(alias, new Set());
-    selected.get(alias).add(property);
+    selected.get(alias).add(path.join('.'));
   }
 
   interface Node {
@@ -405,6 +411,36 @@ function guardAgainst(
     byAlias.set(alias, child);
   }
 
+  /** Is `path` an embedded object rather than a column — that is, does anything sit below it? */
+  const isEmbedded = (at: Node, path: string): boolean =>
+    at.metadata.columns.some((column) => column.propertyPath.startsWith(`${path}.`));
+
+  /**
+   * An embedded object, guarded one level down.
+   *
+   * Its columns are addressed by their full path (`address.city`), so the same selection set
+   * answers for them; only the walk to reach them differs.
+   */
+  const wrapEmbedded = (value: ObjectLiteral, at: Node, prefix: string): ObjectLiteral =>
+    value == null
+      ? value
+      : new Proxy(value, {
+          get(source, property, receiver) {
+            const path = `${prefix}.${String(property)}`;
+            const inner = Reflect.get(source, property, receiver);
+
+            if (isEmbedded(at, path)) return wrapEmbedded(inner as ObjectLiteral, at, path);
+            if (at.metadata.columns.some((column) => column.propertyPath === path) && !at.asked.has(path)) {
+              throw new Error(
+                `read of '${at.metadata.name}.${path}', which this query did not select — ` +
+                  `add it to the projection, or stop reading it`,
+              );
+            }
+
+            return inner;
+          },
+        });
+
   const wrap = <T extends ObjectLiteral>(row: T | T[] | null, at: Node): T | T[] | null => {
     if (row == null) return row;
     if (Array.isArray(row)) return row.map((one) => wrap(one, at)) as T[];
@@ -431,8 +467,20 @@ function guardAgainst(
         // reports as a column under the relation's own property name.
         if (at.metadata.relations.some((relation) => relation.propertyName === name)) return value;
 
+        // A `@RelationId` is filled from the foreign-key column of the row, which a query naming
+        // its fields does not carry. No field list can select it, so reading one off a projected
+        // row is always the defect — read the id off the joined relation instead.
+        if (at.metadata.relationIds.some((relationId) => relationId.propertyName === name) && !written.has(name)) {
+          throw new Error(
+            `read of '${at.metadata.name}.${name}', a @RelationId that a projected query never fills — ` +
+              `join the relation and read the id off it`,
+          );
+        }
+
+        if (isEmbedded(at, name)) return wrapEmbedded(value as ObjectLiteral, at, name);
+
         if (
-          at.metadata.columns.some((column) => column.propertyName === name) &&
+          at.metadata.columns.some((column) => column.propertyPath === name) &&
           !at.asked.has(name) &&
           !written.has(name)
         ) {
@@ -453,11 +501,9 @@ function guardAgainst(
 /**
  * Turns the guard on for every query a `ReadProjection` builds, for the rest of the process.
  *
- * Wiring it per spec would work and would be forgotten: a spec written next month would silently
- * lose the protection, and nothing would say so. Here it applies to every projected query in the
- * suite, including the ones the mutation level runs with a reduced field list.
- *
- * Test-only by construction — this is the only caller, and production never loads this file.
+ * Installed once for the whole configuration rather than per spec, so that a spec added later is
+ * covered by the same call. It applies to every projected query in the suite, including the ones
+ * the mutation level runs with a reduced field list.
  */
 export function installProjectionGuard(): void {
   const original = ReadProjection.prototype.apply;
@@ -472,11 +518,22 @@ export function installProjectionGuard(): void {
     const metadata = built.expressionMap.mainAlias?.metadata;
     if (!metadata) return built;
 
-    for (const method of ['getOne', 'getMany'] as const) {
-      const inner = built[method].bind(built);
-      (built as unknown as Record<string, unknown>)[method] = async () =>
-        guardAgainst(metadata, this, fields, await inner());
-    }
+    const guard = (rows: unknown): unknown => guardAgainst(metadata, this, fields, rows);
+
+    // `getRawAndEntities` is where `getOne`, `getMany` and `getOneOrFail` all hydrate, so guarding
+    // it covers them and any direct caller in one place. `getManyAndCount` runs its own query and
+    // needs its own hook. The raw methods return rows rather than entities and are left alone.
+    const rawAndEntities = built.getRawAndEntities.bind(built);
+    built.getRawAndEntities = async () => {
+      const results = await rawAndEntities();
+      return { ...results, entities: guard(results.entities) as E[] };
+    };
+
+    const manyAndCount = built.getManyAndCount.bind(built);
+    built.getManyAndCount = async () => {
+      const [rows, count] = await manyAndCount();
+      return [guard(rows) as E[], count];
+    };
 
     return built;
   }

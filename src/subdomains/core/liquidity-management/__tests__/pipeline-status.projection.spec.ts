@@ -23,7 +23,7 @@ const SCHEMA = 'pipeline_status_projection_spec';
  * `GET /liquidityManagement/pipeline/:id/status` — the four levels from
  * `docs/read-path-projections.md`.
  *
- * The endpoint answers with one string. Asking for the row by id fetched 112 columns for it: the
+ * The endpoint answers with one string. Asking for the row by id fetched every column of it: the
  * pipeline expands its rule and both of its action relations eagerly, and the rule expands its own.
  */
 describeProjection('liquidity management pipeline status — read-path projection', () => {
@@ -116,8 +116,8 @@ describeProjection('liquidity management pipeline status — read-path projectio
       const pipeline = await seedPipeline(status);
 
       const projected = await statusOf(pipeline.id);
-      // The unprojected load is the second source: the find the endpoint used before, with every
-      // eager relation it pulls in.
+      // The unprojected load is the second source: a find without a field list, with every eager
+      // relation it pulls in.
       const full = await dataSource.getRepository(LiquidityManagementPipeline).findOneBy({ id: pipeline.id });
 
       expect(projected).toEqual(full.status);

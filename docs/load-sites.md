@@ -37,7 +37,7 @@ Columns were measured against the real entity metadata by building the query and
 
 Median across measured sites: **101 columns**. 14 sites exceed 1000, 71 exceed 500, 390 exceed 100.
 
-Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright, whatever the column and wherever it is added.
+Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
 
 ## Load sites
 

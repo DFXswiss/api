@@ -24,7 +24,7 @@ import { UserRepository } from '../user/user.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
-import { KycDataDtoMapper } from './dto/kyc-data-dto.mapper';
+import { KycDataDtoMapper } from 'src/subdomains/generic/user/models/kyc/dto/kyc-data-dto.mapper';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { KycInfo } from './dto/kyc-info.dto';
 

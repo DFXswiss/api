@@ -38,7 +38,7 @@ const SCHEMA = 'support_issue_data_projection_spec';
 /**
  * `GET /support/issue/:id/data` — the four levels from `docs/read-path-projections.md`.
  *
- * The widest read path in the service: the unprojected load reaches 951 columns for a response of
+ * The widest read path in the service: the unprojected load fetches the whole graph for a response of
  * about sixty values, because the issue's four eager relations expand recursively and the
  * transaction pulls in both of its sides.
  *
@@ -82,7 +82,7 @@ describeProjection('GET /support/issue/:id/data — read-path projection', () =>
       values: personal ? { organizationName: null } : {},
       relations: { country: true, language: true },
     });
-    let transaction: Transaction = null;
+    let transaction: Transaction | null = null;
     if (side !== 'none') {
       // The wallet block of the response hangs off `transaction.user.wallet`, and both are nullable
       // in the schema — a fixture without them says nothing about those four fields.
@@ -257,8 +257,7 @@ describeProjection('GET /support/issue/:id/data — read-path projection', () =>
       const issue = await seedIssue(side, named);
 
       const projected = await issueDataOf(issue.id);
-      // The unprojected load is the second source: the relation set the endpoint used before the
-      // conversion, fetching every column of each.
+      // The unprojected load is the second source: the same relations, fetching every column of each.
       const full = await dataSource.getRepository(SupportIssue).findOne({
         where: { id: issue.id },
         relations: {

@@ -26,7 +26,7 @@ export const POS_LINK_RESPONSE_FIELDS = [
 ];
 
 /**
- * `PUT /paymentLink/:id/pos` — 513 columns before.
+ * `PUT /paymentLink/:id/pos` — the access keys, and the ids that carry the joins.
  *
  * The endpoint writes, but through `update(id, …)` on the link and on the account rather than by
  * saving either row back, so a projected read cannot blank a column it did not load. `config` and

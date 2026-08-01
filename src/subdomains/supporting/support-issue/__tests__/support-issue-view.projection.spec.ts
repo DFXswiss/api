@@ -34,7 +34,7 @@ const SCHEMA = 'support_issue_view_projection_spec';
  * `docs/read-path-projections.md`.
  *
  * Both answer through `SupportIssueDtoMapper.mapSupportIssue`, and both loaded whole `SupportIssue`
- * rows before: 450 columns for nine values. `GET /support/issue/:id` additionally loads the message
+ * rows for nine values. `GET /support/issue/:id` additionally loads the message
  * thread, which is projected separately.
  *
  * The search condition of `GET /support/issue/:id` is the access check for this endpoint family, so
@@ -190,7 +190,7 @@ describeProjection('support issue view — read-path projection', () => {
       const loaded = await issues.findIssueBy({ uid: issue.uid });
       loaded.messages = await messages.findThread(loaded.id);
 
-      // The unprojected load is the second source: the relation set the endpoint used before.
+      // The unprojected load is the second source: the same relations selected whole.
       const full = await dataSource.getRepository(SupportIssue).findOne({
         where: { uid: issue.uid },
         relations: { transaction: true, limitRequest: true },

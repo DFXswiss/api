@@ -7,7 +7,9 @@ import {
   seedEntity,
 } from 'src/shared/utils/projection-test.util';
 import { Country } from 'src/shared/models/country/country.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { LedgerLeg } from 'src/subdomains/core/accounting/entities/ledger-leg.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { DataSource } from 'typeorm';
 
@@ -82,6 +84,44 @@ describeProjection('guardProjection', () => {
     expect(row.language.name).toEqual(language.name);
     // Two levels down, and reported where it is missing rather than at the relation.
     expect(() => row.language.symbol).toThrow("read of 'Language.symbol'");
+  }, 120000);
+
+  it('throws on a @RelationId, which no field list can select', async () => {
+    // The property is filled from the foreign-key column of the row, which a query naming its
+    // fields does not carry — the defect this suite exists to catch, in the one shape where the
+    // fix is never "add it to the projection".
+    const leg = guardProjection(
+      dataSource,
+      LedgerLeg,
+      new ReadProjection<LedgerLeg>('leg', [], ['leg.id']),
+      ['leg.id'],
+      { id: 1 } as LedgerLeg,
+    );
+
+    expect(() => leg.txId).toThrow("read of 'LedgerLeg.txId', a @RelationId that a projected query never fills");
+  }, 120000);
+
+  it('guards a column inside an embedded object, by its full path', async () => {
+    const projection = new ReadProjection<CryptoInput>('input', [], ['input.id', 'input.address.address']);
+    const row = { id: 1, address: { address: 'selected', blockchain: 'hidden' } } as unknown as CryptoInput;
+
+    const input = guardProjection(dataSource, CryptoInput, projection, projection.fields, row);
+
+    // Selecting one column of the embedded must not mark the rest of it as selected.
+    expect(input.address.address).toEqual('selected');
+    expect(() => input.address.blockchain).toThrow("read of 'CryptoInput.address.blockchain'");
+  }, 120000);
+
+  it('guards the rows of getManyAndCount, which runs its own query', async () => {
+    const language = await seedEntity<Language>(dataSource, Language);
+    await seedEntity<UserData>(dataSource, UserData, { values: { language } });
+
+    const [rows] = await PROJECTION.apply(
+      dataSource.getRepository(UserData).createQueryBuilder('userData'),
+      FIELDS,
+    ).getManyAndCount();
+
+    expect(() => rows[0].surname).toThrow("read of 'UserData.surname'");
   }, 120000);
 
   it('leaves a column the query selected but the row has as null alone', async () => {

@@ -3,7 +3,7 @@ import { ReadProjection } from 'src/shared/models/read-projection';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
 import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderStatus } from '../enums/custody';
+import { CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
 
 /** What `CustodyOrderHistoryDtoMapper.map` reads. */
 export const CUSTODY_ORDER_HISTORY_RESPONSE_FIELDS = [

@@ -30,7 +30,7 @@ const SCHEMA = 'buy_fiat_history_projection_spec';
  * `GET /sell/:id/history` — the four levels from `docs/read-path-projections.md`.
  *
  * The endpoint answers a `SellHistoryDto[]`. Reading it without a projection loads whole `BuyFiat`
- * rows: 470 columns for the nine values the mapper reads.
+ * rows for the nine values the mapper reads.
  */
 describeProjection('GET /sell/:id/history — read-path projection', () => {
   let dataSource: DataSource;
@@ -153,8 +153,8 @@ describeProjection('GET /sell/:id/history — read-path projection', () => {
       const { user, sell } = await seedBuyFiat(withFiatOutput);
 
       const projected = (await repository.findSellHistory(user.id, sell.id)).map(BuyFiatHistoryMapper.toDto);
-      // The unprojected load is the second source: it fetches every column, so what it produces is
-      // by construction what the endpoint answered before the conversion.
+      // The unprojected load is the second source: it fetches every column, so what it produces
+      // depends on no field list at all.
       const full = await dataSource.getRepository(BuyFiat).find({
         where: { sell: { id: sell.id, user: { id: user.id } } },
         relations: { sell: { user: true }, cryptoInput: true, fiatOutput: true },

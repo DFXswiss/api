@@ -63,7 +63,7 @@ export const USER_PROFILE_ORGANIZATION_ADDRESS_FIELDS = [
 /**
  * `GET /user/profile` — the seven values `UserDtoMapper.mapProfile` returns.
  *
- * Without it a `findOne` on `UserData` selects 253 columns across 8 eager joins, `organization`
+ * Without it a `findOne` on `UserData` selects every column of the row and of its eager joins, `organization`
  * among them. Covered by `user-profile.projection.spec.ts` on all four levels.
  */
 export const USER_PROFILE_PROJECTION = new ReadProjection<UserData>(
@@ -180,7 +180,7 @@ export const USER_V2_ADDRESS_FIELDS = [
 /**
  * `GET /user` (v2) — the widest read path left in the inventory.
  *
- * Without it a `findOne` on `UserData` selects 351 columns: four countries, a language, a currency
+ * Without it a `findOne` on `UserData` selects every column of the row and of its eager joins: four countries, a language, a currency
  * and an organization expand eagerly, and every user of the account brings its whole wallet.
  *
  * `computeCapabilities` reads `kycSteps` through `getStepsWith`. This query does not load that
@@ -217,7 +217,7 @@ export const API_KEY_RESPONSE_FIELDS = [
 ];
 
 /**
- * `POST /user/apiKey/CT` — 253 columns before, for two values and the id.
+ * `POST /user/apiKey/CT` — two values and the id.
  *
  * The endpoint writes, but through `update(id, …)` rather than by saving the row it read, so a
  * projected read cannot blank a column it did not load.

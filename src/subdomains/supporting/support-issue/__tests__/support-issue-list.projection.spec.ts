@@ -38,7 +38,7 @@ const SCHEMA = 'support_issue_list_projection_spec';
  * `docs/read-path-projections.md`.
  *
  * Both answer through `SupportIssueDtoMapper.mapSupportIssueListItem` and both loaded whole
- * `SupportIssue` rows: 16 columns for the ten the row shows.
+ * `SupportIssue` rows for the ten values the row shows.
  *
  * The two endpoints differ only in their scope — one filters by department, the other by a list of
  * customer accounts — so both scopes are exercised here.
@@ -160,29 +160,55 @@ describeProjection('support issue list — read-path projection', () => {
   ])(
     'level 2 — the list can be sorted by %s',
     async (orderBy) => {
-      const { issue } = await seedIssue();
+      const clerk = `sort-clerk-${orderBy}`;
+      // Two rows differing in every sortable column, so that the direction is observable. A single
+      // row would satisfy this test whichever column the query ordered by, or none.
+      const first = await seedIssue({
+        clerk,
+        created: new Date('2020-01-01T00:00:00.000Z'),
+        updated: new Date('2020-01-01T00:00:00.000Z'),
+        department: Department.COMPLIANCE,
+        state: SupportIssueInternalState.CREATED,
+      });
+      const second = await seedIssue({
+        clerk,
+        created: new Date('2021-01-01T00:00:00.000Z'),
+        updated: new Date('2021-01-01T00:00:00.000Z'),
+        department: Department.SUPPORT,
+        state: SupportIssueInternalState.IN_PROGRESS,
+      });
 
       // Every sort column has to be part of the projection: with take/skip set, the paginated form of
       // getManyAndCount orders a distinct-id subquery by it, and a column the select does not carry
       // makes Postgres reject the statement.
-      const list = await listOf({ clerk: issue.clerk, orderBy, orderDir: ListOrderDirection.ASC, take: 10, skip: 0 });
+      const page = (orderDir: ListOrderDirection): Promise<{ data: SupportIssueListDto[]; total: number }> =>
+        listOf({ clerk, orderBy, orderDir, take: 10, skip: 0 });
 
-      expect(list.data).toHaveLength(1);
-      expect(list.total).toEqual(1);
+      const ascending = await page(ListOrderDirection.ASC);
+      const descending = await page(ListOrderDirection.DESC);
+
+      expect(ascending.total).toEqual(2);
+      expect(ascending.data.map((row) => row.uid)).toEqual([first.issue.uid, second.issue.uid]);
+      expect(descending.data.map((row) => row.uid)).toEqual([second.issue.uid, first.issue.uid]);
     },
     120000,
   );
 
   it('level 2 — the search matches the fields it names, on the issue and on the account', async () => {
-    const { issue, userData } = await seedIssue();
+    // Scoped to a clerk of its own: the fixtures give every row of a column the same value, so an
+    // account term would otherwise match whatever else the suite has seeded by then.
+    const clerk = 'search-branch-clerk';
+    const { issue, userData } = await seedIssue({ clerk });
+    const found = async (term: string): Promise<string[]> =>
+      (await listOf({ clerk, terms: [term] })).data.map((row) => row.uid);
 
     // Each of these reaches the row through a different branch of the search predicate; the account
     // branches resolve through a join the projection does not select from.
-    expect((await listOf({ terms: [issue.name] })).data.map((r) => r.uid)).toEqual([issue.uid]);
-    expect((await listOf({ terms: [issue.uid] })).data.map((r) => r.uid)).toEqual([issue.uid]);
-    expect((await listOf({ terms: [String(issue.id)] })).data.map((r) => r.uid)).toEqual([issue.uid]);
-    expect((await listOf({ terms: [userData.firstname] })).data.map((r) => r.uid)).toEqual([issue.uid]);
-    expect((await listOf({ terms: ['no-such-term'] })).data).toHaveLength(0);
+    expect(await found(issue.name)).toEqual([issue.uid]);
+    expect(await found(issue.uid)).toEqual([issue.uid]);
+    expect(await found(String(issue.id))).toEqual([issue.uid]);
+    expect(await found(userData.firstname)).toEqual([issue.uid]);
+    expect(await found('no-such-term')).toHaveLength(0);
   }, 120000);
 
   it('level 2 — the search finds a term in the message body', async () => {
@@ -216,7 +242,8 @@ describeProjection('support issue list — read-path projection', () => {
   it('level 2 — the id branch matches by id alone, and only for a term that fits int4', async () => {
     const clerk = 'id-branch-clerk';
     const { issue } = await seedIssue({ name: 'no-digits-here', uid: 'uid-without-digits', clerk });
-    const scoped = (term: string) => listOf({ clerk, terms: [term] });
+    const scoped = (term: string): Promise<{ data: SupportIssueListDto[]; total: number }> =>
+      listOf({ clerk, terms: [term] });
 
     // Scoped to this issue's clerk, so the only candidate row is this one — and none of its text
     // fields carries a digit, so a match can only come from `issue.id = :termNId`.
@@ -282,8 +309,7 @@ describeProjection('support issue list — read-path projection', () => {
     await seedEntity<SupportMessage>(dataSource, SupportMessage, { values: { issue } });
 
     const projected = await listOf({ departments: [Department.SUPPORT], clerk: issue.clerk });
-    // The unprojected load is the second source: every column of the row, which is what the query
-    // fetched before the conversion.
+    // The unprojected load is the second source: every column of the row.
     const full = await dataSource
       .getRepository(SupportIssue)
       .find({ where: { clerk: issue.clerk }, loadEagerRelations: false });

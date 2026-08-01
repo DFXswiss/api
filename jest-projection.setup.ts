@@ -4,6 +4,6 @@
 // to catch, and it is silent by nature. The guard makes it throw. Installing it here rather than
 // per spec is deliberate: a spec written later would otherwise lose the protection without anything
 // saying so.
-import { installProjectionGuard } from './src/shared/utils/projection-test.util';
+import { installProjectionGuard } from 'src/shared/utils/projection-test.util';
 
 installProjectionGuard();

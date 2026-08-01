@@ -30,7 +30,7 @@ const HISTORY_GUARDS = ['buyCrypto.id', 'outputAsset.id'];
 /**
  * `GET /buy/:id/history` — filtered by the buy route and its user.
  *
- * Without it the query loads whole `BuyCrypto` rows: 497 columns for these ten values.
+ * Without it the query loads whole `BuyCrypto` rows for these ten values.
  */
 export const BUY_CRYPTO_BUY_HISTORY_PROJECTION = new ReadProjection<BuyCrypto>(
   'buyCrypto',
@@ -43,7 +43,7 @@ export const BUY_CRYPTO_BUY_HISTORY_PROJECTION = new ReadProjection<BuyCrypto>(
   HISTORY_GUARDS,
 );
 
-/** `GET /swap/:id/history` — the same response, filtered by the swap route instead. 509 columns before. */
+/** `GET /swap/:id/history` — the same response, filtered by the swap route instead. */
 export const BUY_CRYPTO_ROUTE_HISTORY_PROJECTION = new ReadProjection<BuyCrypto>(
   'buyCrypto',
   [

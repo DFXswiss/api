@@ -706,12 +706,7 @@ export class PaymentLinkService {
   }
 
   private async createPosLinkFor(paymentLink: PaymentLink, scoped?: boolean): Promise<string> {
-    // Only the access keys are read out of the configuration here. `configObj` would also assemble
-    // the recipient block — name, contact data and address of the account — which this endpoint
-    // discards, and reading those columns is the only reason the query would have to load them.
-    const accountConfig = paymentLink.route.userData.paymentLinksConfigObj;
-    const linkConfig = paymentLink.linkConfigObj;
-    const config = scoped == null ? { ...accountConfig, ...linkConfig } : scoped ? linkConfig : accountConfig;
+    const config = paymentLink.accessConfig(scoped);
 
     let accessKey = config.accessKeys?.at(0);
     if (!accessKey) {

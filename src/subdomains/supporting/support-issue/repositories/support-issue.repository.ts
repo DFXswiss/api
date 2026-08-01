@@ -2,11 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { ReadProjection } from 'src/shared/models/read-projection';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager, FindOptionsWhere } from 'typeorm';
-import { ListOrderDirection, SupportIssueListOrderBy } from '../dto/get-support-issue.dto';
+import {
+  ListOrderDirection,
+  SupportIssueListOrderBy,
+} from 'src/subdomains/supporting/support-issue/dto/get-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
-import { SupportMessage } from '../entities/support-message.entity';
-import { Department } from '../enums/department.enum';
-import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
+import { SupportMessage } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
+import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
+import {
+  SupportIssueInternalState,
+  SupportIssueType,
+} from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 
 /** The fields `CountryDtoMapper.entityToDto` reads, for a given join alias. */
 const countryFields = (alias: string): string[] =>
@@ -136,7 +142,7 @@ export const SUPPORT_ISSUE_RESPONSE_FIELDS = [
 ];
 
 /**
- * `GET /support/issue` and `GET /support/issue/:id` — 450 columns before, for nine values.
+ * `GET /support/issue` and `GET /support/issue/:id` — nine values.
  *
  * `supportIssue.id` is a guard rather than a response field: the mapper never shows it and no value
  * depends on it, but `getIssue` loads the message thread by it afterwards.
@@ -154,7 +160,7 @@ export const SUPPORT_ISSUE_PROJECTION = new ReadProjection<SupportIssue>(
 /**
  * `GET /support/issue/:id/data` — the widest read path in the service.
  *
- * The unprojected load reaches 951 columns: the issue's four eager relations expand recursively,
+ * The unprojected load fetches the whole graph: the issue's four eager relations expand recursively,
  * and the transaction pulls in both of its sides with their inputs and assets. The response is
  * about sixty values.
  */
@@ -215,7 +221,7 @@ export const SUPPORT_ISSUE_LIST_RESPONSE_FIELDS = [
 ];
 
 /**
- * `GET /support/issue/list` and `GET /realunit/support/list` — 16 columns before, ten of them read.
+ * `GET /support/issue/list` and `GET /realunit/support/list` — the ten values the row shows.
  *
  * The six it drops are the five foreign keys and `information`, which is `text` and holds the
  * free-form body of the issue. The list shows a row per issue and none of it, so on a page of

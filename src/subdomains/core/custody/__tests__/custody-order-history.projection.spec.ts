@@ -212,8 +212,8 @@ describeProjection('GET /custody/order — read-path projection', () => {
       const { userData } = await seedOrder(type, status);
 
       const projected = await historyOf(userData.id);
-      // The unprojected load is the second source: `leftJoinAndSelect` on the three relations, which
-      // is what the query did before the conversion.
+      // The unprojected load is the second source: `leftJoinAndSelect` on the three relations,
+      // which selects each of them whole.
       const full = await dataSource
         .getRepository(CustodyOrder)
         .createQueryBuilder('custodyOrder')

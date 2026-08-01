@@ -49,7 +49,7 @@ const nextEvmAddress = (): string => `0x${(++addressCount).toString(16).padStart
 /**
  * `GET /user` (v2) — the four levels from `docs/read-path-projections.md`.
  *
- * The widest read path in the inventory: a `findOne` on `UserData` selected 351 columns, because
+ * The widest read path in the inventory: a `findOne` on `UserData`, because
  * four countries, a language, a currency and an organization expand eagerly and every user of the
  * account brought its whole wallet.
  *
@@ -326,8 +326,8 @@ describeProjection('GET /user v2 — read-path projection', () => {
       const { userData, user } = await seedAccount({ accountType }, { status });
 
       const projected = await userV2Of(userData.id, user.id);
-      // The unprojected load is the second source: the find the endpoint used before, with every
-      // eager relation it pulls in.
+      // The unprojected load is the second source: a find without a field list, with every eager
+      // relation it pulls in.
       const full = await dataSource.getRepository(UserData).findOne({
         where: { id: userData.id },
         relations: { users: { wallet: true } },

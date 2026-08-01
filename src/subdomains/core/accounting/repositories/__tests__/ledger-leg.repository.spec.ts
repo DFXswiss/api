@@ -1,9 +1,12 @@
 import { createMock } from '@golevelup/ts-jest';
 import { EntityManager, SelectQueryBuilder } from 'typeorm';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
-import { AccountType } from '../../entities/ledger-account.entity';
+import { AccountType } from 'src/subdomains/core/accounting/entities/ledger-account.entity';
 import { LedgerLeg } from '../../entities/ledger-leg.entity';
-import { LedgerLegRepository, SUSPENSE_LEG_PROJECTION } from '../ledger-leg.repository';
+import {
+  LedgerLegRepository,
+  SUSPENSE_LEG_PROJECTION,
+} from 'src/subdomains/core/accounting/repositories/ledger-leg.repository';
 
 describe('LedgerLegRepository', () => {
   let manager: EntityManager;

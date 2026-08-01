@@ -24,7 +24,7 @@ const SCHEMA = 'api_key_projection_spec';
 /**
  * `POST /user/apiKey/CT` — the four levels from `docs/read-path-projections.md`.
  *
- * The endpoint read a whole `UserData` row — 253 columns across eight eager joins — to check
+ * The endpoint read a whole `UserData` row, eager joins included, to check
  * whether a key exists and to derive a new one from the account id and its creation date.
  *
  * It writes as well as reads, but through `update(id, …)` rather than by saving the row it read, so
@@ -135,12 +135,13 @@ describeProjection('API key — read-path projection', () => {
       (await dataSource.query(`SELECT * FROM "${SCHEMA}"."user_data" WHERE id = $1`, [account.id]))[0];
     const before = await rowOf();
 
-    const loaded = await userDataRepo.getForApiKey(account.id);
-    await userDataRepo.update(loaded.id, { apiKeyCT: 'written-key', apiFilterCT: 'written-filter' });
+    // Through the production method rather than a write of the spec's own: a test that issues the
+    // update itself proves the update is safe, not that the endpoint uses it.
+    const answer = await createApiKey(account.id, { buy: true });
 
     const after = await rowOf();
-    expect(after.apiKeyCT).toEqual('written-key');
-    expect(after.apiFilterCT).toEqual('written-filter');
+    expect(after.apiKeyCT).toEqual(answer.key);
+    expect(after.apiFilterCT).toEqual(ApiKeyService.getFilterCode({ buy: true }));
     // Every other column - including the ones the projection never selected - has to be what it
     // was. `updated` is excluded because the write is what moves it.
     const ignored = ['apiKeyCT', 'apiFilterCT', 'updated'];
@@ -224,8 +225,7 @@ describeProjection('API key — read-path projection', () => {
     const userData = await seedAccount({ apiKeyCT: null });
 
     const projected = await userDataRepo.getForApiKey(userData.id);
-    // The unprojected load is the second source: every column of the row, which is what the
-    // endpoint fetched before.
+    // The unprojected load is the second source: every column of the row.
     const full = await dataSource.getRepository(UserData).findOneBy({ id: userData.id });
 
     // Same key on both rows, so what has to agree is the secret derived from it — which is where

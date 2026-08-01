@@ -53,7 +53,7 @@ import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
-import { BuyFiatHistoryMapper } from '../dto/buy-fiat-history.mapper';
+import { BuyFiatHistoryMapper } from 'src/subdomains/core/sell-crypto/process/dto/buy-fiat-history.mapper';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 

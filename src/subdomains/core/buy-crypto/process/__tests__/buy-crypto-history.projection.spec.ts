@@ -29,7 +29,7 @@ const SCHEMA = 'buy_crypto_history_projection_spec';
  * `docs/read-path-projections.md`.
  *
  * Both answer a `HistoryDtoDeprecated[]` built by the same mapper, and both reached it through a
- * `find` that loads whole `BuyCrypto` rows: 497 and 509 columns respectively, for the ten values the
+ * `find` that loads whole `BuyCrypto` rows for the ten values the
  * mapper reads. They differ only in the route they filter by — `buy` for one, `cryptoRoute` for the
  * other — which is why there are two projections over one field list.
  */
@@ -204,8 +204,8 @@ describeProjection('buy-crypto history — read-path projection', () => {
     const { user, buy } = await seedBuyCrypto();
 
     const projected = (await repository.findBuyHistory(user.id, buy.id)).map(BuyCryptoHistoryMapper.toDto);
-    // The unprojected load is the second source: it fetches every column, so what it produces is by
-    // construction what the endpoint answered before the conversion.
+    // The unprojected load is the second source: it fetches every column, so what it produces
+    // depends on no field list at all.
     const full = await dataSource.getRepository(BuyCrypto).find({
       where: { buy: { id: buy.id, user: { id: user.id } } },
       relations: { buy: { user: true } },

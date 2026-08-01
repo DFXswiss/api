@@ -23,7 +23,7 @@ Two rules follow from that, and both are binding:
 1. **An endpoint counts as converted only when its tests reach `4/4`** against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). A projection without them is worse than no projection: a forgotten field does not crash, it returns a wrong value with a 200, and in a service moving money that can run for weeks unnoticed. Anything short of `4/4` is unfinished work, not a partial success.
 2. **The state of every endpoint is recorded here**, in the `Tests` column, and kept in sync with the code in the same pull request that changes it. An undocumented conversion is indistinguishable from one that was never tested.
 
-Today 38 endpoints read only what they return and 398 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
+Today 36 endpoints read only what they return and 398 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
 
 ## What the numbers say
 
@@ -44,7 +44,7 @@ Among the 398 that fetch whole rows, the widest query they can trigger is **308 
 
 ### Deprecation
 
-24 handlers carry `@ApiOperation({ deprecated: true })`: 19 of them fetch whole rows, 3 read nothing. They are what the duplicated paths are about — an older handler and its replacement served side by side under different versions. Note that deprecation does not follow the version: `GET /kyc/countries` is marked on **both** the v1 and the v2 handler.
+24 handlers carry `@ApiOperation({ deprecated: true })`: 19 of them fetch whole rows, 2 project, 3 read nothing. They are what the duplicated paths are about — an older handler and its replacement served side by side under different versions. Note that deprecation does not follow the version: `GET /kyc/countries` is marked on **both** the v1 and the v2 handler.
 
 ### Limits of this classification
 

@@ -118,7 +118,12 @@ describeProjection('point-of-sale link — read-path projection', () => {
    * Read off the query string rather than through `URL`: the prefix comes from the configuration
    * and is not necessarily absolute.
    */
-  const keyOf = (url: string): string => new URLSearchParams(url.slice(url.indexOf('?') + 1)).get('key');
+  const keyOf = (url: string): string => {
+    const key = new URLSearchParams(url.slice(url.indexOf('?') + 1)).get('key');
+    if (key == null) throw new Error(`no key in ${url}`);
+
+    return key;
+  };
 
   /** The answer of the endpoint, through the projected query. */
   async function posLinkOf(
@@ -152,7 +157,7 @@ describeProjection('point-of-sale link — read-path projection', () => {
 
   // --- LEVEL 2: variants --- //
 
-  it.each([
+  it.each<[string, boolean | undefined]>([
     ['unset, which merges the account into the link', undefined],
     ['true, which reads the link alone', true],
   ])(
@@ -160,12 +165,12 @@ describeProjection('point-of-sale link — read-path projection', () => {
     async (_name, scoped) => {
       const { paymentLink } = await seedLink(AccountType.PERSONAL, {}, { config: withKey('from-the-link') });
 
-      expect((await posLinkOf(paymentLink.id, scoped as boolean)).key).toEqual('from-the-link');
+      expect((await posLinkOf(paymentLink.id, scoped)).key).toEqual('from-the-link');
     },
     120000,
   );
 
-  it.each([
+  it.each<[string, boolean | undefined]>([
     ['unset, which merges the account into the link', undefined],
     ['false, which reads the account alone', false],
   ])(
@@ -173,10 +178,28 @@ describeProjection('point-of-sale link — read-path projection', () => {
     async (_name, scoped) => {
       const { paymentLink } = await seedLink(AccountType.PERSONAL, { paymentLinksConfig: withKey('from-the-account') });
 
-      expect((await posLinkOf(paymentLink.id, scoped as boolean)).key).toEqual('from-the-account');
+      expect((await posLinkOf(paymentLink.id, scoped)).key).toEqual('from-the-account');
     },
     120000,
   );
+
+  it('level 2 — a link that sets the keys to null overrides the account rather than falling back', async () => {
+    // The merge is by spread, so a key the link carries wins even when its value is null. Without
+    // this case the two configurations could be merged the other way round and every other variant
+    // would still pass.
+    const { paymentLink } = await seedLink(
+      AccountType.PERSONAL,
+      { paymentLinksConfig: withKey('from-the-account') },
+      { config: JSON.stringify({ accessKeys: null }) },
+    );
+
+    const answer = await posLinkOf(paymentLink.id);
+
+    // A freshly generated key rather than the account's: the link's null wins the merge, so the
+    // endpoint finds no key at all and issues one.
+    expect(answer.key).not.toEqual('from-the-account');
+    expect(answer.key).toMatch(/^[0-9A-Z]{40,}$/);
+  }, 120000);
 
   it.each([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP])(
     'level 2 — a %s account answers without reading its address',
@@ -338,7 +361,7 @@ describeProjection('point-of-sale link — read-path projection', () => {
       const { paymentLink } = await seedLink(accountType, {}, { config: withKey('same-either-way') });
 
       const projected = await posLinkOf(paymentLink.id);
-      // The unprojected load is the second source: the relation set the endpoint used before.
+      // The unprojected load is the second source: the same relations selected whole.
       jest.spyOn(paymentLinks, 'findForPosLink').mockImplementationOnce((id) =>
         paymentLinks.findOne({
           where: { id },

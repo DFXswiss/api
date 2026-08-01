@@ -15,7 +15,7 @@ export const WALLET_KYC_DATA_RESPONSE_FIELDS = [
 /**
  * `GET /kyc/users` — the KYC state of every user on a wallet.
  *
- * Loading the wallet with `relations: { users: { userData: true } }` reaches 328 columns per user,
+ * Loading the wallet with `relations: { users: { userData: true } }` fetches every column per user,
  * for an address, two status fields and a hash.
  */
 export const WALLET_KYC_DATA_PROJECTION = new ReadProjection<Wallet>(

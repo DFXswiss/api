@@ -1,11 +1,11 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
-import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 
 /**
  * The history entry `GET /buy/:id/history` and `GET /swap/:id/history` answer with.
  *
- * Moved out of `BuyCryptoService` so that the projection spec can drive the same mapping the
+ * Kept here rather than in `BuyCryptoService` so that the projection spec can drive the same mapping the
  * endpoints use. A copy in the spec could be wrong in exactly the way the projection is wrong and
  * would prove nothing.
  *

@@ -80,7 +80,9 @@ export class SupportMessageRepository extends BaseRepository<SupportMessage> {
     // The newest message per issue, as a correlated subquery. One factory for the two columns the
     // row shows, so the two subqueries cannot drift apart.
     const lastOf =
-      (column: 'created' | 'author') =>
+      (
+        column: 'created' | 'author',
+      ): ((sub: SelectQueryBuilder<SupportMessage>) => SelectQueryBuilder<SupportMessage>) =>
       (sub: SelectQueryBuilder<SupportMessage>): SelectQueryBuilder<SupportMessage> =>
         sub
           .select(`m2.${column}`)

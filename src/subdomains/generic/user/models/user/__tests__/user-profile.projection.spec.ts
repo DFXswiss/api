@@ -26,7 +26,7 @@ const SCHEMA = 'user_profile_projection_spec';
  * `GET /user/profile` — the four levels from `docs/read-path-projections.md`.
  *
  * The endpoint answers a `UserProfileDto` built by `UserDtoMapper.mapProfile`. Reading it without a
- * projection loads 253 columns across 8 eager joins for the seven values it returns.
+ * projection loads every column of the row and of its eager joins for the seven values it returns.
  *
  * The branch that makes this worth testing is `UserData.address`: for an organization account it
  * reads the address off `organization`, for a personal one off `userData` itself. A projection
@@ -152,8 +152,8 @@ describeProjection('GET /user/profile — read-path projection', () => {
 
       const projected = await profileOf(userData.id);
       // The unprojected load is the second source: it fetches every column, so whatever it produces
-      // is by construction what the endpoint answered before the conversion. No second
-      // implementation is involved that could be wrong in the same way.
+      // depends on no field list at all. No second implementation is involved that could be wrong
+      // in the same way.
       const full = await dataSource.getRepository(UserData).findOne({
         where: { id: userData.id },
         relations: { organization: true },

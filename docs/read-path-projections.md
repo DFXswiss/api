@@ -28,8 +28,7 @@ This service loads far more data than it returns. Measured against the real enti
 - The whole database schema has **1,736 columns across 99 tables**.
 - `PUT /v1/transaction/:id/invoice` selected **1,664 of them** — 96% of the entire schema — to
   render a PDF containing a handful of values. That is exactly Postgres' limit of 1,664 columns per
-  statement, so the query was one added column away from failing outright, whatever the column and
-  wherever it was added.
+  statement, so one further column in that query would have made it fail outright.
 - Of the 534 endpoints, **398 reach at least one load site that fetches whole rows**; 98 read
   nothing at all, and **36 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
@@ -55,7 +54,7 @@ like a projection but is not, 14 pass no select at all, and one projects its roo
 relation in whole. The same entities serve persistence, business logic and pure output paths such
 as invoices, receipts, history and exports — which need fields, not objects.
 
-Read the first number carefully, because an earlier revision of this document got it wrong. The 90
+Read the first number carefully. The 90
 query builders that name columns one at a time are almost entirely counts, maxima and id lookups —
 `.select('userData.id', 'id')`, `.select('COUNT(*)', 'count')` and the like — and they select **one
 column at the median**. They are projections, and they were miscounted as full loads because the
@@ -228,8 +227,9 @@ column:
 
 The consequences are worth stating plainly:
 
-- **Any test that exercises the endpoint catches an incomplete field list**, including a naive one.
-  Completeness stops depending on how cleverly the fixture was written.
+- **A test that reaches the read fails at it**, whether or not the missing column would have been
+  visible in the response. What the fixture still has to do is reach the branch; what it no longer
+  has to do is make the resulting value observable.
 - It is installed once for the whole configuration (`jest-projection.setup.ts`), not per spec, so a
   spec written later cannot lose the protection quietly.
 - It reports **where the column was needed**, not where the wrong value surfaced. A getter keeps
@@ -287,8 +287,7 @@ the test. It is visible in the return type of a controller.
 contains: `Buy.route`, `CustodyBalance.user`, `CustodyOrder.transaction`,
 `CryptoStaking.paybackDeposit`. That narrowed 55 load sites — the custody order paths by 98 columns
 each, the widest transaction paths by four — and 47 endpoints in
-[endpoints.md](endpoints.md) now show a smaller number. After it, no eager relation is left that is
-both unread and outside every response: the mechanically decidable part is exhausted.
+[endpoints.md](endpoints.md) now show a smaller number.
 
 **What is left.** 32 declarations are read somewhere and are in no response. Each is removable, but
 not by rule: the compiler says where a relation is read, not which query produced the value that
@@ -300,9 +299,7 @@ loaded is `undefined` at a call site that no test may reach.
 relation added to any entity in it fails the run naming the controller whose answer it changes, and
 the total count, so a new one anywhere is a decision rather than a detail of an unrelated change.
 It finds the entities that leave through a controller by reading the controllers rather than from a
-list, because a list goes stale the first time someone adds one — which is not hypothetical: the
-first version of this measurement looked only at entities that already carried an eager relation and
-missed 27 handlers for it.
+list, so adding a controller does not silently narrow what the closure covers.
 
 So the two routes are not alternatives, and neither is cheap. The difference between them is the
 failure mode: an incomplete field list now throws, and an eager relation added to the wrong entity

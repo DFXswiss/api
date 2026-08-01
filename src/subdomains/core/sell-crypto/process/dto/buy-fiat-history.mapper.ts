@@ -1,12 +1,12 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
 import { SellHistoryDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-history.dto';
-import { BuyFiat } from '../buy-fiat.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 
 /**
  * The history entry `GET /sell/:id/history` answers with.
  *
- * Moved out of `BuyFiatService` so that the projection spec can drive the same mapping the endpoint
+ * Kept here rather than in `BuyFiatService` so that the projection spec can drive the same mapping the endpoint
  * uses — see `BuyCryptoHistoryMapper` for the reasoning.
  *
  * Note that `cryptoInput` and `outputAsset` are read without a guard here. That is the behaviour as

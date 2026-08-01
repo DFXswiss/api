@@ -30,7 +30,7 @@ const SCHEMA = 'kyc_data_projection_spec';
  * `GET /kyc/users` and `GET /kyc/:id/documents` — the four levels from
  * `docs/read-path-projections.md`.
  *
- * Both loaded a whole row graph — 328 columns — for very little: the first for an address, two
+ * Both loaded a whole row graph for very little: the first for an address, two
  * status fields and a hash per user, the second for nothing but the account id the document store
  * is keyed by.
  */
@@ -168,7 +168,7 @@ describeProjection('kyc data — read-path projection', () => {
     const { user, userData } = await seedWalletUser();
 
     const projected = await users.findAccountIdForAddress(user.address, user.wallet.id);
-    // The unprojected load is the second source: the find the endpoint used before.
+    // The unprojected load is the second source: a find without a field list.
     const full = await dataSource.getRepository(User).findOne({
       where: { address: user.address, wallet: { id: user.wallet.id } },
       relations: { userData: true },
@@ -188,7 +188,7 @@ describeProjection('kyc data — read-path projection', () => {
       const { wallet } = await seedWalletUser(kycStatus, kycType);
 
       const projected = (await wallets.findKycData(wallet.id)).users.map(KycDataDtoMapper.toDto);
-      // The unprojected load is the second source: the relation set the endpoint used before.
+      // The unprojected load is the second source: the same relations selected whole.
       const full = await dataSource.getRepository(Wallet).findOne({
         where: { id: wallet.id },
         relations: { users: { userData: true } },

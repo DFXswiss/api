@@ -181,7 +181,7 @@ describe('BuyFiatService', () => {
           ];
       }
 
-      // The history now goes through the projected query.
+      // The history goes through the projected query.
       jest.spyOn(buyFiatRepo, 'findSellHistory').mockResolvedValue(wantedData);
     }
   }

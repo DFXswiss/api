@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ReadProjection } from 'src/shared/models/read-projection';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { AccountType } from '../entities/ledger-account.entity';
+import { AccountType } from 'src/subdomains/core/accounting/entities/ledger-account.entity';
 import { LedgerLeg } from '../entities/ledger-leg.entity';
 
 /** What `LedgerDtoMapper.mapSuspenseLeg` reads, including the booking date the age is computed from. */

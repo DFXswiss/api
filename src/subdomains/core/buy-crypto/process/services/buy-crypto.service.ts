@@ -29,7 +29,7 @@ import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.ser
 import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
-import { BuyCryptoHistoryMapper } from '../dto/buy-crypto-history.mapper';
+import { BuyCryptoHistoryMapper } from 'src/subdomains/core/buy-crypto/process/dto/buy-crypto-history.mapper';
 import {
   BankTxRefund,
   CheckoutTxRefund,
