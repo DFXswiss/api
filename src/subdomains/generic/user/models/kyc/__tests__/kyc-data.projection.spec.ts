@@ -162,6 +162,22 @@ describeProjection('kyc data — read-path projection', () => {
 
   // --- LEVEL 4: consistency against a second source --- //
 
+  it('level 4 — the document lookup resolves the same account id as a full load', async () => {
+    // `KycService.getKycFiles` keys the document store by this id and shows nothing else off the
+    // row, so the id is the entire contribution of this projection to that response.
+    const { user, userData } = await seedWalletUser();
+
+    const projected = await users.findAccountIdForAddress(user.address, user.wallet.id);
+    // The unprojected load is the second source: the find the endpoint used before.
+    const full = await dataSource.getRepository(User).findOne({
+      where: { address: user.address, wallet: { id: user.wallet.id } },
+      relations: { userData: true },
+    });
+
+    expect(projected.userData.id).toEqual(full.userData.id);
+    expect(projected.userData.id).toEqual(userData.id);
+  }, 120000);
+
   it.each([
     [KycStatus.COMPLETED, KycType.DFX],
     [KycStatus.COMPLETED, KycType.LOCK],

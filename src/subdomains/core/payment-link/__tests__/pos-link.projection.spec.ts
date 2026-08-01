@@ -271,15 +271,42 @@ describeProjection('point-of-sale link — read-path projection', () => {
     120000,
   );
 
-  it('carries the stored configuration verbatim, so the write has something to merge into', async () => {
-    // The scoped write merges the new key into what was read. A projection that dropped `config`
-    // would hand the merge an empty object and reset the configuration to nothing but the key.
-    const existing = JSON.stringify({ fee: 0.9, cancellable: true });
-    const { paymentLink } = await seedLink(AccountType.PERSONAL, {}, { config: existing });
+  it('keeps the existing configuration when the write adds an access key to the link', async () => {
+    // The scoped write merges the new key into what was read, so this is the failure the projection
+    // could cause: a `config` it did not load hands the merge an empty object, and the stored
+    // configuration is replaced by nothing but the key. Run end to end for that reason.
+    const { paymentLink } = await seedLink(
+      AccountType.PERSONAL,
+      {},
+      // Both values differ from the defaults: the merge strips anything equal to them, which is
+      // the service's own behaviour and would make an equal value look lost.
+      { config: JSON.stringify({ fee: 0.9, paymentTimeout: 12345 }) },
+    );
 
-    const loaded = await paymentLinks.findForPosLink(paymentLink.id);
+    const answer = await posLinkOf(paymentLink.id, true);
 
-    expect(loaded.config).toEqual(existing);
+    const stored = JSON.parse((await dataSource.getRepository(PaymentLink).findOneBy({ id: paymentLink.id })).config);
+    expect(stored.accessKeys).toEqual([answer.key]);
+    expect(stored.fee).toEqual(0.9);
+    expect(stored.paymentTimeout).toEqual(12345);
+  }, 120000);
+
+  it('hands the account write the key alone, leaving the merge to the account service', async () => {
+    // The unscoped branch does not merge here: it passes the new key to
+    // `UserDataService.updatePaymentLinksConfig`, which merges into the account's own configuration.
+    // What this side has to get right is that the account is the one the link belongs to.
+    const { paymentLink, userData } = await seedLink(AccountType.PERSONAL, {
+      paymentLinksConfig: JSON.stringify({ fee: 0.4 }),
+    });
+
+    const answer = await posLinkOf(paymentLink.id, false);
+
+    expect(userDataService.updatePaymentLinksConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ id: userData.id }),
+      {
+        accessKeys: [answer.key],
+      },
+    );
   }, 120000);
 
   it('loads the two ids the endpoint scopes its updates by', async () => {

@@ -148,6 +148,34 @@ describeProjection('API key — read-path projection', () => {
     expect(Object.keys(before).length).toBeGreaterThan(50);
   }, 120000);
 
+  it('runs the production key derivation over the projected row', async () => {
+    // The levels above pin the key so that responses are comparable across runs. That leaves the
+    // real derivation unexercised, and it is what reads the projected id and creation date.
+    const account = await seedAccount({ apiKeyCT: null });
+
+    const loaded = await userDataRepo.getForApiKey(account.id);
+    loaded.apiKeyCT = ApiKeyService.createKey(loaded.id);
+
+    expect(loaded.apiKeyCT).toMatch(/^[0-9A-F]+$/);
+    expect(ApiKeyService.getSecret(loaded)).toMatch(/^[0-9A-F]{64}$/);
+    // The same account and the same key must always produce the same secret; the creation date is
+    // the other input, and it comes out of the projection.
+    expect(ApiKeyService.getSecret(loaded)).toEqual(ApiKeyService.getSecret(loaded));
+  }, 120000);
+
+  it('derives the secret from the creation date as well as the key', async () => {
+    // Two accounts inserted in the same millisecond share a creation date, so the secret is not
+    // unique per account by construction. What has to hold is that the date is an input at all — a
+    // projection that dropped it would answer the same secret for every date.
+    const account = await seedAccount({ apiKeyCT: null });
+
+    const loaded = await userDataRepo.getForApiKey(account.id);
+    loaded.apiKeyCT = 'SHARED-KEY';
+    const withOtherDate = { ...loaded, created: new Date('2001-02-03T04:05:06.000Z') } as typeof loaded;
+
+    expect(ApiKeyService.getSecret(loaded)).not.toEqual(ApiKeyService.getSecret(withOtherDate));
+  }, 120000);
+
   // --- LEVEL 4: consistency against a second source --- //
 
   it('level 4 — the projected answer equals the one from a full load', async () => {
