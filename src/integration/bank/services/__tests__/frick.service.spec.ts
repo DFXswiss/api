@@ -213,6 +213,53 @@ describe('BankFrickService', () => {
     expect(() => service['verifyResponse'](Buffer.from('{"synthetic":true}'), headers as never)).toThrow(expectedError);
   });
 
+  it.each([
+    [{}, 500, 'Invalid Bank Frick response signature headers (HTTP 500, signature missing, algorithm missing)'],
+    [{}, 200, 'Invalid Bank Frick response signature headers (HTTP 200, signature missing, algorithm missing)'],
+    [
+      { algorithm: 'rsa-sha512' },
+      502,
+      'Invalid Bank Frick response signature headers (HTTP 502, signature missing, algorithm ok)',
+    ],
+    [
+      { signature: 'irrelevant', algorithm: 'rsa-pss-sha512' },
+      200,
+      'Invalid Bank Frick response signature headers (HTTP 200, signature present, algorithm unsupported)',
+    ],
+    [
+      { signature: 'not-a-signature', algorithm: 'rsa-sha512' },
+      200,
+      'Invalid Bank Frick response signature (HTTP 200)',
+    ],
+  ])('names the status and which signature header was at fault', (headers, status, expectedError) => {
+    // Without the status, an unsigned upstream failure and an unsigned success read identically in
+    // the logs, although one is the bank's outage and the other is our own key/config problem.
+    expect(() => service['verifyResponse'](Buffer.from('{"synthetic":true}'), headers as never, status)).toThrow(
+      expectedError,
+    );
+  });
+
+  it.each([undefined, 0, 99, 600, Number.NaN])('omits an unusable status instead of printing it (%s)', (status) => {
+    expect(() => service['verifyResponse'](Buffer.from('{"synthetic":true}'), {} as never, status as never)).toThrow(
+      'Invalid Bank Frick response signature headers (signature missing, algorithm missing)',
+    );
+  });
+
+  it('never echoes header values into the error message', () => {
+    const secretish = 'AKIAIOSFODNN7EXAMPLE-should-never-reach-a-log-line';
+
+    expect(() =>
+      service['verifyResponse'](Buffer.from('{"synthetic":true}'), { algorithm: secretish } as never, 500),
+    ).toThrow('Invalid Bank Frick response signature headers (HTTP 500, signature missing, algorithm unsupported)');
+
+    try {
+      service['verifyResponse'](Buffer.from('{"synthetic":true}'), { signature: secretish } as never, 500);
+      fail('expected a signature verification error');
+    } catch (error) {
+      expect(error.message).not.toContain(secretish);
+    }
+  });
+
   it('fails closed when a payment is attempted without the explicit payout flag', async () => {
     await expect(service.createPaymentOrder(paymentInput())).rejects.toThrow('payout is not explicitly enabled');
     await expect(service.approvePaymentWithoutTan(paymentOrder())).rejects.toThrow('payout is not explicitly enabled');
