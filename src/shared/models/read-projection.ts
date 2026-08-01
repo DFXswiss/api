@@ -13,8 +13,12 @@ import { SelectQueryBuilder } from 'typeorm';
 export class ReadProjection<E> {
   constructor(
     readonly alias: string,
-    /** `[relation path, alias]`, applied as left joins in order. A later join may build on an earlier alias. */
-    readonly joins: ReadonlyArray<readonly [string, string]>,
+    /**
+     * `[relation path, alias]` or `[relation path, alias, 'inner']`, applied in order. A later join
+     * may build on an earlier alias. Joins belong here rather than at the query: the guard derives
+     * what it watches from this list, so a relation joined on the builder instead is not watched.
+     */
+    readonly joins: ReadonlyArray<readonly [string, string] | readonly [string, string, 'inner']>,
     /** Fields that feed the response. These are what the mutation test drops one by one. */
     readonly fields: ReadonlyArray<string>,
     /**
@@ -26,7 +30,18 @@ export class ReadProjection<E> {
      * without it. Each one needs its own assertion instead — see the specs.
      */
     readonly guards: ReadonlyArray<string> = [],
-  ) {}
+  ) {
+    const declared = new Set([alias, ...joins.map(([, joinAlias]) => joinAlias)]);
+    const undeclared = [...new Set([...fields, ...guards].map((field) => field.split('.')[0]))].filter(
+      (fieldAlias) => !declared.has(fieldAlias),
+    );
+
+    if (undeclared.length)
+      throw new Error(
+        `projection '${alias}' names aliases it does not join: ${undeclared.map((a) => `'${a}'`).join(', ')} — ` +
+          `declare them here rather than on the query builder, or the guard does not watch them`,
+      );
+  }
 
   /**
    * Applies the joins and the field list to a query builder.
@@ -36,7 +51,10 @@ export class ReadProjection<E> {
    * the test would be measuring the join instead of the projection.
    */
   apply(query: SelectQueryBuilder<E>, fields: ReadonlyArray<string> = this.fields): SelectQueryBuilder<E> {
-    for (const [path, alias] of this.joins) query.leftJoin(path, alias);
+    for (const [path, alias, kind] of this.joins) {
+      if (kind === 'inner') query.innerJoin(path, alias);
+      else query.leftJoin(path, alias);
+    }
     return query.select([...fields, ...this.guards]);
   }
 }

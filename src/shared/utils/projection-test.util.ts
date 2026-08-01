@@ -339,7 +339,7 @@ export function guardProjection<E extends ObjectLiteral>(
 /** The part of a `ReadProjection` the guard needs. */
 export interface GuardableProjection {
   alias: string;
-  joins: ReadonlyArray<readonly [string, string]>;
+  joins: ReadonlyArray<readonly [string, string] | readonly [string, string, 'inner']>;
   guards: ReadonlyArray<string>;
 }
 

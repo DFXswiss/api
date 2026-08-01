@@ -25,8 +25,6 @@ const SCHEMA = 'ledger_suspense_projection_spec';
 /**
  * `GET /dashboard/accounting/ledger/suspense` — the four levels from
  * `docs/read-path-projections.md`.
- *
- * The response is four values and a currency, drawn from the leg, its transaction and its account.
  */
 describeProjection('ledger suspense — read-path projection', () => {
   let dataSource: DataSource;
@@ -114,8 +112,10 @@ describeProjection('ledger suspense — read-path projection', () => {
   }, 120000);
 
   it('level 2 — legs are ordered by booking date, oldest first', async () => {
-    const older = await seedLeg();
+    // Seeded newest first: a statement that lost its ORDER BY falls back to insertion or id order,
+    // which is the reverse of what is expected here rather than a match for it.
     const newer = await seedLeg();
+    const older = await seedLeg();
     await dataSource.getRepository(LedgerTx).update(older.tx.id, { bookingDate: new Date('2020-01-01T00:00:00.000Z') });
     await dataSource.getRepository(LedgerTx).update(newer.tx.id, { bookingDate: new Date('2026-01-01T00:00:00.000Z') });
 
@@ -124,6 +124,21 @@ describeProjection('ledger suspense — read-path projection', () => {
     const response = await suspenseOf();
 
     expect(response.legs.map((row) => row.legId)).toEqual([older.leg.id, newer.leg.id]);
+  }, 120000);
+
+  it('guards the joined transaction and account, not only the leg', async () => {
+    // The joins were applied on the query builder before, which selects the columns but leaves the
+    // relation outside what the guard watches: a read of a column these joins did not select
+    // answered undefined instead of throwing.
+    await seedLeg();
+
+    const [leg] = await legs.findSuspenseLegs();
+
+    expect(() => leg.tx.valueDate).toThrow("read of 'LedgerTx.valueDate'");
+    expect(() => leg.account.name).toThrow("read of 'LedgerAccount.name'");
+    // The columns the projection does select stay readable, so the guard is not simply refusing the
+    // whole relation.
+    expect(leg.tx.description).toBeDefined();
   }, 120000);
 
   it('level 2 — a leg without a CHF amount contributes nothing to the total', async () => {

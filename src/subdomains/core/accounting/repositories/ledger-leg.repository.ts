@@ -24,16 +24,19 @@ export const SUSPENSE_LEG_RESPONSE_FIELDS = [
 /**
  * `GET /dashboard/accounting/ledger/suspense`.
  *
- * The transaction and the account are joined for four values and a currency.
- *
  * `account.id` is a guard: without a primary key the ORM cannot materialise the joined row.
  *
- * The joins stay with the query rather than moving into the projection, which joins left where
- * these are inner.
+ * Both joins are inner: a leg without a transaction or an account is not a suspense entry.
  */
-export const SUSPENSE_LEG_PROJECTION = new ReadProjection<LedgerLeg>('leg', [], SUSPENSE_LEG_RESPONSE_FIELDS, [
-  'account.id',
-]);
+export const SUSPENSE_LEG_PROJECTION = new ReadProjection<LedgerLeg>(
+  'leg',
+  [
+    ['leg.tx', 'tx', 'inner'],
+    ['leg.account', 'account', 'inner'],
+  ],
+  SUSPENSE_LEG_RESPONSE_FIELDS,
+  ['account.id'],
+);
 
 @Injectable()
 export class LedgerLegRepository extends BaseRepository<LedgerLeg> {
@@ -48,10 +51,7 @@ export class LedgerLegRepository extends BaseRepository<LedgerLeg> {
    * with; `LedgerQueryService.getSuspense` calls this without it.
    */
   async findSuspenseLegs(fields: ReadonlyArray<string> = SUSPENSE_LEG_PROJECTION.fields): Promise<LedgerLeg[]> {
-    return SUSPENSE_LEG_PROJECTION.apply(
-      this.createQueryBuilder('leg').innerJoin('leg.tx', 'tx').innerJoin('leg.account', 'account'),
-      fields,
-    )
+    return SUSPENSE_LEG_PROJECTION.apply(this.createQueryBuilder('leg'), fields)
       .where('account.type = :type', { type: AccountType.SUSPENSE })
       .orderBy('tx.bookingDate', 'ASC')
       .getMany();

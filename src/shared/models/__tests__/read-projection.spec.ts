@@ -89,6 +89,61 @@ describe('ReadProjection', () => {
     expect(selected).toEqual([['root.a', 'root.id']]);
   });
 
+  it('applies a join declared as inner as an inner join', () => {
+    const joined: [string, string, string][] = [];
+    const query = {
+      leftJoin: (path: string, alias: string) => {
+        joined.push([path, alias, 'left']);
+        return query;
+      },
+      innerJoin: (path: string, alias: string) => {
+        joined.push([path, alias, 'inner']);
+        return query;
+      },
+      select: () => query,
+    } as unknown as SelectQueryBuilder<unknown>;
+
+    new ReadProjection(
+      'root',
+      [
+        ['root.a', 'a'],
+        ['root.b', 'b', 'inner'],
+      ],
+      ['a.x', 'b.y'],
+    ).apply(query);
+
+    expect(joined).toEqual([
+      ['root.a', 'a', 'left'],
+      ['root.b', 'b', 'inner'],
+    ]);
+  });
+
+  it('refuses a field list naming an alias it does not join', () => {
+    // The guard watches the aliases the projection declares. A relation joined on the query builder
+    // instead is selected but unwatched, so reading a column it did not select answers undefined
+    // rather than throwing — the exact defect this whole suite exists to make loud.
+    expect(() => new ReadProjection('root', [], ['root.a', 'rel.b'])).toThrow(
+      "projection 'root' names aliases it does not join: 'rel'",
+    );
+    // Guards are checked too: they are selected columns like any other, and a guard on an unjoined
+    // alias is the same silent hole.
+    expect(() => new ReadProjection('root', [['root.rel', 'rel']], ['root.a'], ['other.id'])).toThrow("'other'");
+  });
+
+  it('every projection in the inventory joins each alias its fields name', () => {
+    // Asserted over the real projections rather than a constructed one: the rule above only helps
+    // if it holds for what the endpoints actually use.
+    for (const [method, version, path, projection] of DOCUMENTED) {
+      const declared = new Set([projection.alias, ...projection.joins.map(([, alias]) => alias)]);
+      const named = [...projection.fields, ...projection.guards].map((field) => field.split('.')[0]);
+
+      expect({ endpoint: `${method} v${version} ${path}`, undeclared: named.filter((a) => !declared.has(a)) }).toEqual({
+        endpoint: `${method} v${version} ${path}`,
+        undeclared: [],
+      });
+    }
+  });
+
   describe('the column counts in docs/endpoints.md', () => {
     // The inventory is the work list and is required to stay in sync with the code. A number
     // written by hand drifts the first time a field is added, and nothing would say so — this reads
