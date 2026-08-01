@@ -3,6 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { Configuration, ConfigService } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/storage/storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { StaffKycRequiredException } from 'src/shared/auth/exceptions/staff-kyc-required.exception';
 import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
@@ -162,6 +163,19 @@ describe('KycService getFileByUid protected-file access', () => {
     expect(documentService.downloadFile).not.toHaveBeenCalled();
   });
 
+  // The counterpart: a wrong role is a different problem with a different fix, so it must NOT produce
+  // the KYC answer — otherwise the two cases are indistinguishable again, just in the other direction.
+  it('answers a non-privileged role generically, not with the KYC code', async () => {
+    SetStaffKycClearance([]);
+    kycFileService.getKycFile.mockResolvedValue(kycFile());
+
+    const error = await service.getFileByUid('FILE-UID', jwtFor(UserRole.USER), ip).catch((e) => e);
+
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect(error).not.toBeInstanceOf(StaffKycRequiredException);
+    expect(error.getResponse()).not.toHaveProperty('code');
+  });
+
   it('forbids an unauthenticated request (no JWT) from a protected file', async () => {
     kycFileService.getKycFile.mockResolvedValue(kycFile());
 
@@ -177,8 +191,25 @@ describe('KycService getFileByUid protected-file access', () => {
       SetStaffKycClearance([]);
       kycFileService.getKycFile.mockResolvedValue(kycFile());
 
-      await expect(service.getFileByUid('FILE-UID', jwtFor(role), ip)).rejects.toBeInstanceOf(ForbiddenException);
+      // Pins the concrete exception, not just the ForbiddenException it extends: the point of this
+      // answer is that the caller can tell a missing identification apart from a missing role, and an
+      // assertion on the base type would stay green if it fell back to the generic 403.
+      await expect(service.getFileByUid('FILE-UID', jwtFor(role), ip)).rejects.toBeInstanceOf(
+        StaffKycRequiredException,
+      );
       expect(documentService.downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('answers with the machine-readable code', async () => {
+      SetStaffKycClearance([]);
+      kycFileService.getKycFile.mockResolvedValue(kycFile());
+
+      const error = await service.getFileByUid('FILE-UID', jwtFor(role), ip).catch((e) => e);
+
+      expect(error.getResponse()).toEqual({
+        code: 'STAFF_KYC_REQUIRED',
+        message: expect.stringContaining('KYC level 50'),
+      });
     });
 
     it('still serves a non-protected file', async () => {
