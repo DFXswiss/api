@@ -12,7 +12,7 @@ import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { KycGatedRoles, UserRole } from 'src/shared/auth/user-role.enum';
 import { Active } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -471,6 +471,20 @@ export class UserService {
   }
 
   async updateUserInternal(user: User, update: UpdateUserInternalDto): Promise<User> {
+    // Write-side counterpart to the staff KYC clearance: an account may only be given a gated role if a
+    // verified name is already behind it, so a faceless staff account with no identification signal can
+    // never be created. Blankness matches the clearance definition — `verifiedName.trim()` strips exactly
+    // the characters `BlankChars` lists (see staff-kyc-clearance.service.ts), so this stays in step with
+    // the DB predicate that decides clearance. userData is reloaded when absent so a caller that did not
+    // hydrate the relation cannot slip an elevated role past the check.
+    if (update.role && KycGatedRoles.includes(update.role)) {
+      const userData =
+        user.userData ??
+        (await this.userRepo.findOne({ where: { id: user.id }, relations: { userData: true } }))?.userData;
+      if (!userData?.verifiedName?.trim())
+        throw new ForbiddenException('Cannot assign an elevated role to an account without a verified name');
+    }
+
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user, user.userData);
 
