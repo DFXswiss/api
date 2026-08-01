@@ -318,8 +318,14 @@ export class PartnerStatisticService {
     return { from: fromDay, to: toExclusive };
   }
 
-  parseGranularity(value: string): PartnerStatisticGranularity {
+  parseGranularity(value: unknown): PartnerStatisticGranularity {
     const allowed = Object.values(PartnerStatisticGranularity) as string[];
+    // Express delivers string[] for repeated query params (?granularity=x&granularity=y).
+    // Reject non-strings before any string operations (same pattern as realunit.service /
+    // gs.service typeof guards that name the expected type in the 400 message).
+    if (typeof value !== 'string') {
+      throw new BadRequestException(`Granularity must be a string. Allowed: ${allowed.join(', ')}`);
+    }
     if (!allowed.includes(value)) {
       throw new BadRequestException(`Invalid granularity '${value}'. Allowed: ${allowed.join(', ')}`);
     }
@@ -334,12 +340,22 @@ export class PartnerStatisticService {
    * numeric strings are rejected — `new Date(value)` would silently apply process TZ.
    * Non-existent calendar days (`2024-06-31`, `2023-02-29`) are rejected even when
    * `new Date` would silently roll them into the next month.
+   *
+   * Runtime input is `unknown` because Express can deliver `string[]` when a query
+   * parameter is set twice (`?from=x&from=y`). Coercion via `RegExp#test` / `Array#slice`
+   * would otherwise create a type-confusion path (CodeQL js/type-confusion-through-parameter-tampering).
    */
-  parseDate(value?: string | Date): Date | undefined {
+  parseDate(value?: unknown): Date | undefined {
     if (value == null || value === '') return undefined;
     if (value instanceof Date) {
       if (isNaN(value.getTime())) throw new BadRequestException('Invalid date');
       return value;
+    }
+
+    // Must run before any regex or .slice — arrays pass .test() via ToString and
+    // Array#slice returns an array, not a substring (Number([...]) → NaN is not a guard).
+    if (typeof value !== 'string') {
+      throw new BadRequestException('Date must be a string or Date');
     }
 
     const dateOnly = /^\d{4}-\d{2}-\d{2}$/;

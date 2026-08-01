@@ -565,6 +565,17 @@ describe('PartnerStatisticService', () => {
       expect(service.parseGranularity('Week')).toBe(PartnerStatisticGranularity.WEEK);
       expect(service.parseGranularity('Month')).toBe(PartnerStatisticGranularity.MONTH);
     });
+
+    // Express delivers string[] for repeated query params (?granularity=x&granularity=y).
+    it('rejects a single-element array (repeated query param, one value)', () => {
+      expect(() => service.parseGranularity(['Day'] as unknown as string)).toThrow(BadRequestException);
+      expect(() => service.parseGranularity(['Day'] as unknown as string)).toThrow(/must be a string/);
+    });
+
+    it('rejects a multi-element array (repeated query param, several values)', () => {
+      expect(() => service.parseGranularity(['Day', 'Week'] as unknown as string)).toThrow(BadRequestException);
+      expect(() => service.parseGranularity(['Day', 'Week'] as unknown as string)).toThrow(/must be a string/);
+    });
   });
 
   describe('parseDate', () => {
@@ -591,6 +602,19 @@ describe('PartnerStatisticService', () => {
     it('returns undefined for null/empty', () => {
       expect(service.parseDate(undefined)).toBeUndefined();
       expect(service.parseDate('')).toBeUndefined();
+    });
+
+    // Express delivers string[] for repeated query params (?from=x&from=y). Without an
+    // explicit typeof guard, RegExp#test coerces a one-element array and Array#slice
+    // returns an array — type confusion (CodeQL js/type-confusion-through-parameter-tampering).
+    it('rejects a single-element array (repeated query param, one value)', () => {
+      expect(() => service.parseDate(['2026-01-15'])).toThrow(BadRequestException);
+      expect(() => service.parseDate(['2026-01-15'])).toThrow(/must be a string or Date/);
+    });
+
+    it('rejects a multi-element array (repeated query param, several values)', () => {
+      expect(() => service.parseDate(['2026-01-15', '2026-01-16'])).toThrow(BadRequestException);
+      expect(() => service.parseDate(['2026-01-15', '2026-01-16'])).toThrow(/must be a string or Date/);
     });
 
     it('rejects timestamp without Z/offset (would be process-local under new Date)', () => {
