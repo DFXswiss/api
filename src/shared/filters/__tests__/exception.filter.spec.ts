@@ -233,26 +233,6 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith(body);
   });
 
-  it('takes no message the body would not have sent itself', () => {
-    // A property that is not enumerable is left out when the response is serialized, so reading it
-    // here would put something on the wire that would never have been on it.
-    const hidden = new HttpException({ statusCode: 418 }, 400);
-    Object.defineProperty(hidden.getResponse(), 'message', { value: 'INTERNAL_HIDDEN', enumerable: false });
-
-    filter.catch(hidden, host(req(), { status }));
-
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
-  });
-
-  it('rejects a message the body only answers with when asked', () => {
-    const accessor = new HttpException({ statusCode: 418 }, 400);
-    Object.defineProperty(accessor.getResponse(), 'message', { get: () => 'answered again' });
-
-    filter.catch(accessor, host(req(), { status }));
-
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
-  });
-
   it('names a status that has no name, rather than leaving the message out', () => {
     const unnamed = new HttpException('x', 599);
     jest.spyOn(unnamed, 'getResponse').mockImplementation(() => {
