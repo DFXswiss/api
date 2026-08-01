@@ -28,8 +28,8 @@ import { NameCheckService } from './name-check.service';
 const STEP_ADVISORY_LOCK_NAMESPACE = 1145466968;
 const USER_DATA_ADVISORY_LOCK_NAMESPACE = 1145466969;
 
-// Accounts excluded from generated GwG documents, kept out of the source tree because they are
-// productive account IDs. Empty unless the setting is present.
+// Accounts excluded from RiskProfile and FormA generation, kept out of the source tree because they
+// are productive account IDs. Empty unless the setting is present.
 export const DOCUMENT_EXCLUSION_SETTING_KEY = 'dfxApprovalDocumentExclusions';
 
 // Lock aliases must be lower case: TypeORM emits `FOR UPDATE OF <alias>` unquoted and Postgres
@@ -93,12 +93,14 @@ export class DfxApprovalWorkflowService {
     await this.initializePersonalRiskData(step.userData, hasOpenNameChecks);
 
     step = await this.loadStep(stepId);
-    const requestedDocuments = this.eligiblePersonalDocuments(step.userData);
+    // Only the documents that belong to this step. CustomerProfile is generated under the lock of
+    // the FinancialData step, RiskProfile and FormA under the user-data lock: a document written
+    // from two different lock keys can be rendered and uploaded twice at the same time.
     await this.documentService.generateMissingPersonalDocuments(
       step.userData,
       step,
       step.userData.kycFiles,
-      requestedDocuments,
+      this.eligibleApprovalStepDocuments(step.userData),
     );
 
     const completedUser = await this.completeIfReady(stepId);
@@ -277,24 +279,6 @@ export class DfxApprovalWorkflowService {
     return [...(userData.kycSteps ?? [])]
       .filter((step) => [KycStepName.DFX_APPROVAL, KycStepName.FINANCIAL_DATA].includes(step.name))
       .sort((a, b) => b.created.getTime() - a.created.getTime())[0];
-  }
-
-  // Step-bound documents only. RiskProfile and FormA belong to the account and are generated under
-  // the user-data lock in `generatePendingRiskAndFormADocuments`; generating them from here as well
-  // would let two instances write the same document under two different lock keys.
-  private eligiblePersonalDocuments(userData: UserData): FileSubType[] {
-    const documents = this.eligibleApprovalStepDocuments(userData);
-    const isPreApprovalPersonal =
-      userData.accountType === AccountType.PERSONAL &&
-      userData.kycLevel >= KycLevel.LEVEL_30 &&
-      userData.kycLevel < KycLevel.LEVEL_50;
-    const hasFinancialData = userData.kycSteps?.some(
-      (step) => step.name === KycStepName.FINANCIAL_DATA && step.isCompleted,
-    );
-    if (isPreApprovalPersonal && userData.verifiedName && hasFinancialData)
-      documents.push(FileSubType.CUSTOMER_PROFILE);
-
-    return [...new Set(documents)];
   }
 
   private eligibleApprovalStepDocuments(userData: UserData): FileSubType[] {

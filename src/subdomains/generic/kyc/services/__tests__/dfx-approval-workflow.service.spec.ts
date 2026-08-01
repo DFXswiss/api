@@ -170,7 +170,7 @@ describe('DfxApprovalWorkflowService', () => {
     expect(notificationService.kycChanged).not.toHaveBeenCalled();
   });
 
-  it('selects the step-bound documents when their original Sheet predicates match', () => {
+  it('gives every document exactly one generation path, so no two lock keys write the same file', () => {
     const step = pendingStep();
     const financialStep = Object.assign(new KycStep(), {
       id: 12,
@@ -188,32 +188,22 @@ describe('DfxApprovalWorkflowService', () => {
       kycSteps: [step, financialStep],
     });
 
-    expect((service as any).eligiblePersonalDocuments(step.userData)).toEqual([
+    // Step lock: the three documents that hang off the DfxApproval step.
+    expect((service as any).eligibleApprovalStepDocuments(step.userData)).toEqual([
       FileSubType.GWG_FILE_COVER,
       FileSubType.IDENTIFICATION_FORM,
       FileSubType.DFX_NAME_CHECK,
-      FileSubType.CUSTOMER_PROFILE,
     ]);
-  });
-
-  it('leaves the account-bound documents to the user-data lock, so no two lock keys write the same file', () => {
-    const step = pendingStep();
-    Object.assign(step.userData, {
-      status: UserDataStatus.ACTIVE,
-      kycType: KycType.DFX,
-      verifiedName: 'Test User',
-      country: { fatfEnable: true },
-      highRisk: false,
-    });
-
-    const stepBound = (service as any).eligiblePersonalDocuments(step.userData);
-
-    expect(stepBound).not.toContain(FileSubType.FORM_A);
-    expect(stepBound).not.toContain(FileSubType.RISK_PROFILE);
+    // User-data lock: the two documents that hang off the account.
     expect((service as any).eligibleRiskAndFormADocuments(step.userData, [])).toEqual([
       FileSubType.FORM_A,
       FileSubType.RISK_PROFILE,
     ]);
+    // CustomerProfile is generated under the lock of the FinancialData step and appears in neither.
+    expect((service as any).eligibleApprovalStepDocuments(step.userData)).not.toContain(FileSubType.CUSTOMER_PROFILE);
+    expect((service as any).eligibleRiskAndFormADocuments(step.userData, [])).not.toContain(
+      FileSubType.CUSTOMER_PROFILE,
+    );
   });
 
   it('keeps RiskProfile generation and the approval gate on the same country condition', () => {
