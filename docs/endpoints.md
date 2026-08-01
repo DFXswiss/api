@@ -20,6 +20,8 @@ Every HTTP endpoint this service exposes: **533 handlers** across 93 controller 
 
 The `Ratio` column quantifies it where both sides are known. It is the basis for deciding which read paths are worth converting to explicit projections.
 
+[read-path-projections.md](read-path-projections.md) explains the background, the criteria for converting an endpoint, and how the result is tested.
+
 ## How the values are produced
 
 - **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Four files declare two controller classes with different base paths, one declares `@Controller()` without an argument. Cross-checked in both directions against the routes the framework registers at startup: all 526 distinct method/path pairs match.

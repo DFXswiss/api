@@ -523,7 +523,7 @@ The `Eager` column follows a mechanical rule — eager relations apply to the `f
 - the handler reaches a `find` / `findOne` / `findBy` / `findOneBy` on a repository → `yes`
 - it loads only through `createQueryBuilder(...).select([...])` or `dataSource.query(...)`, or touches no database at all → `no`
 
-This matters because eager relations expand recursively: a plain `findOne()` on `UserData` already selects 253 columns across 8 joins before any `relations` option is added.
+This matters because eager relations expand recursively: a plain `findOne()` on `UserData` already selects 253 columns across 8 joins before any `relations` option is added. [docs/read-path-projections.md](docs/read-path-projections.md) explains the background and how converted read paths are tested.
 
 Two details are easy to get wrong when editing the list by hand:
 
