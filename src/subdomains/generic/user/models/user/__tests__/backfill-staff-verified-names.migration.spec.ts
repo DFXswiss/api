@@ -84,6 +84,7 @@ describe('BackfillStaffVerifiedNames migration (SQL content)', () => {
     expect(postconditionParameters).toEqual(['Test Staff Name']);
     expect(postconditionSql).toContain('AS "humanCount"');
     expect(postconditionSql).toContain('AS "serviceCount"');
+    expect(parameters).toBe(postconditionParameters);
   });
 
   it('rejects when either target does not reach the exact required state', async () => {

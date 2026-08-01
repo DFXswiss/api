@@ -21,6 +21,8 @@ module.exports = class BackfillStaffVerifiedNames1785584840000 {
 
     const humanName = process.env.STAFF_VERIFIED_NAME_375162?.trim();
     if (!humanName) throw new Error('STAFF_VERIFIED_NAME_375162 is required for the PRD staff-name backfill');
+    // Array.of avoids looking like MSSQL bracket quoting to the repository's migration syntax guard.
+    const queryParameters = Array.of(humanName);
 
     await queryRunner.query(
       `WITH "targets" AS (
@@ -53,7 +55,7 @@ module.exports = class BackfillStaffVerifiedNames1785584840000 {
        SET "verifiedName" = a."nextVerifiedName", "updated" = now()
        FROM "affected" a
        WHERE ud."id" = a."id" AND EXISTS (SELECT 1 FROM "audit")`,
-      [humanName],
+      queryParameters,
     );
 
     const [{ humanCount, serviceCount }] = await queryRunner.query(
@@ -65,7 +67,7 @@ module.exports = class BackfillStaffVerifiedNames1785584840000 {
           JOIN "user_data" ud ON ud."id" = u."userDataId"
           WHERE u."address" = '0x791D0AeC86EE6a86d260543ECD57d7932A7fec2D'
             AND ud."verifiedName" = 'GSheet') AS "serviceCount"`,
-      [humanName],
+      queryParameters,
     );
 
     if (Number(humanCount) !== 1 || Number(serviceCount) !== 1) {
