@@ -833,6 +833,26 @@ describe('BuyService', () => {
       expect(errorLog).toHaveBeenCalledTimes(1);
     });
 
+    it('propagates a business rejection (KYC required) from issuance instead of showing the collection account', async () => {
+      // Issuance re-reads and merge-resolves the owner under its own lock, so its KYC_REQUIRED is
+      // authoritative over the possibly-stale KYC-50 snapshot on the request. It must reach the caller,
+      // not be swallowed into the fallback - which would hand a rejected customer a usable account.
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+      jest
+        .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
+        .mockRejectedValue(new BadRequestException(QuoteError.KYC_REQUIRED));
+      const getBank = jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+
+      await expect(
+        service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData }, buy),
+      ).rejects.toThrow(QuoteError.KYC_REQUIRED);
+
+      // The fallback must not even be attempted for a business rejection.
+      expect(getBank).not.toHaveBeenCalled();
+    });
+
     it('does not show a collection account without a reference, even for an eligible EUR transfer', async () => {
       jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
