@@ -111,10 +111,11 @@ function renderValue(property: string, value: unknown, constraints: Record<strin
 // case a log line cannot be read without - one client sending one wrong constant looks exactly
 // like one sending a different one - and which fields are eligible for it follows from what they
 // declare, not from what happened to arrive. A string rendered that way is still untrusted input
-// and stays masked and capped; a number or a boolean is already bounded by being one. Every other
-// field keeps its shape and loses its content: a name-based
-// denylist would have to grow with every DTO that ever carries a credential, and the field it has
-// not heard of yet is the one that leaks.
+// and stays masked and capped; a number or a boolean is already bounded by being one.
+//
+// Every other field keeps its shape and loses its content: a name-based denylist would have to
+// grow with every DTO that ever carries a credential, and the field it has not heard of yet is
+// the one that leaks.
 function hasLiteralDomain(constraints: Record<string, string>): boolean {
   return Object.keys(constraints).some((constraint) => LITERAL_DOMAIN_CONSTRAINTS.includes(constraint));
 }
