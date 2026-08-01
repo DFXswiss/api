@@ -1,4 +1,5 @@
 import { CanActivate, ExecutionContext } from '@nestjs/common';
+import { StaffKycRequiredException } from 'src/shared/auth/exceptions/staff-kyc-required.exception';
 import { HasStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { KycGatedRoles, UserRole } from 'src/shared/auth/user-role.enum';
 
@@ -94,7 +95,12 @@ class RoleGuardClass implements CanActivate {
     // The gate is a property of the ENDPOINT, not of the caller, so it applies only when EVERY entry
     // role is gated — a gate that also admits e.g. UserRole.USER is an ordinary endpoint that an admin
     // happens to reach through the role hierarchy, and must not start demanding staff KYC.
-    if (this.isElevated) return HasStaffKycClearance(user?.account);
+    //
+    // Throws rather than returning false: a bare false becomes the generic "Forbidden resource", which
+    // a caller cannot tell apart from a removed role, so neither staff nor tooling would learn that the
+    // fix is to complete an identification. `JwtUserActiveGuard` calls this guard programmatically, but
+    // only with UserRole.USER, which is never elevated — so it still gets a boolean.
+    if (this.isElevated && !HasStaffKycClearance(user?.account)) throw new StaffKycRequiredException();
 
     return true;
   }
