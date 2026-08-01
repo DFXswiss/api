@@ -19,8 +19,8 @@ Among the query builders, the field list is what decides whether anything is act
 | | Sites |
 | --- | ---: |
 | `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **9** |
-| `.select('alias.column')` — names columns one by one | **84** |
-| `.select('alias')` — selects the root alias, **loads every column** | 20 |
+| `.select('alias.column')` — names columns one by one | **87** |
+| `.select('alias')` — selects the root alias, **loads every column** | 17 |
 | no `select` at all — loads every column | 23 |
 | projects, but a `leftJoinAndSelect` loads a relation whole | 1 |
 
@@ -645,7 +645,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 16 | 0 | find | `Fiat` | `shared/models/fiat/fiat.service.ts:43` | `FiatService.getFiatByCountry` |
 | 16 | 0 | query-builder (projektion-mit-vollem-join) | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:148` | `PaymentLinkPaymentService.getMostRecentPayments` |
 | 16 | 0 | query-builder (nur-alias) | `VirtualIban` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:1294` | `VirtualIbanService.getVirtualIbanByKey` |
-| 16 | 0 | query-builder (nur-alias) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:177` | `SupportIssueService.getSupportIssueStatistics` |
 | 16 | 0 | query-builder (ohne-select) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:549` | `SupportIssueService.getSupportIssueList` |
 | 15 | 0 | find | `WalletApp` | `subdomains/core/payment-link/services/wallet-app.service.ts:20` | `WalletAppService.getAllBlockchainWalletApps` |
 | 15 | 0 | find | `WalletApp` | `subdomains/core/payment-link/services/wallet-app.service.ts:24` | `WalletAppService.getRecommendedWalletApps` |
@@ -727,8 +726,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 7 | 0 | find | `SpecialExternalAccount` | `subdomains/supporting/payment/services/special-external-account.service.ts:58` | `SpecialExternalAccountService.getBlacklist` |
 | 7 | 0 | find | `AssetPrice` | `subdomains/supporting/pricing/services/asset-prices-job.service.ts:81` | `AssetPricesJobService.saveAssetPrices` |
 | 7 | 0 | find | `RealUnitLegalAcceptance` | `subdomains/supporting/realunit/realunit-legal.service.ts:57` | `RealUnitLegalService.getLatestAcceptance` |
-| 7 | 0 | query-builder (nur-alias) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:133` | `SupportIssueService.getSupportIssueActivity` |
-| 7 | 0 | query-builder (nur-alias) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:186` | `SupportIssueService.getSupportIssueStatistics` |
 | 6 | 0 | query-builder (spaltenliste) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:173` | `LedgerMarkToMarketService.accountBalance` |
 | 6 | 0 | query-builder (spaltenliste) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:517` | `LedgerReconciliationService.nativeBalanceByAccount` |
 | 6 | 0 | find | `Ref` | `subdomains/core/referral/process/ref.repository.ts:13` | `RefRepository.getAndRemove` |
@@ -791,6 +788,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 2 | 0 | query-builder (spaltenliste) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:324` | `TransactionService.getManualRefVolume` |
 | 2 | 0 | query-builder (spaltenliste) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:353` | `TransactionService.getAuditPeriodVolumes` |
 | 2 | 0 | query-builder (spaltenliste) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:109` | `SupportIssueService.getSupportIssueCounts` |
+| 2 | 0 | query-builder (spaltenliste) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:133` | `SupportIssueService.getSupportIssueActivity` |
 | 2 | 0 | query-builder (spaltenliste) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:198` | `SupportIssueService.getSupportIssueStatistics` |
 | 1 | 0 | query-builder (spaltenliste) | `Asset` | `shared/models/asset/asset.service.ts:140` | `AssetService.getAssetsUsedOn` |
 | 1 | 0 | query-builder (spaltenliste) | `IpLog` | `shared/models/ip-log/ip-log.service.ts:79` | `IpLogService.getLoginCountries` |
@@ -838,6 +836,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 1 | 0 | query-builder (spaltenliste) | `—` | `subdomains/supporting/payin/services/payin.service.ts:217` | `PayInService.getPayInFee` |
 | 1 | 0 | query-builder (spaltenliste) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:352` | `TransactionRequestService.getLegacySettlementTxIds` |
 | 1 | 0 | query-builder (spaltenliste) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:406` | `TransactionRequestService.getActiveDepositAddresses` |
+| 1 | 0 | query-builder (spaltenliste) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:177` | `SupportIssueService.getSupportIssueStatistics` |
+| 1 | 0 | query-builder (spaltenliste) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:186` | `SupportIssueService.getSupportIssueStatistics` |
 | — | — | find | `—` | `config/config.ts:1347` | `Configuration.isDomesticIban` |
 | — | — | find | `—` | `integration/binance-pay/services/binance-pay.service.ts:271` | `BinancePayService.verifySignature` |
 | — | — | find | `—` | `integration/blockchain/api/services/blockchain-balance.service.ts:52` | `BlockchainBalanceService.getSolanaBalances` |
