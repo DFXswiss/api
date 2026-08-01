@@ -4,8 +4,7 @@ import { rolesSatisfying } from 'src/shared/auth/role.guard';
 import { KycGatedRoles } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { In, MoreThanOrEqual, Raw } from 'typeorm';
-import { KycLevel } from '../user-data/user-data.enum';
+import { In, Raw } from 'typeorm';
 import { UserRepository } from './user.repository';
 
 // Roles that can reach a KYC-gated endpoint: the gated entry roles plus their super-roles (e.g.
@@ -39,8 +38,8 @@ export function nonBlankPredicate(alias: string): string {
 //
 // Mirrors JwtRevocationSyncService: the cron lives in the user domain (which owns User/UserData) to
 // keep the shared ProcessService/SettingService free of subdomain dependencies. Self-healing in both
-// directions — losing kycLevel, losing verifiedName, or losing the staff role drops the account out of
-// the query and thus out of the setting on the next run.
+// directions — losing the verified name or losing the staff role drops the account out of the query
+// and thus out of the setting on the next run.
 @Injectable()
 export class StaffKycClearanceService {
   constructor(
@@ -57,7 +56,12 @@ export class StaffKycClearanceService {
       where: {
         role: In(ClearanceRelevantRoles),
         userData: {
-          kycLevel: MoreThanOrEqual(KycLevel.LEVEL_50),
+          // A non-empty verified name is the sole clearance condition: it is only ever set by an
+          // identity-verified path or a reviewed migration, never self-service (see the write paths of
+          // `verifiedName`), so it is the authoritative identification signal on its own. A KYC level is
+          // deliberately NOT required — it is unreachable for the DEBUG role and impossible for the
+          // service accounts that legitimately hold a gated role.
+          //
           // `verifiedName IS NOT NULL` is the stated rule, but an empty or blank name carries no
           // identification either — the predicate covers both, and NULL drops out on its own because the
           // comparison yields NULL. See BlankChars for why the character set is explicit.

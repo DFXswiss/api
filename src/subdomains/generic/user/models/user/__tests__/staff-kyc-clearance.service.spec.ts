@@ -12,7 +12,7 @@ describe('StaffKycClearanceService', () => {
     jest.spyOn(userRepo, 'find').mockResolvedValue(users as never);
   }
 
-  // Rows as the DB returns them: the role / kycLevel / verifiedName filtering has already happened in
+  // Rows as the DB returns them: the role / verifiedName filtering has already happened in
   // SQL, so a returned row is by definition a cleared one.
   function staffUser(accountId: number): unknown {
     return { id: accountId * 10, userData: { id: accountId } };
@@ -83,7 +83,7 @@ describe('StaffKycClearanceService', () => {
     expect(settingService.setObj).toHaveBeenCalledWith('staffKycClearance', []);
   });
 
-  it('queries only staff roles and kycLevel >= 50', async () => {
+  it('queries only staff roles and requires a verified name, with no KYC-level condition', async () => {
     setup([]);
 
     await service.syncStaffKycClearance();
@@ -91,7 +91,9 @@ describe('StaffKycClearanceService', () => {
     const where = (userRepo.find as jest.Mock).mock.calls[0][0].where;
     expect(where.role._value).toEqual(expect.arrayContaining(['Admin', 'SuperAdmin', 'Debug', 'RealUnit']));
     expect(where.role._value).not.toContain('User');
-    expect(where.userData.kycLevel._value).toBe(50);
+    // Clearance no longer depends on a KYC level — a verified name is the sole identification condition.
+    expect(where.userData.kycLevel).toBeUndefined();
+    expect(where.userData.verifiedName.type).toBe('raw');
   });
 
   it('does not swallow a repository failure — a failed sync must keep the last known Set', async () => {

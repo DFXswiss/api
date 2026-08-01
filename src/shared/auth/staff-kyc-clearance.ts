@@ -1,10 +1,11 @@
 // Staff KYC clearance ALLOWlist — the inverse of the JWT denylists in ProcessService. Elevated
 // endpoints (every `RoleGuard` whose entry roles are all in `KycGatedRoles`) require, on top of the
-// role, that an identified natural person is behind the calling account: `kycLevel >= LEVEL_50` AND a
-// non-empty `verifiedName`. `StaffKycClearanceService` derives the cleared account (user data) ids
-// from the DB into the `staffKycClearance` setting; `ProcessService` primes this Set from it, so
-// revoking a staff member's KYC takes effect on live tokens within one refresh interval — no
-// re-login, no JWT-secret rotation.
+// role, that an identified natural person is behind the calling account: a non-empty `verifiedName`.
+// That name is only ever set by an identity-verified path or a reviewed migration, never self-service,
+// so it is the authoritative identification signal on its own — no KYC level is required.
+// `StaffKycClearanceService` derives the cleared account (user data) ids from the DB into the
+// `staffKycClearance` setting; `ProcessService` primes this Set from it, so revoking a staff member's
+// clearance takes effect on live tokens within one refresh interval — no re-login, no JWT-secret rotation.
 //
 // Fail-CLOSED, unlike the denylists: a not-yet-primed or empty Set denies every elevated endpoint.
 // That asymmetry is deliberate — a DB or cron outage must never silently re-open admin access — and
