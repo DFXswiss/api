@@ -1682,7 +1682,7 @@ export class RealUnitService {
       return false;
     }
 
-    // completed or idempotent: reconcile KYC state (best-effort, self-healing) and write the INFO audit log.
+    // completed or idempotent: reconcile KYC state (best-effort) and write the INFO audit log.
     await this.ensureRegistrationKycState(userData);
     await this.logAktionariatRegistration(
       LogSeverity.INFO,
@@ -1718,13 +1718,13 @@ export class RealUnitService {
   //
   // Separate from ensureRegistrationKycLevel on purpose: that one returns early once the account is at
   // LEVEL_20, which is exactly the state a stuck account is already in — folding this in would skip it for
-  // every account that needs it. Best-effort like the lift, and re-asserted on every idempotent retry.
+  // every account that needs it. Best-effort like the lift, so a failure here never fails the registration.
   private async ensureRegistrationPersonalDataStep(userData: UserData): Promise<void> {
     try {
       await this.kycService.completeSatisfiedPersonalDataStep(userData);
     } catch (e) {
       this.logger.error(
-        `Failed to close the PersonalData KYC step for RealUnit registration (userData ${userData.id}); will self-heal on retry: ${e?.message || e}`,
+        `Failed to close the PersonalData KYC step for RealUnit registration (userData ${userData.id}); the step stays open and needs manual reconciliation: ${e?.message || e}`,
       );
     }
   }

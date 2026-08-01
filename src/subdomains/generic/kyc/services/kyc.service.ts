@@ -656,8 +656,12 @@ export class KycService {
    * PROBLEMATIC_APPLICANT_DATA, `restartStep` FAILS the completed step and opens a fresh IN_PROGRESS one so the
    * user can correct data that is present but wrong. Auto-completing that retry with the same unchanged data
    * would skip the correction step and strand the user on IDENT instead. The rejection marker lives on the
-   * failed row, not on the pending one, so the pending lookup alone is no protection — any FAILED step in the
-   * chain means this account was deliberately sent back through the normal flow, and we leave it there.
+   * failed row, not on the pending one, so the pending lookup alone is no protection.
+   *
+   * The verdict comes from the most recent SETTLED step, not from the whole history: a rejection the user has
+   * since remedied ends in a completed (then cancelled) step, and that account must stay eligible. Only a
+   * chain whose latest settled step is still FAILED is an unremedied re-open, and it keeps going through the
+   * normal flow.
    */
   async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
     // The caller's UserData is loaded for its own flow and need not carry `kycSteps`; reload so the step
@@ -665,7 +669,11 @@ export class KycService {
     const user = await this.userDataService.getUserData(userData.id, { kycSteps: true });
 
     const steps = user.getStepsWith(KycStepName.PERSONAL_DATA);
-    if (steps.some((s) => s.isFailed)) return;
+    const lastSettled = Util.maxObj(
+      steps.filter((s) => !s.isInProgress),
+      'sequenceNumber',
+    );
+    if (lastSettled?.isFailed) return;
 
     const kycStep = steps.find((s) => s.isInProgress);
     if (!kycStep || !user.isDataComplete) return;

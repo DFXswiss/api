@@ -3051,9 +3051,6 @@ describe('RealUnitService', () => {
       mockEnvironment = 'loc';
     });
 
-    // REGRESSION GUARD: a legacy software wallet that signed the raw UTF-8 fields
-    // (still accepted by verifyRealUnitRegistrationSignature) must keep working —
-    // the forward must stay UTF-8, not be transliterated, or Aktionariat rejects it.
     // Pins the forwardRegistration call site: the pre-existing spies target ensureRegistrationKycLevel,
     // which ensureRegistrationKycState still calls transitively, so reverting the call site would otherwise
     // keep the suite green and silently undo the fix.
@@ -3069,6 +3066,9 @@ describe('RealUnitService', () => {
       expect((service as any).kycService.completeSatisfiedPersonalDataStep).toHaveBeenCalled();
     });
 
+    // REGRESSION GUARD: a legacy software wallet that signed the raw UTF-8 fields
+    // (still accepted by verifyRealUnitRegistrationSignature) must keep working —
+    // the forward must stay UTF-8, not be transliterated, or Aktionariat rejects it.
     it('forwards the raw UTF-8 fields unchanged when the wallet signed UTF-8 (legacy app)', async () => {
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
@@ -3551,8 +3551,13 @@ describe('RealUnitService', () => {
       expect(ok).toBe(true);
       // the collision is NOT recorded as a failure
       expect(logService.create).not.toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
-      // the idempotent-collision path still (best-effort) lifts the KYC level
+      // the idempotent-collision path still (best-effort) reconciles the KYC state. Both halves are asserted:
+      // the level spy alone passes even if the call site is reverted, because ensureRegistrationKycState calls
+      // ensureRegistrationKycLevel transitively.
       expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+      expect((service as any).kycService.completeSatisfiedPersonalDataStep).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 1 }),
+      );
     });
 
     it('writes the full Aktionariat error body to the DB log but keeps the Loki line redacted', async () => {

@@ -806,8 +806,8 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
   let kycStepRepo: jest.Mocked<KycStepRepository>;
   let userDataService: jest.Mocked<UserDataService>;
 
-  const personalStep = (status: ReviewStatus): KycStep =>
-    Object.assign(new KycStep(), { id: 2, name: KycStepName.PERSONAL_DATA, status });
+  const personalStep = (status: ReviewStatus, sequenceNumber = 0): KycStep =>
+    Object.assign(new KycStep(), { id: 2 + sequenceNumber, name: KycStepName.PERSONAL_DATA, status, sequenceNumber });
 
   // Every field in `requiredKycFields` for a personal account, so `isDataComplete` is true.
   const completeUser = (kycSteps: KycStep[], overrides: Partial<UserData> = {}): UserData =>
@@ -869,13 +869,26 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
   // check and cannot see that, so without the failed-step guard the retry would be auto-completed with the
   // same rejected data and the user stranded on IDENT instead of the correction step.
   it('leaves a step re-opened by a rejection alone (FAILED + fresh IN_PROGRESS chain)', async () => {
-    const failed = personalStep(ReviewStatus.FAILED);
-    const reopened = personalStep(ReviewStatus.IN_PROGRESS);
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const reopened = personalStep(ReviewStatus.IN_PROGRESS, 1);
     await run(completeUser([failed, reopened]));
 
     expect(kycStepRepo.update).not.toHaveBeenCalled();
     expect(reopened.status).toBe(ReviewStatus.IN_PROGRESS);
     expect((service as any).updateProgress).not.toHaveBeenCalled();
+  });
+
+  // A rejection the user has since remedied ends in a completed (then cancelled) step. Judging the whole
+  // history would disable the reconciliation for that account forever, so the verdict comes from the most
+  // recent SETTLED step only — here a cancelled one, so the account stays eligible.
+  it('still completes when an older rejection was remedied before the step was re-opened', async () => {
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const remedied = personalStep(ReviewStatus.CANCELED, 1);
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 2);
+    await run(completeUser([failed, remedied, pending]));
+
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+    expect(pending.status).toBe(ReviewStatus.COMPLETED);
   });
 
   it('leaves an already completed step untouched', async () => {
