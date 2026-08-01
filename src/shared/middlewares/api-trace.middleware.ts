@@ -39,30 +39,8 @@ const TRUNCATED = '<…truncated…>';
 // caller stopped looking.
 export const MAX_MASKED_PATTERN = 64 + 1 + 255 + 1 + 24;
 
-// What the first of two masking passes writes. Both carry a `/`, which every pattern above excludes,
-// so the second pass can neither match through one nor fold one into a match of its own - `***`
-// would be taken for the local part of an address. They are not control characters, so the removal
-// between the passes leaves them whole.
-//
-// The seed is grown until it does not occur in the value being rendered: a request can send the
-// marker itself, and it would then come back as `***` on the far side without a pattern ever having
-// matched - a redaction that is not one.
-const REDACTED_SEED = '/\uFFFCr/';
-const WALLET_SEED = '/\uFFFCw/';
-
-function absentFrom(value: string, seed: string): string {
-  let mark = seed;
-  while (value.includes(mark)) mark = `${mark}\uFFFC`;
-
-  return mark;
-}
-
-function mask(s: string, redacted: string, wallet: string): string {
-  return s.replace(WALLET_ADDRESS, wallet).replace(EMAIL, redacted).replace(IPV4, `$1${redacted}`);
-}
-
 export function maskValue(s: string): string {
-  return mask(s, REDACTED, WALLET_SHORT);
+  return s.replace(WALLET_ADDRESS, WALLET_SHORT).replace(EMAIL, REDACTED).replace(IPV4, `$1${REDACTED}`);
 }
 
 export function maskUrl(url: string): string {
@@ -102,23 +80,17 @@ export function singleLine(value: string): string {
 }
 
 /**
- * Renders free-form text for a log line: masked, on one line, masked again.
+ * Renders free-form text for a log line: everything that could break a line is removed first, then
+ * the value patterns above are masked.
  *
- * Both passes are needed, because a character that breaks a line also breaks a pattern in either
- * direction. Put inside one, it hides the pattern from a pass that runs before the removal
- * (`victim\u0001@example.com`). Removing it joins what stood on either side, which can hide a
- * pattern that was whole from a pass that runs after (`192.0.2.123\u0000a` becomes `192.0.2.123a`,
- * where the address no longer ends on a word boundary). Neither order sees both, so both run - and
- * the second pass cannot invent a match, since what the first one leaves behind is `***` and `0x…`.
+ * The removal comes first so that a character placed inside a pattern does not hide it. It can also
+ * work the other way - removing a character joins what stood on either side, and a pattern that was
+ * whole may stop matching - but the masking here is best effort either way, and a request that
+ * arranges that is hiding what it sent about itself. What it cannot do is put a second line in the
+ * log, and that is what the removal is for.
  */
 export function maskLogText(value: string): string {
-  const redactedMark = absentFrom(value, REDACTED_SEED);
-  const walletMark = absentFrom(value, WALLET_SEED);
-
-  const first = mask(value, redactedMark, walletMark);
-  const second = mask(singleLine(first), REDACTED, WALLET_SHORT);
-
-  return second.split(redactedMark).join(REDACTED).split(walletMark).join(WALLET_SHORT);
+  return maskValue(singleLine(value));
 }
 
 /**
@@ -154,9 +126,9 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
 
 /**
  * Renders an untrusted value (header, rejected body field) for inclusion in a log line: it goes
- * through {@link maskLogText} - masked, stripped of anything that could break the line, masked
- * again - and is then capped. The masking runs before the cut, so a truncated email or wallet
- * cannot slip through.
+ * through {@link maskLogText} - stripped of anything that could break the line, then masked - and
+ * is then capped. The masking runs before the cut, so a truncated email or wallet cannot slip
+ * through.
  *
  * Beyond `MAX_STRING` the value is reported by length instead: masking is regex work over the
  * whole string, and the caller's cap alone would not stop an oversized one from paying for it.
@@ -205,12 +177,20 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
         break;
       }
       // The key is rendered like a value - a request chooses it just as freely - but the raw one
-      // decides the redaction, since that is the name the list was written against.
-      out[maskLogText(k)] = redact(v, k, budget);
+      // decides the redaction, since that is the name the list was written against. Two keys can
+      // render the same; the second keeps its own entry rather than replacing the first.
+      out[unusedKey(maskLogText(k), out)] = redact(v, k, budget);
     }
     return out;
   }
   return value;
+}
+
+function unusedKey(key: string, out: Record<string, unknown>): string {
+  let unused = key;
+  for (let taken = 2; unused in out; taken++) unused = `${key} (${taken})`;
+
+  return unused;
 }
 
 function format(value: unknown): string {

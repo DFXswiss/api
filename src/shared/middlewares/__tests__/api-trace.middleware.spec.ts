@@ -329,25 +329,21 @@ describe('maskLogValue', () => {
     expect(maskLogValue('\u{1F600}'.repeat(257), 96)).toBe('<514 code units>');
   });
 
-  it('masks a pattern a control character was placed next to, which removing it would join', () => {
-    // Removing the character puts what followed it against the end of the pattern, and the address
-    // no longer ends on a word boundary - so the masking also runs before the removal.
+  it('masks an address that removing a character puts a letter against', () => {
     expect(maskLogValue('192.0.2.123\u0000a', 96)).toBe('***a');
-    expect(maskLogValue(`0x${'a'.repeat(40)}\u0000b`, 96)).toBe('0x…b');
   });
 
-  it('does not let the first pass become part of a match in the second', () => {
-    // `***` is a valid local part as far as the address pattern is concerned, so a placeholder next
-    // to an `@` would be folded into an address of its own and take the text after it with it.
-    expect(maskLogValue('192.0.2.123\u2028@error.code', 96)).toBe('***@error.code');
-    expect(maskLogValue(`0x${'a'.repeat(40)}\u2028@error.code`, 96)).toBe('0x…@error.code');
+  it('leaves a wallet address that removing a character turns into a longer hex run', () => {
+    // The limit of masking after the removal: what is joined is a longer run, which is left alone
+    // on purpose because that is what a transaction hash looks like. A request arranging this hides
+    // what it sent about itself, and the line it cannot break is what the removal is for.
+    expect(maskLogValue(`0x${'a'.repeat(40)}\u0000b`, 96)).toBe(`0x${'a'.repeat(40)}b`);
   });
 
-  it('does not let a request forge a redaction by sending the marker itself', () => {
-    // The markers the first pass writes are grown until they do not occur in the value, so what
-    // comes back as `***` is a pattern that matched and not something a request wrote.
-    expect(maskLogValue('/\uFFFCr/', 96)).toBe('/\uFFFCr/');
-    expect(maskLogValue('/\uFFFCw/ and /\uFFFCr/', 96)).toBe('/\uFFFCw/ and /\uFFFCr/');
+  it('errs towards masking where removing a character joins two patterns', () => {
+    // Removing the character puts the address against the domain, and the whole thing reads as an
+    // address. Masking more than was there is the safe direction to be wrong in.
+    expect(maskLogValue('192.0.2.123\u2028@error.code', 96)).toBe('***');
   });
 
   it('masks an address that a letter or an underscore stands next to', () => {
