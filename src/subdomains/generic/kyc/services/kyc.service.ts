@@ -9,7 +9,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { hasRoleAccess } from 'src/shared/auth/role.guard';
+import { hasStaffAccess } from 'src/shared/auth/role.guard';
 import { isUserActive } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -473,8 +473,10 @@ export class KycService {
     if (!kycFile) throw new NotFoundException('KYC file not found');
 
     if (kycFile.protected) {
-      if (!hasRoleAccess(UserRole.COMPLIANCE, jwt?.role))
-        throw new ForbiddenException('Requires admin or compliance role');
+      // `hasStaffAccess`, not `hasRoleAccess`: this route is OptionalJwtAuthGuard-only, so no RoleGuard has
+      // applied the staff KYC gate. Protected KYC files are the most sensitive sink in the API — an
+      // uncleared compliance/admin account must not reach them just because the endpoint is not role-gated.
+      if (!hasStaffAccess(UserRole.COMPLIANCE, jwt)) throw new ForbiddenException('Requires admin or compliance role');
       if (!jwt || !isUserActive(jwt)) throw new ForbiddenException('User is not active');
 
       // Mail-origin staff sessions (tfaRequired) must complete STRICT 2FA before downloading protected KYC

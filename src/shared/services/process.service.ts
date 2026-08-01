@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { SettingService } from '../models/setting/setting.service';
 import { DfxCron } from '../utils/cron';
 
@@ -174,6 +175,9 @@ export class ProcessService implements OnModuleInit {
     // is fail-closed by sentinel
     await this.resyncDeniedJwtAddresses();
     await this.resyncDeniedJwtAccounts();
+    // await as well, but for the opposite reason: the staff clearance Set is fail-closed, so serving
+    // HTTP before it is primed would deny every elevated endpoint instead of over-granting.
+    await this.resyncStaffKycClearance();
   }
 
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
@@ -196,6 +200,13 @@ export class ProcessService implements OnModuleInit {
   async resyncDeniedJwtAccounts(): Promise<void> {
     const list = await this.settingService.getDeniedJwtAccounts();
     DeniedJwtAccounts = new Set(list);
+  }
+
+  // Primes the fail-closed staff clearance allowlist — see `staff-kyc-clearance.ts` for the semantics.
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  async resyncStaffKycClearance(): Promise<void> {
+    const list = await this.settingService.getStaffKycClearance();
+    SetStaffKycClearance(list);
   }
 
   public async setSafetyModeActive(active: boolean): Promise<void> {

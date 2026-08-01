@@ -83,6 +83,11 @@ jobs:
       - name: Run coverage
         run: npm run test:frick:cov
 
+      # Same mechanics for the staff KYC gate: the files deciding who reaches an elevated endpoint are
+      # pinned at 100%, so an uncovered branch in the authorization path fails the PR.
+      - name: Run staff gate coverage
+        run: npm run test:staff-gate:cov
+
   # Runs on a self-hosted runner for branches of this repository. The gate executes the whole suite
   # under full compilation and is CPU-bound; a hosted runner gives a public repo four vCPUs, so Jest
   # defaults to three workers and the gate alone decided how long a PR run took. The self-hosted

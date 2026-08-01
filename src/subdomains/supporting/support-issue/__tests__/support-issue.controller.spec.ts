@@ -1,6 +1,7 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { ModuleRef } from '@nestjs/core';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { SupportEscalationService } from '../services/support-escalation.service';
@@ -28,6 +29,10 @@ describe('SupportIssueController.createSupportMessage routing', () => {
   const ip = '1.2.3.4';
 
   beforeEach(() => {
+    // Staff routing now additionally requires KYC clearance for the calling account (account 7 in the
+    // staff cases below); the uncleared case has its own test.
+    SetStaffKycClearance([7]);
+
     service = createMock<SupportIssueService>();
     tfaService = { check: jest.fn() };
     moduleRef = createMock<ModuleRef>();
@@ -43,6 +48,22 @@ describe('SupportIssueController.createSupportMessage routing', () => {
 
         expect(service.createMessageSupport).toHaveBeenCalledWith(42, dto);
         expect(service.createMessage).not.toHaveBeenCalled();
+      });
+    },
+  );
+
+  // This route is OptionalJwtAuthGuard-only, so the staff KYC gate has to be applied inline. An
+  // uncleared staff account falls through to the customer path rather than posting an official reply.
+  describe.each([UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN, UserRole.SUPER_ADMIN])(
+    'staff role %s without KYC clearance',
+    (role) => {
+      it('falls through to createMessage instead of posting an official reply', async () => {
+        SetStaffKycClearance([]);
+
+        await controller.createSupportMessage({ role, account: 7 } as JwtPayload, '42', dto, ip);
+
+        expect(service.createMessageSupport).not.toHaveBeenCalled();
+        expect(service.createMessage).toHaveBeenCalledWith('42', dto, 7);
       });
     },
   );

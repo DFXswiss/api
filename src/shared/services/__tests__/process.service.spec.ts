@@ -1,3 +1,4 @@
+import { HasStaffKycClearance, SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { IsJwtAccountDenied, ProcessService } from 'src/shared/services/process.service';
 
@@ -45,5 +46,40 @@ describe('ProcessService JWT account denylist', () => {
     await service.resyncDeniedJwtAccounts();
 
     expect(IsJwtAccountDenied(123)).toBe(false);
+  });
+});
+
+describe('ProcessService staff KYC clearance priming', () => {
+  let settingService: jest.Mocked<SettingService>;
+  let service: ProcessService;
+
+  beforeEach(() => {
+    settingService = {
+      getStaffKycClearance: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<SettingService>;
+
+    service = new ProcessService(settingService);
+  });
+
+  afterEach(() => SetStaffKycClearance([]));
+
+  it('primes the in-memory clearance Set from the setting', async () => {
+    settingService.getStaffKycClearance.mockResolvedValue([123, 456]);
+
+    await service.resyncStaffKycClearance();
+
+    expect(HasStaffKycClearance(123)).toBe(true);
+    expect(HasStaffKycClearance(456)).toBe(true);
+    expect(HasStaffKycClearance(999)).toBe(false);
+  });
+
+  it('drops a revoked account on the next resync', async () => {
+    settingService.getStaffKycClearance.mockResolvedValue([123]);
+    await service.resyncStaffKycClearance();
+
+    settingService.getStaffKycClearance.mockResolvedValue([]);
+    await service.resyncStaffKycClearance();
+
+    expect(HasStaffKycClearance(123)).toBe(false);
   });
 });
