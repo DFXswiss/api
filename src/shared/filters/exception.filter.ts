@@ -47,11 +47,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
     // including a failure of the logger, which is the one thing that could not report it anyway.
     try {
       if (!sent) {
-        // What was thrown is only turned into text if it already is one: anything else could carry
-        // whatever the body carried, and this line is not the place to find that out.
+        // Only a thrown `Error` is reported as what it is. Anything else - a string included - could
+        // carry whatever the body carried, and this line is not the place to find that out.
         this.logger.error(
           `Failed to set error response content:`,
-          responseError instanceof Error ? responseError : new Error('non-error thrown'),
+          responseError instanceof Error ? responseError : new Error('Non-error thrown'),
         );
       }
       this.describe(exception, ctx.getRequest<Request>(), status.sent);
