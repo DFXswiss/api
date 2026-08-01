@@ -198,7 +198,7 @@ describeProjection('API key — read-path projection', () => {
 
     const stored = await dataSource.getRepository(UserData).findOneBy({ id: account.id });
     expect(stored.apiKeyCT).toEqual(answer.key);
-    expect(stored.apiFilterCT).toBeDefined();
+    expect(stored.apiFilterCT).toEqual(ApiKeyService.getFilterCode({ buy: true }));
     // The secret is derived rather than stored, from the key and the creation date the projection
     // supplies.
     expect(answer.secret).toEqual(ApiKeyService.getSecret(stored));

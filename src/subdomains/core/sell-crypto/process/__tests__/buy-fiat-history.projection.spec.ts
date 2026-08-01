@@ -70,6 +70,20 @@ describeProjection('GET /sell/:id/history — read-path projection', () => {
     return { buyFiat, user, sell };
   }
 
+  /** A second sell route of the same user, with one transaction on it. */
+  async function seedSecondRouteFor(user: User): Promise<{ buyFiat: BuyFiat; sell: Sell }> {
+    const bankData = await seedEntity<BankData>(dataSource, BankData);
+    const sell = await seedEntity<Sell>(dataSource, Sell, { values: { user, bankData } });
+    const asset = await seedEntity<Asset>(dataSource, Asset, { values: { blockchain: Blockchain.ETHEREUM } });
+    const cryptoInput = await seedEntity<CryptoInput>(dataSource, CryptoInput, { values: { asset } });
+    const fiatOutput = await seedEntity<FiatOutput>(dataSource, FiatOutput);
+    const outputAsset = await seedEntity<Fiat>(dataSource, Fiat);
+    const buyFiat = await seedEntity<BuyFiat>(dataSource, BuyFiat, {
+      values: { sell, cryptoInput, fiatOutput, outputAsset },
+    });
+    return { buyFiat, sell };
+  }
+
   // --- LEVEL 1: completeness --- //
 
   it('level 1 — the sell history answers with no empty field', async () => {
@@ -95,15 +109,28 @@ describeProjection('GET /sell/:id/history — read-path projection', () => {
     expectNoEmptyFields(history, ['[0].date']);
   }, 120000);
 
-  it('level 2 — the route filter selects only the caller’s own transactions', async () => {
+  it('level 2 — both the user and the route filter are needed to select the right transactions', async () => {
+    // Two fixtures with a user and a route each are not enough: asking with one user's id and that
+    // user's route id, either predicate on its own still returns exactly the expected row. The
+    // second route below makes the route id necessary, and the foreign route makes the user id
+    // necessary — dropping either one then changes the answer.
     const mine = await seedBuyFiat();
+    const second = await seedSecondRouteFor(mine.user);
     const other = await seedBuyFiat();
 
-    const history = (await repository.findSellHistory(mine.user.id, mine.sell.id)).map(BuyFiatHistoryMapper.toDto);
+    const onOneRoute = (await repository.findSellHistory(mine.user.id, mine.sell.id)).map(BuyFiatHistoryMapper.toDto);
+    expect(onOneRoute.map((row) => row.inputAmount)).toEqual([mine.buyFiat.inputAmount]);
+    expect(onOneRoute.map((row) => row.inputAmount)).not.toContain(second.buyFiat.inputAmount);
 
-    expect(history).toHaveLength(1);
-    expect(history[0].inputAmount).toEqual(mine.buyFiat.inputAmount);
-    expect(history[0].inputAmount).not.toEqual(other.buyFiat.inputAmount);
+    // Without a route the caller gets every route they own, and still nothing of anyone else's.
+    const allOfMine = (await repository.findSellHistory(mine.user.id)).map(BuyFiatHistoryMapper.toDto);
+    expect(allOfMine.map((row) => row.inputAmount).sort()).toEqual(
+      [mine.buyFiat.inputAmount, second.buyFiat.inputAmount].sort(),
+    );
+
+    // A foreign route asked for with this caller's id resolves to nothing: the user predicate is
+    // what refuses it.
+    expect(await repository.findSellHistory(mine.user.id, other.sell.id)).toHaveLength(0);
   }, 120000);
 
   // --- LEVEL 3: mutation --- //
