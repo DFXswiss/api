@@ -1,6 +1,6 @@
 # Database load sites
 
-Every place in the code that reads from the database: **1112 load sites** across 241 files.
+Every place in the code that reads from the database: **1105 load sites** across 241 files.
 
 This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
@@ -10,9 +10,9 @@ This is the level at which the statement is unambiguous. An endpoint reaches sev
 | --------- | ----: | --------------- | ---------------- |
 | `find` family | 971 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
 | `createQueryBuilder` | 129 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
-| raw SQL | 12 | not applied | whatever the statement lists |
+| raw SQL | 5 | not applied | whatever the statement lists |
 
-A further 2 `createQueryBuilder` calls are not listed: they carry `.update()` and are write statements, which load nothing.
+Statements that load nothing are excluded from the count: 2 `createQueryBuilder` calls carrying `.update()`, 6 advisory locks (`SELECT pg_advisory_xact_lock(...)`, which return no rows) and 1 raw `INSERT`. Each of the 5 raw reads that remain names its columns — together with the one query builder below, raw SQL is the only place in this repository where a read states which columns it wants.
 
 Among the query builders, the field list is what decides whether anything is actually saved:
 
@@ -26,11 +26,11 @@ Among the query builders, the field list is what decides whether anything is act
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 782 of 1112 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 782 of 1105 sites.
 
 - **348 are exact**: the `relations` tree is written at the call site.
 - **434 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
-- 330 could not be measured: no resolvable target entity, or raw SQL.
+- 323 could not be measured: no resolvable target entity, or raw SQL.
 
 Median across measured sites: **123 columns**. 14 sites exceed 1000, 77 exceed 500, 409 exceed 100.
 
@@ -861,7 +861,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `integration/exchange/services/scrypt.service.ts:895` | `ScryptService.editOrder` |
 | — | — | find | `—` | `integration/exchange/services/scrypt.service.ts:914` | `ScryptService.getTradePair` |
 | — | — | find | `—` | `integration/exchange/services/scrypt.service.ts:930` | `ScryptService.getSecurity` |
-| — | — | find | `—` | `integration/lightning/lightning-helper.ts:134` | `LightningHelper.None` |
+| — | — | find | `—` | `integration/lightning/lightning-helper.ts:134` | — |
 | — | — | find | `—` | `integration/lightning/services/lightning.service.ts:196` | `LightningService.findPayment` |
 | — | — | find | `—` | `shared/models/asset/asset.controller.ts:39` | `AssetController.getAllAsset` |
 | — | — | find | `—` | `shared/models/asset/asset.service.ts:153` | `AssetService.getByQuerySync` |
@@ -869,7 +869,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `shared/models/fiat/fiat.controller.ts:27` | `FiatController.getAllFiat` |
 | — | — | find | `—` | `shared/models/fiat/fiat.service.ts:32` | `FiatService.getFiatByName` |
 | — | — | find | `—` | `shared/models/ip-log/ip-log.service.ts:143` | `IpLogService.checkIpCountry` |
-| — | — | raw-sql | `—` | `shared/models/setting/setting.repository.ts:18` | `SettingRepository.setDateMax` |
 | — | — | find | `—` | `shared/models/setting/setting.repository.ts:20` | `SettingRepository.setDateMax` |
 | — | — | find | `—` | `shared/models/setting/setting.service.ts:169` | `SettingService.updateCustomSignUpFees` |
 | — | — | find | `—` | `shared/models/setting/setting.service.ts:198` | `SettingService.getCustomSignUpFees` |
@@ -878,7 +877,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `shared/repositories/cached.repository.ts:24` | `CachedRepository.findCached` |
 | — | — | find | `—` | `shared/repositories/cached.repository.ts:28` | `CachedRepository.findCachedBy` |
 | — | — | find | `—` | `shared/services/http.service.ts:84` | `HttpService.getMockResponse` |
-| — | — | find | `—` | `shared/utils/util.ts:786` | `Util.clearTimeout` |
+| — | — | find | `—` | `shared/utils/util.ts:786` | — |
 | — | — | find | `—` | `subdomains/core/accounting/services/consumers/bank-tx.consumer.ts:339` | `BankTxConsumer.cutoverOwedOpeningChf` |
 | — | — | find | `—` | `subdomains/core/accounting/services/consumers/bank-tx.consumer.ts:567` | `BankTxConsumer.openingLiabilityLegChf` |
 | — | — | find | `—` | `subdomains/core/accounting/services/consumers/bank-tx.consumer.ts:586` | `BankTxConsumer.cutoverOpeningLiabilityChf` |
@@ -886,7 +885,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/accounting/services/consumers/buy-fiat.consumer.ts:589` | `BuyFiatConsumer.cutoverOwedOpeningChf` |
 | — | — | find | `—` | `subdomains/core/accounting/services/consumers/buy-fiat.consumer.ts:607` | `BuyFiatConsumer.paymentLinkOpeningChf` |
 | — | — | find | `—` | `subdomains/core/accounting/services/consumers/buy-fiat.consumer.ts:625` | `BuyFiatConsumer.cutoverPaymentLinkOpeningChf` |
-| — | — | find | `—` | `subdomains/core/accounting/services/consumers/ledger-watermark.helper.ts:225` | `None.None` |
+| — | — | find | `—` | `subdomains/core/accounting/services/consumers/ledger-watermark.helper.ts:225` | — |
 | — | — | find | `—` | `subdomains/core/accounting/services/consumers/payout-order.consumer.ts:325` | `PayoutOrderConsumer.cutoverOwedOpeningChf` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:257` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:264` | `LedgerBookingService.activeTx` |
@@ -895,11 +894,11 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | query-builder (nur-alias) | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:335` | `LedgerBookingService.nextSeqFrom` |
 | — | — | query-builder (nur-alias) | `—` | `subdomains/core/accounting/services/ledger-cutover.service.ts:958` | `LedgerCutoverService.maxSettledId` |
 | — | — | query-builder (nur-alias) | `—` | `subdomains/core/accounting/services/ledger-cutover.service.ts:1002` | `LedgerCutoverService.idsUpToBoundary` |
-| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:375` | `AmlHelperService.None` |
-| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:684` | `AmlHelperService.None` |
-| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:685` | `AmlHelperService.None` |
-| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:686` | `AmlHelperService.None` |
-| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:700` | `AmlHelperService.None` |
+| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:375` | — |
+| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:684` | — |
+| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:685` | — |
+| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:686` | — |
+| — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:700` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml.service.ts:132` | `AmlService.getAmlCheckInput` |
 | — | — | find | `—` | `subdomains/core/aml/services/aml.service.ts:278` | `AmlService.getBankData` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/entities/buy-crypto.entity.ts:370` | `BuyCrypto.calculateOutputReferenceAmount` |
@@ -911,7 +910,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1063` | `BuyCryptoService.getCryptoRoute` |
 | — | — | find | `—` | `subdomains/core/custody/controllers/custody-account.controller.ts:66` | `CustodyAccountController.getCustodyAccount` |
 | — | — | find | `—` | `subdomains/core/custody/controllers/custody-account.controller.ts:67` | `CustodyAccountController.getCustodyAccount` |
-| — | — | raw-sql | `—` | `subdomains/core/custody/services/custody-account.service.ts:35` | `None.None` |
 | — | — | query-builder (ohne-select) | `—` | `subdomains/core/custody/services/custody-account.service.ts:482` | `CustodyAccountService.lockActiveAccessGrant` |
 | — | — | find | `—` | `subdomains/core/custody/services/custody-account.service.ts:504` | `CustodyAccountService.createGrant` |
 | — | — | find | `—` | `subdomains/core/custody/services/custody-account.service.ts:598` | `CustodyAccountService.grantAccessForLegacy` |
@@ -973,12 +971,12 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | query-builder (ohne-select) | `—` | `subdomains/generic/gs/gs.service.ts:868` | `GsService.getExtendedBankTxData` |
 | — | — | query-builder (ohne-select) | `—` | `subdomains/generic/gs/gs.service.ts:887` | `GsService.getExtendedBankTxData` |
 | — | — | query-builder (ohne-select) | `—` | `subdomains/generic/gs/gs.service.ts:906` | `GsService.getExtendedBankTxData` |
-| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:35` | `KycInfoMapper.None` |
-| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:36` | `KycInfoMapper.None` |
-| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:125` | `KycInfoMapper.None` |
-| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:126` | `KycInfoMapper.None` |
-| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:135` | `KycInfoMapper.None` |
-| — | — | find | `—` | `subdomains/generic/kyc/enums/kyc.enum.ts:19` | `None.None` |
+| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:35` | — |
+| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:36` | — |
+| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:125` | — |
+| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:126` | — |
+| — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:135` | — |
+| — | — | find | `—` | `subdomains/generic/kyc/enums/kyc.enum.ts:19` | — |
 | — | — | find | `—` | `subdomains/generic/kyc/services/integration/financial.service.ts:39` | `FinancialService.getQuestions` |
 | — | — | find | `—` | `subdomains/generic/kyc/services/kyc-admin.service.ts:41` | `KycAdminService.getKycSteps` |
 | — | — | find | `—` | `subdomains/generic/kyc/services/kyc-client.service.ts:55` | `KycClientService.getAllUserPayments` |
@@ -1025,7 +1023,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.entity.ts:781` | `UserData.getPendingStepWith` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.entity.ts:785` | `UserData.getCompletedStepWith` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.entity.ts:789` | `UserData.getNonFailedStepWith` |
-| — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.enum.ts:75` | `None.None` |
+| — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.enum.ts:75` | — |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:867` | `UserDataService.checkMail` |
 | — | — | query-builder (nur-alias) | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1214` | `UserDataService.updateVolumes` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1312` | `UserDataService.mergeUserData` |
@@ -1034,7 +1032,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1344` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1547` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1725` | `UserDataService.updateBankTxTime` |
-| — | — | find | `—` | `subdomains/generic/user/models/user/dto/user-dto.mapper.ts:27` | `UserDtoMapper.None` |
+| — | — | find | `—` | `subdomains/generic/user/models/user/dto/user-dto.mapper.ts:27` | — |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.repository.ts:31` | `UserRepository.getNextRef` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.service.ts:342` | `UserService.createUser` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.service.ts:496` | `UserService.updateAddress` |
@@ -1051,11 +1049,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban-frick-issuance-reconciliation.service.ts:150` | `VirtualIbanFrickIssuanceReconciliationService.runPhase1StuckIntents` |
 | — | — | find | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban-frick-issuance-reconciliation.service.ts:471` | `VirtualIbanFrickIssuanceReconciliationService.loadAbandonedReferences` |
 | — | — | find | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:118` | `VirtualIbanService.getAccountHolder` |
-| — | — | raw-sql | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:291` | `VirtualIbanService.withUserLevelIssuanceLock` |
 | — | — | find | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:295` | `VirtualIbanService.String` |
-| — | — | raw-sql | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:375` | `VirtualIbanService.lockUserLevelIssuanceForMerge` |
 | — | — | find | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:385` | `VirtualIbanService.lockUserLevelIssuanceForMerge` |
-| — | — | raw-sql | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:504` | `VirtualIbanService.initializeFrickIntent` |
 | — | — | find | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:709` | `VirtualIbanService.async` |
 | — | — | raw-sql | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:769` | `VirtualIbanService.hasOrderedOwnershipPath` |
 | — | — | find | `—` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:1030` | `VirtualIbanService.resolveVirtualIbanId` |
@@ -1095,7 +1090,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/log/log-job.service.ts:997` | `LogJobService.getAssetLog` |
 | — | — | find | `—` | `subdomains/supporting/log/log-job.service.ts:1607` | `LogJobService.findSenderReceiverPair` |
 | — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:341` | `LogRepository.getFinancialLogAssetPrices` |
-| — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:511` | `LogRepository.THEN` |
+| — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:511` | `LogRepository.getFinancialLogSummariesFull` |
 | — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:664` | `LogRepository.getFinancialLogSummariesChartOnly` |
 | — | — | find | `—` | `subdomains/supporting/notification/services/notification.service.ts:128` | `NotificationService.resolveMailWallet` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin-notification.service.ts:32` | `PayInNotificationService.returnedCryptoInput` |
@@ -1145,9 +1140,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/realunit/realunit-job.service.ts:132` | `RealUnitJobService.findUnconsumedSettlement` |
 | — | — | find | `—` | `subdomains/supporting/realunit/realunit.service.ts:339` | `RealUnitService.getHistoryEventByTxHash` |
 | — | — | find | `—` | `subdomains/supporting/realunit/realunit.service.ts:1442` | `RealUnitService.toUserDataDtoFromUserData` |
-| — | — | raw-sql | `—` | `subdomains/supporting/realunit/realunit.service.ts:1602` | `RealUnitService.forwardRegistration` |
 | — | — | find | `—` | `subdomains/supporting/realunit/realunit.service.ts:1606` | `RealUnitService.forwardRegistration` |
-| — | — | raw-sql | `—` | `subdomains/supporting/realunit/realunit.service.ts:2922` | `RealUnitService.applyRegistrationConfirmation` |
 | — | — | find | `—` | `subdomains/supporting/realunit/realunit.service.ts:2927` | `RealUnitService.applyRegistrationConfirmation` |
 | — | — | find | `—` | `subdomains/supporting/support-issue/services/support-escalation.service.ts:166` | `SupportEscalationService.bindGroupChat` |
 | — | — | find | `—` | `subdomains/supporting/support-issue/services/support-issue.service.ts:92` | `SupportIssueService.getSupportIssueClerkForAccount` |

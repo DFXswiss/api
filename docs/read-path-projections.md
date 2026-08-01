@@ -29,11 +29,12 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,112 load sites in this repository, **exactly one** names the columns
-it needs. The rest request whole rows: 971 through the `find` family, and of the 129 query
-builders, 105 pass the root alias to `.select(...)` — which reads like a projection but is not —
-while 24 pass no select at all. The same entities serve persistence, business logic and pure
-output paths such as invoices, receipts, history and exports — which need fields, not objects.
+**No read model.** Of the 1,105 load sites in this repository, **six** name the columns they need:
+one query builder and the five raw statements. The other 1,099 request whole rows — 971 through the
+`find` family, and of the 129 query builders, 105 pass the root alias to `.select(...)`, which reads
+like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
+business logic and pure output paths such as invoices, receipts, history and exports — which need
+fields, not objects.
 
 ## Vocabulary
 
@@ -47,7 +48,7 @@ output paths such as invoices, receipts, history and exports — which need fiel
 | **Read model** | A separate model optimised for reading. Introducing projections for read paths is a small step towards one. |
 
 Note that eager relations apply to the `find*` family, **not** to `createQueryBuilder` and not to
-raw SQL. [load-sites.md](load-sites.md) records that mechanism for each of the 1,112 load sites,
+raw SQL. [load-sites.md](load-sites.md) records that mechanism for each of the 1,105 load sites,
 together with the measured column count.
 
 [endpoints.md](endpoints.md) summarises this per endpoint, as the union over every load site the
@@ -116,10 +117,23 @@ described above proves it — a wrong value can run for weeks.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-Today that is **exactly one site** in the whole repository (`log.repository.ts:699`). Every other
-query builder either selects only the root alias or nothing at all, and therefore still loads every
-column; nothing can be missing from them. Each site becomes subject to these tests the moment it is
-given a field list.
+Today that is **six sites**:
+
+| Site | Form |
+| ---- | ---- |
+| `subdomains/supporting/log/log.repository.ts:699` | `.select(['log.id', 'log.valid'])` |
+| `subdomains/supporting/log/log.repository.ts:341` | raw SQL, columns listed |
+| `subdomains/supporting/log/log.repository.ts:511` | raw SQL, columns listed |
+| `subdomains/supporting/log/log.repository.ts:664` | raw SQL, columns listed |
+| `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:769` | raw SQL, columns listed |
+| `subdomains/generic/gs/gs.service.ts:337` | raw SQL, column list supplied by the caller |
+
+The last one is a different case: its field list comes from the request, so an incomplete result is
+the caller's doing rather than a defect here. The other five carry the risk described above.
+
+Every other read either selects only the root alias or nothing at all and therefore still loads
+every column; nothing can be missing from those. Each becomes subject to these tests the moment it
+is given a field list.
 
 ### How they run
 

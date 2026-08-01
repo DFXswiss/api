@@ -529,7 +529,7 @@ To verify a change, compare against the routes the framework logs at startup: ev
 - the `find` family applies eager relations and expands them recursively — a plain `findOne()` on `UserData` already selects 253 columns across 8 joins
 - `createQueryBuilder` does not, but still loads every column of the root entity unless `.select([...])` narrows it
 - `.select('alias')` is **not** a projection — the argument is the entity alias, not a field list
-- a query builder carrying `.update()`, `.delete()` or `.insert()` is a write statement and loads nothing — it is not part of that inventory
+- a query builder carrying `.update()`, `.delete()` or `.insert()` is a write statement and loads nothing — the same goes for a raw `SELECT pg_advisory_xact_lock(...)`, which returns no rows; neither is part of that inventory
 
 See [docs/read-path-projections.md](docs/read-path-projections.md) for what follows from that.
 
