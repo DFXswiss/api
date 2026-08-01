@@ -3,7 +3,6 @@ import { ReadProjection } from 'src/shared/models/read-projection';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
-import { LiquidityManagementPipelineStatus } from '../enums';
 
 /** The single value `GET /liquidityManagement/pipeline/:id/status` answers with. */
 export const PIPELINE_STATUS_RESPONSE_FIELDS = ['pipeline.status'];
