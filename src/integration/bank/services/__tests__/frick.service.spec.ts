@@ -90,6 +90,8 @@ describe('BankFrickService', () => {
       .filter((request) => request.url.endsWith('/accounts/0000000'));
     expect(accountCalls).toHaveLength(2);
     expect(accountCalls[0].data).toBe('');
+    // Standard WebAPI bodyless GETs must keep Content-Type: */* (vIBAN GETs deliberately omit it).
+    expect(accountCalls[0].headers['Content-Type']).toBe('*/*');
     expect(accountCalls[0].headers.Authorization).toMatch(/^Bearer /);
     expectSignature('', accountCalls[0].headers.Signature);
     expect(http.request.mock.calls.filter(([request]) => request.url.endsWith('/authorize'))).toHaveLength(1);
@@ -1022,6 +1024,7 @@ describe('BankFrickService', () => {
     expect(createRequest.url).toBe('https://vban.bank.invalid/vban/virtual-ibans');
     expect(createRequest.method).toBe('POST');
     expect(createRequest.data).toBe(JSON.stringify({ referenceAccountIban: debtorIban }));
+    expect(createRequest.headers['Content-Type']).toBe('application/json');
     expectSignature(createRequest.data, createRequest.headers.Signature);
     expect(createRequest.headers.Authorization).toMatch(/^Bearer /);
     expect(createRequest.headers.algorithm).toBe('rsa-sha512');
@@ -1243,6 +1246,7 @@ describe('BankFrickService', () => {
     expect(approveRequest.url).toBe('https://vban.bank.invalid/vban/virtual-ibans/activations/approvals');
     expect(approveRequest.method).toBe('PUT');
     expect(approveRequest.data).toBe(JSON.stringify({ vban: response.vban }));
+    expect(approveRequest.headers['Content-Type']).toBe('application/json');
     expectSignature(approveRequest.data, approveRequest.headers.Signature);
     expect(approveRequest.headers.Authorization).toMatch(/^Bearer /);
     expect(approveRequest.headers.algorithm).toBe('rsa-sha512');
@@ -1265,6 +1269,8 @@ describe('BankFrickService', () => {
     expect(getRequest.url).toBe(`https://vban.bank.invalid/vban/virtual-ibans/${encodeURIComponent(vbanWithSlash)}`);
     expect(getRequest.method).toBe('GET');
     expect(getRequest.data).toBe('');
+    // Bodyless vIBAN GETs must omit Content-Type: Azure gateway rejects Content-Type: */* with unsigned 403.
+    expect(getRequest.headers['Content-Type']).toBeUndefined();
     expectSignature('', getRequest.headers.Signature);
   });
 
@@ -1277,9 +1283,12 @@ describe('BankFrickService', () => {
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(listResponse);
 
     await expect(service.listVibans(undefined, undefined, 0, 50)).resolves.toEqual(listResponse);
-    expect(http.request.mock.calls[1][0].url).toBe(
-      'https://vban.bank.invalid/vban/virtual-ibans?pageIndex=0&pageSize=50',
-    );
+    const listRequest = http.request.mock.calls[1][0];
+    expect(listRequest.url).toBe('https://vban.bank.invalid/vban/virtual-ibans?pageIndex=0&pageSize=50');
+    // Bodyless vIBAN list GETs must omit Content-Type (unlike standard WebAPI GETs which send */*).
+    expect(listRequest.headers['Content-Type']).toBeUndefined();
+    expect(listRequest.data).toBe('');
+    expectSignature('', listRequest.headers.Signature);
 
     http.request.mockResolvedValueOnce(listResponse);
     await service.listVibans(debtorIban, [FrickVirtualIbanState.ACTIVE, FrickVirtualIbanState.PREPARED], 0, 50);
@@ -1289,6 +1298,7 @@ describe('BankFrickService', () => {
       FrickVirtualIbanState.ACTIVE,
       FrickVirtualIbanState.PREPARED,
     ]);
+    expect(http.request.mock.calls[2][0].headers['Content-Type']).toBeUndefined();
 
     http.request.mockResolvedValueOnce({
       pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 0 },

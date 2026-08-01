@@ -35,6 +35,15 @@ import { CamtTransaction, Iso20022Service } from './iso20022.service';
 
 type FrickResponseType = 'json' | 'text';
 
+/**
+ * Bodyless request Content-Type policy for signed Bank Frick calls.
+ * Required explicitly at every call site — no default — so WebAPI and vIBAN cannot silently share
+ * the wrong policy. WebAPI bodyless GETs send `*/*`; vIBAN bodyless GETs must omit Content-Type
+ * entirely (production Azure gateway returns unsigned HTTP 403 when `Content-Type: */*` is present).
+ * Requests with a body always use `application/json` on both APIs and ignore this value.
+ */
+type FrickBodylessContentType = '*/*' | undefined;
+
 /** A vIBAN create failure for which no Bank Frick object can have been created. */
 export class FrickVibanNotCreatedError extends Error {}
 
@@ -776,6 +785,7 @@ export class BankFrickService {
     responseType: FrickResponseType,
     allowUnauthorizedRetry: boolean,
     classifyVibanCreateFailure: boolean,
+    bodylessContentType: FrickBodylessContentType,
   ): Promise<T> {
     this.assertAvailable();
     let token: string;
@@ -793,6 +803,20 @@ export class BankFrickService {
       throw error;
     }
 
+    const requestHeaders: Record<string, string> = {
+      Accept: accept,
+      Authorization: `Bearer ${token}`,
+      Signature: signature,
+      algorithm: 'rsa-sha512',
+    };
+    // Bodyful requests are always application/json on WebAPI and vIBAN. Bodyless requests use the
+    // explicit API-specific policy: WebAPI sends Content-Type: */*; vIBAN omits the header entirely.
+    if (body === undefined) {
+      if (bodylessContentType !== undefined) requestHeaders['Content-Type'] = bodylessContentType;
+    } else {
+      requestHeaders['Content-Type'] = 'application/json';
+    }
+
     try {
       return await this.http.request<T>({
         url,
@@ -801,13 +825,7 @@ export class BankFrickService {
         responseType,
         tryCount: 1,
         timeout: BankFrickService.HTTP_TIMEOUT_MS,
-        headers: {
-          Accept: accept,
-          'Content-Type': body === undefined ? '*/*' : 'application/json',
-          Authorization: `Bearer ${token}`,
-          Signature: signature,
-          algorithm: 'rsa-sha512',
-        },
+        headers: requestHeaders,
         responseVerifier: (rawBody, headers, status) => this.verifyResponse(rawBody, headers, status),
       });
     } catch (error) {
@@ -826,7 +844,17 @@ export class BankFrickService {
             );
           throw refreshError;
         }
-        return this.requestSigned(url, path, method, body, accept, responseType, false, classifyVibanCreateFailure);
+        return this.requestSigned(
+          url,
+          path,
+          method,
+          body,
+          accept,
+          responseType,
+          false,
+          classifyVibanCreateFailure,
+          bodylessContentType,
+        );
       }
 
       const message = `Bank Frick API request failed (${method} ${this.sanitizeApiPathForError(path)}): ${this.getHttpFailureReason(error)}`;
@@ -854,6 +882,7 @@ export class BankFrickService {
       responseType,
       allowUnauthorizedRetry,
       false,
+      '*/*',
     );
   }
 
@@ -876,6 +905,7 @@ export class BankFrickService {
       responseType,
       allowUnauthorizedRetry,
       classifyVibanCreateFailure,
+      undefined,
     );
   }
 

@@ -161,6 +161,15 @@ All values remain blank in `.env.example`. Deployment must provide:
   EUR personal IBANs; opt-in — when unset, the Frick virtual-IBAN provider is unavailable and there
   is no behaviour change
 
+**vIBAN transport contract (bodyless GET Content-Type):** Bodyless vIBAN GET calls (list and detail)
+must **omit** the `Content-Type` request header entirely. Production evidence: Bank Frick's vIBAN
+gateway returns a signed HTTP 200 when no `Content-Type` is sent, but the production Azure
+Application Gateway in front of it returns an **unsigned HTTP 403** when `Content-Type: */*` is
+present. Mutating vIBAN requests (create POST, activation-approval PUT) remain signed
+`Content-Type: application/json`. Request signing (`Signature` / `algorithm`) and fail-closed
+response signature verification are unchanged for all vIBAN methods. The standard WebAPI path is
+deliberately different and still sends `Content-Type: */*` on bodyless GETs.
+
 `BankFrickService.isAvailable()` requires the base URL, API key, customer identifier, private signing
 key and server verification key. Every request signs the exact serialized body. Every response
 remains raw text until its detached `Signature` and `algorithm` headers have been verified
