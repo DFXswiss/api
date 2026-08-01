@@ -478,10 +478,27 @@ function guardAgainst(
           return wrap(value, child);
         }
 
-        // A relation the projection does not declare is not guarded: it is `undefined`, and
-        // dereferencing it already throws. That includes the owner-side join column, which TypeORM
-        // reports as a column under the relation's own property name.
-        if (at.metadata.relations.some((relation) => relation.propertyName === name)) return value;
+        const relation = at.metadata.relations.find((each) => each.propertyName === name);
+        if (relation) {
+          // Dereferencing an undeclared relation throws on its own, but `if (row.relation)` does
+          // not dereference: it reads undefined, takes the absent branch and answers.
+          //
+          // Only eager relations are a projection defect. Those the unprojected query did load, so
+          // failing to join one changes what the endpoint answers. A lazy relation was undefined
+          // before the conversion too — reading it may well be a defect, but not one this change
+          // introduced, and the guard would report the same thing on the code it replaced.
+          //
+          // Guarded on the value rather than the declaration, because TypeORM reports the
+          // owner-side join column under the relation's own property name, and a query selecting
+          // that column did fill it.
+          if (relation.isEager && value == null && !at.asked.has(name) && !written.has(name))
+            throw new Error(
+              `read of '${at.metadata.name}.${name}', an eager relation this query does not join — ` +
+                `the unprojected query carried it, so join it in the projection or stop reading it`,
+            );
+
+          return value;
+        }
 
         // A `@RelationId` is filled from the foreign-key column of the row, which a query naming its
         // fields does not carry, and no field list can select it. Guarded on the value rather than

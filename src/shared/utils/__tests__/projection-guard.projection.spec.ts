@@ -100,6 +100,42 @@ describeProjection('guardProjection', () => {
     );
   }, 120000);
 
+  it('throws on an eager relation the query does not join, without dereferencing it', async () => {
+    const language = await seedEntity<Language>(dataSource, Language);
+    const seeded = await seedEntity<UserData>(dataSource, UserData, { values: { language } });
+
+    const bare = new ReadProjection<UserData>('userData', [], ['userData.id']);
+    const row = await bare
+      .apply(dataSource.getRepository(UserData).createQueryBuilder('userData'), bare.fields)
+      .where('userData.id = :id', { id: seeded.id })
+      .getOne();
+    const guarded = guardProjection(dataSource, UserData, bare, bare.fields, row);
+
+    // `UserData.language` is eager, so the unprojected query carried it. Reading it as a condition
+    // never dereferences: without the guard this is falsy and the caller answers as if the account
+    // had no language.
+    expect(() => (guarded.language ? 'has one' : 'has none')).toThrow(
+      "read of 'UserData.language', an eager relation this query does not join",
+    );
+  }, 120000);
+
+  it('leaves a lazy relation the query does not join alone', async () => {
+    const language = await seedEntity<Language>(dataSource, Language);
+    const seeded = await seedEntity<UserData>(dataSource, UserData, { values: { language } });
+
+    const bare = new ReadProjection<UserData>('userData', [], ['userData.id']);
+    const row = await bare
+      .apply(dataSource.getRepository(UserData).createQueryBuilder('userData'), bare.fields)
+      .where('userData.id = :id', { id: seeded.id })
+      .getOne();
+    const guarded = guardProjection(dataSource, UserData, bare, bare.fields, row);
+
+    // `kycSteps` is a plain one-to-many: the query before the conversion did not carry it either,
+    // so reading it is not something a projection introduced. The guard reports what this change
+    // could have broken, not every latent defect it passes.
+    expect(guarded.kycSteps).toBeUndefined();
+  }, 120000);
+
   it('hands out the same guarded relation on every read', async () => {
     const language = await seedEntity<Language>(dataSource, Language);
     const seeded = await seedEntity<UserData>(dataSource, UserData, { values: { language } });
