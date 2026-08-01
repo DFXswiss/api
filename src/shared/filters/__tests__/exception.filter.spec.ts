@@ -253,6 +253,15 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
+  it('names the status when a plain error answers with something that is not text', () => {
+    const odd = new Error('x');
+    Object.defineProperty(odd, 'message', { value: 42 });
+
+    filter.catch(odd, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
+  });
+
   it('sends the response even when a plain error cannot be asked what it says', () => {
     const mute = new Error('x');
     Object.defineProperty(mute, 'message', {
@@ -263,6 +272,19 @@ describe('ApiExceptionFilter', () => {
 
     expect(() => filter.catch(mute, host(req(), { status }))).not.toThrow();
     expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
+  });
+
+  it('takes nothing out of a body that serializes itself', () => {
+    // What such a body holds says nothing about what would be sent, so neither its status nor its
+    // message can be read off it - and what it would have sent is not ours to guess at.
+    const rewriting = new HttpException({ statusCode: 418, message: 'INTERNAL_SECRET' }, 400);
+    Object.defineProperty(rewriting.getResponse(), 'toJSON', {
+      value: () => ({ statusCode: 400, message: 'public' }),
+    });
+
+    filter.catch(rewriting, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
   it('takes no message the body would not have sent itself', () => {

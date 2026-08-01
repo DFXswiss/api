@@ -157,7 +157,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // name of what is being sent.
   private static ownMessage(exception: Error, status: number): string {
     try {
-      return exception.message || HttpStatus[status] || 'Error';
+      const message: unknown = exception.message;
+
+      return typeof message === 'string' && message ? message : HttpStatus[status] || 'Error';
     } catch {
       return HttpStatus[status] || 'Error';
     }
@@ -168,12 +170,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // enumerable would not have been sent at all.
   private static publicMessage(body: unknown, status: number): string | string[] {
     if (typeof body === 'string') return body;
+    if (ApiExceptionFilter.rewritesItself(body)) return HttpStatus[status] || 'Error';
 
     const message = ApiExceptionFilter.serializable(body, 'message');
     if (typeof message === 'string') return message;
     if (Array.isArray(message) && message.every((entry) => typeof entry === 'string')) return message;
 
     return HttpStatus[status] || 'Error';
+  }
+
+  // A body that answers `toJSON` is serialized from what that returns, not from what it holds, so
+  // what it holds says nothing about what would be sent - neither for judging it nor for taking a
+  // message out of it.
+  private static rewritesItself(body: unknown): boolean {
+    return typeof body === 'object' && body !== null && typeof (body as { toJSON?: unknown }).toJSON === 'function';
   }
 
   // What `JSON.stringify` would read off the body for this name, or undefined where it would read
@@ -191,6 +201,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // is serialized, and can answer differently then, so it does not count as agreeing.
   private static names(body: unknown, status: number): boolean {
     if (typeof body !== 'object' || body === null) return true;
+    if (ApiExceptionFilter.rewritesItself(body)) return false;
 
     const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
     if (declared?.enumerable && !('value' in declared)) return false;
