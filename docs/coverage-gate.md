@@ -6,7 +6,7 @@ the other.
 | Gate             | Config                         | Scope                                      | Question it answers                                      |
 | ---------------- | ------------------------------ | ------------------------------------------ | -------------------------------------------------------- |
 | Frick gate       | `jest.frick.config.js`         | 10 Frick files, run by 10 Frick specs only | Do _these specs alone_ fully cover _these files_?        |
-| Coverage ratchet | `jest.coverage-gate.config.js` | 439 files, whole suite                     | Has coverage regressed anywhere it was already complete? |
+| Coverage ratchet | `jest.coverage-gate.config.js` | 443 files, whole suite                     | Has coverage regressed anywhere it was already complete? |
 
 ## What the ratchet is, and what it is not
 
@@ -25,7 +25,7 @@ It is a **regression gate**, not a statement about test quality:
   ratchet only protects files already on the list, and that list grows by hand (see "How the list
   grows"). That is the price of the threshold approach.
 
-Of the 439 pinned files, **246 carry real logic** (they have functions and/or branches) and
+Of the 443 pinned files, **250 carry real logic** (they have functions and/or branches) and
 **193 are purely declarative today** (NestJS modules, constant files with neither). The two groups
 are kept visibly separate in the config so the count is not mistaken for test depth.
 
@@ -175,7 +175,7 @@ six under `subdomains/generic/admin` have no coverage at all.
 ## How the list grows
 
 Any PR may add files to `coverageThreshold` once they reach 100%.
-`jest.coverage-gate.config.js` holds the 439 paths in two arrays, `PINNED_LOGIC` (logic-carrying
+`jest.coverage-gate.config.js` holds the 443 paths in two arrays, `PINNED_LOGIC` (logic-carrying
 files) and `PINNED_DECLARATIVE` (purely declarative files), from which `coverageThreshold` is
 generated. Adding a file means appending its path to the matching array, not writing out a
 `coverageThreshold` object entry by hand.
@@ -211,7 +211,7 @@ To regenerate the full picture, run the gate and read `coverage-gate/coverage-su
 below 100, the expected response is to extend the tests. Unpinning is an explicit decision that
 belongs in the PR description, not a silent edit.
 
-That rule stays hard for the 246 logic-carrying files. A foreseeable friction case is different:
+That rule stays hard for the 250 logic-carrying files. A foreseeable friction case is different:
 when one of the 193 purely declarative files (a NestJS module, a constants file) first gains
 executable logic — for example a `useFactory` on a module — the function metric jumps from 0/0 to
 0/N and the gate turns red. Tests remain the preferred fix, but unpinning that one file is an

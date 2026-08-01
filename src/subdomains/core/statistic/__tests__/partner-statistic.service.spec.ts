@@ -1298,12 +1298,13 @@ describe('PartnerStatisticService', () => {
       await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
 
       // Clause text + bound values (expectPeriodBoundsMatchResolved). Clause-only pins missed
-      // `from: new Date(0)` while the SQL string stayed identical.
+      // `from: new Date(0)` while the SQL string stayed identical. Exact half-open form also
+      // excludes BETWEEN and open-left bounds — no filter→every on survivors (vacuum-true).
       expectPeriodBoundsMatchResolved();
-      // No BETWEEN and no exclusive-open left bound on any created-related clause that survived.
+      // Pin count of created-related clauses (same budget as half-open above). A BETWEEN or
+      // missing period filter changes this multiset size; do not re-filter and every.
       const createdRelated = whereClauses.filter((c) => /created/i.test(c));
       expect(createdRelated).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.PERIOD_FILTERS);
-      expect(createdRelated.every((c) => !/BETWEEN/i.test(c))).toBe(true);
       // Same total pin as wallet-scope isolation: an extra unscoped WHERE slips past 18 alone.
       expect(whereClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.WHERE_CLAUSES);
       expectActiveUserUnionShape();
