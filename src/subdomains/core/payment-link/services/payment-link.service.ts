@@ -699,10 +699,7 @@ export class PaymentLinkService {
   }
 
   async createPosLinkAdmin(paymentLinkId: number, scoped?: boolean): Promise<string> {
-    const paymentLink = await this.paymentLinkRepo.findOne({
-      where: { id: paymentLinkId },
-      relations: { route: { user: { userData: { organization: true } } } },
-    });
+    const paymentLink = await this.paymentLinkRepo.findForPosLink(paymentLinkId);
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     return this.createPosLinkFor(paymentLink, scoped);

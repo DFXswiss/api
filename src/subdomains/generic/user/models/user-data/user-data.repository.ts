@@ -201,10 +201,43 @@ export const USER_V2_PROJECTION = new ReadProjection<UserData>(
   ['userData.id', 'userData.status', 'userWallet.id'],
 );
 
+/**
+ * What `POST /user/apiKey/CT` reads.
+ *
+ * `apiKeyCT` is read twice: once to refuse a second key, and once after the new one is assigned,
+ * because `ApiKeyService.getSecret` hashes it together with `created`.
+ */
+export const API_KEY_RESPONSE_FIELDS = ['userData.apiKeyCT', 'userData.created'];
+
+/**
+ * `POST /user/apiKey/CT` — 253 columns before, for two values and the id.
+ *
+ * The endpoint writes, but through `update(id, …)` rather than by saving the row it read, so a
+ * projected read cannot blank a column it did not load.
+ */
+export const API_KEY_PROJECTION = new ReadProjection<UserData>(
+  'userData',
+  [],
+  API_KEY_RESPONSE_FIELDS,
+  // Not part of the response, but the key is derived from it and the update is scoped by it.
+  ['userData.id'],
+);
+
 @Injectable()
 export class UserDataRepository extends CachedRepository<UserData> {
   constructor(manager: EntityManager) {
     super(UserData, manager);
+  }
+
+  /**
+   * The account, carrying what an API key is built from.
+   *
+   * `fields` exists for the mutation test; nothing in production passes it.
+   */
+  async getForApiKey(id: number, fields: ReadonlyArray<string> = API_KEY_PROJECTION.fields): Promise<UserData> {
+    return API_KEY_PROJECTION.apply(this.createQueryBuilder('userData'), fields)
+      .where('userData.id = :id', { id })
+      .getOne();
   }
 
   /**
