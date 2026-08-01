@@ -164,7 +164,7 @@ describe('PayoutLogService', () => {
     it('cannot be tricked by an asset name that imitates the chain fence', () => {
       const order = createCustomPayoutOrder({
         id: 47,
-        asset: createCustomAsset({ name: "Foo\" on chain Ethereum" }),
+        asset: createCustomAsset({ name: 'Foo" on chain Ethereum' }),
         chain: Blockchain.TRON,
       });
 
