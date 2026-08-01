@@ -23,12 +23,6 @@ const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
 const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
 const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
 
-// The longest match the patterns above can produce - the email's 64 + `@` + 255 + `.` + 24. A
-// caller that masks only the front of a value needs it: it is how far a pattern can reach past
-// where that caller stopped looking, and therefore how much of what it kept could be the start of
-// one that was never seen whole.
-export const MAX_MASKED_PATTERN = 64 + 1 + 255 + 1 + 24;
-
 export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
 const MAX_CLIENT = 32; // per trace line: the client header is a name, not a payload
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
@@ -41,7 +35,9 @@ export function maskValue(s: string): string {
 }
 
 export function maskUrl(url: string): string {
-  return maskValue(url.split('?')[0]);
+  // The request target is client-supplied and reaches a log line: what is left of it after the
+  // query is dropped is rendered like any other value from the request.
+  return singleLine(maskValue(url.split('?')[0]));
 }
 
 // Everything that can break a line or move a cursor in a log viewer: the control characters
@@ -104,7 +100,7 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
 export function maskLogValue(value: string, maxLength: number): string {
   if (value.length > MAX_STRING) return `<${value.length} code units>`;
 
-  return capCharacters(maskValue(singleLine(value)), maxLength);
+  return capCharacters(singleLine(maskValue(value)), maxLength);
 }
 
 // `budget` bounds the total work per section: each processed node deducts from

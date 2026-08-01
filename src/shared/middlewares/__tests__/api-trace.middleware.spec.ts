@@ -208,9 +208,23 @@ describe('apiTraceMiddleware', () => {
     expect([...line].some(isLoneSurrogate)).toBe(false);
   });
 
+  it('keeps the request target on one line as well', () => {
+    const req = {
+      method: 'GET',
+      originalUrl: '/v1/realunit/account/x\u0085INFO [RealUnitTrace] forged line',
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 404, (res) => res.send('Not Found'));
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain('\u0085');
+    expect(lines[0]).toContain('/v1/realunit/account/x INFO');
+  });
+
   it('renders the client header like any other value from the caller', () => {
     const req = realunitReq({ amount: 1 });
-    (req.headers as any)['x-client'] = 'realunit-app\u0085INFO [RealUnitTrace] forged line';
+    req.headers['x-client'] = 'realunit-app\u0085INFO [RealUnitTrace] forged line';
     const { lines } = runTrace(req, 200, (res) => res.json({}));
 
     expect(lines).toHaveLength(1);
@@ -287,6 +301,11 @@ describe('maskLogValue', () => {
   it('names the unit of the reported length, which counts code units and not characters', () => {
     // 257 astral characters are 514 code units: the value the guard compares and the one reported.
     expect(maskLogValue('\u{1F600}'.repeat(257), 96)).toBe('<514 code units>');
+  });
+
+  it('masks before collapsing, so a control character inside a pattern cannot break it apart', () => {
+    expect(maskLogValue('victim\u0001@example.com', 96)).toBe('***');
+    expect(maskLogValue('victim\u0085@example.com', 96)).toBe('***');
   });
 
   it('masks before cutting, so a truncated email cannot slip through', () => {

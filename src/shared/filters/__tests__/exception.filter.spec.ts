@@ -9,7 +9,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ValidationError } from 'class-validator';
-import { MAX_MASKED_PATTERN } from 'src/shared/middlewares/api-trace.middleware';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
 import { ValidationFailedException } from 'src/shared/pipes/detailed-validation.pipe';
 
@@ -125,19 +124,28 @@ describe('ApiExceptionFilter', () => {
     expect(msg.length).toBeLessThan(700);
   });
 
-  it('does not let the scan cut expose a pattern it split in half', () => {
-    // Masking only shortens, so text from far beyond the visible cap moves into it: three long
-    // addresses collapse to nine characters. A pattern the scan cut in half is not recognized, and
-    // its head would be what the shortening pulls into view - unless the tail is dropped again.
-    const scanLength = 500 + 2 * MAX_MASKED_PATTERN;
-    const shrinking = Array.from({ length: 3 }, () => `a@${'d'.repeat(240)}.com`).join(' ');
-    const secret = 'ZZTOPSECRET@example.com';
-    const filler = 'f'.repeat(scanLength - 8 - shrinking.length - 1);
-    filter.catch(new BadRequestException(`${shrinking} ${filler}${secret}`), host(req(), { status }));
+  it('masks a pattern that a control character sits inside', () => {
+    // The collapse turns a control character into a space, which would break the pattern apart
+    // before it could be recognized - so it runs after the masking, not before it.
+    filter.catch(
+      new BadRequestException('Invalid recipient victim\u0001@example.com and victim\u0085@example.com'),
+      host(req(), { status }),
+    );
 
     const msg = warn.mock.calls[0][0] as string;
-    expect(msg).not.toContain('ZZTOPSEC');
-    expect(msg).toContain('***');
+    expect(msg).not.toContain('victim');
+    expect(msg).not.toContain('example.com');
+  });
+
+  it('sends the response even when the body cannot be read', () => {
+    const unreadable = new BadRequestException('x');
+    jest.spyOn(unreadable, 'getResponse').mockImplementation(() => {
+      throw new Error('nope');
+    });
+
+    expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
   it('keeps sending the response when the message cannot be read', () => {

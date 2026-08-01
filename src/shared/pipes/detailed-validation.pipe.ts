@@ -75,8 +75,8 @@ function collectRejectedValues(errors: ValidationError[], prefix: string, depth:
     if (fields.length >= MAX_FIELDS) return false;
 
     // The field name also goes through `maskLogValue`, like a rendered string value does: it is a
-    // property of the parsed body, and a DTO that validates through a client-keyed object would
-    // put the client in charge of it. Today none does, which keeps this a precaution, not a fix.
+    // property of the parsed body, so a DTO that validates through a client-keyed object would put
+    // the client in charge of it, and this covers that too.
     const property = maskLogValue(`${error.property}`, MAX_VALUE_LENGTH);
     const path = prefix ? `${prefix}.${property}` : property;
     if (error.constraints) fields.push(`${path}=${renderValue(error.property, error.value, error.constraints)}`);

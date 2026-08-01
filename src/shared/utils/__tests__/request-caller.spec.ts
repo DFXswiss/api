@@ -2,7 +2,7 @@ import { Request } from 'express';
 import { describeCaller } from 'src/shared/utils/request-caller';
 
 describe('describeCaller', () => {
-  const req = (headers: Record<string, string | string[]>) => ({ headers }) as unknown as Request;
+  const req = (headers: Record<string, string | string[]>): Request => ({ headers }) as unknown as Request;
 
   it('reports the X-Client value', () => {
     expect(describeCaller(req({ 'x-client': 'dfx-services' }))).toBe('client=dfx-services');

@@ -1,12 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
-import {
-  MAX_MASKED_PATTERN,
-  capCharacters,
-  maskUrl,
-  maskValue,
-  singleLine,
-} from 'src/shared/middlewares/api-trace.middleware';
+import { capCharacters, maskUrl, maskValue, singleLine } from 'src/shared/middlewares/api-trace.middleware';
 import { ValidationFailedException, describeRejectedValues } from 'src/shared/pipes/detailed-validation.pipe';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { describeCaller } from 'src/shared/utils/request-caller';
@@ -23,12 +17,6 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // Cap the (masked) reason: exception messages can embed user-supplied free text.
   private static readonly REASON_MAX_LENGTH = 500;
 
-  // How much of the message is looked at before it is masked. An exception message can be as large
-  // as the body it interpolated a value from, and masking is regex work over what it is given, so
-  // it is not given the whole of it. Two pattern lengths of margin: one for a pattern that starts
-  // inside what is kept, one for the tail that is dropped again in `scannable`.
-  private static readonly REASON_SCAN_LENGTH = ApiExceptionFilter.REASON_MAX_LENGTH + 2 * MAX_MASKED_PATTERN;
-
   private readonly logger = new DfxLogger(ApiExceptionFilter);
 
   catch(exception: Error, host: ArgumentsHost) {
@@ -36,6 +24,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse();
     const request = ctx.getRequest<Request>();
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    // The response goes out before the line is written. Everything the line renders comes from the
+    // request or from the thrower, and reading either can throw - which used to leave the caller
+    // with no response at all rather than with a log line missing a detail.
+    try {
+      response.status(status).json(this.responseBody(exception, status));
+    } catch (e) {
+      this.logger.error(`Failed to set error response content:`, e);
+    }
 
     const target = `${request.method} request to '${maskUrl(request.originalUrl ?? request.url ?? '')}'`;
     if (status >= 500) {
@@ -53,46 +50,29 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // guessed at.
       //
       // All three are untrusted input and rendered as such - single-line, masked and capped. The
-      // reason included: an exception message interpolates values, and some of those come from the
-      // request.
-      const scanned = ApiExceptionFilter.scannable(this.getReason(exception));
-      const reason = capCharacters(maskValue(singleLine(scanned)), ApiExceptionFilter.REASON_MAX_LENGTH);
+      // reason included: an exception message can interpolate a value the request supplied.
+      const reason = capCharacters(
+        singleLine(maskValue(this.getReason(exception))),
+        ApiExceptionFilter.REASON_MAX_LENGTH,
+      );
       const rejected =
         exception instanceof ValidationFailedException
           ? ` (received: ${describeRejectedValues(exception.validationErrors)})`
           : '';
       this.logger.warn(`${status} on ${target} from ${describeCaller(request)}: ${reason}${rejected}`);
     }
-
-    try {
-      response.status(status).json(
-        exception instanceof HttpException
-          ? exception.getResponse()
-          : {
-              statusCode: status,
-              message: exception.message,
-            },
-      );
-    } catch (e) {
-      this.logger.error(`Failed to set error response content:`, e);
-    }
   }
 
-  /**
-   * The part of the message that is masked. Masking only shortens what it matches, so what is
-   * dropped here cannot come back into view - except at the cut itself: a pattern that straddles it
-   * arrives halved, is no longer recognized, and its head would then be one of the characters that
-   * survive to the log - masking what precedes it shortens the text, so a position well past the
-   * visible cap can end up inside it.
-   *
-   * So a pattern length is read and then dropped again: what is kept can only hold patterns that
-   * ended before the cut, and those were seen whole.
-   */
-  private static scannable(reason: string): string {
-    const scanned = capCharacters(reason, ApiExceptionFilter.REASON_SCAN_LENGTH);
-    if (scanned === reason) return reason;
+  // The body an HttpException carries is whatever the thrower put there, and reading it can throw.
+  // A caller gets the generic body then rather than none.
+  private responseBody(exception: Error, status: number): unknown {
+    try {
+      if (exception instanceof HttpException) return exception.getResponse();
+    } catch {
+      return { statusCode: status, message: HttpStatus[status] ?? 'Error' };
+    }
 
-    return capCharacters(scanned, ApiExceptionFilter.REASON_SCAN_LENGTH - MAX_MASKED_PATTERN);
+    return { statusCode: status, message: exception.message };
   }
 
   // Human-readable rejection reason. For HttpExceptions the useful text is in the
