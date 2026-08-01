@@ -8,7 +8,9 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ValidationError } from 'class-validator';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
+import { ValidationFailedException } from 'src/shared/pipes/detailed-validation.pipe';
 
 describe('ApiExceptionFilter', () => {
   let filter: ApiExceptionFilter;
@@ -135,6 +137,26 @@ describe('ApiExceptionFilter', () => {
     filter.catch(new BadRequestException('bad'), host(req({ headers: {} }), { status }));
 
     expect(warn.mock.calls[0][0]).toContain('client=(none)');
+  });
+
+  it('appends the rejected values of a failed validation — the message alone names only the field', () => {
+    const error: ValidationError = {
+      property: 'paymentMethod',
+      value: 'Crypto',
+      constraints: { isEnum: 'paymentMethod must be one of the following values: Bank, Instant, Card' },
+      children: [],
+    };
+
+    filter.catch(
+      new ValidationFailedException({ statusCode: 400, message: [error.constraints.isEnum] }, [error]),
+      host(req({ headers: {} }), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).toContain('must be one of the following values');
+    expect(msg).toContain("received: paymentMethod='Crypto'");
+    // the client still gets exactly the body the validation pipe built
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: [error.constraints.isEnum] });
   });
 
   it('treats a non-HttpException as a 500 and returns a generic body', () => {

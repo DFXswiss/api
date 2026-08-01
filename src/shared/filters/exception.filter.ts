@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
 import { maskUrl, maskValue } from 'src/shared/middlewares/api-trace.middleware';
+import { ValidationFailedException, describeRejectedValues } from 'src/shared/pipes/detailed-validation.pipe';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { describeCaller } from 'src/shared/utils/request-caller';
 
@@ -36,11 +37,16 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // The reason is masked to the same PII standard as the rest of the logs and
       // length-capped, because it can embed user-supplied values.
       //
-      // The caller markers are what make a recurring rejection actionable: on an endpoint that
-      // runs without authentication, nothing else in the line says who sent it. They are untrusted
-      // input and rendered as such (masked, capped, single-line).
+      // The caller markers and the rejected values are what make a steady stream of rejections
+      // actionable: the constraint message names the field and the allowed values, so without the
+      // value that arrived and a hint at who sent it, a wrong constant in a client can only be
+      // guessed at. Both are untrusted input and rendered as such (masked, capped, single-line).
       const reason = maskValue(this.getReason(exception)).slice(0, ApiExceptionFilter.REASON_MAX_LENGTH);
-      this.logger.warn(`${status} on ${target} from ${describeCaller(request)}: ${reason}`);
+      const rejected =
+        exception instanceof ValidationFailedException
+          ? ` (received: ${describeRejectedValues(exception.validationErrors)})`
+          : '';
+      this.logger.warn(`${status} on ${target} from ${describeCaller(request)}: ${reason}${rejected}`);
     }
 
     try {
