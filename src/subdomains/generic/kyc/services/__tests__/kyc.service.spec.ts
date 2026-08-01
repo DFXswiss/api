@@ -806,8 +806,14 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
   let kycStepRepo: jest.Mocked<KycStepRepository>;
   let userDataService: jest.Mocked<UserDataService>;
 
-  const personalStep = (status: ReviewStatus, sequenceNumber = 0): KycStep =>
-    Object.assign(new KycStep(), { id: 2 + sequenceNumber, name: KycStepName.PERSONAL_DATA, status, sequenceNumber });
+  const personalStep = (status: ReviewStatus, sequenceNumber = 0, result?: string): KycStep =>
+    Object.assign(new KycStep(), {
+      id: 2 + sequenceNumber,
+      name: KycStepName.PERSONAL_DATA,
+      status,
+      sequenceNumber,
+      result,
+    });
 
   // Every field in `requiredKycFields` for a personal account, so `isDataComplete` is true.
   const completeUser = (kycSteps: KycStep[], overrides: Partial<UserData> = {}): UserData =>
@@ -878,17 +884,39 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
     expect((service as any).updateProgress).not.toHaveBeenCalled();
   });
 
-  // A rejection the user has since remedied ends in a completed (then cancelled) step. Judging the whole
-  // history would disable the reconciliation for that account forever, so the verdict comes from the most
-  // recent SETTLED step only — here a cancelled one, so the account stays eligible.
+  // A rejection the user has since remedied ends in a step that COMPLETED and was later cancelled by
+  // initiateStep. cancel() leaves `result` in place, so that row still carries the proof it was satisfied.
   it('still completes when an older rejection was remedied before the step was re-opened', async () => {
     const failed = personalStep(ReviewStatus.FAILED, 0);
-    const remedied = personalStep(ReviewStatus.CANCELED, 1);
+    const remedied = personalStep(ReviewStatus.CANCELED, 1, '{"firstname":"Erika"}');
     const pending = personalStep(ReviewStatus.IN_PROGRESS, 2);
     await run(completeUser([failed, remedied, pending]));
 
     expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
     expect(pending.status).toBe(ReviewStatus.COMPLETED);
+  });
+
+  // The negative twin. initiateStep also cancels a merely PENDING step, so a CANCELED row with no result is
+  // an untouched retry, not a remediation — the FAILED step behind it must still block.
+  it('leaves the chain alone when the cancelled step never completed (no result)', async () => {
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const untouched = personalStep(ReviewStatus.CANCELED, 1);
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 2);
+    await run(completeUser([failed, untouched, pending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(pending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // Legacy merged-in accounts can carry two IN_PROGRESS steps, the merged-in one at a negative sequence.
+  // Closing that dead step would leave the live one open and the account still wedged.
+  it('closes the highest-sequence pending step when a merged-in one is also open', async () => {
+    const merged = personalStep(ReviewStatus.IN_PROGRESS, -102);
+    const live = personalStep(ReviewStatus.IN_PROGRESS, 0);
+    await run(completeUser([merged, live]));
+
+    expect(live.status).toBe(ReviewStatus.COMPLETED);
+    expect(merged.status).toBe(ReviewStatus.IN_PROGRESS);
   });
 
   it('leaves an already completed step untouched', async () => {

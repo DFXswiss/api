@@ -659,9 +659,13 @@ export class KycService {
    * failed row, not on the pending one, so the pending lookup alone is no protection.
    *
    * The verdict comes from the most recent SETTLED step, not from the whole history: a rejection the user has
-   * since remedied ends in a completed (then cancelled) step, and that account must stay eligible. Only a
-   * chain whose latest settled step is still FAILED is an unremedied re-open, and it keeps going through the
-   * normal flow.
+   * since remedied ends in a completed step, and that account must stay eligible.
+   *
+   * CANCELED alone cannot stand for "remedied": `initiateStep` cancels the previous COMPLETED step (:1359) but
+   * also cancels a merely PENDING one (:1349), so both a remediation and an untouched retry end up CANCELED.
+   * `result` separates them durably — `complete()` writes it and `cancel()` leaves it alone, while a step
+   * cancelled while still pending never had one. A result-less cancellation is therefore not evidence of
+   * anything and is skipped, so the FAILED step behind it still decides.
    */
   async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
     // The caller's UserData is loaded for its own flow and need not carry `kycSteps`; reload so the step
@@ -670,12 +674,18 @@ export class KycService {
 
     const steps = user.getStepsWith(KycStepName.PERSONAL_DATA);
     const lastSettled = Util.maxObj(
-      steps.filter((s) => !s.isInProgress),
+      steps.filter((s) => !s.isInProgress && !(s.isCanceled && !s.result)),
       'sequenceNumber',
     );
     if (lastSettled?.isFailed) return;
 
-    const kycStep = steps.find((s) => s.isInProgress);
+    // Highest sequence, not the first match: legacy merged-in accounts can carry more than one IN_PROGRESS
+    // step, and the merged-in ones sit at negative sequence numbers — `find` would close a dead step and
+    // leave the live one open.
+    const kycStep = Util.maxObj(
+      steps.filter((s) => s.isInProgress),
+      'sequenceNumber',
+    );
     if (!kycStep || !user.isDataComplete) return;
 
     await this.kycStepRepo.update(...kycStep.complete(user.kycFieldData));
