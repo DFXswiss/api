@@ -28,6 +28,7 @@ const IPV4 = /(^|[^\d])(\d{1,3}(?:\.\d{1,3}){3})(?!\d)/g;
 
 export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
 const MAX_CLIENT = 32; // per trace line: the client header is a name, not a payload
+const MAX_KEY = 64; // per object key: a name, and one nobody reads past either way
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
 const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
 const REDACTED = '***';
@@ -176,10 +177,11 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
         out['…'] = TRUNCATED;
         break;
       }
-      // The key is rendered like a value - a request chooses it just as freely - but the raw one
-      // decides the redaction, since that is the name the list was written against. Two keys can
-      // render the same; the second keeps its own entry rather than replacing the first.
-      out[unusedKey(maskLogText(k), out)] = redact(v, k, budget);
+      // The key is rendered like a value - a request chooses it just as freely, at whatever length,
+      // so it goes through the same guard against masking an oversized one. The raw key decides the
+      // redaction, since that is the name the list was written against, and two keys that render
+      // the same each keep their entry rather than the second replacing the first.
+      out[unusedKey(maskLogValue(k, MAX_KEY), out)] = redact(v, k, budget);
     }
     return out;
   }
@@ -199,10 +201,9 @@ function format(value: unknown): string {
   try {
     // redact() handles Buffer + the array case (Array.isArray first), so the
     // raw value is never length/type-inspected here.
-    // The whole serialized section goes through the same rendering as a single value: `redact`
-    // reaches the values but not the keys, and a key is as much the request's to choose. It is also
-    // what keeps the trace the single line the caller below documents, since `JSON.stringify`
-    // escapes the control characters but leaves U+2028 / U+2029 as they are.
+    // `redact` has rendered the keys and the values already. What is left is that `JSON.stringify`
+    // escapes the control characters but leaves U+2028 / U+2029 as they are, and the trace is the
+    // single line the caller below documents.
     s = singleLine(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
   } catch {
     return '(unserializable)';

@@ -246,6 +246,15 @@ describe('apiTraceMiddleware', () => {
     expect(lines[0]).toContain('client=realunit-appINFO');
   });
 
+  it('reports an oversized key by length rather than masking all of it', () => {
+    // A key is as free as a value and as long as the body allows, so it gets the same guard: the
+    // masking is regex work, and an oversized one would be paid for in full.
+    const { lines } = runTrace(realunitReq({ ['k'.repeat(600)]: 'x' }), 200, (res) => res.json({}));
+
+    expect(lines[0]).toContain('600 code units');
+    expect(lines[0]).not.toContain('kkkkkkkkkk');
+  });
+
   it('masks a body key, not only the values under it', () => {
     // `redact` walks the values; the key is as much the request's to choose as the value is - and it
     // reached the line even without a character placed inside it.

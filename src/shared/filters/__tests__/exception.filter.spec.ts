@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common';
 import { ValidationError } from 'class-validator';
 import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
-import { MAX_MASKED_PATTERN } from 'src/shared/middlewares/api-trace.middleware';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
+import { MAX_MASKED_PATTERN } from 'src/shared/middlewares/api-trace.middleware';
 import { ValidationFailedException } from 'src/shared/pipes/detailed-validation.pipe';
 
 describe('ApiExceptionFilter', () => {
