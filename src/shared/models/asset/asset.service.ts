@@ -127,12 +127,23 @@ export class AssetService {
       .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 
-  async updatePrices(updates: UpdateResult<Asset>[]): Promise<void> {
+  // Writes have to go through here: the cached reads above are served from this instance, and
+  // invalidateCache() only clears the instance it is called on.
+  async updateAssets(updates: UpdateResult<Asset>[]): Promise<void> {
     for (const update of updates) {
       await this.assetRepo.update(...update);
     }
 
     this.assetRepo.invalidateCache();
+  }
+
+  async getEvmAssetsWithoutDecimals(blockchains: Blockchain[]): Promise<Asset[]> {
+    return this.assetRepo.findBy({
+      chainId: Not(IsNull()),
+      blockchain: In(blockchains),
+      decimals: IsNull(),
+      type: In([AssetType.COIN, AssetType.TOKEN]),
+    });
   }
 
   async getAssetsUsedOn(exchange: string): Promise<string[]> {
