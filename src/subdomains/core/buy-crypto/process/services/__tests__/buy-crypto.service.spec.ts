@@ -218,7 +218,10 @@ describe('BuyCryptoService', () => {
           break;
       }
 
-      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue(wantedData);
+      // The history now goes through the projected queries; both are stubbed because one `setup`
+      // serves the buy-route and the swap-route cases.
+      jest.spyOn(buyCryptoRepo, 'findBuyHistory').mockResolvedValue(wantedData);
+      jest.spyOn(buyCryptoRepo, 'findSwapHistory').mockResolvedValue(wantedData);
     }
   }
 

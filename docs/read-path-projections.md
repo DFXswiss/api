@@ -25,16 +25,14 @@ is treated as the latter.
 
 This service loads far more data than it returns. Measured against the real entity metadata:
 
-- The whole database schema has **1,742 columns across 100 tables**.
+- The whole database schema has **1,736 columns across 99 tables**.
 - `PUT /v1/transaction/:id/invoice` selected **1,664 of them** — 96% of the entire schema — to
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
-  columns per statement, so a single column added elsewhere (`settlementEventId` on
-  `transaction_request`) was enough to push it over.
-- Of the 537 route entries, **444 reach at least one load site that fetches whole rows**; 89 read
-  nothing at all, 2 read only the fields they need, and 2 more project only when the caller
-  supplies a field list. The widest query a fetching endpoint can trigger is 308 columns at the
-  median of the recorded maxima, and at least 21 of them exceed 1,000 — the call graph does not
-  fully resolve, and an unresolved edge can only widen a query.
+  columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
+  `transaction_request`) broke every invoice and receipt in production until it was fixed.
+- Of the 534 endpoints, **428 reach at least one load site that fetches whole rows**; 98 read
+  nothing at all, and **6 read only the fields they return**. The widest query a fetching endpoint
+  can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
 equally wasteful under a limit of 4,096 — it simply would not have failed yet.
@@ -49,9 +47,9 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the load sites in this repository — at most 1,158, see [load-sites.md](load-sites.md#measurements) — **eight** name the columns they need:
-one query builder and the seven raw statements. Practically all the rest request whole rows — 1,021 through the
-`find` family, and of the 130 query builders, 105 pass the root alias to `.select(...)`, which reads
+**No read model.** Of the load sites in this repository — at most 1,105, see [load-sites.md](load-sites.md#measurements) — **six** name the columns they need:
+one query builder and the five raw statements. Practically all the rest request whole rows — 971 through the
+`find` family, and of the 129 query builders, 105 pass the root alias to `.select(...)`, which reads
 like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
 business logic and pure output paths such as invoices, receipts, history and exports — which need
 fields, not objects.
@@ -134,7 +132,7 @@ Leave `surname` out of the projection and `isInvoiceDataComplete` returns `false
 load returns `true`. The invoice is refused with "user data is not complete" although the data is
 complete. No error, no log entry.
 
-This service carries **238 such getters across 50 of its 113 entities**. In an application moving
+This service carries **234 such getters across 50 of its 112 entities**. In an application moving
 money, a silent wrong value is worse than a crash: a statement that exceeds the column limit fails
 loudly and is found at once, while a wrong value can run for weeks.
 
@@ -148,7 +146,9 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-Today that is **eight sites**, and this is what the suite covers of them:
+Six sites carried a field list before any conversion. The table below is what the suite covers of
+them — unchanged, because none of the six was converted. Sites a conversion adds are recorded per
+endpoint in [endpoints.md](endpoints.md), where only `4/4` counts as done.
 
 | Site | Form | Runs in a test | Column list asserted | Real database |
 | ---- | ---- | -------------- | -------------------- | ------------- |
@@ -156,14 +156,12 @@ Today that is **eight sites**, and this is what the suite covers of them:
 | `log.repository.ts:341` — `getFinancialLogAssetPrices` | raw SQL, columns listed | **no** | no | no |
 | `log.repository.ts:511` — `getFinancialLogSummariesFull` | raw SQL, columns listed | yes | yes | no |
 | `log.repository.ts:664` — `getFinancialLogSummariesChartOnly` | raw SQL, columns listed | yes | yes | no |
-| `virtual-iban.service.ts:891` — `hasOrderedOwnershipPath` | raw SQL, columns listed | **no** | no | no |
+| `virtual-iban.service.ts:769` — `hasOrderedOwnershipPath` | raw SQL, columns listed | **no** | no | no |
 | `gs.service.ts:337` — `executeDebugQuery` | raw SQL, list supplied by the caller | yes | yes | no |
-| `cron-lease.service.ts:186` — `onModuleInit` | raw SQL, `SELECT 1` — a reachability probe, no column to name | yes | n/a | no |
-| `bank-tx.service.ts:597` — `recoverRollingInternalTransfers` | raw SQL, columns listed | **no** | no | no |
 
 Read that column by column, because the three answers mean different things.
 
-**Runs in a test.** Four of the eight are never executed. `getFinancialLogValidityChangeSet` is
+**Runs in a test.** Three of the six are never executed. `getFinancialLogValidityChangeSet` is
 replaced by `jest.spyOn(logRepo, …).mockResolvedValue([…])` at all nine of its appearances, so the
 projection line itself never runs. `getFinancialLogAssetPrices` is stood in for by a hand-written
 fake that reimplements the filtering in TypeScript. `hasOrderedOwnershipPath` appears in no spec at
@@ -178,7 +176,7 @@ without being level 3: that level requires level 1 to fail, and level 1 is satis
 these sites. For the three that never run, removing a column changes nothing at all — the mock
 supplies the value regardless.
 
-**Real database.** None of the eight. Every spec stubs the boundary — `createQueryBuilder` as a
+**Real database.** None of the six. Every spec stubs the boundary — `createQueryBuilder` as a
 chainable mock in the repository spec, `createMock<DataSource>()` in the service spec. A mock cannot
 observe which columns were requested, so **level 1, the completeness test, is satisfied nowhere
 today**, not even for the three sites whose SQL is asserted. Asserting that a column appears in a
@@ -216,15 +214,49 @@ in **all three test shards** — Jest distributes the suites across shards, so e
 own instance. Without the variable the blocks are skipped, which is why the suite still passes on a
 machine with no database.
 
-The projection tests should use the same mechanism rather than introduce a second one.
+The projection tests use that same gate. What they add lives in
+`src/shared/utils/projection-test.util.ts`:
 
-Two things are missing, and only two:
+- **The schema.** Each spec file creates its own Postgres schema (`const SCHEMA = '…'`) so parallel
+  specs cannot collide, and fills it from the entity metadata via `synchronize` rather than from
+  replayed migrations — the reference for a projection is the entity definition, not the migration
+  history. Measured: 112 entities, 99 tables, 1,736 columns, about half a minute per spec file.
+- **The fixtures**, generated from the same metadata. Every scalar column gets a distinct value and
+  required relations are created recursively, so an empty field in a response proves the query
+  failed to load something. Three kinds of value have to be pinned by hand, and all three are the
+  fixture's business rather than the projection's: enum columns stored as text (the metadata reports
+  them as `varchar`, so a generated value is not a member of the enum and a mapper looking it up
+  answers `undefined`), values a check constraint relates to each other, and relations the schema
+  allows to be null but a mapper reads without a guard.
 
-- **The schema.** The migration specs each create their own Postgres schema (`const SCHEMA = '…'`)
-  so that parallel specs cannot collide. The projection tests need the same isolation, but their
-  schema comes from the entity metadata via `synchronize` rather than from replayed migrations —
-  the reference for a projection is the entity definition, not the migration history.
-- **The fixtures**, generated from the same metadata.
+They do **not** run in the main suite, and that is not a preference. The main suite compiles
+transpile-only (`tsconfig.json` sets `isolatedModules: true`), which makes TypeScript emit
+`design:type` as `Object` for any imported type; building a data source from the entity sources then
+fails outright with `Data type "Object" in "Fiat.amlRuleFrom" is not supported`, and no projection
+spec could run at all. `jest.projection.config.js` compiles with full type information — the same
+reason the Frick and coverage gates have their own configuration — and `npm run test:projection` is
+a separate CI job with its own Postgres service.
+
+### What a converted endpoint looks like
+
+The field list is a value, not a chain of calls at the query site: `ReadProjection` in
+`src/shared/models/read-projection.ts`. That is what lets level 3 re-run the *production* query with
+one field removed. A query rebuilt inside the spec could be wrong in exactly the way the projection
+is wrong, and would prove nothing.
+
+A projection separates two kinds of field:
+
+- **Response fields** feed the answer. These are what level 3 drops one at a time.
+- **Guards** are loaded but never shown: the primary keys that make the ORM materialise a joined
+  row, and values a check reads before the mapper runs — `UserData.status`, which
+  `GET /user/profile` refuses merged accounts on. Dropping a guard changes no response field, so
+  level 3 would report it as removable although the endpoint breaks without it. Each guard needs an
+  assertion of its own instead.
+
+Where a getter branches on a field, the response fields split per branch and each variant asserts
+over its own set. `UserData.address` reads the organization's address for a business account and the
+account's own for a personal one; a personal-account fixture can say nothing about the organization
+fields, and claiming otherwise would be the vacuous kind of green this document is against.
 
 ### 1. Completeness
 
@@ -262,15 +294,28 @@ at exactly that point — and a real defect would have slipped through there.
 
 Without this level you never know whether a green test verified something or is merely green.
 
+**It needs a baseline, or it is itself merely green.** If the response is already incomplete with
+the *full* field list, every reduced run fails too, and "every field is required" comes out true
+without a single field having been shown to matter. That happened while the first conversions were
+written — a fixture had left an enum at a value the mapper did not know — and the level reported
+success. `expectEveryFieldRequired` therefore runs the query unreduced first and refuses to continue
+unless that response is complete.
+
 ### 4. Consistency against a second source
 
 **Where the same value exists twice, the two must agree.**
 
-Applies wherever a value was materialised into its own column while the original source is still
-present. In the financial log, `totalBalanceChf` exists both as a column and inside
-`message->balancesTotal->totalBalanceChf`; every row must carry the same value in both. Where such
-an invariant exists it is the strongest available test, because it needs no second implementation
-that could itself be written wrong.
+For a conversion the second source is always available and always exact: **the unprojected load.**
+Run the endpoint's mapper over a full `find` of the same fixture, and the two responses must be
+identical, per variant. The full load fetches every column, so what it produces is by construction
+what the endpoint answered before the conversion — no second implementation is involved that could
+be wrong in the same way, which is what makes this the strongest of the four. It is also the only
+level that catches a projection loading the *wrong* field rather than too few: level 1 sees a field
+that went empty, level 4 sees any field that changed.
+
+It applies separately wherever a value was materialised into its own column while the original
+source is still present. In the financial log, `totalBalanceChf` exists both as a column and inside
+`message->balancesTotal->totalBalanceChf`; every row must carry the same value in both.
 
 ### Deliberately not part of this: a column budget
 

@@ -228,3 +228,46 @@ jobs:
         run: npm test -- --shard=${{ matrix.shard }}/3
         env:
           MIGRATION_TEST_PG: postgres://postgres:postgres@localhost:5432/postgres
+
+  projection:
+    name: Read-path projections
+    runs-on: ubuntu-latest
+    services:
+      # These specs build the schema from the entity metadata and assert against real rows: a mocked
+      # repository cannot observe which columns a query asked for, so none of the four levels in
+      # docs/read-path-projections.md can be tested without a database.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install packages
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: npm ci
+
+      # Separate from the sharded run because it compiles with full type information; see
+      # jest.projection.config.js for why the main suite cannot host these.
+      - name: Run projection tests
+        run: npm run test:projection
+        env:
+          MIGRATION_TEST_PG: postgres://postgres:postgres@localhost:5432/postgres

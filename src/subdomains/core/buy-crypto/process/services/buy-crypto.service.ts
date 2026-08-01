@@ -28,7 +28,8 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
-import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
+import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
+import { BuyCryptoHistoryMapper } from '../dto/buy-crypto-history.mapper';
 import {
   BankTxRefund,
   CheckoutTxRefund,
@@ -1316,23 +1317,15 @@ export class BuyCryptoService implements OnModuleInit {
   }
 
   async getBuyHistory(userId: number, buyId?: number): Promise<BuyHistoryDto[]> {
-    const where = Util.removeNullFields({ user: { id: userId }, id: buyId });
     return this.buyCryptoRepo
-      .find({
-        where: { buy: where },
-        relations: { buy: { user: true } },
-      })
-      .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
+      .findBuyHistory(userId, buyId)
+      .then((buyCryptos) => buyCryptos.map(BuyCryptoHistoryMapper.toDto));
   }
 
   async getCryptoHistory(userId: number, routeId?: number): Promise<HistoryDtoDeprecated[]> {
-    const where = Util.removeNullFields({ user: { id: userId }, id: routeId });
     return this.buyCryptoRepo
-      .find({
-        where: { cryptoRoute: where },
-        relations: { cryptoRoute: { user: true } },
-      })
-      .then((history) => history.map(this.toHistoryDto));
+      .findSwapHistory(userId, routeId)
+      .then((history) => history.map(BuyCryptoHistoryMapper.toDto));
   }
 
   async getPendingTransactions(): Promise<BuyCrypto[]> {
@@ -1409,24 +1402,6 @@ export class BuyCryptoService implements OnModuleInit {
     }
 
     return request;
-  }
-
-  private toHistoryDto(buyCrypto: BuyCrypto): HistoryDtoDeprecated {
-    return {
-      inputAmount: buyCrypto.inputAmount,
-      inputAsset: buyCrypto.inputAsset,
-      amlCheck: buyCrypto.amlCheck,
-      outputAmount: buyCrypto.outputAmount,
-      outputAsset: buyCrypto.outputAsset?.dexName,
-      txId: buyCrypto.txId,
-      txUrl:
-        buyCrypto.outputAsset && buyCrypto.txId
-          ? txExplorerUrl(buyCrypto.outputAsset.blockchain, buyCrypto.txId)
-          : undefined,
-      isComplete: buyCrypto.isComplete,
-      date: buyCrypto.outputDate,
-      status: PaymentStatusMapper[buyCrypto.status],
-    };
   }
 
   private async getBuy(buyId: number): Promise<Buy> {
