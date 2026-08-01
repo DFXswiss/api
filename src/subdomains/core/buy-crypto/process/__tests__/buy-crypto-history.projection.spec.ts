@@ -28,8 +28,7 @@ const SCHEMA = 'buy_crypto_history_projection_spec';
  * `GET /buy/:id/history` and `GET /swap/:id/history` — the four levels from
  * `docs/read-path-projections.md`.
  *
- * Both answer a `HistoryDtoDeprecated[]` built by the same mapper, and both reached it through a
- * `find` that loads whole `BuyCrypto` rows for the ten values the
+ * Both answer a `HistoryDtoDeprecated[]` built by the same mapper, over the ten values the
  * mapper reads. They differ only in the route they filter by — `buy` for one, `cryptoRoute` for the
  * other — which is why there are two projections over one field list.
  */
@@ -50,7 +49,7 @@ describeProjection('buy-crypto history — read-path projection', () => {
    * A completed transaction on a buy route, with every column of every entity populated.
    *
    * `blockchain` and `status` are set explicitly: both are TypeScript enums stored in text columns,
-   * so a generated value would be a string no mapper knows, and the response would look incomplete
+   * so a generated value would not be a member of the enum the mapper switches on, and the response would look incomplete
    * for a reason that has nothing to do with the projection.
    */
   async function seedBuyCrypto(
@@ -154,8 +153,8 @@ describeProjection('buy-crypto history — read-path projection', () => {
   }, 120000);
 
   it('level 2 — both filters are needed to select the right swap transactions', async () => {
-    // The same for the swap route: its own query, its own two predicates, and no test reached them
-    // until now — the case above only ever called `findBuyHistory`.
+    // The same for the swap route: its own query and its own two predicates, which the case above
+    // does not reach — that one calls `findBuyHistory`.
     const mine = await seedSwapCrypto();
     const second = await seedSecondSwapRouteFor(mine.user);
     const other = await seedSwapCrypto();

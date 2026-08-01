@@ -23,8 +23,8 @@ const SCHEMA = 'pipeline_status_projection_spec';
  * `GET /liquidityManagement/pipeline/:id/status` — the four levels from
  * `docs/read-path-projections.md`.
  *
- * The endpoint answers with one string. Asking for the row by id fetched every column of it: the
- * pipeline expands its rule and both of its action relations eagerly, and the rule expands its own.
+ * The endpoint answers with one string, and the pipeline expands its rule and both of its action
+ * relations eagerly — so asking for the row by id reaches all of them.
  */
 describeProjection('liquidity management pipeline status — read-path projection', () => {
   let dataSource: DataSource;

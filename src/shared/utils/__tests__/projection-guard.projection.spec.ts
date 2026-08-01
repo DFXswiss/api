@@ -112,6 +112,69 @@ describeProjection('guardProjection', () => {
     expect(() => input.address.blockchain).toThrow("read of 'CryptoInput.address.blockchain'");
   }, 120000);
 
+  it('leaves a @RelationId alone when the query did fill it', async () => {
+    // Guarded on the value, not on the declaration: the throw is for the silent `undefined`, and a
+    // value that did arrive is not a defect whatever filled it.
+    const leg = guardProjection(
+      dataSource,
+      LedgerLeg,
+      new ReadProjection<LedgerLeg>('leg', [], ['leg.id']),
+      ['leg.id'],
+      { id: 1, txId: 7 } as LedgerLeg,
+    );
+
+    expect(leg.txId).toEqual(7);
+  }, 120000);
+
+  it('lets an embedded column be read back after the caller assigned it', async () => {
+    const projection = new ReadProjection<CryptoInput>('input', [], ['input.id']);
+    const input = guardProjection(dataSource, CryptoInput, projection, projection.fields, {
+      id: 1,
+      address: {},
+    } as unknown as CryptoInput);
+
+    input.address.address = 'written-by-the-caller';
+
+    // Without the write being recorded this throws, because the query never selected the column.
+    expect(input.address.address).toEqual('written-by-the-caller');
+  }, 120000);
+
+  it.each(['getMany', 'getOneOrFail'] as const)(
+    'guards the rows of %s',
+    async (method) => {
+      const language = await seedEntity<Language>(dataSource, Language);
+      const seeded = await seedEntity<UserData>(dataSource, UserData, { values: { language } });
+
+      const query = PROJECTION.apply(dataSource.getRepository(UserData).createQueryBuilder('userData'), FIELDS).where(
+        'userData.id = :id',
+        { id: seeded.id },
+      );
+      const rows = await query[method]();
+      const row = Array.isArray(rows) ? rows[0] : rows;
+
+      expect(() => row.surname).toThrow("read of 'UserData.surname'");
+    },
+    120000,
+  );
+
+  it('guards the entities of getRawAndEntities and leaves the raw rows untouched', async () => {
+    const language = await seedEntity<Language>(dataSource, Language);
+    const seeded = await seedEntity<UserData>(dataSource, UserData, { values: { language } });
+
+    const { entities, raw } = await PROJECTION.apply(
+      dataSource.getRepository(UserData).createQueryBuilder('userData'),
+      FIELDS,
+    )
+      .where('userData.id = :id', { id: seeded.id })
+      .getRawAndEntities();
+
+    expect(() => entities[0].surname).toThrow("read of 'UserData.surname'");
+    // The raw half is what the caller asked the database for, not an entity — reading it is not a
+    // projection question and the guard must not touch it.
+    expect(raw).toHaveLength(1);
+    expect(Object.keys(raw[0]).length).toBeGreaterThan(0);
+  }, 120000);
+
   it('guards the rows of getManyAndCount, which runs its own query', async () => {
     const language = await seedEntity<Language>(dataSource, Language);
     await seedEntity<UserData>(dataSource, UserData, { values: { language } });

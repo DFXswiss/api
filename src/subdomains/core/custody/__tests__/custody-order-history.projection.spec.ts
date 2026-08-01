@@ -27,8 +27,8 @@ const SCHEMA = 'custody_order_history_projection_spec';
 /**
  * `GET /custody/order` — the four levels from `docs/read-path-projections.md`.
  *
- * The query joined both assets and the transaction request with `leftJoinAndSelect`, loading each
- * of them whole — 19 columns for two names and two amounts.
+ * The query joins both assets and the transaction request, which the response draws two names and
+ * two amounts from.
  */
 describeProjection('GET /custody/order — read-path projection', () => {
   let dataSource: DataSource;

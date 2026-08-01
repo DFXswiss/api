@@ -35,8 +35,8 @@ const SCHEMA = 'pos_link_projection_spec';
 /**
  * `PUT /paymentLink/:id/pos` — the four levels from `docs/read-path-projections.md`.
  *
- * The link was loaded with its route, its user, the account and the account's organization: 513
- * columns for a URL built from one identifier and one access key.
+ * The answer is a URL built from one identifier and one access key. Reached without a field list,
+ * the link pulls in its route, its user, the account and the account's organization.
  *
  * The endpoint is driven through `PaymentLinkService.createPosLinkAdmin` rather than through a
  * rebuilt query, so what these levels compare is the answer the endpoint gives. Its collaborators
@@ -120,7 +120,7 @@ describeProjection('point-of-sale link — read-path projection', () => {
    */
   const keyOf = (url: string): string => {
     const key = new URLSearchParams(url.slice(url.indexOf('?') + 1)).get('key');
-    if (key == null) throw new Error(`no key in ${url}`);
+    if (key == null) throw new Error(`No key in ${url}`);
 
     return key;
   };

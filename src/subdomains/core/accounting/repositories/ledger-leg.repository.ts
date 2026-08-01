@@ -24,8 +24,7 @@ export const SUSPENSE_LEG_RESPONSE_FIELDS = [
 /**
  * `GET /dashboard/accounting/ledger/suspense`.
  *
- * The query joined the transaction and the account with `innerJoinAndSelect`, which loads each of
- * them whole for four values and a currency.
+ * The transaction and the account are joined for four values and a currency.
  *
  * `account.id` is a guard: the response never shows it, but without a primary key the ORM cannot
  * materialise the joined row.

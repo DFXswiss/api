@@ -31,8 +31,7 @@ export interface SupportMessageStats {
 /**
  * The message thread of an issue.
  *
- * Loaded on its own rather than as a relation, which is what the endpoint already did — the
- * projection only narrows the columns.
+ * Loaded on its own rather than as a relation of the issue.
  */
 export const SUPPORT_MESSAGE_PROJECTION = new ReadProjection<SupportMessage>(
   'supportMessage',

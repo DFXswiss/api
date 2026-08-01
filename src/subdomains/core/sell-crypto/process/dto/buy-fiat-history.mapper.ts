@@ -6,12 +6,12 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 /**
  * The history entry `GET /sell/:id/history` answers with.
  *
- * Kept here rather than in `BuyFiatService` so that the projection spec can drive the same mapping the endpoint
+ * Its own mapper so that the projection spec can drive the same mapping the endpoint
  * uses — see `BuyCryptoHistoryMapper` for the reasoning.
  *
- * Note that `cryptoInput` and `outputAsset` are read without a guard here. That is the behaviour as
- * it stands, and the projection does not change it: `cryptoInput` is a non-nullable relation, and a
- * row whose `outputAsset` is still unset would have thrown before the conversion just the same.
+ * Note that `cryptoInput` and `outputAsset` are read without a guard here: `cryptoInput` is a
+ * non-nullable relation, and a row whose `outputAsset` is unset throws — which the projection
+ * leaves as it is.
  */
 export class BuyFiatHistoryMapper {
   static toDto(buyFiat: BuyFiat): SellHistoryDto {

@@ -162,9 +162,13 @@ describeProjection('API key — read-path projection', () => {
 
     expect(loaded.apiKeyCT).toMatch(/^[0-9A-F]+$/);
     expect(ApiKeyService.getSecret(loaded)).toMatch(/^[0-9A-F]{64}$/);
-    // The same account and the same key must always produce the same secret; the creation date is
-    // the other input, and it comes out of the projection.
-    expect(ApiKeyService.getSecret(loaded)).toEqual(ApiKeyService.getSecret(loaded));
+    // The same account and the same key must produce the same secret through an independently
+    // loaded row: comparing the projected row with itself would hold whatever the projection left
+    // out. The creation date is the second input, and it comes out of the projection.
+    const full = await dataSource.getRepository(UserData).findOneBy({ id: account.id });
+    full.apiKeyCT = loaded.apiKeyCT;
+
+    expect(ApiKeyService.getSecret(loaded)).toEqual(ApiKeyService.getSecret(full));
   }, 120000);
 
   it('derives the secret from the creation date as well as the key', async () => {

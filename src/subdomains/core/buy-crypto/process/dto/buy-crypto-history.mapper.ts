@@ -5,7 +5,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 /**
  * The history entry `GET /buy/:id/history` and `GET /swap/:id/history` answer with.
  *
- * Kept here rather than in `BuyCryptoService` so that the projection spec can drive the same mapping the
+ * Its own mapper so that the projection spec can drive the same mapping the
  * endpoints use. A copy in the spec could be wrong in exactly the way the projection is wrong and
  * would prove nothing.
  *

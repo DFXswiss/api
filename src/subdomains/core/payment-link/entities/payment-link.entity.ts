@@ -109,9 +109,9 @@ export class PaymentLink extends IEntity {
    * account, or merged with the link winning.
    *
    * Separate from `configObj` because that one also assembles the recipient — name, contact data
-   * and address of the account — which this path discards, and reading those columns is the only
-   * reason a query would have to load them. Each side is read lazily: both getters parse their own
-   * JSON column, and a scoped call must not fail on the column it does not use.
+   * and address of the account — which `PaymentLinkService.createPosLinkFor` discards. Each side is
+   * read lazily: both getters parse their own JSON column, and a scoped call must not fail on the
+   * column it does not use.
    */
   accessConfig(scoped?: boolean): PaymentLinkConfig {
     const account = (): PaymentLinkConfig => this.route.userData.paymentLinksConfigObj;

@@ -39,13 +39,16 @@ import { SupportLogService } from 'src/subdomains/supporting/support-issue/servi
 import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { CreateSupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/create-support-issue.dto';
-import { SupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/support-issue.dto';
+import { SupportIssueDto, SupportIssueListDto } from 'src/subdomains/supporting/support-issue/dto/support-issue.dto';
 
 describe('SupportIssueService.getSupportIssueList', () => {
   let service: SupportIssueService;
   let supportIssueRepo: DeepMocked<SupportIssueRepository>;
 
-  const run = (filter: Partial<GetSupportIssueListFilter>, role: UserRole = UserRole.ADMIN) =>
+  const run = (
+    filter: Partial<GetSupportIssueListFilter>,
+    role: UserRole = UserRole.ADMIN,
+  ): Promise<{ data: SupportIssueListDto[]; total: number }> =>
     service.getSupportIssueList(filter as GetSupportIssueListFilter, role);
 
   // What the service resolved the request into. The query itself is built and tested against a real

@@ -37,8 +37,8 @@ const SCHEMA = 'support_issue_list_projection_spec';
  * `GET /support/issue/list` and `GET /realunit/support/list` — the four levels from
  * `docs/read-path-projections.md`.
  *
- * Both answer through `SupportIssueDtoMapper.mapSupportIssueListItem` and both loaded whole
- * `SupportIssue` rows for the ten values the row shows.
+ * Both answer through `SupportIssueDtoMapper.mapSupportIssueListItem`, over the ten values the row
+ * shows.
  *
  * The two endpoints differ only in their scope — one filters by department, the other by a list of
  * customer accounts — so both scopes are exercised here.
@@ -160,36 +160,41 @@ describeProjection('support issue list — read-path projection', () => {
   ])(
     'level 2 — the list can be sorted by %s',
     async (orderBy) => {
+      // Two rows whose order under every sortable column is the REVERSE of their insertion order,
+      // so that a query falling back to the id tie-break fails instead of passing by coincidence.
+      // The clerk differs too and the scope is by account, because ordering by a column the scope
+      // pins to one value proves nothing.
       const clerk = `sort-clerk-${orderBy}`;
-      // Two rows differing in every sortable column, so that the direction is observable. A single
-      // row would satisfy this test whichever column the query ordered by, or none.
       const first = await seedIssue({
-        clerk,
-        created: new Date('2020-01-01T00:00:00.000Z'),
-        updated: new Date('2020-01-01T00:00:00.000Z'),
-        department: Department.COMPLIANCE,
-        state: SupportIssueInternalState.CREATED,
-      });
-      const second = await seedIssue({
-        clerk,
+        clerk: `${clerk}-b`,
         created: new Date('2021-01-01T00:00:00.000Z'),
         updated: new Date('2021-01-01T00:00:00.000Z'),
         department: Department.SUPPORT,
         state: SupportIssueInternalState.IN_PROGRESS,
       });
+      const second = await seedIssue({
+        clerk: `${clerk}-a`,
+        created: new Date('2020-01-01T00:00:00.000Z'),
+        updated: new Date('2020-01-01T00:00:00.000Z'),
+        department: Department.COMPLIANCE,
+        state: SupportIssueInternalState.CREATED,
+      });
 
       // Every sort column has to be part of the projection: with take/skip set, the paginated form of
       // getManyAndCount orders a distinct-id subquery by it, and a column the select does not carry
       // makes Postgres reject the statement.
+      const customerIds = [first.userData.id, second.userData.id];
       const page = (orderDir: ListOrderDirection): Promise<{ data: SupportIssueListDto[]; total: number }> =>
-        listOf({ clerk, orderBy, orderDir, take: 10, skip: 0 });
+        listOf({ customerIds, orderBy, orderDir, take: 10, skip: 0 });
 
       const ascending = await page(ListOrderDirection.ASC);
       const descending = await page(ListOrderDirection.DESC);
 
       expect(ascending.total).toEqual(2);
-      expect(ascending.data.map((row) => row.uid)).toEqual([first.issue.uid, second.issue.uid]);
-      expect(descending.data.map((row) => row.uid)).toEqual([second.issue.uid, first.issue.uid]);
+      // Ascending puts the second-inserted row first: the assertion holds only if the requested
+      // column decided the order.
+      expect(ascending.data.map((row) => row.uid)).toEqual([second.issue.uid, first.issue.uid]);
+      expect(descending.data.map((row) => row.uid)).toEqual([first.issue.uid, second.issue.uid]);
     },
     120000,
   );

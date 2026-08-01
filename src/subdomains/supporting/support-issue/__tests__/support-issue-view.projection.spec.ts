@@ -33,7 +33,7 @@ const SCHEMA = 'support_issue_view_projection_spec';
  * `GET /support/issue` and `GET /support/issue/:id` — the four levels from
  * `docs/read-path-projections.md`.
  *
- * Both answer through `SupportIssueDtoMapper.mapSupportIssue`, and both loaded whole `SupportIssue`
+ * Both answer through `SupportIssueDtoMapper.mapSupportIssue`, over the `SupportIssue`
  * rows for nine values. `GET /support/issue/:id` additionally loads the message
  * thread, which is projected separately.
  *

@@ -23,8 +23,8 @@ export const CUSTODY_ORDER_HISTORY_RESPONSE_FIELDS = [
 /**
  * `GET /custody/order` — a user's order history.
  *
- * The query joined the two assets and the transaction request with `leftJoinAndSelect`, which loads
- * each of them whole: 19 columns for the two names and two amounts the response shows.
+ * The two assets and the transaction request are joined for the two names and two amounts the
+ * response shows.
  */
 export const CUSTODY_ORDER_HISTORY_PROJECTION = new ReadProjection<CustodyOrder>(
   'custodyOrder',

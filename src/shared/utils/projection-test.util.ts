@@ -5,9 +5,9 @@ import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 /**
  * Test support for the read-path projections described in `docs/read-path-projections.md`.
  *
- * All of it needs a real database. A mocked repository returns whatever the mock defines and cannot
- * observe which columns were requested, so it can test none of the four levels — which is why the
- * suite skips when `MIGRATION_TEST_PG` is unset, the same gate the migration specs use.
+ * All of it needs a real database: these specs assert what TypeORM selects and how it hydrates the
+ * result, which is what a projection can get wrong. The suite skips when `MIGRATION_TEST_PG` is
+ * unset, the same gate the migration specs use.
  *
  * The schema comes from the entity metadata via `synchronize`, not from replayed migrations: the
  * reference a projection has to be complete against is the entity definition.
@@ -27,10 +27,15 @@ export const describeProjection = PROJECTION_TEST_PG ? describe : describe.skip;
 export async function createProjectionDataSource(schema: string): Promise<DataSource> {
   const bootstrap = new DataSource({ type: 'postgres', url: PROJECTION_TEST_PG, logging: false });
   await bootstrap.initialize();
-  // Recreate rather than reuse: a schema left behind by an earlier run may predate the entities.
-  await bootstrap.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-  await bootstrap.query(`CREATE SCHEMA "${schema}"`);
-  await bootstrap.destroy();
+  try {
+    // Recreate rather than reuse: a schema left behind by an earlier run may predate the entities.
+    await bootstrap.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    await bootstrap.query(`CREATE SCHEMA "${schema}"`);
+  } finally {
+    // Closed even when the schema could not be prepared: the caller never receives this instance,
+    // so `afterAll` has nothing to close and the connection would outlive the run.
+    await bootstrap.destroy();
+  }
 
   const dataSource = new DataSource({
     type: 'postgres',
@@ -42,7 +47,13 @@ export async function createProjectionDataSource(schema: string): Promise<DataSo
     logging: false,
   });
   await dataSource.initialize();
-  await dataSource.synchronize();
+  try {
+    await dataSource.synchronize();
+  } catch (e) {
+    await dataSource.destroy();
+    throw e;
+  }
+
   return dataSource;
 }
 
@@ -70,8 +81,10 @@ export interface SeedSpec {
   relations?: Record<string, SeedSpec | true>;
 }
 
-// One counter for the whole process. Every generated number, date and string is distinct, which is
-// what keeps unique constraints satisfied when a spec seeds the same entity twice. Booleans and
+// One counter for the whole process, so that generated numbers, dates and strings differ between
+// rows — which is what keeps unique constraints satisfied when a spec seeds the same entity twice.
+// A very short column is the limit: the counter is base-36 encoded and truncated to the declared
+// length, so a `varchar(1)` repeats after 36 rows and such a column has to be pinned. Booleans and
 // enums cannot be: a boolean has two values and an enum as many as it declares, so a spec that needs
 // to tell two such columns apart pins them in the fixture. What every generated value is, is
 // non-empty — which is what makes an empty field in a response proof that the query failed to load
@@ -191,7 +204,11 @@ export async function seedEntity<E extends ObjectLiteral>(
     setPath(entity, column.propertyPath, generatedValue(column, nextSeed()));
   }
 
-  Object.assign(entity, spec.values ?? {});
+  // Through `setPath` rather than `Object.assign`: `isPinned` accepts a full embedded path, and a
+  // flat `'address.address'` key would leave the embedded field itself unset while suppressing the
+  // generated value for it. A key without a dot is assigned exactly as before.
+  for (const [key, value] of Object.entries(spec.values ?? {})) setPath(entity, key, value);
+
   return dataSource.getRepository(target).save(entity as E);
 }
 
@@ -419,18 +436,28 @@ function guardAgainst(
    * An embedded object, guarded one level down.
    *
    * Its columns are addressed by their full path (`address.city`), so the same selection set
-   * answers for them; only the walk to reach them differs.
+   * answers for them; only the walk to reach them differs. `written` is the root's set and holds
+   * the same full paths, so a value the caller assigned reads back here as it does on the root —
+   * a fresh proxy is handed out on every access, and it would otherwise have nowhere to remember.
    */
-  const wrapEmbedded = (value: ObjectLiteral, at: Node, prefix: string): ObjectLiteral =>
+  const wrapEmbedded = (value: ObjectLiteral, at: Node, prefix: string, written: Set<string>): ObjectLiteral =>
     value == null
       ? value
       : new Proxy(value, {
+          set(source, property, assigned, receiver) {
+            written.add(`${prefix}.${String(property)}`);
+            return Reflect.set(source, property, assigned, receiver);
+          },
           get(source, property, receiver) {
             const path = `${prefix}.${String(property)}`;
             const inner = Reflect.get(source, property, receiver);
 
-            if (isEmbedded(at, path)) return wrapEmbedded(inner as ObjectLiteral, at, path);
-            if (at.metadata.columns.some((column) => column.propertyPath === path) && !at.asked.has(path)) {
+            if (isEmbedded(at, path)) return wrapEmbedded(inner as ObjectLiteral, at, path, written);
+            if (
+              at.metadata.columns.some((column) => column.propertyPath === path) &&
+              !at.asked.has(path) &&
+              !written.has(path)
+            ) {
               throw new Error(
                 `read of '${at.metadata.name}.${path}', which this query did not select — ` +
                   `add it to the projection, or stop reading it`,
@@ -467,17 +494,21 @@ function guardAgainst(
         // reports as a column under the relation's own property name.
         if (at.metadata.relations.some((relation) => relation.propertyName === name)) return value;
 
-        // A `@RelationId` is filled from the foreign-key column of the row, which a query naming
-        // its fields does not carry. No field list can select it, so reading one off a projected
-        // row is always the defect — read the id off the joined relation instead.
-        if (at.metadata.relationIds.some((relationId) => relationId.propertyName === name) && !written.has(name)) {
+        // A `@RelationId` is filled from the foreign-key column of the row, which a query naming its
+        // fields does not carry, and no field list can select it. Guarded on the value rather than
+        // on the declaration: if it did arrive filled, reading it is not a defect.
+        if (
+          value === undefined &&
+          at.metadata.relationIds.some((relationId) => relationId.propertyName === name) &&
+          !written.has(name)
+        ) {
           throw new Error(
             `read of '${at.metadata.name}.${name}', a @RelationId that a projected query never fills — ` +
               `join the relation and read the id off it`,
           );
         }
 
-        if (isEmbedded(at, name)) return wrapEmbedded(value as ObjectLiteral, at, name);
+        if (isEmbedded(at, name)) return wrapEmbedded(value as ObjectLiteral, at, name, written);
 
         if (
           at.metadata.columns.some((column) => column.propertyPath === name) &&

@@ -36,13 +36,18 @@ function entitiesReturnedWhole(entities: Set<string>): Map<string, string[]> {
   const found = new Map<string, string[]>();
   for (const path of controllers) {
     const source = readFileSync(path, 'utf8');
-    for (const match of source.matchAll(/\)\s*:\s*(?:Promise<\s*)?([A-Za-z0-9_]+)(?:\[\])?\s*[>{]/g)) {
-      const name = match[1];
-      if (!entities.has(name)) continue;
-      const file = path.slice(SRC.length + 1);
-      const where = found.get(name) ?? [];
-      if (!where.includes(file)) where.push(file);
-      found.set(name, where);
+    // The whole return type, then every entity name in it: `Promise<Issue | null>`, `Promise<Issue[]>`
+    // and any wrapper around them all have to count. Matching the first identifier after the colon
+    // reads more simply and silently misses the union forms — the expensive direction, because a
+    // handler it misses is one whose answer the closure below then fails to cover.
+    for (const match of source.matchAll(/\)\s*:\s*([^;{]+?)\s*\{/g)) {
+      for (const identifier of match[1].match(/[A-Za-z0-9_]+/g) ?? []) {
+        if (!entities.has(identifier)) continue;
+        const file = path.slice(SRC.length + 1);
+        const where = found.get(identifier) ?? [];
+        if (!where.includes(file)) where.push(file);
+        found.set(identifier, where);
+      }
     }
   }
 

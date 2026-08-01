@@ -26,8 +26,7 @@ const SCHEMA = 'ledger_suspense_projection_spec';
  * `GET /dashboard/accounting/ledger/suspense` — the four levels from
  * `docs/read-path-projections.md`.
  *
- * The query joined the transaction and the account with `innerJoinAndSelect`, loading both whole
- * for four values and a currency.
+ * The response is four values and a currency, drawn from the leg, its transaction and its account.
  */
 describeProjection('ledger suspense — read-path projection', () => {
   let dataSource: DataSource;

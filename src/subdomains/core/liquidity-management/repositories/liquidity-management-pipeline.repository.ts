@@ -11,7 +11,7 @@ export const PIPELINE_STATUS_RESPONSE_FIELDS = ['pipeline.status'];
  * `GET /liquidityManagement/pipeline/:id/status` — one column, for one value.
  *
  * The pipeline expands its rule and its current action eagerly, and the rule pulls in its asset and
- * its currency, so asking for the row by id fetched the whole graph to read a status string.
+ * its currency — the graph a plain lookup by id reaches, to read a status string.
  */
 export const PIPELINE_STATUS_PROJECTION = new ReadProjection<LiquidityManagementPipeline>(
   'pipeline',
