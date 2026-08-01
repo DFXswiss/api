@@ -6,9 +6,9 @@
 /**
  * PRD-only backfill: sets `verifiedName` on the staff/service accounts that were gated out when the
  * staff-clearance rule stopped requiring a KYC level (api#4395 → #4572). No plaintext personal name
- * lives in this file: the human account's verified name is read from the deployment secret
+ * lives in this file: the human account's verified name is read from the PRD deployment variable
  * STAFF_VERIFIED_NAME_375162; the service account carries the non-personal designation 'GSheet'.
- * The deployment secret is mandatory on PRD so TypeORM cannot record a partial/no-op migration when
+ * The deployment variable is mandatory on PRD so TypeORM cannot record a partial/no-op migration when
  * it is missing. The update is idempotent (only touches a still-null verifiedName) and coupled to a
  * durable before/after audit entry. Guarded to prd; a no-op elsewhere.
  * @class @implements {MigrationInterface}

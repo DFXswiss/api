@@ -44,16 +44,19 @@ describe('BackfillStaffVerifiedNames migration (SQL content)', () => {
     },
   );
 
-  it.each([[undefined], [''], ['   ']])('fails before issuing SQL when the PRD secret is %p', async (staffName) => {
-    process.env.ENVIRONMENT = 'prd';
-    setEnv(STAFF_NAME_ENV, staffName);
-    const queryRunner = { query: jest.fn(async (_sql: string) => []) };
+  it.each([[undefined], [''], ['   ']])(
+    'fails before issuing SQL when the PRD deployment variable is %p',
+    async (staffName) => {
+      process.env.ENVIRONMENT = 'prd';
+      setEnv(STAFF_NAME_ENV, staffName);
+      const queryRunner = { query: jest.fn(async (_sql: string) => []) };
 
-    await expect(new BackfillStaffVerifiedNames().up(queryRunner as unknown as QueryRunner)).rejects.toThrow(
-      `${STAFF_NAME_ENV} is required`,
-    );
-    expect(queryRunner.query).not.toHaveBeenCalled();
-  });
+      await expect(new BackfillStaffVerifiedNames().up(queryRunner as unknown as QueryRunner)).rejects.toThrow(
+        `${STAFF_NAME_ENV} is required`,
+      );
+      expect(queryRunner.query).not.toHaveBeenCalled();
+    },
+  );
 
   it('issues one parameterized, audited update on PRD', async () => {
     process.env.ENVIRONMENT = 'prd';
