@@ -49,14 +49,9 @@ const nextEvmAddress = (): string => `0x${(++addressCount).toString(16).padStart
 /**
  * `GET /user` (v2) — the four levels from `docs/read-path-projections.md`.
  *
- * The widest read path in the inventory: a `findOne` on `UserData`, because
- * four countries, a language, a currency and an organization expand eagerly and every user of the
- * account brought its whole wallet.
- *
- * Most of what the response shows comes out of getters rather than columns, and several of them
- * answer a valid-looking value from a missing field: `isDataComplete` reports `false`, the trading
- * limit falls back to the no-KYC default. Level 3 therefore compares against the response the full
- * projection produced, not against emptiness.
+ * The widest read path in the inventory. Most of the response comes out of getters, several of
+ * which answer a valid-looking value from a missing column — `isDataComplete` reports `false`, the
+ * trading limit falls back to the no-KYC default — which is why level 3 compares responses.
  */
 describeProjection('GET /user v2 — read-path projection', () => {
   let dataSource: DataSource;

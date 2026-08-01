@@ -5,12 +5,9 @@ import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 /**
  * Test support for the read-path projections described in `docs/read-path-projections.md`.
  *
- * All of it needs a real database: these specs assert what TypeORM selects and how it hydrates the
- * result, which is what a projection can get wrong. The suite skips when `MIGRATION_TEST_PG` is
- * unset, the same gate the migration specs use.
- *
- * The schema comes from the entity metadata via `synchronize`, not from replayed migrations: the
- * reference a projection has to be complete against is the entity definition.
+ * Needs a real database and skips without `MIGRATION_TEST_PG`, the gate the migration specs use.
+ * The schema is built from the entity metadata, which is what a projection has to be complete
+ * against.
  */
 
 export const PROJECTION_TEST_PG = process.env.MIGRATION_TEST_PG;
@@ -69,12 +66,9 @@ export interface SeedSpec {
   /**
    * Fixed column values. Anything not listed gets a generated one.
    *
-   * Needed for every column that holds a TypeScript enum in a plain text column — most of them in
-   * this schema. The metadata reports those as `varchar`, so the generator produces a distinct
-   * string that is not a member of the enum, and a mapper looking the value up (`PaymentStatusMapper[…]`,
-   * `txExplorerUrl(blockchain, …)`) answers `undefined`. That reads exactly like a missing column,
-   * which is why the completeness assertion catches it — set the value here instead, and cover the
-   * other members as level-2 variants.
+   * Pin every column holding a TypeScript enum in a text column: the metadata reports it as
+   * `varchar`, so the generated value is not a member and a mapper looking it up answers
+   * `undefined` — indistinguishable from a missing column.
    */
   values?: ObjectLiteral;
   /** Optional relations to populate. Required ones are always populated. */
@@ -215,17 +209,11 @@ export async function seedEntity<E extends ObjectLiteral>(
 /**
  * Level 1 — with a fully populated fixture, no field of the response may be empty.
  *
- * Walks nested objects and arrays. `undefined`, `null`, `''` and `NaN` count as empty; `0` and
- * `false` do not, because they are legitimate values a projection can load correctly.
+ * `undefined`, `null`, `''` and `NaN` count as empty; `0` and `false` do not. `NaN` is on the list
+ * because a field computed as `a + b + c` becomes `NaN` as soon as one column is missing.
  *
- * `NaN` belongs on that list even though nothing produces it directly: a DTO field computed as
- * `a + b + c` from three columns turns into `NaN` the moment one of them is missing. It is not
- * absent, so a plain `undefined` check waves it through — and it is exactly the silent wrong value
- * this whole exercise is meant to catch. The annual volume on the support view is such a field.
- *
- * `optional` lists paths that are allowed to be empty for the fixture at hand — a field the DTO
- * only fills for one branch. Every entry is a statement that the *other* branch covers it, which is
- * what level 2 is for, so keep the list short and cover the counterpart.
+ * `optional` lists paths allowed to be empty for the fixture at hand; each entry asserts that
+ * another variant covers the field.
  */
 export function expectNoEmptyFields(value: unknown, optional: string[] = [], path = ''): void {
   const empty =
@@ -257,27 +245,14 @@ export function projectionFieldsWithout(fields: ReadonlyArray<string>, omitted: 
 }
 
 /**
- * Level 3 — removing any candidate from the projection must **change the response**.
+ * Level 3 — removing any candidate from the projection must change the response.
  *
- * `run` receives the fields to leave out, runs the same production query without them and returns
- * the response. The caller does the reducing, because which fields feed the response can depend on
- * the fixture: `UserData.address` reads the organization's address for a business account and the
- * account's own for a personal one, so each variant asserts over its own set of candidates while the
- * rest of the projection stays in the query.
+ * `run` receives the fields to leave out and returns what the production query answers without
+ * them. The caller picks the candidates: which fields feed a response depends on the fixture, and
+ * columns behind a fallback have to be dropped as a group.
  *
- * **"Changes the response", not "empties a field".** The weaker form misses the failure this whole
- * exercise is about. `getKycWebhookStatus(kycStatus, kycType)` answers `NA` when it is handed
- * nothing — a perfectly valid value — so dropping `kycStatus` leaves a complete response that is
- * simply wrong, and an emptiness check waves it through. Comparing against the response the full
- * projection produced catches it, and it is the same standard level 4 applies.
- *
- * **A candidate may be a group of fields.** Where several columns feed one response value through a
- * fallback — `organizationName ?? firstname + surname` — dropping the group is what shows the value
- * depends on it at all; each column on its own is covered by the variant in which it is the one that
- * gets read.
- *
- * A candidate whose removal changes nothing is either unnecessary or a gap in the fixture; both need
- * looking at, so this reports the names rather than just failing.
+ * Compared against the full response rather than checked for emptiness — a missing column can
+ * yield a valid-looking wrong value. Candidates whose removal changes nothing are reported by name.
  */
 export async function expectEveryFieldRequired(
   candidates: ReadonlyArray<string | string[]>,
@@ -325,28 +300,16 @@ export function allColumnNames(metadata: EntityMetadata): string[] {
 }
 
 /**
- * Makes an incomplete projection fail loudly.
+ * Makes an incomplete projection fail loudly: reading a column the field list did not ask for
+ * throws, naming it. See `docs/read-path-projections.md` for why.
  *
- * The defect this whole test definition exists for is silent: a column the query did not select is
- * `undefined` on the entity, getters compute with it, and the endpoint answers 200 with a wrong
- * value. Proving completeness field by field is possible — that is what the mutation level does —
- * but it needs a fixture that reaches every branch reading every field, and a fixture that misses
- * its branch is green while proving nothing. The safety net then fails the way the defect fails.
+ * The decision comes from the field list, not from the row — this repository compiles to a target
+ * where class fields are defined on the instance, so an unselected column and a selected `null`
+ * look the same on the object.
  *
- * This turns the silence off. Reading a column the field list did not ask for throws, so any test
- * that exercises the endpoint at all — however naive — reports an incomplete projection, and reports
- * it at the property that was missing.
- *
- * The decision comes from the field list, not from the row: this repository compiles to a target
- * where class fields are defined on the instance, so every declared column exists and an unselected
- * one is indistinguishable from a selected `null` by looking at the object.
- *
- * Joined relations are guarded in turn, each against the fields selected for its own alias, so a
- * column missing two levels down is reported there. Relations the projection does not join are left
- * alone: they are `undefined`, and dereferencing them already throws.
- *
- * Only mapped columns are guarded. Methods and getters pass through untouched — reading *through* a
- * getter is how the missing column is reached, so the getter has to keep running.
+ * Joined relations are guarded against their own alias. Relations the projection does not join are
+ * left alone; they are `undefined` and dereferencing them already throws. Getters pass through,
+ * because reading through one is how the missing column is reached.
  */
 export function guardProjection<E extends ObjectLiteral>(
   dataSource: DataSource,

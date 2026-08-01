@@ -3,17 +3,12 @@ import { SelectQueryBuilder } from 'typeorm';
 /**
  * An explicit field list for a read path, together with the joins it needs.
  *
- * Two reasons this is a value rather than a chain of `.leftJoin().select()` calls at the call site:
+ * A value rather than a chain of calls at the call site, so that the mutation test can re-run the
+ * production query with one field removed instead of rebuilding it. `select` inside `find` options
+ * would not do: it narrows the root entity but still pulls in the eager relations.
  *
- * 1. `select` inside `find` options narrows the root entity but still pulls in the eager relations,
- *    so a projection has to go through a query builder. Wrapping that keeps the call sites short.
- * 2. The mutation test (level 3 in `docs/read-path-projections.md`) has to run the *same* query with
- *    one field removed. With the field list as data, the test drives the production code path
- *    instead of rebuilding the query — a second implementation could be wrong in the same way and
- *    would prove nothing.
- *
- * Field names are the ones the query builder expects: `alias.property`, where `alias` is either the
- * root alias or one declared in `joins`.
+ * Field names are what the query builder expects: `alias.property`, where `alias` is the root alias
+ * or one declared in `joins`.
  */
 export class ReadProjection<E> {
   constructor(

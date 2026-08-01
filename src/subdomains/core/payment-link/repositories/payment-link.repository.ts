@@ -6,18 +6,11 @@ import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentStatus } from '../enums';
 
 /**
- * What `PUT /paymentLink/:id/pos` reads.
+ * What `PUT /paymentLink/:id/pos` reads: a URL built from `uniqueId` and one access key, taken from
+ * the link's configuration, the account's, or the two merged.
  *
- * The endpoint answers with a URL built from `uniqueId` and one access key. The key comes out of a
- * configuration, and which of the three configurations is consulted depends on the `scoped`
- * argument — the link's own, the account's, or the two merged. `accessKeys` is the only value read
- * out of them, so the two columns holding them are the whole field list.
- *
- * `accountType` is deliberately NOT selected. `configObj` also assembles a recipient block, which
- * this endpoint discards, and that block reads `UserData.address` — a getter that switches to the
- * organization row for an organization account and would dereference a relation this query has no
- * reason to join. Left unselected, the getter takes its other branch and reads columns that are
- * simply absent, which nothing here looks at.
+ * `accountType` is deliberately NOT selected: `UserData.address` switches to the organization row
+ * for an organization account and would dereference a relation this query has no reason to join.
  */
 export const POS_LINK_RESPONSE_FIELDS = [
   'paymentLink.uniqueId',

@@ -51,13 +51,10 @@ describeProjection('API key — read-path projection', () => {
   /**
    * What the endpoint answers, through the projected query.
    *
-   * The key is assigned in memory before the secret is derived from it, which is what makes
-   * `created` part of the read: `getSecret` hashes the two together.
+   * `created` is part of the read because `getSecret` hashes it together with the key.
    *
-   * The production key mixes in the current time, so two calls a millisecond apart differ. Comparing
-   * whole responses across runs would then report every field as required — true of the timestamp,
-   * and evidence about nothing. The fixture keeps the dependency that matters, the account id, and
-   * leaves the timestamp out.
+   * The key is pinned rather than generated: the production one mixes in the current time, so every
+   * field would come out of level 3 as required, which is evidence about nothing.
    */
   async function apiKeyOf(
     id: number,

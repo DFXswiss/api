@@ -35,14 +35,9 @@ const SCHEMA = 'pos_link_projection_spec';
 /**
  * `PUT /paymentLink/:id/pos` — the four levels from `docs/read-path-projections.md`.
  *
- * The answer is a URL built from one identifier and one access key. Reached without a field list,
- * the link pulls in its route, its user, the account and the account's organization.
- *
- * The endpoint is driven through `PaymentLinkService.createPosLinkAdmin` rather than through a
- * rebuilt query, so what these levels compare is the answer the endpoint gives. Its collaborators
- * are mocked except the repository under test; the account-side write goes through
- * `UserDataService`, which is asserted on rather than executed, and the write itself is covered
- * separately below.
+ * Driven through `PaymentLinkService.createPosLinkAdmin` rather than a rebuilt query, with every
+ * collaborator mocked except the repository under test. The account-side write goes through
+ * `UserDataService` and is asserted on rather than executed.
  */
 describeProjection('point-of-sale link — read-path projection', () => {
   let dataSource: DataSource;

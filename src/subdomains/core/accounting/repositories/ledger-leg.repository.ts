@@ -26,12 +26,10 @@ export const SUSPENSE_LEG_RESPONSE_FIELDS = [
  *
  * The transaction and the account are joined for four values and a currency.
  *
- * `account.id` is a guard: the response never shows it, but without a primary key the ORM cannot
- * materialise the joined row.
+ * `account.id` is a guard: without a primary key the ORM cannot materialise the joined row.
  *
- * The two joins stay with the query rather than moving into the projection: `ReadProjection` joins
- * left, and these are inner. Both relations are `nullable: false`, so the two forms select the same
- * rows today — but that is a property of the schema, and the query should not depend on it silently.
+ * The joins stay with the query rather than moving into the projection, which joins left where
+ * these are inner.
  */
 export const SUSPENSE_LEG_PROJECTION = new ReadProjection<LedgerLeg>('leg', [], SUSPENSE_LEG_RESPONSE_FIELDS, [
   'account.id',

@@ -11,16 +11,12 @@ const SCHEMA = 'eager_relations_spec';
 const SRC = join(__dirname, '../../..');
 
 /**
- * The entities that leave through a controller as themselves, read out of the source.
+ * The entities that leave through a controller as themselves — for those, the eager relations are
+ * the response rather than a loading detail.
  *
- * For those the eager relations are not a loading detail — they are the answer. A relation added
- * anywhere in their closure appears in the response; one removed disappears from it.
- *
- * Read rather than listed, because a list goes stale the first time someone adds a controller and
- * nothing says so. It is deliberately generous: any method in a controller file whose return type
- * names an entity counts, decorated or not. A method that is not in fact a handler widens the
- * closure below and costs precision in the failure message; missing a handler would cost the
- * guarantee.
+ * Read out of the source rather than listed, so that adding a controller cannot narrow the closure
+ * silently. Deliberately generous: any method in a controller file whose return type names an
+ * entity counts. An over-match costs precision in the message, a miss costs the guarantee.
  */
 function entitiesReturnedWhole(entities: Set<string>): Map<string, string[]> {
   const controllers: string[] = [];
