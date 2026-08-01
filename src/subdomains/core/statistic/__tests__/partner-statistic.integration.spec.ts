@@ -350,9 +350,10 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
 
     // Asset breakdown: BUY BTC has 5 txs at exactly k and is visible (no under-k named
     // SELL asset in this fixture — see seed comment — so complementary does not fire).
+    // Seed has exactly one BTC asset row → pin count so a missing BTC row fails.
     const btc = result.breakdown.assets.filter((a) => a.name === 'BTC');
-    expect(btc.length).toBeGreaterThanOrEqual(1);
-    expect(btc.some((a) => a.volume === 500)).toBe(true);
+    expect(btc).toHaveLength(1);
+    expect(btc[0].volume).toBe(500);
 
     // No internal users field on the public payload
     expect(JSON.stringify(result)).not.toMatch(/"users"/);

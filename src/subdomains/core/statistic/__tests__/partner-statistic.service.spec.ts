@@ -1138,8 +1138,11 @@ describe('PartnerStatisticService', () => {
         PartnerStatisticGranularity.DAY,
       );
 
+      // getTimeline fans out BUY/SELL/SWAP; each timelineByDirection groupBy's DATE_TRUNC once.
+      // length>0 + for-over-survivors is vacuum-true if one direction drops the trunc.
+      const TIMELINE_DATE_TRUNC_GROUP_BYS = 3;
       const truncs = groupByCapture.groupBys.filter((g) => g.includes('DATE_TRUNC'));
-      expect(truncs.length).toBeGreaterThan(0);
+      expect(truncs).toHaveLength(TIMELINE_DATE_TRUNC_GROUP_BYS);
       for (const g of truncs) {
         expect(g).toContain("AT TIME ZONE 'UTC'");
         // SQL unit is lowercase via PartnerStatisticDateTruncUnit, not the PascalCase API value.
