@@ -81,6 +81,33 @@ Whenever the gate refuses, the blocking reasons are logged as
 This migration requires no change in `DFXswiss/services` and no additional manual endpoint.
 Approval, document generation, locking, idempotency and auditing live entirely in the API.
 
+## Behaviour carried over deliberately
+
+Three properties of the Sheet process are reproduced as they are, because this migration replaces the
+process without changing the rules it applies:
+
+- **Compliance defaults on approval.** `complexOrgStructure`, `highRisk`, `depositLimit` and
+  `amlAccountType` are set to the approval defaults, even where an account carried a different value
+  before. The previous values are written to `kyc_log` in the same transaction, so any earlier
+  decision stays reconstructible. Changing this would change the outcome of the approval, not just
+  its implementation.
+- **RiskProfile outside a FATF-enabled country.** The document is only generated for a FATF-enabled
+  country of residence, while the gate requires it for every case. An account outside such a country
+  therefore never completes automatically and stays with Compliance - exactly as under the Sheet
+  process. A test pins generation condition and gate requirement together so neither side can be
+  changed alone.
+- **Documents already produced by the Sheets are not regenerated.** A subtype that exists and is
+  valid is skipped, whatever produced it.
+
+## Residual risk
+
+The selection rules of the six document sheets are documented in the audit package rather than taken
+from their source: Google refuses the script export of those six projects with `403`, so only the two
+readable projects (approval, risk flags) have byte-exact code snapshots. The rules were reconstructed
+from the workbook exports. Before the cutover, compare the candidate sets of at least one document
+sheet against the productive sheet - the API-side queries are in
+`DfxApprovalWorkflowService.generatePending*`.
+
 ## Productive cutover
 
 The order is binding so that GSheets and API never write in parallel:
