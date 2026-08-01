@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Active, isAsset } from 'src/shared/models/active';
 import { CachedRepository } from 'src/shared/repositories/cached.repository';
+import { CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { EntityManager } from 'typeorm';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 
-// Same cache duration as Fiat and Country (CachedRepository default EVERY_5_MINUTES).
-// Pure reference/master data: no save/update/insert/delete path exists in the codebase.
+// Cached for an hour, longer than the CachedRepository default of EVERY_5_MINUTES.
+// This repository exposes read methods only, so nothing here has to invalidate the cache.
 @Injectable()
 export class TransactionSpecificationRepository extends CachedRepository<TransactionSpecification> {
   constructor(manager: EntityManager) {
-    super(TransactionSpecification, manager);
+    super(TransactionSpecification, manager, CacheItemResetPeriod.EVERY_HOUR);
   }
 
   getProps(param: Active): { system: string; asset: string } {
