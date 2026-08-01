@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { FrickVirtualIban } from 'src/integration/bank/dto/frick-vban.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -75,6 +76,7 @@ export const RECOVERY_PATH_REFERENCE_MARKER = 'recovery listing found no match u
  * orphan scan.
  */
 export const MERGE_SUPERSEDED_MARKER = 'merge-superseded';
+export const AUTOMATIC_FALLBACK_MARKER = 'automatic-collection-account-fallback';
 
 @Injectable()
 export class VirtualIbanService {
@@ -553,6 +555,14 @@ export class VirtualIbanService {
         providerAccountRef: intent.externalIban,
       });
 
+    if (intent.status === VirtualIbanIssuanceIntentStatus.FALLBACK) {
+      this.logger.error(
+        `Bank Frick personal IBAN issuance remains inconclusive; using the collection-account fallback ` +
+          `(intentId=${intent.id}, userDataId=${userData.id}, currencyId=${currency.id}, bankId=${bank.id})`,
+      );
+      throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+    }
+
     if (
       intent.status !== VirtualIbanIssuanceIntentStatus.IN_FLIGHT &&
       intent.status !== VirtualIbanIssuanceIntentStatus.FAILED
@@ -608,6 +618,66 @@ export class VirtualIbanService {
       intent.requestReference,
     );
     return this.finalizeFrickIssuance(intent.id, intent.requestReference, userData, bank, currency, reserved);
+  }
+
+  async recoverFrickIntentForReconciliation(intentId: number, match: FrickVirtualIban): Promise<boolean> {
+    const intent = await this.dataSource.getRepository(VirtualIbanIssuanceIntent).findOne({
+      where: { id: intentId, provider: IbanBankName.FRICK },
+    });
+    if (!intent) throw new Error(`Bank Frick reconciliation intent not found (intentId=${intentId})`);
+    if (
+      intent.status !== VirtualIbanIssuanceIntentStatus.IN_FLIGHT &&
+      intent.status !== VirtualIbanIssuanceIntentStatus.FAILED
+    )
+      return false;
+    if (intent.error?.includes(MERGE_SUPERSEDED_MARKER)) return false;
+
+    const [userData, bank, currency] = await Promise.all([
+      this.dataSource.getRepository(UserData).findOne({ where: { id: intent.userDataId } }),
+      this.dataSource.getRepository(Bank).findOne({ where: { id: intent.bankId } }),
+      this.dataSource.getRepository(Fiat).findOne({ where: { id: intent.currencyId } }),
+    ]);
+    if (!userData || !bank || !currency) {
+      throw new Error(
+        `Bank Frick reconciliation context missing (intentId=${intent.id}, userDataFound=${Boolean(userData)}, ` +
+          `bankFound=${Boolean(bank)}, currencyFound=${Boolean(currency)})`,
+      );
+    }
+
+    const reserved = await this.frickVibanProvider.adoptAndActivate(
+      match,
+      intent.referenceAccountIban,
+      intent.requestReference,
+    );
+    await this.finalizeFrickIssuance(intent.id, intent.requestReference, userData, bank, currency, reserved);
+    return true;
+  }
+
+  async moveFrickIntentToFallbackForReconciliation(
+    intentId: number,
+    expectedRequestReference: string,
+  ): Promise<boolean> {
+    return this.dataSource.transaction(async (manager) => {
+      const intent = await this.getFrickIntentByIdForUpdate(manager, intentId);
+      if (intent.requestReference !== expectedRequestReference) {
+        throw new Error(`Bank Frick fallback refused because requestReference changed (intentId=${intent.id})`);
+      }
+      if (
+        intent.status !== VirtualIbanIssuanceIntentStatus.IN_FLIGHT &&
+        intent.status !== VirtualIbanIssuanceIntentStatus.FAILED
+      )
+        return false;
+      if (intent.error?.includes(MERGE_SUPERSEDED_MARKER)) return false;
+
+      await this.transitionFrickIntent(
+        manager,
+        intent,
+        VirtualIbanIssuanceIntentStatus.FALLBACK,
+        null,
+        `${AUTOMATIC_FALLBACK_MARKER}; ${CREATE_PATH_REFERENCE_MARKER}${intent.requestReference}`,
+      );
+      return true;
+    });
   }
 
   private async finalizeFrickIssuance(
@@ -695,6 +765,10 @@ export class VirtualIbanService {
               details,
               new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED),
             );
+          }
+
+          if (intent.status === VirtualIbanIssuanceIntentStatus.FALLBACK) {
+            throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
           }
 
           if (intent.externalIban && intent.externalIban !== reserved.iban) {
@@ -1429,7 +1503,7 @@ export class VirtualIbanService {
    * - No master intent for the same (currencyId, bankId): reassign the slave row to master.
    * - Master already has a row: unique index blocks reassignment — permanently merge-fail every
    *   non-COMPLETED slave intent (Pending/InFlight/Failed) via the event-logged transition path so
-   *   alert-only reconciliation never treats a pre-merge failure under the retired slave id as
+   *   automatic reconciliation never treats a pre-merge failure under the retired slave id as
    *   eligible work. COMPLETED is left alone (runPhase1StuckIntents never loads Completed rows).
    *
    * Pairs already reconciled by {@link resolveMergedVirtualIbanPairLocked} are naturally safe to
@@ -1464,7 +1538,7 @@ export class VirtualIbanService {
       }
 
       // COMPLETED is safe to leave alone: runPhase1StuckIntents only selects IN_FLIGHT/FAILED.
-      // FAILED must still be merge-marked so alert-only reconciliation excludes the retired
+      // FAILED must still be merge-marked so automatic reconciliation excludes the retired
       // userDataId from listing and absence alerts after the merge.
       if (slaveIntent.status === VirtualIbanIssuanceIntentStatus.COMPLETED) {
         continue;
@@ -1568,7 +1642,7 @@ export class VirtualIbanService {
       if (winnerIntent != null && intent.id === winnerIntent.id) continue;
 
       // PENDING / IN_FLIGHT / FAILED: permanently mark merge-superseded so runPhase1StuckIntents
-      // excludes the retired userDataId from its alert-only checks. COMPLETED non-winner historical
+      // excludes the retired userDataId from automatic recovery. COMPLETED non-winner historical
       // rows are left untouched (reconciliation never loads Completed).
       if (
         intent.status === VirtualIbanIssuanceIntentStatus.PENDING ||

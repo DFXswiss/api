@@ -1257,6 +1257,36 @@ describe('BankFrickService', () => {
     expect(http.request).not.toHaveBeenCalled();
   });
 
+  it('requests and approves virtual IBAN deactivation with signed PUT requests', async () => {
+    const requested = virtualIbanResponse({ state: FrickVirtualIbanState.DEACTIVATION_REQUESTED });
+    const deactivated = virtualIbanResponse({ state: FrickVirtualIbanState.DEACTIVATED });
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce(requested)
+      .mockResolvedValueOnce(deactivated);
+
+    await expect(service.deactivateViban(requested.vban)).resolves.toEqual(requested);
+    await expect(service.approveVibanDeactivation(requested.vban)).resolves.toEqual(deactivated);
+
+    const deactivateRequest = http.request.mock.calls[1][0];
+    expect(deactivateRequest.url).toBe('https://vban.bank.invalid/vban/virtual-ibans/deactivations');
+    expect(deactivateRequest.method).toBe('PUT');
+    expect(deactivateRequest.data).toBe(JSON.stringify({ vban: requested.vban }));
+    expectSignature(deactivateRequest.data, deactivateRequest.headers.Signature);
+
+    const approveRequest = http.request.mock.calls[2][0];
+    expect(approveRequest.url).toBe('https://vban.bank.invalid/vban/virtual-ibans/deactivations/approvals');
+    expect(approveRequest.method).toBe('PUT');
+    expect(approveRequest.data).toBe(JSON.stringify({ vban: requested.vban }));
+    expectSignature(approveRequest.data, approveRequest.headers.Signature);
+  });
+
+  it('rejects an empty vban before either deactivation HTTP call', async () => {
+    await expect(service.deactivateViban('')).rejects.toThrow('Invalid Bank Frick vban');
+    await expect(service.approveVibanDeactivation('')).rejects.toThrow('Invalid Bank Frick vban');
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
   it('gets a virtual IBAN with encodeURIComponent applied to the path segment', async () => {
     // Path segment may contain reserved characters; response vban must still be a valid IBAN.
     const vbanWithSlash = 'LI/TEST VBAN';

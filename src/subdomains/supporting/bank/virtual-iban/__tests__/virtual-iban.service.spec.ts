@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataType, newDb } from 'pg-mem';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
@@ -1034,7 +1035,7 @@ describe('VirtualIbanService', () => {
         QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
       );
 
-      // Neither the request path nor alert-only reconciliation may reopen or rotate this intent.
+      // Neither the request path nor automatic reconciliation may reopen or rotate this intent.
       expect(currentIntent.requestReference).toBe(oldReference);
       expect(currentIntent.status).toBe(VirtualIbanIssuanceIntentStatus.IN_FLIGHT);
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
@@ -1423,6 +1424,220 @@ describe('VirtualIbanService', () => {
       );
       expect(frickVibanProvider.findRecoverableByDescription).not.toHaveBeenCalled();
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('logs ERROR and keeps returning the collection-account fallback for a terminal fallback intent', async () => {
+      currentIntent = Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 301,
+        requestReference: 'dfx-viban-terminal-fallback-reference',
+        userDataId: userData.id,
+        currencyId: eur.id,
+        bankId: frickBank.id,
+        status: VirtualIbanIssuanceIntentStatus.FALLBACK,
+        externalIban: null,
+        error: 'automatic-collection-account-fallback',
+      });
+      const loggerError = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+
+      await expect(service.getOrCreateFrickForUser(userData, 'EUR')).rejects.toThrow(
+        QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED,
+      );
+
+      expect(loggerError).toHaveBeenCalledWith(expect.stringContaining('using the collection-account fallback'));
+      expect(frickVibanProvider.findRecoverableByDescription).not.toHaveBeenCalled();
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('automatic Frick reconciliation transitions', () => {
+    const eur = { id: 4, name: 'EUR' } as Fiat;
+    const frickBank = {
+      id: 19,
+      iban: 'LI32088110105923K000C',
+      receive: true,
+      name: IbanBankName.FRICK,
+    } as Bank;
+    const match = {
+      vban: 'LI75088110105923K000E',
+      referenceAccountIban: frickBank.iban,
+      description: 'dfx-viban-reconciliation-reference',
+      state: 'ACTIVE',
+    } as any;
+
+    const reconciliationIntent = (partial: Partial<VirtualIbanIssuanceIntent> = {}): VirtualIbanIssuanceIntent =>
+      Object.assign(new VirtualIbanIssuanceIntent(), {
+        id: 301,
+        requestReference: match.description,
+        userDataId: userData.id,
+        currencyId: eur.id,
+        bankId: frickBank.id,
+        provider: IbanBankName.FRICK,
+        referenceAccountIban: frickBank.iban,
+        referenceAccountReceive: true,
+        status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
+        externalIban: null,
+        error: null,
+        ...partial,
+      });
+
+    function mockReconciliationRepositories(
+      currentIntent: VirtualIbanIssuanceIntent | null,
+      currentUserData: UserData | null = userData,
+      currentBank: Bank | null = frickBank,
+      currentCurrency: Fiat | null = eur,
+    ): void {
+      (dataSource.getRepository as jest.Mock).mockImplementation((entity) => ({
+        findOne: jest
+          .fn()
+          .mockResolvedValue(
+            entity === VirtualIbanIssuanceIntent
+              ? currentIntent
+              : entity === UserData
+                ? currentUserData
+                : entity === Bank
+                  ? currentBank
+                  : entity === Fiat
+                    ? currentCurrency
+                    : null,
+          ),
+      }));
+    }
+
+    it('adopts and finalizes the exact external match without a second create', async () => {
+      const currentIntent = reconciliationIntent();
+      mockReconciliationRepositories(currentIntent);
+      jest.spyOn(frickVibanProvider, 'adoptAndActivate').mockResolvedValue({
+        iban: match.vban,
+        providerAccountRef: match.vban,
+      });
+      const finalize = jest.spyOn(service as any, 'finalizeFrickIssuance').mockResolvedValue({ id: 501 });
+
+      await expect(service.recoverFrickIntentForReconciliation(currentIntent.id, match)).resolves.toBe(true);
+
+      expect(frickVibanProvider.adoptAndActivate).toHaveBeenCalledWith(
+        match,
+        currentIntent.referenceAccountIban,
+        currentIntent.requestReference,
+      );
+      expect(finalize).toHaveBeenCalledWith(
+        currentIntent.id,
+        currentIntent.requestReference,
+        userData,
+        frickBank,
+        eur,
+        expect.objectContaining({ iban: match.vban }),
+      );
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the reconciliation intent no longer exists', async () => {
+      mockReconciliationRepositories(null);
+
+      await expect(service.recoverFrickIntentForReconciliation(301, match)).rejects.toThrow(
+        'Bank Frick reconciliation intent not found',
+      );
+      expect(frickVibanProvider.adoptAndActivate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      VirtualIbanIssuanceIntentStatus.PENDING,
+      VirtualIbanIssuanceIntentStatus.COMPLETED,
+      VirtualIbanIssuanceIntentStatus.FALLBACK,
+    ])('ignores reconciliation after intent reached %s', async (status) => {
+      const currentIntent = reconciliationIntent({ status });
+      mockReconciliationRepositories(currentIntent);
+
+      await expect(service.recoverFrickIntentForReconciliation(currentIntent.id, match)).resolves.toBe(false);
+      expect(frickVibanProvider.adoptAndActivate).not.toHaveBeenCalled();
+    });
+
+    it('ignores reconciliation for a merge-superseded failure', async () => {
+      const currentIntent = reconciliationIntent({
+        status: VirtualIbanIssuanceIntentStatus.FAILED,
+        error: `terminated; ${MERGE_SUPERSEDED_MARKER}`,
+      });
+      mockReconciliationRepositories(currentIntent);
+
+      await expect(service.recoverFrickIntentForReconciliation(currentIntent.id, match)).resolves.toBe(false);
+      expect(frickVibanProvider.adoptAndActivate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['user', null, frickBank, eur],
+      ['bank', userData, null, eur],
+      ['currency', userData, frickBank, null],
+    ])('fails closed when the %s reconciliation context is missing', async (_label, owner, bank, currency) => {
+      const currentIntent = reconciliationIntent();
+      mockReconciliationRepositories(
+        currentIntent,
+        owner as UserData | null,
+        bank as Bank | null,
+        currency as Fiat | null,
+      );
+
+      await expect(service.recoverFrickIntentForReconciliation(currentIntent.id, match)).rejects.toThrow(
+        'Bank Frick reconciliation context missing',
+      );
+      expect(frickVibanProvider.adoptAndActivate).not.toHaveBeenCalled();
+    });
+
+    it('moves an old ambiguous intent to terminal fallback with an auditable retired reference', async () => {
+      const currentIntent = reconciliationIntent({ status: VirtualIbanIssuanceIntentStatus.FAILED });
+      manager.findOne.mockImplementation(async (entity) =>
+        entity === VirtualIbanIssuanceIntent ? currentIntent : null,
+      );
+
+      await expect(
+        service.moveFrickIntentToFallbackForReconciliation(currentIntent.id, currentIntent.requestReference),
+      ).resolves.toBe(true);
+
+      expect(currentIntent).toMatchObject({
+        status: VirtualIbanIssuanceIntentStatus.FALLBACK,
+        externalIban: null,
+        error: expect.stringContaining(`previousRequestReference=${match.description}`),
+      });
+      expect(manager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          previousStatus: VirtualIbanIssuanceIntentStatus.FAILED,
+          nextStatus: VirtualIbanIssuanceIntentStatus.FALLBACK,
+        }),
+      );
+    });
+
+    it('refuses fallback when the request reference changed under lock', async () => {
+      const currentIntent = reconciliationIntent();
+      manager.findOne.mockResolvedValue(currentIntent);
+
+      await expect(
+        service.moveFrickIntentToFallbackForReconciliation(currentIntent.id, 'dfx-viban-stale-reference'),
+      ).rejects.toThrow('requestReference changed');
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it.each([VirtualIbanIssuanceIntentStatus.PENDING, VirtualIbanIssuanceIntentStatus.COMPLETED])(
+      'does not overwrite an intent already in %s during fallback',
+      async (status) => {
+        const currentIntent = reconciliationIntent({ status });
+        manager.findOne.mockResolvedValue(currentIntent);
+
+        await expect(
+          service.moveFrickIntentToFallbackForReconciliation(currentIntent.id, currentIntent.requestReference),
+        ).resolves.toBe(false);
+        expect(manager.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not move a merge-superseded failure to fallback', async () => {
+      const currentIntent = reconciliationIntent({
+        status: VirtualIbanIssuanceIntentStatus.FAILED,
+        error: `terminated; ${MERGE_SUPERSEDED_MARKER}`,
+      });
+      manager.findOne.mockResolvedValue(currentIntent);
+
+      await expect(
+        service.moveFrickIntentToFallbackForReconciliation(currentIntent.id, currentIntent.requestReference),
+      ).resolves.toBe(false);
+      expect(manager.save).not.toHaveBeenCalled();
     });
   });
 
@@ -3366,6 +3581,26 @@ describe('VirtualIbanService', () => {
       jest.spyOn(virtualIbanRepo, 'invalidateCache').mockImplementation(() => undefined);
       manager.create.mockImplementation((entity, value) => Object.assign(new entity(), value));
       manager.save.mockImplementation(async (value) => value);
+    });
+
+    it('refuses finalization after reconciliation already committed terminal fallback', async () => {
+      manager.findOne.mockImplementation(async (entity) =>
+        entity === VirtualIbanIssuanceIntent
+          ? Object.assign(new VirtualIbanIssuanceIntent(), {
+              id: 301,
+              requestReference: callerReference,
+              userDataId: userData.id,
+              currencyId: eur.id,
+              bankId: frickBank.id,
+              status: VirtualIbanIssuanceIntentStatus.FALLBACK,
+              externalIban: null,
+              error: 'automatic-collection-account-fallback',
+            })
+          : null,
+      );
+
+      await expect(finalize(301, callerReference)).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+      expect(manager.save).not.toHaveBeenCalled();
     });
 
     it('refuses finalize and alerts when requestReference changed under lock', async () => {

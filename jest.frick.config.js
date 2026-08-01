@@ -40,7 +40,7 @@ module.exports = {
     },
     // Frick vIBAN money path: claim/reserve/finalize/reset/merge-dissolution live in virtual-iban.service.ts
     // and frick-viban.provider.ts (no longer excluded — those files hold the issuance logic, not just
-    // supporting glue). The alert-only reconciliation job remains gated for stuck-intent and orphan scans.
+    // supporting glue). Automatic reconciliation remains gated for stuck-intent recovery and orphan cleanup.
     'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts': {
       branches: 100,
       functions: 100,

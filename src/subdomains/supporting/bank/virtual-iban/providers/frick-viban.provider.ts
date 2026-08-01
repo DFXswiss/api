@@ -127,6 +127,70 @@ export class FrickVibanProvider implements VibanProvider {
     return this.ensureActive(viban, expectedReferenceAccountIban, expectedDescription);
   }
 
+  async deactivateAndApprove(
+    viban: FrickVirtualIban,
+    expectedReferenceAccountIban: string,
+    expectedDescription: string,
+  ): Promise<void> {
+    if (!this.isAvailable()) throw new ServiceUnavailableException('Bank Frick virtual IBAN service is not available');
+
+    const normalizedReferenceAccountIban = expectedReferenceAccountIban.replace(/\s/g, '').toUpperCase();
+    this.assertResponseBinding(viban, normalizedReferenceAccountIban, expectedDescription, 'deactivation');
+    let current = viban;
+
+    if ([FrickVirtualIbanState.PREPARED, FrickVirtualIbanState.ACTIVE].includes(current.state)) {
+      try {
+        current = await this.bankFrickService.deactivateViban(current.vban);
+      } catch (error) {
+        this.logger.error(
+          'Bank Frick virtual IBAN deactivation returned an ambiguous result',
+          error instanceof Error ? error : undefined,
+        );
+        current = await this.bankFrickService.getViban(current.vban);
+      }
+      this.assertSameVibanAndBinding(
+        current,
+        viban,
+        normalizedReferenceAccountIban,
+        expectedDescription,
+        'deactivation',
+      );
+    }
+
+    if (current.state === FrickVirtualIbanState.DEACTIVATED) return;
+    if (current.state !== FrickVirtualIbanState.DEACTIVATION_REQUESTED) {
+      this.logger.error(`Bank Frick virtual IBAN deactivation returned an unexpected state (state: ${current.state})`);
+      throw new ServiceUnavailableException(
+        `Bank Frick virtual IBAN deactivation did not reach an approvable state (state: ${current.state})`,
+      );
+    }
+
+    try {
+      current = await this.bankFrickService.approveVibanDeactivation(current.vban);
+    } catch (error) {
+      this.logger.error(
+        'Bank Frick virtual IBAN deactivation approval returned an ambiguous result',
+        error instanceof Error ? error : undefined,
+      );
+      current = await this.bankFrickService.getViban(current.vban);
+    }
+    this.assertSameVibanAndBinding(
+      current,
+      viban,
+      normalizedReferenceAccountIban,
+      expectedDescription,
+      'deactivation approval',
+    );
+    if (current.state !== FrickVirtualIbanState.DEACTIVATED) {
+      this.logger.error(
+        `Bank Frick virtual IBAN deactivation approval returned an unexpected state (state: ${current.state})`,
+      );
+      throw new ServiceUnavailableException(
+        `Bank Frick virtual IBAN could not be deactivated (state: ${current.state})`,
+      );
+    }
+  }
+
   private async ensureActive(
     created: FrickVirtualIban,
     expectedReferenceAccountIban: string,
@@ -156,10 +220,15 @@ export class FrickVibanProvider implements VibanProvider {
     }
     this.assertResponseBinding(activated, normalizedReferenceAccountIban, expectedDescription, 'activation');
 
-    if (activated.state !== FrickVirtualIbanState.ACTIVE)
+    if (activated.state !== FrickVirtualIbanState.ACTIVE) {
+      this.logger.error(
+        `Bank Frick virtual IBAN activation returned an unexpected state ` +
+          `(state: ${activated.state}, vbanLength=${created.vban.length})`,
+      );
       throw new ServiceUnavailableException(
         `Bank Frick virtual IBAN could not be activated (state: ${activated.state}, vbanLength=${created.vban.length})`,
       );
+    }
 
     return { iban: activated.vban, providerAccountRef: activated.vban };
   }
@@ -168,7 +237,7 @@ export class FrickVibanProvider implements VibanProvider {
     response: FrickVirtualIban,
     expectedReferenceAccountIban: string,
     expectedDescription: string,
-    phase: 'create' | 'activation',
+    phase: 'create' | 'activation' | 'deactivation' | 'deactivation approval',
   ): void {
     if (
       response.referenceAccountIban === expectedReferenceAccountIban &&
@@ -179,5 +248,19 @@ export class FrickVibanProvider implements VibanProvider {
 
     this.logger.error(`Bank Frick virtual IBAN ${phase} response binding mismatch`);
     throw new ServiceUnavailableException(`Bank Frick virtual IBAN ${phase} response binding mismatch`);
+  }
+
+  private assertSameVibanAndBinding(
+    response: FrickVirtualIban,
+    expected: FrickVirtualIban,
+    expectedReferenceAccountIban: string,
+    expectedDescription: string,
+    phase: 'deactivation' | 'deactivation approval',
+  ): void {
+    if (response.vban !== expected.vban) {
+      this.logger.error(`Bank Frick virtual IBAN ${phase} identity mismatch`);
+      throw new ServiceUnavailableException(`Bank Frick virtual IBAN ${phase} identity mismatch`);
+    }
+    this.assertResponseBinding(response, expectedReferenceAccountIban, expectedDescription, phase);
   }
 }

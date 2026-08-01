@@ -36,24 +36,25 @@ describe('Bank Frick operations runbook', () => {
   });
 
   it('documents that non-authoritative listing misses never arm an automatic retry', () => {
-    expect(compactRunbook).toContain('listing misses are alert-only');
+    expect(compactRunbook).toContain('listing absence remains non-authoritative');
+    expect(compactRunbook).toContain('never enables a second create');
     expect(compactRunbook).toContain('keep the existing `requestReference`');
     expect(compactRunbook).toContain('preflight failure before any create call');
     expect(compactRunbook).toContain('classified definite create rejection');
     expect(runbook).not.toContain('non-authoritative listing miss will arm automatic retry');
   });
 
-  it('keeps code comments aligned with alert-only reconciliation', () => {
+  it('keeps code comments aligned with automatic fail-closed reconciliation', () => {
     expect(serviceSource).not.toContain('Reconciliation is the only');
     expect(serviceSource).not.toContain('reconciliation would reopen');
     expect(frickServiceSource).not.toContain('reconciliation empty-listing resets');
     expect(frickCoverageConfig).not.toContain('stuck-intent reopen');
-    expect(frickServiceSource).toContain('Reconciliation is alert-only');
+    expect(frickServiceSource).toContain('Reconciliation only acts on positive matches');
   });
 
   it('states exactly what listingCompletedAt validation establishes', () => {
     expect(compactRunbook).toContain(
-      '`listingCompletedAt` is checked only for a valid `Date` and for not preceding `listingStartedAt`',
+      '`listingCompletedAt` is checked for a valid `Date` and for not preceding `listingStartedAt`',
     );
     expect(compactRunbook).toContain(
       'it is not compared with `latestPossibleCreateProcessedAt` and establishes no temporal coverage',

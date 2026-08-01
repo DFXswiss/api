@@ -7,8 +7,10 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import {
+  FrickApproveVirtualIbanDeactivationRequest,
   FrickApproveVirtualIbanActivationRequest,
   FrickCreateVirtualIbanRequest,
+  FrickDeactivateVirtualIbanRequest,
   FrickVirtualIban,
   FrickVirtualIbanState,
   FrickVirtualIbansResponse,
@@ -61,7 +63,7 @@ export interface FrickVirtualIbansFetchResult {
   virtualIbans: FrickVirtualIban[];
   // False when at least one list entry failed per-entry validation and was dropped. Callers that
   // inspect listing misses must treat fullyValidated=false as an incomplete check, never as proof of
-  // absence. Reconciliation is alert-only; well-formed entries may still prove positive matches.
+  // absence. Reconciliation only acts on positive matches; a miss never enables another create.
   fullyValidated: boolean;
   /** Local instant immediately before the first page request was dispatched. */
   listingStartedAt: Date;
@@ -243,6 +245,40 @@ export class BankFrickService {
     const request: FrickApproveVirtualIbanActivationRequest = { vban };
     const response = await this.callVbanApi<FrickVirtualIban>(
       'virtual-ibans/activations/approvals',
+      'PUT',
+      request,
+      'application/json',
+      'json',
+      true,
+      false,
+    );
+    this.validateVirtualIbanResponse(response);
+    return response;
+  }
+
+  async deactivateViban(vban: string): Promise<FrickVirtualIban> {
+    this.assertVibanAvailable();
+    this.validateString(vban, 'vban', 34, true);
+    const request: FrickDeactivateVirtualIbanRequest = { vban };
+    const response = await this.callVbanApi<FrickVirtualIban>(
+      'virtual-ibans/deactivations',
+      'PUT',
+      request,
+      'application/json',
+      'json',
+      true,
+      false,
+    );
+    this.validateVirtualIbanResponse(response);
+    return response;
+  }
+
+  async approveVibanDeactivation(vban: string): Promise<FrickVirtualIban> {
+    this.assertVibanAvailable();
+    this.validateString(vban, 'vban', 34, true);
+    const request: FrickApproveVirtualIbanDeactivationRequest = { vban };
+    const response = await this.callVbanApi<FrickVirtualIban>(
+      'virtual-ibans/deactivations/approvals',
       'PUT',
       request,
       'application/json',
