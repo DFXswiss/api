@@ -56,7 +56,7 @@ export class AssetPricesJobService {
     }
 
     // update DB
-    await this.assetService.updatePrices(updates);
+    await this.assetService.updateAssets(updates);
   }
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PRICING, timeout: 3600 })

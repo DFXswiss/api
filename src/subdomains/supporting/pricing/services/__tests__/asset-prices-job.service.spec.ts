@@ -54,7 +54,7 @@ describe('AssetPricesJobService', () => {
 
       await service.updatePrices();
 
-      expect(assetService.updatePrices).toHaveBeenCalledWith([
+      expect(assetService.updateAssets).toHaveBeenCalledWith([
         [264, { approxPriceUsd: 0.0075, approxPriceChf: 0.0061, approxPriceEur: 0.0064 }],
       ]);
     });
@@ -72,7 +72,7 @@ describe('AssetPricesJobService', () => {
 
       await service.updatePrices();
 
-      expect(assetService.updatePrices).toHaveBeenCalledWith([]);
+      expect(assetService.updateAssets).toHaveBeenCalledWith([]);
       expect(asset.approxPriceChf).toBe(0.0061);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Arbitrum/TGT'));
     });
@@ -93,7 +93,7 @@ describe('AssetPricesJobService', () => {
 
       await service.updatePrices();
 
-      expect(assetService.updatePrices).toHaveBeenCalledWith([
+      expect(assetService.updateAssets).toHaveBeenCalledWith([
         [265, { approxPriceUsd: 1.07, approxPriceChf: 0.86, approxPriceEur: 0.92 }],
       ]);
     });

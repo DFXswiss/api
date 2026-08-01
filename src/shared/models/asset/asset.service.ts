@@ -127,12 +127,39 @@ export class AssetService {
       .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 
-  async updatePrices(updates: UpdateResult<Asset>[]): Promise<void> {
-    for (const update of updates) {
-      await this.assetRepo.update(...update);
+  // Writes have to go through here: the cached reads above are served from this instance, and
+  // invalidateCache() only clears the instance it is called on.
+  async updateAssets(updates: UpdateResult<Asset>[]): Promise<void> {
+    if (!updates.length) return;
+
+    // Every update is attempted: one row that keeps failing must not stop the rest from ever being
+    // written. The cache is invalidated in any case, because whatever succeeded is already stored.
+    const failed: number[] = [];
+    const errors: unknown[] = [];
+
+    try {
+      for (const [id, update] of updates) {
+        try {
+          await this.assetRepo.update(id, update);
+        } catch (e) {
+          failed.push(id);
+          errors.push(e);
+        }
+      }
+    } finally {
+      this.assetRepo.invalidateCache();
     }
 
-    this.assetRepo.invalidateCache();
+    if (failed.length) throw new AggregateError(errors, `Failed to update asset(s) ${failed.join(', ')}`);
+  }
+
+  async getEvmAssetsWithoutDecimals(blockchains: Blockchain[]): Promise<Asset[]> {
+    return this.assetRepo.findBy({
+      chainId: Not(IsNull()),
+      blockchain: In(blockchains),
+      decimals: IsNull(),
+      type: In([AssetType.COIN, AssetType.TOKEN]),
+    });
   }
 
   async getAssetsUsedOn(exchange: string): Promise<string[]> {
