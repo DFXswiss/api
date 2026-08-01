@@ -431,16 +431,30 @@ function guardAgainst(
           },
         });
 
+  /**
+   * One proxy per source row and node.
+   *
+   * Wrapping on every access would hand out a new proxy each time, and two things break with it:
+   * `row.relation === row.relation` is false, and each proxy starts with an empty set of caller
+   * assignments, so writing through a relation and reading it back throws. Neither is a projection
+   * defect, and a guard that invents them is measuring itself.
+   */
+  const proxies = new WeakMap<ObjectLiteral, Map<Node, unknown>>();
+
   const wrap = <T extends ObjectLiteral>(row: T | T[] | null, at: Node): T | T[] | null => {
     if (row == null) return row;
     if (Array.isArray(row)) return row.map((one) => wrap(one, at)) as T[];
+
+    const known = proxies.get(row) ?? new Map<Node, unknown>();
+    proxies.set(row, known);
+    if (known.has(at)) return known.get(at) as T;
 
     // Properties the caller assigned itself. A projected read does not carry them, but writing one
     // and reading it back is what the write paths do — `createApiKey` sets the filter code on the
     // row before passing it to the update — and that is not a projection defect.
     const written = new Set<string>();
 
-    return new Proxy(row, {
+    const proxy = new Proxy(row, {
       set(source, property, value, receiver) {
         written.add(String(property));
         return Reflect.set(source, property, value, receiver);
@@ -499,6 +513,10 @@ function guardAgainst(
         return value;
       },
     }) as T;
+
+    known.set(at, proxy);
+
+    return proxy;
   };
 
   return wrap(entity as ObjectLiteral, root);

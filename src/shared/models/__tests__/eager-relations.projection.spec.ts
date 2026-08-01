@@ -16,8 +16,8 @@ const SRC = join(__dirname, '../../..');
  *
  * Read out of the source rather than listed, so that a controller added later is covered without
  * anyone remembering a list. Deliberately generous: any method in a controller file whose return
- * type names an entity counts. Names are matched as written — a return type reached through an
- * alias is not seen — so an over-match costs precision in the message, a miss costs the guarantee.
+ * type names an entity counts, including through a renamed import. An over-match costs precision
+ * in the message, a miss costs the guarantee.
  */
 function entitiesReturnedWhole(entities: Set<string>): Map<string, string[]> {
   const controllers: string[] = [];
@@ -32,21 +32,52 @@ function entitiesReturnedWhole(entities: Set<string>): Map<string, string[]> {
 
   const found = new Map<string, string[]>();
   for (const path of controllers) {
-    const source = readFileSync(path, 'utf8');
-    // The whole return type, then every entity name in it: `Promise<Issue | null>`, `Promise<Issue[]>`
-    // and any wrapper around them all have to count. Matching the first identifier after the colon
-    // reads more simply and silently misses the union forms — the expensive direction, because a
-    // handler it misses is one whose answer the closure below then fails to cover.
-    for (const match of source.matchAll(/\)\s*:\s*([^;{]+?)\s*\{/g)) {
-      for (const identifier of match[1].match(/[A-Za-z0-9_]+/g) ?? []) {
-        if (!entities.has(identifier)) continue;
-        const file = path.slice(SRC.length + 1);
-        const where = found.get(identifier) ?? [];
-        if (!where.includes(file)) where.push(file);
-        found.set(identifier, where);
-      }
+    for (const name of entitiesReturnedBy(readFileSync(path, 'utf8'), entities)) {
+      const file = path.slice(SRC.length + 1);
+      const where = found.get(name) ?? [];
+      if (!where.includes(file)) where.push(file);
+      found.set(name, where);
     }
   }
+
+  return found;
+}
+
+/**
+ * The entities one controller file answers with, by their own names.
+ *
+ * Separate from the walk above so it can be exercised on source text rather than on whatever the
+ * repository happens to contain today — the alias case has no instance here yet, and a guard whose
+ * hardest branch never runs is the thing this suite exists to argue against.
+ */
+export function entitiesReturnedBy(source: string, entities: Set<string>): Set<string> {
+  // `import { SupportIssue as Issue }` — the handler then names `Issue`, which is not an entity
+  // name and would drop out of the scan. Mapped back, so renaming an import cannot quietly remove
+  // a controller from the closure.
+  const renamed = new Map<string, string>();
+  // The other direction of the same clause: a local name that happens to match an entity while
+  // standing for something else. Counting it would attribute relations to a response that never
+  // carries them.
+  const shadowed = new Set<string>();
+  for (const clause of source.matchAll(/import\s*\{([^}]*)\}/g))
+    for (const part of clause[1].split(',')) {
+      const [original, alias] = part.split(/\s+as\s+/).map((piece) => piece.trim());
+      if (!alias) continue;
+      if (entities.has(original)) renamed.set(alias, original);
+      else shadowed.add(alias);
+    }
+
+  const found = new Set<string>();
+  // The whole return type, then every entity name in it: `Promise<Issue | null>`, `Promise<Issue[]>`
+  // and any wrapper around them all have to count. Matching the first identifier after the colon
+  // reads more simply and silently misses the union forms — the expensive direction, because a
+  // handler it misses is one whose answer the closure below then fails to cover.
+  for (const match of source.matchAll(/\)\s*:\s*([^;{]+?)\s*\{/g))
+    for (const identifier of match[1].match(/[A-Za-z0-9_]+/g) ?? []) {
+      if (shadowed.has(identifier)) continue;
+      const name = renamed.get(identifier) ?? identifier;
+      if (entities.has(name)) found.add(name);
+    }
 
   return found;
 }
@@ -170,6 +201,38 @@ describeProjection('eager relations', () => {
 
     return found;
   }
+
+  it('reads an entity out of a return type, through a union, an array and a renamed import', () => {
+    const entities = new Set(['SupportIssue', 'UserData']);
+    const source = `
+      import { SupportIssue as Issue } from './support-issue.entity';
+      import { UserData } from './user-data.entity';
+      import { Something } from './elsewhere';
+
+      class C {
+        async one(id: number): Promise<Issue | null> { return null; }
+        async many(): Promise<UserData[]> { return []; }
+        async neither(): Promise<Something> { return null; }
+      }`;
+
+    // The renamed one is the case with no instance in this repository today, which is why it is
+    // asserted here rather than left to the walk over the real controllers.
+    expect(entitiesReturnedBy(source, entities)).toEqual(new Set(['SupportIssue', 'UserData']));
+  });
+
+  it('takes a name that is not an entity for nothing, renamed or not', () => {
+    const entities = new Set(['SupportIssue']);
+    const source = `
+      import { Helper as SupportIssue } from './helper';
+
+      class C {
+        async one(): Promise<SupportIssue> { return null; }
+      }`;
+
+    // `SupportIssue` here is a local name for something else entirely. Reading the alias map in the
+    // other direction would report the entity and put a relation in a closure it is not part of.
+    expect(entitiesReturnedBy(source, entities)).toEqual(new Set());
+  });
 
   it('finds the controllers that answer with an entity', () => {
     // If this reads zero, the search above stopped matching and every assertion below would pass

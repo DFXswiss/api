@@ -100,6 +100,24 @@ describeProjection('guardProjection', () => {
     );
   }, 120000);
 
+  it('hands out the same guarded relation on every read', async () => {
+    const language = await seedEntity<Language>(dataSource, Language);
+    const seeded = await seedEntity<UserData>(dataSource, UserData, { values: { language } });
+
+    const fields = [...FIELDS, 'language.id'];
+    const row = await load(fields, seeded.id);
+
+    // A fresh proxy per access would make this false, and production code comparing relations by
+    // identity — or using one as a map key — would behave differently under the guard than without
+    // it. The guard has to be invisible except where it throws.
+    expect(row.language).toBe(row.language);
+
+    // It also carries the caller's assignments across reads: with a new proxy each time, each one
+    // starts with an empty set of them and reading back what was just written throws.
+    row.language.symbol = 'assigned-by-the-caller';
+    expect(row.language.symbol).toEqual('assigned-by-the-caller');
+  }, 120000);
+
   it('throws on a @RelationId, which no field list can select', async () => {
     // The property is filled from the foreign-key column of the row, which a query naming its
     // fields does not carry — the defect this suite exists to catch, in the one shape where the
