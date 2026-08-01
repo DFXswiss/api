@@ -48,6 +48,10 @@ describe('describeCaller', () => {
 
   it('keeps an opaque origin — having none to name says something too', () => {
     expect(describeCaller(req({ origin: 'null' }))).toBe('client=(none) origin=null');
+    // It yields an origin, so it wins over the referer like any other origin would.
+    expect(describeCaller(req({ origin: 'null', referer: 'https://partner.example.com/x' }))).toBe(
+      'client=(none) origin=null',
+    );
   });
 
   it('falls back to the referer when the origin yields nothing, not just when it is absent', () => {
