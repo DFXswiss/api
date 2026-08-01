@@ -151,6 +151,10 @@ export class TransactionSupportInfo {
   id: number;
   uid: string;
   buyCryptoId?: number;
+  buyCryptoIsComplete?: boolean;
+  buyCryptoStatus?: string;
+  buyCryptoHasBatch?: boolean;
+  buyCryptoHasChargeback?: boolean;
   buyFiatId?: number;
   bankDataId?: number;
   type?: string;

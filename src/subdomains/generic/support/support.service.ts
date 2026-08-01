@@ -635,6 +635,14 @@ export class SupportService {
       id: tx.id,
       uid: tx.uid,
       buyCryptoId: tx.buyCrypto?.id,
+      buyCryptoIsComplete: tx.buyCrypto?.isComplete,
+      buyCryptoStatus: tx.buyCrypto?.status,
+      buyCryptoHasBatch: !!tx.buyCrypto?.batch,
+      buyCryptoHasChargeback: !!(
+        tx.buyCrypto?.chargebackOutput ||
+        tx.buyCrypto?.chargebackAllowedDate ||
+        tx.buyCrypto?.chargebackAllowedDateUser
+      ),
       buyFiatId: tx.buyFiat?.id,
       bankDataId: tx.buyCrypto?.bankData?.id ?? tx.buyFiat?.bankData?.id,
       type: tx.type,

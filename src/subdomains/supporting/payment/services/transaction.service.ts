@@ -215,7 +215,7 @@ export class TransactionService {
           ]
         : base,
       relations: {
-        buyCrypto: { cryptoInput: true, outputAsset: true, bankData: true },
+        buyCrypto: { cryptoInput: true, outputAsset: true, bankData: true, batch: true, chargebackOutput: true },
         buyFiat: { cryptoInput: true, outputAsset: true, bankData: true },
         bankTxReturn: true,
         bankTxRepeat: true,
