@@ -28,7 +28,7 @@ const IPV4 = /(^|[^\d])(\d{1,3}(?:\.\d{1,3}){3})(?!\d)/g;
 
 export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
 const MAX_CLIENT = 32; // per trace line: the client header is a name, not a payload
-const MAX_KEY = 64; // per object key: a name, and one nobody reads past either way
+const MAX_URL = 512; // per log line: a route, and one nobody follows past either way
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
 const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
 const REDACTED = '***';
@@ -46,13 +46,12 @@ export function maskValue(s: string): string {
 
 export function maskUrl(url: string): string {
   // The request target is client-supplied and reaches a log line: what is left of it after the query
-  // is dropped is rendered like any other value from the request. The segments are decoded first -
-  // a path carries its values percent-encoded, and `victim%40example.com` is an address to everyone
-  // reading the line and to no pattern matching it. A segment that will not decode is kept as it
-  // came, which is what it would have been anyway.
+  // is dropped is rendered like any other value from the request, and to the same length, since the
+  // reading of it is regex work like any other. The segments are read decoded - a path carries its
+  // values percent-encoded, and `victim%40example.com` is an address to everyone reading the line
+  // and to no pattern matching it.
   return maskLogText(
-    url
-      .split('?')[0]
+    capCharacters(url.split('?')[0], MAX_URL)
       .split('/')
       .map((segment) => maskSegment(segment))
       .join('/'),
@@ -62,16 +61,28 @@ export function maskUrl(url: string): string {
 // The decoded form is what a pattern can be recognized in; it is only what gets rendered if one was.
 // Decoding otherwise would rewrite the path itself - `%2F` becomes a separator, `%3F` the start of a
 // query - and the line would describe a route that was never called.
-function maskSegment(segment: string): string {
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
+// A path carries its values percent-encoded, so the decoded form is what a pattern can be
+// recognized in. What is rendered is the segment as it arrived when there was nothing to recognize;
+// the masked form when there was; and nothing of it when the decoding would have put a separator or
+// a query into the path, since the line would then name a route that was never called. Each escape
+// is decoded on its own, so one that is not a valid sequence costs only itself.
+const PATH_STRUCTURE = /[/?#]/;
 
+function maskSegment(segment: string): string {
+  const decoded = segment.replace(/%[0-9a-f]{2}/gi, (escape) => decodeEscape(escape));
   const masked = maskValue(decoded);
-  return masked === decoded ? segment : masked;
+
+  if (masked === decoded) return segment;
+
+  return PATH_STRUCTURE.test(masked) ? REDACTED : masked;
+}
+
+function decodeEscape(escape: string): string {
+  try {
+    return decodeURIComponent(escape);
+  } catch {
+    return escape;
+  }
 }
 
 // Everything that can break a line or move a cursor in a log viewer: the control characters
@@ -178,27 +189,13 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
     return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskLogText(value);
   }
   if (value && typeof value === 'object') {
-    // No prototype: a key called `constructor` is a key like any other here, and nothing inherited
-    // can be mistaken for something this object already holds.
-    const out: Record<string, unknown> = Object.create(null);
-    const taken = new Map<string, number>();
-
+    const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       if (budget.left <= 0) {
         out['…'] = TRUNCATED;
         break;
       }
-      // The key is rendered like a value - a request chooses it just as freely, at whatever length,
-      // so it goes through the same guard against masking an oversized one. The raw key decides the
-      // redaction, since that is the name the list was written against, and two keys that render
-      // the same each keep their entry, counted rather than searched for.
-      const rendered = maskLogValue(k, MAX_KEY);
-      const seen = taken.get(rendered) ?? 0;
-      taken.set(rendered, seen + 1);
-
-      const key = seen === 0 ? rendered : `${rendered} (${seen + 1})`;
-      budget.left -= key.length;
-      out[key] = redact(v, k, budget);
+      out[k] = redact(v, k, budget);
     }
     return out;
   }
@@ -211,14 +208,20 @@ function format(value: unknown): string {
   try {
     // redact() handles Buffer + the array case (Array.isArray first), so the
     // raw value is never length/type-inspected here.
-    // `redact` has rendered the keys and the values already. What is left is that `JSON.stringify`
-    // escapes the control characters but leaves U+2028 / U+2029 as they are, and the trace is the
-    // single line the caller below documents.
-    s = singleLine(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
+    s = JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET }));
   } catch {
     return '(unserializable)';
   }
-  return s.length > MAX_PART ? `${cutAtCodeUnits(s, MAX_PART)}(${s.length} code units)` : s;
+
+  // The section is cut to its budget and only then rendered, which is what makes rendering it whole
+  // affordable: `redact` reaches the values but not the keys, and a request chooses a key as freely
+  // as a value. A value is masked a second time this way; the second time can take its surroundings
+  // with it - `0x…` in front of a domain reads as an address - which is the direction to be wrong
+  // in. Masking what is left after the cut is also what keeps the trace one line: `JSON.stringify`
+  // escapes the control characters but leaves U+2028 / U+2029 as they are.
+  const cut = s.length > MAX_PART ? `${cutAtCodeUnits(s, MAX_PART)}(${s.length} code units)` : s;
+
+  return maskLogText(cut);
 }
 
 /**

@@ -33,18 +33,25 @@ export class ApiExceptionFilter implements ExceptionFilter {
     // The response goes out first, and nothing it does not need is read before it. Everything the
     // line renders comes from the request or from the thrower, and reading either can throw - which
     // used to leave the caller with no response at all rather than with a line missing a detail.
-    let failed: Error | undefined;
+    let responseError: unknown;
+    let sent = true;
     try {
       response.status(status.sent).json(this.responseBody(exception, status));
     } catch (e) {
-      failed = e as Error;
+      responseError = e;
+      sent = false;
     }
 
     // The response is out; what follows only describes it, this failure included. A failure to
     // describe it must not travel back to a caller who already has an answer, so it ends here -
     // including a failure of the logger, which is the one thing that could not report it anyway.
     try {
-      if (failed) this.logger.error(`Failed to set error response content:`, failed);
+      if (!sent) {
+        this.logger.error(
+          `Failed to set error response content:`,
+          responseError instanceof Error ? responseError : new Error(String(responseError)),
+        );
+      }
       this.describe(exception, ctx.getRequest<Request>(), status.sent);
     } catch {
       return;
@@ -133,7 +140,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // would then be sent alongside a status it does not name. The body says so itself as well -
       // `new HttpException({ statusCode: 418 }, 400)` names two - so it is only kept when both agree.
       if (exception instanceof HttpException && status.declared === status.sent) {
-        const body = exception.getResponse();
+        // Read once and settled here: what the body answers can change between being checked and
+        // being serialized, and what is sent has to be the thing that was checked.
+        const body = JSON.parse(JSON.stringify(exception.getResponse())) as unknown;
         if (ApiExceptionFilter.names(body, status.sent)) return body;
       }
     } catch {
@@ -143,15 +152,13 @@ export class ApiExceptionFilter implements ExceptionFilter {
     return { statusCode: status.sent, message: ApiExceptionFilter.messageOf(exception, status.sent) };
   }
 
-  // A body that carries no status of its own contradicts nothing. One that carries an accessor is
-  // read again when it is serialized and can answer differently then, so only a plain value counts.
+  // A body that carries no status of its own contradicts nothing.
   private static names(body: unknown, status: number): boolean {
     if (typeof body !== 'object' || body === null) return true;
 
-    const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
-    if (declared && !('value' in declared)) return false;
+    const declared = (body as { statusCode?: unknown }).statusCode;
 
-    return declared === undefined || declared.value === status;
+    return declared === undefined || declared === status;
   }
 
   // Not every status in the range has a name, so the name is a fallback and not the last one.

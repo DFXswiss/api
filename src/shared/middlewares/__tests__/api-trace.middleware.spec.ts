@@ -246,20 +246,40 @@ describe('apiTraceMiddleware', () => {
     expect(lines[0]).toContain('client=realunit-appINFO');
   });
 
-  it('reports an oversized key by length rather than masking all of it', () => {
-    // A key is as free as a value and as long as the body allows, so it gets the same guard: the
-    // masking is regex work, and an oversized one would be paid for in full.
-    const { lines } = runTrace(realunitReq({ ['k'.repeat(600)]: 'x' }), 200, (res) => res.json({}));
+  it('masks a body key, not only the values under it', () => {
+    // `redact` walks the values; a request chooses a key as freely, whether or not it puts anything
+    // inside it.
+    const plain = runTrace(realunitReq({ 'victim@example.com': 'x' }), 200, (res) => res.json({}));
+    expect(plain.lines[0]).not.toContain('victim');
+    expect(plain.lines[0]).toContain('***');
 
-    expect(lines[0]).toContain('600 code units');
-    expect(lines[0]).not.toContain('kkkkkkkkkk');
+    const split = runTrace(realunitReq({ 'victim\u2028@example.com': 'x' }), 200, (res) => res.json({}));
+    expect(split.lines[0]).not.toContain('victim');
+    expect(split.lines[0]).toContain('***');
   });
 
-  it('keeps an inherited name from looking like a collision', () => {
-    const { lines } = runTrace(realunitReq({ constructor: 'a', toString: 'b' }), 200, (res) => res.json({}));
+  it('keeps an oversized key affordable by cutting the section before rendering it', () => {
+    const started = process.hrtime.bigint();
+    const { lines } = runTrace(realunitReq({ ['k'.repeat(2_000_000)]: 'x' }), 200, (res) => res.json({}));
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
 
-    expect(lines[0]).toContain('"constructor":"a"');
-    expect(lines[0]).toContain('"toString":"b"');
+    expect(lines[0]).toContain('code units)');
+    expect(elapsedMs).toBeLessThan(200);
+  });
+
+  it('renders nothing of a segment whose decoding would add a separator', () => {
+    const req = {
+      method: 'GET',
+      originalUrl: '/v1/realunit/user/a%2Fvictim%40example.com',
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 404, (res) => res.send('Not Found'));
+
+    expect(lines[0]).toContain('/v1/realunit/user/***');
+    expect(lines[0]).not.toContain('victim');
+    // the path keeps the shape of the route that was called
+    expect(lines[0].split(' ')[1].split('/')).toHaveLength(5);
   });
 
   it('keeps a path segment as it came when there was nothing to mask in it', () => {
@@ -276,16 +296,17 @@ describe('apiTraceMiddleware', () => {
     expect(lines[0]).toContain('/v1/realunit/order/a%2Fb');
   });
 
-  it('masks a body key, not only the values under it', () => {
-    // `redact` walks the values; the key is as much the request's to choose as the value is - and it
-    // reached the line even without a character placed inside it.
-    const plain = runTrace(realunitReq({ 'victim@example.com': 'x' }), 200, (res) => res.json({}));
-    expect(plain.lines[0]).not.toContain('victim');
-    expect(plain.lines[0]).toContain('***');
+  it('reads the escapes it can when one of them is not a valid sequence', () => {
+    const req = {
+      method: 'GET',
+      originalUrl: '/v1/realunit/user/victim%40example.com%GG',
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 200, (res) => res.send('ok'));
 
-    const split = runTrace(realunitReq({ 'victim\u2028@example.com': 'x' }), 200, (res) => res.json({}));
-    expect(split.lines[0]).not.toContain('victim');
-    expect(split.lines[0]).toContain('***');
+    expect(lines[0]).not.toContain('victim');
+    expect(lines[0]).toContain('***');
   });
 
   it('keeps the trace on one line, including the separators JSON.stringify leaves raw', () => {
