@@ -73,7 +73,11 @@ function collectRejectedValues(errors: ValidationError[], prefix: string, depth:
   for (const error of errors) {
     if (fields.length >= MAX_FIELDS) return false;
 
-    const path = prefix ? `${prefix}.${error.property}` : `${error.property}`;
+    // The field name goes through the same rendering as the value: it is a property of the parsed
+    // body, and a DTO that validates through a client-keyed object would put the client in charge
+    // of it. Today none does, which is what keeps this a precaution rather than a fix.
+    const property = maskLogValue(`${error.property}`, MAX_VALUE_LENGTH);
+    const path = prefix ? `${prefix}.${property}` : property;
     if (error.constraints) fields.push(`${path}=${renderValue(error.property, error.value, error.constraints)}`);
 
     if (error.children?.length) {
@@ -106,8 +110,9 @@ function renderValue(property: string, value: unknown, constraints: Record<strin
 // The value itself is only rendered where the field accepts a closed set of literals. That is the
 // case a log line cannot be read without - one client sending one wrong constant looks exactly
 // like one sending a different one - and which fields are eligible for it follows from what they
-// declare, not from what happened to arrive. What is then rendered is still untrusted input, and
-// stays masked and capped. Every other field keeps its shape and loses its content: a name-based
+// declare, not from what happened to arrive. A string rendered that way is still untrusted input
+// and stays masked and capped; a number or a boolean is already bounded by being one. Every other
+// field keeps its shape and loses its content: a name-based
 // denylist would have to grow with every DTO that ever carries a credential, and the field it has
 // not heard of yet is the one that leaks.
 function hasLiteralDomain(constraints: Record<string, string>): boolean {

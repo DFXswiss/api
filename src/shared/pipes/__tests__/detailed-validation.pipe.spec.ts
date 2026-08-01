@@ -7,7 +7,9 @@ import {
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmptyObject,
   IsOptional,
@@ -51,6 +53,11 @@ class TestDto {
   @IsOptional()
   @IsUrl()
   webhookUrl: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @IsIn([true])
+  confirmed: boolean;
 
   @IsOptional()
   @IsNotEmptyObject()
@@ -149,6 +156,10 @@ describe('describeRejectedValues', () => {
     await expect(rejectionDetail({ method: null })).resolves.toBe('method=(null)');
   });
 
+  it('renders a non-string value of a field that declares its accepted values', async () => {
+    await expect(rejectionDetail({ method: 'Bank', confirmed: false })).resolves.toBe('confirmed=false');
+  });
+
   it('renders a nested failure with its path', async () => {
     await expect(rejectionDetail({ method: 'Bank', nested: { label: 42 } })).resolves.toBe('nested.label=<number>');
   });
@@ -180,6 +191,17 @@ describe('describeRejectedValues', () => {
 
     expect(detail).not.toContain('foo@bar.com');
     expect(detail).toBe("method='***'");
+  });
+
+  it('collapses control characters in the field name too', () => {
+    const error: ValidationError = {
+      property: 'evil\n2026-01-01 WARN forged',
+      value: 'x',
+      constraints: { isEnum: 'nope' },
+      children: [],
+    };
+
+    expect(describeRejectedValues([error])).not.toContain('\n');
   });
 
   it('collapses control characters, so a value cannot forge a second log line', async () => {
