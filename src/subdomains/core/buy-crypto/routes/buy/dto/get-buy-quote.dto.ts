@@ -17,7 +17,7 @@ import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatInDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { XOR } from 'src/shared/validators/xor.validator';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FiatPaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export class GetBuyQuoteDto {
   @ApiProperty({ type: FiatInDto, description: 'Source currency (by ID or name)' })
@@ -49,7 +49,8 @@ export class GetBuyQuoteDto {
   @ApiPropertyOptional({ description: 'Payment method', enum: FiatPaymentMethod })
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
-  @LogRejectedValue()
+  // The crypto members of the union are what a client sends here by mistake.
+  @LogRejectedValue(PaymentMethodSwagger)
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
 
   @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })

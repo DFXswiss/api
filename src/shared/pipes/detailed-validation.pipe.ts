@@ -1,6 +1,6 @@
 import { BadRequestException, ValidationError, ValidationPipe } from '@nestjs/common';
-import { logsRejectedValues } from 'src/shared/decorators/log-rejected-value.decorator';
-import { MAX_STRING, REDACT_KEY, maskLogValue } from 'src/shared/middlewares/api-trace.middleware';
+import { loggableRejectedValues } from 'src/shared/decorators/log-rejected-value.decorator';
+import { REDACT_KEY, maskLogValue } from 'src/shared/middlewares/api-trace.middleware';
 
 // Fields listed per rejection, and the cap per rendered value. Both are small on purpose: this is
 // a diagnostic hint for the log line, not a body dump.
@@ -51,11 +51,10 @@ export class DetailedValidationPipe extends ValidationPipe {
 }
 
 /**
- * Renders what was rejected as `field=value` pairs for a log line. Every value here is untrusted
- * input: the content is only rendered for a field that opted into it (see {@link LogRejectedValue}),
- * a rendered string is then masked by field name (credentials, personal data) and by value pattern
- * (wallet address, email, IP), stripped of control characters and cut to length, and a rendered
- * number or boolean is bounded by being one. Every other field is reduced to its shape, and the
+ * Renders what was rejected as `field=value` pairs for a log line. What arrived is untrusted input
+ * and never reaches the line: a value is rendered only where the field declared the set it may come
+ * from, and what is written is that declared constant. Every other field is reduced to its shape,
+ * the field name is masked and rendered single-line like any other value from the request, and the
  * list itself is bounded in count and depth.
  */
 export function describeRejectedValues(errors: ValidationError[]): string {
@@ -97,26 +96,28 @@ function renderValue(error: ValidationError): string {
   if (value === '') return "''";
 
   if (REDACT_KEY.test(property)) return '***';
-  if (!rendersValue(error)) return summarize(value);
 
-  if (typeof value === 'string') {
-    return value.length > MAX_STRING ? summarize(value) : `'${maskLogValue(value, MAX_VALUE_LENGTH)}'`;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') return `${value}`;
-
-  return summarize(value);
+  const rendered = renderDeclared(error);
+  return rendered ?? summarize(value);
 }
 
-// The value is rendered only where the DTO said so. What a validator accepts says nothing about
-// what a client sends, and a rejected value is by definition outside what was accepted - a field
-// constrained to three payment methods rejects an account number exactly as it rejects a typo. So
-// the eligibility is declared on the field and read from it, and a field that never declared it
-// keeps its shape and loses its content.
+// A value is rendered only if the field declared it (see {@link LogRejectedValue}) - and what is
+// written is the declared constant, not the string that arrived, so nothing the request composed
+// reaches the line even where the two differ in case. Every other value keeps its shape and loses
+// its content, which is what bounds this: what a validator accepts says nothing about what a client
+// sends, and a rejected value is by definition outside what was accepted.
 //
-// Read from the object being validated rather than passed down, so a nested DTO answers for its own
-// fields. No target - a `ValidationError` built without one - renders nothing.
-function rendersValue(error: ValidationError): boolean {
-  return logsRejectedValues(error.target?.constructor).has(error.property);
+// The declaration is read from the object being validated rather than passed down, so a nested DTO
+// answers for its own fields. A `ValidationError` built without a target declares nothing.
+function renderDeclared(error: ValidationError): string | undefined {
+  if (typeof error.value !== 'string' && typeof error.value !== 'number' && typeof error.value !== 'boolean') {
+    return undefined;
+  }
+
+  const declared = loggableRejectedValues(error.target?.constructor, error.property);
+  const match = declared?.get(`${error.value}`.toLowerCase());
+
+  return match && `'${match}'`;
 }
 
 function summarize(value: unknown): string {

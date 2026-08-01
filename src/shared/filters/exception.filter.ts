@@ -52,7 +52,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // All three are untrusted input and rendered as such - single-line, masked and capped. The
       // reason included: an exception message can interpolate a value the request supplied.
       const reason = capCharacters(
-        singleLine(maskValue(this.getReason(exception))),
+        maskValue(singleLine(this.getReason(exception))),
         ApiExceptionFilter.REASON_MAX_LENGTH,
       );
       const rejected =

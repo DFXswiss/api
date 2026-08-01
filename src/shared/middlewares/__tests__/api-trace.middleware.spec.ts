@@ -219,7 +219,7 @@ describe('apiTraceMiddleware', () => {
 
     expect(lines).toHaveLength(1);
     expect(lines[0]).not.toContain('\u0085');
-    expect(lines[0]).toContain('/v1/realunit/account/x INFO');
+    expect(lines[0]).toContain('/v1/realunit/account/xINFO');
   });
 
   it('renders the client header like any other value from the caller', () => {
@@ -229,7 +229,7 @@ describe('apiTraceMiddleware', () => {
 
     expect(lines).toHaveLength(1);
     expect(lines[0]).not.toContain('\u0085');
-    expect(lines[0]).toContain('client=realunit-app INFO');
+    expect(lines[0]).toContain('client=realunit-appINFO');
   });
 
   it('keeps the trace on one line, including the separators JSON.stringify leaves raw', () => {
@@ -240,7 +240,7 @@ describe('apiTraceMiddleware', () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]).not.toContain('\u2028');
     expect(lines[0]).not.toContain('\u2029');
-    expect(lines[0]).toContain('first second third');
+    expect(lines[0]).toContain('firstsecondthird');
   });
 
   it('logs metadata-only for a realunit-app call to a non-realunit path', () => {
@@ -272,11 +272,11 @@ describe('maskLogValue', () => {
     expect(maskLogValue('from 10.0.0.1', 100)).toBe('from ***');
   });
 
-  it('collapses everything that could break the line — newline, ANSI escape, Unicode separators', () => {
-    expect(maskLogValue('a\nb', 100)).toBe('a b');
-    expect(maskLogValue('a\r\nb', 100)).toBe('a  b');
-    expect(maskLogValue('a\u001b[31mb', 100)).toBe('a [31mb');
-    expect(maskLogValue('a\u2028b\u2029c', 100)).toBe('a b c');
+  it('removes everything that could break the line — newline, ANSI escape, Unicode separators', () => {
+    expect(maskLogValue('a\nb', 100)).toBe('ab');
+    expect(maskLogValue('a\r\nb', 100)).toBe('ab');
+    expect(maskLogValue('a\u001b[31mb', 100)).toBe('a[31mb');
+    expect(maskLogValue('a\u2028b\u2029c', 100)).toBe('abc');
   });
 
   it('caps the value and marks the cut', () => {
@@ -303,18 +303,12 @@ describe('maskLogValue', () => {
     expect(maskLogValue('\u{1F600}'.repeat(257), 96)).toBe('<514 code units>');
   });
 
-  it('masks before collapsing, so a control character inside a pattern cannot break it apart', () => {
-    expect(maskLogValue('victim\u0001@example.com', 96)).toBe('***');
-    expect(maskLogValue('victim\u0085@example.com', 96)).toBe('***');
-  });
-
-  it('masks the whole value when a control character is what hides the pattern', () => {
-    // The collapse would put the halves back next to each other, so the value is masked whole
-    // rather than rendered with the pattern split across a space.
-    expect(maskLogValue('0x1234567890abcdef1234\u0000567890abcdef12345678', 96)).toBe('***');
+  it('masks a pattern that a control character was placed inside', () => {
+    // Removing the character rather than replacing it puts the pattern back together, so the
+    // masking sees it as the value it is.
+    expect(maskLogValue('0x1234567890abcdef1234\u0000567890abcdef12345678', 96)).toBe('0x…');
     expect(maskLogValue('192.0\u2028.2.123', 96)).toBe('***');
-    // a value that carries a control character but no pattern is only collapsed
-    expect(maskLogValue('realunit-app\u0085x', 96)).toBe('realunit-app x');
+    expect(maskLogValue('victim\u0001@example.com', 96)).toBe('***');
   });
 
   it('masks before cutting, so a truncated email cannot slip through', () => {

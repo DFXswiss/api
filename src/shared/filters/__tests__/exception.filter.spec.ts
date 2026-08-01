@@ -110,7 +110,7 @@ describe('ApiExceptionFilter', () => {
 
     const msg = warn.mock.calls[0][0] as string;
     expect(msg).not.toContain('\n');
-    expect(msg).toContain('abc WARN');
+    expect(msg).toContain('abcWARN');
   });
 
   it('caps a reason as large as the body it came from, and still masks up to the cap', () => {
@@ -208,7 +208,7 @@ describe('ApiExceptionFilter', () => {
 
   it('appends the rejected values of a failed validation — the message alone names only the field', () => {
     class PaymentDto {
-      @LogRejectedValue()
+      @LogRejectedValue(['Bank', 'Instant', 'Card', 'Crypto'])
       paymentMethod: string;
     }
 

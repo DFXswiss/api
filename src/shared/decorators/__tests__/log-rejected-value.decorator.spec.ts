@@ -1,45 +1,58 @@
-import { LogRejectedValue, logsRejectedValues } from 'src/shared/decorators/log-rejected-value.decorator';
+import { LogRejectedValue, loggableRejectedValues } from 'src/shared/decorators/log-rejected-value.decorator';
 
-class Marked {
-  @LogRejectedValue()
-  method: string;
+enum Mode {
+  FAST = 'Fast',
+  SLOW = 'Slow',
+}
 
-  @LogRejectedValue()
+class Declaring {
+  @LogRejectedValue(Mode)
   mode: string;
+
+  @LogRejectedValue(['Bank', 'Crypto'])
+  method: string;
 
   free: string;
 }
 
-class Unmarked {
-  method: string;
+class Silent {
+  mode: string;
 }
 
-class Inheriting extends Marked {
-  @LogRejectedValue()
+class Extending extends Declaring {
+  @LogRejectedValue([1, 2, true])
   own: string;
 }
 
 describe('LogRejectedValue', () => {
-  it('collects every marked property of a class', () => {
-    expect([...logsRejectedValues(Marked)].sort()).toEqual(['method', 'mode']);
+  it('takes the values of an enum object', () => {
+    expect([...(loggableRejectedValues(Declaring, 'mode') ?? [])]).toEqual([
+      ['fast', 'Fast'],
+      ['slow', 'Slow'],
+    ]);
   });
 
-  it('leaves an unmarked property out', () => {
-    expect(logsRejectedValues(Marked).has('free')).toBe(false);
+  it('takes a plain list, including numbers and booleans', () => {
+    expect([...(loggableRejectedValues(Extending, 'own') ?? [])]).toEqual([
+      ['1', '1'],
+      ['2', '2'],
+      ['true', 'true'],
+    ]);
   });
 
-  it('reports nothing for a class that marks nothing', () => {
-    expect(logsRejectedValues(Unmarked).size).toBe(0);
+  it('reports nothing for a property that declared nothing', () => {
+    expect(loggableRejectedValues(Declaring, 'free')).toBeUndefined();
+    expect(loggableRejectedValues(Silent, 'mode')).toBeUndefined();
   });
 
   it('reports nothing for anything that is not a class', () => {
-    expect(logsRejectedValues(undefined).size).toBe(0);
-    expect(logsRejectedValues({ method: 1 }).size).toBe(0);
-    expect(logsRejectedValues('Marked').size).toBe(0);
+    expect(loggableRejectedValues(undefined, 'mode')).toBeUndefined();
+    expect(loggableRejectedValues({ mode: 1 }, 'mode')).toBeUndefined();
+    expect(loggableRejectedValues('Declaring', 'mode')).toBeUndefined();
   });
 
-  it('inherits what a parent marked without a subclass reaching back into it', () => {
-    expect([...logsRejectedValues(Inheriting)].sort()).toEqual(['method', 'mode', 'own']);
-    expect([...logsRejectedValues(Marked)].sort()).toEqual(['method', 'mode']);
+  it('inherits what a parent declared without a subclass reaching back into it', () => {
+    expect(loggableRejectedValues(Extending, 'mode')?.get('fast')).toBe('Fast');
+    expect(loggableRejectedValues(Declaring, 'own')).toBeUndefined();
   });
 });

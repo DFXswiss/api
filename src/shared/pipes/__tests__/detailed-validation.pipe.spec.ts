@@ -37,7 +37,7 @@ class NestedDto {
 
 class TestDto {
   @IsEnum(TestMethod)
-  @LogRejectedValue()
+  @LogRejectedValue([...Object.values(TestMethod), 'Crypto'])
   method: TestMethod;
 
   @IsOptional()
@@ -59,7 +59,7 @@ class TestDto {
   @IsOptional()
   @IsBoolean()
   @IsIn([true])
-  @LogRejectedValue()
+  @LogRejectedValue([true, false])
   confirmed: boolean;
 
   @IsOptional()
@@ -159,8 +159,8 @@ describe('describeRejectedValues', () => {
     await expect(rejectionDetail({ method: null })).resolves.toBe('method=(null)');
   });
 
-  it('renders a non-string value of a field that opted in', async () => {
-    await expect(rejectionDetail({ method: 'Bank', confirmed: false })).resolves.toBe('confirmed=false');
+  it('renders a declared non-string value', async () => {
+    await expect(rejectionDetail({ method: 'Bank', confirmed: false })).resolves.toBe("confirmed='false'");
   });
 
   it('renders a nested failure with its path', async () => {
@@ -189,11 +189,11 @@ describe('describeRejectedValues', () => {
     expect(detail).toBe('iban=***');
   });
 
-  it('masks personal data inside a rendered value', async () => {
+  it('renders nothing for a value the field never declared, personal or not', async () => {
     const detail = await rejectionDetail({ method: 'foo@bar.com' });
 
     expect(detail).not.toContain('foo@bar.com');
-    expect(detail).toBe("method='***'");
+    expect(detail).toBe('method=<string(11)>');
   });
 
   it('collapses control characters in the field name too', () => {
@@ -208,29 +208,31 @@ describe('describeRejectedValues', () => {
     expect(describeRejectedValues([error])).not.toContain('\n');
   });
 
-  it('collapses control characters, so a value cannot forge a second log line', async () => {
-    const detail = await rejectionDetail({ method: 'Bank\n2026-01-01 WARN forged' });
+  it('renders nothing for a declared value a control character was appended to', async () => {
+    const detail = await rejectionDetail({ method: 'Crypto\n2026-01-01 WARN forged' });
 
     expect(detail).not.toContain('\n');
-    expect(detail).toContain('forged');
+    expect(detail).not.toContain('forged');
+    expect(detail).toBe('method=<string(29)>');
   });
 
-  it('caps a long value and summarizes an oversized one by length', async () => {
-    const capped = await rejectionDetail({ method: 'x'.repeat(100) });
-    expect(capped).toContain('…');
-    expect(capped.length).toBeLessThan(100);
-
-    const oversized = await rejectionDetail({ method: 'x'.repeat(600) });
-    expect(oversized).toBe('method=<string(600)>');
+  it('summarizes a long value by length instead of rendering any of it', async () => {
+    await expect(rejectionDetail({ method: 'x'.repeat(100) })).resolves.toBe('method=<string(100)>');
+    await expect(rejectionDetail({ method: 'x'.repeat(600) })).resolves.toBe('method=<string(600)>');
   });
 
-  it('keeps an account number a client put in an opted-in field out of the log', async () => {
-    // What a validator accepts does not bound what a client sends: an enum field rejects an account
-    // number as readily as a typo. The opt-in says the value may be shown, so what protects the
-    // account number is the masking - and where that cannot see it, the shape is all that is left.
+  it('keeps an account number a client put in a declaring field out of the log', async () => {
+    // What a validator accepts does not bound what a client sends: a field taking three payment
+    // methods rejects an account number as readily as a typo. Only a declared value is rendered,
+    // so what arrives outside the declaration never reaches the line.
     const detail = await rejectionDetail({ method: 'CH9300762011623852957' });
 
-    expect(detail).toBe("method='CH9300762011623852957'");
+    expect(detail).toBe('method=<string(21)>');
+  });
+
+  it('renders the declared constant, not the string that arrived', async () => {
+    // Same constant, different case: what is written comes from the declaration either way.
+    await expect(rejectionDetail({ method: 'crypto' })).resolves.toBe("method='Crypto'");
   });
 
   it('renders nothing for an error without a target', () => {
@@ -238,6 +240,10 @@ describe('describeRejectedValues', () => {
     const error: ValidationError = { property: 'method', value: 'Crypto', constraints: { isEnum: 'x' }, children: [] };
 
     expect(describeRejectedValues([error])).toBe('method=<string(6)>');
+  });
+
+  it('renders nothing for a field whose declaration does not hold the value', async () => {
+    await expect(rejectionDetail({ method: 'Bank', confirmed: 'yes' })).resolves.toBe('confirmed=<string(3)>');
   });
 
   it('summarizes structured values instead of dumping the body', async () => {

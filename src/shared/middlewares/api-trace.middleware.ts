@@ -37,7 +37,7 @@ export function maskValue(s: string): string {
 export function maskUrl(url: string): string {
   // The request target is client-supplied and reaches a log line: what is left of it after the
   // query is dropped is rendered like any other value from the request.
-  return singleLine(maskValue(url.split('?')[0]));
+  return maskValue(singleLine(url.split('?')[0]));
 }
 
 // Everything that can break a line or move a cursor in a log viewer: the control characters
@@ -46,12 +46,14 @@ export function maskUrl(url: string): string {
 const LINE_BREAKING = /[\p{C}\u2028\u2029]/gu;
 
 /**
- * Collapses everything that could break a log line into spaces, so a crafted value cannot forge a
- * second line or smuggle an ANSI escape into the console stream. Every free-form value this file
- * renders into a log line goes through it.
+ * Removes everything that could break a log line, so a crafted value cannot forge a second line or
+ * smuggle an ANSI escape into the console stream. Every free-form value this file renders into a
+ * log line goes through it, and always before the masking: removed rather than replaced, because a
+ * character put inside a pattern would otherwise leave the pattern split around whatever replaced
+ * it, and the masking would no longer recognize it.
  */
 export function singleLine(value: string): string {
-  return value.replace(LINE_BREAKING, ' ');
+  return value.replace(LINE_BREAKING, '');
 }
 
 /**
@@ -101,14 +103,7 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
 export function maskLogValue(value: string, maxLength: number): string {
   if (value.length > MAX_STRING) return `<${value.length} code units>`;
 
-  // A control character placed inside a pattern splits it, so the pattern no longer matches - and a
-  // log line shows the halves next to each other anyway, because the next step turns that character
-  // into a space. A value that only looks clean with them removed is masked whole: this is one
-  // value rather than a sentence, so masking more of it than the pattern costs nothing.
-  const withoutControls = value.replace(LINE_BREAKING, '');
-  if (withoutControls !== value && maskValue(withoutControls) !== withoutControls) return REDACTED;
-
-  return capCharacters(singleLine(maskValue(value)), maxLength);
+  return capCharacters(maskValue(singleLine(value)), maxLength);
 }
 
 // `budget` bounds the total work per section: each processed node deducts from
@@ -136,7 +131,7 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
   if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
   if (typeof value === 'string') {
     budget.left -= Math.min(value.length, MAX_STRING);
-    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskValue(value);
+    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskValue(singleLine(value));
   }
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};

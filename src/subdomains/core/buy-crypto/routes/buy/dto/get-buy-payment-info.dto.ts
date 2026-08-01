@@ -20,7 +20,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FiatPaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { PersonalIbanProvider } from './personal-iban-provider.enum';
 
@@ -62,7 +62,8 @@ export class GetBuyPaymentInfoDto {
 
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
-  @LogRejectedValue()
+  // The crypto members of the union are what a client sends here by mistake.
+  @LogRejectedValue(PaymentMethodSwagger)
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
 
   @ApiPropertyOptional({
@@ -71,7 +72,6 @@ export class GetBuyPaymentInfoDto {
   })
   @IsOptional()
   @IsEnum(PersonalIbanProvider, { message: QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED })
-  @LogRejectedValue()
   personalIbanProvider?: PersonalIbanProvider;
 
   @ApiPropertyOptional({ description: 'Custom transaction id' })
