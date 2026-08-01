@@ -28,6 +28,11 @@ RUN echo "$GIT_COMMIT" > dist/version.txt
 
 FROM node:20-alpine
 
+# Process must run in UTC. Columns such as `created` are `timestamp without time
+# zone`; the Postgres driver serializes JS Date in the process-local wall-clock
+# and Postgres drops the offset — non-UTC shifts stored values and day buckets.
+ENV TZ=UTC
+
 # tini as PID 1: forwards SIGTERM to node so stops behave exactly as they did
 # under npm (immediate exit), without npm's 5-line error block on every stop.
 # Bare node as PID 1 would IGNORE SIGTERM (no handler + PID-1 semantics) and

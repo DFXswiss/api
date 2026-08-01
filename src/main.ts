@@ -18,6 +18,7 @@ import { join } from 'path';
 import { getVerifiedIp } from './shared/utils/ip.util';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
+import { assertUtcProcessTimezone } from './process-timezone';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
 import { apiTraceMiddleware, maskUrl } from './shared/middlewares/api-trace.middleware';
 import { DetailedValidationPipe } from './shared/pipes/detailed-validation.pipe';
@@ -46,6 +47,12 @@ process.on('uncaughtException', (error) => {
 });
 
 async function bootstrap() {
+  // Fail-closed in deployed envs when the process is not UTC (see process-timezone.ts
+  // and Dockerfile ENV TZ=UTC). Must run before NestFactory.create — TypeORM
+  // connects during app creation. Uses GetConfig() inside the check (Config
+  // singleton is only set after ConfigService constructs).
+  assertUtcProcessTimezone();
+
   // Observability is initialized in src/tracing.ts (imported above): the
   // OpenTelemetry SDK auto-instruments HTTP/DB/NestJS and exports traces via
   // OTLP. 4xx-not-a-failure is handled there in the HTTP response hook.
