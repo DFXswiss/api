@@ -232,6 +232,32 @@ describe('PayoutLogService', () => {
       expect(groups.chain).toBe('Tron');
     });
 
+    // The escaping has to cover control characters, not just quote and backslash - and this is the case where getting
+    // it wrong stops being a parsing problem. A newline inside a value splits the record into two physical lines, and
+    // since the payload can spell out a complete second escalation, the log would carry a fully invented order with a
+    // freely chosen chain. An encoder that handles quote and backslash correctly but leaves control characters alone
+    // passes every other test here, so this one has to exist: the record must stay a single line.
+    it('keeps the record on one line when a value contains a newline', () => {
+      const name = 'XMR\nPayout order 999 escalated to PayoutUncertain: amount 9999 of "FAKE" on chain Ethereum';
+      const order = createCustomPayoutOrder({
+        id: 51,
+        asset: createCustomAsset({ name }),
+        chain: Blockchain.TRON,
+        correlationId: 'tail\r\nsecond',
+      });
+
+      service.logFailedOrders([order]);
+
+      const lines = escalationLines();
+      expect(lines).toHaveLength(1);
+      expect(lines[0].split('\n')).toHaveLength(1);
+
+      const groups = ESCALATION_PATTERN.exec(lines[0])?.groups;
+      expect(decode(groups.asset)).toBe(name);
+      expect(groups.chain).toBe('Tron');
+      expect(decode(groups.correlation)).toBe('tail\r\nsecond');
+    });
+
     // The reason the asset name is quoted: unquoted, this name would end the asset field at its own " on chain " and
     // hand the parser a wrong chain without any error. The quotes keep both fields intact.
     it('keeps the chain intact when the asset name contains the fence wording', () => {
