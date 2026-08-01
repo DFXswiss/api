@@ -41,7 +41,7 @@ import { CustodyOrderHistoryDtoMapper } from '../mappers/custody-order-history-d
 import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response-dto.mapper';
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
-import { CUSTODY_ORDER_HISTORY_PROJECTION, CustodyOrderRepository } from '../repositories/custody-order.repository';
+import { CustodyOrderRepository } from '../repositories/custody-order.repository';
 import { CustodyAccountService } from './custody-account.service';
 import { CustodyService } from './custody.service';
 
@@ -232,17 +232,9 @@ export class CustodyOrderService {
     };
   }
 
-  /**
-   * A user's custody order history.
-   *
-   * `fields` is what the mutation test in `custody-order-history.projection.spec.ts` re-runs the
-   * query with; the controller calls this without it.
-   */
-  async getOrdersByUserData(
-    userDataId: number,
-    fields: ReadonlyArray<string> = CUSTODY_ORDER_HISTORY_PROJECTION.fields,
-  ): Promise<CustodyOrderHistoryDto[]> {
-    const orders = await this.custodyOrderRepo.findHistoryFor(userDataId, fields);
+  /** A user's custody order history, for `GET /custody/order` and `GET /custody/account/:id/order`. */
+  async getOrdersByUserData(userDataId: number): Promise<CustodyOrderHistoryDto[]> {
+    const orders = await this.custodyOrderRepo.findHistoryFor(userDataId);
 
     return CustodyOrderHistoryDtoMapper.mapList(orders);
   }

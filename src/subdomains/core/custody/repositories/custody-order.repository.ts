@@ -49,7 +49,9 @@ export class CustodyOrderRepository extends BaseRepository<CustodyOrder> {
    * The custody orders of an account, newest first, capped at a hundred.
    *
    * `fields` is what the mutation test in `custody-order-history.projection.spec.ts` re-runs the
-   * query with; `CustodyOrderService.getUserCustodyOrders` calls this without it.
+   * query with; `CustodyOrderService.getOrdersByUserData` calls this without it. That method serves
+   * two endpoints — `GET /custody/order` and `GET /custody/account/:id/order` — so both answer out
+   * of this projection, and the second one is wider only because its access check loads elsewhere.
    */
   async findHistoryFor(
     userDataId: number,
