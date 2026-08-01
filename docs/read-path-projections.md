@@ -30,7 +30,7 @@ This service loads far more data than it returns. Measured against the real enti
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
   `transaction_request`) broke every invoice and receipt in production until it was fixed.
-- Of the 533 endpoints, **432 reach at least one load site that fetches whole rows**; 97 read
+- Of the 534 endpoints, **432 reach at least one load site that fetches whole rows**; 98 read
   nothing at all, and **2 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
