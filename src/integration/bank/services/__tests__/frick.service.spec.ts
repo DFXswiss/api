@@ -1780,6 +1780,36 @@ describe('BankFrickService', () => {
       );
       await expect(rejected).rejects.not.toBeInstanceOf(FrickVibanNotCreatedError);
     });
+
+    it.each([
+      [503, 'HTTP 503'],
+      [200, 'HTTP 200'],
+    ])(
+      'carries the status of an unsigned %s response all the way into the reported message',
+      async (status, expectedStatus) => {
+        // The upstream-outage case, end to end through the real HttpService: an error page carries no
+        // signature headers at all. Body and headers are identical whether the gateway answered 503 or
+        // the API answered 200, so only the status separates "their outage" from "our key/config" -
+        // and it is exactly the value the verifier's error would otherwise discard.
+        const unsignedBody = Buffer.from('<html><body>gateway error</body></html>');
+        const transportResponse = { data: unsignedBody, headers: {}, status };
+
+        nestHttp.request.mockReturnValueOnce(of(signedAuthorizeTransportResponse())).mockReturnValueOnce(
+          status >= 400
+            ? throwError(() =>
+                Object.assign(new Error(`Request failed with status code ${status}`), {
+                  response: transportResponse,
+                  isAxiosError: true,
+                }),
+              )
+            : of(transportResponse),
+        );
+
+        await expect(frickWithRealHttp.createViban(debtorIban, 'dfx-viban-e2e-real-http')).rejects.toThrow(
+          `Bank Frick response signature verification failed (POST virtual-ibans): Invalid Bank Frick response signature headers (${expectedStatus}, signature missing, algorithm missing)`,
+        );
+      },
+    );
   });
 
   function virtualIbanResponse(
