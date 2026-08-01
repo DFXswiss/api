@@ -1,7 +1,7 @@
 # Read-path projections
 
-Why the endpoint inventory carries a `Load` column, what we intend to do about it, and how the
-result is to be tested.
+What the load-site inventory shows, what we intend to do about it, and how the result is to be
+tested.
 
 ## The problem
 
@@ -43,10 +43,14 @@ history and exports — which need fields, not objects.
 | **Write path** | An endpoint that persists a loaded entity — it needs the complete object. |
 | **Read model** | A separate model optimised for reading. Introducing projections for read paths is a small step towards one. |
 
-Note that eager relations apply to the `find*` family, **not** to `createQueryBuilder` with an
-explicit field list, and not to raw SQL. That is the entire basis of the `Load` column in
-[endpoints.md](endpoints.md): it records which mechanism an endpoint's load path uses —
-`eager`, `projected`, or `none` for no database access at all.
+Note that eager relations apply to the `find*` family, **not** to `createQueryBuilder` and not to
+raw SQL. [load-sites.md](load-sites.md) records that mechanism for each of the 1114 load sites,
+together with the measured column count.
+
+Deliberately **not** recorded per endpoint: an endpoint reaches several load sites — a permission
+check, a lookup, the actual query — so a single value per endpoint would have to take the maximum
+over all of them and would then call an endpoint "eager" whose actual data path is raw SQL. The
+load site is the level at which the statement is unambiguous.
 
 ## What we intend to change
 
@@ -104,13 +108,13 @@ described above proves it — a wrong value can run for weeks.
 
 ### Which endpoints these apply to
 
-Exactly one group: the endpoints marked `projected` in [endpoints.md](endpoints.md) — currently 27.
-They already select an explicit field list, and a forgotten field there silently yields an empty
-value.
+To any load site that carries an explicit field list — that is where a forgotten field silently
+yields an empty value.
 
-They do not apply to endpoints marked `none`, which touch no database and have no field list that
-could be incomplete. And not yet to those marked `eager`: those load everything anyway, so nothing
-can be missing. Each becomes subject to these tests the moment it is converted.
+Today that is **exactly one site** in the whole repository (`log.repository.ts:699`). Every other
+query builder either selects only the root alias or nothing at all, and therefore still loads every
+column; nothing can be missing from them. Each site becomes subject to these tests the moment it is
+given a field list.
 
 ### How they run
 

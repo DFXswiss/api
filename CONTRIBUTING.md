@@ -516,24 +516,20 @@ export class SupportIssueController {
 
 [docs/endpoints.md](docs/endpoints.md) lists every route this service exposes. **Any change to the set of routes must be reflected there in the same PR** — adding, removing, renaming or re-scoping an endpoint, and equally a change to a `@Controller` base path, which moves every route beneath it.
 
-Fill in the `Swagger` and `Load` columns; `Cols`, `Fields` and `Ratio` are measured, not hand-written.
-
-The `Load` column follows a mechanical rule — eager relations apply to the `find*` family, not to `createQueryBuilder` with an explicit field list or to raw SQL:
-
-- the handler reaches a `find` / `findOne` / `findBy` / `findOneBy` on a repository → `eager`
-- it loads only through `createQueryBuilder(...).select([...])` or `dataSource.query(...)` → `projected`
-- it touches no database at all → `none`
-
-The distinction between `projected` and `none` matters: a `projected` endpoint carries an explicit field list that can be incomplete, and is therefore subject to the tests in [docs/read-path-projections.md](docs/read-path-projections.md). A `none` endpoint has no field list to get wrong.
-
-This matters because eager relations expand recursively: a plain `findOne()` on `UserData` already selects 253 columns across 8 joins before any `relations` option is added. [docs/read-path-projections.md](docs/read-path-projections.md) explains the background and how converted read paths are tested.
-
 Two details are easy to get wrong when editing the list by hand:
 
 - a file may declare more than one `@Controller` class, and a route belongs to the scope that **precedes** it, not to the first one in the file — `custody.controller.ts` declares both `custody` and `custody/admin`
 - `@Controller()` without an argument puts its routes at the root, not under a prefix
 
 To verify a change, compare against the routes the framework logs at startup: every `Mapped {<path>, <METHOD>}` line is one registered route. If a route you added does not appear there, it is not reachable — two routing decorators on the same handler, for instance, keep only one path.
+
+[docs/load-sites.md](docs/load-sites.md) is the companion inventory: every place in the code that reads from the database, with the mechanism and the measured column count. It is generated, not hand-maintained, but the rule it documents is worth knowing before writing a query:
+
+- the `find` family applies eager relations and expands them recursively — a plain `findOne()` on `UserData` already selects 253 columns across 8 joins
+- `createQueryBuilder` does not, but still loads every column of the root entity unless `.select([...])` narrows it
+- `.select('alias')` is **not** a projection — the argument is the entity alias, not a field list
+
+See [docs/read-path-projections.md](docs/read-path-projections.md) for what follows from that.
 
 ### Cron Jobs
 
