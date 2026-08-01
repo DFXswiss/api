@@ -213,6 +213,25 @@ describe('PayoutLogService', () => {
       expect(decode(groups.correlation)).toBe('bar\\" on chain FAKE');
     });
 
+    // Backslash PARITY, and one backslash is not enough to pin it: an encoder that doubles only the first backslash
+    // of a value (a `replace` without the global flag - an entirely ordinary mistake) passes every other test here,
+    // while leaving the line forgeable. With two backslashes ahead of an embedded quote, that encoder emits an odd
+    // number of them, the quote reads as unescaped, and the chain comes back as `Ethereum" on chain Tron`.
+    it('handles an even run of backslashes before an embedded quote', () => {
+      const name = 'Foo\\\\" on chain Ethereum';
+      const order = createCustomPayoutOrder({
+        id: 50,
+        asset: createCustomAsset({ name }),
+        chain: Blockchain.TRON,
+      });
+
+      service.logFailedOrders([order]);
+
+      const groups = ESCALATION_PATTERN.exec(escalationLines()[0])?.groups;
+      expect(decode(groups.asset)).toBe(name);
+      expect(groups.chain).toBe('Tron');
+    });
+
     // The reason the asset name is quoted: unquoted, this name would end the asset field at its own " on chain " and
     // hand the parser a wrong chain without any error. The quotes keep both fields intact.
     it('keeps the chain intact when the asset name contains the fence wording', () => {
