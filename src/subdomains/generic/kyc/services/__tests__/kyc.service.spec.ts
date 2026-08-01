@@ -798,7 +798,7 @@ describe('KycService checkDfxApproval step promotion', () => {
 });
 
 // A flow that writes personal data outside the step machinery (RealUnit registration) leaves the
-// PERSONAL_DATA step IN_PROGRESS: createStep's auto-completion is gated on `!preventDirectEvaluation`,
+// PERSONAL_DATA step IN_PROGRESS: initiateStep's auto-completion is gated on `!preventDirectEvaluation`,
 // which any prior step row sets, so an account that once abandoned the step could never satisfy it again
 // and KycInfoMapper kept handing that stale step back as `currentStep`.
 describe('KycService completeSatisfiedPersonalDataStep', () => {
@@ -807,12 +807,12 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
   let userDataService: jest.Mocked<UserDataService>;
 
   const personalStep = (status: ReviewStatus): KycStep =>
-    Object.assign(new KycStep(), { id: 72202, name: KycStepName.PERSONAL_DATA, status });
+    Object.assign(new KycStep(), { id: 2, name: KycStepName.PERSONAL_DATA, status });
 
   // Every field in `requiredKycFields` for a personal account, so `isDataComplete` is true.
   const completeUser = (kycSteps: KycStep[], overrides: Partial<UserData> = {}): UserData =>
     createCustomUserData({
-      id: 315486,
+      id: 1,
       accountType: AccountType.PERSONAL,
       mail: 'test@test.com',
       phone: '+41790000000',
@@ -846,7 +846,7 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
     const step = personalStep(ReviewStatus.IN_PROGRESS);
     await run(completeUser([step]));
 
-    expect(userDataService.getUserData).toHaveBeenCalledWith(315486, { kycSteps: true });
+    expect(userDataService.getUserData).toHaveBeenCalledWith(1, { kycSteps: true });
     expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
     expect(step.status).toBe(ReviewStatus.COMPLETED);
     expect(step.getResult()).toMatchObject({ firstname: 'Erika', surname: 'Mueller', zip: '8001' });
@@ -861,6 +861,20 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
 
     expect(kycStepRepo.update).not.toHaveBeenCalled();
     expect(step.status).toBe(ReviewStatus.FAILED);
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
+  });
+
+  // When Sumsub reports PROBLEMATIC_APPLICANT_DATA, restartStep FAILS the completed step and opens a fresh
+  // IN_PROGRESS one so the user can correct data that is present but wrong. isDataComplete is a non-null
+  // check and cannot see that, so without the failed-step guard the retry would be auto-completed with the
+  // same rejected data and the user stranded on IDENT instead of the correction step.
+  it('leaves a step re-opened by a rejection alone (FAILED + fresh IN_PROGRESS chain)', async () => {
+    const failed = personalStep(ReviewStatus.FAILED);
+    const reopened = personalStep(ReviewStatus.IN_PROGRESS);
+    await run(completeUser([failed, reopened]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(reopened.status).toBe(ReviewStatus.IN_PROGRESS);
     expect((service as any).updateProgress).not.toHaveBeenCalled();
   });
 

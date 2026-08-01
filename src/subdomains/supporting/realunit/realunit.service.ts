@@ -1730,8 +1730,13 @@ export class RealUnitService {
   }
 
   // The KYC state a durably COMPLETED registration implies. Called from every point that concludes the
-  // registration is in place, including the idempotent retry paths — which is what lets an account stuck
-  // before this fix repair itself the next time it registers.
+  // registration is in place, including the idempotent retry paths.
+  //
+  // Scope: this reconciles registrations as they happen, so it prevents the wedge rather than curing it. An
+  // account that is ALREADY wedged does not come back through here on its own — for a wallet with a COMPLETED
+  // registration `getRegistrationInfo` answers AlreadyRegistered, and the client then goes straight to the KYC
+  // step flow without re-posting register/complete. Such an account is only reached if it registers a further
+  // wallet. The pre-existing backlog is handled out of band.
   private async ensureRegistrationKycState(userData: UserData): Promise<void> {
     await this.ensureRegistrationKycLevel(userData);
     await this.ensureRegistrationPersonalDataStep(userData);

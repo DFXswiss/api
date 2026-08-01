@@ -288,7 +288,7 @@ describe('RealUnitService', () => {
             getUserByAddress: jest.fn(),
           },
         },
-        { provide: KycService, useValue: {} },
+        { provide: KycService, useValue: { completeSatisfiedPersonalDataStep: jest.fn() } },
         { provide: CountryService, useValue: { getCountryWithSymbol: jest.fn() } },
         { provide: LanguageService, useValue: { getLanguageBySymbol: jest.fn() } },
         { provide: HttpService, useValue: { post: jest.fn(), getRaw: jest.fn() } },
@@ -3054,6 +3054,21 @@ describe('RealUnitService', () => {
     // REGRESSION GUARD: a legacy software wallet that signed the raw UTF-8 fields
     // (still accepted by verifyRealUnitRegistrationSignature) must keep working —
     // the forward must stay UTF-8, not be transliterated, or Aktionariat rejects it.
+    // Pins the forwardRegistration call site: the pre-existing spies target ensureRegistrationKycLevel,
+    // which ensureRegistrationKycState still calls transitively, so reverting the call site would otherwise
+    // keep the suite green and silently undo the fix.
+    it('reconciles the PersonalData step after a completed forward', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      expect((service as any).kycService.completeSatisfiedPersonalDataStep).toHaveBeenCalled();
+    });
+
     it('forwards the raw UTF-8 fields unchanged when the wallet signed UTF-8 (legacy app)', async () => {
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
@@ -3730,7 +3745,7 @@ describe('RealUnitService', () => {
       // the COMPLETED persist already committed, so a failed lift must not fail the registration
       expect(ok).toBe(true);
       expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
-      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('will self-heal on retry'));
+      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to lift KYC level'));
     });
 
     it('keeps the registration when the KYC lift rejects without a message', async () => {
@@ -3780,7 +3795,7 @@ describe('RealUnitService', () => {
       (service as any).kycService.completeSatisfiedPersonalDataStep = completeStep;
       const updateUserDataInternal = jest.fn();
       (service as any).userDataService.updateUserDataInternal = updateUserDataInternal;
-      const userData = { id: 315486, kycLevel: KycLevel.LEVEL_20 } as any;
+      const userData = { id: 1, kycLevel: KycLevel.LEVEL_20 } as any;
 
       await (service as any).ensureRegistrationKycState(userData);
 
@@ -3790,11 +3805,23 @@ describe('RealUnitService', () => {
       expect(completeStep).toHaveBeenCalledWith(userData);
     });
 
+    // Pins the idempotent call site. The pre-existing spies target ensureRegistrationKycLevel, which
+    // ensureRegistrationKycState still calls transitively, so reverting the call sites would otherwise keep
+    // the suite green and silently undo the fix. The forwardRegistration site is pinned in its own describe.
+    it('is reached from idempotentRegistrationResult on a COMPLETED registration', async () => {
+      const userData = { id: 1, kycLevel: KycLevel.LEVEL_20 } as any;
+      const registration = { id: 2, signature: '0xsig', status: ReviewStatus.COMPLETED } as any;
+
+      await (service as any).idempotentRegistrationResult(userData, registration, '0xsig');
+
+      expect((service as any).kycService.completeSatisfiedPersonalDataStep).toHaveBeenCalledWith(userData);
+    });
+
     it('is best-effort: a step-reconciliation failure never breaks a durable registration', async () => {
       (service as any).kycService.completeSatisfiedPersonalDataStep = jest
         .fn()
         .mockRejectedValue(new Error('step repo down'));
-      const userData = { id: 315486, kycLevel: KycLevel.LEVEL_20 } as any;
+      const userData = { id: 1, kycLevel: KycLevel.LEVEL_20 } as any;
 
       await expect((service as any).ensureRegistrationKycState(userData)).resolves.toBeUndefined();
       expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('step repo down'));

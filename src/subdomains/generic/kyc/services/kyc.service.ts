@@ -647,24 +647,30 @@ export class KycService {
   /**
    * Closes a PERSONAL_DATA step whose data the account already carries, for flows that write personal data
    * outside the KYC step machinery (RealUnit registration). Without this the step stays IN_PROGRESS forever:
-   * the auto-completion in `createStep` is gated on `!preventDirectEvaluation`, which any prior step row sets,
+   * the auto-completion in `initiateStep` is gated on `!preventDirectEvaluation`, which any prior step row sets,
    * so an account that once abandoned the step can never satisfy it again — and `KycInfoMapper` keeps handing
    * that stale step back as `currentStep`.
    *
-   * Deliberately narrow: only a PENDING (IN_PROGRESS) step is closed, never a FAILED one. `preventDirectEvaluation`
-   * exists so a retry does not paper over a prior rejection, and that intent is preserved here — a failed step
-   * stays failed and keeps going through the normal flow.
+   * Only ever closes a step that was abandoned, never one that was RE-OPENED. `isDataComplete` is a non-null
+   * check, not a validity check, so it cannot tell the two apart on its own: when Sumsub reports
+   * PROBLEMATIC_APPLICANT_DATA, `restartStep` FAILS the completed step and opens a fresh IN_PROGRESS one so the
+   * user can correct data that is present but wrong. Auto-completing that retry with the same unchanged data
+   * would skip the correction step and strand the user on IDENT instead. The rejection marker lives on the
+   * failed row, not on the pending one, so the pending lookup alone is no protection — any FAILED step in the
+   * chain means this account was deliberately sent back through the normal flow, and we leave it there.
    */
   async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
     // The caller's UserData is loaded for its own flow and need not carry `kycSteps`; reload so the step
     // lookup never reads an undefined relation (same pattern as checkDfxApproval).
     const user = await this.userDataService.getUserData(userData.id, { kycSteps: true });
 
-    const kycStep = user.getPendingStepWith(KycStepName.PERSONAL_DATA);
+    const steps = user.getStepsWith(KycStepName.PERSONAL_DATA);
+    if (steps.some((s) => s.isFailed)) return;
+
+    const kycStep = steps.find((s) => s.isInProgress);
     if (!kycStep || !user.isDataComplete) return;
 
-    const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
-    await this.kycStepRepo.update(...kycStep.complete(result));
+    await this.kycStepRepo.update(...kycStep.complete(user.kycFieldData));
     await this.createStepLog(user, kycStep);
 
     await this.updateProgress(user, false);
@@ -1384,8 +1390,7 @@ export class KycService {
         const completedStep = user.getStepsWith(KycStepName.PERSONAL_DATA).find((s) => s.isCompleted);
         if (completedStep) await this.kycStepRepo.update(...completedStep.cancel());
 
-        const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
-        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(result);
+        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(user.kycFieldData);
         break;
       }
 
