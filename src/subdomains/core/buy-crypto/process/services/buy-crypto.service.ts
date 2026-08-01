@@ -646,7 +646,7 @@ export class BuyCryptoService implements OnModuleInit {
       await this.buyCryptoRepo.manager.transaction(async (manager) => {
         const lockedBuyCrypto = await manager.findOne(BuyCrypto, {
           where: { id: buyCrypto.id },
-          relations: { checkoutTx: true },
+          loadEagerRelations: false,
           lock: { mode: 'pessimistic_write' },
         });
         if (!lockedBuyCrypto) throw new NotFoundException('BuyCrypto not found');
@@ -670,14 +670,24 @@ export class BuyCryptoService implements OnModuleInit {
             chargebackAllowedDate: IsNull(),
             chargebackAllowedDateUser: IsNull(),
           },
-          { chargebackAllowedDate: dto.chargebackAllowedDate, chargebackAllowedBy: dto.chargebackAllowedBy },
+          {
+            chargebackAllowedDate: dto.chargebackAllowedDate,
+            chargebackAllowedBy: dto.chargebackAllowedBy,
+            chargebackReferenceAmount: chargebackAmount,
+            chargebackAmount,
+            chargebackAsset: dto.chargebackCurrency,
+          },
         );
         if (claim.affected !== 1) throw new ConflictException('BuyCrypto refund state changed concurrently');
 
         await manager.update(CheckoutTx, lockedCheckoutTx.id, { status: CheckoutPaymentStatus.REFUND_PENDING });
       });
 
-      dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
+      await this.completeCheckoutRefund(buyCrypto, {
+        ...dto,
+        chargebackAmount,
+      });
+      return;
     }
 
     const previousAmlCheck = buyCrypto.amlCheck;
@@ -706,6 +716,60 @@ export class BuyCryptoService implements OnModuleInit {
     );
   }
 
+  async resumeCheckoutRefund(buyCrypto: BuyCrypto): Promise<void> {
+    if (!buyCrypto.checkoutTx || !buyCrypto.chargebackAllowedDate || buyCrypto.isComplete) return;
+
+    await this.completeCheckoutRefund(buyCrypto, {
+      chargebackAmount: buyCrypto.chargebackAmount ?? buyCrypto.inputAmount,
+      chargebackCurrency: buyCrypto.chargebackAsset,
+      chargebackAllowedDate: buyCrypto.chargebackAllowedDate,
+      chargebackAllowedDateUser: buyCrypto.chargebackAllowedDateUser,
+      chargebackAllowedBy: buyCrypto.chargebackAllowedBy,
+    });
+  }
+
+  private async completeCheckoutRefund(buyCrypto: BuyCrypto, dto: CheckoutTxRefund): Promise<void> {
+    const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount ?? buyCrypto.inputAmount;
+    const refund = await this.checkoutService.refundPayment(
+      buyCrypto.checkoutTx.paymentId,
+      `buy-crypto-${buyCrypto.id}-checkout-refund`,
+    );
+    const previousAmlCheck = buyCrypto.amlCheck;
+    const previousAmlReason = buyCrypto.amlReason;
+    const [, update] = buyCrypto.chargebackFillUp(
+      undefined,
+      chargebackAmount,
+      chargebackAmount,
+      dto.chargebackCurrency,
+      dto.chargebackAllowedDate,
+      dto.chargebackAllowedDateUser,
+      dto.chargebackAllowedBy,
+      undefined,
+      refund.reference,
+    );
+    const result = await this.buyCryptoRepo.update(
+      {
+        id: buyCrypto.id,
+        isComplete: false,
+        chargebackAllowedDate: dto.chargebackAllowedDate,
+      },
+      update,
+    );
+    if (result.affected !== 1) {
+      const current = await this.buyCryptoRepo.findOneBy({ id: buyCrypto.id });
+      if (current?.isComplete) return;
+      throw new ConflictException('BuyCrypto refund finalization changed concurrently');
+    }
+
+    await this.transactionAmlCheckService.createFromEntity(
+      buyCrypto,
+      'BuyCrypto',
+      AmlSourceType.CHARGEBACK,
+      previousAmlCheck,
+      previousAmlReason,
+    );
+  }
+
   async refundCryptoInput(buyCrypto: BuyCrypto, dto: CryptoInputRefund): Promise<void> {
     if (!dto.refundUserAddress && !dto.refundUserId && !buyCrypto.chargebackIban)
       throw new BadRequestException('You have to define a chargebackAddress');
@@ -721,14 +785,81 @@ export class BuyCryptoService implements OnModuleInit {
 
     TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount, assetMismatch: false });
 
+    const refundAddress = refundUser.address ?? buyCrypto.chargebackIban;
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
       blockchainFee = await this.transactionHelper.getBlockchainFee(buyCrypto.cryptoInput.asset, true);
-      await this.payInService.returnPayIn(
-        buyCrypto.cryptoInput,
-        refundUser.address ?? buyCrypto.chargebackIban,
-        chargebackAmount,
+      const { entity, previousAmlCheck, previousAmlReason } = await this.buyCryptoRepo.manager.transaction(
+        async (manager) => {
+          const lockedRow = await manager.findOne(BuyCrypto, {
+            where: { id: buyCrypto.id },
+            select: { id: true },
+            loadEagerRelations: false,
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (!lockedRow) throw new NotFoundException('BuyCrypto not found');
+
+          const lockedBuyCrypto = await manager.findOne(BuyCrypto, {
+            where: { id: buyCrypto.id },
+            relations: { transaction: { userData: true } },
+          });
+          if (!lockedBuyCrypto) throw new NotFoundException('BuyCrypto not found');
+
+          const lockedCryptoInput = await manager.findOne(CryptoInput, {
+            where: { id: buyCrypto.cryptoInput.id },
+            relations: { asset: true, route: { user: true }, transaction: true },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (!lockedCryptoInput) throw new NotFoundException('CryptoInput not found');
+
+          lockedBuyCrypto.cryptoInput = lockedCryptoInput;
+          TransactionUtilService.validateRefund(lockedBuyCrypto, {
+            refundUser,
+            chargebackAmount,
+            assetMismatch: false,
+          });
+
+          const previousAmlCheck = lockedBuyCrypto.amlCheck;
+          const previousAmlReason = lockedBuyCrypto.amlReason;
+          const [, update] = lockedBuyCrypto.chargebackFillUp(
+            refundAddress,
+            chargebackAmount,
+            chargebackAmount,
+            dto.chargebackCurrency,
+            dto.chargebackAllowedDate,
+            dto.chargebackAllowedDateUser,
+            dto.chargebackAllowedBy,
+            undefined,
+            undefined,
+            blockchainFee,
+          );
+
+          await this.payInService.returnPayIn(lockedCryptoInput, refundAddress, chargebackAmount, manager);
+          const result = await manager.update(
+            BuyCrypto,
+            {
+              id: lockedBuyCrypto.id,
+              isComplete: false,
+              batch: IsNull(),
+              chargebackAllowedDate: IsNull(),
+              chargebackAllowedDateUser: IsNull(),
+            },
+            update,
+          );
+          if (result.affected !== 1) throw new ConflictException('BuyCrypto refund state changed concurrently');
+
+          return { entity: lockedBuyCrypto, previousAmlCheck, previousAmlReason };
+        },
       );
+
+      await this.transactionAmlCheckService.createFromEntity(
+        entity,
+        'BuyCrypto',
+        AmlSourceType.CHARGEBACK,
+        previousAmlCheck,
+        previousAmlReason,
+      );
+      return;
     }
 
     const previousAmlCheck = buyCrypto.amlCheck;
@@ -736,7 +867,7 @@ export class BuyCryptoService implements OnModuleInit {
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
-        refundUser.address ?? buyCrypto.chargebackIban,
+        refundAddress,
         chargebackAmount,
         chargebackAmount,
         dto.chargebackCurrency,

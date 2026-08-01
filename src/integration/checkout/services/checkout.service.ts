@@ -112,7 +112,7 @@ export class CheckoutService {
     return balance.data;
   }
 
-  async refundPayment(paymentId: string): Promise<CheckoutReverse> {
-    return (await this.checkout.payments.refund(paymentId)) as CheckoutReverse;
+  async refundPayment(paymentId: string, idempotencyKey?: string): Promise<CheckoutReverse> {
+    return (await this.checkout.payments.refund(paymentId, undefined, idempotencyKey)) as CheckoutReverse;
   }
 }

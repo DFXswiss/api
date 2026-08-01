@@ -8,10 +8,10 @@ import { Util } from 'src/shared/utils/util';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { In, IsNull, LessThan, Not } from 'typeorm';
+import { EntityManager, In, IsNull, LessThan, Not } from 'typeorm';
 import { RetryPayInSendDto } from '../../dto/retry-payin-send.dto';
 import { createCustomCryptoInput } from '../../entities/__mocks__/crypto-input.entity.mock';
-import { PayInAction, PayInStatus, PayInType } from '../../entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus, PayInType } from '../../entities/crypto-input.entity';
 import { PayInEntry } from '../../interfaces';
 import { PayInRepository } from '../../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../../strategies/register/impl/base/register.strategy-registry';
@@ -128,6 +128,27 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       expect(payInRepository.save).not.toHaveBeenCalled();
     },
   );
+
+  it('persists a return claim through the supplied transaction manager', async () => {
+    const payIn = createCustomCryptoInput({
+      id: 52,
+      status: PayInStatus.ACKNOWLEDGED,
+      action: PayInAction.WAITING,
+      returnTxId: null,
+      transaction: undefined,
+    });
+    const manager = { save: jest.fn().mockResolvedValue(payIn) };
+
+    await service.returnPayIn(
+      payIn,
+      '0x0000000000000000000000000000000000000001',
+      0.1,
+      manager as unknown as EntityManager,
+    );
+
+    expect(manager.save).toHaveBeenCalledWith(CryptoInput, payIn);
+    expect(payInRepository.save).not.toHaveBeenCalled();
+  });
 
   it('keeps Sending and SendUncertain in the finance-log pending set', async () => {
     const findBySpy = jest.spyOn(payInRepository, 'findBy').mockResolvedValue([]);
