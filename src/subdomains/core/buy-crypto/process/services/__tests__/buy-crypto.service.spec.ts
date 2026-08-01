@@ -38,7 +38,7 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { EntityManager } from 'typeorm';
+import { EntityManager, IsNull } from 'typeorm';
 import { BuyRepository } from '../../../routes/buy/buy.repository';
 import { BuyService } from '../../../routes/buy/buy.service';
 import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
@@ -334,6 +334,19 @@ describe('BuyCryptoService', () => {
   });
 
   describe('amlCheck audit trail', () => {
+    it('excludes user refund claims from phone-call AML resets', async () => {
+      const findBySpy = jest.spyOn(buyCryptoRepo, 'findBy').mockResolvedValue([]);
+
+      await service.checkAmlResetTx(Object.assign(new UserData(), { id: 42 }));
+
+      expect(findBySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: IsNull(),
+        }),
+      );
+    });
+
     it('persists the checkout refund claim before calling the external provider', async () => {
       const buyCrypto = createCustomBuyCrypto({
         id: 7,
@@ -605,6 +618,13 @@ describe('BuyCryptoService', () => {
 
       await service.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
 
+      expect(buyCryptoRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: IsNull(),
+        }),
+        expect.anything(),
+      );
       expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledTimes(1);
       expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
         expect.objectContaining({ id: 7, amlCheck: null }),
@@ -779,6 +799,25 @@ describe('BuyCryptoService', () => {
         amlCheck: CheckStatus.FAIL,
         amlReason: AmlReason.MANUAL_CHECK_PHONE,
         status: BuyCryptoStatus.STOPPED,
+        isComplete: false,
+      });
+
+      await expect(service.resetAmlCheckInternal(entity, AmlSourceType.PHONE_CALL_RESET)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+    });
+
+    it('does not reset AML or reactivate a user-refund claim after a phone call', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 17,
+        amlCheck: CheckStatus.FAIL,
+        amlReason: AmlReason.MANUAL_CHECK_PHONE,
+        status: BuyCryptoStatus.CREATED,
+        chargebackAllowedDate: undefined,
+        chargebackAllowedDateUser: new Date(),
         isComplete: false,
       });
 

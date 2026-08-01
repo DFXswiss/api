@@ -153,6 +153,7 @@ export class BuyCryptoService implements OnModuleInit {
       status: Not(BuyCryptoStatus.STOPPED),
       isComplete: false,
       chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: IsNull(),
     });
 
     for (const entity of entities) {
@@ -1078,7 +1079,8 @@ export class BuyCryptoService implements OnModuleInit {
       entity.status === BuyCryptoStatus.STOPPED ||
       entity.batch ||
       entity.chargebackOutput?.isComplete ||
-      entity.chargebackAllowedDate
+      entity.chargebackAllowedDate ||
+      entity.chargebackAllowedDateUser
     )
       throw new BadRequestException('BuyCrypto is already complete, stopped or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');
@@ -1101,6 +1103,7 @@ export class BuyCryptoService implements OnModuleInit {
         isComplete: false,
         batch: IsNull(),
         chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: IsNull(),
       },
       update,
     );
