@@ -176,7 +176,35 @@ describe('ApiExceptionFilter', () => {
 
     expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
     expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'x' });
+    // the exception's own message stays where it was: it is what it says to us, not to the caller
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+  });
+
+  it('takes the replacement message from the body the thrower built, never from the exception', () => {
+    const divergent = new HttpException({ statusCode: 418, message: 'public' }, 400);
+    divergent.message = 'INTERNAL_SECRET';
+
+    filter.catch(divergent, host(req(), { status }));
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'public' });
+  });
+
+  it('keeps a message array from the body it replaces', () => {
+    const divergent = new HttpException({ statusCode: 418, message: ['a', 'b'] }, 400);
+
+    filter.catch(divergent, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: ['a', 'b'] });
+  });
+
+  it('falls back to the status when the body it replaces has no message of its own', () => {
+    const divergent = new HttpException({ statusCode: 418 }, 400);
+    divergent.message = 'INTERNAL_SECRET';
+
+    filter.catch(divergent, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
   it('keeps sending the response when the message cannot be read', () => {
@@ -217,18 +245,12 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
   });
 
-  it('sends the response even when the message cannot be read either', () => {
-    const mute = new BadRequestException('x');
-    jest.spyOn(mute, 'getResponse').mockImplementation(() => {
-      throw new Error('nope');
-    });
-    Object.defineProperty(mute, 'message', {
-      get: () => {
-        throw new Error('nope');
-      },
-    });
+  it('rejects a message the body only answers with when asked', () => {
+    const accessor = new HttpException({ statusCode: 418 }, 400);
+    Object.defineProperty(accessor.getResponse(), 'message', { get: () => 'answered again' });
 
-    expect(() => filter.catch(mute, host(req(), { status }))).not.toThrow();
+    filter.catch(accessor, host(req(), { status }));
+
     expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
@@ -251,12 +273,35 @@ describe('ApiExceptionFilter', () => {
   it('reads the status once, so a body cannot arrive under a status it does not name', () => {
     const shifting = new BadRequestException('x');
     let call = 0;
-    jest.spyOn(shifting, 'getStatus').mockImplementation(() => (call++ === 0 ? 600 : 400));
+    const getStatus = jest.spyOn(shifting, 'getStatus').mockImplementation(() => (call++ === 0 ? 600 : 400));
 
     filter.catch(shifting, host(req(), { status }));
 
+    expect(getStatus).toHaveBeenCalledTimes(1);
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
+  });
+
+  it('rejects a status the body only answers with when asked', () => {
+    const accessor = new BadRequestException('x');
+    Object.defineProperty(accessor.getResponse(), 'statusCode', { get: () => 400 });
+
+    filter.catch(accessor, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'x' });
+  });
+
+  it('keeps a failure to report a failed send away from the caller as well', () => {
+    const response = {
+      status: () => {
+        throw new Error('transport down');
+      },
+    };
+    error.mockImplementation(() => {
+      throw new Error('logger down');
+    });
+
+    expect(() => filter.catch(new BadRequestException('bad'), host(req(), response))).not.toThrow();
   });
 
   it('drops a body that names a status other than the one being sent', () => {

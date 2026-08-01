@@ -222,6 +222,22 @@ describe('apiTraceMiddleware', () => {
     expect([...line].some(isLoneSurrogate)).toBe(false);
   });
 
+  it('caps the request target after reading it, so a pattern across the cap is still masked', () => {
+    // The address starts before the cap and runs past it: capping first would have cut it in half
+    // and left the front of it in the line.
+    const prefix = '/v1/realunit/user/';
+    const req = {
+      method: 'GET',
+      originalUrl: `${prefix}${'a'.repeat(505 - prefix.length)}jane@example.com`,
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 200, (res) => res.send('ok'));
+
+    expect(lines[0]).not.toContain('jane');
+    expect(lines[0]).toContain('***');
+  });
+
   it('keeps the request target on one line as well', () => {
     const req = {
       method: 'GET',

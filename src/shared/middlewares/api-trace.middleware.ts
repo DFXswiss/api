@@ -69,11 +69,11 @@ export function singleLine(value: string): string {
  * masked again.
  *
  * Both passes are needed, because a character that breaks a line also breaks a pattern in either
- * direction. Put inside one, it hides the pattern from a pass that runs after the removal; removing
- * it joins what stood on either side, which can hide a pattern that was whole from a pass that runs
- * before. The second pass can fold what the first one wrote into a match of its own - `***` reads
- * as the local part of an address - which costs the text around it and is the direction to be wrong
- * in.
+ * direction. Put inside one, it hides the pattern from the pass before the removal, and the pass
+ * after finds it; removing it joins what stood on either side, which can hide a pattern the pass
+ * after would have to find whole, and the pass before already saw. The second pass can fold what the
+ * first one wrote into a match of its own - `***` reads as the local part of an address - which
+ * costs the text around it and is the direction to be wrong in.
  */
 export function maskLogText(value: string): string {
   return maskValue(singleLine(maskValue(value)));
@@ -112,9 +112,9 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
 
 /**
  * Renders an untrusted value (header, rejected body field) for inclusion in a log line: it goes
- * through {@link maskLogText} - stripped of anything that could break the line, then masked - and
- * is then capped. The masking runs before the cut, so a truncated email or wallet cannot slip
- * through.
+ * through {@link maskLogText} - masked, stripped of anything that could break the line, masked
+ * again - and is then capped. The masking runs before the cut, so a truncated email or wallet
+ * cannot slip through.
  *
  * Beyond `MAX_STRING` the value is reported by length instead: masking is regex work over the
  * whole string, and the caller's cap alone would not stop an oversized one from paying for it.

@@ -42,8 +42,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
       sent = false;
     }
 
-    // The response is out; what follows only describes it, this failure included. A failure to
-    // describe it must not travel back to a caller who already has an answer, so it ends here -
+    // What follows only describes what happened, this failure included. It must not travel back to
+    // a caller who by now either has an answer or is past being given one, so it ends here -
     // including a failure of the logger, which is the one thing that could not report it anyway.
     try {
       if (!sent) {
@@ -132,22 +132,40 @@ export class ApiExceptionFilter implements ExceptionFilter {
   }
 
   // The body an HttpException carries is whatever the thrower put there, and reading it can throw.
-  // A caller gets the generic body then rather than none - and also when the status it was going to
-  // be sent with is not the one it names, which is what a replaced status leaves behind.
+  // A caller gets the generic body then rather than none - and also when the body is not the one
+  // being sent, which is what a replaced status or a body naming another one leaves behind.
   private responseBody(exception: Error, status: { sent: number; declared: number | undefined }): unknown {
-    try {
-      // The status is read once, above: reading it again could answer differently, and the body
-      // would then be sent alongside a status it does not name. The body says so itself as well -
-      // `new HttpException({ statusCode: 418 }, 400)` names two - so it is only kept when both agree.
-      if (exception instanceof HttpException && status.declared === status.sent) {
-        const body = exception.getResponse();
-        if (ApiExceptionFilter.names(body, status.sent)) return body;
-      }
-    } catch {
-      // an exception that cannot say what it is gets described by what is being sent
+    if (!(exception instanceof HttpException)) {
+      return { statusCode: status.sent, message: exception.message };
     }
 
-    return { statusCode: status.sent, message: ApiExceptionFilter.messageOf(exception, status.sent) };
+    try {
+      const body = exception.getResponse();
+      if (status.declared === status.sent && ApiExceptionFilter.names(body, status.sent)) return body;
+
+      // The message comes out of the body the thrower built for the caller, never out of the
+      // exception: `exception.message` is what it says to us, and this branch is the only one that
+      // would newly put it on the wire.
+      return { statusCode: status.sent, message: ApiExceptionFilter.publicMessage(body, status.sent) };
+    } catch {
+      return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
+    }
+  }
+
+  // Only a plain string or a plain array of them, and only off the body itself: an accessor answers
+  // again when the response is serialized, and anything else was not a message meant for a caller.
+  private static publicMessage(body: unknown, status: number): string | string[] {
+    if (typeof body === 'string') return body;
+
+    if (typeof body === 'object' && body !== null) {
+      const declared = Object.getOwnPropertyDescriptor(body, 'message');
+      const message = declared && 'value' in declared ? declared.value : undefined;
+
+      if (typeof message === 'string') return message;
+      if (Array.isArray(message) && message.every((entry) => typeof entry === 'string')) return message;
+    }
+
+    return HttpStatus[status] || 'Error';
   }
 
   // A body that carries no status of its own contradicts nothing. One that carries an accessor for
@@ -160,15 +178,6 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (declared && !('value' in declared)) return false;
 
     return declared === undefined || declared.value === status;
-  }
-
-  // Not every status in the range has a name, so the name is a fallback and not the last one.
-  private static messageOf(exception: Error, status: number): string {
-    try {
-      return exception.message || HttpStatus[status] || 'Error';
-    } catch {
-      return HttpStatus[status] || 'Error';
-    }
   }
 
   // Human-readable rejection reason. For HttpExceptions the useful text is in the
