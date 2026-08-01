@@ -30,9 +30,12 @@ Every PR must include:
 3. **Service updates** (if DTOs/interfaces changed)
 4. **Frontend synchronization** (if API contracts changed)
 5. **Cron job inventory** (if a `@DfxCron` job was added, removed or re-scheduled) — [docs/cron-jobs.md](docs/cron-jobs.md)
-6. **Endpoint inventory** (if routes were added, removed, renamed or re-scoped) — [docs/endpoints.md](docs/endpoints.md)
 
 Missing any of these = changes requested.
+
+Routes carry a sixth obligation: any change to the set of endpoints — added, removed, renamed or
+re-scoped — must be reflected in [docs/endpoints.md](docs/endpoints.md) in the same PR, together
+with the `Tests` state of anything converted. See *Endpoint Inventory* below.
 
 ### Before Merge
 
