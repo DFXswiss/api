@@ -658,43 +658,22 @@ export class SupportIssueService {
   }
 
   async getIssues(userDataId: number): Promise<SupportIssueDto[]> {
-    const issues = await this.supportIssueRepo.find({
-      where: { userData: { id: userDataId } },
-      relations: { transaction: true, limitRequest: true },
-    });
+    const issues = await this.supportIssueRepo.findIssuesForAccount(userDataId);
 
     return issues.map(SupportIssueDtoMapper.mapSupportIssue);
   }
 
   async getIssue(id: string, query: GetSupportIssueFilter, userDataId?: number): Promise<SupportIssueDto> {
-    const issue = await this.supportIssueRepo.findOne({
-      where: this.getIssueSearch(id, userDataId),
-      relations: { transaction: true, limitRequest: true },
-    });
+    const issue = await this.supportIssueRepo.findIssueBy(this.getIssueSearch(id, userDataId));
     if (!issue) throw new NotFoundException('Support issue not found');
 
-    issue.messages = await this.messageRepo.findBy({
-      issue: { id: issue.id },
-      id: MoreThan(query.fromMessageId ?? 0),
-    });
+    issue.messages = await this.messageRepo.findThread(issue.id, query.fromMessageId ?? 0);
 
     return SupportIssueDtoMapper.mapSupportIssue(issue);
   }
 
   async getIssueData(id: number, role: UserRole, customerIds?: number[]): Promise<SupportIssueInternalDataDto> {
-    const issue = await this.supportIssueRepo.findOne({
-      where: { id },
-      relations: {
-        userData: { country: true, language: true },
-        transaction: {
-          user: { wallet: true },
-          buyCrypto: { outputAsset: true, cryptoInput: { asset: true } },
-          buyFiat: { outputAsset: true, cryptoInput: { asset: true } },
-        },
-        limitRequest: true,
-      },
-      loadEagerRelations: false,
-    });
+    const issue = await this.supportIssueRepo.findIssueData(id);
     if (!issue) throw new NotFoundException('Support issue not found');
     // customer scope (RealUnit): fail-closed 404 when the issue does not belong to a scoped customer (no existence leak)
     if (customerIds && !customerIds.includes(issue.userData?.id))

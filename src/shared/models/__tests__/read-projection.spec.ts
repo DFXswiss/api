@@ -7,6 +7,10 @@ import {
 } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BUY_FIAT_HISTORY_PROJECTION } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { USER_PROFILE_PROJECTION } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import {
+  SUPPORT_ISSUE_DATA_PROJECTION,
+  SUPPORT_ISSUE_PROJECTION,
+} from 'src/subdomains/supporting/support-issue/repositories/support-issue.repository';
 import { SelectQueryBuilder } from 'typeorm';
 
 /** Every endpoint whose `Max cols` in the inventory is the size of a projection. */
@@ -15,6 +19,9 @@ const DOCUMENTED: [string, string, ReadProjection<unknown>][] = [
   ['GET', '/buy/:id/history', BUY_CRYPTO_BUY_HISTORY_PROJECTION],
   ['GET', '/swap/:id/history', BUY_CRYPTO_ROUTE_HISTORY_PROJECTION],
   ['GET', '/sell/:id/history', BUY_FIAT_HISTORY_PROJECTION],
+  ['GET', '/support/issue/:id/data', SUPPORT_ISSUE_DATA_PROJECTION],
+  ['GET', '/support/issue', SUPPORT_ISSUE_PROJECTION],
+  ['GET', '/support/issue/:id', SUPPORT_ISSUE_PROJECTION],
 ];
 
 describe('ReadProjection', () => {

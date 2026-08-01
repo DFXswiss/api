@@ -30,8 +30,8 @@ This service loads far more data than it returns. Measured against the real enti
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
   `transaction_request`) broke every invoice and receipt in production until it was fixed.
-- Of the 534 endpoints, **417 reach at least one load site that fetches whole rows**; 98 read
-  nothing at all, and **17 read only the fields they return**. The widest query a fetching endpoint
+- Of the 534 endpoints, **414 reach at least one load site that fetches whole rows**; 98 read
+  nothing at all, and **20 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
@@ -47,9 +47,9 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,105 load sites in this repository, **94** name the columns they need:
-89 query builders and the five raw statements. The other 1,011 request whole rows — 967 through the
-`find` family, and of the 133 query builders, 20 pass the root alias to `.select(...)`, which reads
+**No read model.** Of the 1,105 load sites in this repository, **98** name the columns they need:
+93 query builders and the five raw statements. The other 1,007 request whole rows — 963 through the
+`find` family, and of the 137 query builders, 20 pass the root alias to `.select(...)`, which reads
 like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
 business logic and pure output paths such as invoices, receipts, history and exports — which need
 fields, not objects.
@@ -59,7 +59,7 @@ query builders that do name columns are almost entirely counts, maxima and id lo
 `.select('userData.id', 'id')` and the like — and they select **one column at the median**. They are
 projections, and they were miscounted as full loads because the classification only recognised the
 array form `.select([...])` and read every string argument as the bare root alias. Correcting it
-moves 11 endpoints out of the `whole rows` group. What it does not do is change the picture: a
+moved 11 endpoints out of the `whole rows` group. What it does not do is change the picture: a
 `COUNT(*)` that was always narrow is not a read path that was converted, and the response payloads —
 history, profile, invoices, exports — are still served by `find`.
 
@@ -155,11 +155,12 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-Ninety-four sites carry a field list. The table below covers the six that were known when this
+Ninety-eight sites carry a field list. The table below covers the six that were known when this
 document was written — one query builder and five raw statements — and none of them was converted,
-so it is unchanged. The other 88 are the query builders that name columns one at a time; they are
+so it is unchanged. Another 84 are the query builders that name columns one at a time; they are
 not covered by these levels either, which is what their endpoints' `0/4` in
-[endpoints.md](endpoints.md) records. Sites a conversion adds are recorded there too, where only
+[endpoints.md](endpoints.md) records. The remaining 8 belong to the endpoints converted so far and
+are covered on all four. Sites a conversion adds are recorded there too, where only
 `4/4` counts as done.
 
 | Site | Form | Runs in a test | Column list asserted | Real database |
@@ -305,6 +306,18 @@ things is true: the field is unnecessary and can be dropped permanently, or the 
 at exactly that point — and a real defect would have slipped through there.
 
 Without this level you never know whether a green test verified something or is merely green.
+
+**Where a value has a fallback, the candidate is the chain, not the column.** `UserData.completeName`
+is `organizationName ?? firstname + surname`; the wallet name on the support view is
+`displayName ?? name`. Drop any single one of those columns and the value is still filled, by the
+next alternative — so asserted individually, every one of them reports as removable. That is true
+and useless. The chain is what carries the response value, so the chain is what gets dropped, and
+`expectEveryFieldRequired` accepts a group of fields as one candidate for exactly this.
+
+**A missing summand is not a missing field, and level 1 has to say so anyway.** The annual volume on
+the support view is `annualBuyVolume + annualSellVolume + annualCryptoVolume`. Leave one of the three
+out of the projection and the sum is `NaN` — not absent, so an `undefined` check waves it through,
+and the endpoint answers 200 with a number that is not a number. `NaN` therefore counts as empty.
 
 **It needs a baseline, or it is itself merely green.** If the response is already incomplete with
 the *full* field list, every reduced run fails too, and "every field is required" comes out true

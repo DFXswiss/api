@@ -132,8 +132,34 @@ describe('Query Builder Alias Enforcement', () => {
   /**
    * Extract all aliases defined in a query chain (main alias + joins + subqueries)
    */
-  const extractAllAliases = (queryChain: string, mainAlias: string): Set<string> => {
-    const aliases = new Set<string>([mainAlias]);
+  /**
+   * Aliases declared by a `ReadProjection` constant rather than in the chain.
+   *
+   * `PROJECTION.apply(this.createQueryBuilder('x'))` applies its joins from the constant, so the
+   * aliases they introduce never appear in the chain the scan sees. Without this the chain's own
+   * `where('joinedAlias.id = :id')` looks like a bare column reference — the opposite of what this
+   * test is for.
+   */
+  const extractProjectionAliases = (fileContent: string): Set<string> => {
+    const aliases = new Set<string>();
+    // The root alias, then every `['relation.path', 'alias']` pair up to the end of the declaration.
+    // Reading the join array with a lazy match would stop at the first inner `]` and pick up only
+    // one of the joins.
+    const projectionPattern = /new ReadProjection<[^>]*>\(\s*['"`](\w+)['"`]/g;
+    let match;
+    while ((match = projectionPattern.exec(fileContent)) !== null) {
+      aliases.add(match[1]);
+      const end = fileContent.indexOf('\n);', match.index);
+      const declaration = fileContent.slice(match.index, end < 0 ? undefined : end);
+      const joinPattern = /\[\s*['"`][^'"`]+\.[^'"`]+['"`]\s*,\s*['"`](\w+)['"`]\s*\]/g;
+      let joinMatch;
+      while ((joinMatch = joinPattern.exec(declaration)) !== null) aliases.add(joinMatch[1]);
+    }
+    return aliases;
+  };
+
+  const extractAllAliases = (queryChain: string, mainAlias: string, fileContent = ''): Set<string> => {
+    const aliases = new Set<string>([mainAlias, ...extractProjectionAliases(fileContent)]);
 
     // Find join aliases: .leftJoin('relation', 'alias') or .innerJoin('relation', 'alias')
     // This handles both relation joins and entity joins
@@ -210,7 +236,7 @@ describe('Query Builder Alias Enforcement', () => {
 
       // Get all valid aliases (main + joins + subqueries)
       // Also include all query aliases from the file for correlated subquery support
-      const validAliases = extractAllAliases(queryChain, mainAlias);
+      const validAliases = extractAllAliases(queryChain, mainAlias, content);
       for (const alias of allQueryAliases) {
         validAliases.add(alias);
       }

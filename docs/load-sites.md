@@ -1,6 +1,6 @@
 # Database load sites
 
-Every place in the code that reads from the database: **1105 load sites** across 244 files.
+Every place in the code that reads from the database: **1105 load sites** across 246 files.
 
 This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
@@ -8,8 +8,8 @@ This is the level at which the statement is unambiguous. An endpoint reaches sev
 
 | Mechanism | Sites | Eager relations | Columns selected |
 | --------- | ----: | --------------- | ---------------- |
-| `find` family | 967 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
-| `createQueryBuilder` | 133 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
+| `find` family | 963 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
+| `createQueryBuilder` | 137 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
 | raw SQL | 5 | not applied | whatever the statement lists |
 
 Statements that load nothing are excluded from the count: 2 `createQueryBuilder` calls carrying `.update()`, 6 advisory locks (`SELECT pg_advisory_xact_lock(...)`, which return no rows) and 1 raw `INSERT`. Each of the 5 raw reads that remain names its columns.
@@ -18,21 +18,21 @@ Among the query builders, the field list is what decides whether anything is act
 
 | | Sites |
 | --- | ---: |
-| `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **5** |
+| `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **9** |
 | `.select('alias.column')` — names columns one by one | **84** |
 | `.select('alias')` — selects the root alias, **loads every column** | 20 |
 | no `select` at all — loads every column | 23 |
 | projects, but a `leftJoinAndSelect` loads a relation whole | 1 |
 
-`.select('alias')` is the trap: it reads like a projection but the argument is the entity alias, not a field list. Such a query still loads every column of the root entity — it merely avoids the eager relations. `.select('alias.column')` is the opposite case and easy to lump in with it: it names a column and does narrow the query. The distinction is the presence of a dot in the argument, and it matters — the sites that name columns this way select 1 column at the median, against 967 `find` calls that select every one. Most of them are counts, maxima and id lookups rather than response payloads, which is why the endpoint summary still reads the way it does.
+`.select('alias')` is the trap: it reads like a projection but the argument is the entity alias, not a field list. Such a query still loads every column of the root entity — it merely avoids the eager relations. `.select('alias.column')` is the opposite case and easy to lump in with it: it names a column and does narrow the query. The distinction is the presence of a dot in the argument, and it matters — the sites that name columns this way select 1 column at the median, against 963 `find` calls that select every one. Most of them are counts, maxima and id lookups rather than response payloads, which is why the endpoint summary still reads the way it does.
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 786 of 1105 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 790 of 1105 sites.
 
 - **341 are exact**: the `relations` tree is written at the call site.
-- **445 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
-- 319 could not be measured: no resolvable target entity, or raw SQL.
+- **449 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
+- 315 could not be measured: no resolvable target entity, or raw SQL.
 
 Median across measured sites: **112 columns**. 14 sites exceed 1000, 75 exceed 500, 402 exceed 100.
 
@@ -151,7 +151,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 451 | 14 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-notification.service.ts:42` | `BuyFiatNotificationService.paymentCompleted` |
 | 451 | 14 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-notification.service.ts:290` | `BuyFiatNotificationService.chargebackUnconfirmed` |
 | 450 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:457` | `SupportIssueService.closeIssue` |
-| 450 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:737` | `SupportIssueService.getUserIssues` |
+| 450 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:716` | `SupportIssueService.getUserIssues` |
 | 449 | 13 | find | `BuyCrypto` | `subdomains/core/accounting/services/ledger-cutover.service.ts:475` | `LedgerCutoverService.openBuyCryptoReceived` |
 | 449 | 13 | find | `BuyCrypto` | `subdomains/core/accounting/services/ledger-cutover.service.ts:536` | `LedgerCutoverService.openBuyCryptoOwed` |
 | 449 | 13 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:25` | `BuyCryptoRegistrationService.syncReturnTxId` |
@@ -167,14 +167,14 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 434 | 15 | find | `LimitRequest` | `subdomains/supporting/support-issue/services/limit-request.service.ts:82` | `LimitRequestService.getUserLimitRequests` |
 | 433 | 12 | find | `BankTx` | `subdomains/core/accounting/services/consumers/bank-tx.consumer.ts:106` | `BankTxConsumer.processForward` |
 | 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:478` | `SupportIssueService.closeIssue` |
-| 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:723` | `SupportIssueService.getIssueMessages` |
+| 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:702` | `SupportIssueService.getIssueMessages` |
 | 427 | 12 | find | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:67` | `TransactionRequestService.txRequestWaitingExpiryCheck` |
 | 427 | 12 | find | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:78` | `TransactionRequestService.deleteOldTxRequests` |
 | 422 | 12 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:778` | `BuyCryptoService.resetAmlCheck` |
 | 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-escalation.service.ts:214` | `SupportEscalationService.checkEscalations` |
 | 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:484` | `SupportIssueService.updateIssue` |
-| 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:713` | `SupportIssueService.getIssueMessages` |
-| 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:750` | `SupportIssueService.getIssueUserDataId` |
+| 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:692` | `SupportIssueService.getIssueMessages` |
+| 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:729` | `SupportIssueService.getIssueUserDataId` |
 | 419 | 14 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1186` | `BuyCryptoService.getTransactions` |
 | 418 | 18 | find | `CustodyOrderStep` | `subdomains/core/custody/services/custody-job.service.ts:80` | `CustodyJobService.executeStep` |
 | 418 | 11 | find | `User` | `subdomains/generic/user/models/user/user-job.service.ts:19` | `UserJobService.approveUser` |
@@ -484,6 +484,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 83 | 4 | find | `LiquidityManagementRule` | `subdomains/core/liquidity-management/services/liquidity-management-rule.service.ts:110` | `LiquidityManagementRuleService.reactivateRules` |
 | 83 | 4 | find | `LiquidityManagementRule` | `subdomains/core/liquidity-management/services/liquidity-management-rule.service.ts:147` | `LiquidityManagementRuleService.findExistingRuleOnCreation` |
 | 83 | 4 | find | `LiquidityManagementRule` | `subdomains/core/liquidity-management/services/liquidity-management.service.ts:109` | `LiquidityManagementService.findRuleByAssetOrThrow` |
+| 81 | 0 | query-builder (feldliste) | `SupportIssue` | `subdomains/supporting/support-issue/repositories/support-issue.repository.ts:212` | `SupportIssueRepository.findIssueData` |
 | 78 | 1 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:97` | `UserService.getUserByAddress` |
 | 78 | 3 | find | `Mros` | `subdomains/supporting/mros/mros.service.ts:32` | `MrosService.update` |
 | 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:712` | `BuyCryptoService.getBuyCryptoByKeys` |
@@ -695,7 +696,9 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:51` | `LogService.update` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:131` | `LogService.getLog` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:135` | `LogService.maxEntity` |
-| 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.service.ts:191` | `LogService.getBankLog` |
+| 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.service.ts:191` | `LogService.getBankLog` |
+| 11 | 0 | query-builder (feldliste) | `SupportIssue` | `subdomains/supporting/support-issue/repositories/support-issue.repository.ts:222` | `SupportIssueRepository.findIssuesForAccount` |
+| 11 | 0 | query-builder (feldliste) | `SupportIssue` | `subdomains/supporting/support-issue/repositories/support-issue.repository.ts:240` | `SupportIssueRepository.findIssueBy` |
 | 10 | 0 | find | `AccountMerge` | `subdomains/generic/user/models/account-merge/account-merge.service.ts:61` | `AccountMergeService.sendMergeRequest` |
 | 10 | 0 | find | `AccountMerge` | `subdomains/generic/user/models/account-merge/account-merge.service.ts:162` | `AccountMergeService.pendingMergeRequest` |
 | 9 | 0 | find | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:57` | `SupportNoteService.search` |
@@ -749,6 +752,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 5 | 0 | find | `Setting` | `shared/models/setting/setting.service.ts:210` | `SettingService.setObj` |
 | 5 | 0 | find | `Sanction` | `subdomains/core/aml/services/sanction.service.ts:54` | `SanctionService.syncList` |
 | 5 | 0 | query-builder (spaltenliste) | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:84` | `SupportNoteService.listUsers` |
+| 5 | 0 | query-builder (feldliste) | `SupportMessage` | `subdomains/supporting/support-issue/repositories/support-message.repository.ts:52` | `SupportMessageRepository.findThread` |
 | 4 | 0 | query-builder (spaltenliste) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:540` | `LedgerQueryService.cumulativeEquityByDay` |
 | 4 | 0 | find | `SystemStateSnapshot` | `subdomains/core/monitoring/monitoring.service.ts:47` | `MonitoringService.loadState` |
 | 4 | 0 | query-builder (spaltenliste) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:614` | `SupportIssueService.getMessageStats` |
@@ -1147,9 +1151,5 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/realunit/realunit.service.ts:2927` | `RealUnitService.applyRegistrationConfirmation` |
 | — | — | find | `—` | `subdomains/supporting/support-issue/services/support-escalation.service.ts:166` | `SupportEscalationService.bindGroupChat` |
 | — | — | find | `—` | `subdomains/supporting/support-issue/services/support-issue.service.ts:92` | `SupportIssueService.getSupportIssueClerkForAccount` |
-| — | — | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:661` | `SupportIssueService.getIssues` |
-| — | — | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:670` | `SupportIssueService.getIssue` |
-| — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:676` | `SupportIssueService.getIssue` |
-| — | — | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:685` | `SupportIssueService.getIssueData` |
-| — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:728` | `SupportIssueService.getIssueFile` |
-| — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:743` | `SupportIssueService.getUserIssues` |
+| — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:707` | `SupportIssueService.getIssueFile` |
+| — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:722` | `SupportIssueService.getUserIssues` |

@@ -194,15 +194,21 @@ export async function seedEntity<E extends ObjectLiteral>(
 /**
  * Level 1 — with a fully populated fixture, no field of the response may be empty.
  *
- * Walks nested objects and arrays. `undefined`, `null` and `''` count as empty; `0` and `false` do
- * not, because they are legitimate values a projection can load correctly.
+ * Walks nested objects and arrays. `undefined`, `null`, `''` and `NaN` count as empty; `0` and
+ * `false` do not, because they are legitimate values a projection can load correctly.
+ *
+ * `NaN` belongs on that list even though nothing produces it directly: a DTO field computed as
+ * `a + b + c` from three columns turns into `NaN` the moment one of them is missing. It is not
+ * absent, so a plain `undefined` check waves it through — and it is exactly the silent wrong value
+ * this whole exercise is meant to catch. The annual volume on the support view is such a field.
  *
  * `optional` lists paths that are allowed to be empty for the fixture at hand — a field the DTO
  * only fills for one branch. Every entry is a statement that the *other* branch covers it, which is
  * what level 2 is for, so keep the list short and cover the counterpart.
  */
 export function expectNoEmptyFields(value: unknown, optional: string[] = [], path = ''): void {
-  const empty = value === undefined || value === null || value === '';
+  const empty =
+    value === undefined || value === null || value === '' || (typeof value === 'number' && Number.isNaN(value));
   if (empty) {
     if (optional.includes(path)) return;
     throw new Error(`field '${path || '<root>'}' is empty — the query did not load it`);
@@ -221,28 +227,35 @@ export function expectNoEmptyFields(value: unknown, optional: string[] = [], pat
  * Passed to a mutation run to keep the projection whole — it matches no field name, so
  * `projectionFieldsWithout` returns the list unchanged. Used for the baseline run.
  */
-export const NOTHING_OMITTED = '';
+export const NOTHING_OMITTED: string[] = [];
 
-/** A projection's field list with one field removed. */
-export function projectionFieldsWithout(fields: ReadonlyArray<string>, omitted: string): string[] {
-  return fields.filter((field) => field !== omitted);
+/** A projection's field list without the given field or fields. */
+export function projectionFieldsWithout(fields: ReadonlyArray<string>, omitted: string | string[]): string[] {
+  const drop = new Set(Array.isArray(omitted) ? omitted : [omitted]);
+  return fields.filter((field) => !drop.has(field));
 }
 
 /**
- * Level 3 — removing any single field of the projection must break level 1.
+ * Level 3 — removing any candidate from the projection must break level 1.
  *
- * `run` receives the name of the field to leave out, runs the same production query without it and
- * returns the response. The caller does the reducing, because which fields feed the response can
- * depend on the fixture: `UserData.address` reads the organization's address for a business account
- * and the account's own for a personal one, so each variant asserts over its own set of candidates
- * while the rest of the projection stays in the query.
+ * `run` receives the fields to leave out, runs the same production query without them and returns
+ * the response. The caller does the reducing, because which fields feed the response can depend on
+ * the fixture: `UserData.address` reads the organization's address for a business account and the
+ * account's own for a personal one, so each variant asserts over its own set of candidates while the
+ * rest of the projection stays in the query.
  *
- * A field whose removal changes nothing is either unnecessary or a gap in the fixture; both need
- * looking at, so this reports the field names rather than just failing.
+ * **A candidate may be a group of fields, and sometimes has to be.** Where several columns feed one
+ * response value through a fallback — `organizationName ?? firstname + surname` — no single one of
+ * them is required: drop any one and the next alternative fills the value. Asserting them
+ * individually would report every one of them as removable, which is true and useless. The group is
+ * what carries the value, so the group is what gets dropped.
+ *
+ * A candidate whose removal changes nothing is either unnecessary or a gap in the fixture; both need
+ * looking at, so this reports the names rather than just failing.
  */
 export async function expectEveryFieldRequired(
-  candidates: ReadonlyArray<string>,
-  run: (omitted: string) => Promise<unknown>,
+  candidates: ReadonlyArray<string | string[]>,
+  run: (omitted: string | string[]) => Promise<unknown>,
   optional: string[] = [],
 ): Promise<void> {
   // Establish the baseline first. Without it this level passes vacuously: if the response is already
@@ -260,16 +273,16 @@ export async function expectEveryFieldRequired(
   }
 
   const survived: string[] = [];
-  for (const field of candidates) {
+  for (const candidate of candidates) {
     let stillComplete = false;
     try {
-      expectNoEmptyFields(await run(field), optional);
+      expectNoEmptyFields(await run(candidate), optional);
       stillComplete = true;
     } catch {
       // Either the response lost a value or the query itself refused to run without the field.
       // Both mean the field carries weight, which is what this level asserts.
     }
-    if (stillComplete) survived.push(field);
+    if (stillComplete) survived.push(Array.isArray(candidate) ? `[${candidate.join(' + ')}]` : candidate);
   }
   if (survived.length)
     throw new Error(
