@@ -131,6 +131,37 @@ describeProjection('GET /custody/order — read-path projection', () => {
     expect(history[0].created).not.toEqual(other.order.created);
   }, 120000);
 
+  it('level 2 — an order without its optional relations is still listed', async () => {
+    // All three joined relations are nullable, and every other fixture sets them. If one of the
+    // left joins were written as an inner one, orders without that relation would vanish from the
+    // history without a trace — this is the only case that would notice.
+    const userData = await seedEntity<UserData>(dataSource, UserData);
+    const user = await seedEntity<User>(dataSource, User, { values: { userData } });
+    const bare = await seedEntity<CustodyOrder>(dataSource, CustodyOrder, {
+      values: {
+        user,
+        inputAsset: null,
+        outputAsset: null,
+        transactionRequest: null,
+        type: CustodyOrderType.DEPOSIT,
+        status: CustodyOrderStatus.COMPLETED,
+      },
+    });
+
+    const history = await historyOf(userData.id);
+
+    expect(history).toHaveLength(1);
+    expect(history[0].created).toEqual(bare.created);
+    expect(history[0].inputAsset).toBeUndefined();
+    expect(history[0].outputAsset).toBeUndefined();
+    // The full load answers the same, so nothing here depends on the projection either.
+    const full = await dataSource.getRepository(CustodyOrder).find({
+      where: { user: { userData: { id: userData.id } } },
+      relations: { inputAsset: true, outputAsset: true, transactionRequest: true },
+    });
+    expect(history).toEqual(CustodyOrderHistoryDtoMapper.mapList(full));
+  }, 120000);
+
   // --- LEVEL 3: mutation --- //
 
   const REQUEST_FALLBACK = ['transactionRequest.estimatedAmount', 'transactionRequest.amount'];

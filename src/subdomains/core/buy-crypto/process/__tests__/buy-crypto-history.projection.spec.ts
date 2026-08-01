@@ -63,6 +63,26 @@ describeProjection('buy-crypto history — read-path projection', () => {
     return { buyCrypto, user, buy };
   }
 
+  /** A second buy route of the same caller, with one transaction on it. */
+  async function seedSecondBuyRouteFor(user: User): Promise<{ buyCrypto: BuyCrypto; buy: Buy }> {
+    const buy = await seedEntity<Buy>(dataSource, Buy, { values: { user } });
+    const outputAsset = await seedEntity<Asset>(dataSource, Asset, { values: { blockchain: Blockchain.ETHEREUM } });
+    const buyCrypto = await seedEntity<BuyCrypto>(dataSource, BuyCrypto, {
+      values: { buy, outputAsset, status: BuyCryptoStatus.COMPLETE },
+    });
+    return { buyCrypto, buy };
+  }
+
+  /** A second swap route of the same caller, with one transaction on it. */
+  async function seedSecondSwapRouteFor(user: User): Promise<{ buyCrypto: BuyCrypto; route: Swap }> {
+    const route = await seedEntity<Swap>(dataSource, Swap, { values: { user } });
+    const outputAsset = await seedEntity<Asset>(dataSource, Asset, { values: { blockchain: Blockchain.ETHEREUM } });
+    const buyCrypto = await seedEntity<BuyCrypto>(dataSource, BuyCrypto, {
+      values: { cryptoRoute: route, outputAsset, status: BuyCryptoStatus.COMPLETE },
+    });
+    return { buyCrypto, route };
+  }
+
   /** The same, on a swap route. */
   async function seedSwapCrypto(): Promise<{ buyCrypto: BuyCrypto; user: User; route: Swap }> {
     const user = await seedEntity<User>(dataSource, User);
@@ -114,15 +134,42 @@ describeProjection('buy-crypto history — read-path projection', () => {
     expectNoEmptyFields(history, ['[0].outputAsset', '[0].txUrl']);
   }, 120000);
 
-  it('level 2 — the route filter selects only the caller’s own transactions', async () => {
+  it('level 2 — both filters are needed to select the right buy transactions', async () => {
+    // One caller with one route against a stranger with another is not enough: asked with that
+    // caller's id and that caller's route id, either predicate on its own still returns exactly the
+    // expected row. A second route of the same caller makes the route id necessary; a foreign route
+    // asked for with the caller's id makes the user id necessary.
     const mine = await seedBuyCrypto();
+    const second = await seedSecondBuyRouteFor(mine.user);
     const other = await seedBuyCrypto();
 
-    const history = (await repository.findBuyHistory(mine.user.id, mine.buy.id)).map(BuyCryptoHistoryMapper.toDto);
+    const onOneRoute = (await repository.findBuyHistory(mine.user.id, mine.buy.id)).map(BuyCryptoHistoryMapper.toDto);
+    expect(onOneRoute.map((row) => row.txId)).toEqual([mine.buyCrypto.txId]);
+    expect(onOneRoute.map((row) => row.txId)).not.toContain(second.buyCrypto.txId);
 
-    expect(history).toHaveLength(1);
-    expect(history[0].txId).toEqual(mine.buyCrypto.txId);
-    expect(history[0].txId).not.toEqual(other.buyCrypto.txId);
+    const allOfMine = (await repository.findBuyHistory(mine.user.id)).map(BuyCryptoHistoryMapper.toDto);
+    expect(allOfMine.map((row) => row.txId).sort()).toEqual([mine.buyCrypto.txId, second.buyCrypto.txId].sort());
+
+    expect(await repository.findBuyHistory(mine.user.id, other.buy.id)).toHaveLength(0);
+  }, 120000);
+
+  it('level 2 — both filters are needed to select the right swap transactions', async () => {
+    // The same for the swap route: its own query, its own two predicates, and no test reached them
+    // until now — the case above only ever called `findBuyHistory`.
+    const mine = await seedSwapCrypto();
+    const second = await seedSecondSwapRouteFor(mine.user);
+    const other = await seedSwapCrypto();
+
+    const onOneRoute = (await repository.findSwapHistory(mine.user.id, mine.route.id)).map(
+      BuyCryptoHistoryMapper.toDto,
+    );
+    expect(onOneRoute.map((row) => row.txId)).toEqual([mine.buyCrypto.txId]);
+    expect(onOneRoute.map((row) => row.txId)).not.toContain(second.buyCrypto.txId);
+
+    const allOfMine = (await repository.findSwapHistory(mine.user.id)).map(BuyCryptoHistoryMapper.toDto);
+    expect(allOfMine.map((row) => row.txId).sort()).toEqual([mine.buyCrypto.txId, second.buyCrypto.txId].sort());
+
+    expect(await repository.findSwapHistory(mine.user.id, other.route.id)).toHaveLength(0);
   }, 120000);
 
   // --- LEVEL 3: mutation --- //
