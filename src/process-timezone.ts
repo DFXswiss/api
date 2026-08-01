@@ -21,6 +21,18 @@ export type CheckProcessTimezoneDeps = {
 };
 
 /**
+ * True when the process wall-clock is UTC-offset year-round (Jan and Jul anchors both 0).
+ * A single `new Date().getTimezoneOffset()` would accept Europe/London in winter — use this
+ * (or `checkProcessTimezone`) whenever a gate depends on process TZ being UTC for
+ * `timestamp without time zone` serialization.
+ */
+export function isProcessTimezoneUtcYearRound(
+  getTimezoneOffset: (date: Date) => number = (date) => date.getTimezoneOffset(),
+): boolean {
+  return getTimezoneOffset(JANUARY_OFFSET_ANCHOR) === 0 && getTimezoneOffset(JULY_OFFSET_ANCHOR) === 0;
+}
+
+/**
  * Logs the process timezone at boot. Warns when the Node process is not UTC year-round;
  * never throws — deploy start commands may set `TZ` outside this repo, and a hard abort
  * would block deploys without a confirmed host-side guarantee.
@@ -45,6 +57,7 @@ export function checkProcessTimezone(deps: CheckProcessTimezoneDeps = {}): void 
   const timeZone = (deps.getTimeZoneName ?? (() => Intl.DateTimeFormat().resolvedOptions().timeZone))() ?? 'unknown';
   const logger = deps.logger ?? new DfxLogger('ProcessTimezone');
 
+  // Same predicate as isProcessTimezoneUtcYearRound — sample once so log offsets match the decision.
   if (januaryOffset === 0 && julyOffset === 0) {
     logger.info(`Process timezone OK: "${timeZone}" (getTimezoneOffset january=${januaryOffset}, july=${julyOffset}).`);
     return;

@@ -1,5 +1,6 @@
 import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryColumn, Repository } from 'typeorm';
 import { ConfigService } from 'src/config/config';
+import { isProcessTimezoneUtcYearRound } from 'src/process-timezone';
 import { PartnerStatisticGranularity } from '../partner-statistic.enum';
 import { PartnerStatisticService } from '../partner-statistic.service';
 
@@ -8,7 +9,7 @@ import { PartnerStatisticService } from '../partner-statistic.service';
  *
  * Runs only when BOTH are true:
  *   1. MIGRATION_TEST_PG is set (CI / local disposable DB)
- *   2. Process timezone is UTC (`getTimezoneOffset() === 0`)
+ *   2. Process timezone is UTC year-round (Jan + Jul anchors via `isProcessTimezoneUtcYearRound`)
  *
  * CI meets the UTC process-timezone condition. This suite deliberately does **not**
  * force `process.env.TZ = 'UTC'` (that would hide the dependency and leak into other
@@ -19,6 +20,8 @@ import { PartnerStatisticService } from '../partner-statistic.service';
  * Why UTC process TZ is required: `created` is `timestamp without time zone`. The
  * Postgres driver serializes a JS `Date` in process-local wall time; Postgres then
  * drops the offset. Session `TimeZone=UTC` does not fix driver-side serialization.
+ * A single `new Date().getTimezoneOffset() === 0` would wrongly accept Europe/London
+ * in winter — same trap as the process-timezone boot check.
  *
  * Calls `getStatistics` / `getTimeline` / `mergeNamedRows` against a minimal schema that
  * mirrors the production join columns. Lightweight entity stubs provide TypeORM relation
@@ -29,16 +32,19 @@ import { PartnerStatisticService } from '../partner-statistic.service';
  */
 
 const PG_URL = process.env.MIGRATION_TEST_PG;
-// Offset is the reliable signal for driver Date→timestamp serialization; IANA name alone
-// can be empty/non-UTC under odd hosts even when the wall clock is already UTC-offset.
-const isProcessTimezoneUtc = new Date().getTimezoneOffset() === 0;
+// Year-round offset (Jan + Jul), not "today": IANA name alone can be empty/non-UTC under
+// odd hosts even when the wall clock is already UTC-offset; a single getTimezoneOffset()
+// would accept London in winter.
+const isProcessTimezoneUtc = isProcessTimezoneUtcYearRound();
 const describeDb = PG_URL && isProcessTimezoneUtc ? describe : describe.skip;
 
 if (PG_URL && !isProcessTimezoneUtc) {
   const resolved = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '(unknown)';
+  const jan = new Date(Date.UTC(2024, 0, 15, 12, 0, 0)).getTimezoneOffset();
+  const jul = new Date(Date.UTC(2024, 6, 15, 12, 0, 0)).getTimezoneOffset();
   console.warn(
-    `[partner-statistic.integration] suite skipped: process timezone must be UTC ` +
-      `(got offset=${new Date().getTimezoneOffset()} min, timeZone=${resolved}). ` +
+    `[partner-statistic.integration] suite skipped: process timezone must be UTC year-round ` +
+      `(got january=${jan} min, july=${jul} min, timeZone=${resolved}). ` +
       `Column "created" is timestamp without time zone; the Postgres driver serializes ` +
       `JS Date values in process-local wall time and Postgres drops the offset, so ` +
       `half-open period bounds shift under non-UTC hosts. The application expects ` +

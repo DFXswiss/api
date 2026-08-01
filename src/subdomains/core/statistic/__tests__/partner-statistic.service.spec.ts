@@ -127,6 +127,9 @@ describe('PartnerStatisticService', () => {
 
   function fixtureFor(walletId?: number): WalletFixture {
     if (walletId == null) {
+      // Unscoped fallback when a QB never captured :walletId (harness gap). Must still
+      // carry boolean flags — dropping missingWallet made D6 return a synthetic row
+      // (merged volumes, row present) instead of null, so getStatistics did not throw.
       const merged = emptyFixture();
       for (const f of fixtures.values()) {
         merged.buy.volume += f.buy.volume;
@@ -150,6 +153,7 @@ describe('PartnerStatisticService', () => {
         merged.referral.paidRefCredit += f.referral.paidRefCredit;
         merged.namedRows.push(...f.namedRows);
         merged.timelineRows.push(...f.timelineRows);
+        if (f.missingWallet) merged.missingWallet = true;
       }
       return merged;
     }
@@ -250,7 +254,16 @@ describe('PartnerStatisticService', () => {
 
     qb.getRawOne = jest.fn(async () =>
       trackConcurrency(async () => {
-        const f = fixtureFor(state.walletId);
+        // Wallet-row presence must not depend on whether :walletId was captured into
+        // this QB's local state. Prefer the scoped fixture; if the id is missing, the
+        // unscoped merge still carries missingWallet (see fixtureFor). Using a bare
+        // emptyFixture() here would invent a row and silence D6.
+        const f =
+          kind === 'wallet' || state.isReferral
+            ? state.walletId != null
+              ? (fixtures.get(state.walletId) ?? emptyFixture())
+              : fixtureFor(undefined)
+            : fixtureFor(state.walletId);
 
         if (kind === 'wallet' || state.isReferral) {
           if (f.missingWallet) return null;
@@ -606,18 +619,24 @@ describe('PartnerStatisticService', () => {
       // getStatistics builds exactly this many wallet-scoped WHERE clauses:
       // 3 direction aggs + 3 active-user union legs + newUsers + allTime + referral
       // + 3 asset + 2 fiat + 3 blockchain + 3 payment-method = 20.
-      // Pin the count so REMOVING a scope fails (filter+every alone is vacuum-true on survivors);
-      // the column pattern fails when a scope is rewritten onto a non-wallet column.
+      // Exact full-clause form (not substring): removing, rewriting, or OR-extending a scope
+      // drops the count — unanchored filter+every is vacuum-true on survivors and on
+      // `user.walletId = :walletId OR 1 = 1`.
       const GET_STATISTICS_SCOPED_BUILDERS = 20;
-      const SCOPE_RE = /(?:user\.walletId|wallet\.id)\s*=\s*:walletId/;
-      const scopeClauses = whereClauses.filter((c) => SCOPE_RE.test(c));
+      const SCOPE_EXACT_RE = /^(?:user\.walletId|wallet\.id)\s*=\s*:walletId$/;
+      const scopeClauses = whereClauses.filter((c) => SCOPE_EXACT_RE.test(c));
       expect(scopeClauses).toHaveLength(GET_STATISTICS_SCOPED_BUILDERS);
       expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_SCOPED_BUILDERS);
       expect(lastWalletIds.every((id) => id === 1)).toBe(true);
       expect(whereClauses.every((c) => !/user\.id\s*=\s*:walletId/.test(c))).toBe(true);
 
-      expect(amlFilterClauses.length).toBeGreaterThan(0);
-      expect(amlFilterClauses.every((c) => /amlCheck\s*=\s*:check/.test(c))).toBe(true);
+      // baseTxQuery × (3 dir + 3 active + 3 asset + 2 fiat + 3 blockchain + 3 payment) = 17.
+      // Pin count + exact clause so omitting SELL/SWAP (or OR-extending the check) fails;
+      // length>0 + unanchored every was vacuum-true when only BUY kept the filter.
+      const GET_STATISTICS_AML_FILTERS = 17;
+      const AML_EXACT_RE = /^tx\.amlCheck\s*=\s*:check$/;
+      expect(amlFilterClauses).toHaveLength(GET_STATISTICS_AML_FILTERS);
+      expect(amlFilterClauses.every((c) => AML_EXACT_RE.test(c))).toBe(true);
 
       expect(result.totals.volume.buy).toBe(1000);
       expect(result.totals.volume.sell).toBe(200);
@@ -639,8 +658,8 @@ describe('PartnerStatisticService', () => {
       const result = await service.getStatistics(2, PERIOD_FROM, PERIOD_TO);
 
       const GET_STATISTICS_SCOPED_BUILDERS = 20;
-      const SCOPE_RE = /(?:user\.walletId|wallet\.id)\s*=\s*:walletId/;
-      const scopeClauses = whereClauses.filter((c) => SCOPE_RE.test(c));
+      const SCOPE_EXACT_RE = /^(?:user\.walletId|wallet\.id)\s*=\s*:walletId$/;
+      const scopeClauses = whereClauses.filter((c) => SCOPE_EXACT_RE.test(c));
       expect(scopeClauses).toHaveLength(GET_STATISTICS_SCOPED_BUILDERS);
       expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_SCOPED_BUILDERS);
       expect(lastWalletIds.every((id) => id === 2)).toBe(true);
@@ -818,6 +837,37 @@ describe('PartnerStatisticService', () => {
       );
 
       await expect(service.getStatistics(1, PERIOD_FROM, PERIOD_TO)).rejects.toThrow(/wallet 1 not found/);
+    });
+
+    it('D6 harness: missingWallet survives unscoped fixture merge (walletId not captured)', async () => {
+      // Reproduces the flake: when state.walletId is unset, getRawOne used to call
+      // fixtureFor(undefined), which summed volumes but dropped missingWallet — so the
+      // wallet query invented a row and getStatistics returned instead of throwing.
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 100, transactions: 10, users: 5 },
+          allTime: { buy: 100, sell: 0, registeredUsers: 10, tradingUsers: 5 },
+          activeUserIds: [1, 2, 3, 4, 5],
+          missingWallet: true,
+        }),
+      );
+      // Second wallet so a naive merge has non-trivial aggregates (matches the
+      // "response looked like the merged fixture" observation).
+      fixtures.set(
+        2,
+        emptyFixture({
+          buy: { volume: 999, transactions: 50, users: 20 },
+          referral: { volume: 12, partnerRefCredit: 3, refCredit: 1, paidRefCredit: 0 },
+        }),
+      );
+
+      expect(fixtureFor(undefined).missingWallet).toBe(true);
+      expect(fixtureFor(undefined).buy.volume).toBe(1099);
+
+      // Wallet QB with no where() — state.walletId stays undefined (the flake condition).
+      const qb = createQb('wallet');
+      await expect(qb.getRawOne()).resolves.toBeNull();
     });
   });
 
@@ -1130,14 +1180,18 @@ describe('PartnerStatisticService', () => {
 
       await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
 
-      const halfOpen = whereClauses.filter((c) => c.includes('created'));
-      expect(halfOpen.length).toBeGreaterThan(0);
-      // every — not some: a single mutated direction must fail
-      expect(halfOpen.every((c) => c.includes('>=') && c.includes('<'))).toBe(true);
-      expect(halfOpen.every((c) => !/BETWEEN/i.test(c))).toBe(true);
-      expect(halfOpen.every((c) => !/> :from/.test(c) || c.includes('>='))).toBe(true);
-      // Explicit half-open form
-      expect(halfOpen.every((c) => /created\s*>=\s*:from\s+AND\s+.*created\s*<\s*:to/.test(c))).toBe(true);
+      // baseTxQuery × 17 (tx.created) + countNewUsers (user.created) = 18 half-open bounds.
+      // Pin count + full-clause exact form: replacing one direction with `1 = 1` or
+      // OR-extending a bound drops/breaks the match set. filter(includes)+every alone was
+      // vacuum-true on survivors (and the previous comment claimed the opposite).
+      const GET_STATISTICS_PERIOD_FILTERS = 18;
+      const PERIOD_EXACT_RE = /^(?:tx|user)\.created\s*>=\s*:from\s+AND\s+(?:tx|user)\.created\s*<\s*:to$/;
+      const halfOpen = whereClauses.filter((c) => PERIOD_EXACT_RE.test(c));
+      expect(halfOpen).toHaveLength(GET_STATISTICS_PERIOD_FILTERS);
+      // No BETWEEN and no exclusive-open left bound on any created-related clause that survived.
+      const createdRelated = whereClauses.filter((c) => /created/i.test(c));
+      expect(createdRelated).toHaveLength(GET_STATISTICS_PERIOD_FILTERS);
+      expect(createdRelated.every((c) => !/BETWEEN/i.test(c))).toBe(true);
     });
   });
 

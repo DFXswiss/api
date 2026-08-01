@@ -17,6 +17,9 @@ export class PartnerStatisticRateLimitGuard extends ThrottlerGuard {
     // Unreachable when this guard is ordered after AuthGuard + RoleGuard(CLIENT_COMPANY):
     // jwt.user is set. Falling back to IP would silently weaken the budget (NAT share-out or
     // no useful key) — fail closed instead of pretending rate limiting still works.
+    // This throw is also unreachable while REQUEST_LIMIT_CHECK is not true: handleRequest
+    // returns true before super.handleRequest, so getTracker is never called — fail-closed
+    // stands or falls with the same switch as the budget itself.
     throw new Error('Partner statistic rate limit requires an authenticated wallet');
   }
 

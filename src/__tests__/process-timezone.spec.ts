@@ -1,11 +1,19 @@
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { checkProcessTimezone } from '../process-timezone';
+import { checkProcessTimezone, isProcessTimezoneUtcYearRound } from '../process-timezone';
 
 /** London-like: UTC in winter, BST (UTC+1 → offset -60) in summer. */
 function londonLikeOffset(date: Date): number {
   // Anchors use month 0 (Jan) and 6 (Jul); treat Jan–Mar as winter.
   return date.getUTCMonth() < 6 ? 0 : -60;
 }
+
+describe('isProcessTimezoneUtcYearRound', () => {
+  it('is true only when both January and July offsets are 0', () => {
+    expect(isProcessTimezoneUtcYearRound(() => 0)).toBe(true);
+    expect(isProcessTimezoneUtcYearRound(londonLikeOffset)).toBe(false);
+    expect(isProcessTimezoneUtcYearRound(() => -60)).toBe(false);
+  });
+});
 
 describe('checkProcessTimezone', () => {
   let warnSpy: jest.SpyInstance;
