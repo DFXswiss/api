@@ -55,7 +55,10 @@ describeProjection('liquidity management pipeline status — read-path projectio
   }
 
   /** The response the endpoint produces, through the projected query. */
-  async function statusOf(id: number, fields = PIPELINE_STATUS_PROJECTION.fields) {
+  async function statusOf(
+    id: number,
+    fields = PIPELINE_STATUS_PROJECTION.fields,
+  ): Promise<LiquidityManagementPipelineStatus | undefined> {
     const pipeline = await pipelines.findForStatus(id, fields);
     return pipeline?.status;
   }

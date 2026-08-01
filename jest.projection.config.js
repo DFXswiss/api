@@ -15,6 +15,8 @@ module.exports = {
   ...base,
   transform: { '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.coverage.json' }] },
   testRegex: '.*\\.projection\\.spec\\.ts$',
+  // The guard is installed once for the whole configuration; see jest-projection.setup.ts.
+  setupFilesAfterEnv: ['<rootDir>/../jest-projection.setup.ts'],
   // The base config excludes these specs so the main suite does not pick them up. Spreading it in
   // would exclude them here too — this run is the one that must find them.
   testPathIgnorePatterns: ['/node_modules/'],

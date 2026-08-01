@@ -1,4 +1,5 @@
-import { DataSource, EntityMetadata, EntityTarget, ObjectLiteral } from 'typeorm';
+import { ReadProjection } from 'src/shared/models/read-projection';
+import { DataSource, EntityMetadata, EntityTarget, ObjectLiteral, SelectQueryBuilder } from 'typeorm';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 
 /**
@@ -304,4 +305,182 @@ export async function expectEveryFieldRequired(
 /** Metadata helper: every column an entity would load without a projection. */
 export function allColumnNames(metadata: EntityMetadata): string[] {
   return metadata.columns.map((column) => column.propertyName);
+}
+
+/**
+ * Makes an incomplete projection fail loudly.
+ *
+ * The defect this whole test definition exists for is silent: a column the query did not select is
+ * `undefined` on the entity, getters compute with it, and the endpoint answers 200 with a wrong
+ * value. Proving completeness field by field is possible — that is what the mutation level does —
+ * but it needs a fixture that reaches every branch reading every field, and a fixture that misses
+ * its branch is green while proving nothing. The safety net then fails the way the defect fails.
+ *
+ * This turns the silence off. Reading a column the field list did not ask for throws, so any test
+ * that exercises the endpoint at all — however naive — reports an incomplete projection, and reports
+ * it at the property that was missing.
+ *
+ * The decision comes from the field list, not from the row: this repository compiles to a target
+ * where class fields are defined on the instance, so every declared column exists and an unselected
+ * one is indistinguishable from a selected `null` by looking at the object.
+ *
+ * Joined relations are guarded in turn, each against the fields selected for its own alias, so a
+ * column missing two levels down is reported there. Relations the projection does not join are left
+ * alone: they are `undefined`, and dereferencing them already throws.
+ *
+ * Only mapped columns are guarded. Methods and getters pass through untouched — reading *through* a
+ * getter is how the missing column is reached, so the getter has to keep running.
+ */
+export function guardProjection<E extends ObjectLiteral>(
+  dataSource: DataSource,
+  target: EntityTarget<E>,
+  projection: GuardableProjection,
+  fields: ReadonlyArray<string>,
+  entity: E,
+): E;
+export function guardProjection<E extends ObjectLiteral>(
+  dataSource: DataSource,
+  target: EntityTarget<E>,
+  projection: GuardableProjection,
+  fields: ReadonlyArray<string>,
+  entity: E[],
+): E[];
+export function guardProjection<E extends ObjectLiteral>(
+  dataSource: DataSource,
+  target: EntityTarget<E>,
+  projection: GuardableProjection,
+  fields: ReadonlyArray<string>,
+  entity: E | E[] | null,
+): E | E[] | null {
+  if (entity == null) return entity;
+  return guardAgainst(dataSource.getMetadata(target), projection, fields, entity) as E | E[];
+}
+
+/** The part of a `ReadProjection` the guard needs. */
+export interface GuardableProjection {
+  alias: string;
+  joins: ReadonlyArray<readonly [string, string]>;
+  guards: ReadonlyArray<string>;
+}
+
+function guardAgainst(
+  rootMetadata: EntityMetadata,
+  projection: GuardableProjection,
+  fields: ReadonlyArray<string>,
+  entity: unknown,
+): unknown {
+  if (entity == null) return entity;
+
+  /** What the query selected, per alias. Guards are selected too — `apply` adds them. */
+  const selected = new Map<string, Set<string>>();
+  for (const field of [...fields, ...projection.guards]) {
+    const [alias, property] = field.split('.');
+    if (!selected.has(alias)) selected.set(alias, new Set());
+    selected.get(alias).add(property);
+  }
+
+  interface Node {
+    metadata: EntityMetadata;
+    asked: Set<string>;
+    children: Map<string, Node>;
+  }
+
+  const node = (metadata: EntityMetadata, alias: string): Node => ({
+    metadata,
+    asked: selected.get(alias) ?? new Set(),
+    children: new Map(),
+  });
+
+  const root = node(rootMetadata, projection.alias);
+  const byAlias = new Map<string, Node>([[projection.alias, root]]);
+
+  // `['parentAlias.relation', 'alias']`, in order — a later join may build on an earlier alias.
+  for (const [path, alias] of projection.joins) {
+    const [parentAlias, property] = path.split('.');
+    const parent = byAlias.get(parentAlias);
+    const relation = parent?.metadata.relations.find((r) => r.propertyName === property);
+    if (!relation) continue;
+    const child = node(relation.inverseEntityMetadata, alias);
+    parent.children.set(property, child);
+    byAlias.set(alias, child);
+  }
+
+  const wrap = <T extends ObjectLiteral>(row: T | T[] | null, at: Node): T | T[] | null => {
+    if (row == null) return row;
+    if (Array.isArray(row)) return row.map((one) => wrap(one, at)) as T[];
+
+    // Properties the caller assigned itself. A projected read does not carry them, but writing one
+    // and reading it back is what the write paths do — `createApiKey` sets the filter code on the
+    // row before passing it to the update — and that is not a projection defect.
+    const written = new Set<string>();
+
+    return new Proxy(row, {
+      set(source, property, value, receiver) {
+        written.add(String(property));
+        return Reflect.set(source, property, value, receiver);
+      },
+      get(source, property, receiver) {
+        const name = String(property);
+        const value = Reflect.get(source, property, receiver);
+
+        const child = at.children.get(name);
+        if (child) return wrap(value, child);
+
+        // A relation the projection does not declare is not guarded: it is `undefined`, and
+        // dereferencing it already throws. That includes the owner-side join column, which TypeORM
+        // reports as a column under the relation's own property name.
+        if (at.metadata.relations.some((relation) => relation.propertyName === name)) return value;
+
+        if (
+          at.metadata.columns.some((column) => column.propertyName === name) &&
+          !at.asked.has(name) &&
+          !written.has(name)
+        ) {
+          throw new Error(
+            `read of '${at.metadata.name}.${name}', which this query did not select — ` +
+              `add it to the projection, or stop reading it`,
+          );
+        }
+
+        return value;
+      },
+    }) as T;
+  };
+
+  return wrap(entity as ObjectLiteral, root);
+}
+
+/**
+ * Turns the guard on for every query a `ReadProjection` builds, for the rest of the process.
+ *
+ * Wiring it per spec would work and would be forgotten: a spec written next month would silently
+ * lose the protection, and nothing would say so. Here it applies to every projected query in the
+ * suite, including the ones the mutation level runs with a reduced field list.
+ *
+ * Test-only by construction — this is the only caller, and production never loads this file.
+ */
+export function installProjectionGuard(): void {
+  const original = ReadProjection.prototype.apply;
+  if ((original as { guarded?: boolean }).guarded) return;
+
+  function guarded<E extends ObjectLiteral>(
+    this: ReadProjection<E>,
+    query: SelectQueryBuilder<E>,
+    fields: ReadonlyArray<string> = this.fields,
+  ): SelectQueryBuilder<E> {
+    const built = original.call(this, query, fields) as SelectQueryBuilder<E>;
+    const metadata = built.expressionMap.mainAlias?.metadata;
+    if (!metadata) return built;
+
+    for (const method of ['getOne', 'getMany'] as const) {
+      const inner = built[method].bind(built);
+      (built as unknown as Record<string, unknown>)[method] = async () =>
+        guardAgainst(metadata, this, fields, await inner());
+    }
+
+    return built;
+  }
+
+  (guarded as { guarded?: boolean }).guarded = true;
+  ReadProjection.prototype.apply = guarded as typeof ReadProjection.prototype.apply;
 }

@@ -41,7 +41,7 @@ equally wasteful under a limit of 4,096 — it simply would not have failed yet.
 
 Two properties combine:
 
-**Eager relations.** 95 relations in this repo are declared `eager: true`. TypeORM expands them
+**Eager relations.** 94 relations in this repo are declared `eager: true`, across 45 entities. TypeORM expands them
 recursively, so a plain `findOne()` on `UserData` already selects **253 columns across 8 joins**,
 and one on `LimitRequest` **434 across 15** — before any `relations` option is passed. The
 decision what to load therefore lives in the entity definition, not at the call site, and no call
@@ -207,10 +207,51 @@ This service carries **234 such getters across 50 of its 112 entities**. In an a
 money, a silent wrong value is worse than a crash: a statement that exceeds the column limit fails
 loudly and is found at once, while a wrong value can run for weeks.
 
+## The guard: making the failure loud
+
+Before the levels, the mechanism they used to substitute for.
+
+A column the query did not select is `undefined` on the entity. Getters compute with it, the mapper
+puts the result in the response, and the endpoint answers 200. Nothing fails. The obvious defence is
+to prove completeness field by field — drop each one, require the response to change — and that is
+what level 3 below does. It works, and it is expensive in a particular way: it needs a fixture that
+reaches every branch reading every field, and a fixture that misses its branch is **green while
+proving nothing**. The safety net then fails exactly the way the defect fails, which is why writing
+these tests kept producing assertions that could not fail.
+
+So the silence is switched off instead. Every query a `ReadProjection` builds returns rows wrapped
+by `guardProjection`, and reading a column the field list did not ask for **throws**, naming the
+column:
+
+    read of 'UserData.organizationName', which this query did not select —
+    add it to the projection, or stop reading it
+
+The consequences are worth stating plainly:
+
+- **Any test that exercises the endpoint catches an incomplete field list**, including a naive one.
+  Completeness stops depending on how cleverly the fixture was written.
+- It is installed once for the whole configuration (`jest-projection.setup.ts`), not per spec, so a
+  spec written later cannot lose the protection quietly.
+- It reports **where the column was needed**, not where the wrong value surfaced. A getter keeps
+  running — reading *through* a getter is how the missing column is reached — and the failure names
+  the column the getter wanted.
+- It enforces a stricter rule than "the response is correct": it requires the projection to cover
+  what the code **reads**, not what the response happens to depend on. That difference is not
+  academic — it is what found `PUT /paymentLink/:id/pos` assembling a recipient block out of the
+  account's name, contact data and address, and discarding it. The fix was to stop reading, not to
+  load more.
+- Relations the projection does not join are left alone: they are `undefined`, and dereferencing
+  them already throws. So is a column the caller assigned itself before reading it back, which is
+  what the write paths do.
+
+The guard is verified by `projection-guard.projection.spec.ts` — it is the one piece the levels
+below cannot check, because they rely on it.
+
 ## Test definition
 
-All four levels must pass for an endpoint to count as converted. `endpoints.md` records the state
-per endpoint as `0/4` through `4/4`; only `4/4` is done.
+The guard covers completeness. The levels cover what it cannot see: whether the response is right,
+whether the variants that matter are exercised, and whether the projection carries more than it
+needs. `endpoints.md` records the state per endpoint as `0/4` through `4/4`; only `4/4` is done.
 
 ### Which endpoints these apply to
 
@@ -362,6 +403,13 @@ depends on a status field.
 ### 3. Mutation
 
 **Remove each field of the projection individually; the response must change every time.**
+
+Since the guard, this level no longer protects against a *missing* field — a dropped field now
+throws before it can produce a wrong value, and `expectEveryFieldRequired` counts that throw as the
+field carrying weight. What it still does is the opposite direction: it shows that a field in the
+list is **needed**, so a projection cannot quietly grow past what the endpoint uses. That is a cost
+question rather than a correctness one, and it is the reason the fixture-per-branch work below is
+worth doing where a field list is intricate and can be skipped where it is not.
 
 This proves the test looks at anything at all. Where removing a field changes nothing, one of two
 things is true: the field is unnecessary and can be dropped permanently, or the fixture never

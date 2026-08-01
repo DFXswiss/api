@@ -174,7 +174,12 @@ describeProjection('API key — read-path projection', () => {
 
     const loaded = await userDataRepo.getForApiKey(account.id);
     loaded.apiKeyCT = 'SHARED-KEY';
-    const withOtherDate = { ...loaded, created: new Date('2001-02-03T04:05:06.000Z') } as typeof loaded;
+    // Built from the two columns `getSecret` reads rather than spread from the row: a spread touches
+    // every property, including ones this query had no reason to select.
+    const withOtherDate = {
+      apiKeyCT: loaded.apiKeyCT,
+      created: new Date('2001-02-03T04:05:06.000Z'),
+    } as typeof loaded;
 
     expect(ApiKeyService.getSecret(loaded)).not.toEqual(ApiKeyService.getSecret(withOtherDate));
   }, 120000);
