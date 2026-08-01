@@ -26,7 +26,10 @@ import {
   SupportIssueType,
 } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
-import { SupportIssueRepository } from 'src/subdomains/supporting/support-issue/repositories/support-issue.repository';
+import {
+  SupportIssueListQuery,
+  SupportIssueRepository,
+} from 'src/subdomains/supporting/support-issue/repositories/support-issue.repository';
 import { SupportMessageRepository } from 'src/subdomains/supporting/support-issue/repositories/support-message.repository';
 import { LimitRequestService } from 'src/subdomains/supporting/support-issue/services/limit-request.service';
 import { SupportDocumentService } from 'src/subdomains/supporting/support-issue/services/support-document.service';
@@ -41,34 +44,19 @@ import { SupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/sup
 describe('SupportIssueService.getSupportIssueList', () => {
   let service: SupportIssueService;
   let supportIssueRepo: DeepMocked<SupportIssueRepository>;
-  let qb: Record<string, jest.Mock>;
-
-  // chainable query-builder recorder: every builder method returns the same object,
-  // getManyAndCount short-circuits getMessageStats (empty result set).
-  function createQbMock(): Record<string, jest.Mock> {
-    const builder: Record<string, jest.Mock> = {};
-    for (const method of ['leftJoin', 'andWhere', 'orderBy', 'addOrderBy', 'take', 'skip']) {
-      builder[method] = jest.fn(() => builder);
-    }
-    builder.getManyAndCount = jest.fn().mockResolvedValue([[], 0]);
-    return builder;
-  }
 
   const run = (filter: Partial<GetSupportIssueListFilter>, role: UserRole = UserRole.ADMIN) =>
     service.getSupportIssueList(filter as GetSupportIssueListFilter, role);
 
-  const andWhereClauses = (): string[] => qb.andWhere.mock.calls.map((c) => String(c[0]));
-
-  // the department parameter handed to the "issue.department IN (:...departments)" clause (undefined if absent)
-  const departmentsParam = (): Department[] | undefined => {
-    const call = qb.andWhere.mock.calls.find((c) => String(c[0]).includes('issue.department IN'));
-    return call?.[1]?.departments as Department[] | undefined;
-  };
+  // What the service resolved the request into. The query itself is built and tested against a real
+  // database in support-issue-list.projection.spec.ts; what belongs here is the decision that
+  // precedes it — which departments the role may see, and how the filter is normalised.
+  const query = (): SupportIssueListQuery =>
+    (supportIssueRepo.findIssueList as jest.Mock).mock.calls[0][0] as SupportIssueListQuery;
 
   beforeEach(() => {
-    qb = createQbMock();
     supportIssueRepo = createMock<SupportIssueRepository>();
-    (supportIssueRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+    (supportIssueRepo.findIssueList as jest.Mock).mockResolvedValue([[], 0]);
 
     service = new SupportIssueService(
       supportIssueRepo,
@@ -87,56 +75,51 @@ describe('SupportIssueService.getSupportIssueList', () => {
   });
 
   describe('clerk filter', () => {
-    it('filters by clerk when provided', async () => {
+    it('passes the clerk through when provided', async () => {
       await run({ clerk: 'Alice' });
-      expect(qb.andWhere).toHaveBeenCalledWith('issue.clerk = :clerk', { clerk: 'Alice' });
+      expect(query().clerk).toEqual('Alice');
     });
 
-    it('does not add a clerk clause when absent', async () => {
+    it('leaves the clerk unset when absent', async () => {
       await run({});
-      expect(andWhereClauses().some((c) => c.includes('issue.clerk ='))).toBe(false);
+      expect(query().clerk).toBeUndefined();
     });
   });
 
   describe('timeframe filter', () => {
-    it('filters by createdFrom as a Date lower bound', async () => {
+    it('passes createdFrom through as a Date lower bound', async () => {
       await run({ createdFrom: '2026-01-01T00:00:00.000Z' });
-      expect(qb.andWhere).toHaveBeenCalledWith('issue.created >= :createdFrom', {
-        createdFrom: new Date('2026-01-01T00:00:00.000Z'),
-      });
+      expect(query().createdFrom).toEqual(new Date('2026-01-01T00:00:00.000Z'));
     });
 
-    it('filters by createdTo as a Date upper bound', async () => {
+    it('passes createdTo through as a Date upper bound', async () => {
       await run({ createdTo: '2026-02-01T00:00:00.000Z' });
-      expect(qb.andWhere).toHaveBeenCalledWith('issue.created <= :createdTo', {
-        createdTo: new Date('2026-02-01T00:00:00.000Z'),
-      });
+      expect(query().createdTo).toEqual(new Date('2026-02-01T00:00:00.000Z'));
     });
 
     it('extends a date-only createdTo to the end of that day (inclusive)', async () => {
       await run({ createdTo: '2026-02-01' });
-      expect(qb.andWhere).toHaveBeenCalledWith('issue.created <= :createdTo', {
-        createdTo: new Date('2026-02-01T23:59:59.999Z'),
-      });
+      expect(query().createdTo).toEqual(new Date('2026-02-01T23:59:59.999Z'));
     });
 
-    it('does not add date clauses when absent', async () => {
+    it('leaves both bounds unset when absent', async () => {
       await run({});
-      expect(andWhereClauses().some((c) => c.includes('issue.created'))).toBe(false);
+      expect(query().createdFrom).toBeUndefined();
+      expect(query().createdTo).toBeUndefined();
     });
   });
 
   describe('sorting', () => {
-    it('defaults to created DESC with an id tie-break for stable pagination', async () => {
+    it('defaults to created DESC', async () => {
       await run({});
-      expect(qb.orderBy).toHaveBeenCalledWith('issue.created', 'DESC');
-      expect(qb.addOrderBy).toHaveBeenCalledWith('issue.id', 'DESC');
+      expect(query().orderBy).toEqual(SupportIssueListOrderBy.CREATED);
+      expect(query().orderDir).toEqual(ListOrderDirection.DESC);
     });
 
-    it('applies a whitelisted sort column with an id tie-break for stable pagination', async () => {
+    it('passes a whitelisted sort column through', async () => {
       await run({ orderBy: SupportIssueListOrderBy.CLERK, orderDir: ListOrderDirection.ASC });
-      expect(qb.orderBy).toHaveBeenCalledWith('issue.clerk', 'ASC');
-      expect(qb.addOrderBy).toHaveBeenCalledWith('issue.id', 'ASC');
+      expect(query().orderBy).toEqual(SupportIssueListOrderBy.CLERK);
+      expect(query().orderDir).toEqual(ListOrderDirection.ASC);
     });
 
     it('rejects an out-of-whitelist orderBy at DTO validation (the actual injection guard)', async () => {
@@ -151,91 +134,55 @@ describe('SupportIssueService.getSupportIssueList', () => {
   describe('department narrowing', () => {
     it('keeps support locked to its own department, ignoring an out-of-set ?department (no escalation)', async () => {
       await run({ department: Department.COMPLIANCE }, UserRole.SUPPORT);
-      expect(departmentsParam()).toEqual([Department.SUPPORT]);
+      expect(query().departments).toEqual([Department.SUPPORT]);
     });
 
     it('lets compliance narrow to the support department via ?department', async () => {
       await run({ department: Department.SUPPORT }, UserRole.COMPLIANCE);
-      expect(departmentsParam()).toEqual([Department.SUPPORT]);
+      expect(query().departments).toEqual([Department.SUPPORT]);
     });
 
     it('defaults compliance to its full allowed set (support + compliance) without ?department', async () => {
       await run({}, UserRole.COMPLIANCE);
-      expect(departmentsParam()).toEqual([Department.SUPPORT, Department.COMPLIANCE]);
+      expect(query().departments).toEqual([Department.SUPPORT, Department.COMPLIANCE]);
     });
 
     it('applies an arbitrary ?department for an unrestricted admin', async () => {
       await run({ department: Department.MARKETING }, UserRole.ADMIN);
-      expect(departmentsParam()).toEqual([Department.MARKETING]);
+      expect(query().departments).toEqual([Department.MARKETING]);
     });
 
     it('applies no department filter for admin without ?department (unrestricted)', async () => {
       await run({}, UserRole.ADMIN);
-      expect(departmentsParam()).toBeUndefined();
+      expect(query().departments).toBeUndefined();
     });
 
     it('applies no department filter for super admin without ?department (unrestricted)', async () => {
       await run({}, UserRole.SUPER_ADMIN);
-      expect(departmentsParam()).toBeUndefined();
+      expect(query().departments).toBeUndefined();
     });
 
     it('returns nothing for a role with no department access, without querying', async () => {
       const result = await run({}, UserRole.USER);
       expect(result).toEqual({ data: [], total: 0 });
-      expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(supportIssueRepo.findIssueList).not.toHaveBeenCalled();
     });
   });
 
-  // The id branch of the search predicate is added only when the term is fully numeric AND
-  // fits int4. Anything above 2^31-1 (a pasted phone number) would produce a Postgres 22003
-  // range error and 500 the entire search — this block pins the guard against that regression.
-  describe('search-term id branch', () => {
-    // returns the parameter bag from the last andWhere call that includes the search predicate
-    const lastSearchParams = (): Record<string, unknown> | undefined => {
-      const calls = qb.andWhere.mock.calls;
-      const call = [...calls].reverse().find((c) => String(c[0]).includes('issue.name LIKE'));
-      return call?.[1] as Record<string, unknown> | undefined;
-    };
-
-    // returns the SQL fragment string from the last search predicate
-    const lastSearchFragment = (): string => {
-      const calls = qb.andWhere.mock.calls;
-      const call = [...calls].reverse().find((c) => String(c[0]).includes('issue.name LIKE'));
-      return String(call?.[0] ?? '');
-    };
-
-    it('emits the id clause for a small numeric term and binds the int', async () => {
-      await run({ query: '12345' });
-      expect(lastSearchFragment()).toContain('issue.id = :term0Id');
-      expect(lastSearchParams()).toEqual({ term0: '%12345%', term0Id: 12345 });
+  describe('search terms', () => {
+    it('splits the query on whitespace and drops empty terms', async () => {
+      await run({ query: '  alice   12345 ' });
+      expect(query().terms).toEqual(['alice', '12345']);
     });
 
-    it('emits the id clause for exactly int4 max (2147483647)', async () => {
-      await run({ query: '2147483647' });
-      expect(lastSearchFragment()).toContain('issue.id = :term0Id');
-      expect(lastSearchParams()).toMatchObject({ term0Id: 2147483647 });
+    it('caps the term count at ten', async () => {
+      await run({ query: Array.from({ length: 15 }, (_, i) => `t${i}`).join(' ') });
+      expect(query().terms).toHaveLength(10);
     });
 
-    it('omits the id clause and Id-bind for a numeric term above int4 max (phone-number regression)', async () => {
-      await run({ query: '41791234567' });
-      expect(lastSearchFragment()).not.toContain('issue.id = :term0Id');
-      expect(lastSearchParams()).toEqual({ term0: '%41791234567%' });
-    });
-
-    it('omits the id clause for a non-numeric term', async () => {
-      await run({ query: 'alice' });
-      expect(lastSearchFragment()).not.toContain('issue.id = :term0Id');
-      expect(lastSearchParams()).toEqual({ term0: '%alice%' });
-    });
-
-    it('mixes term shapes across ANDed clauses', async () => {
-      await run({ query: 'alice 12345' });
-      const calls = qb.andWhere.mock.calls.filter((c) => String(c[0]).includes('issue.name LIKE'));
-      expect(calls).toHaveLength(2);
-      expect(String(calls[0][0])).not.toContain('issue.id = :term0Id');
-      expect(String(calls[1][0])).toContain('issue.id = :term1Id');
-      expect(calls[0][1]).toEqual({ term0: '%alice%' });
-      expect(calls[1][1]).toEqual({ term1: '%12345%', term1Id: 12345 });
+    it('produces no terms for an absent query', async () => {
+      await run({});
+      expect(query().terms).toEqual([]);
     });
   });
 });

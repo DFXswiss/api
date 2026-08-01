@@ -525,8 +525,6 @@ export class SupportIssueService {
     role: UserRole,
     customerIds?: number[],
   ): Promise<{ data: SupportIssueListDto[]; total: number }> {
-    const where: FindOptionsWhere<SupportIssue> = {};
-
     // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
     const allowedDepartments = getVisibleDepartments(role);
     if (!customerIds && allowedDepartments?.length === 0) return { data: [], total: 0 }; // no department access
@@ -537,61 +535,26 @@ export class SupportIssueService {
         ? [filter.department]
         : allowedDepartments;
 
-    if (filter.type) where.type = filter.type;
-
-    // server-side search: split query into terms, each term must match at least one field (AND between terms, OR between fields)
-    const terms = (filter.query ?? '')
-      .split(/\s+/)
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0)
-      .slice(0, 10);
-
-    const qb = this.supportIssueRepo.createQueryBuilder('issue');
-    // the search predicate and the RealUnit customer scope both need the userData join; share the single 'userData' alias
-    if (terms.length > 0 || customerIds) qb.leftJoin('issue.userData', 'userData');
-
-    // customer scope (RealUnit) takes precedence over and replaces the department gate; the left join + IN filter
-    // fail-closes issues without a userData (NULL is never IN the scope list)
-    if (customerIds) qb.andWhere('"userData".id IN (:...customerIds)', { customerIds });
-    else if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
-    if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
-    if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
-    if (filter.clerk) qb.andWhere('issue.clerk = :clerk', { clerk: filter.clerk });
-    if (filter.createdFrom) qb.andWhere('issue.created >= :createdFrom', { createdFrom: new Date(filter.createdFrom) });
-    if (filter.createdTo) {
-      const createdTo = new Date(filter.createdTo);
-      // a date-only bound (no time component) means "on or before that day" → include the whole day
-      if (!filter.createdTo.includes('T')) createdTo.setUTCHours(23, 59, 59, 999);
-      qb.andWhere('issue.created <= :createdTo', { createdTo });
-    }
-
-    const termCount = Math.min(terms.length, 10);
-    for (let i = 0; i < termCount; i++) {
-      const param = `term${i}`;
-      // Only emit the id branch when the term is fully numeric AND fits int4 (Postgres rejects
-      // larger values with 22003, which would 500 the entire search — a pasted phone number
-      // like "41791234567" is a realistic trigger). Keeps the predicate on the PK index (no
-      // cast-to-text) and avoids partial-match surprises (term "42" doesn't match id 142).
-      const idTerm = /^\d+$/.test(terms[i]) && parseInt(terms[i], 10) <= 2147483647 ? parseInt(terms[i], 10) : null;
-      const idClause = idTerm != null ? ` OR issue.id = :${param}Id` : '';
-      qb.andWhere(
-        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m."issueId" = issue.id AND m.message LIKE :${param})${idClause})`,
-        { [param]: `%${terms[i]}%`, ...(idTerm != null ? { [`${param}Id`]: idTerm } : {}) },
-      );
-    }
-
-    // whitelisted sort column + direction, with an id tie-break for stable pagination on equal sort keys
-    const orderBy = filter.orderBy ?? SupportIssueListOrderBy.CREATED;
-    const orderDir = filter.orderDir ?? ListOrderDirection.DESC;
-    qb.orderBy(`issue.${orderBy}`, orderDir);
-    qb.addOrderBy('issue.id', orderDir);
-
-    if (filter.take != null) {
-      qb.take(filter.take);
-      if (filter.skip != null) qb.skip(filter.skip);
-    }
-
-    const [issues, total] = await qb.getManyAndCount();
+    const [issues, total] = await this.supportIssueRepo.findIssueList({
+      departments,
+      customerIds,
+      states: filter.states,
+      type: filter.type,
+      clerk: filter.clerk,
+      createdFrom: filter.createdFrom ? new Date(filter.createdFrom) : undefined,
+      createdTo: this.parseCreatedTo(filter.createdTo),
+      // server-side search: split query into terms, each term must match at least one field
+      // (AND between terms, OR between fields)
+      terms: (filter.query ?? '')
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0)
+        .slice(0, 10),
+      orderBy: filter.orderBy ?? SupportIssueListOrderBy.CREATED,
+      orderDir: filter.orderDir ?? ListOrderDirection.DESC,
+      take: filter.take,
+      skip: filter.skip,
+    });
 
     const stats = await this.getMessageStats(issues.map((i) => i.id));
 
@@ -599,6 +562,16 @@ export class SupportIssueService {
       data: issues.map((i) => SupportIssueDtoMapper.mapSupportIssueListItem(i, stats.get(i.id))),
       total,
     };
+  }
+
+  /** A date-only upper bound (no time component) means "on or before that day" — include the whole day. */
+  private parseCreatedTo(createdTo?: string): Date | undefined {
+    if (!createdTo) return undefined;
+
+    const date = new Date(createdTo);
+    if (!createdTo.includes('T')) date.setUTCHours(23, 59, 59, 999);
+
+    return date;
   }
 
   private async getMessageStats(
