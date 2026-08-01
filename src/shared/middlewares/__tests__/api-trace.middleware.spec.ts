@@ -308,6 +308,15 @@ describe('maskLogValue', () => {
     expect(maskLogValue('victim\u0085@example.com', 96)).toBe('***');
   });
 
+  it('masks the whole value when a control character is what hides the pattern', () => {
+    // The collapse would put the halves back next to each other, so the value is masked whole
+    // rather than rendered with the pattern split across a space.
+    expect(maskLogValue('0x1234567890abcdef1234\u0000567890abcdef12345678', 96)).toBe('***');
+    expect(maskLogValue('192.0\u2028.2.123', 96)).toBe('***');
+    // a value that carries a control character but no pattern is only collapsed
+    expect(maskLogValue('realunit-app\u0085x', 96)).toBe('realunit-app x');
+  });
+
   it('masks before cutting, so a truncated email cannot slip through', () => {
     const masked = maskLogValue('someone@example.com', 12);
 

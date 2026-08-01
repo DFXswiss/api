@@ -1,4 +1,5 @@
 import { BadRequestException, ValidationError, ValidationPipe } from '@nestjs/common';
+import { logsRejectedValues } from 'src/shared/decorators/log-rejected-value.decorator';
 import { MAX_STRING, REDACT_KEY, maskLogValue } from 'src/shared/middlewares/api-trace.middleware';
 
 // Fields listed per rejection, and the cap per rendered value. Both are small on purpose: this is
@@ -6,10 +7,6 @@ import { MAX_STRING, REDACT_KEY, maskLogValue } from 'src/shared/middlewares/api
 const MAX_FIELDS = 5;
 const MAX_VALUE_LENGTH = 64;
 const MAX_DEPTH = 3;
-
-// class-validator constraints whose accepted values are a closed set of literals declared on the
-// field. Only these have their rejected value rendered - see `hasLiteralDomain`.
-const LITERAL_DOMAIN_CONSTRAINTS = ['isEnum', 'isIn'];
 
 /**
  * A failed request-body validation, carrying the raw `ValidationError[]` alongside the response.
@@ -55,11 +52,11 @@ export class DetailedValidationPipe extends ValidationPipe {
 
 /**
  * Renders what was rejected as `field=value` pairs for a log line. Every value here is untrusted
- * input: the content is only rendered for a field that declares its accepted values (see
- * {@link hasLiteralDomain}), a rendered string is then masked by field name (credentials, personal
- * data) and by value pattern (wallet address, email, IP), stripped of control characters and cut
- * to length, and a rendered number or boolean is bounded by being one. Every other field is
- * reduced to its shape, and the list itself is bounded in count and depth.
+ * input: the content is only rendered for a field that opted into it (see {@link LogRejectedValue}),
+ * a rendered string is then masked by field name (credentials, personal data) and by value pattern
+ * (wallet address, email, IP), stripped of control characters and cut to length, and a rendered
+ * number or boolean is bounded by being one. Every other field is reduced to its shape, and the
+ * list itself is bounded in count and depth.
  */
 export function describeRejectedValues(errors: ValidationError[]): string {
   const fields: string[] = [];
@@ -79,7 +76,7 @@ function collectRejectedValues(errors: ValidationError[], prefix: string, depth:
     // the client in charge of it, and this covers that too.
     const property = maskLogValue(`${error.property}`, MAX_VALUE_LENGTH);
     const path = prefix ? `${prefix}.${property}` : property;
-    if (error.constraints) fields.push(`${path}=${renderValue(error.property, error.value, error.constraints)}`);
+    if (error.constraints) fields.push(`${path}=${renderValue(error)}`);
 
     if (error.children?.length) {
       if (depth + 1 > MAX_DEPTH) return false;
@@ -90,7 +87,9 @@ function collectRejectedValues(errors: ValidationError[], prefix: string, depth:
   return true;
 }
 
-function renderValue(property: string, value: unknown, constraints: Record<string, string>): string {
+function renderValue(error: ValidationError): string {
+  const { property, value } = error;
+
   // Absent is the one thing worth naming for every field: there is nothing to disclose, and it is
   // what separates "the client never sent this" from "the client sent the wrong thing".
   if (value === undefined) return '(missing)';
@@ -98,7 +97,7 @@ function renderValue(property: string, value: unknown, constraints: Record<strin
   if (value === '') return "''";
 
   if (REDACT_KEY.test(property)) return '***';
-  if (!hasLiteralDomain(constraints)) return summarize(value);
+  if (!rendersValue(error)) return summarize(value);
 
   if (typeof value === 'string') {
     return value.length > MAX_STRING ? summarize(value) : `'${maskLogValue(value, MAX_VALUE_LENGTH)}'`;
@@ -108,17 +107,16 @@ function renderValue(property: string, value: unknown, constraints: Record<strin
   return summarize(value);
 }
 
-// The value itself is only rendered where the field accepts a closed set of literals. That is the
-// case a log line cannot be read without - one client sending one wrong constant looks exactly
-// like one sending a different one - and which fields are eligible for it follows from what they
-// declare, not from what happened to arrive. A string rendered that way is still untrusted input
-// and stays masked and capped; a number or a boolean is already bounded by being one.
+// The value is rendered only where the DTO said so. What a validator accepts says nothing about
+// what a client sends, and a rejected value is by definition outside what was accepted - a field
+// constrained to three payment methods rejects an account number exactly as it rejects a typo. So
+// the eligibility is declared on the field and read from it, and a field that never declared it
+// keeps its shape and loses its content.
 //
-// Every other field keeps its shape and loses its content: a name-based denylist would have to
-// grow with every DTO that ever carries a credential, and the field it has not heard of yet is
-// the one that leaks.
-function hasLiteralDomain(constraints: Record<string, string>): boolean {
-  return Object.keys(constraints).some((constraint) => LITERAL_DOMAIN_CONSTRAINTS.includes(constraint));
+// Read from the object being validated rather than passed down, so a nested DTO answers for its own
+// fields. No target - a `ValidationError` built without one - renders nothing.
+function rendersValue(error: ValidationError): boolean {
+  return logsRejectedValues(error.target?.constructor).has(error.property);
 }
 
 function summarize(value: unknown): string {

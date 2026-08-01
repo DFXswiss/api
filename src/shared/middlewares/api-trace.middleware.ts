@@ -88,8 +88,9 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
 /**
  * Renders an untrusted value (header, rejected body field) for inclusion in a log line: anything
  * that could break the line collapses to a space, so a crafted value cannot forge a second log
- * line or smuggle an ANSI escape into the console stream; PII is masked and the result is
- * length-capped. Masking runs before the cut, so a truncated email or wallet cannot slip through.
+ * line or smuggle an ANSI escape into the console stream; the value patterns above (wallet address,
+ * email, IPv4) are masked and the result is length-capped. Masking runs before the cut, so a
+ * truncated email or wallet cannot slip through.
  *
  * Beyond `MAX_STRING` the value is reported by length instead: masking is regex work over the
  * whole string, and the caller's cap alone would not stop an oversized one from paying for it.
@@ -99,6 +100,13 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
  */
 export function maskLogValue(value: string, maxLength: number): string {
   if (value.length > MAX_STRING) return `<${value.length} code units>`;
+
+  // A control character placed inside a pattern splits it, so the pattern no longer matches - and a
+  // log line shows the halves next to each other anyway, because the next step turns that character
+  // into a space. A value that only looks clean with them removed is masked whole: this is one
+  // value rather than a sentence, so masking more of it than the pattern costs nothing.
+  const withoutControls = value.replace(LINE_BREAKING, '');
+  if (withoutControls !== value && maskValue(withoutControls) !== withoutControls) return REDACTED;
 
   return capCharacters(singleLine(maskValue(value)), maxLength);
 }

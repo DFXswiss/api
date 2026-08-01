@@ -11,6 +11,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -48,6 +49,7 @@ export class GetBuyQuoteDto {
   @ApiPropertyOptional({ description: 'Payment method', enum: FiatPaymentMethod })
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
+  @LogRejectedValue()
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
 
   @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })

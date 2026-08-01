@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
+import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -61,6 +62,7 @@ export class GetBuyPaymentInfoDto {
 
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
+  @LogRejectedValue()
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
 
   @ApiPropertyOptional({
@@ -69,6 +71,7 @@ export class GetBuyPaymentInfoDto {
   })
   @IsOptional()
   @IsEnum(PersonalIbanProvider, { message: QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED })
+  @LogRejectedValue()
   personalIbanProvider?: PersonalIbanProvider;
 
   @ApiPropertyOptional({ description: 'Custom transaction id' })

@@ -80,8 +80,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // more specific than the generic exception.message.
   //
   // The body is whatever the thrower put there, so reading it can throw: an array element that
-  // cannot be turned into a string takes `join` with it. That must not cost the response, which is
-  // sent after this - the line loses its reason instead.
+  // cannot be turned into a string takes `join` with it. The response has already gone out by then;
+  // the line loses its reason instead.
   private getReason(exception: Error): string {
     try {
       if (exception instanceof HttpException) {

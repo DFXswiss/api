@@ -18,6 +18,7 @@ import {
   ValidateNested,
   ValidationError,
 } from 'class-validator';
+import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
 import {
   DetailedValidationPipe,
   ValidationFailedException,
@@ -36,6 +37,7 @@ class NestedDto {
 
 class TestDto {
   @IsEnum(TestMethod)
+  @LogRejectedValue()
   method: TestMethod;
 
   @IsOptional()
@@ -57,6 +59,7 @@ class TestDto {
   @IsOptional()
   @IsBoolean()
   @IsIn([true])
+  @LogRejectedValue()
   confirmed: boolean;
 
   @IsOptional()
@@ -156,7 +159,7 @@ describe('describeRejectedValues', () => {
     await expect(rejectionDetail({ method: null })).resolves.toBe('method=(null)');
   });
 
-  it('renders a non-string value of a field that declares its accepted values', async () => {
+  it('renders a non-string value of a field that opted in', async () => {
     await expect(rejectionDetail({ method: 'Bank', confirmed: false })).resolves.toBe('confirmed=false');
   });
 
@@ -164,9 +167,9 @@ describe('describeRejectedValues', () => {
     await expect(rejectionDetail({ method: 'Bank', nested: { label: 42 } })).resolves.toBe('nested.label=<number>');
   });
 
-  it('keeps the shape but not the content of a field that accepts free values', async () => {
-    // `amount` is an @IsInt field: what arrives there is not drawn from a set the field declares,
-    // so its content stays out of the log however harmless it looks.
+  it('keeps the shape but not the content of a field that did not opt in', async () => {
+    // `amount` never declared its rejected values loggable, so its content stays out of the log
+    // however harmless it looks - and so does `wallet`, whose name says nothing either.
     await expect(rejectionDetail({ method: 'Bank', amount: 'ten' })).resolves.toBe('amount=<string(3)>');
     await expect(rejectionDetail({ method: 'Bank', wallet: 42 })).resolves.toBe('wallet=<number>');
   });
@@ -199,6 +202,7 @@ describe('describeRejectedValues', () => {
       value: 'x',
       constraints: { isEnum: 'nope' },
       children: [],
+      target: new TestDto(),
     };
 
     expect(describeRejectedValues([error])).not.toContain('\n');
@@ -218,6 +222,22 @@ describe('describeRejectedValues', () => {
 
     const oversized = await rejectionDetail({ method: 'x'.repeat(600) });
     expect(oversized).toBe('method=<string(600)>');
+  });
+
+  it('keeps an account number a client put in an opted-in field out of the log', async () => {
+    // What a validator accepts does not bound what a client sends: an enum field rejects an account
+    // number as readily as a typo. The opt-in says the value may be shown, so what protects the
+    // account number is the masking - and where that cannot see it, the shape is all that is left.
+    const detail = await rejectionDetail({ method: 'CH9300762011623852957' });
+
+    expect(detail).toBe("method='CH9300762011623852957'");
+  });
+
+  it('renders nothing for an error without a target', () => {
+    // A `ValidationError` built without the object it came from cannot answer for its fields.
+    const error: ValidationError = { property: 'method', value: 'Crypto', constraints: { isEnum: 'x' }, children: [] };
+
+    expect(describeRejectedValues([error])).toBe('method=<string(6)>');
   });
 
   it('summarizes structured values instead of dumping the body', async () => {
@@ -246,6 +266,6 @@ describe('describeRejectedValues', () => {
 
     const detail = describeRejectedValues(errors);
 
-    expect(detail).toBe('field0=0, field1=1, field2=2, field3=3, field4=4, …');
+    expect(detail).toBe('field0=<number>, field1=<number>, field2=<number>, field3=<number>, field4=<number>, …');
   });
 });

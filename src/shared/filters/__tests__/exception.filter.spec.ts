@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ValidationError } from 'class-validator';
+import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
 import { ValidationFailedException } from 'src/shared/pipes/detailed-validation.pipe';
 
@@ -206,11 +207,17 @@ describe('ApiExceptionFilter', () => {
   });
 
   it('appends the rejected values of a failed validation — the message alone names only the field', () => {
+    class PaymentDto {
+      @LogRejectedValue()
+      paymentMethod: string;
+    }
+
     const error: ValidationError = {
       property: 'paymentMethod',
       value: 'Crypto',
       constraints: { isEnum: 'paymentMethod must be one of the following values: Bank, Instant, Card' },
       children: [],
+      target: new PaymentDto(),
     };
 
     filter.catch(
