@@ -806,13 +806,14 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
   let kycStepRepo: jest.Mocked<KycStepRepository>;
   let userDataService: jest.Mocked<UserDataService>;
 
-  const personalStep = (status: ReviewStatus, sequenceNumber = 0, result?: string): KycStep =>
+  const personalStep = (status: ReviewStatus, sequenceNumber = 0, result?: string, comment?: string): KycStep =>
     Object.assign(new KycStep(), {
       id: 2 + sequenceNumber,
       name: KycStepName.PERSONAL_DATA,
       status,
       sequenceNumber,
       result,
+      comment,
     });
 
   // Every field in `requiredKycFields` for a personal account, so `isDataComplete` is true.
@@ -928,6 +929,35 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
 
     expect(kycStepRepo.update).not.toHaveBeenCalled();
     expect(mergedPending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // The shape carried by a number of merged prod accounts: the live chain is already COMPLETED at sequence 0
+  // and only a merged-in leftover is still pending. Closing that dead row would stamp a COMPLETED verdict and
+  // a step log onto history inherited from a merged-away account, and leave two COMPLETED rows behind.
+  it('does nothing when only a merged-in step is pending and the live step is already completed', async () => {
+    const mergedPending = personalStep(ReviewStatus.IN_PROGRESS, -102);
+    const live = personalStep(ReviewStatus.COMPLETED, 0, '{"firstname":"Erika"}');
+    await run(completeUser([mergedPending, live]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(mergedPending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // restartStep calls fail(undefined, …) and setResult(undefined) keeps the existing value, so a
+  // completed-then-restarted row still carries a stale result. Cancelling it afterwards must not read as a
+  // clean completion — the RESTARTED_STEP marker survives both writes and says the outcome was withdrawn.
+  it('leaves the chain alone when a restarted step was later cancelled but kept its stale result', async () => {
+    const withdrawn = personalStep(
+      ReviewStatus.CANCELED,
+      0,
+      '{"firstname":"Erika"}',
+      'PersonalDataNotMatching;RestartedStep',
+    );
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 1);
+    await run(completeUser([withdrawn, pending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(pending.status).toBe(ReviewStatus.IN_PROGRESS);
   });
 
   it('leaves an already completed step untouched', async () => {

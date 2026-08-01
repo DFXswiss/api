@@ -664,7 +664,9 @@ export class KycService {
    * CANCELED alone cannot stand for "remedied": `initiateStep` cancels the previous COMPLETED step in its
    * PERSONAL_DATA branch, but its generic pending-step cancel also fires on a merely IN_PROGRESS one, so both a
    * remediation and an untouched retry end up CANCELED. `KycStep.hasSettledVerdict` separates them — a
-   * cancellation only counts once the step had completed, which `result` records durably.
+   * cancellation only counts once the step had completed, which `result` records durably — and
+   * `KycStep.isRejected` reads the verdict itself, so a completion later revoked by a restart still blocks
+   * even after its status has moved past FAILED.
    */
   async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
     // The caller's UserData is loaded for its own flow and need not carry `kycSteps`; reload so the step
@@ -680,7 +682,7 @@ export class KycService {
       steps.filter((s) => s.hasSettledVerdict),
       'sequenceNumber',
     );
-    if (lastSettled?.isFailed) return;
+    if (lastSettled?.isRejected) return;
 
     const kycStep = Util.maxObj(
       steps.filter((s) => s.isInProgress),

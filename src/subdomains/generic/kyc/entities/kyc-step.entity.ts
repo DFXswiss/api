@@ -6,6 +6,7 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
+import { KycError } from '../dto/kyc-error.enum';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
 import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
@@ -216,8 +217,18 @@ export class KycStep extends IEntity {
   // Whether this row records an outcome. A cancellation only does so if the step had completed first:
   // `complete()` writes `result` and `cancel()` leaves it untouched, so a cancelled step without one was
   // never satisfied — it was merely superseded, and says nothing about the attempt it replaced.
+  //
   get hasSettledVerdict(): boolean {
     return !this.isInProgress && !(this.isCanceled && !this.result);
+  }
+
+  // Whether this step's outcome was rejected rather than accepted. `restartStep` revokes an outcome without
+  // erasing it — it calls `fail(undefined, …)` and `setResult(undefined)` keeps the existing value — so a
+  // completed-then-restarted row still carries a stale `result` and, once cancelled, would otherwise read as a
+  // clean completion. The RESTARTED_STEP marker survives both writes, so it stays authoritative after the
+  // status has moved on.
+  get isRejected(): boolean {
+    return this.isFailed || (this.comment?.split(';').includes(KycError.RESTARTED_STEP) ?? false);
   }
 
   update(
