@@ -6,7 +6,6 @@ import { EntityManager } from 'typeorm';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 
 // Cached for an hour, longer than the CachedRepository default of EVERY_5_MINUTES.
-// A write path added here has to call invalidateCache().
 @Injectable()
 export class TransactionSpecificationRepository extends CachedRepository<TransactionSpecification> {
   constructor(manager: EntityManager) {
