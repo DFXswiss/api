@@ -1,7 +1,9 @@
+import fontkit from '@pdf-lib/fontkit';
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -12,11 +14,39 @@ import { KycStepName } from '../enums/kyc-step-name.enum';
 
 type FinancialData = Record<string, string>;
 
+// The overlay text is drawn with an embedded Unicode font instead of a PDF standard font: standard
+// fonts are limited to WinAnsi and throw on every name, street or employer outside Latin-1
+// (Polish, Turkish, Baltic, Cyrillic, ...), which would leave those cases without a document.
+// Liberation Sans is metrically compatible with Arial/Helvetica, so the layout is unchanged.
+const FONT_DIRECTORY = '../assets/fonts';
+const REGULAR_FONT_FILE = 'LiberationSans-Regular.ttf';
+const BOLD_FONT_FILE = 'LiberationSans-Bold.ttf';
+const REPLACEMENT_CHARACTER = '?';
+
+// Income and asset bands as answered in the FinancialData step, mapped to the wording of the
+// productive Sheet template.
+const FINANCIAL_BANDS: Record<string, string> = {
+  '1m': " > 1'000'000 CHF",
+  '500k_1m': "zwischen 500'000 und 1'000'000 CHF",
+  '100k_500k': "zwischen 100'000 und 500'000 CHF",
+  '50k_100k': "zwischen 0 und 100'000 CHF",
+  '50k': "zwischen 0 und 100'000 CHF",
+};
+
+interface PdfFonts {
+  regular: PDFFont;
+  bold: PDFFont;
+  encodable: Set<number>;
+}
+
 export interface DfxApprovalPdfContext {
   userData: UserData;
   steps: KycStep[];
   nameCheck?: NameCheckLog;
   generatedAt: Date;
+  // Set when the document was already registered under this name; keeps a regenerated document
+  // consistent with the stored file name.
+  documentName?: string;
 }
 
 interface TextOptions {
@@ -44,33 +74,36 @@ const TEMPLATE_FILES: Partial<Record<FileSubType, string>> = {
 
 @Injectable()
 export class DfxApprovalPdfService {
+  private readonly logger = new DfxLogger(DfxApprovalPdfService);
+
+  private fontFiles?: Promise<[Buffer, Buffer]>;
+
   async generate(subType: FileSubType, context: DfxApprovalPdfContext): Promise<Buffer> {
     const templateFile = TEMPLATE_FILES[subType];
     if (!templateFile) throw new Error(`Unsupported DfxApproval document subtype ${subType}`);
 
     const template = await readFile(join(__dirname, '../assets/dfx-approval', templateFile));
     const pdf = await PDFDocument.load(template);
-    const regular = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const fonts = await this.embedFonts(pdf);
 
     switch (subType) {
       case FileSubType.GWG_FILE_COVER:
-        this.renderCover(pdf, regular, bold, context);
+        this.renderCover(pdf, fonts, context);
         break;
       case FileSubType.IDENTIFICATION_FORM:
-        this.renderIdentificationForm(pdf, regular, bold, context);
+        this.renderIdentificationForm(pdf, fonts, context);
         break;
       case FileSubType.CUSTOMER_PROFILE:
-        this.renderCustomerProfile(pdf, regular, bold, context);
+        this.renderCustomerProfile(pdf, fonts, context);
         break;
       case FileSubType.RISK_PROFILE:
-        this.renderRiskProfile(pdf, regular, bold, context);
+        this.renderRiskProfile(pdf, fonts, context);
         break;
       case FileSubType.FORM_A:
-        this.renderFormA(pdf, regular, bold, context);
+        this.renderFormA(pdf, fonts, context);
         break;
       case FileSubType.DFX_NAME_CHECK:
-        this.renderNameCheck(pdf, regular, bold, context);
+        this.renderNameCheck(pdf, fonts, context);
         break;
     }
 
@@ -92,42 +125,42 @@ export class DfxApprovalPdfService {
     return `${this.compactDate(documentDate)}-${label}-0-${context.userData.id}-${this.compactTime(context.generatedAt)}.pdf`;
   }
 
-  private renderCover(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
+  private renderCover(pdf: PDFDocument, fonts: PdfFonts, context: DfxApprovalPdfContext): void {
     const page = pdf.getPage(0);
     page.drawRectangle({ x: 292, y: page.getHeight() - 116, width: 120, height: 14, color: WHITE });
-    this.text(page, regular, bold, String(context.userData.id), { x: 296.4, top: 70.2 });
-    this.text(page, regular, bold, this.documentNumber(FileSubType.GWG_FILE_COVER, context), {
+    this.text(page, fonts, String(context.userData.id), { x: 296.4, top: 70.2 });
+    this.text(page, fonts, this.documentNumber(FileSubType.GWG_FILE_COVER, context), {
       x: 296.4,
       top: 86.7,
       width: 245,
     });
-    this.text(page, regular, bold, this.timestamp(context.generatedAt), { x: 296.4, top: 103.2, width: 160 });
-    this.text(page, regular, bold, 'Privatperson', { x: 296.4, top: 119.7 });
-    this.text(page, regular, bold, context.userData.verifiedName, { x: 296.4, top: 136.2, width: 245 });
-    this.text(page, regular, bold, context.userData.naturalPersonName, { x: 296.4, top: 152.7, width: 245 });
+    this.text(page, fonts, this.timestamp(context.generatedAt), { x: 296.4, top: 103.2, width: 160 });
+    this.text(page, fonts, 'Privatperson', { x: 296.4, top: 119.7 });
+    this.text(page, fonts, context.userData.verifiedName, { x: 296.4, top: 136.2, width: 245 });
+    this.text(page, fonts, context.userData.naturalPersonName, { x: 296.4, top: 152.7, width: 245 });
   }
 
-  private renderNameCheck(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
+  private renderNameCheck(pdf: PDFDocument, fonts: PdfFonts, context: DfxApprovalPdfContext): void {
     const nameCheck = this.requiredNameCheck(context);
     const page = pdf.getPage(0);
-    this.text(page, regular, bold, String(context.userData.id), { x: 198.6, top: 70.1 });
-    this.text(page, regular, bold, this.documentNumber(FileSubType.DFX_NAME_CHECK, context), {
+    this.text(page, fonts, String(context.userData.id), { x: 198.6, top: 70.1 });
+    this.text(page, fonts, this.documentNumber(FileSubType.DFX_NAME_CHECK, context), {
       x: 198.6,
       top: 86.6,
       width: 245,
     });
-    this.text(page, regular, bold, this.timestamp(nameCheck.created), { x: 198.6, top: 103.1 });
-    this.text(page, regular, bold, 'Privatperson', { x: 198.6, top: 119.5 });
-    this.text(page, regular, bold, context.userData.verifiedName, { x: 198.6, top: 136.0, width: 245 });
-    this.text(page, regular, bold, this.timestamp(nameCheck.created), { x: 198.6, top: 200.5 });
-    this.text(page, regular, bold, this.nameCheckResult(nameCheck), { x: 198.6, top: 217.0, width: 245 });
-    this.text(page, regular, bold, nameCheck.result, { x: 198.6, top: 233.5, width: 360, height: 12 });
+    this.text(page, fonts, this.timestamp(nameCheck.created), { x: 198.6, top: 103.1 });
+    this.text(page, fonts, 'Privatperson', { x: 198.6, top: 119.5 });
+    this.text(page, fonts, context.userData.verifiedName, { x: 198.6, top: 136.0, width: 245 });
+    this.text(page, fonts, this.timestamp(nameCheck.created), { x: 198.6, top: 200.5 });
+    this.text(page, fonts, this.nameCheckResult(nameCheck), { x: 198.6, top: 217.0, width: 245 });
+    this.text(page, fonts, nameCheck.result, { x: 198.6, top: 233.5, width: 360, height: 12 });
   }
 
-  private renderFormA(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
+  private renderFormA(pdf: PDFDocument, fonts: PdfFonts, context: DfxApprovalPdfContext): void {
     const page = pdf.getPage(0);
     const value = (text: unknown, top: number, height = 16): void =>
-      this.text(page, regular, bold, text, { x: 202, top, width: 365, height, color: BLUE, bold: true, size: 9 });
+      this.text(page, fonts, text, { x: 202, top, width: 365, height, color: BLUE, bold: true, size: 9 });
     value(context.userData.id, 82.3);
     value(context.userData.verifiedName, 231.9);
     value(context.userData.surname, 349.6);
@@ -135,7 +168,7 @@ export class DfxApprovalPdfService {
     value(this.date(context.userData.birthday), 393.4);
     value(context.userData.nationality?.name, 415.4);
     value(this.address(context.userData), 437.3, 30);
-    this.text(page, regular, bold, this.timestamp(context.userData.created), {
+    this.text(page, fonts, this.timestamp(context.userData.created), {
       x: 16.5,
       top: 549.5,
       width: 180,
@@ -145,16 +178,11 @@ export class DfxApprovalPdfService {
     });
   }
 
-  private renderIdentificationForm(
-    pdf: PDFDocument,
-    regular: PDFFont,
-    bold: PDFFont,
-    context: DfxApprovalPdfContext,
-  ): void {
+  private renderIdentificationForm(pdf: PDFDocument, fonts: PdfFonts, context: DfxApprovalPdfContext): void {
     const first = pdf.getPage(0);
     const value = (text: unknown, top: number, height = 18): void =>
-      this.text(first, regular, bold, text, { x: 257.1, top, width: 305, height, color: BLUE, bold: true, size: 9 });
-    this.text(first, regular, bold, context.userData.id, {
+      this.text(first, fonts, text, { x: 257.1, top, width: 305, height, color: BLUE, bold: true, size: 9 });
+    this.text(first, fonts, context.userData.id, {
       x: 420.3,
       top: 46.3,
       width: 135,
@@ -162,7 +190,7 @@ export class DfxApprovalPdfService {
       bold: true,
       size: 9,
     });
-    this.text(first, regular, bold, this.timestamp(context.generatedAt), {
+    this.text(first, fonts, this.timestamp(context.generatedAt), {
       x: 158.4,
       top: 211.8,
       width: 395,
@@ -179,7 +207,7 @@ export class DfxApprovalPdfService {
     value(context.userData.identDocumentType, 437.0);
 
     const second = pdf.getPage(1);
-    this.text(second, regular, bold, this.timestamp(context.userData.created), {
+    this.text(second, fonts, this.timestamp(context.userData.created), {
       x: 257.1,
       top: 402.1,
       width: 305,
@@ -212,17 +240,12 @@ export class DfxApprovalPdfService {
     if (context.userData.cryptoVolume > 0) this.check(fourth, 239.3, 219.0);
   }
 
-  private renderCustomerProfile(
-    pdf: PDFDocument,
-    regular: PDFFont,
-    bold: PDFFont,
-    context: DfxApprovalPdfContext,
-  ): void {
+  private renderCustomerProfile(pdf: PDFDocument, fonts: PdfFonts, context: DfxApprovalPdfContext): void {
     const financial = this.financialData(context.steps);
     const first = pdf.getPage(0);
     const value = (text: unknown, top: number, height = 20): void =>
-      this.text(first, regular, bold, text, { x: 249, top, width: 322, height, color: BLUE, bold: true, size: 8.7 });
-    this.text(first, regular, bold, context.userData.id, {
+      this.text(first, fonts, text, { x: 249, top, width: 322, height, color: BLUE, bold: true, size: 8.7 });
+    this.text(first, fonts, context.userData.id, {
       x: 440.1,
       top: 83,
       width: 125,
@@ -230,7 +253,7 @@ export class DfxApprovalPdfService {
       bold: true,
       size: 9,
     });
-    this.text(first, regular, bold, context.userData.verifiedName, {
+    this.text(first, fonts, context.userData.verifiedName, {
       x: 159,
       top: 270.9,
       width: 410,
@@ -238,7 +261,7 @@ export class DfxApprovalPdfService {
       bold: true,
       size: 9,
     });
-    this.text(first, regular, bold, this.timestamp(context.generatedAt), {
+    this.text(first, fonts, this.timestamp(context.generatedAt), {
       x: 159,
       top: 368.1,
       width: 410,
@@ -268,9 +291,9 @@ export class DfxApprovalPdfService {
     if (context.userData.cryptoVolume > 0) this.check(second, 282.2, 197.1);
   }
 
-  private renderRiskProfile(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
+  private renderRiskProfile(pdf: PDFDocument, fonts: PdfFonts, context: DfxApprovalPdfContext): void {
     const first = pdf.getPage(0);
-    this.text(first, regular, bold, context.userData.id, {
+    this.text(first, fonts, context.userData.id, {
       x: 430.9,
       top: 79.6,
       width: 125,
@@ -278,7 +301,7 @@ export class DfxApprovalPdfService {
       bold: true,
       size: 9,
     });
-    this.text(first, regular, bold, context.userData.verifiedName, {
+    this.text(first, fonts, context.userData.verifiedName, {
       x: 135.9,
       top: 265.7,
       width: 420,
@@ -286,7 +309,7 @@ export class DfxApprovalPdfService {
       bold: true,
       size: 9,
     });
-    this.text(first, regular, bold, this.timestamp(context.userData.amlListAddedDate), {
+    this.text(first, fonts, this.timestamp(context.userData.amlListAddedDate), {
       x: 135.9,
       top: 347.9,
       width: 420,
@@ -317,7 +340,7 @@ export class DfxApprovalPdfService {
     this.check(page, 259.4, positive ? positiveTop : negativeTop);
   }
 
-  private text(page: PDFPage, regular: PDFFont, bold: PDFFont, raw: unknown, options: TextOptions): void {
+  private text(page: PDFPage, fonts: PdfFonts, raw: unknown, options: TextOptions): void {
     if (raw == null || raw === '') return;
     const value = String(raw)
       .split(/\r?\n/)
@@ -325,7 +348,7 @@ export class DfxApprovalPdfService {
       .join('\n')
       .trim();
     if (!value) return;
-    const font = options.bold ? bold : regular;
+    const font = options.bold ? fonts.bold : fonts.regular;
     const size = options.size ?? 8.5;
     const width = options.width ?? 260;
     const lineHeight = size * 1.12;
@@ -334,8 +357,14 @@ export class DfxApprovalPdfService {
       .split('\n')
       .flatMap((line) => this.wrap(line, font, size, width, maxLines))
       .slice(0, maxLines);
+
+    // A value that does not fit its field is cut off; saying so turns a silently incomplete GwG
+    // document into a visible one.
+    const collapse = (text: string): string => text.replace(/\s+/g, ' ').trim();
+    if (collapse(lines.join(' ')) !== collapse(value))
+      this.logger.warn(`DfxApproval document: a value did not fit its field and was truncated`);
     lines.forEach((line, index) => {
-      page.drawText(line, {
+      page.drawText(this.encodable(line, fonts), {
         x: options.x,
         y: page.getHeight() - options.top - size - index * lineHeight + 1.5,
         size,
@@ -367,6 +396,29 @@ export class DfxApprovalPdfService {
     let result = value;
     while (result && font.widthOfTextAtSize(result, size) > width) result = result.slice(0, -1);
     return result;
+  }
+
+  // The font files are read once per process; each document embeds only the glyphs it uses.
+  private async embedFonts(pdf: PDFDocument): Promise<PdfFonts> {
+    this.fontFiles ??= Promise.all([
+      readFile(join(__dirname, FONT_DIRECTORY, REGULAR_FONT_FILE)),
+      readFile(join(__dirname, FONT_DIRECTORY, BOLD_FONT_FILE)),
+    ]);
+    const [regularFile, boldFile] = await this.fontFiles;
+
+    pdf.registerFontkit(fontkit);
+    const regular = await pdf.embedFont(regularFile, { subset: true });
+    const bold = await pdf.embedFont(boldFile, { subset: true });
+
+    return { regular, bold, encodable: new Set(regular.getCharacterSet()) };
+  }
+
+  // Characters the font has no glyph for (e.g. CJK) are replaced instead of failing the document:
+  // a document with one substituted character is worth more than no document at all.
+  private encodable(value: string, fonts: PdfFonts): string {
+    return Array.from(value)
+      .map((character) => (fonts.encodable.has(character.codePointAt(0) ?? 0) ? character : REPLACEMENT_CHARACTER))
+      .join('');
   }
 
   private check(page: PDFPage, x: number, top: number): void {
@@ -413,15 +465,10 @@ export class DfxApprovalPdfService {
   }
 
   private financialBand(value?: string): string {
-    return (
-      {
-        '1m': " > 1'000'000 CHF",
-        '500k_1m': "zwischen 500'000 und 1'000'000 CHF",
-        '100k_500k': "zwischen 100'000 und 500'000 CHF",
-        '50k_100k': "zwischen 0 und 100'000 CHF",
-        '50k': "zwischen 0 und 100'000 CHF",
-      }[value ?? ''] ?? ''
-    );
+    if (value && !(value in FINANCIAL_BANDS))
+      this.logger.warn(`DfxApproval CustomerProfile: unknown FinancialData band '${value}', left empty`);
+
+    return FINANCIAL_BANDS[value ?? ''] ?? '';
   }
 
   private volumeBand(volume: number): string {
@@ -450,7 +497,7 @@ export class DfxApprovalPdfService {
   }
 
   private documentNumber(subType: FileSubType, context: DfxApprovalPdfContext): string {
-    return this.fileName(subType, context).replace(/\.pdf$/, '');
+    return (context.documentName ?? this.fileName(subType, context)).replace(/\.pdf$/, '');
   }
 
   private address(userData: UserData): string {

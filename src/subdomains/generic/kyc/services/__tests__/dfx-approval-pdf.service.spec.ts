@@ -107,6 +107,38 @@ describe('DfxApprovalPdfService', () => {
     expect(service.fileName(FileSubType.DFX_NAME_CHECK, data)).toBe('20260731-NameCheck-0-42-220000.pdf');
   });
 
+  it.each([
+    ['Polish', 'Łukasz Kowalczyk', 'Łódź'],
+    ['Turkish', 'Gülşen Şahin', 'Şişli'],
+    ['Cyrillic', 'Кузнецов Алексей', 'Москва'],
+    ['Baltic', 'Kalniņš Jānis', 'Liepāja'],
+  ])('renders %s names, which a WinAnsi standard font cannot encode', async (_language, name, location) => {
+    const data = context();
+    data.userData.verifiedName = name;
+    data.userData.surname = name;
+    data.userData.location = location;
+
+    for (const subType of [FileSubType.GWG_FILE_COVER, FileSubType.FORM_A, FileSubType.IDENTIFICATION_FORM]) {
+      const pdf = await service.generate(subType, data);
+      expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    }
+  });
+
+  it('substitutes characters the font has no glyph for instead of failing the document', async () => {
+    const data = context();
+    data.userData.verifiedName = '田中太郎';
+
+    const pdf = await service.generate(FileSubType.GWG_FILE_COVER, data);
+
+    expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+  });
+
+  it('keeps the registered file name as document number when a document is regenerated', () => {
+    const data = { ...context(), documentName: '20260731-FormularA-0-42-100000.pdf' };
+
+    expect((service as any).documentNumber(FileSubType.FORM_A, data)).toBe('20260731-FormularA-0-42-100000');
+  });
+
   it('replaces cached template values for every dynamic checkbox', async () => {
     const data = context();
     data.userData.sellVolume = 0;
