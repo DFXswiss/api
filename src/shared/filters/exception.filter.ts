@@ -181,17 +181,40 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const message = ApiExceptionFilter.serializable(body, 'message');
     if (typeof message === 'string') return message;
 
-    // `Array.from` gives a hole the `undefined` that `every` would have skipped, and that a hole is
-    // sent as `null` rather than as nothing at all.
-    if (Array.isArray(message) && Array.from(message).every((entry) => typeof entry === 'string')) return message;
+    return (ApiExceptionFilter.messageList(message) ?? HttpStatus[status]) || 'Error';
+  }
 
-    return HttpStatus[status] || 'Error';
+  // A dense array of its own plain strings, copied out. `JSON.stringify` reads an array by index;
+  // reading it any other way runs whatever the array brought along, and what it runs can leave
+  // different elements behind than the ones that were checked.
+  private static messageList(message: unknown): string[] | undefined {
+    if (!Array.isArray(message)) return undefined;
+
+    const list: string[] = [];
+    for (let index = 0; index < message.length; index++) {
+      const entry = Object.getOwnPropertyDescriptor(message, `${index}`);
+      if (!entry || !('value' in entry) || typeof entry.value !== 'string') return undefined;
+
+      list.push(entry.value);
+    }
+
+    return list;
   }
 
   // A body that answers `toJSON` is serialized from what that returns, not from what it holds, so
   // what it holds says nothing about what it sends - which is why it is passed on rather than read.
   private static rewritesItself(body: unknown): boolean {
-    return typeof body === 'object' && body !== null && typeof (body as { toJSON?: unknown }).toJSON === 'function';
+    if (typeof body !== 'object' || body === null) return false;
+
+    // Asked for as a descriptor rather than read: reading it would be one read, and the
+    // serialization another, and something that answers differently between them would be sent as
+    // whatever it holds. Anything that answers at all counts, wherever it is declared.
+    for (let level: object | null = body; level; level = Object.getPrototypeOf(level)) {
+      const declared = Object.getOwnPropertyDescriptor(level, 'toJSON');
+      if (declared) return !('value' in declared) || typeof declared.value === 'function';
+    }
+
+    return false;
   }
 
   // What `JSON.stringify` would read off the body for this name, or undefined where it would read
@@ -208,12 +231,22 @@ export class ApiExceptionFilter implements ExceptionFilter {
     return typeof declared.value === 'function' || typeof declared.value === 'symbol' ? undefined : declared.value;
   }
 
-  // A body that carries no status of its own contradicts nothing, and neither does one whose status
-  // would never reach the wire.
+  // A body agrees with the status being sent unless it carries one of its own that differs. What
+  // `JSON.stringify` leaves out carries nothing: a name that is not enumerable, a function, a
+  // symbol, a name put on an array alongside its elements. An accessor is the other way round - it
+  // is serialized, so it does carry one, and it answers again when it is, so what it would carry
+  // cannot be read here. That is not agreement.
   private static names(body: unknown, status: number): boolean {
-    const declared = ApiExceptionFilter.serializable(body, 'statusCode');
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) return true;
 
-    return declared === undefined || declared === status;
+    const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
+    if (!declared?.enumerable) return true;
+    if (!('value' in declared)) return false;
+
+    const carried = declared.value;
+    if (typeof carried === 'function' || typeof carried === 'symbol') return true;
+
+    return carried === status;
   }
 
   // Human-readable rejection reason. For HttpExceptions the useful text is in the
