@@ -12,8 +12,9 @@ This service loads far more data than it returns. Measured against the real enti
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
   `transaction_request`) broke every invoice and receipt in production until it was fixed.
-- Across the endpoints where both sides can be measured, the median endpoint loads **16 columns
-  per field it returns**; fourteen exceed 100×.
+- Of the 533 endpoints, **432 reach at least one load site that fetches whole rows**; 97 read
+  nothing at all, and **2 read only the fields they return**. The widest query a fetching endpoint
+  can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
 equally wasteful under a limit of 4,096 — it simply would not have failed yet.
@@ -28,9 +29,11 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** 368 load sites request whole object graphs; 24 use a `select` projection. The
-same entities serve persistence, business logic and pure output paths such as invoices, receipts,
-history and exports — which need fields, not objects.
+**No read model.** Of the 1,112 load sites in this repository, **exactly one** names the columns
+it needs. The rest request whole rows: 971 through the `find` family, and of the 129 query
+builders, 105 pass the root alias to `.select(...)` — which reads like a projection but is not —
+while 24 pass no select at all. The same entities serve persistence, business logic and pure
+output paths such as invoices, receipts, history and exports — which need fields, not objects.
 
 ## Vocabulary
 
@@ -44,13 +47,15 @@ history and exports — which need fields, not objects.
 | **Read model** | A separate model optimised for reading. Introducing projections for read paths is a small step towards one. |
 
 Note that eager relations apply to the `find*` family, **not** to `createQueryBuilder` and not to
-raw SQL. [load-sites.md](load-sites.md) records that mechanism for each of the 1114 load sites,
+raw SQL. [load-sites.md](load-sites.md) records that mechanism for each of the 1,112 load sites,
 together with the measured column count.
 
-Deliberately **not** recorded per endpoint: an endpoint reaches several load sites — a permission
-check, a lookup, the actual query — so a single value per endpoint would have to take the maximum
-over all of them and would then call an endpoint "eager" whose actual data path is raw SQL. The
-load site is the level at which the statement is unambiguous.
+[endpoints.md](endpoints.md) summarises this per endpoint, as the union over every load site the
+endpoint can reach. That column answers one question only — *does this endpoint load more than it
+needs* — and any single offending site is enough to answer yes. It deliberately says nothing about
+where the bulk of the work happens: an endpoint whose own query is raw SQL is still marked when a
+permission check on the way loads a full row. For that question the load site is the level at
+which the statement is unambiguous, which is why both documents exist.
 
 ## What we intend to change
 

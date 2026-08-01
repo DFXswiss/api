@@ -520,6 +520,7 @@ Two details are easy to get wrong when editing the list by hand:
 
 - a file may declare more than one `@Controller` class, and a route belongs to the scope that **precedes** it, not to the first one in the file — `custody.controller.ts` declares both `custody` and `custody/admin`
 - `@Controller()` without an argument puts its routes at the root, not under a prefix
+- a route's version comes from `@Version` on the handler, otherwise from the `@Controller` scope, otherwise the configured default — six paths exist twice under different versions, so method and path alone do not identify a row
 
 To verify a change, compare against the routes the framework logs at startup: every `Mapped {<path>, <METHOD>}` line is one registered route. If a route you added does not appear there, it is not reachable — two routing decorators on the same handler, for instance, keep only one path.
 
@@ -528,6 +529,7 @@ To verify a change, compare against the routes the framework logs at startup: ev
 - the `find` family applies eager relations and expands them recursively — a plain `findOne()` on `UserData` already selects 253 columns across 8 joins
 - `createQueryBuilder` does not, but still loads every column of the root entity unless `.select([...])` narrows it
 - `.select('alias')` is **not** a projection — the argument is the entity alias, not a field list
+- a query builder carrying `.update()`, `.delete()` or `.insert()` is a write statement and loads nothing — it is not part of that inventory
 
 See [docs/read-path-projections.md](docs/read-path-projections.md) for what follows from that.
 

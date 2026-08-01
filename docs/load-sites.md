@@ -1,16 +1,18 @@
 # Database load sites
 
-Every place in the code that reads from the database: **1114 load sites** across 241 files.
+Every place in the code that reads from the database: **1112 load sites** across 241 files.
 
-This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does.
+This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
 ## What the mechanism means
 
 | Mechanism | Sites | Eager relations | Columns selected |
 | --------- | ----: | --------------- | ---------------- |
 | `find` family | 971 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
-| `createQueryBuilder` | 131 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
+| `createQueryBuilder` | 129 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
 | raw SQL | 12 | not applied | whatever the statement lists |
+
+A further 2 `createQueryBuilder` calls are not listed: they carry `.update()` and are write statements, which load nothing.
 
 Among the query builders, the field list is what decides whether anything is actually saved:
 
@@ -18,19 +20,19 @@ Among the query builders, the field list is what decides whether anything is act
 | --- | ---: |
 | `.select([...])` — an explicit field list | **1** |
 | `.select('alias')` — selects the root alias, **loads every column** | 105 |
-| no `select` at all — loads every column | 25 |
+| no `select` at all — loads every column | 23 |
 
 `.select('alias')` is the trap: it reads like a projection but the argument is the entity alias, not a field list. Such a query still loads every column of the root entity — it merely avoids the eager relations.
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 784 of 1114 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 782 of 1112 sites.
 
-- **349 are exact**: the `relations` tree is written at the call site.
-- **435 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
+- **348 are exact**: the `relations` tree is written at the call site.
+- **434 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
 - 330 could not be measured: no resolvable target entity, or raw SQL.
 
-Median across measured sites: **118 columns**. 14 sites exceed 1000, 77 exceed 500, 409 exceed 100.
+Median across measured sites: **123 columns**. 14 sites exceed 1000, 77 exceed 500, 409 exceed 100.
 
 Postgres refuses a statement with more than 1664 columns. That limit is what broke every invoice and receipt in production once a single new column was added elsewhere.
 
@@ -696,7 +698,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 15 | 0 | find | `WalletApp` | `subdomains/core/payment-link/services/wallet-app.service.ts:24` | `WalletAppService.getRecommendedWalletApps` |
 | 15 | 0 | find | `WalletApp` | `subdomains/core/payment-link/services/wallet-app.service.ts:28` | `WalletAppService.getWalletAppById` |
 | 15 | 0 | query-builder (nur-alias) | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:284` | `BankDataService.getBankDataByKey` |
-| 15 | 0 | query-builder (ohne-select) | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:385` | `BankDataService.updateUserBankData` |
 | 15 | 0 | query-builder (nur-alias) | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:493` | `BankDataService.getPendingReviewSummary` |
 | 15 | 0 | find | `AktionariatRegistration` | `subdomains/supporting/realunit/realunit.service.ts:2830` | `RealUnitService.getRegisteredWalletAddresses` |
 | 14 | 0 | find | `ScorechainScreening` | `integration/scorechain/repositories/scorechain-screening.repository.ts:18` | `ScorechainScreeningRepository.getByObjectIds` |
@@ -765,7 +766,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.repository.ts:244` | `LogRepository.getFinancialLogs` |
 | 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
 | 11 | 0 | query-builder (feldliste) | `Log` | `subdomains/supporting/log/log.repository.ts:699` | `LogRepository.getFinancialLogValidityChangeSet` |
-| 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.repository.ts:722` | `LogRepository.async` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:51` | `LogService.update` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:131` | `LogService.getLog` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:135` | `LogService.maxEntity` |
