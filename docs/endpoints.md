@@ -33,16 +33,16 @@ The `Ratio` column quantifies it where both sides are known. It is the basis for
 
 | | Endpoints | Share |
 | --- | --- | --- |
-| Eager determined (`yes`/`no`) | 468 | 88 % |
-| — of those `yes` | 260 | |
-| — of those `no` | 208 | |
-| Eager unresolved (`?`) | 65 | 12 % |
-| Column count measured | 260 | 49 % |
+| Eager determined (`yes`/`no`) | 473 | 89 % |
+| — of those `yes` | 295 | |
+| — of those `no` | 178 | |
+| Eager unresolved (`?`) | 60 | 11 % |
+| Column count measured | 295 | 55 % |
 | Field count known | 220 | 41 % |
 | — returns `void`, no fields to count | 113 | 21 % |
 | — returns no DTO (entity, string, record) | 172 | 32 % |
 | — genuinely unrecognised | 28 | 5 % |
-| Both, so `Ratio` available | 113 | 21 % |
+| Both, so `Ratio` available | 134 | 25 % |
 
 Most blanks in **Fields** are not measurement gaps: an endpoint returning `void` has nothing to count, and one returning an entity or a raw type has no declared field set. Only 28 are genuinely unrecognised. Those show `—`, the others `n/a`.
 
@@ -74,19 +74,19 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/app/settings/flags` | hidden | no | — | 7 | — | `AppController.getFlags` | `app.controller.ts` |
 | GET | `/asset` | public | no | — | 3 | — | `AssetController.getAllAsset` | `shared/models/asset/asset.controller.ts` |
 | PUT | `/asset/:id` | public | yes | 33 | n/a | n/a | `AssetController.updateAsset` | `shared/models/asset/asset.controller.ts` |
-| POST | `/auth` | public | ? | — | 1 | — | `AuthController.authenticate` | `subdomains/generic/user/models/auth/auth.controller.ts` |
-| GET | `/auth/2fa` | hidden | no | — | n/a | n/a | `AuthController.check2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
-| POST | `/auth/2fa` | public | no | — | 3 | — | `AuthController.setup2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth` | public | yes | 78 | 1 | 78× | `AuthController.authenticate` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/2fa` | hidden | yes | 253 | n/a | n/a | `AuthController.check2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth/2fa` | public | yes | 253 | 3 | 84× | `AuthController.setup2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | POST | `/auth/2fa/verify` | public | yes | 253 | n/a | n/a | `AuthController.verify2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/auth/alby` | hidden | ? | — | — | — | `AuthController.signInWithAlby` | `subdomains/generic/user/models/auth/auth.controller.ts` |
-| GET | `/auth/alby/redirect/:id` | hidden | yes | 23 | — | — | `AuthController.redirectAlby` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/alby/redirect/:id` | hidden | yes | 78 | — | — | `AuthController.redirectAlby` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/auth/challenge` | hidden | yes | 20 | 1 | 20× | `AuthController.companyChallenge` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | POST | `/auth/mail` | hidden | yes | 20 | n/a | n/a | `AuthController.signInByMail` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/auth/mail/confirm` | public | yes | 470 | 2 | 235× | `AuthController.executeMerge` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/auth/mail/redirect` | hidden | yes | 253 | 1 | 253× | `AuthController.redirectMail` | `subdomains/generic/user/models/auth/auth.controller.ts` |
-| POST | `/auth/signIn` | hidden | yes | 23 | 1 | 23× | `AuthController.signIn` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth/signIn` | hidden | yes | 78 | 1 | 78× | `AuthController.signIn` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/auth/signMessage` | public | no | — | 2 | — | `AuthController.getSignMessage` | `subdomains/generic/user/models/auth/auth.controller.ts` |
-| POST | `/auth/signUp` | public | no | — | 1 | — | `AuthController.signUp` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| POST | `/auth/signUp` | public | yes | 78 | 1 | 78× | `AuthController.signUp` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/auth/verifySignature` | public | yes | 6 | 1 | 6× | `AuthController.verifySignMessage` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/balance/pdf` | public | no | — | 1 | — | `BalanceController.getBalancePdf` | `subdomains/supporting/balance/controllers/balance.controller.ts` |
 | GET | `/balance/pdf/blockchains` | public | no | — | n/a | n/a | `BalanceController.getSupportedBlockchains` | `subdomains/supporting/balance/controllers/balance.controller.ts` |
@@ -114,7 +114,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/buy/:id` | hidden | yes | 134 | 30 | 4× | `BuyController.getBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | `/buy/:id` | public | yes | 56 | 30 | 2× | `BuyController.updateBuyRoute` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | GET | `/buy/:id/history` | hidden | yes | 497 | — | — | `BuyController.getBuyRouteHistory` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
-| PUT | `/buy/paymentInfos` | public | no | — | 69 | — | `BuyController.createBuyWithPaymentInfo` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| PUT | `/buy/paymentInfos` | public | yes | 78 | 69 | 1× | `BuyController.createBuyWithPaymentInfo` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | `/buy/paymentInfos/:id/confirm` | public | yes | 504 | n/a | n/a | `BuyController.confirmBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | `/buy/paymentInfos/:id/invoice` | public | yes | 504 | 1 | 504× | `BuyController.generateInvoicePDF` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | GET | `/buy/personalIban` | public | yes | 101 | 9 | 11× | `BuyController.getAllPersonalIbans` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
@@ -196,7 +196,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | POST | `/exchange/:exchange/withdraw` | hidden | no | — | n/a | n/a | `ExchangeController.withdrawFunds` | `integration/exchange/controllers/exchange.controller.ts` |
 | GET | `/exchange/:exchange/withdraw/:id` | public | no | — | n/a | n/a | `ExchangeController.getWithdraw` | `integration/exchange/controllers/exchange.controller.ts` |
 | GET | `/exchange/trade/:id` | hidden | no | — | n/a | n/a | `ExchangeController.getTrade` | `integration/exchange/controllers/exchange.controller.ts` |
-| POST | `/faucet` | public | yes | 33 | 23 | 1× | `FaucetRequestController.faucetRequest` | `subdomains/core/faucet-request/controller/faucet-request.controller.ts` |
+| POST | `/faucet` | public | yes | 78 | 23 | 3× | `FaucetRequestController.faucetRequest` | `subdomains/core/faucet-request/controller/faucet-request.controller.ts` |
 | POST | `/fee` | public | yes | 65 | n/a | n/a | `FeeController.createFee` | `subdomains/supporting/payment/controllers/fee.controller.ts` |
 | GET | `/fiat` | public | yes | 23 | 4 | 6× | `FiatController.getAllFiat` | `shared/models/fiat/fiat.controller.ts` |
 | POST | `/fiatOutput` | public | yes | 377 | n/a | n/a | `FiatOutputController.create` | `subdomains/supporting/fiat-output/fiat-output.controller.ts` |
@@ -205,11 +205,11 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | POST | `/gs/db` | public | ? | — | n/a | n/a | `GsController.getDbData` | `subdomains/generic/gs/gs.controller.ts` |
 | POST | `/gs/db/custom` | hidden | ? | — | n/a | n/a | `GsController.getExtendedData` | `subdomains/generic/gs/gs.controller.ts` |
 | POST | `/gs/debug` | hidden | ? | — | n/a | n/a | `GsController.executeDebugQuery` | `subdomains/generic/gs/gs.controller.ts` |
-| POST | `/gs/evm/bridgeApproval` | hidden | no | — | n/a | n/a | `GsEvmController.approveBridge` | `subdomains/generic/gs/gs-evm.controller.ts` |
-| POST | `/gs/evm/coinTransaction` | hidden | no | — | n/a | n/a | `GsEvmController.sendCoinTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
-| POST | `/gs/evm/contractApproval` | hidden | no | — | n/a | n/a | `GsEvmController.approveContract` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/bridgeApproval` | hidden | yes | 33 | n/a | n/a | `GsEvmController.approveBridge` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/coinTransaction` | hidden | yes | 6 | n/a | n/a | `GsEvmController.sendCoinTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/contractApproval` | hidden | yes | 33 | n/a | n/a | `GsEvmController.approveContract` | `subdomains/generic/gs/gs-evm.controller.ts` |
 | POST | `/gs/evm/contractTransaction` | hidden | no | — | n/a | n/a | `GsEvmController.sendContractTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
-| POST | `/gs/evm/rawTransaction` | public | no | — | n/a | n/a | `GsEvmController.sendRawTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
+| POST | `/gs/evm/rawTransaction` | public | yes | 6 | n/a | n/a | `GsEvmController.sendRawTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
 | POST | `/gs/evm/tokenTransaction` | hidden | yes | 33 | n/a | n/a | `GsEvmController.sendTokenTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
 | GET | `/gs/support` | hidden | yes | 907 | n/a | n/a | `GsController.getSupportData` | `subdomains/generic/gs/gs.controller.ts` |
 | GET | `/health` | public | no | — | n/a | n/a | `HealthController.getHealth` | `subdomains/core/monitoring/health.controller.ts` |
@@ -230,8 +230,8 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/kyc` | public | no | — | n/a | n/a | `KycController.getKycProgressV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | POST | `/kyc` | public | no | — | n/a | n/a | `KycController.requestKycV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | PUT | `/kyc` | public | no | — | 5 | — | `KycController.continueKyc` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
-| GET | `/kyc/2fa` | public | no | — | n/a | n/a | `KycController.check2fa` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
-| POST | `/kyc/2fa` | public | no | — | 3 | — | `KycController.start2fa` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| GET | `/kyc/2fa` | public | yes | 253 | n/a | n/a | `KycController.check2fa` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| POST | `/kyc/2fa` | public | ? | — | 3 | — | `KycController.start2fa` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | POST | `/kyc/2fa/verify` | public | ? | — | n/a | n/a | `KycController.verify2fa` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | GET | `/kyc/:code` | public | no | — | n/a | n/a | `KycController.getKycProgressByCodeV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | POST | `/kyc/:code` | public | no | — | n/a | n/a | `KycController.requestKycByCodeV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
@@ -248,9 +248,9 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | PUT | `/kyc/admin/step/:id` | hidden | yes | 385 | n/a | n/a | `KycAdminController.updateKycStep` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
 | POST | `/kyc/admin/webhook` | hidden | yes | 243 | n/a | n/a | `KycAdminController.triggerWebhook` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
 | GET | `/kyc/client/payments` | public | yes | 1092 | n/a | n/a | `KycClientController.getAllPayments` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
-| GET | `/kyc/client/users` | public | no | — | 1 | — | `KycClientController.getAllKycData` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
-| GET | `/kyc/client/users/:id/documents` | public | no | — | 2 | — | `KycClientController.getKycFiles` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
-| GET | `/kyc/client/users/:id/documents/:type` | public | no | — | n/a | n/a | `KycClientController.getKycFile` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
+| GET | `/kyc/client/users` | public | yes | 20 | 1 | 20× | `KycClientController.getAllKycData` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
+| GET | `/kyc/client/users/:id/documents` | public | yes | 78 | 2 | 39× | `KycClientController.getKycFiles` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
+| GET | `/kyc/client/users/:id/documents/:type` | public | yes | 78 | n/a | n/a | `KycClientController.getKycFile` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
 | GET | `/kyc/client/users/:id/payments` | public | yes | 1092 | n/a | n/a | `KycClientController.getUserPayments` | `subdomains/generic/kyc/controllers/kyc-client.controller.ts` |
 | GET | `/kyc/countries` | public | yes | 23 | 12 | 2× | `KycController.getKycCountries` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | GET | `/kyc/countries` | public | yes | 23 | 12 | 2× | `KycController.getKycCountriesV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
@@ -279,9 +279,9 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/kyc/file/:id` | hidden | yes | 264 | 5 | 53× | `KycController.getFile` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | PUT | `/kyc/ident/manual/:id` | hidden | yes | 23 | n/a | n/a | `KycController.updateIdentData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | POST | `/kyc/ident/sumsub` | public | ? | — | n/a | n/a | `KycController.sumsubWebhook` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
-| POST | `/kyc/transfer` | hidden | ? | — | n/a | n/a | `KycController.addKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| POST | `/kyc/transfer` | hidden | yes | 20 | n/a | n/a | `KycController.addKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | PUT | `/kyc/transfer` | public | yes | 331 | n/a | n/a | `KycController.transferKycDataV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
-| DELETE | `/kyc/transfer` | hidden | ? | — | n/a | n/a | `KycController.removeKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| DELETE | `/kyc/transfer` | hidden | yes | 20 | n/a | n/a | `KycController.removeKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | GET | `/kyc/users` | public | yes | 561 | 3 | 187× | `KycClientController.getAllKycDataV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | GET | `/language` | public | yes | 7 | 5 | 1× | `LanguageController.getAllLanguage` | `shared/models/language/language.controller.ts` |
 | PUT | `/limitRequest/:id` | public | yes | 434 | n/a | n/a | `LimitRequestController.updateUserData` | `subdomains/supporting/support-issue/limit-request.controller.ts` |
@@ -375,45 +375,45 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/pricing/price` | public | no | — | n/a | n/a | `PricingController.getPrice` | `subdomains/supporting/pricing/pricing.controller.ts` |
 | GET | `/realunit/account/:address` | public | no | — | 9 | — | `RealUnitController.getAccountSummary` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/account/:address/history` | public | no | — | 25 | — | `RealUnitController.getAccountHistory` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/admin/quotes` | public | no | — | 8 | — | `RealUnitController.getAdminQuotes` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/admin/quotes` | public | yes | 112 | 8 | 14× | `RealUnitController.getAdminQuotes` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/admin/quotes/:id/confirm-payment` | hidden | yes | 61 | n/a | n/a | `RealUnitController.confirmPaymentReceived` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/admin/registration/:id/forward` | hidden | yes | 323 | n/a | n/a | `RealUnitController.forwardRegistration` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/admin/transactions` | hidden | no | — | 8 | — | `RealUnitController.getAdminTransactions` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| POST | `/realunit/balance/pdf` | public | yes | 33 | 1 | 33× | `RealUnitController.getBalancePdf` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/admin/transactions` | hidden | yes | 362 | 8 | 45× | `RealUnitController.getAdminTransactions` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/balance/pdf` | public | yes | 78 | 1 | 78× | `RealUnitController.getBalancePdf` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/brokerbot/buyPrice` | public | no | — | 5 | — | `RealUnitController.getBrokerbotBuyPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/brokerbot/buyShares` | public | no | — | 5 | — | `RealUnitController.getBrokerbotBuyShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/brokerbot/info` | public | no | — | 8 | — | `RealUnitController.getBrokerbotInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/brokerbot/price` | public | no | — | 3 | — | `RealUnitController.getBrokerbotPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/brokerbot/sellPrice` | public | no | — | 4 | — | `RealUnitController.getBrokerbotSellPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/brokerbot/sellShares` | public | no | — | 4 | — | `RealUnitController.getBrokerbotSellShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/brokerbot/sellPrice` | public | yes | 78 | 4 | 20× | `RealUnitController.getBrokerbotSellPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/brokerbot/sellShares` | public | yes | 78 | 4 | 20× | `RealUnitController.getBrokerbotSellShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/buy` | public | yes | 364 | 37 | 10× | `RealUnitController.getPaymentInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/buy/:id/confirm` | public | no | — | 1 | — | `RealUnitController.confirmBuy` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/compliance/customers` | public | yes | 253 | 7 | 36× | `RealUnitComplianceController.searchCustomers` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
 | GET | `/realunit/compliance/customers/:id` | hidden | yes | 826 | 93 | 9× | `RealUnitComplianceController.getCustomer` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
-| GET | `/realunit/compliance/customers/:id/dossier` | hidden | no | — | n/a | n/a | `RealUnitComplianceController.downloadCustomerDossier` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
-| GET | `/realunit/compliance/customers/:id/files` | hidden | no | — | 4 | — | `RealUnitComplianceController.getCustomerFiles` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
+| GET | `/realunit/compliance/customers/:id/dossier` | hidden | yes | 264 | n/a | n/a | `RealUnitComplianceController.downloadCustomerDossier` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
+| GET | `/realunit/compliance/customers/:id/files` | hidden | yes | 264 | 4 | 66× | `RealUnitComplianceController.getCustomerFiles` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
 | GET | `/realunit/compliance/customers/:id/files/:uid` | hidden | yes | 264 | 5 | 53× | `RealUnitComplianceController.downloadCustomerFile` | `subdomains/supporting/realunit/controllers/realunit-compliance.controller.ts` |
 | GET | `/realunit/confirm-aktionariat` | public | no | — | 3 | — | `RealUnitController.confirmAktionariat` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/holders` | public | no | — | 10 | — | `RealUnitController.getHolders` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/legal` | public | no | — | 6 | — | `RealUnitLegalController.getLegal` | `subdomains/supporting/realunit/controllers/realunit-legal.controller.ts` |
-| PUT | `/realunit/legal` | public | ? | — | 6 | — | `RealUnitLegalController.acceptLegal` | `subdomains/supporting/realunit/controllers/realunit-legal.controller.ts` |
+| GET | `/realunit/legal` | public | yes | 78 | 6 | 13× | `RealUnitLegalController.getLegal` | `subdomains/supporting/realunit/controllers/realunit-legal.controller.ts` |
+| PUT | `/realunit/legal` | public | yes | 78 | 6 | 13× | `RealUnitLegalController.acceptLegal` | `subdomains/supporting/realunit/controllers/realunit-legal.controller.ts` |
 | GET | `/realunit/pay/:id/status` | public | yes | 32 | 1 | 32× | `RealUnitController.getOcpPayStatus` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/pay/submit` | public | ? | — | 1 | — | `RealUnitController.submitOcpPay` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/pay/unsigned-transaction` | public | no | — | 5 | — | `RealUnitController.getOcpPayUnsignedTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/price` | public | no | — | 4 | — | `RealUnitController.getRealUnitPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/price/history` | public | no | — | 4 | — | `RealUnitController.getHistoricalPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/price/history` | public | yes | 40 | 4 | 10× | `RealUnitController.getHistoricalPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/quote/buyPrice` | public | no | — | 5 | — | `RealUnitController.getQuoteBuyPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/quote/buyShares` | public | no | — | 5 | — | `RealUnitController.getQuoteBuyShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/quote/info` | public | no | — | 8 | — | `RealUnitController.getQuoteInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/quote/price` | public | no | — | 3 | — | `RealUnitController.getQuotePrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/quote/sellPrice` | public | no | — | 4 | — | `RealUnitController.getQuoteSellPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/quote/sellShares` | public | no | — | 4 | — | `RealUnitController.getQuoteSellShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/quote/sellPrice` | public | yes | 78 | 4 | 20× | `RealUnitController.getQuoteSellPrice` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/quote/sellShares` | public | yes | 78 | 4 | 20× | `RealUnitController.getQuoteSellShares` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | POST | `/realunit/register/complete` | public | yes | 23 | n/a | n/a | `RealUnitController.completeRegistration` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/register/date` | public | no | — | 1 | — | `RealUnitController.getRegistrationDate` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | POST | `/realunit/register/email` | public | ? | — | 1 | — | `RealUnitController.registerEmail` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/register/status` | public | no | — | n/a | n/a | `RealUnitController.isRegistered` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/register/status` | public | yes | 78 | n/a | n/a | `RealUnitController.isRegistered` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | POST | `/realunit/register/wallet` | public | no | — | n/a | n/a | `RealUnitController.completeRegistrationForWalletAddress` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/registration` | public | no | — | 20 | — | `RealUnitController.getRegistrationInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/registration` | public | yes | 78 | 20 | 4× | `RealUnitController.getRegistrationInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/sell` | public | yes | 253 | 46 | 6× | `RealUnitController.getSellPaymentInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/sell/:id/broadcast` | public | no | — | — | — | `RealUnitController.broadcastSellTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/sell/:id/confirm` | public | no | — | — | — | `RealUnitController.confirmSell` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
@@ -428,19 +428,19 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/realunit/support/counts` | hidden | no | — | 13 | — | `RealUnitSupportController.getSupportIssueCounts` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
 | GET | `/realunit/support/list` | public | no | — | — | — | `RealUnitSupportController.getSupportIssueList` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
 | GET | `/realunit/support/statistics` | hidden | no | — | 13 | — | `RealUnitSupportController.getSupportIssueStatistics` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
-| PUT | `/realunit/swap` | public | ? | — | 27 | — | `RealUnitController.getSwapPaymentInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/swap` | public | yes | 78 | 27 | 3× | `RealUnitController.getSwapPaymentInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/swap/:id/broadcast` | public | no | — | — | — | `RealUnitController.broadcastSwapTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/swap/:id/unsigned-transaction` | public | no | — | 1 | — | `RealUnitController.getSwapUnsignedTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/realunit/tokenInfo` | public | no | — | 7 | — | `RealUnitController.getTokenInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| POST | `/realunit/transactions/receipt/multi` | public | yes | 33 | 1 | 33× | `RealUnitController.generateHistoryMultiReceipt` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| POST | `/realunit/transactions/receipt/single` | public | yes | 33 | 1 | 33× | `RealUnitController.generateHistoryReceipt` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| PUT | `/realunit/transfer` | public | ? | — | 19 | — | `RealUnitController.prepareTransfer` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/transactions/receipt/multi` | public | yes | 78 | 1 | 78× | `RealUnitController.generateHistoryMultiReceipt` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| POST | `/realunit/transactions/receipt/single` | public | yes | 78 | 1 | 78× | `RealUnitController.generateHistoryReceipt` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| PUT | `/realunit/transfer` | public | yes | 78 | 19 | 4× | `RealUnitController.prepareTransfer` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | `/realunit/transfer/:id/confirm` | public | no | — | — | — | `RealUnitController.confirmTransfer` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
-| GET | `/realunit/wallet/status` | public | no | — | 20 | — | `RealUnitController.getWalletStatus` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
+| GET | `/realunit/wallet/status` | public | yes | 78 | 20 | 4× | `RealUnitController.getWalletStatus` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | GET | `/recall` | hidden | yes | 174 | n/a | n/a | `RecallController.getAll` | `subdomains/supporting/recall/recall.controller.ts` |
-| POST | `/recall` | public | yes | 61 | n/a | n/a | `RecallController.createRecall` | `subdomains/supporting/recall/recall.controller.ts` |
+| POST | `/recall` | public | yes | 78 | n/a | n/a | `RecallController.createRecall` | `subdomains/supporting/recall/recall.controller.ts` |
 | GET | `/recall/:id` | hidden | yes | 174 | n/a | n/a | `RecallController.getById` | `subdomains/supporting/recall/recall.controller.ts` |
-| PUT | `/recall/:id` | hidden | yes | 10 | n/a | n/a | `RecallController.updateRecall` | `subdomains/supporting/recall/recall.controller.ts` |
+| PUT | `/recall/:id` | hidden | yes | 78 | n/a | n/a | `RecallController.updateRecall` | `subdomains/supporting/recall/recall.controller.ts` |
 | GET | `/recommendation` | public | no | — | 9 | — | `RecommendationController.getAllRecommendation` | `subdomains/generic/user/models/recommendation/recommendation.controller.ts` |
 | POST | `/recommendation` | hidden | no | — | 9 | — | `RecommendationController.createRecommendation` | `subdomains/generic/user/models/recommendation/recommendation.controller.ts` |
 | PUT | `/recommendation/:id/confirm` | hidden | yes | 643 | n/a | n/a | `RecommendationController.confirmRecommendation` | `subdomains/generic/user/models/recommendation/recommendation.controller.ts` |
@@ -448,7 +448,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/ref` | public | no | — | n/a | n/a | `RefController.createRef` | `subdomains/core/referral/process/ref.controller.ts` |
 | POST | `/reward/ref` | hidden | yes | 156 | n/a | n/a | `RefRewardController.createPendingRefRewards` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | PUT | `/reward/ref/:id` | hidden | yes | 156 | n/a | n/a | `RefRewardController.updateRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
-| POST | `/reward/ref/manual` | hidden | yes | 33 | n/a | n/a | `RefRewardController.createManualRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
+| POST | `/reward/ref/manual` | hidden | yes | 98 | n/a | n/a | `RefRewardController.createManualRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | PUT | `/reward/ref/volumes` | public | yes | 78 | n/a | n/a | `RefRewardController.updateVolumes` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | GET | `/route` | public | yes | 124 | 68 | 2× | `RouteController.getAllRoutes` | `subdomains/core/route/route.controller.ts` |
 | PUT | `/route/:id` | hidden | yes | 174 | n/a | n/a | `RouteController.updateRoute` | `subdomains/core/route/route.controller.ts` |
@@ -463,7 +463,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/sell/paymentInfos/:id/tx` | public | yes | 504 | 15 | 34× | `SellController.depositTx` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
 | PUT | `/sell/quote` | hidden | yes | 23 | 29 | 1× | `SellController.getSellQuote` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
 | GET | `/setting` | public | yes | 5 | n/a | n/a | `SettingController.getSettings` | `shared/models/setting/setting.controller.ts` |
-| PUT | `/setting/:key` | hidden | no | — | n/a | n/a | `SettingController.updateSetting` | `shared/models/setting/setting.controller.ts` |
+| PUT | `/setting/:key` | hidden | yes | 5 | n/a | n/a | `SettingController.updateSetting` | `shared/models/setting/setting.controller.ts` |
 | PUT | `/setting/customSignUpFees` | hidden | no | — | n/a | n/a | `SettingController.updateCustomSignUpFees` | `shared/models/setting/setting.controller.ts` |
 | PUT | `/setting/disabledProcesses` | hidden | no | — | n/a | n/a | `SettingController.updateProcess` | `shared/models/setting/setting.controller.ts` |
 | GET | `/setting/infoBanner` | public | no | — | 5 | — | `SettingController.getInfoBanner` | `shared/models/setting/setting.controller.ts` |
@@ -481,7 +481,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/support/call-queues/:queue/items` | hidden | yes | 253 | n/a | n/a | `SupportController.getCallQueueItems` | `subdomains/generic/support/support.controller.ts` |
 | GET | `/support/call-queues/clerks` | hidden | no | — | n/a | n/a | `SupportController.getCallQueueClerks` | `subdomains/generic/support/support.controller.ts` |
 | GET | `/support/issue` | public | yes | 450 | 18 | 25× | `SupportIssueController.getIssues` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
-| POST | `/support/issue` | public | no | — | 18 | — | `SupportIssueController.createIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| POST | `/support/issue` | public | yes | 34 | 18 | 2× | `SupportIssueController.createIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | GET | `/support/issue/:id` | hidden | yes | 450 | 18 | 25× | `SupportIssueController.getIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | PUT | `/support/issue/:id` | public | yes | 421 | n/a | n/a | `SupportIssueController.updateSupportIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | PUT | `/support/issue/:id/close` | public | yes | 450 | 18 | 25× | `SupportIssueController.closeIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
@@ -513,11 +513,11 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | POST | `/support/template` | hidden | yes | 253 | 8 | 32× | `SupportController.createTemplate` | `subdomains/generic/support/support.controller.ts` |
 | PUT | `/support/template/:id` | hidden | yes | 8 | 8 | 1× | `SupportController.updateTemplate` | `subdomains/generic/support/support.controller.ts` |
 | DELETE | `/support/template/:id` | hidden | yes | 8 | n/a | n/a | `SupportController.deleteTemplate` | `subdomains/generic/support/support.controller.ts` |
-| GET | `/support/transaction/:id/refund` | hidden | yes | 13 | 20 | 1× | `SupportController.getTransactionRefund` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/transaction/:id/refund` | hidden | yes | 98 | 20 | 5× | `SupportController.getTransactionRefund` | `subdomains/generic/support/support.controller.ts` |
 | PUT | `/support/transaction/:id/refund` | hidden | yes | 253 | n/a | n/a | `SupportController.setTransactionRefund` | `subdomains/generic/support/support.controller.ts` |
 | GET | `/support/transactionList` | hidden | no | — | n/a | n/a | `SupportController.getTransactionList` | `subdomains/generic/support/support.controller.ts` |
 | GET | `/swap` | public | yes | 68 | 34 | 2× | `SwapController.getAllSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
-| POST | `/swap` | hidden | yes | 68 | 34 | 2× | `SwapController.createSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| POST | `/swap` | hidden | yes | 78 | 34 | 2× | `SwapController.createSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | GET | `/swap/:id` | hidden | yes | 146 | 34 | 4× | `SwapController.getSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | PUT | `/swap/:id` | public | yes | 68 | 34 | 2× | `SwapController.updateSwapRoute` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | GET | `/swap/:id/history` | hidden | yes | 509 | — | — | `SwapController.getSwapRouteHistory` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
@@ -525,7 +525,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | PUT | `/swap/paymentInfos/:id/confirm` | public | yes | 504 | 35 | 14× | `SwapController.confirmSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | GET | `/swap/paymentInfos/:id/tx` | public | yes | 504 | 15 | 34× | `SwapController.depositTx` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | PUT | `/swap/quote` | hidden | yes | 23 | 28 | 1× | `SwapController.getSwapQuote` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
-| POST | `/tatum/addressWebhook` | public | no | — | n/a | n/a | `TatumController.addressWebhook` | `integration/tatum/controllers/tatum.controller.ts` |
+| POST | `/tatum/addressWebhook` | public | ? | — | n/a | n/a | `TatumController.addressWebhook` | `integration/tatum/controllers/tatum.controller.ts` |
 | PUT | `/trading/rule/:id` | public | yes | 87 | n/a | n/a | `TradingRuleController.update` | `subdomains/core/trading/controllers/trading-rule.controller.ts` |
 | GET | `/transaction` | public | no | — | 35 | — | `TransactionController.getTransactions` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | PUT | `/transaction/:id/invoice` | public | yes | 1220 | 1 | 1220× | `TransactionController.generateInvoiceFromTransaction` | `subdomains/core/history/controllers/transaction.controller.ts` |
@@ -563,7 +563,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | POST | `/user/change` | public | no | — | 1 | — | `UserController.changeUser` | `subdomains/generic/user/models/user/user.controller.ts` |
 | POST | `/user/data` | hidden | yes | 406 | 14 | 29× | `UserController.updateKycData` | `subdomains/generic/user/models/user/user.controller.ts` |
 | GET | `/user/detail` | public | yes | 328 | 14 | 23× | `UserController.getUserDetailV1` | `subdomains/generic/user/models/user/user.controller.ts` |
-| PUT | `/user/discountCodes` | public | ? | — | n/a | n/a | `UserController.addDiscountCode` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/discountCodes` | public | yes | 78 | n/a | n/a | `UserController.addDiscountCode` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | `/user/mail` | public | yes | 351 | n/a | n/a | `UserV2Controller.updateUserMail` | `subdomains/generic/user/models/user/user.controller.ts` |
 | POST | `/user/mail/verify` | public | yes | 351 | 56 | 6× | `UserV2Controller.verifyMail` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | `/user/name` | public | yes | 78 | n/a | n/a | `UserController.updateUserName` | `subdomains/generic/user/models/user/user.controller.ts` |
@@ -571,7 +571,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/user/ref` | public | no | — | n/a | n/a | `UserController.getRefInfo` | `subdomains/generic/user/models/user/user.controller.ts` |
 | GET | `/user/ref` | public | yes | 78 | 28 | 3× | `UserV2Controller.getRef` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | `/user/ref` | public | yes | 273 | 28 | 10× | `UserV2Controller.updateRefAsset` | `subdomains/generic/user/models/user/user.controller.ts` |
-| PUT | `/user/specialCodes` | public | ? | — | n/a | n/a | `UserController.addSpecialCode` | `subdomains/generic/user/models/user/user.controller.ts` |
+| PUT | `/user/specialCodes` | public | yes | 78 | n/a | n/a | `UserController.addSpecialCode` | `subdomains/generic/user/models/user/user.controller.ts` |
 | GET | `/user/volumes` | hidden | no | — | n/a | n/a | `UserController.getVolumes` | `subdomains/generic/user/models/user/user.controller.ts` |
 | GET | `/userData` | public | yes | 253 | n/a | n/a | `UserDataController.getAllUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | POST | `/userData` | hidden | yes | 16 | n/a | n/a | `UserDataController.createEmptyUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
@@ -584,7 +584,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | PUT | `/userData/:id/merge` | hidden | yes | 331 | n/a | n/a | `UserDataController.mergeUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | PUT | `/userData/:id/volumes` | hidden | no | — | n/a | n/a | `UserDataController.updateVolumes` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | PUT | `/userData/auditPeriodNumbers` | hidden | no | — | n/a | n/a | `UserDataController.calculateAuditPeriodNumbers` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
-| POST | `/userData/download` | public | no | — | n/a | n/a | `UserDataController.downloadUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| POST | `/userData/download` | public | ? | — | n/a | n/a | `UserDataController.downloadUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | POST | `/userDataRelation` | public | yes | 253 | n/a | n/a | `UserDataRelationController.create` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
 | PUT | `/userDataRelation/:id` | public | yes | 7 | n/a | n/a | `UserDataRelationController.update` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
 | DELETE | `/userDataRelation/:id` | public | ? | — | n/a | n/a | `UserDataRelationController.delete` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
