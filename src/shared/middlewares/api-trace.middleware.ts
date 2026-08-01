@@ -37,6 +37,22 @@ export function maskUrl(url: string): string {
   return maskValue(url.split('?')[0]);
 }
 
+// Everything that can break a line or move a cursor in a log viewer: the control characters
+// (which include the ordinary line breaks and the ANSI escape) plus the two Unicode separators
+// that sit outside that category.
+const LINE_BREAKING = /[\p{C}\u2028\u2029]/gu;
+
+/**
+ * Renders an untrusted value (header, rejected body field) for inclusion in a log line: anything
+ * that could break the line collapses to a space, so a crafted value cannot forge a second log
+ * line or smuggle an ANSI escape into the console stream; PII is masked and the result is
+ * length-capped. Masking runs before the cut, so a truncated email or wallet cannot slip through.
+ */
+export function maskLogValue(value: string, maxLength: number): string {
+  const masked = maskValue(value.replace(LINE_BREAKING, ' '));
+  return masked.length > maxLength ? `${masked.slice(0, maxLength)}…` : masked;
+}
+
 // `budget` bounds the total work per section: each processed node deducts from
 // it and the walk stops once it is spent, so a 20 MB body can't burn seconds of
 // synchronous CPU (regexes + stringify) just to emit a 4000-char log line.

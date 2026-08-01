@@ -120,6 +120,23 @@ describe('ApiExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(500);
   });
 
+  it('names the caller, so a rejection on an unauthenticated endpoint is attributable', () => {
+    filter.catch(
+      new BadRequestException('bad'),
+      host(req({ headers: { 'x-client': 'dfx-services', origin: 'https://app.dfx.swiss' } }), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).toContain('client=dfx-services');
+    expect(msg).toContain('origin=https://app.dfx.swiss');
+  });
+
+  it('marks a caller that identifies itself with nothing', () => {
+    filter.catch(new BadRequestException('bad'), host(req({ headers: {} }), { status }));
+
+    expect(warn.mock.calls[0][0]).toContain('client=(none)');
+  });
+
   it('treats a non-HttpException as a 500 and returns a generic body', () => {
     filter.catch(new Error('unexpected'), host(req(), { status }));
 

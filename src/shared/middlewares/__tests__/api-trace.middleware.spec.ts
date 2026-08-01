@@ -1,4 +1,4 @@
-import { apiTraceMiddleware } from 'src/shared/middlewares/api-trace.middleware';
+import { apiTraceMiddleware, maskLogValue } from 'src/shared/middlewares/api-trace.middleware';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 type Emit = (res: any) => void;
@@ -205,5 +205,31 @@ describe('apiTraceMiddleware', () => {
     const { lines, nextCalled } = runTrace(req, 200, (res) => res.json({ ok: true }));
     expect(lines).toHaveLength(0);
     expect(nextCalled).toBe(true);
+  });
+});
+
+describe('maskLogValue', () => {
+  it('masks personal data in the value', () => {
+    expect(maskLogValue('write to foo@bar.com', 100)).toBe('write to ***');
+    expect(maskLogValue('from 10.0.0.1', 100)).toBe('from ***');
+  });
+
+  it('collapses everything that could break the line — newline, ANSI escape, Unicode separators', () => {
+    expect(maskLogValue('a\nb', 100)).toBe('a b');
+    expect(maskLogValue('a\r\nb', 100)).toBe('a  b');
+    expect(maskLogValue('a\u001b[31mb', 100)).toBe('a [31mb');
+    expect(maskLogValue('a\u2028b\u2029c', 100)).toBe('a b c');
+  });
+
+  it('caps the value and marks the cut', () => {
+    expect(maskLogValue('x'.repeat(10), 4)).toBe('xxxx\u2026');
+    expect(maskLogValue('x'.repeat(4), 4)).toBe('xxxx');
+  });
+
+  it('masks before cutting, so a truncated email cannot slip through', () => {
+    const masked = maskLogValue('someone@example.com', 12);
+
+    expect(masked).not.toContain('someone@');
+    expect(masked).toBe('***');
   });
 });

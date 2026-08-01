@@ -2,6 +2,7 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from
 import { Request } from 'express';
 import { maskUrl, maskValue } from 'src/shared/middlewares/api-trace.middleware';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { describeCaller } from 'src/shared/utils/request-caller';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -34,8 +35,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // no reason (the #4105 support-ticket outage was silent for exactly this).
       // The reason is masked to the same PII standard as the rest of the logs and
       // length-capped, because it can embed user-supplied values.
+      //
+      // The caller markers are what make a recurring rejection actionable: on an endpoint that
+      // runs without authentication, nothing else in the line says who sent it. They are untrusted
+      // input and rendered as such (masked, capped, single-line).
       const reason = maskValue(this.getReason(exception)).slice(0, ApiExceptionFilter.REASON_MAX_LENGTH);
-      this.logger.warn(`${status} on ${target}: ${reason}`);
+      this.logger.warn(`${status} on ${target} from ${describeCaller(request)}: ${reason}`);
     }
 
     try {
