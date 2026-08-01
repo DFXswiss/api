@@ -574,7 +574,6 @@ export class SupportIssueService {
     return date;
   }
 
-
   async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {
     return this.supportIssueRepo.find({
       where: { userData: { id: userDataId } },

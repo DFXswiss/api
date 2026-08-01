@@ -222,11 +222,7 @@ export const API_KEY_RESPONSE_FIELDS = [
  * The endpoint writes, but through `update(id, …)` rather than by saving the row it read, so a
  * projected read cannot blank a column it did not load.
  */
-export const API_KEY_PROJECTION = new ReadProjection<UserData>(
-  'userData',
-  [],
-  API_KEY_RESPONSE_FIELDS,
-);
+export const API_KEY_PROJECTION = new ReadProjection<UserData>('userData', [], API_KEY_RESPONSE_FIELDS);
 
 @Injectable()
 export class UserDataRepository extends CachedRepository<UserData> {
