@@ -264,7 +264,7 @@ describe('RoleGuard (staff KYC gate on elevated endpoints)', () => {
     expect(thrown.getStatus()).toBe(HttpStatus.FORBIDDEN);
     expect(thrown.getResponse()).toEqual({
       code: 'STAFF_KYC_REQUIRED',
-      message: expect.stringContaining('KYC level 50'),
+      message: expect.stringContaining('verified name'),
     });
   });
 
