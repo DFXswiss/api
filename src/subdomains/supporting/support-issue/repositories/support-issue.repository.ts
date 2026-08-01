@@ -223,9 +223,8 @@ export const SUPPORT_ISSUE_LIST_RESPONSE_FIELDS = [
 /**
  * `GET /support/issue/list` and `GET /realunit/support/list` — the ten values the row shows.
  *
- * The six it drops are the five foreign keys and `information`, which is `text` and holds the
- * free-form body of the issue. The list shows a row per issue and none of it, so on a page of
- * results that column is the bulk of what the query transfers.
+ * The six it drops are the five foreign keys and `information`, an unbounded `text` column holding
+ * the free-form body of the issue, which the list does not show.
  *
  * Every column `SupportIssueListOrderBy` allows is in the list above, which the query needs: the
  * paginated form of `getManyAndCount` orders a distinct-id subquery by the sort column.

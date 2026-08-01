@@ -187,7 +187,8 @@ asserted directly.
 A missing field does not crash. It is simply absent, getters compute with it anyway, and the
 endpoint answers 200 with a wrong value.
 
-The concrete case, from the code that was already fixed once:
+The concrete case, from `UserData` in
+`src/subdomains/generic/user/models/user-data/user-data.entity.ts`:
 
 ```typescript
 get requiredInvoiceFields(): string[] {
@@ -203,8 +204,8 @@ load returns `true`. The invoice is refused with "user data is not complete" alt
 complete. No error, no log entry.
 
 This service carries **234 such getters across 50 of its 112 entities**. In an application moving
-money, a silent wrong value is worse than a crash: a statement that exceeds the column limit fails
-loudly and is found at once, while a wrong value can run for weeks.
+money, a silent wrong value is the expensive kind of defect: nothing reports it, so it runs until
+someone notices the answer is wrong.
 
 ## The guard: making the failure loud
 
