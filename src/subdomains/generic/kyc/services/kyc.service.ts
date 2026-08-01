@@ -644,6 +644,32 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
+  /**
+   * Closes a PERSONAL_DATA step whose data the account already carries, for flows that write personal data
+   * outside the KYC step machinery (RealUnit registration). Without this the step stays IN_PROGRESS forever:
+   * the auto-completion in `createStep` is gated on `!preventDirectEvaluation`, which any prior step row sets,
+   * so an account that once abandoned the step can never satisfy it again — and `KycInfoMapper` keeps handing
+   * that stale step back as `currentStep`.
+   *
+   * Deliberately narrow: only a PENDING (IN_PROGRESS) step is closed, never a FAILED one. `preventDirectEvaluation`
+   * exists so a retry does not paper over a prior rejection, and that intent is preserved here — a failed step
+   * stays failed and keeps going through the normal flow.
+   */
+  async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
+    // The caller's UserData is loaded for its own flow and need not carry `kycSteps`; reload so the step
+    // lookup never reads an undefined relation (same pattern as checkDfxApproval).
+    const user = await this.userDataService.getUserData(userData.id, { kycSteps: true });
+
+    const kycStep = user.getPendingStepWith(KycStepName.PERSONAL_DATA);
+    if (!kycStep || !user.isDataComplete) return;
+
+    const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
+    await this.kycStepRepo.update(...kycStep.complete(result));
+    await this.createStepLog(user, kycStep);
+
+    await this.updateProgress(user, false);
+  }
+
   async updateKycStep(
     kycHash: string,
     stepId: number,

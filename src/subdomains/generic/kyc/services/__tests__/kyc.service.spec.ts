@@ -9,6 +9,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import * as processServiceModule from 'src/shared/services/process.service';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
@@ -793,5 +794,95 @@ describe('KycService checkDfxApproval step promotion', () => {
 
     await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
     expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// A flow that writes personal data outside the step machinery (RealUnit registration) leaves the
+// PERSONAL_DATA step IN_PROGRESS: createStep's auto-completion is gated on `!preventDirectEvaluation`,
+// which any prior step row sets, so an account that once abandoned the step could never satisfy it again
+// and KycInfoMapper kept handing that stale step back as `currentStep`.
+describe('KycService completeSatisfiedPersonalDataStep', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+  let userDataService: jest.Mocked<UserDataService>;
+
+  const personalStep = (status: ReviewStatus): KycStep =>
+    Object.assign(new KycStep(), { id: 72202, name: KycStepName.PERSONAL_DATA, status });
+
+  // Every field in `requiredKycFields` for a personal account, so `isDataComplete` is true.
+  const completeUser = (kycSteps: KycStep[], overrides: Partial<UserData> = {}): UserData =>
+    createCustomUserData({
+      id: 315486,
+      accountType: AccountType.PERSONAL,
+      mail: 'test@test.com',
+      phone: '+41790000000',
+      firstname: 'Erika',
+      surname: 'Mueller',
+      street: 'Bahnhofstrasse 1',
+      location: 'Zurich',
+      zip: '8001',
+      kycSteps,
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    userDataService = createMock<UserDataService>();
+
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+    (service as any).userDataService = userDataService;
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(undefined);
+  });
+
+  const run = async (user: UserData): Promise<void> => {
+    userDataService.getUserData.mockResolvedValue(user);
+    // the caller's UserData need not carry `kycSteps`; the method reloads it itself
+    await service.completeSatisfiedPersonalDataStep(createCustomUserData({ id: user.id }));
+  };
+
+  it('completes a pending step and advances the process', async () => {
+    const step = personalStep(ReviewStatus.IN_PROGRESS);
+    await run(completeUser([step]));
+
+    expect(userDataService.getUserData).toHaveBeenCalledWith(315486, { kycSteps: true });
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+    expect(step.status).toBe(ReviewStatus.COMPLETED);
+    expect(step.getResult()).toMatchObject({ firstname: 'Erika', surname: 'Mueller', zip: '8001' });
+    expect((service as any).updateProgress).toHaveBeenCalled();
+  });
+
+  // preventDirectEvaluation exists so a retry does not paper over a prior rejection. A FAILED step must
+  // keep going through the normal flow rather than being silently resurrected by a registration.
+  it('leaves a FAILED step untouched', async () => {
+    const step = personalStep(ReviewStatus.FAILED);
+    await run(completeUser([step]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(step.status).toBe(ReviewStatus.FAILED);
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
+  });
+
+  it('leaves an already completed step untouched', async () => {
+    const step = personalStep(ReviewStatus.COMPLETED);
+    await run(completeUser([step]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the account data is incomplete', async () => {
+    const step = personalStep(ReviewStatus.IN_PROGRESS);
+    await run(completeUser([step], { surname: undefined }));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(step.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  it('does nothing when there is no PersonalData step', async () => {
+    await run(completeUser([]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
   });
 });

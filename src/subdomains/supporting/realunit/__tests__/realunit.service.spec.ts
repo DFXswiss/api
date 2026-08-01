@@ -3771,6 +3771,36 @@ describe('RealUnitService', () => {
     });
   });
 
+  // The stuck account this fixes is BY DEFINITION already at LEVEL_20 (a prior registration lifted it),
+  // so the step reconciliation must not sit behind ensureRegistrationKycLevel's `>= LEVEL_20` early return.
+  // Folding the two together would skip the reconciliation for exactly the population that needs it.
+  describe('ensureRegistrationKycState (reconciles the PersonalData step, not only the level)', () => {
+    it('closes the PersonalData step even when the account is already at LEVEL_20', async () => {
+      const completeStep = jest.fn().mockResolvedValue(undefined);
+      (service as any).kycService.completeSatisfiedPersonalDataStep = completeStep;
+      const updateUserDataInternal = jest.fn();
+      (service as any).userDataService.updateUserDataInternal = updateUserDataInternal;
+      const userData = { id: 315486, kycLevel: KycLevel.LEVEL_20 } as any;
+
+      await (service as any).ensureRegistrationKycState(userData);
+
+      // the level lift correctly no-ops (already there) ...
+      expect(updateUserDataInternal).not.toHaveBeenCalled();
+      // ... but the step reconciliation still runs
+      expect(completeStep).toHaveBeenCalledWith(userData);
+    });
+
+    it('is best-effort: a step-reconciliation failure never breaks a durable registration', async () => {
+      (service as any).kycService.completeSatisfiedPersonalDataStep = jest
+        .fn()
+        .mockRejectedValue(new Error('step repo down'));
+      const userData = { id: 315486, kycLevel: KycLevel.LEVEL_20 } as any;
+
+      await expect((service as any).ensureRegistrationKycState(userData)).resolves.toBeUndefined();
+      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('step repo down'));
+    });
+  });
+
   describe('describeError (full error body for the PII audit DB log)', () => {
     it('returns the Aktionariat HTTP error body verbatim when present (the useful, complete part)', () => {
       const body = { message: 'E-Mail erika.mueller@example.com already registered' };
