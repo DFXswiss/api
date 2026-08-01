@@ -123,6 +123,36 @@ All of the following must hold:
 
 The first four are pre-filters; the fifth decides.
 
+## What qualifies, measured
+
+The pre-filters above are stated as criteria; this is what they select when applied to the
+inventory. Every step is mechanical except the last two, which were read in the source.
+
+| | endpoints |
+| --- | ---: |
+| fetch whole rows | 417 |
+| … every load site they reach can be narrowed at all | 77 |
+| … no write to the loaded entity anywhere in the call chain | 44 |
+| … the response is not an entity, a stream, or `void` | 30 |
+| … and no DTO field passes an entity through | **28** |
+
+The step from 417 to 77 is the one that decides the size of this work, and it has a single cause:
+at 343 of the 555 load sites involved, **the loaded entity leaves the loading method**.
+`UserDataService.getUserData` returns `Promise<UserData>` to 113 different endpoints. What fields
+are needed is decided by each caller, not at the load site, so a projection there would be guessed
+rather than derived — and the union over 113 callers is the whole entity anyway. Splitting those
+hubs into per-caller reads is a separate piece of work with a different shape. It is not assumed
+here, and the numbers above do not depend on whether it happens.
+
+The last step removes six endpoints whose DTO has a field typed as an entity — `currency: Fiat`,
+`targetAsset: Asset`. The response then contains every column of that entity, so a projection would
+have to list them all and would save nothing. Narrowing those means changing the contract, which is
+a different decision.
+
+Nine of the 28 are converted. The remaining 19 are the ones marked `not yet` with a `whole rows`
+access in [endpoints.md](endpoints.md); the widest is `GET /user` at 351 columns, and eleven of them
+are support and dashboard reads between 7 and 99.
+
 ## The risk this must guard against
 
 A missing field does not crash. It is simply absent, getters compute with it anyway, and the
