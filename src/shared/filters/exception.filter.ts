@@ -152,32 +152,39 @@ export class ApiExceptionFilter implements ExceptionFilter {
     }
   }
 
-  // Only a plain string or a plain array of them, and only off the body itself: an accessor answers
-  // again when the response is serialized, and anything else was not a message meant for a caller.
+  // Only a plain string or a plain array of them, and only what the body would have put on the wire
+  // itself: an accessor answers again when the response is serialized, and a property that is not
+  // enumerable would not have been sent at all.
   private static publicMessage(body: unknown, status: number): string | string[] {
     if (typeof body === 'string') return body;
 
-    if (typeof body === 'object' && body !== null) {
-      const declared = Object.getOwnPropertyDescriptor(body, 'message');
-      const message = declared && 'value' in declared ? declared.value : undefined;
-
-      if (typeof message === 'string') return message;
-      if (Array.isArray(message) && message.every((entry) => typeof entry === 'string')) return message;
-    }
+    const message = ApiExceptionFilter.serializable(body, 'message');
+    if (typeof message === 'string') return message;
+    if (Array.isArray(message) && message.every((entry) => typeof entry === 'string')) return message;
 
     return HttpStatus[status] || 'Error';
   }
 
-  // A body that carries no status of its own contradicts nothing. One that carries an accessor for
-  // it is read again when it is serialized and can answer differently then, so only a plain value
-  // counts as naming one.
+  // What `JSON.stringify` would read off the body for this name, or undefined where it would read
+  // nothing: its own property, enumerable, and a value rather than something asked again.
+  private static serializable(body: unknown, name: string): unknown {
+    if (typeof body !== 'object' || body === null) return undefined;
+
+    const declared = Object.getOwnPropertyDescriptor(body, name);
+
+    return declared?.enumerable && 'value' in declared ? declared.value : undefined;
+  }
+
+  // A body that carries no status of its own contradicts nothing, and neither does one whose status
+  // would never reach the wire. One that answers with an accessor answers again when the response
+  // is serialized, and can answer differently then, so it does not count as agreeing.
   private static names(body: unknown, status: number): boolean {
     if (typeof body !== 'object' || body === null) return true;
 
     const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
-    if (declared && !('value' in declared)) return false;
+    if (declared?.enumerable && !('value' in declared)) return false;
 
-    return declared === undefined || declared.value === status;
+    return ApiExceptionFilter.serializable(body, 'statusCode') === undefined || declared?.value === status;
   }
 
   // Human-readable rejection reason. For HttpExceptions the useful text is in the

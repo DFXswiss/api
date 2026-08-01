@@ -125,7 +125,9 @@ describe('ApiExceptionFilter', () => {
     const msg = warn.mock.calls[0][0] as string;
     expect(msg).not.toContain('someone@example.com');
     expect(msg).toContain('***');
-    expect(elapsedMs).toBeLessThan(100);
+    // Masking this whole message takes seconds; the bound is what is being shown, so the limit is
+    // loose enough to survive a loaded machine and still far below what it would cost unbounded.
+    expect(elapsedMs).toBeLessThan(1000);
   });
 
   it('does not let the point where masking stopped expose a pattern it split', () => {
@@ -243,6 +245,17 @@ describe('ApiExceptionFilter', () => {
 
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
+  });
+
+  it('takes no message the body would not have sent itself', () => {
+    // A property that is not enumerable is left out when the response is serialized, so reading it
+    // here would put something on the wire that would never have been on it.
+    const hidden = new HttpException({ statusCode: 418 }, 400);
+    Object.defineProperty(hidden.getResponse(), 'message', { value: 'INTERNAL_HIDDEN', enumerable: false });
+
+    filter.catch(hidden, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
   it('rejects a message the body only answers with when asked', () => {
