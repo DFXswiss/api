@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
@@ -28,8 +29,10 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -359,13 +362,14 @@ describe('BuyCryptoService', () => {
         }),
       });
       const manager = {
-        findOne: jest
-          .fn()
-          .mockResolvedValueOnce({ id: 7 })
-          .mockResolvedValueOnce(entity)
-          .mockResolvedValueOnce({ id: 42, kycStatus })
-          .mockResolvedValueOnce({ id: 8 })
-          .mockResolvedValueOnce(entity.fee),
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyCrypto) return options.select?.id ? { id: 7 } : entity;
+          if (type === CheckoutTx) return entity.checkoutTx;
+          if (type === CryptoInput) return entity.cryptoInput;
+          if (type === UserData) return { id: 42, kycStatus };
+          if (type === BuyCryptoFee) return options.select?.id ? { id: 8 } : entity.fee;
+          return undefined;
+        }),
         create: jest.fn((_type: unknown, dto: unknown) => dto),
         save: jest.fn().mockResolvedValue(undefined),
         update: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -447,6 +451,45 @@ describe('BuyCryptoService', () => {
         service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
       ).rejects.toThrow(BadRequestException);
 
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('locks and rejects a checkout refund that started before the review reset', async () => {
+      const { entity, manager } = reviewResetFixture();
+      entity.checkoutTx = Object.assign(new CheckoutTx(), {
+        id: 22,
+        status: CheckoutPaymentStatus.REFUND_PENDING,
+      });
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        CheckoutTx,
+        expect.objectContaining({ where: { id: 22 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('locks and rejects a crypto return that started before the review reset', async () => {
+      const { entity, manager } = reviewResetFixture();
+      entity.cryptoInput = Object.assign(new CryptoInput(), {
+        id: 23,
+        action: PayInAction.RETURN,
+        status: PayInStatus.TO_RETURN,
+      });
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        CryptoInput,
+        expect.objectContaining({ where: { id: 23 }, lock: { mode: 'pessimistic_write' } }),
+      );
       expect(manager.save).not.toHaveBeenCalled();
       expect(manager.update).not.toHaveBeenCalled();
     });

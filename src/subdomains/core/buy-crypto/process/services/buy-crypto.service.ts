@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
@@ -52,7 +53,7 @@ import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-outpu
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { UpdateTransactionInternalDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction-internal.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -880,9 +881,44 @@ export class BuyCryptoService implements OnModuleInit {
 
       const entity = await manager.findOne(BuyCrypto, {
         where: { id },
-        relations: { chargebackOutput: true, fee: true, transaction: { userData: true } },
+        relations: {
+          chargebackOutput: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          fee: true,
+          transaction: { userData: true },
+        },
       });
       if (!entity) throw new NotFoundException('BuyCrypto not found');
+
+      const checkoutTx = entity.checkoutTx
+        ? await manager.findOne(CheckoutTx, {
+            where: { id: entity.checkoutTx.id },
+            loadEagerRelations: false,
+            lock: { mode: 'pessimistic_write' },
+          })
+        : undefined;
+      const cryptoInput = entity.cryptoInput
+        ? await manager.findOne(CryptoInput, {
+            where: { id: entity.cryptoInput.id },
+            loadEagerRelations: false,
+            lock: { mode: 'pessimistic_write' },
+          })
+        : undefined;
+
+      const checkoutRefundStarted =
+        checkoutTx != null &&
+        [
+          CheckoutPaymentStatus.REFUND_PENDING,
+          CheckoutPaymentStatus.PARTIALLY_REFUNDED,
+          CheckoutPaymentStatus.REFUNDED,
+        ].includes(checkoutTx.status);
+      const cryptoReturnStarted =
+        cryptoInput != null &&
+        (cryptoInput.action === PayInAction.RETURN ||
+          (cryptoInput.status != null &&
+            [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(cryptoInput.status)) ||
+          cryptoInput.returnTxId != null);
 
       const userDataId = entity.userData?.id;
       if (!userDataId) throw new BadRequestException('BuyCrypto has no user data');
@@ -900,7 +936,9 @@ export class BuyCryptoService implements OnModuleInit {
         entity.batch ||
         entity.chargebackOutput ||
         entity.chargebackAllowedDate ||
-        entity.chargebackAllowedDateUser
+        entity.chargebackAllowedDateUser ||
+        checkoutRefundStarted ||
+        cryptoReturnStarted
       )
         throw new BadRequestException('BuyCrypto is already complete or payout initiated');
       if (entity.amlCheck !== dto.expectedAmlCheck || (entity.amlReason ?? null) !== dto.expectedAmlReason)

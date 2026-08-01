@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -11,6 +12,8 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { CryptoInput, PayInAction } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -118,6 +121,30 @@ describe('SupportService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('transaction refund state', () => {
+    it.each([
+      {
+        name: 'checkout refund',
+        source: {
+          checkoutTx: Object.assign(new CheckoutTx(), { status: CheckoutPaymentStatus.REFUND_PENDING }),
+        },
+      },
+      {
+        name: 'crypto return',
+        source: { cryptoInput: Object.assign(new CryptoInput(), { action: PayInAction.RETURN }) },
+      },
+    ])('reports an in-flight $name as a chargeback', ({ source }) => {
+      const transaction = Object.assign(new Transaction(), {
+        id: 1,
+        buyCrypto: Object.assign(new BuyCrypto(), source),
+      });
+
+      const result = (service as any).toTransactionSupportInfo(transaction);
+
+      expect(result.buyCryptoHasChargeback).toBe(true);
+    });
   });
 
   describe('getRecommendationGraphNeighbors', () => {

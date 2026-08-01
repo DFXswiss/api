@@ -3,6 +3,7 @@ import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { ScorechainScreeningDtoMapper } from 'src/integration/scorechain/dto/scorechain-screening-dto.mapper';
 import {
@@ -47,7 +48,7 @@ import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -641,7 +642,15 @@ export class SupportService {
       buyCryptoHasChargeback: !!(
         tx.buyCrypto?.chargebackOutput ||
         tx.buyCrypto?.chargebackAllowedDate ||
-        tx.buyCrypto?.chargebackAllowedDateUser
+        tx.buyCrypto?.chargebackAllowedDateUser ||
+        tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUND_PENDING ||
+        tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.PARTIALLY_REFUNDED ||
+        tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUNDED ||
+        tx.buyCrypto?.cryptoInput?.action === PayInAction.RETURN ||
+        tx.buyCrypto?.cryptoInput?.status === PayInStatus.TO_RETURN ||
+        tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURNED ||
+        tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURN_CONFIRMED ||
+        tx.buyCrypto?.cryptoInput?.returnTxId
       ),
       buyFiatId: tx.buyFiat?.id,
       bankDataId: tx.buyCrypto?.bankData?.id ?? tx.buyFiat?.bankData?.id,
