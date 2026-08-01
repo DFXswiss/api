@@ -12,7 +12,7 @@ import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { KycGatedRoles, UserRole } from 'src/shared/auth/user-role.enum';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Active } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -54,6 +54,7 @@ import { ReferralDto, UpdateRefDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
+import { ClearanceRelevantRoles } from './staff-kyc-clearance.service';
 import { User } from './user.entity';
 import { RefPayoutFrequency, UserAddressType, UserStatus } from './user.enum';
 import { UserRepository } from './user.repository';
@@ -473,11 +474,15 @@ export class UserService {
   async updateUserInternal(user: User, update: UpdateUserInternalDto): Promise<User> {
     // Write-side counterpart to the staff KYC clearance: an account may only be given a gated role if a
     // verified name is already behind it, so a faceless staff account with no identification signal can
-    // never be created. Blankness matches the clearance definition — `verifiedName.trim()` strips exactly
-    // the characters `BlankChars` lists (see staff-kyc-clearance.service.ts), so this stays in step with
-    // the DB predicate that decides clearance. userData is reloaded when absent so a caller that did not
-    // hydrate the relation cannot slip an elevated role past the check.
-    if (update.role && KycGatedRoles.includes(update.role)) {
+    // never be created. It gates the same `ClearanceRelevantRoles` set the clearance query clears —
+    // that set is the gated roles plus their super-roles (e.g. SUPER_ADMIN, which satisfies every gate
+    // without being listed in KycGatedRoles), so sharing the one constant keeps write and read in step
+    // and stops the highest privilege from being granted without an identification signal. Blankness
+    // matches the clearance definition — `verifiedName.trim()` strips exactly the characters `BlankChars`
+    // lists (see staff-kyc-clearance.service.ts), so this stays in step with the DB predicate that decides
+    // clearance. userData is reloaded when absent so a caller that did not hydrate the relation cannot
+    // slip an elevated role past the check.
+    if (update.role && ClearanceRelevantRoles.includes(update.role)) {
       const userData =
         user.userData ??
         (await this.userRepo.findOne({ where: { id: user.id }, relations: { userData: true } }))?.userData;
