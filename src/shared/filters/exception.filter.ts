@@ -22,18 +22,18 @@ export class ApiExceptionFilter implements ExceptionFilter {
   catch(exception: Error, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    const request = ctx.getRequest<Request>();
-    const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = ApiExceptionFilter.statusOf(exception);
 
-    // The response goes out before the line is written. Everything the line renders comes from the
-    // request or from the thrower, and reading either can throw - which used to leave the caller
-    // with no response at all rather than with a log line missing a detail.
+    // The response goes out first, and nothing it does not need is read before it. Everything the
+    // line renders comes from the request or from the thrower, and reading either can throw - which
+    // used to leave the caller with no response at all rather than with a line missing a detail.
     try {
       response.status(status).json(this.responseBody(exception, status));
     } catch (e) {
       this.logger.error(`Failed to set error response content:`, e);
     }
 
+    const request = ctx.getRequest<Request>();
     const target = `${request.method} request to '${maskUrl(request.originalUrl ?? request.url ?? '')}'`;
     if (status >= 500) {
       // log server errors with the full error + stack
@@ -60,6 +60,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
           ? ` (received: ${describeRejectedValues(exception.validationErrors)})`
           : '';
       this.logger.warn(`${status} on ${target} from ${describeCaller(request)}: ${reason}${rejected}`);
+    }
+  }
+
+  // The status an HttpException carries is whatever the thrower put there: reading it can throw, and
+  // what comes back is not necessarily one Express will send. Anything outside the range it accepts
+  // is a server error by the only reading left.
+  private static statusOf(exception: Error): number {
+    try {
+      if (!(exception instanceof HttpException)) return HttpStatus.INTERNAL_SERVER_ERROR;
+
+      const status = exception.getStatus();
+      return Number.isInteger(status) && status >= 100 && status <= 599 ? status : HttpStatus.INTERNAL_SERVER_ERROR;
+    } catch {
+      return HttpStatus.INTERNAL_SERVER_ERROR;
     }
   }
 

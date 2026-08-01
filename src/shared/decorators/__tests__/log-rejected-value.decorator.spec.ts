@@ -5,6 +5,11 @@ enum Mode {
   SLOW = 'Slow',
 }
 
+enum Speed {
+  LOW = 0,
+  HIGH = 1,
+}
+
 class Declaring {
   @LogRejectedValue(Mode)
   mode: string;
@@ -17,6 +22,11 @@ class Declaring {
 
 class Silent {
   mode: string;
+}
+
+class Numeric {
+  @LogRejectedValue(Speed)
+  speed: number;
 }
 
 class Extending extends Declaring {
@@ -37,6 +47,15 @@ describe('LogRejectedValue', () => {
       ['1', '1'],
       ['2', '2'],
       ['true', 'true'],
+    ]);
+  });
+
+  it('leaves the reverse mapping of a numeric enum out', () => {
+    // `{ LOW: 0, HIGH: 1 }` reads back as `['LOW', 'HIGH', 0, 1]`: the member names are not values
+    // the field accepts, and taking them would match a request that sent one of them.
+    expect([...(loggableRejectedValues(Numeric, 'speed') ?? [])]).toEqual([
+      ['0', '0'],
+      ['1', '1'],
     ]);
   });
 

@@ -89,10 +89,11 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
 
 /**
  * Renders an untrusted value (header, rejected body field) for inclusion in a log line: anything
- * that could break the line collapses to a space, so a crafted value cannot forge a second log
- * line or smuggle an ANSI escape into the console stream; the value patterns above (wallet address,
- * email, IPv4) are masked and the result is length-capped. Masking runs before the cut, so a
- * truncated email or wallet cannot slip through.
+ * that could break the line is removed, so a crafted value cannot forge a second log line or
+ * smuggle an ANSI escape into the console stream; the value patterns above (wallet address, email,
+ * IPv4) are masked and the result is length-capped. Removal runs before the masking, so a character
+ * put inside a pattern does not hide it; masking runs before the cut, so a truncated email or
+ * wallet cannot slip through.
  *
  * Beyond `MAX_STRING` the value is reported by length instead: masking is regex work over the
  * whole string, and the caller's cap alone would not stop an oversized one from paying for it.

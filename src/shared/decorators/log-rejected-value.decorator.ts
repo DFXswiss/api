@@ -27,7 +27,7 @@ export type LoggableValues = Record<string, string | number> | readonly (string 
  * exactly what a client sends there by mistake.
  */
 export function LogRejectedValue(values: LoggableValues): PropertyDecorator {
-  const loggable = new Map((Array.isArray(values) ? values : Object.values(values)).map(canonical));
+  const loggable = new Map(declared(values).map(canonical));
 
   return (target: object, property: string | symbol) => {
     const type = target.constructor as Loggable;
@@ -54,6 +54,16 @@ export function loggableRejectedValues(
   if (typeof type !== 'function') return undefined;
 
   return (type as Loggable)[LOG_REJECTED_VALUE]?.get(property);
+}
+
+// A numeric enum object carries its reverse mapping as well, so its own member names appear among
+// its values - `{ FAST: 0, SLOW: 1 }` reads back as `['FAST', 'SLOW', 0, 1]`. A name that maps to a
+// number is one of those and is not a value the field ever accepts.
+function declared(values: LoggableValues): (string | number | boolean)[] {
+  if (Array.isArray(values)) return [...values];
+
+  const members = values as Record<string, string | number>;
+  return Object.values(members).filter((value) => typeof members[`${value}`] !== 'number');
 }
 
 function canonical(value: string | number | boolean): [string, string] {

@@ -117,7 +117,9 @@ function renderDeclared(error: ValidationError): string | undefined {
   const declared = loggableRejectedValues(error.target?.constructor, error.property);
   const match = declared?.get(`${error.value}`.toLowerCase());
 
-  return match && `'${match}'`;
+  // The constant comes from this code rather than from the request, but it is rendered like every
+  // other value on the line - a declaration is written by hand, and nothing here has to trust that.
+  return match === undefined ? undefined : `'${maskLogValue(match, MAX_VALUE_LENGTH)}'`;
 }
 
 function summarize(value: unknown): string {

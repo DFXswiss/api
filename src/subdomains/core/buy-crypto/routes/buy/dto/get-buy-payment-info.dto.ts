@@ -72,6 +72,8 @@ export class GetBuyPaymentInfoDto {
   })
   @IsOptional()
   @IsEnum(PersonalIbanProvider, { message: QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED })
+  // The field's own values: a wrong one that differs only in case is named back as the constant.
+  @LogRejectedValue(PersonalIbanProvider)
   personalIbanProvider?: PersonalIbanProvider;
 
   @ApiPropertyOptional({ description: 'Custom transaction id' })

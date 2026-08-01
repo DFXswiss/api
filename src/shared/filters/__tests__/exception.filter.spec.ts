@@ -126,8 +126,8 @@ describe('ApiExceptionFilter', () => {
   });
 
   it('masks a pattern that a control character sits inside', () => {
-    // The collapse turns a control character into a space, which would break the pattern apart
-    // before it could be recognized - so it runs after the masking, not before it.
+    // Removing the control character rather than replacing it puts the pattern back together, so
+    // the masking that runs after it sees the value as the one it is.
     filter.catch(
       new BadRequestException('Invalid recipient victim\u0001@example.com and victim\u0085@example.com'),
       host(req(), { status }),
@@ -162,6 +162,35 @@ describe('ApiExceptionFilter', () => {
     });
 
     expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalled();
+  });
+
+  it('sends a server error when the status cannot be read or is not one Express sends', () => {
+    const broken = new BadRequestException('x');
+    jest.spyOn(broken, 'getStatus').mockImplementation(() => {
+      throw new Error('nope');
+    });
+    filter.catch(broken, host(req(), { status }));
+    expect(status).toHaveBeenCalledWith(500);
+
+    const outOfRange = new BadRequestException('x');
+    jest.spyOn(outOfRange, 'getStatus').mockReturnValue(0);
+    filter.catch(outOfRange, host(req(), { status }));
+    expect(status).toHaveBeenLastCalledWith(500);
+  });
+
+  it('sends the response even when the request cannot be read', () => {
+    const brokenHost = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status }),
+        getRequest: () => {
+          throw new Error('nope');
+        },
+      }),
+    } as unknown as ArgumentsHost;
+
+    expect(() => filter.catch(new BadRequestException('bad'), brokenHost)).toThrow();
     expect(status).toHaveBeenCalledWith(400);
     expect(json).toHaveBeenCalled();
   });
