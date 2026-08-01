@@ -21,7 +21,7 @@ Every HTTP endpoint this service exposes: **533 handlers** across 93 controller 
 | `projected` | 2 | 0 % |
 | `caller-defined` | 2 | 0 % |
 
-Two endpoints read only what they return: `PUT /log/financial/validity`, whose query names `log.id` and `log.valid`, and `POST /gs/debug`, which assembles its select list from the request. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
+Two endpoints read only what they return: `PUT /log/financial/validity`, whose query names `log.id` and `log.valid`, and `POST /gs/debug`, which assembles its select list from the request. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise. How far the test suite actually covers those reads is recorded per site in [read-path-projections.md](read-path-projections.md#which-endpoints-these-apply-to); the short answer is that the projection behind `PUT /log/financial/validity` is never executed in a test.
 
 Among the 432 that fetch whole rows, the widest query they can trigger is **308 columns** at the median; 320 exceed 100, 90 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns, which is what broke every invoice and receipt in production once a single column was added elsewhere.
 

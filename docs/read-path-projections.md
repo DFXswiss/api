@@ -117,23 +117,51 @@ described above proves it — a wrong value can run for weeks.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-Today that is **six sites**:
+Today that is **six sites**, and this is what the suite covers of them:
 
-| Site | Form |
-| ---- | ---- |
-| `subdomains/supporting/log/log.repository.ts:699` | `.select(['log.id', 'log.valid'])` |
-| `subdomains/supporting/log/log.repository.ts:341` | raw SQL, columns listed |
-| `subdomains/supporting/log/log.repository.ts:511` | raw SQL, columns listed |
-| `subdomains/supporting/log/log.repository.ts:664` | raw SQL, columns listed |
-| `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:769` | raw SQL, columns listed |
-| `subdomains/generic/gs/gs.service.ts:337` | raw SQL, column list supplied by the caller |
+| Site | Form | Runs in a test | Column list asserted | Real database |
+| ---- | ---- | -------------- | -------------------- | ------------- |
+| `log.repository.ts:699` — `getFinancialLogValidityChangeSet` | `.select(['log.id', 'log.valid'])` | **no** | no | no |
+| `log.repository.ts:341` — `getFinancialLogAssetPrices` | raw SQL, columns listed | **no** | no | no |
+| `log.repository.ts:511` — `getFinancialLogSummariesFull` | raw SQL, columns listed | yes | yes | no |
+| `log.repository.ts:664` — `getFinancialLogSummariesChartOnly` | raw SQL, columns listed | yes | yes | no |
+| `virtual-iban.service.ts:769` — `hasOrderedOwnershipPath` | raw SQL, columns listed | **no** | no | no |
+| `gs.service.ts:337` — `executeDebugQuery` | raw SQL, list supplied by the caller | yes | yes | no |
 
-The last one is a different case: its field list comes from the request, so an incomplete result is
-the caller's doing rather than a defect here. The other five carry the risk described above.
+Read that column by column, because the three answers mean different things.
 
-Every other read either selects only the root alias or nothing at all and therefore still loads
-every column; nothing can be missing from those. Each becomes subject to these tests the moment it
-is given a field list.
+**Runs in a test.** Three of the six are never executed. `getFinancialLogValidityChangeSet` is
+replaced by `jest.spyOn(logRepo, …).mockResolvedValue([…])` at all nine of its appearances, so the
+projection line itself never runs. `getFinancialLogAssetPrices` is stood in for by a hand-written
+fake that reimplements the filtering in TypeScript. `hasOrderedOwnershipPath` appears in no spec at
+all. The two summary queries do run, through the `getFinancialLogSummaries` dispatcher, which the
+repository spec calls 31 times.
+
+**Column list asserted.** Where a query runs, `query` is spied and the generated SQL inspected —
+an `expect(sql).toContain(...)` per projected column, and for the chart-only path an assertion
+that `message` never appears in the statement at all. Drop a column from those statements and the suite turns red.
+That is level 3 of the definition below, reached for three sites. For the three that never run,
+removing a column changes nothing: the mock supplies the value regardless.
+
+**Real database.** None of the six. Every spec stubs the boundary — `createQueryBuilder` as a
+chainable mock in the repository spec, `createMock<DataSource>()` in the service spec. A mock cannot
+observe which columns were requested, so **level 1, the completeness test, is satisfied nowhere
+today**, not even for the three sites whose SQL is asserted. Asserting that a column appears in a
+statement is not the same as proving the statement returns every field the response needs.
+
+`executeDebugQuery` is a different case regardless: its field list comes from the request, so an
+incomplete result is the caller's doing rather than a defect here. Its 197 specs cover a different
+axis — the table and column allowlist, PII masking, parameter binding — and that is the right axis
+for it.
+
+So the gap is narrow and specific: **`log.repository.ts:699` is the one site that carries the
+projection risk, serves a live endpoint (`PUT /log/financial/validity`), and is not exercised at
+all.** What surrounds it is well covered — batching into blocks of 100, the audit trail, rejection
+of fabricated audit records, the block on changing validity through the generic update path.
+
+Every other read in the repository either selects only the root alias or nothing at all and
+therefore still loads every column; nothing can be missing from those. Each becomes subject to these
+tests the moment it is given a field list.
 
 ### How they run
 
