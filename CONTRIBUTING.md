@@ -531,7 +531,12 @@ To verify a change, compare against the routes the framework logs at startup: ev
 - `.select('alias')` is **not** a projection — the argument is the entity alias, not a field list
 - a query builder carrying `.update()`, `.delete()` or `.insert()` is a write statement and loads nothing — the same goes for a raw `SELECT pg_advisory_xact_lock(...)`, which returns no rows; neither is part of that inventory
 
-See [docs/read-path-projections.md](docs/read-path-projections.md) for what follows from that.
+The target state is that every read path selects the fields it returns and nothing more. Two rules apply while we get there, and both are checked in review:
+
+- **A read path is converted only when its tests reach `4/4`** against the four levels in [docs/read-path-projections.md](docs/read-path-projections.md). A projection that drops a field does not crash — it answers 200 with a wrong value. Converting without the tests trades a slow query for a silent defect.
+- **Record the state in the `Tests` column of [docs/endpoints.md](docs/endpoints.md) in the same PR that changes the code.** An unrecorded conversion is treated as untested.
+
+See [docs/read-path-projections.md](docs/read-path-projections.md) for the reasoning, the criteria for converting an endpoint, and what each of the four levels asserts.
 
 ### Cron Jobs
 

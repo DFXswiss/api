@@ -3,6 +3,24 @@
 What the load-site inventory shows, what we intend to do about it, and how the result is to be
 tested.
 
+## The goal
+
+**Every read path in this service selects the fields it returns, and nothing more.** That is the
+target state, not an aspiration for the parts that happen to be convenient — the endpoint inventory
+in [endpoints.md](endpoints.md) is the work list, and its `Tests` column is the record of how far
+we have got.
+
+**Every converted endpoint must reach 100% coverage under the four levels defined below.** An
+endpoint is not converted at `3/4`; it is unfinished. The reason is in *The risk this must guard
+against*: a projection that drops a field does not fail loudly, it answers 200 with a wrong value.
+Converting without the tests replaces a slow query with a silent defect, which is the worse of the
+two.
+
+**That coverage is documented per endpoint in this repository**, in the `Tests` column of
+[endpoints.md](endpoints.md), and updated in the same pull request that changes the code. A
+conversion whose coverage is not recorded cannot be told apart from one that was never tested, and
+is treated as the latter.
+
 ## The problem
 
 This service loads far more data than it returns. Measured against the real entity metadata:
@@ -111,6 +129,9 @@ money, a silent wrong value is worse than a crash: a 500 is found within hours �
 described above proves it — a wrong value can run for weeks.
 
 ## Test definition
+
+All four levels must pass for an endpoint to count as converted. `endpoints.md` records the state
+per endpoint as `0/4` through `4/4`; only `4/4` is done.
 
 ### Which endpoints these apply to
 
