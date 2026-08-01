@@ -552,7 +552,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/support/issue/statistics` | hidden | projected | 3 | 0/4 |  | `SupportIssueController.getSupportIssueStatistics` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | POST | 1 |  | `/support/issue/support` | hidden | whole rows | 493 | not yet |  | `SupportIssueController.createIssueBySupport` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | GET | 1 |  | `/support/kycFileList` | hidden | whole rows | 253 | not yet |  | `SupportController.getKycFileList` | `subdomains/generic/support/support.controller.ts` |
-| GET | 1 |  | `/support/kycFileStats` | hidden | projected | 99 | 0/4 |  | `SupportController.getKycFileStats` | `subdomains/generic/support/support.controller.ts` |
+| GET | 1 |  | `/support/kycFileStats` | hidden | projected | 1 | 0/4 |  | `SupportController.getKycFileStats` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/note` | hidden | whole rows | 9 | not yet |  | `SupportController.getNotes` | `subdomains/generic/support/support.controller.ts` |
 | POST | 1 |  | `/support/note` | hidden | whole rows | 253 | not yet |  | `SupportController.createNote` | `subdomains/generic/support/support.controller.ts` |
 | DELETE | 1 |  | `/support/note/:id` | hidden | whole rows | 9 | not yet |  | `SupportController.deleteNote` | `subdomains/generic/support/support.controller.ts` |

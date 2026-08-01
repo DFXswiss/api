@@ -47,10 +47,11 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,105 load sites in this repository, **110** name the columns they need:
-105 query builders and the five raw statements. The other 995 request whole rows — 957 through the
+**No read model.** Of the 1,105 load sites in this repository, **113** load less than a whole row:
+105 query builders that name their columns, three that end in `getCount()` or `getExists()` and
+materialise none, and the five raw statements. The other 992 request whole rows — 957 through the
 `find` family, and of the 143 query builders, 17 pass the root alias to `.select(...)`, which reads
-like a projection but is not, 20 pass no select at all, and one projects its root but pulls a
+like a projection but is not, 17 pass no select at all, and one projects its root but pulls a
 relation in whole. The same entities serve persistence, business logic and pure output paths such
 as invoices, receipts, history and exports — which need fields, not objects.
 
@@ -216,7 +217,7 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-A hundred and ten sites carry a field list. The table below covers the six that were known when this
+A hundred and five sites carry a field list. The table below covers the six that were known when this
 document was written — one query builder and five raw statements — and none of them was converted,
 so it is unchanged. Another 87 are the query builders that name columns one at a time; they are
 not covered by these levels either, which is what their endpoints' `0/4` in

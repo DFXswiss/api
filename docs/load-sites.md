@@ -21,18 +21,19 @@ Among the query builders, the field list is what decides whether anything is act
 | `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **18** |
 | `.select('alias.column')` — names columns one by one | **87** |
 | `.select('alias')` — selects the root alias, **loads every column** | 17 |
-| no `select` at all — loads every column | 20 |
+| no `select` at all — loads every column | 17 |
+| `getCount()` or `getExists()` — the select list is discarded, **no row is materialised** | 3 |
 | projects, but a `leftJoinAndSelect` loads a relation whole | 1 |
 
 `.select('alias')` is the trap: it reads like a projection but the argument is the entity alias, not a field list. Such a query still loads every column of the root entity — it merely avoids the eager relations. `.select('alias.column')` is the opposite case and easy to lump in with it: it names a column and does narrow the query. The distinction is the presence of a dot in the argument, and it matters — the sites that name columns this way select 1 column at the median, against 957 `find` calls that select every one. Most of them are counts, maxima and id lookups rather than response payloads, which is why the endpoint summary still reads the way it does.
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 790 of 1105 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 787 of 1105 sites.
 
 - **338 are exact**: the `relations` tree is written at the call site.
-- **452 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
-- 315 could not be measured: no resolvable target entity, or raw SQL.
+- **449 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
+- 318 could not be measured: no resolvable target entity, or raw SQL.
 
 Median across measured sites: **101 columns**. 14 sites exceed 1000, 74 exceed 500, 396 exceed 100.
 
@@ -443,7 +444,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 99 | 0 | query-builder (nur-alias) | `UserData` | `subdomains/generic/user/models/user-data/user-data-notification.service.ts:173` | `UserDataNotificationService.blackSquadInvitation` |
 | 99 | 0 | query-builder (ohne-select) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:141` | `UserDataService.getUserDataByUser` |
 | 99 | 0 | query-builder (nur-alias) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:313` | `UserDataService.getUserDataByKey` |
-| 99 | 0 | query-builder (ohne-select) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1766` | `UserDataService.countByDateRange` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user-data/user-data.service.ts:1033` | `UserDataService.customIdentMethod` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:274` | `UserService.getRefDtoV2` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:282` | `UserService.updateRef` |
@@ -672,7 +672,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 12 | 0 | query-builder (feldliste) | `BuyCrypto` | `subdomains/core/buy-crypto/process/repositories/buy-crypto.repository.ts:77` | `BuyCryptoRepository.findBuyHistory` |
 | 12 | 0 | query-builder (feldliste) | `BuyCrypto` | `subdomains/core/buy-crypto/process/repositories/buy-crypto.repository.ts:91` | `BuyCryptoRepository.findSwapHistory` |
 | 11 | 0 | find | `OlkyRecipient` | `integration/bank/services/olkypay.service.ts:104` | `OlkypayService.getOrCreateRecipient` |
-| 11 | 0 | query-builder (ohne-select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:212` | `LedgerMarkToMarketService.alreadyBooked` |
 | 11 | 0 | query-builder (ohne-select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:125` | `LedgerQueryService.getAccountDetail` |
 | 11 | 0 | query-builder (ohne-select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:460` | `LedgerQueryService.marginBuckets` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:119` | `LogRepository.getFinancialLogAt` |
@@ -680,7 +679,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:142` | `LogRepository.getLatestValidFinancialLogs` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:150` | `LogRepository.getLatestFinancialChangesLog` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:187` | `LogRepository.getFinancialChangesLogs` |
-| 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:51` | `LogService.update` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:131` | `LogService.getLog` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:135` | `LogService.maxEntity` |
@@ -901,6 +899,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:264` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:268` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:274` | `LedgerBookingService.activeTx` |
+| — | — | query-builder (zaehlend) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:212` | `LedgerMarkToMarketService.alreadyBooked` |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:375` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:684` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:685` | — |
@@ -1036,6 +1035,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1344` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1547` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1725` | `UserDataService.updateBankTxTime` |
+| — | — | query-builder (zaehlend) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1766` | `UserDataService.countByDateRange` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/dto/user-dto.mapper.ts:27` | — |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.repository.ts:70` | `UserRepository.getNextRef` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.service.ts:336` | `UserService.createUser` |
@@ -1096,6 +1096,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:341` | `LogRepository.getFinancialLogAssetPrices` |
 | — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:511` | `LogRepository.THEN` |
 | — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:664` | `LogRepository.getFinancialLogSummariesChartOnly` |
+| — | — | query-builder (zaehlend) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
 | — | — | find | `—` | `subdomains/supporting/notification/services/notification.service.ts:128` | `NotificationService.resolveMailWallet` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin-notification.service.ts:32` | `PayInNotificationService.returnedCryptoInput` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:148` | `PayInService.getCryptoInputsByTransactionIds` |
