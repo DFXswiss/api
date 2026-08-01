@@ -37,7 +37,7 @@ describe('GetBuyQuoteDto rejections', () => {
   it('distinguishes both amounts missing from both amounts set', async () => {
     await expect(rejectionDetail({ ...body })).resolves.toBe('amount=(missing), targetAmount=(missing)');
     await expect(rejectionDetail({ ...body, amount: 100, targetAmount: 1 })).resolves.toBe(
-      'amount=100, targetAmount=1',
+      'amount=<number>, targetAmount=<number>',
     );
   });
 

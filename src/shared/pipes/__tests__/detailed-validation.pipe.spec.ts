@@ -12,6 +12,7 @@ import {
   IsNotEmptyObject,
   IsOptional,
   IsString,
+  IsUrl,
   ValidateNested,
   ValidationError,
 } from 'class-validator';
@@ -46,6 +47,10 @@ class TestDto {
   @IsOptional()
   @IsString()
   wallet: string;
+
+  @IsOptional()
+  @IsUrl()
+  webhookUrl: string;
 
   @IsOptional()
   @IsNotEmptyObject()
@@ -115,6 +120,13 @@ describe('DetailedValidationPipe', () => {
     expect(detailed.getResponse()).not.toHaveProperty('message', expect.any(Array));
   });
 
+  it('accepts the empty-error call the base signature allows', () => {
+    const exception = new DetailedValidationPipe(options).createExceptionFactory()();
+
+    expect(exception).toBeInstanceOf(ValidationFailedException);
+    expect((exception as ValidationFailedException).validationErrors).toEqual([]);
+  });
+
   it('passes the exception through when the base factory builds a non-400', async () => {
     const error = await reject(
       { method: 'Crypto' },
@@ -138,7 +150,23 @@ describe('describeRejectedValues', () => {
   });
 
   it('renders a nested failure with its path', async () => {
-    await expect(rejectionDetail({ method: 'Bank', nested: { label: 42 } })).resolves.toBe('nested.label=42');
+    await expect(rejectionDetail({ method: 'Bank', nested: { label: 42 } })).resolves.toBe('nested.label=<number>');
+  });
+
+  it('keeps the shape but not the content of a field that accepts free values', async () => {
+    // `amount` is an @IsInt field: what arrives there is not drawn from a set the field declares,
+    // so its content stays out of the log however harmless it looks.
+    await expect(rejectionDetail({ method: 'Bank', amount: 'ten' })).resolves.toBe('amount=<string(3)>');
+    await expect(rejectionDetail({ method: 'Bank', wallet: 42 })).resolves.toBe('wallet=<number>');
+  });
+
+  it('keeps a rejected URL out of the log, query string and all', async () => {
+    // A webhook or redirect target can carry a credential in its query string, and its field name
+    // says nothing about that.
+    const detail = await rejectionDetail({ method: 'Bank', webhookUrl: 'not-a-url?token=secret' });
+
+    expect(detail).not.toContain('secret');
+    expect(detail).toBe('webhookUrl=<string(22)>');
   });
 
   it('redacts the value of a sensitive field by name', async () => {
@@ -147,15 +175,11 @@ describe('describeRejectedValues', () => {
     expect(detail).toBe('iban=***');
   });
 
-  it('masks personal data inside a value', async () => {
-    const detail = await rejectionDetail({
-      method: 'Bank',
-      amount: 'contact foo@bar.com',
-      wallet: 42,
-    });
+  it('masks personal data inside a rendered value', async () => {
+    const detail = await rejectionDetail({ method: 'foo@bar.com' });
 
     expect(detail).not.toContain('foo@bar.com');
-    expect(detail).toContain('***');
+    expect(detail).toBe("method='***'");
   });
 
   it('collapses control characters, so a value cannot forge a second log line', async () => {
@@ -171,7 +195,7 @@ describe('describeRejectedValues', () => {
     expect(capped.length).toBeLessThan(100);
 
     const oversized = await rejectionDetail({ method: 'x'.repeat(600) });
-    expect(oversized).toBe('method=<600 chars>');
+    expect(oversized).toBe('method=<string(600)>');
   });
 
   it('summarizes structured values instead of dumping the body', async () => {
@@ -179,11 +203,22 @@ describe('describeRejectedValues', () => {
     await expect(rejectionDetail({ method: { a: 1 } })).resolves.toBe('method=<object>');
   });
 
+  it('stops at the depth cap and marks the rendering as incomplete', () => {
+    // Five levels, failing at the deepest one: the walk stops at the cap and never reaches it.
+    const deepest: ValidationError = { property: 'e', value: 1, constraints: { isEnum: 'nope' }, children: [] };
+    const nested = ['d', 'c', 'b', 'a'].reduce<ValidationError>(
+      (child, property) => ({ property, children: [child] }),
+      deepest,
+    );
+
+    expect(describeRejectedValues([nested])).toBe('…');
+  });
+
   it('bounds the number of rendered fields and marks the rendering as incomplete', () => {
     const errors: ValidationError[] = Array.from({ length: 8 }, (_, i) => ({
       property: `field${i}`,
       value: i,
-      constraints: { fail: 'nope' },
+      constraints: { isEnum: 'nope' },
       children: [],
     }));
 

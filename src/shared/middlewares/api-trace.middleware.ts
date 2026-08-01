@@ -23,7 +23,7 @@ const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
 const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
 const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
 
-const MAX_STRING = 512; // per string leaf
+export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
 const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
 const REDACTED = '***';
@@ -47,8 +47,13 @@ const LINE_BREAKING = /[\p{C}\u2028\u2029]/gu;
  * that could break the line collapses to a space, so a crafted value cannot forge a second log
  * line or smuggle an ANSI escape into the console stream; PII is masked and the result is
  * length-capped. Masking runs before the cut, so a truncated email or wallet cannot slip through.
+ *
+ * Beyond `MAX_STRING` the value is reported by length instead: masking is regex work over the
+ * whole string, and the caller's cap alone would not stop an oversized one from paying for it.
  */
 export function maskLogValue(value: string, maxLength: number): string {
+  if (value.length > MAX_STRING) return `<${value.length} chars>`;
+
   const masked = maskValue(value.replace(LINE_BREAKING, ' '));
   return masked.length > maxLength ? `${masked.slice(0, maxLength)}…` : masked;
 }

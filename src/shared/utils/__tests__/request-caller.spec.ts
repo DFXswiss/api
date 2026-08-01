@@ -41,6 +41,7 @@ describe('describeCaller', () => {
 
   it('takes the first value of a tampered array header', () => {
     expect(describeCaller(req({ 'x-client': ['dfx-services', 'other'] }))).toBe('client=dfx-services');
+    expect(describeCaller(req({ 'x-client': [], origin: [] }))).toBe('client=(none)');
   });
 
   it('collapses control characters, so a header cannot forge a second log line', () => {

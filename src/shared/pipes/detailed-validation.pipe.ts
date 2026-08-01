@@ -1,5 +1,5 @@
 import { BadRequestException, ValidationError, ValidationPipe } from '@nestjs/common';
-import { REDACT_KEY, maskLogValue } from 'src/shared/middlewares/api-trace.middleware';
+import { MAX_STRING, REDACT_KEY, maskLogValue } from 'src/shared/middlewares/api-trace.middleware';
 
 // Fields listed per rejection, and the cap per rendered value. Both are small on purpose: this is
 // a diagnostic hint for the log line, not a body dump.
@@ -7,9 +7,9 @@ const MAX_FIELDS = 5;
 const MAX_VALUE_LENGTH = 64;
 const MAX_DEPTH = 3;
 
-// Above this the value is summarized by length instead of rendered. Masking is regex work, and a
-// 20 MB string in a rejected body must not turn a log line into seconds of synchronous CPU.
-const MAX_RENDERED_LENGTH = 512;
+// class-validator constraints whose accepted values are a closed set of literals declared on the
+// field. Only these have their rejected value rendered - see `hasLiteralDomain`.
+const LITERAL_DOMAIN_CONSTRAINTS = ['isEnum', 'isIn'];
 
 /**
  * A failed request-body validation, carrying the raw `ValidationError[]` alongside the response.
@@ -21,7 +21,7 @@ const MAX_RENDERED_LENGTH = 512;
  */
 export class ValidationFailedException extends BadRequestException {
   constructor(
-    response: Record<string, any>,
+    response: Record<string, unknown>,
     readonly validationErrors: ValidationError[],
   ) {
     super(response);
@@ -44,27 +44,27 @@ export class DetailedValidationPipe extends ValidationPipe {
       // builds a different exception class.
       if (!(exception instanceof BadRequestException)) return exception;
 
-      // The base factory always composes an object body, and `HttpException.createBody` passes an
-      // object through verbatim — that is what keeps the re-raised exception identical. A string
-      // response would instead be re-wrapped into a different body, so it is passed through.
-      const response = exception.getResponse();
-      if (typeof response !== 'object' || response === null) return exception;
-
-      return new ValidationFailedException(response as Record<string, any>, errors);
+      // The base factory composes an object body, and `HttpException.createBody` passes an object
+      // through verbatim — that is what keeps the re-raised exception identical. Pinned by the
+      // specs that compare the response against a stock `ValidationPipe` for the same body, which
+      // is where a change to that would surface.
+      return new ValidationFailedException(exception.getResponse() as Record<string, unknown>, errors);
     };
   }
 }
 
 /**
- * Renders the values that were rejected as `field=value` pairs for a log line — bounded in count,
- * depth and length, masked by field name (credentials, personal data) and by value pattern (wallet
- * address, email, IP), and stripped of control characters. Every value here is untrusted input.
+ * Renders what was rejected as `field=value` pairs for a log line. Every value here is untrusted
+ * input: the content is only rendered for a field that declares its accepted values (see
+ * {@link hasLiteralDomain}), and then masked by field name (credentials, personal data) and by
+ * value pattern (wallet address, email, IP), stripped of control characters, and bounded in count,
+ * depth and length. Every other field is reduced to its shape.
  */
 export function describeRejectedValues(errors: ValidationError[]): string {
   const fields: string[] = [];
   const complete = collectRejectedValues(errors, '', 0, fields);
 
-  return complete ? fields.join(', ') : `${fields.join(', ')}, …`;
+  return (complete ? fields : [...fields, '…']).join(', ');
 }
 
 // Returns false if the walk was cut short (field cap or depth cap), so the caller can mark the
@@ -74,7 +74,7 @@ function collectRejectedValues(errors: ValidationError[], prefix: string, depth:
     if (fields.length >= MAX_FIELDS) return false;
 
     const path = prefix ? `${prefix}.${error.property}` : `${error.property}`;
-    if (error.constraints) fields.push(`${path}=${renderValue(error.property, error.value)}`);
+    if (error.constraints) fields.push(`${path}=${renderValue(error.property, error.value, error.constraints)}`);
 
     if (error.children?.length) {
       if (depth + 1 > MAX_DEPTH) return false;
@@ -85,18 +85,36 @@ function collectRejectedValues(errors: ValidationError[], prefix: string, depth:
   return true;
 }
 
-function renderValue(property: string, value: unknown): string {
-  if (REDACT_KEY.test(property)) return '***';
+function renderValue(property: string, value: unknown, constraints: Record<string, string>): string {
+  // Absent is the one thing worth naming for every field: there is nothing to disclose, and it is
+  // what separates "the client never sent this" from "the client sent the wrong thing".
   if (value === undefined) return '(missing)';
   if (value === null) return '(null)';
+  if (value === '') return "''";
+
+  if (REDACT_KEY.test(property)) return '***';
+  if (!hasLiteralDomain(constraints)) return summarize(value);
 
   if (typeof value === 'string') {
-    if (value === '') return "''";
-    if (value.length > MAX_RENDERED_LENGTH) return `<${value.length} chars>`;
-    return `'${maskLogValue(value, MAX_VALUE_LENGTH)}'`;
+    return value.length > MAX_STRING ? summarize(value) : `'${maskLogValue(value, MAX_VALUE_LENGTH)}'`;
   }
-
   if (typeof value === 'number' || typeof value === 'boolean') return `${value}`;
+
+  return summarize(value);
+}
+
+// The value itself is only rendered where the field accepts a closed set of literals. That is the
+// case a log line cannot be read without - one client sending one wrong constant looks exactly
+// like one sending a different one - and it is bounded by what the field declares rather than by
+// what happened to arrive. Every other field keeps its shape and loses its content: a name-based
+// denylist would have to grow with every DTO that ever carries a credential, and the field it has
+// not heard of yet is the one that leaks.
+function hasLiteralDomain(constraints: Record<string, string>): boolean {
+  return Object.keys(constraints).some((constraint) => LITERAL_DOMAIN_CONSTRAINTS.includes(constraint));
+}
+
+function summarize(value: unknown): string {
+  if (typeof value === 'string') return `<string(${value.length})>`;
   if (Array.isArray(value)) return `<array(${value.length})>`;
 
   return `<${typeof value}>`;

@@ -1,12 +1,13 @@
-import { ArgumentMetadata, BadRequestException, ValidationPipe } from '@nestjs/common';
+import { ArgumentMetadata, BadRequestException } from '@nestjs/common';
+import { DetailedValidationPipe } from 'src/shared/pipes/detailed-validation.pipe';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { GetBuyPaymentInfoDto, PersonalIbanProvider } from '../get-buy-payment-info.dto';
 
 describe('GetBuyPaymentInfoDto.personalIbanProvider', () => {
   // Mirror the production global pipe (src/main.ts): custom decorator messages must surface as-is
-  // in the 400 body (no exceptionFactory override).
-  const pipe = new ValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });
+  // in the 400 body.
+  const pipe = new DetailedValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });
   const metadata: ArgumentMetadata = { type: 'body', metatype: GetBuyPaymentInfoDto, data: '' };
 
   const validBody = {
