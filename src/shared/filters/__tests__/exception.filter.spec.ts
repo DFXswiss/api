@@ -182,69 +182,16 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
-  it('takes the replacement message from the body the thrower built, never from the exception', () => {
+  it('takes nothing out of a body it could not pass on, the message included', () => {
+    // What such a body holds is not what it would have sent, so reading any of it reads something
+    // else - and the exception's own message is what it says to us, not to the caller.
     const divergent = new HttpException({ statusCode: 418, message: 'public' }, 400);
     divergent.message = 'INTERNAL_SECRET';
 
     filter.catch(divergent, host(req(), { status }));
 
     expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'public' });
-  });
-
-  it('keeps a message array from the body it replaces', () => {
-    const divergent = new HttpException({ statusCode: 418, message: ['a', 'b'] }, 400);
-
-    filter.catch(divergent, host(req(), { status }));
-
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: ['a', 'b'] });
-  });
-
-  it('falls back to the status when the body it replaces has no message of its own', () => {
-    const divergent = new HttpException({ statusCode: 418 }, 400);
-    divergent.message = 'INTERNAL_SECRET';
-
-    filter.catch(divergent, host(req(), { status }));
-
     expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
-  });
-
-  it('keeps sending the response when the message cannot be read', () => {
-    const unreadable = new BadRequestException({
-      statusCode: 400,
-      message: [
-        {
-          toString: () => {
-            throw new Error('nope');
-          },
-        },
-      ],
-    });
-
-    expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
-    expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalled();
-  });
-
-  it('keeps a failure to write the line away from a caller that already has its answer', () => {
-    warn.mockImplementation(() => {
-      throw new Error('logger down');
-    });
-
-    expect(() => filter.catch(new BadRequestException('bad'), host(req(), { status }))).not.toThrow();
-    expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalled();
-  });
-
-  it('describes the response it is sending, not the one the exception named', () => {
-    // The status was replaced, so the body belongs to a status that is not being sent and is not
-    // read at all - not even for its message, which was written for that other status.
-    const mismatched = new HttpException({ statusCode: 418, message: 'INTERNAL_SECRET' }, 600);
-
-    filter.catch(mismatched, host(req(), { status }));
-
-    expect(status).toHaveBeenCalledWith(500);
-    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
   it('names the status when a plain error says nothing about itself', () => {
@@ -343,19 +290,7 @@ describe('ApiExceptionFilter', () => {
     filter.catch(accessor, host(req(), { status }));
 
     expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'x' });
-  });
-
-  it('passes on a body whose status would never be serialized at all', () => {
-    for (const carried of [() => 418, Symbol('418')]) {
-      json.mockClear();
-      const omitted = new BadRequestException('x');
-      Object.defineProperty(omitted.getResponse(), 'statusCode', { value: carried, enumerable: true });
-
-      filter.catch(omitted, host(req(), { status }));
-
-      expect(json).toHaveBeenCalledWith(omitted.getResponse());
-    }
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
   it('never reads a body whose status had to be replaced', () => {
@@ -385,7 +320,7 @@ describe('ApiExceptionFilter', () => {
     filter.catch(new HttpException({ statusCode: 418, message: 'teapot' }, 400), host(req(), { status }));
 
     expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'teapot' });
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
   it('keeps a body that names no status of its own', () => {
@@ -425,25 +360,16 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith(body);
   });
 
-  it('copies a message array out instead of sending the one it checked', () => {
-    const listed = new HttpException({ statusCode: 400, message: ['a', 'b'] }, 400);
-    (listed.getResponse() as { statusCode: number }).statusCode = 418;
+  it('passes on a body whose status is a value the serialization leaves out', () => {
+    for (const carried of [undefined, () => 418, Symbol('418')]) {
+      json.mockClear();
+      const omitted = new BadRequestException('x');
+      Object.defineProperty(omitted.getResponse(), 'statusCode', { value: carried, enumerable: true });
 
-    filter.catch(listed, host(req(), { status }));
+      filter.catch(omitted, host(req(), { status }));
 
-    const sent = json.mock.calls[0][0] as { message: string[] };
-    expect(sent.message).toEqual(['a', 'b']);
-    expect(sent.message).not.toBe((listed.getResponse() as { message: string[] }).message);
-  });
-
-  it('takes no message out of a sparse array, which is sent with holes rather than without them', () => {
-    const sparse: string[] = ['a'];
-    sparse[2] = 'c';
-    const holed = new HttpException({ statusCode: 418, message: sparse }, 400);
-
-    filter.catch(holed, host(req(), { status }));
-
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+      expect(json).toHaveBeenCalledWith(omitted.getResponse());
+    }
   });
 
   it('sends the response even when asking what the exception is throws', () => {

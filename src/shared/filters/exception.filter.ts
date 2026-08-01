@@ -47,9 +47,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
     // including a failure of the logger, which is the one thing that could not report it anyway.
     try {
       if (!sent) {
+        // What was thrown is only turned into text if it already is one: anything else could carry
+        // whatever the body carried, and this line is not the place to find that out.
         this.logger.error(
           `Failed to set error response content:`,
-          responseError instanceof Error ? responseError : new Error(String(responseError)),
+          responseError instanceof Error ? responseError : new Error('non-error thrown'),
         );
       }
       this.describe(exception, ctx.getRequest<Request>(), status.sent);
@@ -150,10 +152,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
       const body = exception.getResponse();
 
       // A body that serializes itself is sent as it is, the way it would have been without any of
-      // this: what it holds says nothing about what it sends, so there is nothing here to judge.
+      // this, and so is one that agrees with the status being sent. Anything else is replaced whole:
+      // a body that cannot be passed on cannot be read either, because what it holds is not what it
+      // would have sent, and the name of the status is the one thing that is certain here.
       if (ApiExceptionFilter.rewritesItself(body) || ApiExceptionFilter.names(body, status.sent)) return body;
 
-      return { statusCode: status.sent, message: ApiExceptionFilter.publicMessage(body, status.sent) };
+      return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
     } catch {
       return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
     }
@@ -172,35 +176,6 @@ export class ApiExceptionFilter implements ExceptionFilter {
     }
   }
 
-  // Only a plain string or a plain array of them, and only what the body would have put on the wire
-  // itself: an accessor answers again when the response is serialized, and a property that is not
-  // enumerable would not have been sent at all.
-  private static publicMessage(body: unknown, status: number): string | string[] {
-    if (typeof body === 'string') return body;
-
-    const message = ApiExceptionFilter.serializable(body, 'message');
-    if (typeof message === 'string') return message;
-
-    return (ApiExceptionFilter.messageList(message) ?? HttpStatus[status]) || 'Error';
-  }
-
-  // A dense array of its own plain strings, copied out. `JSON.stringify` reads an array by index;
-  // reading it any other way runs whatever the array brought along, and what it runs can leave
-  // different elements behind than the ones that were checked.
-  private static messageList(message: unknown): string[] | undefined {
-    if (!Array.isArray(message)) return undefined;
-
-    const list: string[] = [];
-    for (let index = 0; index < message.length; index++) {
-      const entry = Object.getOwnPropertyDescriptor(message, `${index}`);
-      if (!entry || !('value' in entry) || typeof entry.value !== 'string') return undefined;
-
-      list.push(entry.value);
-    }
-
-    return list;
-  }
-
   // A body that answers `toJSON` is serialized from what that returns, not from what it holds, so
   // what it holds says nothing about what it sends - which is why it is passed on rather than read.
   private static rewritesItself(body: unknown): boolean {
@@ -217,23 +192,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
     return false;
   }
 
-  // What `JSON.stringify` would read off the body for this name, or undefined where it would read
-  // nothing: its own property, enumerable, and a value rather than something asked again.
-  private static serializable(body: unknown, name: string): unknown {
-    if (typeof body !== 'object' || body === null) return undefined;
-    // An array is sent as its elements; a name put on one alongside them is not sent at all.
-    if (Array.isArray(body)) return undefined;
-
-    const declared = Object.getOwnPropertyDescriptor(body, name);
-    if (!declared?.enumerable || !('value' in declared)) return undefined;
-
-    // A function and a symbol are left out as well.
-    return typeof declared.value === 'function' || typeof declared.value === 'symbol' ? undefined : declared.value;
-  }
-
   // A body agrees with the status being sent unless it carries one of its own that differs. What
-  // `JSON.stringify` leaves out carries nothing: a name that is not enumerable, a function, a
-  // symbol, a name put on an array alongside its elements. An accessor is the other way round - it
+  // `JSON.stringify` leaves out carries nothing: a name that is not enumerable, one whose value is
+  // `undefined`, a function, a symbol, a name put on an array alongside its elements. An accessor is the other way round - it
   // is serialized, so it does carry one, and it answers again when it is, so what it would carry
   // cannot be read here. That is not agreement.
   private static names(body: unknown, status: number): boolean {
@@ -243,8 +204,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (!declared?.enumerable) return true;
     if (!('value' in declared)) return false;
 
-    const carried = declared.value;
-    if (typeof carried === 'function' || typeof carried === 'symbol') return true;
+    const carried: unknown = declared.value;
+    if (carried === undefined || typeof carried === 'function' || typeof carried === 'symbol') return true;
 
     return carried === status;
   }
