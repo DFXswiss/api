@@ -910,13 +910,24 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
 
   // Legacy merged-in accounts can carry two IN_PROGRESS steps, the merged-in one at a negative sequence.
   // Closing that dead step would leave the live one open and the account still wedged.
-  it('closes the highest-sequence pending step when a merged-in one is also open', async () => {
+  it('closes the live pending step and ignores a merged-in one', async () => {
     const merged = personalStep(ReviewStatus.IN_PROGRESS, -102);
     const live = personalStep(ReviewStatus.IN_PROGRESS, 0);
     await run(completeUser([merged, live]));
 
     expect(live.status).toBe(ReviewStatus.COMPLETED);
     expect(merged.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // Merged-in rows are history, not the account's own chain: a merge seeds them 100 below the floor, and
+  // batches are ordered chronologically only WITHIN a batch. Left in scope they would both vote on the
+  // verdict and be eligible for closing — completing a dead row while the account has no live step at all.
+  it('does nothing when the only pending step is merged-in', async () => {
+    const mergedPending = personalStep(ReviewStatus.IN_PROGRESS, -100);
+    await run(completeUser([mergedPending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(mergedPending.status).toBe(ReviewStatus.IN_PROGRESS);
   });
 
   it('leaves an already completed step untouched', async () => {

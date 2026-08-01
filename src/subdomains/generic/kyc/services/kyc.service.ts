@@ -661,27 +661,27 @@ export class KycService {
    * The verdict comes from the most recent SETTLED step, not from the whole history: a rejection the user has
    * since remedied ends in a completed step, and that account must stay eligible.
    *
-   * CANCELED alone cannot stand for "remedied": `initiateStep` cancels the previous COMPLETED step (:1359) but
-   * also cancels a merely PENDING one (:1349), so both a remediation and an untouched retry end up CANCELED.
-   * `result` separates them durably — `complete()` writes it and `cancel()` leaves it alone, while a step
-   * cancelled while still pending never had one. A result-less cancellation is therefore not evidence of
-   * anything and is skipped, so the FAILED step behind it still decides.
+   * CANCELED alone cannot stand for "remedied": `initiateStep` cancels the previous COMPLETED step in its
+   * PERSONAL_DATA branch, but its generic pending-step cancel also fires on a merely IN_PROGRESS one, so both a
+   * remediation and an untouched retry end up CANCELED. `KycStep.hasSettledVerdict` separates them — a
+   * cancellation only counts once the step had completed, which `result` records durably.
    */
   async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
     // The caller's UserData is loaded for its own flow and need not carry `kycSteps`; reload so the step
     // lookup never reads an undefined relation (same pattern as checkDfxApproval).
     const user = await this.userDataService.getUserData(userData.id, { kycSteps: true });
 
-    const steps = user.getStepsWith(KycStepName.PERSONAL_DATA);
+    // The account's OWN chain only. A merge seeds the slave's rows 100 below the floor, so merged-in history
+    // is always negative while own rows start at 0 — and merge batches are ordered chronologically only within
+    // a batch, so ranking across them would let an older batch outrank a newer rejection.
+    const steps = user.getStepsWith(KycStepName.PERSONAL_DATA).filter((s) => s.sequenceNumber >= 0);
+
     const lastSettled = Util.maxObj(
-      steps.filter((s) => !s.isInProgress && !(s.isCanceled && !s.result)),
+      steps.filter((s) => s.hasSettledVerdict),
       'sequenceNumber',
     );
     if (lastSettled?.isFailed) return;
 
-    // Highest sequence, not the first match: legacy merged-in accounts can carry more than one IN_PROGRESS
-    // step, and the merged-in ones sit at negative sequence numbers — `find` would close a dead step and
-    // leave the live one open.
     const kycStep = Util.maxObj(
       steps.filter((s) => s.isInProgress),
       'sequenceNumber',

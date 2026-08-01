@@ -213,6 +213,13 @@ export class KycStep extends IEntity {
     return this.isInReview || this.isCompleted;
   }
 
+  // Whether this row records an outcome. A cancellation only does so if the step had completed first:
+  // `complete()` writes `result` and `cancel()` leaves it untouched, so a cancelled step without one was
+  // never satisfied — it was merely superseded, and says nothing about the attempt it replaced.
+  get hasSettledVerdict(): boolean {
+    return !this.isInProgress && !(this.isCanceled && !this.result);
+  }
+
   update(
     status: ReviewStatus,
     result?: KycStepResult,
