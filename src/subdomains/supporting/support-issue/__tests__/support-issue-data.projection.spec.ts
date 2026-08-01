@@ -216,6 +216,10 @@ describeProjection('GET /support/issue/:id/data — read-path projection', () =>
         (field) => field.startsWith('buyFiat') && field !== 'buyFiatOutputAsset.blockchain',
       ),
     ],
+    // The row above asserts the two chains as groups, which is all a fixture that fills the first
+    // alternative can do. On an account without an organization name and a wallet without a display
+    // name the fallbacks fire, and the columns behind them become individually required.
+    ['buyCrypto', 'personal', ['userData.firstname', 'userData.surname', 'transactionUserWallet.name']],
   ] as ['buyCrypto' | 'buyFiat', 'organization' | 'personal', (string | string[])[]][])(
     'level 3 — for a %s transaction on a %s account every field feeding the response is required',
     async (side, named, candidates) => {
@@ -235,10 +239,17 @@ describeProjection('GET /support/issue/:id/data — read-path projection', () =>
 
   // --- LEVEL 4: consistency against a second source --- //
 
-  it.each(['buyCrypto', 'buyFiat', 'none'] as const)(
-    'level 4 — for a %s issue the projected response equals the one from a full load',
-    async (side) => {
-      const issue = await seedIssue(side);
+  it.each([
+    ['buyCrypto', 'organization'],
+    ['buyFiat', 'organization'],
+    ['none', 'organization'],
+    // Both fallback chains take their second alternative here, which is a different response shape
+    // than the three rows above produce.
+    ['buyCrypto', 'personal'],
+  ] as ['buyCrypto' | 'buyFiat' | 'none', 'organization' | 'personal'][])(
+    'level 4 — for a %s issue on a %s account the projected response equals the one from a full load',
+    async (side, named) => {
+      const issue = await seedIssue(side, named);
 
       const projected = await issueDataOf(issue.id);
       // The unprojected load is the second source: the relation set the endpoint used before the

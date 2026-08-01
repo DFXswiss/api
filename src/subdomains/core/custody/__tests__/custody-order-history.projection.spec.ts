@@ -49,7 +49,7 @@ describeProjection('GET /custody/order — read-path projection', () => {
     type = CustodyOrderType.DEPOSIT,
     status = CustodyOrderStatus.COMPLETED,
     withAmounts = true,
-  ): Promise<{ order: CustodyOrder; userData: UserData }> {
+  ): Promise<{ order: CustodyOrder; userData: UserData; transactionRequest: TransactionRequest }> {
     const userData = await seedEntity<UserData>(dataSource, UserData);
     const user = await seedEntity<User>(dataSource, User, { values: { userData } });
     const inputAsset = await seedEntity<Asset>(dataSource, Asset);
@@ -68,7 +68,7 @@ describeProjection('GET /custody/order — read-path projection', () => {
         ...(withAmounts ? {} : { inputAmount: null, outputAmount: null }),
       },
     });
-    return { order, userData };
+    return { order, userData, transactionRequest };
   }
 
   /** The response the endpoint produces, through the projected query. */
@@ -154,12 +154,18 @@ describeProjection('GET /custody/order — read-path projection', () => {
   ] as [CustodyOrderType, boolean, string[]][])(
     'level 3 — for %s with own amounts=%s every field feeding the response is required',
     async (type, withAmounts, candidates) => {
-      const { userData } = await seedOrder(type, CustodyOrderStatus.CONFIRMED, withAmounts);
+      const { userData, transactionRequest } = await seedOrder(type, CustodyOrderStatus.CONFIRMED, withAmounts);
 
-      await expectEveryFieldRequired(
-        candidates,
-        (omitted) => historyOf(userData.id, projectionFieldsWithout(CUSTODY_ORDER_HISTORY_PROJECTION.fields, omitted)),
-        withAmounts ? [] : ['[0].inputAmount', '[0].outputAmount'],
+      // Assert the fallback actually fires before mutating: with an exception list covering the two
+      // amounts, a baseline that answers nothing at all would pass every reduced run as well.
+      if (!withAmounts) {
+        const [row] = await historyOf(userData.id);
+        expect(row.inputAmount).toEqual(transactionRequest.estimatedAmount);
+        expect(row.outputAmount).toEqual(transactionRequest.amount);
+      }
+
+      await expectEveryFieldRequired(candidates, (omitted) =>
+        historyOf(userData.id, projectionFieldsWithout(CUSTODY_ORDER_HISTORY_PROJECTION.fields, omitted)),
       );
     },
     300000,

@@ -300,6 +300,19 @@ describeProjection('GET /user v2 — read-path projection', () => {
     );
   }, 300000);
 
+  // --- the projection must not lose the guard the endpoint depends on --- //
+
+  it('loads the status the endpoint refuses merged accounts on', async () => {
+    // `getUserDtoV2` reads this column before it maps anything and answers 401 for a merged account.
+    // The mapper never shows it, so every comparison in this file would stay green without it — this
+    // is the only assertion that keeps the guard in the projection.
+    const { userData } = await seedAccount({ status: UserDataStatus.MERGED });
+
+    const loaded = await userDataRepo.getUserV2(userData.id);
+
+    expect(loaded.status).toEqual(UserDataStatus.MERGED);
+  }, 120000);
+
   // --- LEVEL 4: consistency against a second source --- //
 
   it.each([

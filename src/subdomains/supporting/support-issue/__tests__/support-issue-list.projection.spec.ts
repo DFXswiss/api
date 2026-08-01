@@ -193,6 +193,41 @@ describeProjection('support issue list — read-path projection', () => {
     120000,
   );
 
+  it('level 2 — the id branch matches by id alone, and only for a term that fits int4', async () => {
+    const { issue } = await seedIssue({ name: 'no-digits-here', clerk: 'no-digits-either' });
+
+    // The id branch is what makes a pasted number find the issue: none of the text fields of this
+    // fixture contains a digit, so a match can only come from `issue.id = :termNId`.
+    expect((await listOf({ terms: [String(issue.id)] })).data.map((r) => r.uid)).toEqual([issue.uid]);
+
+    // At int4 max the branch is still emitted; one above it the guard has to drop the comparison,
+    // or Postgres raises 22003 and the whole search fails rather than answering nothing.
+    expect((await listOf({ terms: ['2147483647'] })).data.map((r) => r.uid)).not.toContain(issue.uid);
+    expect((await listOf({ terms: ['41791234567'] })).data.map((r) => r.uid)).not.toContain(issue.uid);
+  }, 120000);
+
+  it('level 2 — the id tie-break orders rows that share a sort key', async () => {
+    // Two issues in the same state, sorted by state: the primary key is equal for both, so the
+    // order is decided by the id tie-break alone. Without it the order is whatever storage returns,
+    // and a page boundary can drop or repeat a row.
+    const first = await seedIssue({ clerk: 'tie-break', state: SupportIssueInternalState.IN_PROGRESS });
+    const second = await seedIssue({ clerk: 'tie-break', state: SupportIssueInternalState.IN_PROGRESS });
+
+    const ascending = await listOf({
+      clerk: 'tie-break',
+      orderBy: SupportIssueListOrderBy.STATE,
+      orderDir: ListOrderDirection.ASC,
+    });
+    const descending = await listOf({
+      clerk: 'tie-break',
+      orderBy: SupportIssueListOrderBy.STATE,
+      orderDir: ListOrderDirection.DESC,
+    });
+
+    expect(ascending.data.map((row) => row.id)).toEqual([first.issue.id, second.issue.id]);
+    expect(descending.data.map((row) => row.id)).toEqual([second.issue.id, first.issue.id]);
+  }, 120000);
+
   it('level 2 — the total counts every match, not just the page', async () => {
     const first = await seedIssue({ clerk: 'page-clerk' });
     await seedIssue({ clerk: 'page-clerk' });
