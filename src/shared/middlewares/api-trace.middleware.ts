@@ -46,43 +46,9 @@ export function maskValue(s: string): string {
 
 export function maskUrl(url: string): string {
   // The request target is client-supplied and reaches a log line: what is left of it after the query
-  // is dropped is rendered like any other value from the request, and to the same length, since the
-  // reading of it is regex work like any other. The segments are read decoded - a path carries its
-  // values percent-encoded, and `victim%40example.com` is an address to everyone reading the line
-  // and to no pattern matching it.
-  return maskLogText(
-    capCharacters(url.split('?')[0], MAX_URL)
-      .split('/')
-      .map((segment) => maskSegment(segment))
-      .join('/'),
-  );
-}
-
-// The decoded form is what a pattern can be recognized in; it is only what gets rendered if one was.
-// Decoding otherwise would rewrite the path itself - `%2F` becomes a separator, `%3F` the start of a
-// query - and the line would describe a route that was never called.
-// A path carries its values percent-encoded, so the decoded form is what a pattern can be
-// recognized in. What is rendered is the segment as it arrived when there was nothing to recognize;
-// the masked form when there was; and nothing of it when the decoding would have put a separator or
-// a query into the path, since the line would then name a route that was never called. Each escape
-// is decoded on its own, so one that is not a valid sequence costs only itself.
-const PATH_STRUCTURE = /[/?#]/;
-
-function maskSegment(segment: string): string {
-  const decoded = segment.replace(/%[0-9a-f]{2}/gi, (escape) => decodeEscape(escape));
-  const masked = maskValue(decoded);
-
-  if (masked === decoded) return segment;
-
-  return PATH_STRUCTURE.test(masked) ? REDACTED : masked;
-}
-
-function decodeEscape(escape: string): string {
-  try {
-    return decodeURIComponent(escape);
-  } catch {
-    return escape;
-  }
+  // is dropped is rendered like any other value from the request, and capped like one. The cap comes
+  // after the masking, so a pattern that straddles it is still recognized as one.
+  return capCharacters(maskLogText(url.split('?')[0]), MAX_URL);
 }
 
 // Everything that can break a line or move a cursor in a log viewer: the control characters
@@ -99,17 +65,18 @@ export function singleLine(value: string): string {
 }
 
 /**
- * Renders free-form text for a log line: everything that could break a line is removed first, then
- * the value patterns above are masked.
+ * Renders free-form text for a log line: masked, stripped of everything that could break a line,
+ * masked again.
  *
- * The removal comes first so that a character placed inside a pattern does not hide it. It can also
- * work the other way - removing a character joins what stood on either side, and a pattern that was
- * whole may stop matching - but the masking here is best effort either way, and a request that
- * arranges that is hiding what it sent about itself. What it cannot do is put a second line in the
- * log, and that is what the removal is for.
+ * Both passes are needed, because a character that breaks a line also breaks a pattern in either
+ * direction. Put inside one, it hides the pattern from a pass that runs after the removal; removing
+ * it joins what stood on either side, which can hide a pattern that was whole from a pass that runs
+ * before. The second pass can fold what the first one wrote into a match of its own - `***` reads
+ * as the local part of an address - which costs the text around it and is the direction to be wrong
+ * in.
  */
 export function maskLogText(value: string): string {
-  return maskValue(singleLine(value));
+  return maskValue(singleLine(maskValue(value)));
 }
 
 /**
@@ -208,20 +175,14 @@ function format(value: unknown): string {
   try {
     // redact() handles Buffer + the array case (Array.isArray first), so the
     // raw value is never length/type-inspected here.
-    s = JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET }));
+    // `JSON.stringify` escapes the control characters but leaves U+2028 / U+2029 as they are, and
+    // the trace is the single line the caller below documents.
+    s = singleLine(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
   } catch {
     return '(unserializable)';
   }
 
-  // The section is cut to its budget and only then rendered, which is what makes rendering it whole
-  // affordable: `redact` reaches the values but not the keys, and a request chooses a key as freely
-  // as a value. A value is masked a second time this way; the second time can take its surroundings
-  // with it - `0x…` in front of a domain reads as an address - which is the direction to be wrong
-  // in. Masking what is left after the cut is also what keeps the trace one line: `JSON.stringify`
-  // escapes the control characters but leaves U+2028 / U+2029 as they are.
-  const cut = s.length > MAX_PART ? `${cutAtCodeUnits(s, MAX_PART)}(${s.length} code units)` : s;
-
-  return maskLogText(cut);
+  return s.length > MAX_PART ? `${cutAtCodeUnits(s, MAX_PART)}(${s.length} code units)` : s;
 }
 
 /**

@@ -140,9 +140,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // would then be sent alongside a status it does not name. The body says so itself as well -
       // `new HttpException({ statusCode: 418 }, 400)` names two - so it is only kept when both agree.
       if (exception instanceof HttpException && status.declared === status.sent) {
-        // Read once and settled here: what the body answers can change between being checked and
-        // being serialized, and what is sent has to be the thing that was checked.
-        const body = JSON.parse(JSON.stringify(exception.getResponse())) as unknown;
+        const body = exception.getResponse();
         if (ApiExceptionFilter.names(body, status.sent)) return body;
       }
     } catch {
@@ -152,13 +150,16 @@ export class ApiExceptionFilter implements ExceptionFilter {
     return { statusCode: status.sent, message: ApiExceptionFilter.messageOf(exception, status.sent) };
   }
 
-  // A body that carries no status of its own contradicts nothing.
+  // A body that carries no status of its own contradicts nothing. One that carries an accessor for
+  // it is read again when it is serialized and can answer differently then, so only a plain value
+  // counts as naming one.
   private static names(body: unknown, status: number): boolean {
     if (typeof body !== 'object' || body === null) return true;
 
-    const declared = (body as { statusCode?: unknown }).statusCode;
+    const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
+    if (declared && !('value' in declared)) return false;
 
-    return declared === undefined || declared === status;
+    return declared === undefined || declared.value === status;
   }
 
   // Not every status in the range has a name, so the name is a fallback and not the last one.
