@@ -111,7 +111,13 @@ describe('ClientErrorService', () => {
     ['in a snake_case name', `access_token=${TOKEN}`],
     ['in an all-caps name', `SESSIONID=${TOKEN}`],
     ['behind an authorization scheme', `authorization: Bearer ${TOKEN}`],
-    ['in a value containing a comma', `password=hunter2,${TOKEN}`],
+    // A harmless assignment must not swallow the one behind it: these are the shapes a serialised
+    // form, a referrer or a debug dump arrives in, and a global replace never re-reads what a
+    // match already consumed.
+    ['behind an unrelated assignment', `debug: a=1;password=${TOKEN}`],
+    ['behind an unrelated query parameter', `Referrer: page=checkout&sessionToken=${TOKEN}`],
+    ['between unrelated form fields', `formData: name=John&password=${TOKEN}&city=Zurich`],
+    ['behind a comma-joined pair', `state: step=2,token=${TOKEN}`],
     ['in a quoted value', `session="${TOKEN} more"`],
     ['regardless of case', `Signature=${TOKEN}`],
   ])('masks a bare secret assignment %s', (_case, message) => {
@@ -137,6 +143,16 @@ describe('ClientErrorService', () => {
 
     expect(loggedLine()).toContain('authMethod=MetaMask');
     expect(loggedLine()).toContain('authProvider=walletconnect');
+  });
+
+  // The documented limit, pinned so it is not "fixed" back into the swallowing behaviour above:
+  // a value ends at a joiner, so a secret that contains one keeps its tail. Masked in part beats
+  // the alternative, where an unrelated assignment in front of it hides it entirely.
+  it('masks only up to the joiner when a secret value contains one', () => {
+    service.logError(dto({ message: `password=hunter2,${TOKEN}` }));
+
+    expect(loggedLine()).toContain('password=<redacted>');
+    expect(loggedLine()).toContain(TOKEN);
   });
 
   it('redacts a credential carried in a stack', () => {

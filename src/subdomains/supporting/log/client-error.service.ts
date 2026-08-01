@@ -46,7 +46,13 @@ const SECRET_NAMES = [
 // quadratic on input this endpoint accepts from anyone.
 // The scheme of an `authorization: Bearer <token>` is matched separately, so that the credential
 // after it is redacted rather than just the word naming the scheme.
-const ASSIGNMENT_REGEX = /(=|%3D|:|%3A)(\s*)(["']?)((?:bearer|basic|digest|token)\s+)?([^\s"']*)/gi;
+//
+// A value ends at any joiner, not only at whitespace. Letting it run to the next space would make
+// a harmless assignment swallow the one behind it — `a=1;password=secret` matches at `a=`, the
+// value eats the rest, and because a global replace never re-reads what a match consumed, the
+// password is never examined. Stopping early costs the tail of a value that legitimately contains
+// a comma; that leaves part of it masked instead of none of it.
+const ASSIGNMENT_REGEX = /(=|%3D|:|%3A)(\s*)(["']?)((?:bearer|basic|digest|token)\s+)?([^\s"'=:,&;]*)/gi;
 const NAME_BEFORE_REGEX = /([\w-]+)(["']?)\s*$/;
 
 // Splits a name into its parts: accessToken, session_id and api-key all yield their components.
@@ -152,9 +158,10 @@ export class ClientErrorService {
   // or a path — cannot reach the log, whatever it is called and however it is encoded, because the
   // parameters are dropped rather than inspected.
   //
-  // What is not: outside a URL, masking depends on recognising the name in front of the value. A
-  // secret under a name this does not know, or with no name at all, is indistinguishable from an
-  // ordinary diagnostic string and is logged.
+  // What is not: outside a URL, masking depends on recognising the name in front of the value, so
+  // a secret under an unknown name, or under no name at all, is indistinguishable from an ordinary
+  // diagnostic string and is logged. Even under a known name the masking ends where the value
+  // ends — a value that itself contains a comma or an equals sign keeps its tail.
   private static quote(value?: string): string {
     if (value == null) return '""';
 
