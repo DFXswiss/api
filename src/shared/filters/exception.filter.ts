@@ -150,7 +150,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // the status it wrote it for, and reading it for another one is reading it for something it
       // was not.
       if (status.declared !== status.effective) {
-        return { statusCode: status.effective, message: HttpStatus[status.effective] || 'Error' };
+        return { statusCode: status.effective, message: HttpStatus[status.effective] ?? 'Error' };
       }
 
       const body = exception.getResponse();
@@ -162,9 +162,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       if (ApiExceptionFilter.serializesItself(body) || ApiExceptionFilter.agreesWith(body, status.effective))
         return body;
 
-      return { statusCode: status.effective, message: HttpStatus[status.effective] || 'Error' };
+      return { statusCode: status.effective, message: HttpStatus[status.effective] ?? 'Error' };
     } catch {
-      return { statusCode: status.effective, message: HttpStatus[status.effective] || 'Error' };
+      return { statusCode: status.effective, message: HttpStatus[status.effective] ?? 'Error' };
     }
   }
 
@@ -175,9 +175,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
     try {
       const message: unknown = exception.message;
 
-      return typeof message === 'string' && message ? message : HttpStatus[status] || 'Error';
+      return typeof message === 'string' && message ? message : (HttpStatus[status] ?? 'Error');
     } catch {
-      return HttpStatus[status] || 'Error';
+      return HttpStatus[status] ?? 'Error';
     }
   }
 
