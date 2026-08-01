@@ -390,9 +390,7 @@ describe('BuyCryptoService', () => {
       expect(manager.update).toHaveBeenNthCalledWith(2, CheckoutTx, 22, {
         status: CheckoutPaymentStatus.REFUND_PENDING,
       });
-      expect(manager.update.mock.invocationCallOrder[1]).toBeLessThan(
-        refundPaymentSpy.mock.invocationCallOrder[0],
-      );
+      expect(manager.update.mock.invocationCallOrder[1]).toBeLessThan(refundPaymentSpy.mock.invocationCallOrder[0]);
       expect(refundPaymentSpy).toHaveBeenCalledWith('pay-22', 'buy-crypto-7-checkout-refund');
     });
 
