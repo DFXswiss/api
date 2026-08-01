@@ -7,8 +7,13 @@ import { PayoutLogService } from '../payout-log.service';
 
 // The shape log-based monitoring extracts from the per-order escalation line. Pinned here so a reworded log line
 // fails in CI instead of silently reducing the escalation alert to a bare order count.
+//
+// The asset group is GREEDY on purpose, and that is the whole point of this pattern. Lazily (`[^']+` or `.+?`) it
+// stops at the first quote inside the name, so a name that closes its own field and then imitates the next fence
+// (`Foo' on chain Ethereum`) parses into a WRONG chain without any error. Greedy, the group runs to the LAST
+// `' on chain ` before `, context` - the one the service itself wrote - which no value inside the name can forge.
 const ESCALATION_PATTERN =
-  /Payout order (?<order>[0-9]+) escalated to PayoutUncertain: amount (?<amount>[^ ]+) of '(?<asset>[^']+)' on chain (?<chain>[^,]+), context (?<context>[^,]+), correlation (?<correlation>.+)$/;
+  /Payout order (?<order>[0-9]+) escalated to PayoutUncertain: amount (?<amount>[^ ]+) of '(?<asset>.*)' on chain (?<chain>[^,]+), context (?<context>[^,]+), correlation (?<correlation>.+)$/;
 
 describe('PayoutLogService', () => {
   describe('#logFailedOrders(...)', () => {
@@ -135,17 +140,37 @@ describe('PayoutLogService', () => {
       expect(groups).toMatchObject({ asset: 'Wrapped BTC', chain: 'Ethereum' });
     });
 
-    // The accepted limit of the quoting, pinned so it stays a deliberate trade rather than prose: an apostrophe in the
-    // name makes the whole line fail to match. That is the point - the alternative is a line that parses into a wrong
-    // chain. If a future change to the escaping turns this back into a partial match, this test fails.
-    it('fails to match rather than mis-parse when the asset name contains an apostrophe', () => {
-      const order = createCustomPayoutOrder({ id: 46, asset: createCustomAsset({ name: "O'Brien Token" }) });
+    it('reads an asset name containing an apostrophe correctly', () => {
+      const order = createCustomPayoutOrder({
+        id: 46,
+        asset: createCustomAsset({ name: "O'Brien Token" }),
+        chain: Blockchain.ETHEREUM,
+      });
 
       service.logFailedOrders([order]);
 
-      const line = escalationLines()[0];
-      expect(line).toContain("O'Brien Token");
-      expect(ESCALATION_PATTERN.exec(line)).toBeNull();
+      expect(ESCALATION_PATTERN.exec(escalationLines()[0])?.groups).toMatchObject({
+        asset: "O'Brien Token",
+        chain: 'Ethereum',
+      });
+    });
+
+    // The adversarial case the greedy quantifier exists for: this name closes its own quoted field and then imitates
+    // the chain fence. Read lazily it yields asset='Foo' and chain="Ethereum' on chain Tron" - a wrong chain with no
+    // parse error at all. The real fence is always the last one, so the chain must still come out as Tron.
+    it('cannot be tricked by an asset name that imitates the chain fence', () => {
+      const order = createCustomPayoutOrder({
+        id: 47,
+        asset: createCustomAsset({ name: "Foo' on chain Ethereum" }),
+        chain: Blockchain.TRON,
+      });
+
+      service.logFailedOrders([order]);
+
+      expect(ESCALATION_PATTERN.exec(escalationLines()[0])?.groups).toMatchObject({
+        asset: "Foo' on chain Ethereum",
+        chain: 'Tron',
+      });
     });
 
     // The reason the asset name is quoted: unquoted, this name would end the asset field at its own " on chain " and

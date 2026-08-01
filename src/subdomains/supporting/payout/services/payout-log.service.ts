@@ -54,10 +54,13 @@ export class PayoutLogService {
   // positionally, and the pinning test in __tests__ fails if the shape changes.
   //
   // Every field is fenced by a literal on both sides. `amount` is numeric and `chain`/`context` are enum values, so
-  // their fences hold by construction. The asset name is the only free-form value here and is therefore quoted: with a
-  // bare fence of ` of `…` on chain `, a name that happened to contain the string " on chain " would shift the chain
-  // field without any parse error - a silently wrong value in a critical alert, which is worse than a loud one. Quoted,
-  // the only name that can break parsing is one containing an apostrophe, and that breaks visibly instead of lying.
+  // their fences hold by construction. The asset name is the only free-form value and is quoted, but quoting alone is
+  // not enough: a consumer that reads the name with a LAZY quantifier stops at the first quote, so a name ending its
+  // own field and then imitating the next fence (`Foo' on chain Ethereum`) yields a wrong chain with no parse error -
+  // a silently wrong value in a critical alert, which is worse than a loud one. The fix belongs on the reading side
+  // and is pinned in the test: read the name GREEDILY, up to the LAST `' on chain ` before `, context`. That fence is
+  // always the one this method wrote, so no name can forge it - including names containing apostrophes, which parse
+  // correctly rather than being an accepted casualty.
   // `||` rather than `??` on purpose: an empty name would produce '' and fail the same way a missing one would.
   private createEscalationLog(order: PayoutOrder): string {
     return `Payout order ${order.id} escalated to PayoutUncertain: amount ${order.amount} of '${
