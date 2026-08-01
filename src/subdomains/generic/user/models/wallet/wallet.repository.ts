@@ -4,7 +4,7 @@ import { CachedRepository } from 'src/shared/repositories/cached.repository';
 import { EntityManager } from 'typeorm';
 import { Wallet } from './wallet.entity';
 
-/** The four values `KycService.toKycDataDto` reads per user of the wallet. */
+/** The four values `KycDataDtoMapper.toDto` reads per user of the wallet. */
 export const WALLET_KYC_DATA_RESPONSE_FIELDS = [
   'walletUser.address',
   'walletUserData.kycStatus',
@@ -44,13 +44,13 @@ export class WalletRepository extends CachedRepository<Wallet> {
   async findKycData(
     walletId: number,
     fields: ReadonlyArray<string> = WALLET_KYC_DATA_PROJECTION.fields,
-  ): Promise<Wallet> {
+  ): Promise<Wallet | null> {
     return WALLET_KYC_DATA_PROJECTION.apply(this.createQueryBuilder('wallet'), fields)
       .where('wallet.id = :walletId', { walletId })
       .getOne();
   }
 
-  async getByAddress(address: string): Promise<Wallet> {
+  async getByAddress(address: string): Promise<Wallet | null> {
     return this.findOneBy({ address });
   }
 }

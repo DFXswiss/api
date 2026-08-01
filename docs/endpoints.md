@@ -34,9 +34,9 @@ Today 38 endpoints read only what they return and 398 do not, so the column read
 | `projected` | 36 | 7 % |
 | `caller-defined` | 2 | 0 % |
 
-Of the 36 that read only what they return, 17 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 41), `GET /buy/:id/history` (497 columns to 12), `GET /swap/:id/history` (509 columns to 12), `GET /sell/:id/history` (470 columns to 14), `GET /support/issue/:id/data` (951 columns to 81), `GET /support/issue` (450 columns to 11), `GET /support/issue/:id` (450 columns to 11), `GET /kyc/users` (328 columns to 7), `GET /kyc/:id/documents` (328 columns to 2), `GET /custody/order` (19 columns to 14), `GET /support/issue/list` (16 columns to 10), `GET /realunit/support/list` (16 columns to 10), `GET /dashboard/accounting/ledger/suspense` (11 columns to 10), `GET /liquidityManagement/pipeline/:id/status` (112 columns to 2), `PUT /paymentLink/:id/pos` (513 columns to 26), `POST /user/apiKey/CT` (253 columns to 3), `GET /user` (351 columns to 66). The other 19 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why their `Tests` column reads `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
+Of the 36 that read only what they return, 17 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 0), `GET /buy/:id/history` (497 columns to 0), `GET /swap/:id/history` (509 columns to 0), `GET /sell/:id/history` (470 columns to 0), `GET /support/issue/:id/data` (951 columns to 0), `GET /support/issue` (450 columns to 0), `GET /support/issue/:id` (450 columns to 0), `GET /kyc/users` (328 columns to 0), `GET /kyc/:id/documents` (328 columns to 0), `GET /custody/order` (19 columns to 0), `GET /support/issue/list` (16 columns to 0), `GET /realunit/support/list` (16 columns to 1), `GET /dashboard/accounting/ledger/suspense` (11 columns to 0), `GET /liquidityManagement/pipeline/:id/status` (112 columns to 2), `PUT /paymentLink/:id/pos` (513 columns to 0), `POST /user/apiKey/CT` (253 columns to 0), `GET /user` (351 columns to 0). The other 19 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why their `Tests` column reads `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
 
-Among the 398 that fetch whole rows, the widest query they can trigger is **308 columns** at the median; 307 exceed 100, 86 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
+Among the 398 that fetch whole rows, the widest query they can trigger is **308 columns** at the median; 299 exceed 100, 78 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
 
 ### How to read this column, and how not to
 
@@ -53,7 +53,7 @@ Stated exactly, so the numbers can be checked rather than believed:
 - **436 of 534 endpoints rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 398 is a lower bound.
 - All 98 endpoints marked `none` are the opposite case: their graph resolved completely, or the remaining target was read in the source (27 of them, listed below). None of them rests on an unresolved edge.
 - The 36 `projected` and 2 `caller-defined` endpoints do each carry an unresolved edge — a call through the entity manager inside a transaction callback. Their reads were read in the source, but the classification is not proven exhaustive the way the `none` group is.
-- 2 endpoints in the `whole rows` group have no measured column count and show `—`: `POST /payIn/retry`, `GET /support/issue/:id/message/:messageId/file`. The classification holds; only the width is unknown.
+- 4 endpoints in the `whole rows` group have no measured column count and show `—`: `POST /custody/admin/order/:id/approve`, `GET /custody/admin/orders`, `POST /payIn/retry`, `GET /support/issue/:id/message/:messageId/file`. The classification holds; only the width is unknown.
 
 ### Two controller classes may share a name
 
@@ -165,7 +165,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/buy` | hidden | whole rows | 364 | not yet |  | `BuyController.createBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | GET | 1 |  | `/buy/:id` | public | whole rows | 308 | not yet |  | `BuyController.getBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | 1 |  | `/buy/:id` | hidden | whole rows | 308 | not yet |  | `BuyController.updateBuyRoute` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
-| GET | 1 |  | `/buy/:id/history` | hidden | projected | 12 | 4/4 |  | `BuyController.getBuyRouteHistory` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
+| GET | 1 |  | `/buy/:id/history` | hidden | projected | — | 4/4 |  | `BuyController.getBuyRouteHistory` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | 1 |  | `/buy/paymentInfos` | public | whole rows | 364 | not yet |  | `BuyController.createBuyWithPaymentInfo` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | 1 |  | `/buy/paymentInfos/:id/confirm` | public | whole rows | 504 | not yet |  | `BuyController.confirmBuy` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | 1 |  | `/buy/paymentInfos/:id/invoice` | public | whole rows | 504 | not yet | yes | `BuyController.generateInvoicePDF` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
@@ -208,20 +208,20 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/custody/account/:id/history` | public | whole rows | 253 | not yet |  | `CustodyAccountController.getAccountHistory` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
 | GET | 1 |  | `/custody/account/:id/order` | public | whole rows | 253 | not yet |  | `CustodyAccountController.getAccountOrders` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
 | GET | 1 |  | `/custody/account/:id/pdf` | public | whole rows | 253 | not yet |  | `CustodyAccountController.getAccountPdf` | `subdomains/core/custody/controllers/custody-account.controller.ts` |
-| POST | 1 |  | `/custody/admin/order/:id/approve` | public | whole rows | 217 | not yet |  | `CustodyAdminController.approveOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
-| GET | 1 |  | `/custody/admin/orders` | public | whole rows | 525 | not yet |  | `CustodyAdminController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| POST | 1 |  | `/custody/admin/order/:id/approve` | public | whole rows | — | not yet |  | `CustodyAdminController.approveOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | 1 |  | `/custody/admin/orders` | public | whole rows | — | not yet |  | `CustodyAdminController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | PUT | 1 |  | `/custody/admin/user/:id/balance` | public | whole rows | 308 | not yet |  | `CustodyAdminController.updateUserBalance` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | GET | 1 |  | `/custody/history` | public | whole rows | 253 | not yet |  | `CustodyController.getUserCustodyHistory` | `subdomains/core/custody/controllers/custody.controller.ts` |
-| GET | 1 |  | `/custody/order` | public | projected | 14 | 4/4 |  | `CustodyController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | 1 |  | `/custody/order` | public | projected | — | 4/4 |  | `CustodyController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | POST | 1 |  | `/custody/order` | public | whole rows | 364 | not yet |  | `CustodyController.createOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
-| POST | 1 |  | `/custody/order/:id/confirm` | public | whole rows | 525 | not yet |  | `CustodyController.confirmOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| POST | 1 |  | `/custody/order/:id/confirm` | public | whole rows | 8 | not yet |  | `CustodyController.confirmOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | GET | 1 |  | `/custody/pdf` | public | whole rows | 253 | not yet |  | `CustodyController.getCustodyPdf` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/accounts` | hidden | whole rows | 54 | not yet | yes | `LedgerController.getAccounts` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/accounts/:accountId/legs` | hidden | whole rows | 30 | not yet | yes | `LedgerController.getAccountDetail` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/equity-comparison` | hidden | whole rows | 54 | not yet | yes | `LedgerController.getEquityComparison` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/margin` | hidden | projected | 11 | 0/4 | yes | `LedgerController.getMargin` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/accounting/ledger/reconciliation` | hidden | whole rows | 54 | not yet | yes | `LedgerController.getReconStatus` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
-| GET | 1 |  | `/dashboard/accounting/ledger/suspense` | hidden | projected | 10 | 4/4 | yes | `LedgerController.getSuspense` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
+| GET | 1 |  | `/dashboard/accounting/ledger/suspense` | hidden | projected | — | 4/4 | yes | `LedgerController.getSuspense` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/changes` | hidden | whole rows | 11 | not yet |  | `DashboardFinancialController.getFinancialChanges` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/changes/latest` | hidden | whole rows | 11 | not yet |  | `DashboardFinancialController.getLatestChanges` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/latest` | hidden | none | — | n/a |  | `DashboardFinancialController.getLatestBalance` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
@@ -288,7 +288,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 | yes | `/kyc/:code` | public | whole rows | 351 | not yet |  | `KycController.getKycProgressByCodeV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | POST | 1 | yes | `/kyc/:code` | public | whole rows | 351 | not yet |  | `KycController.requestKycByCodeV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | GET | 1 | yes | `/kyc/:code/countries` | public | whole rows | 351 | not yet |  | `KycController.getKycCountriesByCodeV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
-| GET | 1 | yes | `/kyc/:id/documents` | public | projected | 2 | 4/4 |  | `KycClientController.getKycFilesV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| GET | 1 | yes | `/kyc/:id/documents` | public | projected | — | 4/4 |  | `KycClientController.getKycFilesV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | GET | 1 | yes | `/kyc/:id/documents/:type` | public | whole rows | 328 | not yet |  | `KycClientController.getKycFileV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | GET | 2 |  | `/kyc/:step` | hidden | whole rows | 364 | not yet |  | `KycController.initiateStep` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | DELETE | 1 |  | `/kyc/admin/blacklist/ip` | hidden | none | — | n/a |  | `KycAdminController.deleteIpToBlacklist` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
@@ -334,7 +334,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | DELETE | 2 |  | `/kyc/transfer` | hidden | whole rows | 351 | not yet |  | `KycController.removeKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | POST | 2 |  | `/kyc/transfer` | hidden | whole rows | 364 | not yet |  | `KycController.addKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | PUT | 1 | yes | `/kyc/transfer` | public | whole rows | 364 | not yet |  | `KycController.transferKycDataV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
-| GET | 1 | yes | `/kyc/users` | public | projected | 7 | 4/4 |  | `KycClientController.getAllKycDataV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
+| GET | 1 | yes | `/kyc/users` | public | projected | — | 4/4 |  | `KycClientController.getAllKycDataV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | GET | 1 |  | `/language` | public | whole rows | 7 | not yet |  | `LanguageController.getAllLanguage` | `shared/models/language/language.controller.ts` |
 | PUT | 1 |  | `/limitRequest/:id` | hidden | whole rows | 434 | not yet |  | `LimitRequestController.updateUserData` | `subdomains/supporting/support-issue/limit-request.controller.ts` |
 | GET | 1 |  | `/liquidityManagement/balance` | hidden | whole rows | 40 | not yet |  | `LiquidityBalanceController.getBalances` | `subdomains/core/liquidity-management/controllers/balance.controller.ts` |
@@ -386,16 +386,16 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/payIn/lnurlpPayment/:uniqueId` | hidden | none | — | n/a |  | `PayInWebhookController.payment` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
 | POST | 1 |  | `/payIn/poll` | hidden | none | — | n/a |  | `PayInController.pollAddress` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
 | POST | 1 |  | `/payIn/retry` | hidden | whole rows | — | not yet |  | `PayInController.retryUncertainSend` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
-| GET | 1 |  | `/paymentLink` | public | whole rows | 513 | not yet | yes | `PaymentLinkController.getAllPaymentLinks` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | 1 |  | `/paymentLink` | public | whole rows | 32 | not yet | yes | `PaymentLinkController.getAllPaymentLinks` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | POST | 1 |  | `/paymentLink` | public | whole rows | 545 | not yet |  | `PaymentLinkController.createPaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| PUT | 1 |  | `/paymentLink` | public | whole rows | 513 | not yet |  | `PaymentLinkController.updatePaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | 1 |  | `/paymentLink` | public | whole rows | 32 | not yet |  | `PaymentLinkController.updatePaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | DELETE | 1 |  | `/paymentLink/:id` | hidden | whole rows | 195 | not yet |  | `PaymentLinkController.deletePaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink/:id` | hidden | whole rows | 513 | not yet |  | `PaymentLinkController.updatePaymentLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| PUT | 1 |  | `/paymentLink/:id/pos` | hidden | projected | 26 | 4/4 |  | `PaymentLinkController.createPosLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | 1 |  | `/paymentLink/:id/pos` | hidden | projected | — | 4/4 |  | `PaymentLinkController.createPosLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink/assign` | public | whole rows | 513 | not yet | yes | `PaymentLinkController.assignPaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | GET | 1 |  | `/paymentLink/config` | public | whole rows | 253 | not yet |  | `PaymentLinkController.getUserPaymentLinksConfig` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink/config` | public | whole rows | 253 | not yet |  | `PaymentLinkController.updateUserPaymentLinksConfig` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| GET | 1 |  | `/paymentLink/history` | public | whole rows | 545 | not yet |  | `PaymentLinkController.getPaymentHistory` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | 1 |  | `/paymentLink/history` | public | whole rows | 513 | not yet |  | `PaymentLinkController.getPaymentHistory` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | POST | 1 |  | `/paymentLink/integration/binance/activate/:id` | hidden | whole rows | 513 | not yet |  | `C2BPaymentLinkController.activateBinancePay` | `subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` |
 | POST | 1 |  | `/paymentLink/integration/binance/webhook` | hidden | whole rows | 545 | not yet |  | `C2BPaymentLinkController.binancePayWebhook` | `subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` |
 | POST | 1 |  | `/paymentLink/integration/kucoin/activate/:id` | hidden | whole rows | 513 | not yet |  | `C2BPaymentLinkController.activateKucoinPay` | `subdomains/core/payment-link/controllers/c2b-payment-link.controller.ts` |
@@ -407,13 +407,13 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/paymentLink/payment` | hidden | whole rows | 545 | not yet | yes | `PaymentLinkController.createInvoicePayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | POST | 1 |  | `/paymentLink/payment` | public | whole rows | 545 | not yet |  | `PaymentLinkController.createPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink/payment/:id` | hidden | whole rows | 545 | not yet |  | `PaymentLinkController.updatePaymentLinkPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| PUT | 1 |  | `/paymentLink/payment/confirm` | public | whole rows | 513 | not yet |  | `PaymentLinkController.confirmPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| GET | 1 |  | `/paymentLink/payment/wait` | public | whole rows | 513 | not yet |  | `PaymentLinkController.waitForPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| PUT | 1 |  | `/paymentLink/pos` | public | whole rows | 513 | not yet |  | `PaymentLinkController.createPosLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | 1 |  | `/paymentLink/payment/confirm` | public | whole rows | 32 | not yet |  | `PaymentLinkController.confirmPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | 1 |  | `/paymentLink/payment/wait` | public | whole rows | 32 | not yet |  | `PaymentLinkController.waitForPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | 1 |  | `/paymentLink/pos` | public | whole rows | 32 | not yet |  | `PaymentLinkController.createPosLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | GET | 1 |  | `/paymentLink/recipient` | hidden | whole rows | 472 | not yet |  | `PaymentLinkController.getPaymentRecipient` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | GET | 1 |  | `/paymentLink/standard` | public | none | — | n/a |  | `PaymentStandardController.getAll` | `subdomains/core/payment-link/controllers/payment-standard.controller.ts` |
 | GET | 1 |  | `/paymentLink/standard/:id` | public | none | — | n/a |  | `PaymentStandardController.getById` | `subdomains/core/payment-link/controllers/payment-standard.controller.ts` |
-| GET | 1 |  | `/paymentLink/stickers` | hidden | whole rows | 513 | not yet | yes | `PaymentLinkController.generateOcpStickers` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| GET | 1 |  | `/paymentLink/stickers` | hidden | whole rows | 472 | not yet | yes | `PaymentLinkController.generateOcpStickers` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | GET | 1 |  | `/paymentLink/walletApp` | public | whole rows | 33 | not yet |  | `WalletAppController.getAll` | `subdomains/core/payment-link/controllers/wallet-app.controller.ts` |
 | GET | 1 |  | `/paymentLink/walletApp/:id` | public | whole rows | 33 | not yet |  | `WalletAppController.getById` | `subdomains/core/payment-link/controllers/wallet-app.controller.ts` |
 | GET | 1 |  | `/paymentLink/walletApp/recommended` | public | whole rows | 33 | not yet |  | `WalletAppController.getRecommended` | `subdomains/core/payment-link/controllers/wallet-app.controller.ts` |
@@ -472,14 +472,14 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 1 |  | `/realunit/sell/:id/confirm` | public | whole rows | 504 | not yet |  | `RealUnitController.confirmSell` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | 1 |  | `/realunit/sell/:id/unsigned-transactions` | public | whole rows | 504 | not yet |  | `RealUnitController.getSellUnsignedTransactions` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | 1 |  | `/realunit/support/:id` | hidden | whole rows | 421 | not yet |  | `RealUnitSupportController.updateSupportIssue` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
-| GET | 1 |  | `/realunit/support/:id/data` | hidden | whole rows | 421 | not yet |  | `RealUnitSupportController.getIssueData` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | 1 |  | `/realunit/support/:id/data` | hidden | whole rows | 253 | not yet |  | `RealUnitSupportController.getIssueData` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
 | POST | 1 |  | `/realunit/support/:id/message` | hidden | whole rows | 441 | not yet |  | `RealUnitSupportController.createSupportMessage` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
-| GET | 1 |  | `/realunit/support/:id/message/:messageId/file` | hidden | whole rows | 421 | not yet |  | `RealUnitSupportController.getFile` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
-| GET | 1 |  | `/realunit/support/:id/messages` | hidden | whole rows | 428 | not yet |  | `RealUnitSupportController.getIssueMessages` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | 1 |  | `/realunit/support/:id/message/:messageId/file` | hidden | whole rows | 253 | not yet |  | `RealUnitSupportController.getFile` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | 1 |  | `/realunit/support/:id/messages` | hidden | whole rows | 253 | not yet |  | `RealUnitSupportController.getIssueMessages` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
 | GET | 1 |  | `/realunit/support/activity` | hidden | projected | 2 | 0/4 |  | `RealUnitSupportController.getSupportIssueActivity` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
 | GET | 1 |  | `/realunit/support/clerks` | hidden | none | — | n/a |  | `RealUnitSupportController.getRealUnitSupportClerks` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
 | GET | 1 |  | `/realunit/support/counts` | hidden | projected | 2 | 0/4 |  | `RealUnitSupportController.getSupportIssueCounts` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
-| GET | 1 |  | `/realunit/support/list` | hidden | projected | 10 | 4/4 |  | `RealUnitSupportController.getSupportIssueList` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
+| GET | 1 |  | `/realunit/support/list` | hidden | projected | 1 | 4/4 |  | `RealUnitSupportController.getSupportIssueList` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
 | GET | 1 |  | `/realunit/support/statistics` | hidden | projected | 3 | 0/4 |  | `RealUnitSupportController.getSupportIssueStatistics` | `subdomains/supporting/realunit/controllers/realunit-support.controller.ts` |
 | PUT | 1 |  | `/realunit/swap` | public | whole rows | 308 | not yet | yes | `RealUnitController.getSwapPaymentInfo` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
 | PUT | 1 |  | `/realunit/swap/:id/broadcast` | public | whole rows | 504 | not yet | yes | `RealUnitController.broadcastSwapTransaction` | `subdomains/supporting/realunit/controllers/realunit.controller.ts` |
@@ -510,7 +510,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/sell` | hidden | whole rows | 308 | not yet |  | `SellController.createSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
 | GET | 1 |  | `/sell/:id` | public | whole rows | 377 | not yet |  | `SellController.getSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
 | PUT | 1 |  | `/sell/:id` | hidden | whole rows | 308 | not yet |  | `SellController.updateSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
-| GET | 1 |  | `/sell/:id/history` | hidden | projected | 14 | 4/4 |  | `SellController.getSellRouteHistory` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
+| GET | 1 |  | `/sell/:id/history` | hidden | projected | — | 4/4 |  | `SellController.getSellRouteHistory` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
 | PUT | 1 |  | `/sell/paymentInfos` | public | whole rows | 308 | not yet |  | `SellController.createSellWithPaymentInfo` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
 | PUT | 1 |  | `/sell/paymentInfos/:id/confirm` | public | whole rows | 545 | not yet |  | `SellController.confirmSell` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
 | GET | 1 |  | `/sell/paymentInfos/:id/tx` | public | whole rows | 504 | not yet |  | `SellController.depositTx` | `subdomains/core/sell-crypto/route/sell.controller.ts` |
@@ -533,12 +533,12 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/support/call-queues` | hidden | none | — | n/a |  | `SupportController.getCallQueues` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/call-queues/:queue/items` | hidden | whole rows | 672 | not yet |  | `SupportController.getCallQueueItems` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/call-queues/clerks` | hidden | none | — | n/a |  | `SupportController.getCallQueueClerks` | `subdomains/generic/support/support.controller.ts` |
-| GET | 1 |  | `/support/issue` | public | projected | 11 | 4/4 |  | `SupportIssueController.getIssues` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | 1 |  | `/support/issue` | public | projected | — | 4/4 |  | `SupportIssueController.getIssues` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | POST | 1 |  | `/support/issue` | public | whole rows | 493 | not yet |  | `SupportIssueController.createIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
-| GET | 1 |  | `/support/issue/:id` | public | projected | 11 | 4/4 |  | `SupportIssueController.getIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | 1 |  | `/support/issue/:id` | public | projected | — | 4/4 |  | `SupportIssueController.getIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | PUT | 1 |  | `/support/issue/:id` | hidden | whole rows | 421 | not yet |  | `SupportIssueController.updateSupportIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | PUT | 1 |  | `/support/issue/:id/close` | public | whole rows | 450 | not yet |  | `SupportIssueController.closeIssue` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
-| GET | 1 |  | `/support/issue/:id/data` | hidden | projected | 81 | 4/4 |  | `SupportIssueController.getIssueData` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | 1 |  | `/support/issue/:id/data` | hidden | projected | — | 4/4 |  | `SupportIssueController.getIssueData` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | POST | 1 |  | `/support/issue/:id/message` | public | whole rows | 441 | not yet | yes | `SupportIssueController.createSupportMessage` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | GET | 1 |  | `/support/issue/:id/message/:messageId/file` | public | whole rows | — | not yet |  | `SupportIssueController.getFile` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | GET | 1 |  | `/support/issue/activity` | hidden | projected | 2 | 0/4 |  | `SupportIssueController.getSupportIssueActivity` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
@@ -548,7 +548,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/support/issue/escalation/telegram-bind` | hidden | whole rows | 5 | not yet |  | `SupportIssueController.bindEscalationChat` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | GET | 1 |  | `/support/issue/escalation/telegram-chats` | hidden | none | — | n/a |  | `SupportIssueController.getEscalationChats` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | POST | 1 |  | `/support/issue/escalation/telegram-test` | hidden | whole rows | 5 | not yet |  | `SupportIssueController.testEscalationChat` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
-| GET | 1 |  | `/support/issue/list` | hidden | projected | 10 | 4/4 |  | `SupportIssueController.getSupportIssueList` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
+| GET | 1 |  | `/support/issue/list` | hidden | projected | — | 4/4 |  | `SupportIssueController.getSupportIssueList` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | GET | 1 |  | `/support/issue/statistics` | hidden | projected | 3 | 0/4 |  | `SupportIssueController.getSupportIssueStatistics` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | POST | 1 |  | `/support/issue/support` | hidden | whole rows | 493 | not yet |  | `SupportIssueController.createIssueBySupport` | `subdomains/supporting/support-issue/support-issue.controller.ts` |
 | GET | 1 |  | `/support/kycFileList` | hidden | whole rows | 253 | not yet |  | `SupportController.getKycFileList` | `subdomains/generic/support/support.controller.ts` |
@@ -573,7 +573,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/swap` | hidden | whole rows | 308 | not yet |  | `SwapController.createSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | GET | 1 |  | `/swap/:id` | public | whole rows | 308 | not yet |  | `SwapController.getSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | PUT | 1 |  | `/swap/:id` | hidden | whole rows | 396 | not yet |  | `SwapController.updateSwapRoute` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
-| GET | 1 |  | `/swap/:id/history` | hidden | projected | 12 | 4/4 |  | `SwapController.getSwapRouteHistory` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
+| GET | 1 |  | `/swap/:id/history` | hidden | projected | — | 4/4 |  | `SwapController.getSwapRouteHistory` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | PUT | 1 |  | `/swap/paymentInfos` | public | whole rows | 308 | not yet |  | `SwapController.createSwapWithPaymentInfo` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | PUT | 1 |  | `/swap/paymentInfos/:id/confirm` | public | whole rows | 545 | not yet |  | `SwapController.confirmSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | GET | 1 |  | `/swap/paymentInfos/:id/tx` | public | whole rows | 504 | not yet |  | `SwapController.depositTx` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
@@ -603,7 +603,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | DELETE | 1 | yes | `/user` | public | whole rows | 344 | not yet |  | `UserController.deleteUser` | `subdomains/generic/user/models/user/user.controller.ts` |
 | DELETE | 2 |  | `/user` | public | whole rows | 344 | not yet |  | `UserV2Controller.deleteAccount` | `subdomains/generic/user/models/user/user.controller.ts` |
 | GET | 1 | yes | `/user` | public | whole rows | 328 | not yet |  | `UserController.getUserV1` | `subdomains/generic/user/models/user/user.controller.ts` |
-| GET | 2 |  | `/user` | public | projected | 66 | 4/4 |  | `UserV2Controller.getUser` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | 2 |  | `/user` | public | projected | — | 4/4 |  | `UserV2Controller.getUser` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | 1 | yes | `/user` | public | whole rows | 406 | not yet |  | `UserController.updateUserV1` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | 2 |  | `/user` | public | whole rows | 351 | not yet |  | `UserV2Controller.updateUser` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | 1 |  | `/user/:id` | hidden | whole rows | 364 | not yet |  | `UserController.updateUserAdmin` | `subdomains/generic/user/models/user/user.controller.ts` |
@@ -612,7 +612,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 2 |  | `/user/addresses/:address` | public | whole rows | 351 | not yet |  | `UserV2Controller.updateAddress` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | 1 |  | `/user/apiFilter/CT` | public | whole rows | 331 | not yet |  | `UserController.updateApiFilter` | `subdomains/generic/user/models/user/user.controller.ts` |
 | DELETE | 1 |  | `/user/apiKey/CT` | public | none | — | n/a |  | `UserController.deleteApiKey` | `subdomains/generic/user/models/user/user.controller.ts` |
-| POST | 1 |  | `/user/apiKey/CT` | public | projected | 3 | 4/4 |  | `UserController.createApiKey` | `subdomains/generic/user/models/user/user.controller.ts` |
+| POST | 1 |  | `/user/apiKey/CT` | public | projected | — | 4/4 |  | `UserController.createApiKey` | `subdomains/generic/user/models/user/user.controller.ts` |
 | POST | 1 |  | `/user/change` | public | whole rows | 643 | not yet |  | `UserController.changeUser` | `subdomains/generic/user/models/user/user.controller.ts` |
 | POST | 1 |  | `/user/data` | public | whole rows | 406 | not yet |  | `UserController.updateKycData` | `subdomains/generic/user/models/user/user.controller.ts` |
 | GET | 1 | yes | `/user/detail` | public | whole rows | 328 | not yet |  | `UserController.getUserDetailV1` | `subdomains/generic/user/models/user/user.controller.ts` |
@@ -620,7 +620,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 2 |  | `/user/mail` | public | whole rows | 364 | not yet |  | `UserV2Controller.updateUserMail` | `subdomains/generic/user/models/user/user.controller.ts` |
 | POST | 2 |  | `/user/mail/verify` | public | whole rows | 364 | not yet |  | `UserV2Controller.verifyMail` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | 1 |  | `/user/name` | hidden | whole rows | 386 | not yet |  | `UserController.updateUserName` | `subdomains/generic/user/models/user/user.controller.ts` |
-| GET | 2 |  | `/user/profile` | public | projected | 41 | 4/4 |  | `UserV2Controller.getProfile` | `subdomains/generic/user/models/user/user.controller.ts` |
+| GET | 2 |  | `/user/profile` | public | projected | — | 4/4 |  | `UserV2Controller.getProfile` | `subdomains/generic/user/models/user/user.controller.ts` |
 | GET | 1 |  | `/user/ref` | hidden | projected | 1 | 0/4 |  | `UserController.getRefInfo` | `subdomains/generic/user/models/user/user.controller.ts` |
 | GET | 2 |  | `/user/ref` | public | whole rows | 98 | not yet |  | `UserV2Controller.getRef` | `subdomains/generic/user/models/user/user.controller.ts` |
 | PUT | 2 |  | `/user/ref` | public | whole rows | 98 | not yet |  | `UserV2Controller.updateRefAsset` | `subdomains/generic/user/models/user/user.controller.ts` |

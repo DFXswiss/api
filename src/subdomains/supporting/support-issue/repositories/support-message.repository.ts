@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ReadProjection } from 'src/shared/models/read-projection';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
-import { EntityManager } from 'typeorm';
+import { EntityManager, SelectQueryBuilder } from 'typeorm';
 import { SupportMessage } from '../entities/support-message.entity';
 
 /**
@@ -77,13 +77,17 @@ export class SupportMessageRepository extends BaseRepository<SupportMessage> {
   async findStatsFor(issueIds: number[]): Promise<Map<number, SupportMessageStats>> {
     if (issueIds.length === 0) return new Map();
 
-    const lastOf = (column: string) => (sub) =>
-      sub
-        .select(`m2.${column}`)
-        .from(SupportMessage, 'm2')
-        .where('m2."issueId" = m."issueId"')
-        .orderBy('m2.id', 'DESC')
-        .limit(1);
+    // The newest message per issue, as a correlated subquery. One factory for the two columns the
+    // row shows, so the two subqueries cannot drift apart.
+    const lastOf =
+      (column: 'created' | 'author') =>
+      (sub: SelectQueryBuilder<SupportMessage>): SelectQueryBuilder<SupportMessage> =>
+        sub
+          .select(`m2.${column}`)
+          .from(SupportMessage, 'm2')
+          .where('m2."issueId" = m."issueId"')
+          .orderBy('m2.id', 'DESC')
+          .limit(1);
 
     // Batched to stay below the parameter limit of a single statement.
     const rows = await Util.doInBatchesAndJoin(

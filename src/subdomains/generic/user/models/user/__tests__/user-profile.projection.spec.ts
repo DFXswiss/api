@@ -53,7 +53,7 @@ describeProjection('GET /user/profile — read-path projection', () => {
     });
   }
 
-  /** A personal account with no organization linked — the ordinary case in production. */
+  /** A personal account with no organization linked — the branch where the join finds no row. */
   async function seedAccountWithoutOrganization(): Promise<UserData> {
     return seedEntity<UserData>(dataSource, UserData, {
       values: { accountType: AccountType.PERSONAL },

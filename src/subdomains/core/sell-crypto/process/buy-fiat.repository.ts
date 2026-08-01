@@ -47,7 +47,7 @@ export class BuyFiatRepository extends BaseRepository<BuyFiat> {
    * Transactions on a user's sell route, loaded with the history fields only.
    *
    * `fields` is what the mutation test in `buy-fiat-history.projection.spec.ts` re-runs the query
-   * with; `BuyFiatService.getBuyFiatHistory` calls this without it.
+   * with; `BuyFiatService.getSellHistory` calls this without it.
    */
   async findSellHistory(
     userId: number,

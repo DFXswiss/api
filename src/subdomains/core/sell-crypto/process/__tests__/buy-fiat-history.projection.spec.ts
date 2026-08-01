@@ -60,9 +60,9 @@ describeProjection('GET /sell/:id/history — read-path projection', () => {
     const asset = await seedEntity<Asset>(dataSource, Asset, { values: { blockchain: Blockchain.ETHEREUM } });
     const cryptoInput = await seedEntity<CryptoInput>(dataSource, CryptoInput, { values: { asset } });
     const fiatOutput = withFiatOutput ? await seedEntity<FiatOutput>(dataSource, FiatOutput) : null;
-    // `outputAsset` is nullable in the schema but read without a guard by the mapper, so a payout
-    // transaction always carries one. That is the behaviour as it stands; the projection does not
-    // change it.
+    // The fixture sets `outputAsset` because the mapper dereferences it without a guard, although
+    // the column is nullable. What happens without one is the mapper's behaviour, not the
+    // projection's, and this file does not change either.
     const outputAsset = await seedEntity<Fiat>(dataSource, Fiat);
     const buyFiat = await seedEntity<BuyFiat>(dataSource, BuyFiat, {
       values: { sell, cryptoInput, fiatOutput, outputAsset },

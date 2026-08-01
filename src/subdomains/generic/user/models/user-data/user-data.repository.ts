@@ -233,10 +233,10 @@ export class UserDataRepository extends CachedRepository<UserData> {
   /**
    * The account, carrying what an API key is built from.
    *
-   * `fields` is what the mutation tests in `user-profile.projection.spec.ts`, `user-v2.projection.spec.ts`
-   * and `api-key.projection.spec.ts` re-run the query with; the services call these without it.
+   * `fields` is what the mutation test in `api-key.projection.spec.ts` re-runs the query with;
+   * `UserDataService.createApiKey` calls this without it.
    */
-  async getForApiKey(id: number, fields: ReadonlyArray<string> = API_KEY_PROJECTION.fields): Promise<UserData> {
+  async getForApiKey(id: number, fields: ReadonlyArray<string> = API_KEY_PROJECTION.fields): Promise<UserData | null> {
     return API_KEY_PROJECTION.apply(this.createQueryBuilder('userData'), fields)
       .where('userData.id = :id', { id })
       .getOne();
@@ -245,10 +245,10 @@ export class UserDataRepository extends CachedRepository<UserData> {
   /**
    * Loads exactly what the v2 user response needs, users and wallets included.
    *
-   * `fields` is what the mutation tests in `user-profile.projection.spec.ts`, `user-v2.projection.spec.ts`
-   * and `api-key.projection.spec.ts` re-run the query with; the services call these without it.
+   * `fields` is what the mutation test in `user-v2.projection.spec.ts` re-runs the query with;
+   * `UserService.getUserDtoV2` calls this without it.
    */
-  async getUserV2(id: number, fields: ReadonlyArray<string> = USER_V2_PROJECTION.fields): Promise<UserData> {
+  async getUserV2(id: number, fields: ReadonlyArray<string> = USER_V2_PROJECTION.fields): Promise<UserData | null> {
     return USER_V2_PROJECTION.apply(this.createQueryBuilder('userData'), fields)
       .where('userData.id = :id', { id })
       .getOne();
@@ -257,10 +257,13 @@ export class UserDataRepository extends CachedRepository<UserData> {
   /**
    * Loads exactly what the profile response needs.
    *
-   * `fields` is what the mutation tests in `user-profile.projection.spec.ts`, `user-v2.projection.spec.ts`
-   * and `api-key.projection.spec.ts` re-run the query with; the services call these without it.
+   * `fields` is what the mutation test in `user-profile.projection.spec.ts` re-runs the query
+   * with; `UserService.getUserProfile` calls this without it.
    */
-  async getProfile(id: number, fields: ReadonlyArray<string> = USER_PROFILE_PROJECTION.fields): Promise<UserData> {
+  async getProfile(
+    id: number,
+    fields: ReadonlyArray<string> = USER_PROFILE_PROJECTION.fields,
+  ): Promise<UserData | null> {
     return USER_PROFILE_PROJECTION.apply(this.createQueryBuilder('userData'), fields)
       .where('userData.id = :id', { id })
       .getOne();

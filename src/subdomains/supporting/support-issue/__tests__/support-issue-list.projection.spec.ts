@@ -195,8 +195,8 @@ describeProjection('support issue list — read-path projection', () => {
   }, 120000);
 
   // The id branch of the search predicate is added only when the term is fully numeric AND fits
-  // int4. Anything above 2^31-1 — a pasted phone number is the realistic case — would make Postgres
-  // raise a 22003 range error and fail the whole search with a 500.
+  // int4. Anything above 2^31-1 would make Postgres raise a 22003 range error and fail the whole
+  // search rather than answer nothing.
   it.each([
     ['12345', 'a small numeric term'],
     ['2147483647', 'exactly int4 max'],

@@ -43,7 +43,7 @@ export class UserRepository extends BaseRepository<User> {
     address: string,
     walletId: number,
     fields: ReadonlyArray<string> = USER_KYC_FILES_PROJECTION.fields,
-  ): Promise<User> {
+  ): Promise<User | null> {
     return USER_KYC_FILES_PROJECTION.apply(this.createQueryBuilder('user'), fields)
       .where('user.address = :address', { address })
       .andWhere('kycFilesWallet.id = :walletId', { walletId })

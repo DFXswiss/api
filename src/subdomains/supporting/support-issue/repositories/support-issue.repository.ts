@@ -288,9 +288,9 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
     for (let i = 0; i < query.terms.length; i++) {
       const param = `term${i}`;
       // Only emit the id branch when the term is fully numeric AND fits int4 (Postgres rejects
-      // larger values with 22003, which would 500 the entire search — a pasted phone number
-      // like "41791234567" is a realistic trigger). Keeps the predicate on the PK index (no
-      // cast-to-text) and avoids partial-match surprises (term "42" doesn't match id 142).
+      // larger values with 22003, which would fail the whole search rather than answer nothing).
+      // Keeps the predicate on the PK index (no cast-to-text) and avoids partial-match surprises
+      // (term "42" doesn't match id 142).
       const numeric = +query.terms[i];
       const idTerm = /^\d+$/.test(query.terms[i]) && numeric <= 2147483647 ? numeric : null;
       const idClause = idTerm != null ? ` OR issue.id = :${param}Id` : '';
@@ -326,13 +326,13 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
   /**
    * Loads exactly what the internal issue view needs.
    *
-   * `fields` is what the mutation test in `support-issue-list.projection.spec.ts` re-runs the query
-   * with; `SupportIssueService.getSupportIssueList` calls this without it.
+   * `fields` is what the mutation test in `support-issue-data.projection.spec.ts` re-runs the query
+   * with; `SupportIssueService.getIssueData` calls this without it.
    */
   async findIssueData(
     id: number,
     fields: ReadonlyArray<string> = SUPPORT_ISSUE_DATA_PROJECTION.fields,
-  ): Promise<SupportIssue> {
+  ): Promise<SupportIssue | null> {
     return SUPPORT_ISSUE_DATA_PROJECTION.apply(this.createQueryBuilder('supportIssue'), fields)
       .where('supportIssue.id = :id', { id })
       .getOne();
@@ -360,7 +360,7 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
   async findIssueBy(
     search: FindOptionsWhere<SupportIssue>,
     fields: ReadonlyArray<string> = SUPPORT_ISSUE_PROJECTION.fields,
-  ): Promise<SupportIssue> {
+  ): Promise<SupportIssue | null> {
     return SUPPORT_ISSUE_PROJECTION.apply(this.createQueryBuilder('supportIssue'), fields)
       .setFindOptions({ where: search, loadEagerRelations: false })
       .getOne();

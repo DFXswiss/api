@@ -39,7 +39,7 @@ export class LiquidityManagementPipelineRepository extends BaseRepository<Liquid
   async findForStatus(
     id: number,
     fields: ReadonlyArray<string> = PIPELINE_STATUS_PROJECTION.fields,
-  ): Promise<LiquidityManagementPipeline> {
+  ): Promise<LiquidityManagementPipeline | null> {
     return PIPELINE_STATUS_PROJECTION.apply(this.createQueryBuilder('pipeline'), fields)
       .where('pipeline.id = :id', { id })
       .getOne();
