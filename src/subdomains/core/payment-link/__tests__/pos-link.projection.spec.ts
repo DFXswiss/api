@@ -24,6 +24,7 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { Organization } from 'src/subdomains/generic/user/models/organization/organization.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
@@ -47,6 +48,7 @@ describeProjection('point-of-sale link — read-path projection', () => {
   let dataSource: DataSource;
   let paymentLinks: PaymentLinkRepository;
   let userDataService: UserDataService;
+  let userData: UserDataRepository;
   let service: PaymentLinkService;
 
   beforeAll(async () => {
@@ -54,10 +56,18 @@ describeProjection('point-of-sale link — read-path projection', () => {
     new ConfigService();
     dataSource = await createProjectionDataSource(SCHEMA);
     paymentLinks = new PaymentLinkRepository(dataSource.manager);
+    userData = new UserDataRepository(dataSource.manager);
   }, 300000);
 
   beforeEach(() => {
     userDataService = createMock<UserDataService>();
+    // `updatePaymentLinksConfig` is the one collaborator method that matters here: it receives the
+    // projected account entity and re-reads `paymentLinksConfig` off it to merge into. Bound to a
+    // real repository it runs for real, so a projection that dropped that column would reset the
+    // account's configuration and this spec would see it.
+    userDataService.updatePaymentLinksConfig = jest.fn((user, dto) =>
+      UserDataService.prototype.updatePaymentLinksConfig.call({ userDataRepo: userData }, user, dto),
+    );
     service = new PaymentLinkService(
       paymentLinks,
       createMock<PaymentLinkPaymentService>(),
@@ -291,22 +301,22 @@ describeProjection('point-of-sale link — read-path projection', () => {
     expect(stored.paymentTimeout).toEqual(12345);
   }, 120000);
 
-  it('hands the account write the key alone, leaving the merge to the account service', async () => {
-    // The unscoped branch does not merge here: it passes the new key to
-    // `UserDataService.updatePaymentLinksConfig`, which merges into the account's own configuration.
-    // What this side has to get right is that the account is the one the link belongs to.
-    const { paymentLink, userData } = await seedLink(AccountType.PERSONAL, {
+  it('keeps the existing configuration when the write adds an access key to the account', async () => {
+    // The unscoped branch merges on the account side, out of the projected entity it is handed —
+    // `updatePaymentLinksConfig` re-reads `paymentLinksConfig` off that entity. A projection missing
+    // the column would hand it an empty object and replace the account's configuration with nothing
+    // but the new key, which is why that method runs for real here.
+    const { paymentLink, userData: account } = await seedLink(AccountType.PERSONAL, {
       paymentLinksConfig: JSON.stringify({ fee: 0.4 }),
     });
 
     const answer = await posLinkOf(paymentLink.id, false);
 
-    expect(userDataService.updatePaymentLinksConfig).toHaveBeenCalledWith(
-      expect.objectContaining({ id: userData.id }),
-      {
-        accessKeys: [answer.key],
-      },
+    const stored = JSON.parse(
+      (await dataSource.getRepository(UserData).findOneBy({ id: account.id })).paymentLinksConfig,
     );
+    expect(stored.accessKeys).toEqual([answer.key]);
+    expect(stored.fee).toEqual(0.4);
   }, 120000);
 
   it('loads the two ids the endpoint scopes its updates by', async () => {

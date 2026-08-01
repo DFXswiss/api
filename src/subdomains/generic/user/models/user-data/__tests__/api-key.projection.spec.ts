@@ -1,5 +1,8 @@
 import { ConfigService } from 'src/config/config';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { HistoryFilter } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { ApiKeyDto } from 'src/subdomains/generic/user/models/user/dto/api-key.dto';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import {
   createProjectionDataSource,
   describeProjection,
@@ -174,6 +177,40 @@ describeProjection('API key — read-path projection', () => {
     const withOtherDate = { ...loaded, created: new Date('2001-02-03T04:05:06.000Z') } as typeof loaded;
 
     expect(ApiKeyService.getSecret(loaded)).not.toEqual(ApiKeyService.getSecret(withOtherDate));
+  }, 120000);
+
+  // --- the production path, end to end --- //
+
+  /**
+   * `UserDataService.createApiKey`, bound to the real repository.
+   *
+   * The service takes twenty-seven collaborators and this method uses exactly one of them, so it is
+   * called on a minimal receiver rather than through a constructed service — what matters is that
+   * the production method runs against the projected read and its own write.
+   */
+  const createApiKey = (userDataId: number, filter: HistoryFilter): Promise<ApiKeyDto> =>
+    UserDataService.prototype.createApiKey.call({ userDataRepo }, userDataId, filter);
+
+  it('issues a key through the service and persists both columns', async () => {
+    const account = await seedAccount({ apiKeyCT: null, apiFilterCT: null });
+
+    const answer = await createApiKey(account.id, { buy: true });
+
+    const stored = await dataSource.getRepository(UserData).findOneBy({ id: account.id });
+    expect(stored.apiKeyCT).toEqual(answer.key);
+    expect(stored.apiFilterCT).toBeDefined();
+    // The secret is derived rather than stored, from the key and the creation date the projection
+    // supplies.
+    expect(answer.secret).toEqual(ApiKeyService.getSecret(stored));
+  }, 120000);
+
+  it('refuses a second key through the service, and writes nothing', async () => {
+    const account = await seedAccount({ apiKeyCT: 'already-issued' });
+
+    await expect(createApiKey(account.id, { buy: true })).rejects.toThrow('API key already exists');
+
+    const stored = await dataSource.getRepository(UserData).findOneBy({ id: account.id });
+    expect(stored.apiKeyCT).toEqual('already-issued');
   }, 120000);
 
   // --- LEVEL 4: consistency against a second source --- //
