@@ -1,6 +1,6 @@
 # Read-path projections
 
-Why the endpoint inventory carries an `Eager` column, what we intend to do about it, and how the
+Why the endpoint inventory carries a `Load` column, what we intend to do about it, and how the
 result is to be tested.
 
 ## The problem
@@ -44,8 +44,9 @@ history and exports — which need fields, not objects.
 | **Read model** | A separate model optimised for reading. Introducing projections for read paths is a small step towards one. |
 
 Note that eager relations apply to the `find*` family, **not** to `createQueryBuilder` with an
-explicit field list, and not to raw SQL. That is the entire basis of the `Eager` column in
-[endpoints.md](endpoints.md): it records which mechanism an endpoint's load path uses.
+explicit field list, and not to raw SQL. That is the entire basis of the `Load` column in
+[endpoints.md](endpoints.md): it records which mechanism an endpoint's load path uses —
+`eager`, `projected`, or `none` for no database access at all.
 
 ## What we intend to change
 
@@ -101,11 +102,35 @@ described above proves it — a wrong value can run for weeks.
 
 ## Test definition
 
+### Which endpoints these apply to
+
+Exactly one group: the endpoints marked `projected` in [endpoints.md](endpoints.md) — currently 27.
+They already select an explicit field list, and a forgotten field there silently yields an empty
+value.
+
+They do not apply to endpoints marked `none`, which touch no database and have no field list that
+could be incomplete. And not yet to those marked `eager`: those load everything anyway, so nothing
+can be missing. Each becomes subject to these tests the moment it is converted.
+
+### How they run
+
 Four levels. All of them need a real Postgres instance; a mocked repository returns whatever the
 mock defines and cannot see which columns were requested, so it cannot test any of this.
 
-The schema comes from the entity metadata (`synchronize`), not from replayed migrations — the
-reference for a projection is the entity definition.
+The repository already has the mechanism for this. Fourteen migration specs use it:
+
+```typescript
+const PG_URL = process.env.MIGRATION_TEST_PG;
+const describeDb = PG_URL ? describe : describe.skip;
+```
+
+The variable is set in the pull-request workflow, so a Postgres service is already running in CI,
+and the suite still passes locally without one — those blocks are skipped. The projection tests
+should use the same mechanism rather than introducing a second one.
+
+What is missing is only the schema and the data: the schema comes from the entity metadata
+(`synchronize`), not from replayed migrations — the reference for a projection is the entity
+definition — and the fixtures are generated from the same metadata.
 
 ### 1. Completeness
 

@@ -516,12 +516,15 @@ export class SupportIssueController {
 
 [docs/endpoints.md](docs/endpoints.md) lists every route this service exposes. **Any change to the set of routes must be reflected there in the same PR** — adding, removing, renaming or re-scoping an endpoint, and equally a change to a `@Controller` base path, which moves every route beneath it.
 
-Fill in the `Swagger` and `Eager` columns; `Cols`, `Fields` and `Ratio` are measured, not hand-written.
+Fill in the `Swagger` and `Load` columns; `Cols`, `Fields` and `Ratio` are measured, not hand-written.
 
-The `Eager` column follows a mechanical rule — eager relations apply to the `find*` family, not to `createQueryBuilder` with an explicit field list or to raw SQL:
+The `Load` column follows a mechanical rule — eager relations apply to the `find*` family, not to `createQueryBuilder` with an explicit field list or to raw SQL:
 
-- the handler reaches a `find` / `findOne` / `findBy` / `findOneBy` on a repository → `yes`
-- it loads only through `createQueryBuilder(...).select([...])` or `dataSource.query(...)`, or touches no database at all → `no`
+- the handler reaches a `find` / `findOne` / `findBy` / `findOneBy` on a repository → `eager`
+- it loads only through `createQueryBuilder(...).select([...])` or `dataSource.query(...)` → `projected`
+- it touches no database at all → `none`
+
+The distinction between `projected` and `none` matters: a `projected` endpoint carries an explicit field list that can be incomplete, and is therefore subject to the tests in [docs/read-path-projections.md](docs/read-path-projections.md). A `none` endpoint has no field list to get wrong.
 
 This matters because eager relations expand recursively: a plain `findOne()` on `UserData` already selects 253 columns across 8 joins before any `relations` option is added. [docs/read-path-projections.md](docs/read-path-projections.md) explains the background and how converted read paths are tested.
 
