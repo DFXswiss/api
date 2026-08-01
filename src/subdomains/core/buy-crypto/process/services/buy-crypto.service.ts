@@ -52,7 +52,6 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
-import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { UpdateTransactionInternalDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction-internal.dto';
@@ -117,8 +116,6 @@ export class BuyCryptoService implements OnModuleInit {
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
-    @Inject(forwardRef(() => CheckoutTxService))
-    private readonly checkoutTxService: CheckoutTxService,
     private readonly siftService: SiftService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly checkoutService: CheckoutService,
@@ -645,9 +642,40 @@ export class BuyCryptoService implements OnModuleInit {
     TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount, assetMismatch: false });
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
-      // Persist the refund claim before the irreversible provider call. Review resets lock and inspect this row,
-      // so a concurrent reset cannot treat an already-started checkout refund as an untouched payment.
-      await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx.id);
+      await this.buyCryptoRepo.manager.transaction(async (manager) => {
+        const lockedBuyCrypto = await manager.findOne(BuyCrypto, {
+          where: { id: buyCrypto.id },
+          relations: { checkoutTx: true },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedBuyCrypto) throw new NotFoundException('BuyCrypto not found');
+
+        const lockedCheckoutTx = await manager.findOne(CheckoutTx, {
+          where: { id: buyCrypto.checkoutTx.id },
+          loadEagerRelations: false,
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedCheckoutTx) throw new NotFoundException('Checkout TX not found');
+
+        lockedBuyCrypto.checkoutTx = lockedCheckoutTx;
+        TransactionUtilService.validateRefund(lockedBuyCrypto, { chargebackAmount, assetMismatch: false });
+
+        const claim = await manager.update(
+          BuyCrypto,
+          {
+            id: buyCrypto.id,
+            isComplete: false,
+            batch: IsNull(),
+            chargebackAllowedDate: IsNull(),
+            chargebackAllowedDateUser: IsNull(),
+          },
+          { chargebackAllowedDate: dto.chargebackAllowedDate, chargebackAllowedBy: dto.chargebackAllowedBy },
+        );
+        if (claim.affected !== 1) throw new ConflictException('BuyCrypto refund state changed concurrently');
+
+        await manager.update(CheckoutTx, lockedCheckoutTx.id, { status: CheckoutPaymentStatus.REFUND_PENDING });
+      });
+
       dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
     }
 

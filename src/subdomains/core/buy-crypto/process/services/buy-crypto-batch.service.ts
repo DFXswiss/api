@@ -55,6 +55,8 @@ export class BuyCryptoBatchService {
         outputAsset: { type: Not(In([AssetType.CUSTOM, AssetType.PRESALE])) },
         priceDefinitionAllowedDate: Not(IsNull()),
         batch: IsNull(),
+        chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: IsNull(),
         inputReferenceAmountMinusFee: Not(IsNull()),
         status: In([
           BuyCryptoStatus.CREATED,

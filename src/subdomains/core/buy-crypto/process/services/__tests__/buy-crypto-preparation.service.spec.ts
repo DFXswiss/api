@@ -455,6 +455,23 @@ describe('BuyCryptoPreparationService', () => {
   });
 
   describe('doAmlCheck — concurrent decision guard', () => {
+    it('excludes operator and user refund claims from every AML selection branch', async () => {
+      const findSpy = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([]);
+
+      await service.doAmlCheck();
+
+      const where = findSpy.mock.calls[0][0].where as Array<Record<string, unknown>>;
+      expect(where).toHaveLength(3);
+      for (const branch of where) {
+        expect(branch).toEqual(
+          expect.objectContaining({
+            chargebackAllowedDate: IsNull(),
+            chargebackAllowedDateUser: IsNull(),
+          }),
+        );
+      }
+    });
+
     it('skips post-processing (no overwrite) when the conditional update affects 0 rows', async () => {
       // first-run tx (amlCheck=null) that a reviewer concurrently changed → cron write must not win
       const entity = createCustomBuyCrypto({ id: 1, amlCheck: null, cryptoInput: undefined, bankTx: undefined });

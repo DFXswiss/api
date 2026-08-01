@@ -16,7 +16,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { EntityManager } from 'typeorm';
+import { EntityManager, IsNull } from 'typeorm';
 import { createCustomBuyCryptoBatch } from '../../entities/__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCryptoFee } from '../../entities/__mocks__/buy-crypto-fee.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
@@ -64,6 +64,23 @@ describe('BuyCryptoBatchService', () => {
 
       expect(result).toBeUndefined();
       expect(dexServiceCheckLiquidity).toBeCalledTimes(0);
+    });
+
+    it('excludes operator and user refund claims from every batching branch', async () => {
+      const findSpy = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([]);
+
+      await service.batchAndOptimizeTransactions();
+
+      const where = findSpy.mock.calls[0][0].where as Array<Record<string, unknown>>;
+      expect(where).toHaveLength(2);
+      for (const branch of where) {
+        expect(branch).toEqual(
+          expect.objectContaining({
+            chargebackAllowedDate: IsNull(),
+            chargebackAllowedDateUser: IsNull(),
+          }),
+        );
+      }
     });
 
     it('defines output reference amounts', async () => {

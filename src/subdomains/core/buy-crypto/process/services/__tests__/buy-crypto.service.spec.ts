@@ -30,7 +30,6 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
-import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -80,7 +79,6 @@ describe('BuyCryptoService', () => {
   let transactionService: TransactionService;
   let siftService: SiftService;
   let checkoutService: CheckoutService;
-  let checkoutTxService: CheckoutTxService;
   let payInService: PayInService;
   let fiatOutputService: FiatOutputService;
   let transactionUtilService: TransactionUtilService;
@@ -110,7 +108,6 @@ describe('BuyCryptoService', () => {
     transactionService = createMock<TransactionService>();
     siftService = createMock<SiftService>();
     checkoutService = createMock<CheckoutService>();
-    checkoutTxService = createMock<CheckoutTxService>();
     payInService = createMock<PayInService>();
     fiatOutputService = createMock<FiatOutputService>();
     transactionUtilService = createMock<TransactionUtilService>();
@@ -143,7 +140,6 @@ describe('BuyCryptoService', () => {
         { provide: TransactionService, useValue: transactionService },
         { provide: SiftService, useValue: siftService },
         { provide: CheckoutService, useValue: checkoutService },
-        { provide: CheckoutTxService, useValue: checkoutTxService },
         { provide: PayInService, useValue: payInService },
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: TransactionUtilService, useValue: transactionUtilService },
@@ -350,11 +346,31 @@ describe('BuyCryptoService', () => {
         reference: 'refund-22',
         _links: { payment: { href: 'https://example.test/payment/pay-22' } },
       });
+      const manager = {
+        findOne: jest.fn().mockResolvedValueOnce(buyCrypto).mockResolvedValueOnce(buyCrypto.checkoutTx),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
 
       await service.refundCheckoutTx(buyCrypto, { chargebackAllowedDate: new Date() });
 
-      expect(checkoutTxService.paymentRefunded).toHaveBeenCalledWith(22);
-      expect(checkoutTxService.paymentRefunded.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(manager.update).toHaveBeenNthCalledWith(
+        1,
+        BuyCrypto,
+        expect.objectContaining({ id: 7, chargebackAllowedDate: expect.anything() }),
+        expect.objectContaining({ chargebackAllowedDate: expect.any(Date) }),
+      );
+      expect(manager.update).toHaveBeenNthCalledWith(2, CheckoutTx, 22, {
+        status: CheckoutPaymentStatus.REFUND_PENDING,
+      });
+      expect(manager.update.mock.invocationCallOrder[1]).toBeLessThan(
         checkoutService.refundPayment.mock.invocationCallOrder[0],
       );
     });

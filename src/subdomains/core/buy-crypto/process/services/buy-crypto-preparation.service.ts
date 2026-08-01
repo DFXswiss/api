@@ -113,6 +113,7 @@ export class BuyCryptoPreparationService {
     const request: FindOptionsWhere<BuyCrypto> = {
       inputAmount: Not(IsNull()),
       inputAsset: Not(IsNull()),
+      chargebackAllowedDate: IsNull(),
       chargebackAllowedDateUser: IsNull(),
       isComplete: false,
     };
