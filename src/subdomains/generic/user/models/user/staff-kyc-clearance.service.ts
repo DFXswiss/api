@@ -58,9 +58,10 @@ export class StaffKycClearanceService {
         userData: {
           // A non-empty verified name is the sole clearance condition: it is only ever set by an
           // identity-verified path or a reviewed migration, never self-service (see the write paths of
-          // `verifiedName`), so it is the authoritative identification signal on its own. A KYC level is
-          // deliberately NOT required — it is unreachable for the DEBUG role and impossible for the
-          // service accounts that legitimately hold a gated role.
+          // `verifiedName`). Personal accounts carry an identity-verified name; operator-reviewed service
+          // accounts carry a non-personal designation. A KYC level is deliberately NOT required — it is
+          // unreachable for the DEBUG role and impossible for service accounts that legitimately hold a
+          // gated role.
           //
           // `verifiedName IS NOT NULL` is the stated rule, but an empty or blank name carries no
           // identification either — the predicate covers both, and NULL drops out on its own because the
