@@ -60,6 +60,7 @@ const PINNED_LOGIC = [
   'src/integration/scorechain/exceptions/scorechain-object-not-found.exception.ts',
   'src/integration/sift/dto/sift.dto.ts',
   'src/polyfills.ts',
+  'src/process-timezone.ts',
   'src/shared/auth/allow-tfa-pending.decorator.ts',
   'src/shared/auth/exceptions/staff-kyc-required.exception.ts',
   'src/shared/auth/get-jwt.decorator.ts',

@@ -1,47 +1,59 @@
-import { Environment, GetConfig } from './config/config';
 import { DfxLogger } from './shared/services/dfx-logger';
 
-export type AssertUtcProcessTimezoneDeps = {
-  /** Override for tests; production uses GetConfig().environment (boot-safe). */
-  environment?: Environment;
+/**
+ * Fixed mid-month noon-UTC anchors for seasonal offset sampling.
+ * Mid-month avoids DST transition days; a fixed year keeps the check deterministic.
+ * Both must be 0 for a process that is UTC (or permanently zero-offset, e.g. Atlantic/Reykjavik)
+ * year-round — a single `new Date().getTimezoneOffset()` would accept Europe/London in winter.
+ */
+const JANUARY_OFFSET_ANCHOR = new Date(Date.UTC(2024, 0, 15, 12, 0, 0));
+const JULY_OFFSET_ANCHOR = new Date(Date.UTC(2024, 6, 15, 12, 0, 0));
+
+export type CheckProcessTimezoneDeps = {
   logger?: DfxLogger;
-  /** Override for tests; production uses new Date().getTimezoneOffset(). */
-  getTimezoneOffset?: () => number;
+  /**
+   * Override for tests; production uses `Date#getTimezoneOffset` on fixed Jan/Jul anchors.
+   * Takes the date so tests can simulate seasonal offsets (e.g. London winter vs summer).
+   */
+  getTimezoneOffset?: (date: Date) => number;
   /** Override for tests; production uses Intl resolved zone name. */
   getTimeZoneName?: () => string;
 };
 
 /**
- * Ensures the Node process runs in UTC before any DB work.
+ * Logs the process timezone at boot. Warns when the Node process is not UTC year-round;
+ * never throws — deploy start commands may set `TZ` outside this repo, and a hard abort
+ * would block deploys without a confirmed host-side guarantee.
  *
- * Fail-loud sibling of `assertValidStorageCombo` (config.ts): invalid runtime
- * prerequisites throw with a concrete diagnosis rather than silently continuing.
- * Deployed environments throw; LOC only warns so developers outside UTC can
- * still start the app.
+ * Sibling of `assertValidStorageCombo` (config.ts) for runtime prerequisites, but advisory
+ * only: columns like `created` are `timestamp without time zone` and the Postgres driver
+ * serializes JS `Date` in the process-local wall-clock.
  *
  * Must run before NestFactory.create — TypeORM connects during app creation.
- * Uses GetConfig() rather than the Config singleton for the same boot-safety
- * reason as `createStorageService` (storage.factory.ts): KYC/support (and this
- * assert) may run before ConfigService has assigned the `Config` export, so
- * they read a fresh Configuration from process.env instead.
+ *
+ * Offset is checked at January and July anchors, not "today": zones with seasonal
+ * UTC-offset (Europe/London in winter) must not look fine just because boot landed in
+ * the zero-offset half of the year. For serialization only the offset matters —
+ * Atlantic/Reykjavik (permanently 0) is treated as OK.
  */
-export function assertUtcProcessTimezone(deps: AssertUtcProcessTimezoneDeps = {}): void {
-  const offset = (deps.getTimezoneOffset ?? (() => new Date().getTimezoneOffset()))();
-  if (offset === 0) return;
-
+export function checkProcessTimezone(deps: CheckProcessTimezoneDeps = {}): void {
+  const getOffset = deps.getTimezoneOffset ?? ((date: Date) => date.getTimezoneOffset());
+  const januaryOffset = getOffset(JANUARY_OFFSET_ANCHOR);
+  const julyOffset = getOffset(JULY_OFFSET_ANCHOR);
+  // The 'unknown' fallback feeds the diagnostic message only — never a decision. The offset
+  // already decides; Intl can return undefined on exotic ICU builds and must not mask that.
   const timeZone = (deps.getTimeZoneName ?? (() => Intl.DateTimeFormat().resolvedOptions().timeZone))() ?? 'unknown';
-  const environment = deps.environment ?? GetConfig().environment;
   const logger = deps.logger ?? new DfxLogger('ProcessTimezone');
 
-  const message =
-    `Process timezone must be UTC: columns like \`created\` are timestamp without time zone and the ` +
-    `Postgres driver serializes JS Date in the process-local wall-clock (Postgres then drops the offset). ` +
-    `Found timezone "${timeZone}" (getTimezoneOffset=${offset}). Set ENV TZ=UTC.`;
-
-  if (environment === Environment.LOC) {
-    logger.warn(message);
+  if (januaryOffset === 0 && julyOffset === 0) {
+    logger.info(`Process timezone OK: "${timeZone}" (getTimezoneOffset january=${januaryOffset}, july=${julyOffset}).`);
     return;
   }
 
-  throw new Error(message);
+  logger.warn(
+    `Process timezone must be UTC: columns like \`created\` are timestamp without time zone and the ` +
+      `Postgres driver serializes JS Date in the process-local wall-clock (Postgres then drops the offset). ` +
+      `Found timezone "${timeZone}" (getTimezoneOffset january=${januaryOffset}, july=${julyOffset}). ` +
+      `Set ENV TZ=UTC.`,
+  );
 }

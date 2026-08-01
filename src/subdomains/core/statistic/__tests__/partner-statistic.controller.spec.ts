@@ -1,6 +1,7 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums';
+import { AuthGuard } from '@nestjs/passport';
 import { THROTTLER_LIMIT, THROTTLER_TTL } from '@nestjs/throttler/dist/throttler.constants';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -42,7 +43,7 @@ describe('PartnerStatisticController', () => {
     expect(service.getTimeline).toHaveBeenCalledWith(42, '2024-06-01', '2024-06-15', PartnerStatisticGranularity.WEEK);
   });
 
-  it('omits granularity so the service Day default applies', async () => {
+  it('forwards undefined granularity to getTimeline when the query omits it', async () => {
     service.getTimeline.mockResolvedValue({ currency: 'CHF', granularity: PartnerStatisticGranularity.DAY } as any);
 
     await controller.getPartnerTimeline(jwt, undefined, undefined, undefined);
@@ -83,8 +84,10 @@ describe('PartnerStatisticController routing & security metadata', () => {
       expect(guards).toHaveLength(3);
 
       // Order matters: auth first, then role, then the partner-specific rate limit.
-      // RoleGuard is the only instance-based guard; it must carry CLIENT_COMPANY.
-      // Order: AuthGuard() mixin class, RoleGuard instance, rate-limit class token.
+      // AuthGuard() is memoized — same class reference as the decorator on the route
+      // (bank.controller pattern: exact class-token equality, not constructor.name).
+      expect(guards[0]).toBe(AuthGuard());
+
       // RoleGuard is the only instance-based guard; it must carry CLIENT_COMPANY.
       const roleGuard = guards.find((g) => (g as { entryRoles?: UserRole[] }).entryRoles !== undefined) as {
         entryRoles: UserRole[];
@@ -93,7 +96,6 @@ describe('PartnerStatisticController routing & security metadata', () => {
       expect(roleGuard.entryRoles).toEqual([UserRole.CLIENT_COMPANY]);
       expect((roleGuard as { constructor: { name: string } }).constructor.name).toBe('RoleGuardClass');
 
-      // Auth first (passport mixin class), role second, partner rate-limit third.
       expect(guards[1]).toBe(roleGuard);
       expect(guards[2]).toBe(PartnerStatisticRateLimitGuard);
     },

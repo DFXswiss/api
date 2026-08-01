@@ -12,9 +12,9 @@ import { PartnerStatisticService } from '../partner-statistic.service';
  *
  * CI meets the UTC process-timezone condition. This suite deliberately does **not**
  * force `process.env.TZ = 'UTC'` (that would hide the dependency and leak into other
- * specs in the same Jest worker). The application enforces the same requirement via
- * `ENV TZ=UTC` in the Dockerfile and `assertUtcProcessTimezone` at process start.
- * Run this suite with `TZ=UTC` when developing outside UTC.
+ * specs in the same Jest worker). The application expects `ENV TZ=UTC` (Dockerfile)
+ * and logs/warns via `checkProcessTimezone` at process start. Run this suite with
+ * `TZ=UTC` when developing outside UTC.
  *
  * Why UTC process TZ is required: `created` is `timestamp without time zone`. The
  * Postgres driver serializes a JS `Date` in process-local wall time; Postgres then
@@ -41,9 +41,9 @@ if (PG_URL && !isProcessTimezoneUtc) {
       `(got offset=${new Date().getTimezoneOffset()} min, timeZone=${resolved}). ` +
       `Column "created" is timestamp without time zone; the Postgres driver serializes ` +
       `JS Date values in process-local wall time and Postgres drops the offset, so ` +
-      `half-open period bounds shift under non-UTC hosts. The application enforces the ` +
-      `same requirement via ENV TZ=UTC and assertUtcProcessTimezone at start. Run with ` +
-      `TZ=UTC when developing outside UTC.`,
+      `half-open period bounds shift under non-UTC hosts. The application expects ` +
+      `ENV TZ=UTC and checkProcessTimezone at start. Run with TZ=UTC when developing ` +
+      `outside UTC.`,
   );
 }
 

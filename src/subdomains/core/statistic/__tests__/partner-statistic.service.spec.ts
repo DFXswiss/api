@@ -603,13 +603,17 @@ describe('PartnerStatisticService', () => {
     it('returns only wallet A aggregates and scopes SQL to user.walletId on every user-related query', async () => {
       const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
 
-      expect(lastWalletIds.length).toBeGreaterThan(0);
+      // getStatistics builds exactly this many wallet-scoped WHERE clauses:
+      // 3 direction aggs + 3 active-user union legs + newUsers + allTime + referral
+      // + 3 asset + 2 fiat + 3 blockchain + 3 payment-method = 20.
+      // Pin the count so REMOVING a scope fails (filter+every alone is vacuum-true on survivors);
+      // the column pattern fails when a scope is rewritten onto a non-wallet column.
+      const GET_STATISTICS_SCOPED_BUILDERS = 20;
+      const SCOPE_RE = /(?:user\.walletId|wallet\.id)\s*=\s*:walletId/;
+      const scopeClauses = whereClauses.filter((c) => SCOPE_RE.test(c));
+      expect(scopeClauses).toHaveLength(GET_STATISTICS_SCOPED_BUILDERS);
+      expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_SCOPED_BUILDERS);
       expect(lastWalletIds.every((id) => id === 1)).toBe(true);
-
-      // Every walletId-binding clause must use the wallet column — removing scope from one query fails this.
-      const scopeClauses = whereClauses.filter((c) => c.includes('walletId'));
-      expect(scopeClauses.length).toBeGreaterThan(0);
-      expect(scopeClauses.every((c) => c.includes('user.walletId') || c.includes('wallet.id'))).toBe(true);
       expect(whereClauses.every((c) => !/user\.id\s*=\s*:walletId/.test(c))).toBe(true);
 
       expect(amlFilterClauses.length).toBeGreaterThan(0);
@@ -634,10 +638,12 @@ describe('PartnerStatisticService', () => {
       whereClauses = [];
       const result = await service.getStatistics(2, PERIOD_FROM, PERIOD_TO);
 
-      expect(lastWalletIds.length).toBeGreaterThan(0);
+      const GET_STATISTICS_SCOPED_BUILDERS = 20;
+      const SCOPE_RE = /(?:user\.walletId|wallet\.id)\s*=\s*:walletId/;
+      const scopeClauses = whereClauses.filter((c) => SCOPE_RE.test(c));
+      expect(scopeClauses).toHaveLength(GET_STATISTICS_SCOPED_BUILDERS);
+      expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_SCOPED_BUILDERS);
       expect(lastWalletIds.every((id) => id === 2)).toBe(true);
-      const scopeClauses = whereClauses.filter((c) => c.includes('walletId'));
-      expect(scopeClauses.every((c) => c.includes('user.walletId') || c.includes('wallet.id'))).toBe(true);
 
       expect(result.totals.volume.buy).toBe(99999);
       expect(result.totals.volume.buy).not.toBe(1000);

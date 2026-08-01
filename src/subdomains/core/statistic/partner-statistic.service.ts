@@ -772,6 +772,11 @@ export class PartnerStatisticService {
    * Scope is always `user.walletId = :walletId` — never accept walletId from the client.
    * Always filters amlCheck=Pass (volume/totals/breakdown/timeline).
    * Period is half-open: created >= from AND created < to.
+   *
+   * SQL-side wallet scope on purpose. Repo alternative loads users then IDs
+   * (kyc-client.service.ts:37–41 → transaction.service.ts:269 + doInBatchesWithLimit 100);
+   * for aggregates that means ~1.270 batches × 18 queries ≈ 22.8k roundtrips on Cake
+   * (~127k users) plus full user load — SQL scoping needs 18 queries, no user rows.
    */
   private baseTxQuery(
     direction: Direction,
