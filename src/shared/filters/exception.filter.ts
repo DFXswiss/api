@@ -135,17 +135,24 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // A caller gets the generic body then rather than none - and also when the body is not the one
   // being sent, which is what a replaced status or a body naming another one leaves behind.
   private responseBody(exception: Error, status: { sent: number; declared: number | undefined }): unknown {
-    if (!(exception instanceof HttpException)) {
-      return { statusCode: status.sent, message: ApiExceptionFilter.ownMessage(exception, status.sent) };
-    }
-
     try {
-      const body = exception.getResponse();
-      if (status.declared === status.sent && ApiExceptionFilter.names(body, status.sent)) return body;
+      if (!(exception instanceof HttpException)) {
+        return { statusCode: status.sent, message: ApiExceptionFilter.ownMessage(exception, status.sent) };
+      }
 
-      // The message comes out of the body the thrower built for the caller, never out of the
-      // exception: `exception.message` is what it says to us, and this branch is the only one that
-      // would newly put it on the wire.
+      // A status that had to be replaced takes the body with it: what the thrower wrote belongs to
+      // the status it wrote it for, and reading it for another one is reading it for something it
+      // was not.
+      if (status.declared !== status.sent) {
+        return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
+      }
+
+      const body = exception.getResponse();
+
+      // A body that serializes itself is sent as it is, the way it would have been without any of
+      // this: what it holds says nothing about what it sends, so there is nothing here to judge.
+      if (ApiExceptionFilter.rewritesItself(body) || ApiExceptionFilter.names(body, status.sent)) return body;
+
       return { statusCode: status.sent, message: ApiExceptionFilter.publicMessage(body, status.sent) };
     } catch {
       return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
@@ -170,18 +177,19 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // enumerable would not have been sent at all.
   private static publicMessage(body: unknown, status: number): string | string[] {
     if (typeof body === 'string') return body;
-    if (ApiExceptionFilter.rewritesItself(body)) return HttpStatus[status] || 'Error';
 
     const message = ApiExceptionFilter.serializable(body, 'message');
     if (typeof message === 'string') return message;
-    if (Array.isArray(message) && message.every((entry) => typeof entry === 'string')) return message;
+
+    // `Array.from` gives a hole the `undefined` that `every` would have skipped, and that a hole is
+    // sent as `null` rather than as nothing at all.
+    if (Array.isArray(message) && Array.from(message).every((entry) => typeof entry === 'string')) return message;
 
     return HttpStatus[status] || 'Error';
   }
 
   // A body that answers `toJSON` is serialized from what that returns, not from what it holds, so
-  // what it holds says nothing about what would be sent - neither for judging it nor for taking a
-  // message out of it.
+  // what it holds says nothing about what it sends - which is why it is passed on rather than read.
   private static rewritesItself(body: unknown): boolean {
     return typeof body === 'object' && body !== null && typeof (body as { toJSON?: unknown }).toJSON === 'function';
   }
@@ -190,23 +198,22 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // nothing: its own property, enumerable, and a value rather than something asked again.
   private static serializable(body: unknown, name: string): unknown {
     if (typeof body !== 'object' || body === null) return undefined;
+    // An array is sent as its elements; a name put on one alongside them is not sent at all.
+    if (Array.isArray(body)) return undefined;
 
     const declared = Object.getOwnPropertyDescriptor(body, name);
+    if (!declared?.enumerable || !('value' in declared)) return undefined;
 
-    return declared?.enumerable && 'value' in declared ? declared.value : undefined;
+    // A function and a symbol are left out as well.
+    return typeof declared.value === 'function' || typeof declared.value === 'symbol' ? undefined : declared.value;
   }
 
   // A body that carries no status of its own contradicts nothing, and neither does one whose status
-  // would never reach the wire. One that answers with an accessor answers again when the response
-  // is serialized, and can answer differently then, so it does not count as agreeing.
+  // would never reach the wire.
   private static names(body: unknown, status: number): boolean {
-    if (typeof body !== 'object' || body === null) return true;
-    if (ApiExceptionFilter.rewritesItself(body)) return false;
+    const declared = ApiExceptionFilter.serializable(body, 'statusCode');
 
-    const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
-    if (declared?.enumerable && !('value' in declared)) return false;
-
-    return ApiExceptionFilter.serializable(body, 'statusCode') === undefined || declared?.value === status;
+    return declared === undefined || declared === status;
   }
 
   // Human-readable rejection reason. For HttpExceptions the useful text is in the

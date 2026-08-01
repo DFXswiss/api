@@ -237,14 +237,14 @@ describe('ApiExceptionFilter', () => {
   });
 
   it('describes the response it is sending, not the one the exception named', () => {
-    // The status was replaced, so the body the exception carries no longer says what is being sent.
-    const mismatched = new BadRequestException('x');
-    jest.spyOn(mismatched, 'getStatus').mockReturnValue(600);
+    // The status was replaced, so the body belongs to a status that is not being sent and is not
+    // read at all - not even for its message, which was written for that other status.
+    const mismatched = new HttpException({ statusCode: 418, message: 'INTERNAL_SECRET' }, 600);
 
     filter.catch(mismatched, host(req(), { status }));
 
     expect(status).toHaveBeenCalledWith(500);
-    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
   it('names the status when a plain error says nothing about itself', () => {
@@ -274,17 +274,16 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
-  it('takes nothing out of a body that serializes itself', () => {
-    // What such a body holds says nothing about what would be sent, so neither its status nor its
-    // message can be read off it - and what it would have sent is not ours to guess at.
+  it('passes on a body that serializes itself, as it would have been without any of this', () => {
+    // What such a body holds says nothing about what it sends, so there is nothing to judge and
+    // nothing to take out of it.
     const rewriting = new HttpException({ statusCode: 418, message: 'INTERNAL_SECRET' }, 400);
-    Object.defineProperty(rewriting.getResponse(), 'toJSON', {
-      value: () => ({ statusCode: 400, message: 'public' }),
-    });
+    const body = rewriting.getResponse();
+    Object.defineProperty(body, 'toJSON', { value: () => ({ statusCode: 400, message: 'public' }) });
 
     filter.catch(rewriting, host(req(), { status }));
 
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+    expect(json).toHaveBeenCalledWith(body);
   });
 
   it('takes no message the body would not have sent itself', () => {
@@ -332,16 +331,18 @@ describe('ApiExceptionFilter', () => {
 
     expect(getStatus).toHaveBeenCalledTimes(1);
     expect(status).toHaveBeenCalledWith(500);
-    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
-  it('rejects a status the body only answers with when asked', () => {
+  it('does not judge a body by a status it only answers with when asked', () => {
+    // An accessor is read again when the response is serialized and can answer differently then, so
+    // it names nothing here - and the body goes on unchanged, as it would have without any of this.
     const accessor = new BadRequestException('x');
-    Object.defineProperty(accessor.getResponse(), 'statusCode', { get: () => 400 });
+    Object.defineProperty(accessor.getResponse(), 'statusCode', { get: () => 418 });
 
     filter.catch(accessor, host(req(), { status }));
 
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'x' });
+    expect(json).toHaveBeenCalledWith(accessor.getResponse());
   });
 
   it('keeps a failure to report a failed send away from the caller as well', () => {
@@ -376,6 +377,38 @@ describe('ApiExceptionFilter', () => {
     filter.catch(new BadRequestException('amount must be a positive number'), host(req(), { status }));
 
     expect(warn.mock.calls[0][0]).toContain('amount must be a positive number');
+  });
+
+  it('keeps a name put on an array body out of the status it is judged by', () => {
+    // An array is sent as its elements; a name alongside them is not sent at all, so it names no
+    // status to contradict the one being sent.
+    const listed = new HttpException(['a', 'b'], 400);
+    (listed.getResponse() as unknown as { statusCode: number }).statusCode = 418;
+
+    filter.catch(listed, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith(listed.getResponse());
+  });
+
+  it('takes no message out of a sparse array, which is sent with holes rather than without them', () => {
+    const sparse: string[] = ['a'];
+    sparse[2] = 'c';
+    const holed = new HttpException({ statusCode: 418, message: sparse }, 400);
+
+    filter.catch(holed, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+  });
+
+  it('sends the response even when asking what the exception is throws', () => {
+    const hostile = new Proxy(new BadRequestException('x'), {
+      getPrototypeOf: () => {
+        throw new Error('nope');
+      },
+    });
+
+    expect(() => filter.catch(hostile, host(req(), { status }))).not.toThrow();
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
   });
 
   it('sends a server error when the status cannot be read or is not one Express sends', () => {
