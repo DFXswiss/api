@@ -29,6 +29,7 @@ Every PR must include:
 2. **Environment/Infrastructure updates** (config, environment variables)
 3. **Service updates** (if DTOs/interfaces changed)
 4. **Frontend synchronization** (if API contracts changed)
+5. **Cron job inventory** (if a `@DfxCron` job was added, removed or re-scheduled) — [docs/cron-jobs.md](docs/cron-jobs.md)
 
 Missing any of these = changes requested.
 
@@ -529,6 +530,12 @@ async processPayments(): Promise<void> {
   // ...
 }
 ```
+
+Declare a `process` flag unless the job maintains the disabled set itself. Without one the job
+runs unconditionally and cannot be switched off without a deploy.
+
+[docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval and flag.
+**Adding, removing or re-scheduling a job must be reflected there in the same PR.**
 
 Prefer longer intervals (15min) over aggressive polling (1min). Only use short intervals when truly needed.
 
