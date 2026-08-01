@@ -791,6 +791,7 @@ export class BuyCryptoPreparationService {
       try {
         const chargebackAllowedDate = new Date();
         const chargebackAllowedBy = 'API';
+        const chargebackAllowedDateUser = entity.chargebackAllowedDateUser;
 
         if (entity.bankTx) {
           if (
@@ -798,11 +799,23 @@ export class BuyCryptoPreparationService {
             Util.includesSameName(entity.userData.completeName, entity.creditorData.name) ||
             (!entity.userData.verifiedName && !entity.userData.completeName)
           )
-            await this.buyCryptoService.refundBankTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
+            await this.buyCryptoService.refundBankTx(entity, {
+              chargebackAllowedDate,
+              chargebackAllowedDateUser,
+              chargebackAllowedBy,
+            });
         } else if (entity.cryptoInput) {
-          await this.buyCryptoService.refundCryptoInput(entity, { chargebackAllowedDate, chargebackAllowedBy });
+          await this.buyCryptoService.refundCryptoInput(entity, {
+            chargebackAllowedDate,
+            chargebackAllowedDateUser,
+            chargebackAllowedBy,
+          });
         } else {
-          await this.buyCryptoService.refundCheckoutTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
+          await this.buyCryptoService.refundCheckoutTx(entity, {
+            chargebackAllowedDate,
+            chargebackAllowedDateUser,
+            chargebackAllowedBy,
+          });
         }
       } catch (e) {
         this.logger.error(`Failed to chargeback buy-crypto ${entity.id}:`, e);
