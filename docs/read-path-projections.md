@@ -117,20 +117,28 @@ can be missing. Each becomes subject to these tests the moment it is converted.
 Four levels. All of them need a real Postgres instance; a mocked repository returns whatever the
 mock defines and cannot see which columns were requested, so it cannot test any of this.
 
-The repository already has the mechanism for this. Fourteen migration specs use it:
+**The repository already has this mechanism — it does not need to be built.** Fourteen migration
+specs gate on it:
 
 ```typescript
 const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
 ```
 
-The variable is set in the pull-request workflow, so a Postgres service is already running in CI,
-and the suite still passes locally without one — those blocks are skipped. The projection tests
-should use the same mechanism rather than introducing a second one.
+`.github/workflows/api-pr.yaml` runs a throwaway Postgres 16 as a service and sets that variable,
+in **all three test shards** — Jest distributes the suites across shards, so every shard needs its
+own instance. Without the variable the blocks are skipped, which is why the suite still passes on a
+machine with no database.
 
-What is missing is only the schema and the data: the schema comes from the entity metadata
-(`synchronize`), not from replayed migrations — the reference for a projection is the entity
-definition — and the fixtures are generated from the same metadata.
+The projection tests should use the same mechanism rather than introduce a second one.
+
+Two things are missing, and only two:
+
+- **The schema.** The migration specs each create their own Postgres schema (`const SCHEMA = '…'`)
+  so that parallel specs cannot collide. The projection tests need the same isolation, but their
+  schema comes from the entity metadata via `synchronize` rather than from replayed migrations —
+  the reference for a projection is the entity definition, not the migration history.
+- **The fixtures**, generated from the same metadata.
 
 ### 1. Completeness
 
