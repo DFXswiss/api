@@ -155,7 +155,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // this, and so is one that agrees with the status being sent. Anything else is replaced whole:
       // a body that cannot be passed on cannot be read either, because what it holds is not what it
       // would have sent, and the name of the status is the one thing that is certain here.
-      if (ApiExceptionFilter.rewritesItself(body) || ApiExceptionFilter.names(body, status.sent)) return body;
+      if (ApiExceptionFilter.rewritesItself(body) || ApiExceptionFilter.agreesWith(body, status.sent)) return body;
 
       return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
     } catch {
@@ -197,7 +197,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // `undefined`, a function, a symbol, a name put on an array alongside its elements. An accessor is the other way round - it
   // is serialized, so it does carry one, and it answers again when it is, so what it would carry
   // cannot be read here. That is not agreement.
-  private static names(body: unknown, status: number): boolean {
+  private static agreesWith(body: unknown, status: number): boolean {
     if (typeof body !== 'object' || body === null || Array.isArray(body)) return true;
 
     const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
