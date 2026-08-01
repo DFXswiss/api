@@ -30,8 +30,8 @@ This service loads far more data than it returns. Measured against the real enti
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
   `transaction_request`) broke every invoice and receipt in production until it was fixed.
-- Of the 534 endpoints, **407 reach at least one load site that fetches whole rows**; 98 read
-  nothing at all, and **27 read only the fields they return**. The widest query a fetching endpoint
+- Of the 534 endpoints, **398 reach at least one load site that fetches whole rows**; 98 read
+  nothing at all, and **36 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
@@ -47,15 +47,15 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,105 load sites in this repository, **104** name the columns they need:
-99 query builders and the five raw statements. The other 1,001 request whole rows — 961 through the
-`find` family, and of the 139 query builders, 17 pass the root alias to `.select(...)`, which reads
-like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
-business logic and pure output paths such as invoices, receipts, history and exports — which need
-fields, not objects.
+**No read model.** Of the 1,105 load sites in this repository, **110** name the columns they need:
+105 query builders and the five raw statements. The other 995 request whole rows — 957 through the
+`find` family, and of the 143 query builders, 17 pass the root alias to `.select(...)`, which reads
+like a projection but is not, 20 pass no select at all, and one projects its root but pulls a
+relation in whole. The same entities serve persistence, business logic and pure output paths such
+as invoices, receipts, history and exports — which need fields, not objects.
 
-Read the first number carefully, because an earlier revision of this document got it wrong. The 96
-query builders that do name columns are almost entirely counts, maxima and id lookups —
+Read the first number carefully, because an earlier revision of this document got it wrong. The 87
+query builders that name columns one at a time are almost entirely counts, maxima and id lookups —
 `.select('userData.id', 'id')`, `.select('COUNT(*)', 'count')` and the like — and they select **one
 column at the median**. They are projections, and they were miscounted as full loads because the
 classification recognised only the array form `.select([...])` and read every string argument as the
@@ -64,6 +64,20 @@ anything else — a column or an expression — narrows the query. Correcting it
 of the `whole rows` group. What it does not do is change the picture: a
 `COUNT(*)` that was always narrow is not a read path that was converted, and the response payloads —
 history, profile, invoices, exports — are still served by `find`.
+
+Two further shapes were counted as full loads for the same kind of reason, and both are decided by
+something the select list does not show:
+
+- **The terminal call can discard the select list.** `getCount()` and `getExists()` replace it with
+  `COUNT(…)` and `SELECT 1`, so a chain ending in either materialises no row whatever precedes it.
+  Three load sites do this, and `GET /support/kycFileStats` was listed as fetching 99 columns
+  because of one of them.
+- **The select argument can be a variable.** `.select(bucketExpr, 'bucket')` names an expression as
+  surely as a literal does; whether it narrows depends on what the variable holds, which has to be
+  resolved in the enclosing method. Four load sites do this — three of them in the two
+  caller-defined `/gs/db` endpoints, the fourth an aggregate that was reported as a full load.
+
+Neither changes the picture either, and both are now part of the classification.
 
 ## Vocabulary
 
@@ -128,30 +142,45 @@ The first four are pre-filters; the fifth decides.
 The pre-filters above are stated as criteria; this is what they select when applied to the
 inventory. Every step is mechanical except the last two, which were read in the source.
 
-| | endpoints |
-| --- | ---: |
-| fetch whole rows | 417 |
-| … every load site they reach can be narrowed at all | 77 |
-| … no write to the loaded entity anywhere in the call chain | 44 |
-| … the response is not an entity, a stream, or `void` | 30 |
-| … and no DTO field passes an entity through | **28** |
+| | before | now |
+| --- | ---: | ---: |
+| fetch whole rows | 415 | 398 |
+| … every load site they reach can be narrowed at all | 37 | 29 |
+| … no write to the loaded entity, and the response is a structured value | 16 | 8 |
+| … and no DTO field passes an entity through | **9** | **1** |
 
-The step from 417 to 77 is the one that decides the size of this work, and it has a single cause:
-at 343 of the 555 load sites involved, **the loaded entity leaves the loading method**.
+The step that decides the size of this work is the first one, and it has a single cause: at 321 of
+the 484 load sites involved, **the loaded entity leaves the loading method**.
 `UserDataService.getUserData` returns `Promise<UserData>` to 113 different endpoints. What fields
 are needed is decided by each caller, not at the load site, so a projection there would be guessed
 rather than derived — and the union over 113 callers is the whole entity anyway. Splitting those
 hubs into per-caller reads is a separate piece of work with a different shape. It is not assumed
 here, and the numbers above do not depend on whether it happens.
 
-The last step removes six endpoints whose DTO has a field typed as an entity — `currency: Fiat`,
+The last step removes seven endpoints whose DTO has a field typed as an entity — `currency: Fiat`,
 `targetAsset: Asset`. The response then contains every column of that entity, so a projection would
 have to list them all and would save nothing. Narrowing those means changing the contract, which is
 a different decision.
 
-Ten of the 28 are converted. The remaining 18 are the ones marked `not yet` with a `whole rows`
-access in [endpoints.md](endpoints.md); the widest is `GET /user` at 351 columns, and most of the
-rest are support and dashboard reads between 7 and 99.
+**One endpoint remains, and it is excluded by the second criterion rather than by the first four.**
+`POST /support/issue/:id/message` hands the message it creates — carrying the issue and the account
+behind it — to the notification service. What that code reads is not determinable at the load site,
+so a field list here would be guessed.
+
+The filters are deliberately conservative and reject endpoints that can in fact be converted: an
+endpoint fails the first step if *any* load site it reaches leaks, including one on a branch that
+has nothing to do with the response. Nine of the seventeen conversions recorded in
+[endpoints.md](endpoints.md) were found that way — by reading the endpoint after the filter had
+rejected it. The counts above are therefore a lower bound on what is possible, not a ceiling.
+
+Two of those seventeen are conversions the first criterion excluded as written. It rejects an
+endpoint that writes the entity it loaded, and the hazard it names is saving a partially loaded row
+back — the unselected columns are undefined on the entity and would be written as null.
+`PUT /paymentLink/:id/pos` and `POST /user/apiKey/CT` write through `update(id, …)`, which sends
+only the columns named in the call, so a projected read cannot blank anything. What the criterion
+does have to keep excluding is a value the write *derives* from what was read: the point-of-sale
+write merges into the existing configuration, so `config` is part of that projection and is
+asserted directly.
 
 ## The risk this must guard against
 
@@ -187,11 +216,11 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-A hundred and four sites carry a field list. The table below covers the six that were known when this
+A hundred and ten sites carry a field list. The table below covers the six that were known when this
 document was written — one query builder and five raw statements — and none of them was converted,
 so it is unchanged. Another 87 are the query builders that name columns one at a time; they are
 not covered by these levels either, which is what their endpoints' `0/4` in
-[endpoints.md](endpoints.md) records. The remaining 11 belong to the endpoints converted so far and
+[endpoints.md](endpoints.md) records. The remaining 17 belong to the endpoints converted so far and
 are covered on all four. Sites a conversion adds are recorded there too, where only
 `4/4` counts as done.
 

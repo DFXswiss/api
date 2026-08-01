@@ -6,28 +6,47 @@ import {
   BUY_CRYPTO_ROUTE_HISTORY_PROJECTION,
 } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { CUSTODY_ORDER_HISTORY_PROJECTION } from 'src/subdomains/core/custody/repositories/custody-order.repository';
+import { PIPELINE_STATUS_PROJECTION } from 'src/subdomains/core/liquidity-management/repositories/liquidity-management-pipeline.repository';
+import { POS_LINK_PROJECTION } from 'src/subdomains/core/payment-link/repositories/payment-link.repository';
+import { SUSPENSE_LEG_PROJECTION } from 'src/subdomains/core/accounting/repositories/ledger-leg.repository';
 import { BUY_FIAT_HISTORY_PROJECTION } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
-import { USER_PROFILE_PROJECTION } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import {
+  API_KEY_PROJECTION,
+  USER_PROFILE_PROJECTION,
+  USER_V2_PROJECTION,
+} from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { USER_KYC_FILES_PROJECTION } from 'src/subdomains/generic/user/models/user/user.repository';
 import { WALLET_KYC_DATA_PROJECTION } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import {
   SUPPORT_ISSUE_DATA_PROJECTION,
+  SUPPORT_ISSUE_LIST_PROJECTION,
   SUPPORT_ISSUE_PROJECTION,
 } from 'src/subdomains/supporting/support-issue/repositories/support-issue.repository';
 import { SelectQueryBuilder } from 'typeorm';
 
-/** Every endpoint whose `Max cols` in the inventory is the size of a projection. */
-const DOCUMENTED: [string, string, ReadProjection<unknown>][] = [
-  ['GET', '/user/profile', USER_PROFILE_PROJECTION],
-  ['GET', '/buy/:id/history', BUY_CRYPTO_BUY_HISTORY_PROJECTION],
-  ['GET', '/swap/:id/history', BUY_CRYPTO_ROUTE_HISTORY_PROJECTION],
-  ['GET', '/sell/:id/history', BUY_FIAT_HISTORY_PROJECTION],
-  ['GET', '/support/issue/:id/data', SUPPORT_ISSUE_DATA_PROJECTION],
-  ['GET', '/support/issue', SUPPORT_ISSUE_PROJECTION],
-  ['GET', '/support/issue/:id', SUPPORT_ISSUE_PROJECTION],
-  ['GET', '/kyc/users', WALLET_KYC_DATA_PROJECTION],
-  ['GET', '/kyc/:id/documents', USER_KYC_FILES_PROJECTION],
-  ['GET', '/custody/order', CUSTODY_ORDER_HISTORY_PROJECTION],
+/**
+ * Every endpoint whose `Max cols` in the inventory is the size of a projection.
+ *
+ * The version is part of the key: `/user` exists twice, and only the v2 handler is projected.
+ */
+const DOCUMENTED: [string, string, string, ReadProjection<unknown>][] = [
+  ['GET', '2', '/user/profile', USER_PROFILE_PROJECTION],
+  ['GET', '2', '/user', USER_V2_PROJECTION],
+  ['POST', '1', '/user/apiKey/CT', API_KEY_PROJECTION],
+  ['GET', '1', '/buy/:id/history', BUY_CRYPTO_BUY_HISTORY_PROJECTION],
+  ['GET', '1', '/swap/:id/history', BUY_CRYPTO_ROUTE_HISTORY_PROJECTION],
+  ['GET', '1', '/sell/:id/history', BUY_FIAT_HISTORY_PROJECTION],
+  ['GET', '1', '/support/issue/:id/data', SUPPORT_ISSUE_DATA_PROJECTION],
+  ['GET', '1', '/support/issue', SUPPORT_ISSUE_PROJECTION],
+  ['GET', '1', '/support/issue/:id', SUPPORT_ISSUE_PROJECTION],
+  ['GET', '1', '/support/issue/list', SUPPORT_ISSUE_LIST_PROJECTION],
+  ['GET', '1', '/realunit/support/list', SUPPORT_ISSUE_LIST_PROJECTION],
+  ['GET', '1', '/kyc/users', WALLET_KYC_DATA_PROJECTION],
+  ['GET', '1', '/kyc/:id/documents', USER_KYC_FILES_PROJECTION],
+  ['GET', '1', '/custody/order', CUSTODY_ORDER_HISTORY_PROJECTION],
+  ['GET', '1', '/dashboard/accounting/ledger/suspense', SUSPENSE_LEG_PROJECTION],
+  ['GET', '1', '/liquidityManagement/pipeline/:id/status', PIPELINE_STATUS_PROJECTION],
+  ['PUT', '1', '/paymentLink/:id/pos', POS_LINK_PROJECTION],
 ];
 
 describe('ReadProjection', () => {
@@ -76,8 +95,11 @@ describe('ReadProjection', () => {
     // the document and compares.
     const inventory = readFileSync(join(__dirname, '../../../../docs/endpoints.md'), 'utf8').split('\n');
 
-    it.each(DOCUMENTED)('%s %s matches the projection', (verb, path, projection) => {
-      const row = inventory.find((line) => line.startsWith(`| ${verb} |`) && line.includes(`\`${path}\` |`));
+    it.each(DOCUMENTED)('%s v%s %s matches the projection', (verb, version, path, projection) => {
+      const row = inventory.find((line) => {
+        const cells = line.split('|').map((cell) => cell.trim());
+        return cells[1] === verb && cells[2] === version && cells[4] === `\`${path}\``;
+      });
       expect(row).toBeDefined();
 
       const cells = row.split('|').map((cell) => cell.trim());
