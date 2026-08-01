@@ -236,8 +236,13 @@ describe('maskLogValue', () => {
 
   it('reports an oversized value by length instead of masking it', () => {
     // The caller's cap alone would still pay for masking the whole string first.
-    expect(maskLogValue('x'.repeat(513), 96)).toBe('<513 chars>');
+    expect(maskLogValue('x'.repeat(513), 96)).toBe('<513 code units>');
     expect(maskLogValue('x'.repeat(512), 96)).toContain('\u2026');
+  });
+
+  it('names the unit of the reported length, which counts code units and not characters', () => {
+    // 257 astral characters are 514 code units: the value the guard compares and the one reported.
+    expect(maskLogValue('\u{1F600}'.repeat(257), 96)).toBe('<514 code units>');
   });
 
   it('masks before cutting, so a truncated email cannot slip through', () => {

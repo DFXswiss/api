@@ -50,9 +50,12 @@ const LINE_BREAKING = /[\p{C}\u2028\u2029]/gu;
  *
  * Beyond `MAX_STRING` the value is reported by length instead: masking is regex work over the
  * whole string, and the caller's cap alone would not stop an oversized one from paying for it.
+ * That length is in UTF-16 code units, the measure `MAX_STRING` is compared against and the one
+ * `String.length` gives for free - counting characters would mean walking the oversized string
+ * this branch exists to avoid, so the unit is named rather than converted.
  */
 export function maskLogValue(value: string, maxLength: number): string {
-  if (value.length > MAX_STRING) return `<${value.length} chars>`;
+  if (value.length > MAX_STRING) return `<${value.length} code units>`;
 
   const masked = maskValue(value.replace(LINE_BREAKING, ' '));
 

@@ -34,7 +34,7 @@ export class ValidationFailedException extends BadRequestException {
  * only re-wrapped, so status, message array and body shape are byte-identical to the stock pipe.
  */
 export class DetailedValidationPipe extends ValidationPipe {
-  createExceptionFactory() {
+  createExceptionFactory(): (errors?: ValidationError[]) => unknown {
     const createException = super.createExceptionFactory();
 
     return (errors: ValidationError[] = []) => {
