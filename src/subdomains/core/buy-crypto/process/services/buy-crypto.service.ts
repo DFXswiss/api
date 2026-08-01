@@ -668,8 +668,7 @@ export class BuyCryptoService implements OnModuleInit {
             isComplete: false,
             batch: IsNull(),
             chargebackAllowedDate: IsNull(),
-            chargebackAllowedDateUser:
-              dto.chargebackAllowedDateUser == null ? IsNull() : dto.chargebackAllowedDateUser,
+            chargebackAllowedDateUser: dto.chargebackAllowedDateUser == null ? IsNull() : dto.chargebackAllowedDateUser,
           },
           {
             chargebackAllowedDate: dto.chargebackAllowedDate,

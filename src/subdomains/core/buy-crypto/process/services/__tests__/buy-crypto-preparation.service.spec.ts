@@ -657,11 +657,11 @@ describe('BuyCryptoPreparationService', () => {
     });
 
     it.each([
-      { source: 'Checkout', relation: { checkoutTx: { id: 88 } }, method: 'refundCheckoutTx' },
-      { source: 'CryptoInput', relation: { cryptoInput: { id: 89 } }, method: 'refundCryptoInput' },
+      { source: 'Checkout', relation: { checkoutTx: { id: 88 } as any }, method: 'refundCheckoutTx' },
+      { source: 'CryptoInput', relation: { cryptoInput: { id: 89 } as any }, method: 'refundCryptoInput' },
       {
         source: 'BankTx',
-        relation: { bankTx: { id: 90 } },
+        relation: { bankTx: { id: 90 } as any },
         method: 'refundBankTx',
         refundData: {
           chargebackIban: 'CH9300762011623852957',

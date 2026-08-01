@@ -356,7 +356,7 @@ describe('BuyCryptoService', () => {
         checkoutTx: Object.assign(new CheckoutTx(), { id: 22, paymentId: 'pay-22' }),
       });
       jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
-      checkoutService.refundPayment.mockResolvedValue({
+      const refundPaymentSpy = jest.spyOn(checkoutService, 'refundPayment').mockResolvedValue({
         action_id: 'action-22',
         reference: 'refund-22',
         _links: { payment: { href: 'https://example.test/payment/pay-22' } },
@@ -373,7 +373,7 @@ describe('BuyCryptoService', () => {
           ),
         },
       });
-      buyCryptoRepo.update.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
       await service.refundCheckoutTx(buyCrypto, { chargebackAllowedDate: new Date(), chargebackAllowedDateUser });
 
@@ -391,9 +391,9 @@ describe('BuyCryptoService', () => {
         status: CheckoutPaymentStatus.REFUND_PENDING,
       });
       expect(manager.update.mock.invocationCallOrder[1]).toBeLessThan(
-        checkoutService.refundPayment.mock.invocationCallOrder[0],
+        refundPaymentSpy.mock.invocationCallOrder[0],
       );
-      expect(checkoutService.refundPayment).toHaveBeenCalledWith('pay-22', 'buy-crypto-7-checkout-refund');
+      expect(refundPaymentSpy).toHaveBeenCalledWith('pay-22', 'buy-crypto-7-checkout-refund');
     });
 
     it('can safely resume a persisted checkout refund claim with the same idempotency key', async () => {
@@ -405,16 +405,16 @@ describe('BuyCryptoService', () => {
         isComplete: false,
         checkoutTx: Object.assign(new CheckoutTx(), { id: 23, paymentId: 'pay-23' }),
       });
-      checkoutService.refundPayment.mockResolvedValue({
+      const refundPaymentSpy = jest.spyOn(checkoutService, 'refundPayment').mockResolvedValue({
         action_id: 'action-23',
         reference: 'refund-23',
         _links: { payment: { href: 'https://example.test/payment/pay-23' } },
       });
-      buyCryptoRepo.update.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
       await service.resumeCheckoutRefund(buyCrypto);
 
-      expect(checkoutService.refundPayment).toHaveBeenCalledWith('pay-23', 'buy-crypto-8-checkout-refund');
+      expect(refundPaymentSpy).toHaveBeenCalledWith('pay-23', 'buy-crypto-8-checkout-refund');
       expect(buyCryptoRepo.update).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 8,
@@ -439,8 +439,8 @@ describe('BuyCryptoService', () => {
         isComplete: false,
       });
       const refundUser = { address: '0x0000000000000000000000000000000000000001' } as any;
-      userService.getUserByAddress.mockResolvedValue(refundUser);
-      transactionHelper.getBlockchainFee.mockResolvedValue(0.01);
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser);
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
       jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
       const manager = {
         findOne: jest
