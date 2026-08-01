@@ -86,6 +86,20 @@ describeProjection('guardProjection', () => {
     expect(() => row.language.symbol).toThrow("read of 'Language.symbol'");
   }, 120000);
 
+  it('throws on a relation it joins but selects nothing from', async () => {
+    const language = await seedEntity<Language>(dataSource, Language);
+    const seeded = await seedEntity<UserData>(dataSource, UserData, { values: { language } });
+
+    // `FIELDS` names no `language.*`, so the join exists for filtering alone. The relation is then
+    // undefined on the row for every account, and code checking it takes the absent branch — which
+    // reads exactly like an account that genuinely has no language.
+    const row = await load(FIELDS, seeded.id);
+
+    expect(() => row.language).toThrow(
+      "read of 'UserData.language', a relation this query joins but selects nothing from",
+    );
+  }, 120000);
+
   it('throws on a @RelationId, which no field list can select', async () => {
     // The property is filled from the foreign-key column of the row, which a query naming its
     // fields does not carry — the defect this suite exists to catch, in the one shape where the

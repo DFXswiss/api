@@ -450,7 +450,19 @@ function guardAgainst(
         const value = Reflect.get(source, property, receiver);
 
         const child = at.children.get(name);
-        if (child) return wrap(value, child);
+        if (child) {
+          // A relation joined for filtering only: with nothing of it selected the ORM never
+          // materialises it, so the value is undefined whatever the row holds. That is not a row
+          // without a relation — it is a question the query cannot answer, and reading it takes the
+          // absent-relation branch silently.
+          if (!child.asked.size && value == null && !written.has(name))
+            throw new Error(
+              `read of '${at.metadata.name}.${name}', a relation this query joins but selects nothing from — ` +
+                `select at least its primary key, or stop reading it`,
+            );
+
+          return wrap(value, child);
+        }
 
         // A relation the projection does not declare is not guarded: it is `undefined`, and
         // dereferencing it already throws. That includes the owner-side join column, which TypeORM
