@@ -10,7 +10,6 @@ import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycStatus, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { FileSubType } from '../dto/kyc-file.dto';
-import { KycLog } from '../entities/kyc-log.entity';
 import { KycStep } from '../entities/kyc-step.entity';
 import { NameCheckLog, NameCheckRiskStatus } from '../entities/name-check-log.entity';
 import { StepLog } from '../entities/step-log.entity';
@@ -20,6 +19,7 @@ import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { DfxApprovalCheckService } from './dfx-approval-check.service';
 import { DfxApprovalDocumentService } from './dfx-approval-document.service';
+import { KycLogService } from './kyc-log.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { NameCheckService } from './name-check.service';
 
@@ -48,6 +48,7 @@ export class DfxApprovalWorkflowService {
     private readonly nameCheckService: NameCheckService,
     private readonly notificationService: KycNotificationService,
     private readonly settingService: SettingService,
+    private readonly logService: KycLogService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.KYC_DFX_APPROVAL, timeout: 900 })
@@ -70,7 +71,7 @@ export class DfxApprovalWorkflowService {
 
     for (const step of steps) {
       try {
-        await this.withStepLock(step.id, () => this.processPersonalApproval(step.id, exclusions));
+        await this.withStepLock(step.id, () => this.processPersonalApproval(step.id));
       } catch (error) {
         this.logger.error(`DfxApproval workflow failed for step ${step.id}:`, error);
       }
@@ -84,7 +85,7 @@ export class DfxApprovalWorkflowService {
     return (await this.settingService.getObjCached<number[]>(DOCUMENT_EXCLUSION_SETTING_KEY, [])) ?? [];
   }
 
-  private async processPersonalApproval(stepId: number, exclusions: number[]): Promise<void> {
+  private async processPersonalApproval(stepId: number): Promise<void> {
     let step = await this.loadStep(stepId);
     if (step.status !== ReviewStatus.MANUAL_REVIEW || step.userData.kycLevel < KycLevel.LEVEL_40) return;
 
@@ -92,7 +93,7 @@ export class DfxApprovalWorkflowService {
     await this.initializePersonalRiskData(step.userData, hasOpenNameChecks);
 
     step = await this.loadStep(stepId);
-    const requestedDocuments = this.eligiblePersonalDocuments(step.userData, exclusions);
+    const requestedDocuments = this.eligiblePersonalDocuments(step.userData);
     await this.documentService.generateMissingPersonalDocuments(
       step.userData,
       step,
@@ -123,19 +124,16 @@ export class DfxApprovalWorkflowService {
       ) as Partial<UserData>;
       if (!Object.keys(effectiveUpdate).length) return;
 
-      await manager.save(
-        manager.create(KycLog, {
-          type: KycLogType.KYC,
-          userData: { id: current.id },
-          result: JSON.stringify({
-            workflow: 'DfxApproval',
-            action: 'InitializePersonalRiskData',
-            before: Object.fromEntries(
-              Object.keys(effectiveUpdate).map((key) => [key, current[key as keyof UserData]]),
-            ),
-            after: effectiveUpdate,
-          }),
+      await this.logService.createLogInternal(
+        current,
+        KycLogType.KYC,
+        JSON.stringify({
+          workflow: 'DfxApproval',
+          action: 'InitializePersonalRiskData',
+          before: Object.fromEntries(Object.keys(effectiveUpdate).map((key) => [key, current[key as keyof UserData]])),
+          after: effectiveUpdate,
         }),
+        manager,
       );
       await manager.update(UserData, current.id, effectiveUpdate);
     });
@@ -155,7 +153,10 @@ export class DfxApprovalWorkflowService {
 
     for (const userData of users) {
       try {
-        await this.initializePersonalRiskData(userData, false);
+        // A new sanctioned hit does not refresh `lastNameCheckDate` (that only happens on a clean
+        // result), so a still-valid date is no proof that no check is open. Ask for it.
+        const hasOpenNameChecks = await this.nameCheckService.hasOpenNameChecks(userData);
+        await this.initializePersonalRiskData(userData, hasOpenNameChecks);
       } catch (error) {
         this.logger.error(`DfxApproval risk initialization failed for userData ${userData.id}:`, error);
       }
@@ -278,7 +279,10 @@ export class DfxApprovalWorkflowService {
       .sort((a, b) => b.created.getTime() - a.created.getTime())[0];
   }
 
-  private eligiblePersonalDocuments(userData: UserData, exclusions: number[]): FileSubType[] {
+  // Step-bound documents only. RiskProfile and FormA belong to the account and are generated under
+  // the user-data lock in `generatePendingRiskAndFormADocuments`; generating them from here as well
+  // would let two instances write the same document under two different lock keys.
+  private eligiblePersonalDocuments(userData: UserData): FileSubType[] {
     const documents = this.eligibleApprovalStepDocuments(userData);
     const isPreApprovalPersonal =
       userData.accountType === AccountType.PERSONAL &&
@@ -289,7 +293,7 @@ export class DfxApprovalWorkflowService {
     );
     if (isPreApprovalPersonal && userData.verifiedName && hasFinancialData)
       documents.push(FileSubType.CUSTOMER_PROFILE);
-    documents.push(...this.eligibleRiskAndFormADocuments(userData, exclusions));
+
     return [...new Set(documents)];
   }
 
@@ -359,27 +363,38 @@ export class DfxApprovalWorkflowService {
       });
       const finalKycLevel = Math.max(userData.kycLevel, KycLevel.LEVEL_50);
 
-      await manager.save(
-        manager.create(KycLog, {
-          type: KycLogType.KYC,
-          userData: { id: userData.id },
-          result: JSON.stringify({
-            workflow: 'DfxApproval',
-            action: 'AutomaticApproval',
-            before: { stepStatus: step.status, kycLevel: userData.kycLevel, kycStatus: userData.kycStatus },
-            after: {
-              stepStatus: ReviewStatus.COMPLETED,
-              kycLevel: finalKycLevel,
-              kycStatus: KycStatus.COMPLETED,
-              complexOrgStructure: false,
-              highRisk: false,
-              depositLimit: 100000,
-              amlAccountType: 'natural person',
-            },
-          }),
+      // Every column this transaction overwrites is recorded with its previous value first, so the
+      // prior state stays reconstructible from the database alone.
+      await this.logService.createLogInternal(
+        userData,
+        KycLogType.KYC,
+        JSON.stringify({
+          workflow: 'DfxApproval',
+          action: 'AutomaticApproval',
+          before: {
+            stepStatus: step.status,
+            kycLevel: userData.kycLevel,
+            kycStatus: userData.kycStatus,
+            complexOrgStructure: userData.complexOrgStructure,
+            highRisk: userData.highRisk,
+            depositLimit: userData.depositLimit,
+            amlAccountType: userData.amlAccountType,
+          },
+          after: {
+            stepStatus: ReviewStatus.COMPLETED,
+            kycLevel: finalKycLevel,
+            kycStatus: KycStatus.COMPLETED,
+            complexOrgStructure: false,
+            highRisk: false,
+            depositLimit: 100000,
+            amlAccountType: 'natural person',
+          },
         }),
+        manager,
       );
-      await manager.update(KycStep, step.id, { status: ReviewStatus.COMPLETED, result, comment: null });
+
+      const [stepId_, stepUpdate] = step.complete(result);
+      await manager.update(KycStep, stepId_, { ...stepUpdate, comment: null });
       await manager.save(
         manager.create(StepLog, {
           type: KycLogType.STEP,
@@ -398,14 +413,13 @@ export class DfxApprovalWorkflowService {
         amlAccountType: 'natural person',
       };
       await manager.update(UserData, userData.id, userStatusUpdate);
-      await manager.save(
-        manager.create(KycLog, {
-          type: KycLogType.KYC,
-          userData: { id: userData.id },
-          // Same wording as the manual approval path (KycService.createKycLevelLog), so existing
-          // log evaluations keep matching.
-          result: `KycLevel changed to ${finalKycLevel}`,
-        }),
+      // Same wording as the manual approval path (KycService.createKycLevelLog), so existing log
+      // evaluations keep matching.
+      await this.logService.createLogInternal(
+        userData,
+        KycLogType.KYC,
+        `KycLevel changed to ${finalKycLevel}`,
+        manager,
       );
 
       Object.assign(userData, userStatusUpdate);

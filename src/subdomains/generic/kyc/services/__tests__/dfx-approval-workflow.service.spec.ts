@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Config, ConfigService } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { KycLogService } from '../kyc-log.service';
 import { EntityManager } from 'typeorm';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
@@ -11,7 +12,7 @@ import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
 import { KycStepRepository } from '../../repositories/kyc-step.repository';
-import { DfxApprovalCheckService } from '../dfx-approval-check.service';
+import { DFX_APPROVAL_REQUIRED_DOCUMENTS, DfxApprovalCheckService } from '../dfx-approval-check.service';
 import { DfxApprovalDocumentService } from '../dfx-approval-document.service';
 import { DfxApprovalWorkflowService } from '../dfx-approval-workflow.service';
 import { KycNotificationService } from '../kyc-notification.service';
@@ -83,6 +84,7 @@ describe('DfxApprovalWorkflowService', () => {
       createMock<NameCheckService>(),
       notificationService,
       settingService,
+      createMock<KycLogService>(),
     );
     (stepRepo.manager.find as jest.Mock).mockResolvedValue([]);
   });
@@ -168,7 +170,7 @@ describe('DfxApprovalWorkflowService', () => {
     expect(notificationService.kycChanged).not.toHaveBeenCalled();
   });
 
-  it('selects all six generated documents only when their original Sheet predicates match', () => {
+  it('selects the step-bound documents when their original Sheet predicates match', () => {
     const step = pendingStep();
     const financialStep = Object.assign(new KycStep(), {
       id: 12,
@@ -186,21 +188,65 @@ describe('DfxApprovalWorkflowService', () => {
       kycSteps: [step, financialStep],
     });
 
-    expect((service as any).eligiblePersonalDocuments(step.userData, [])).toEqual(
-      expect.arrayContaining([
-        FileSubType.GWG_FILE_COVER,
-        FileSubType.IDENTIFICATION_FORM,
-        FileSubType.DFX_NAME_CHECK,
-        FileSubType.CUSTOMER_PROFILE,
-        FileSubType.RISK_PROFILE,
-        FileSubType.FORM_A,
-      ]),
-    );
-    expect((service as any).eligiblePersonalDocuments(step.userData, [])).toHaveLength(6);
+    expect((service as any).eligiblePersonalDocuments(step.userData)).toEqual([
+      FileSubType.GWG_FILE_COVER,
+      FileSubType.IDENTIFICATION_FORM,
+      FileSubType.DFX_NAME_CHECK,
+      FileSubType.CUSTOMER_PROFILE,
+    ]);
+  });
 
-    step.userData.highRisk = true;
-    expect((service as any).eligiblePersonalDocuments(step.userData, [])).not.toContain(FileSubType.RISK_PROFILE);
-    expect((service as any).eligiblePersonalDocuments(step.userData, [])).toContain(FileSubType.FORM_A);
+  it('leaves the account-bound documents to the user-data lock, so no two lock keys write the same file', () => {
+    const step = pendingStep();
+    Object.assign(step.userData, {
+      status: UserDataStatus.ACTIVE,
+      kycType: KycType.DFX,
+      verifiedName: 'Test User',
+      country: { fatfEnable: true },
+      highRisk: false,
+    });
+
+    const stepBound = (service as any).eligiblePersonalDocuments(step.userData);
+
+    expect(stepBound).not.toContain(FileSubType.FORM_A);
+    expect(stepBound).not.toContain(FileSubType.RISK_PROFILE);
+    expect((service as any).eligibleRiskAndFormADocuments(step.userData, [])).toEqual([
+      FileSubType.FORM_A,
+      FileSubType.RISK_PROFILE,
+    ]);
+  });
+
+  it('keeps RiskProfile generation and the approval gate on the same country condition', () => {
+    const userData = createCustomUserData({
+      id: 42,
+      accountType: AccountType.PERSONAL,
+      status: UserDataStatus.ACTIVE,
+      kycType: KycType.DFX,
+      kycLevel: KycLevel.LEVEL_40,
+      verifiedName: 'Test User',
+      highRisk: false,
+      country: { fatfEnable: false } as never,
+    });
+
+    // Outside a FATF-enabled country no RiskProfile is generated - exactly as in the productive
+    // Sheet. The gate still requires the document, so such a case stays with Compliance instead of
+    // being approved automatically. Both sides must be changed together.
+    expect((service as any).eligibleRiskAndFormADocuments(userData, [])).toEqual([FileSubType.FORM_A]);
+    expect(DFX_APPROVAL_REQUIRED_DOCUMENTS).toContain(FileSubType.RISK_PROFILE);
+  });
+
+  it('does not initialise risk data while a sanctioned name check is open', async () => {
+    const userData = createCustomUserData({ id: 42, highRisk: null, lastNameCheckDate: new Date() });
+    (stepRepo.manager.find as jest.Mock).mockResolvedValueOnce([userData]);
+    const nameCheckService = (service as any).nameCheckService as jest.Mocked<NameCheckService>;
+    nameCheckService.hasOpenNameChecks.mockResolvedValue(true);
+    const initialize = jest.spyOn(service as any, 'initializePersonalRiskData');
+
+    await (service as any).initializePendingPersonalRiskData();
+
+    expect(nameCheckService.hasOpenNameChecks).toHaveBeenCalledWith(userData);
+    expect(initialize).toHaveBeenCalledWith(userData, true);
+    expect(stepRepo.manager.transaction).not.toHaveBeenCalled();
   });
 
   it('applies the productive approval defaults atomically when completing a ready case', async () => {
@@ -234,6 +280,49 @@ describe('DfxApprovalWorkflowService', () => {
         depositLimit: 100000,
         amlAccountType: 'natural person',
       }),
+    );
+  });
+
+  it('records the previous value of every overwritten compliance column before the update', async () => {
+    const step = pendingStep();
+    Object.assign(step.userData, {
+      depositLimit: 250000,
+      amlAccountType: 'legacy',
+      highRisk: false,
+      complexOrgStructure: false,
+    });
+    const manager = stepRepo.manager as unknown as jest.Mocked<EntityManager>;
+    (manager.transaction as jest.Mock).mockImplementation((action) => action(manager));
+    (manager.createQueryBuilder as jest.Mock).mockReturnValue(queryBuilder(step));
+    (manager.findOne as jest.Mock).mockResolvedValue(step.userData);
+    (manager.exists as jest.Mock).mockResolvedValue(false);
+    checkService.evaluatePersonal.mockReturnValue({ ready: true, blockers: [] });
+    const logService = (service as any).logService as jest.Mocked<KycLogService>;
+
+    await (service as any).completeIfReady(step.id);
+
+    const approvalLog = logService.createLogInternal.mock.calls
+      .map((call) => call[2])
+      .map((result) => {
+        try {
+          return JSON.parse(result as string);
+        } catch {
+          return undefined;
+        }
+      })
+      .find((entry) => entry?.action === 'AutomaticApproval');
+
+    expect(approvalLog.before).toEqual(
+      expect.objectContaining({
+        depositLimit: 250000,
+        amlAccountType: 'legacy',
+        highRisk: false,
+        complexOrgStructure: false,
+      }),
+    );
+    // The audit entry is written before the columns change.
+    expect(logService.createLogInternal.mock.invocationCallOrder[0]).toBeLessThan(
+      (manager.update as jest.Mock).mock.invocationCallOrder[0],
     );
   });
 
