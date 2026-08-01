@@ -40,7 +40,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // The caller markers and the rejected values are what make a steady stream of rejections
       // actionable: the constraint message names the field and the allowed values, so without the
       // value that arrived and a hint at who sent it, a wrong constant in a client can only be
-      // guessed at. Both are untrusted input and rendered as such (masked, capped, single-line).
+      // guessed at. Both are untrusted input and rendered as such: single-line throughout, and
+      // masked and capped wherever what is rendered is a string.
       const reason = maskValue(this.getReason(exception)).slice(0, ApiExceptionFilter.REASON_MAX_LENGTH);
       const rejected =
         exception instanceof ValidationFailedException

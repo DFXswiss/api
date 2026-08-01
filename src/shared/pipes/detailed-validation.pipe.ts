@@ -56,9 +56,10 @@ export class DetailedValidationPipe extends ValidationPipe {
 /**
  * Renders what was rejected as `field=value` pairs for a log line. Every value here is untrusted
  * input: the content is only rendered for a field that declares its accepted values (see
- * {@link hasLiteralDomain}), and then masked by field name (credentials, personal data) and by
- * value pattern (wallet address, email, IP), stripped of control characters, and bounded in count,
- * depth and length. Every other field is reduced to its shape.
+ * {@link hasLiteralDomain}), a rendered string is then masked by field name (credentials, personal
+ * data) and by value pattern (wallet address, email, IP), stripped of control characters and cut
+ * to length, and a rendered number or boolean is bounded by being one. Every other field is
+ * reduced to its shape, and the list itself is bounded in count and depth.
  */
 export function describeRejectedValues(errors: ValidationError[]): string {
   const fields: string[] = [];
@@ -73,9 +74,9 @@ function collectRejectedValues(errors: ValidationError[], prefix: string, depth:
   for (const error of errors) {
     if (fields.length >= MAX_FIELDS) return false;
 
-    // The field name goes through the same rendering as the value: it is a property of the parsed
-    // body, and a DTO that validates through a client-keyed object would put the client in charge
-    // of it. Today none does, which is what keeps this a precaution rather than a fix.
+    // The field name also goes through `maskLogValue`, like a rendered string value does: it is a
+    // property of the parsed body, and a DTO that validates through a client-keyed object would
+    // put the client in charge of it. Today none does, which keeps this a precaution, not a fix.
     const property = maskLogValue(`${error.property}`, MAX_VALUE_LENGTH);
     const path = prefix ? `${prefix}.${property}` : property;
     if (error.constraints) fields.push(`${path}=${renderValue(error.property, error.value, error.constraints)}`);

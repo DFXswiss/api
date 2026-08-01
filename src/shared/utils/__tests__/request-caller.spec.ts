@@ -20,6 +20,12 @@ describe('describeCaller', () => {
     expect(caller).toBe('client=dfx-services origin=https://app.dfx.swiss ua=Mozilla/5.0 (X11)');
   });
 
+  it('reduces the origin header to its origin too — it arrives from the client like the rest', () => {
+    const caller = describeCaller(req({ origin: 'https://partner.example.com/checkout?token=secret' }));
+
+    expect(caller).toBe('client=(none) origin=https://partner.example.com');
+  });
+
   it('falls back to the origin of the referer, dropping its path and query', () => {
     const caller = describeCaller(req({ referer: 'https://partner.example.com/checkout?token=secret&mail=a@b.ch' }));
 
@@ -35,8 +41,9 @@ describe('describeCaller', () => {
     expect(caller).not.toContain('b.example.com');
   });
 
-  it('drops an unparsable referer rather than logging it raw', () => {
+  it('drops an unparsable value rather than logging it raw', () => {
     expect(describeCaller(req({ referer: 'not a url' }))).toBe('client=(none)');
+    expect(describeCaller(req({ origin: 'not a url' }))).toBe('client=(none)');
   });
 
   it('takes the first value of a tampered array header', () => {

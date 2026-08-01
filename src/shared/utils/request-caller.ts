@@ -14,7 +14,7 @@ const MAX_USER_AGENT_LENGTH = 96;
  *
  * On an endpoint that runs without authentication these headers are all a log line has to go on:
  * without them, a partner integration, one of our own apps and a third-party script are the same
- * anonymous caller. Of the referring URL only the origin is used — never its path or query, which
+ * anonymous caller. Of the requesting URL only the origin is used — never its path or query, which
  * can carry personal data or tokens — so a browser-side caller can be named by site.
  */
 export function describeCaller(req: Request): string {
@@ -33,18 +33,18 @@ export function describeCaller(req: Request): string {
   return parts.join(' ');
 }
 
+// Both headers are reduced to their origin, `Origin` included: it is supposed to carry nothing
+// else, but it arrives from the client like everything here, and a value that is not what it is
+// supposed to be is exactly the one that must not reach the log with a query string attached.
 function callerOrigin(req: Request): string {
-  const origin = firstHeader(req, 'origin');
-  if (origin) return origin;
-
-  const referer = firstHeader(req, 'referer');
-  if (!referer) return '';
+  const url = firstHeader(req, 'origin') || firstHeader(req, 'referer');
+  if (!url) return '';
 
   try {
-    return new URL(referer).origin;
+    return new URL(url).origin;
   } catch {
     // Not a parsable URL — dropped rather than logged raw, since the unparsed value would be the
-    // one part of the referer that is not reduced to its origin.
+    // one that is not reduced to its origin.
     return '';
   }
 }
