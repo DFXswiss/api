@@ -592,17 +592,6 @@ export class BuyService {
     };
   }
 
-  // Fallback when a personal IBAN could not be issued for a bank transfer (e.g. the provider is down).
-  // Three reasons are told apart, because sending a customer after the wrong one wastes their time: no
-  // provider covers the currency at all; the customer has not reached KYC 50; or issuance failed for
-  // someone who has. Only the last case degrades to the shared collection account, and only WITH a
-  // per-buy reference so the incoming transfer stays attributable - an unreferenced collection transfer
-  // cannot be matched to a customer and must never be shown, so without a reference the request still
-  // fails. The failure is logged at ERROR regardless, so a provider outage stays visible even though the
-  // customer no longer sees an error. A customer below KYC 50 keeps getting KYC_REQUIRED, so the
-  // personal-IBAN/KYC coupling holds. KYC is read directly rather than through isUserEligible, which also
-  // folds in whether the provider is reachable right now - during an outage that would tell a fully
-  // verified customer to complete a level they already hold.
   // Personal-IBAN issuance can fail two ways that must be told apart before the collection-account
   // fallback applies. An infrastructure failure (the provider is down) is exactly what the fallback
   // exists for, so it degrades to null. A business rejection is a BadRequestException - above all the
@@ -614,6 +603,17 @@ export class BuyService {
     return null;
   }
 
+  // Fallback when a personal IBAN could not be issued for a bank transfer (e.g. the provider is down).
+  // Three reasons are told apart, because sending a customer after the wrong one wastes their time: no
+  // provider covers the currency at all; the customer has not reached KYC 50; or issuance failed for
+  // someone who has. Only the last case degrades to the shared collection account, and only WITH a
+  // per-buy reference so the incoming transfer stays attributable - an unreferenced collection transfer
+  // cannot be matched to a customer and must never be shown, so without a reference the request still
+  // fails. The failure is logged at ERROR regardless, so a provider outage stays visible even though the
+  // customer no longer sees an error. A customer below KYC 50 keeps getting KYC_REQUIRED, so the
+  // personal-IBAN/KYC coupling holds. KYC is read directly rather than through isUserEligible, which also
+  // folds in whether the provider is reachable right now - during an outage that would tell a fully
+  // verified customer to complete a level they already hold.
   private async collectionAccountOrThrow(
     selector: BankSelectorInput,
     buy?: Buy,

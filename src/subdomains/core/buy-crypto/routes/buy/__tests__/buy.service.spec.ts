@@ -395,6 +395,34 @@ describe('BuyService', () => {
       expect(errorLog).toHaveBeenCalledTimes(1);
     });
 
+    it('propagates a business rejection (KYC required) from an explicit Frick request instead of the collection account', async () => {
+      // Same guarantee as the implicit path: the authoritative, merge-resolved KYC_REQUIRED that issuance
+      // raises must reach the caller, not be swallowed into the collection-account fallback, even for a
+      // request whose own KYC snapshot is level 50.
+      jest
+        .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
+        .mockRejectedValue(new BadRequestException(QuoteError.KYC_REQUIRED));
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+      const getBank = jest.spyOn(bankService, 'getBank').mockResolvedValue({
+        id: 16,
+        name: IbanBankName.OLKY,
+        iban: 'FR7616798060015010806550926',
+        receive: true,
+      } as any);
+
+      await expect(
+        service['resolveBankInfo'](
+          { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData },
+          buy,
+          asset,
+          undefined,
+          PersonalIbanProvider.FRICK,
+        ),
+      ).rejects.toThrow(QuoteError.KYC_REQUIRED);
+      // The fallback must not even be reached for a business rejection, even when a collection bank exists.
+      expect(getBank).not.toHaveBeenCalled();
+    });
+
     it('uses the standard bank for CARD when implicit providers are ineligible for EUR', async () => {
       const standardBank = {
         id: 16,
