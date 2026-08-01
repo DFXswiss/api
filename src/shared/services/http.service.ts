@@ -20,7 +20,10 @@ export type HttpRequestConfig = AxiosRequestConfig & {
   retryDelay?: number;
   // Raw response bytes, exactly as received - never decoded/transcoded before the caller verifies
   // them, so a legitimately signed response can never fail verification due to axios' own text decoding.
-  responseVerifier?: (rawBody: Buffer, headers: AxiosResponse['headers']) => void;
+  // `status` is the HTTP status the bytes arrived with. It is passed on both the success and the
+  // error path so a verifier that rejects a response can say which one it rejected: an unsigned 2xx
+  // and an unsigned 5xx are indistinguishable in the body alone, but mean very different things.
+  responseVerifier?: (rawBody: Buffer, headers: AxiosResponse['headers'], status?: number) => void;
 };
 
 type MockResponseFactory = (url: string, config?: HttpRequestConfig) => unknown;
@@ -182,7 +185,7 @@ export class HttpService {
     if (!responseVerifier) return response.data;
     if (!Buffer.isBuffer(response.data)) throw new Error('Signed HTTP response body is not a raw byte buffer');
 
-    responseVerifier(response.data, response.headers);
+    responseVerifier(response.data, response.headers, response.status);
     const decoded = response.data.toString('utf8');
     if (requestedResponseType === 'text') return decoded as T;
     return JSON.parse(decoded) as T;
@@ -197,7 +200,11 @@ export class HttpService {
     error: unknown,
     responseVerifier: NonNullable<HttpRequestConfig['responseVerifier']>,
   ): void {
-    const httpResponse = (error as { response?: { data?: unknown; headers?: AxiosResponse['headers'] } })?.response;
+    const httpResponse = (
+      error as {
+        response?: { data?: unknown; headers?: AxiosResponse['headers']; status?: number };
+      }
+    )?.response;
     if (!httpResponse) return;
 
     if (!Buffer.isBuffer(httpResponse.data)) {
@@ -205,8 +212,10 @@ export class HttpService {
     }
 
     // Verifier throws on bad/missing signature → that error must replace the original axios error.
-    // On success, the caller re-throws the original so status classification stays intact.
-    responseVerifier(httpResponse.data, httpResponse.headers);
+    // On success, the caller re-throws the original so status classification stays intact. The status
+    // is handed over because the replacing error is the only one the caller will ever see: without it,
+    // a rejected error response loses the status that the original axios error carried.
+    responseVerifier(httpResponse.data, httpResponse.headers, httpResponse.status);
   }
 
   async downloadFile(fileUrl: string, filePath: string) {

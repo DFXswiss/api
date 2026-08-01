@@ -808,7 +808,7 @@ export class BankFrickService {
           Signature: signature,
           algorithm: 'rsa-sha512',
         },
-        responseVerifier: (rawBody, headers) => this.verifyResponse(rawBody, headers),
+        responseVerifier: (rawBody, headers, status) => this.verifyResponse(rawBody, headers, status),
       });
     } catch (error) {
       if (error instanceof FrickSignatureVerificationError)
@@ -919,7 +919,7 @@ export class BankFrickService {
           Signature: this.sign(bodyString),
           algorithm: 'rsa-sha512',
         },
-        responseVerifier: (rawBody, headers) => this.verifyResponse(rawBody, headers),
+        responseVerifier: (rawBody, headers, status) => this.verifyResponse(rawBody, headers, status),
       });
     } catch (error) {
       if (error instanceof FrickSignatureVerificationError)
@@ -963,20 +963,47 @@ export class BankFrickService {
     }
   }
 
-  private verifyResponse(rawBody: Buffer, headers: AxiosResponse['headers']): void {
+  private verifyResponse(rawBody: Buffer, headers: AxiosResponse['headers'], status?: number): void {
     const signature = headers?.signature ?? headers?.Signature;
     const algorithm = String(headers?.algorithm ?? headers?.Algorithm ?? '').toLowerCase();
     const algorithms = { 'rsa-sha512': 'sha512', 'rsa-sha384': 'sha384', 'rsa-sha256': 'sha256' } as const;
     const hashAlgorithm = algorithms[algorithm as keyof typeof algorithms];
-    if (typeof signature !== 'string' || !signature || !hashAlgorithm)
-      throw new FrickSignatureVerificationError('Invalid Bank Frick response signature headers');
+    const signaturePresent = typeof signature === 'string' && !!signature;
+    if (!signaturePresent || !hashAlgorithm)
+      throw new FrickSignatureVerificationError(
+        `Invalid Bank Frick response signature headers${this.describeVerificationContext(status, [
+          `signature ${signaturePresent ? 'present' : 'missing'}`,
+          `algorithm ${!algorithm ? 'missing' : hashAlgorithm ? 'ok' : 'unsupported'}`,
+        ])}`,
+      );
 
     try {
       if (!Util.verifySign(rawBody, Config.bank.frick.serverPublicKey, signature, hashAlgorithm, 'base64'))
         throw new Error('signature mismatch');
     } catch {
-      throw new FrickSignatureVerificationError('Invalid Bank Frick response signature');
+      throw new FrickSignatureVerificationError(
+        `Invalid Bank Frick response signature${this.describeVerificationContext(status)}`,
+      );
     }
+  }
+
+  /**
+   * Builds the parenthesised diagnostic tail of a signature-verification error.
+   *
+   * A rejected response is the one case where the caller never gets to see the underlying axios
+   * error, so without this the log line cannot tell an unsigned success from an unsigned upstream
+   * failure - the two demand opposite responses (our key/config vs. their outage). Everything here
+   * is drawn from a closed vocabulary: a bounded status integer and fixed classification words.
+   * Header *values* are deliberately never echoed - they are attacker-influenced bytes, and this
+   * string reaches server logs, alert mail and persisted intent/event error fields.
+   */
+  private describeVerificationContext(status?: number, details: string[] = []): string {
+    const parts = [
+      ...(Number.isInteger(status) && status >= 100 && status <= 599 ? [`HTTP ${status}`] : []),
+      ...details,
+    ];
+
+    return parts.length ? ` (${parts.join(', ')})` : '';
   }
 
   private createUrl(path: string): string {
