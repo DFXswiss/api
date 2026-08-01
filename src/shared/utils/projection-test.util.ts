@@ -236,7 +236,7 @@ export function projectionFieldsWithout(fields: ReadonlyArray<string>, omitted: 
 }
 
 /**
- * Level 3 — removing any candidate from the projection must break level 1.
+ * Level 3 — removing any candidate from the projection must **change the response**.
  *
  * `run` receives the fields to leave out, runs the same production query without them and returns
  * the response. The caller does the reducing, because which fields feed the response can depend on
@@ -244,11 +244,16 @@ export function projectionFieldsWithout(fields: ReadonlyArray<string>, omitted: 
  * account's own for a personal one, so each variant asserts over its own set of candidates while the
  * rest of the projection stays in the query.
  *
- * **A candidate may be a group of fields, and sometimes has to be.** Where several columns feed one
- * response value through a fallback — `organizationName ?? firstname + surname` — no single one of
- * them is required: drop any one and the next alternative fills the value. Asserting them
- * individually would report every one of them as removable, which is true and useless. The group is
- * what carries the value, so the group is what gets dropped.
+ * **"Changes the response", not "empties a field".** The weaker form misses the failure this whole
+ * exercise is about. `getKycWebhookStatus(kycStatus, kycType)` answers `NA` when it is handed
+ * nothing — a perfectly valid value — so dropping `kycStatus` leaves a complete response that is
+ * simply wrong, and an emptiness check waves it through. Comparing against the response the full
+ * projection produced catches it, and it is the same standard level 4 applies.
+ *
+ * **A candidate may be a group of fields.** Where several columns feed one response value through a
+ * fallback — `organizationName ?? firstname + surname` — dropping the group is what shows the value
+ * depends on it at all; each column on its own is covered by the variant in which it is the one that
+ * gets read.
  *
  * A candidate whose removal changes nothing is either unnecessary or a gap in the fixture; both need
  * looking at, so this reports the names rather than just failing.
@@ -263,31 +268,33 @@ export async function expectEveryFieldRequired(
   // say — then every reduced run fails too, and "every field is required" would be reported for a
   // projection nothing was ever proven about. `NOTHING_OMITTED` matches no field name, so the caller
   // reduces by nothing and runs the query as production does.
+  let baseline: unknown;
   try {
-    expectNoEmptyFields(await run(NOTHING_OMITTED), optional);
+    baseline = await run(NOTHING_OMITTED);
+    expectNoEmptyFields(baseline, optional);
   } catch (error) {
     throw new Error(
       `the response is already incomplete with the full projection, so dropping fields proves ` +
         `nothing — fix the fixture or the projection first. Cause: ${error.message ?? error}`,
     );
   }
+  const reference = JSON.stringify(baseline);
 
   const survived: string[] = [];
   for (const candidate of candidates) {
-    let stillComplete = false;
+    let unchanged = false;
     try {
-      expectNoEmptyFields(await run(candidate), optional);
-      stillComplete = true;
+      unchanged = JSON.stringify(await run(candidate)) === reference;
     } catch {
-      // Either the response lost a value or the query itself refused to run without the field.
-      // Both mean the field carries weight, which is what this level asserts.
+      // The query itself refused to run without the field — it carries weight, which is what this
+      // level asserts.
     }
-    if (stillComplete) survived.push(Array.isArray(candidate) ? `[${candidate.join(' + ')}]` : candidate);
+    if (unchanged) survived.push(Array.isArray(candidate) ? `[${candidate.join(' + ')}]` : candidate);
   }
   if (survived.length)
     throw new Error(
-      `these fields can be dropped without any response field going empty: ${survived.join(', ')} — ` +
-        `either they are not needed, or the fixture has a gap at exactly that point`,
+      `these fields can be dropped without changing the response: ${survived.join(', ')} — ` +
+        `either they are not needed, or the fixture does not reach the branch that reads them`,
     );
 }
 

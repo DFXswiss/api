@@ -8,8 +8,8 @@ This is the level at which the statement is unambiguous. An endpoint reaches sev
 
 | Mechanism | Sites | Eager relations | Columns selected |
 | --------- | ----: | --------------- | ---------------- |
-| `find` family | 963 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
-| `createQueryBuilder` | 137 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
+| `find` family | 961 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
+| `createQueryBuilder` | 139 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
 | raw SQL | 5 | not applied | whatever the statement lists |
 
 Statements that load nothing are excluded from the count: 2 `createQueryBuilder` calls carrying `.update()`, 6 advisory locks (`SELECT pg_advisory_xact_lock(...)`, which return no rows) and 1 raw `INSERT`. Each of the 5 raw reads that remain names its columns.
@@ -18,23 +18,23 @@ Among the query builders, the field list is what decides whether anything is act
 
 | | Sites |
 | --- | ---: |
-| `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **9** |
+| `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **11** |
 | `.select('alias.column')` — names columns one by one | **87** |
 | `.select('alias')` — selects the root alias, **loads every column** | 17 |
 | no `select` at all — loads every column | 23 |
 | projects, but a `leftJoinAndSelect` loads a relation whole | 1 |
 
-`.select('alias')` is the trap: it reads like a projection but the argument is the entity alias, not a field list. Such a query still loads every column of the root entity — it merely avoids the eager relations. `.select('alias.column')` is the opposite case and easy to lump in with it: it names a column and does narrow the query. The distinction is the presence of a dot in the argument, and it matters — the sites that name columns this way select 1 column at the median, against 963 `find` calls that select every one. Most of them are counts, maxima and id lookups rather than response payloads, which is why the endpoint summary still reads the way it does.
+`.select('alias')` is the trap: it reads like a projection but the argument is the entity alias, not a field list. Such a query still loads every column of the root entity — it merely avoids the eager relations. `.select('alias.column')` is the opposite case and easy to lump in with it: it names a column and does narrow the query. The distinction is the presence of a dot in the argument, and it matters — the sites that name columns this way select 1 column at the median, against 961 `find` calls that select every one. Most of them are counts, maxima and id lookups rather than response payloads, which is why the endpoint summary still reads the way it does.
 
 ## Measurements
 
 Columns were measured against the real entity metadata by building the query and counting its SELECT list — 790 of 1105 sites.
 
-- **341 are exact**: the `relations` tree is written at the call site.
-- **449 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
+- **339 are exact**: the `relations` tree is written at the call site.
+- **451 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
 - 315 could not be measured: no resolvable target entity, or raw SQL.
 
-Median across measured sites: **112 columns**. 14 sites exceed 1000, 75 exceed 500, 402 exceed 100.
+Median across measured sites: **112 columns**. 14 sites exceed 1000, 75 exceed 500, 400 exceed 100.
 
 What that does and does not affect: the median and the counts above are computed only over the 782 rows that carry a measured width, and an array operation never has one, so those figures stand. Nor does it move the conclusion this table exists for: the sites that name their columns are a small fraction either way, and the verdict reads the same against 900 as against 1105. It does reach the per-endpoint summary in [endpoints.md](endpoints.md): an endpoint could be listed as fetching whole rows on the strength of such a row alone. The three with no measured width at all are the exposed cases and are named there. For the rest a measured query stands behind the entry, which limits the effect without excluding it — establishing that would need the collection to separate the two kinds of `find`, which is the fix this note stands in for.
 
@@ -230,9 +230,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 331 | 14 | find | `VirtualIban` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:1316` | `VirtualIbanService.getVirtualIbansForAccount` |
 | 329 | 9 | find | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:278` | `TransactionRequestService.findAndComplete` |
 | 328 | 10 | find | `User` | `subdomains/generic/user/models/auth/auth.controller.ts:157` | `AuthController.createAccessTokenAfterMerge` |
-| 328 | 10 | find | `Wallet` | `subdomains/generic/user/models/kyc/kyc.service.ts:138` | `KycService.getAllKycData` |
-| 328 | 10 | find | `User` | `subdomains/generic/user/models/kyc/kyc.service.ts:147` | `KycService.getKycFiles` |
-| 328 | 10 | find | `User` | `subdomains/generic/user/models/kyc/kyc.service.ts:162` | `KycService.getKycFile` |
+| 328 | 10 | find | `User` | `subdomains/generic/user/models/kyc/kyc.service.ts:156` | `KycService.getKycFile` |
 | 328 | 10 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:129` | `UserService.getUserDto` |
 | 323 | 10 | find | `AktionariatRegistration` | `subdomains/supporting/realunit/realunit.service.ts:1246` | `RealUnitService.forwardRegistrationToAktionariat` |
 | 321 | 8 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:362` | `BuyFiatService.getBuyFiatByTransactionId` |
@@ -623,7 +621,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 23 | 0 | find | `BankTxBatch` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx-batch.service.ts:10` | `BankTxBatchService.getBankTxBatchByIban` |
 | 21 | 0 | query-builder (ohne-select) | `DepositRoute` | `subdomains/supporting/address-pool/route/deposit-route.service.ts:87` | `DepositRouteService.getPaymentRouteForKey` |
 | 20 | 0 | query-builder (nur-alias) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:95` | `SellService.getSellByKey` |
-| 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.repository.ts:13` | `WalletRepository.getByAddress` |
+| 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.repository.ts:53` | `WalletRepository.getByAddress` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.service.ts:19` | `WalletService.updateWallet` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.service.ts:28` | `WalletService.getByAddress` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.service.ts:36` | `WalletService.getByIdOrName` |
@@ -720,6 +718,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 7 | 0 | find | `Language` | `shared/models/language/language.service.ts:19` | `LanguageService.getLanguageBySymbol` |
 | 7 | 0 | find | `Language` | `shared/models/language/language.service.ts:24` | `LanguageService.getLanguageByCountry` |
 | 7 | 0 | find | `UserDataRelation` | `subdomains/generic/user/models/user-data-relation/user-data-relation.service.ts:40` | `UserDataRelationService.updateUserDataRelation` |
+| 7 | 0 | query-builder (feldliste) | `Wallet` | `subdomains/generic/user/models/wallet/wallet.repository.ts:47` | `WalletRepository.findKycData` |
 | 7 | 0 | find | `SpecialExternalAccount` | `subdomains/supporting/payment/services/special-external-account.service.ts:12` | `SpecialExternalAccountService.createSpecialExternalAccount` |
 | 7 | 0 | find | `SpecialExternalAccount` | `subdomains/supporting/payment/services/special-external-account.service.ts:24` | `SpecialExternalAccountService.getMultiAccounts` |
 | 7 | 0 | find | `SpecialExternalAccount` | `subdomains/supporting/payment/services/special-external-account.service.ts:48` | `SpecialExternalAccountService.getPhoneCallList` |
@@ -781,6 +780,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 2 | 0 | query-builder (spaltenliste) | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:493` | `BankDataService.getPendingReviewSummary` |
 | 2 | 0 | query-builder (spaltenliste) | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:354` | `RecommendationService.countByRecommenderIds` |
 | 2 | 0 | query-builder (spaltenliste) | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:369` | `RecommendationService.countByRecommendedIds` |
+| 2 | 0 | query-builder (feldliste) | `User` | `subdomains/generic/user/models/user/user.repository.ts:46` | `UserRepository.findAccountIdForAddress` |
 | 2 | 0 | query-builder (spaltenliste) | `User` | `subdomains/generic/user/models/user/user.service.ts:226` | `UserService.countRefChildrenByUserDataIds` |
 | 2 | 0 | query-builder (spaltenliste) | `User` | `subdomains/generic/user/models/user/user.service.ts:248` | `UserService.countRefReferrersByUserDataIds` |
 | 2 | 0 | query-builder (spaltenliste) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:505` | `BankTxService.getBankTxFee` |
@@ -1020,8 +1020,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:362` | `BankDataService.getAllBankDatasForUser` |
 | — | — | find | `—` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:444` | `BankDataService.createIbanForUserInternal` |
 | — | — | find | `Wallet` | `subdomains/generic/user/models/kyc/kyc.service.ts:58` | `KycService.transferKycData` |
-| — | — | find | `—` | `subdomains/generic/user/models/kyc/kyc.service.ts:193` | `KycService.getFileFor` |
-| — | — | find | `—` | `subdomains/generic/user/models/kyc/kyc.service.ts:200` | `KycService.getFileFor` |
+| — | — | find | `—` | `subdomains/generic/user/models/kyc/kyc.service.ts:179` | `KycService.getFileFor` |
+| — | — | find | `—` | `subdomains/generic/user/models/kyc/kyc.service.ts:186` | `KycService.getFileFor` |
 | — | — | find | `—` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:45` | `RecommendationService.createRecommendationByRecommender` |
 | — | — | find | `—` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:135` | `RecommendationService.handleRecommendationRequest` |
 | — | — | find | `—` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:246` | `RecommendationService.setRecommenderRefCode` |
@@ -1041,7 +1041,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1547` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1725` | `UserDataService.updateBankTxTime` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/dto/user-dto.mapper.ts:27` | — |
-| — | — | find | `—` | `subdomains/generic/user/models/user/user.repository.ts:31` | `UserRepository.getNextRef` |
+| — | — | find | `—` | `subdomains/generic/user/models/user/user.repository.ts:69` | `UserRepository.getNextRef` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.service.ts:339` | `UserService.createUser` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.service.ts:493` | `UserService.updateAddress` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.service.ts:509` | `UserService.deactivateUser` |

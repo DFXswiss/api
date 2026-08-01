@@ -7,6 +7,8 @@ import {
 } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BUY_FIAT_HISTORY_PROJECTION } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { USER_PROFILE_PROJECTION } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import { USER_KYC_FILES_PROJECTION } from 'src/subdomains/generic/user/models/user/user.repository';
+import { WALLET_KYC_DATA_PROJECTION } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import {
   SUPPORT_ISSUE_DATA_PROJECTION,
   SUPPORT_ISSUE_PROJECTION,
@@ -22,6 +24,8 @@ const DOCUMENTED: [string, string, ReadProjection<unknown>][] = [
   ['GET', '/support/issue/:id/data', SUPPORT_ISSUE_DATA_PROJECTION],
   ['GET', '/support/issue', SUPPORT_ISSUE_PROJECTION],
   ['GET', '/support/issue/:id', SUPPORT_ISSUE_PROJECTION],
+  ['GET', '/kyc/users', WALLET_KYC_DATA_PROJECTION],
+  ['GET', '/kyc/:id/documents', USER_KYC_FILES_PROJECTION],
 ];
 
 describe('ReadProjection', () => {

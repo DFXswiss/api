@@ -17,15 +17,14 @@ import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum'
 import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { Blank, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { getKycWebhookStatus } from '../../services/webhook/mapper/webhook-data.mapper';
 import { BlankType, KycLevel, KycState } from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
-import { User } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
+import { KycDataDtoMapper } from './dto/kyc-data-dto.mapper';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { KycInfo } from './dto/kyc-info.dto';
 
@@ -135,19 +134,13 @@ export class KycService {
   // --- GET COMPANY KYC --- //
 
   async getAllKycData(walletId: number): Promise<KycDataDto[]> {
-    const wallet = await this.walletRepo.findOne({
-      where: { id: walletId },
-      relations: { users: { userData: true } },
-    });
+    const wallet = await this.walletRepo.findKycData(walletId);
 
-    return wallet.users.map((b) => this.toKycDataDto(b));
+    return wallet.users.map(KycDataDtoMapper.toDto);
   }
 
   async getKycFiles(userAddress: string, walletId: number): Promise<KycFileDto[]> {
-    const user = await this.userRepo.findOne({
-      where: { address: userAddress, wallet: { id: walletId } },
-      relations: { userData: true, wallet: true },
-    });
+    const user = await this.userRepo.findAccountIdForAddress(userAddress, walletId);
     if (!user) throw new NotFoundException('User not found');
 
     const allDocuments = await this.documentService.listUserFiles(user.userData.id);
@@ -175,14 +168,6 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
-  private toKycDataDto(user: User): KycDataDto {
-    return {
-      id: user.address,
-      kycStatus: getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
-      kycHash: user.userData.kycHash,
-    };
-  }
-
   private toKycFileDto(type: KycDocumentType, { contentType }: KycFileBlob): KycFileDto {
     return { type, contentType };
   }

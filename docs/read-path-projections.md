@@ -30,8 +30,8 @@ This service loads far more data than it returns. Measured against the real enti
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
   `transaction_request`) broke every invoice and receipt in production until it was fixed.
-- Of the 534 endpoints, **410 reach at least one load site that fetches whole rows**; 98 read
-  nothing at all, and **24 read only the fields they return**. The widest query a fetching endpoint
+- Of the 534 endpoints, **408 reach at least one load site that fetches whole rows**; 98 read
+  nothing at all, and **26 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
@@ -47,9 +47,9 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,105 load sites in this repository, **101** name the columns they need:
-96 query builders and the five raw statements. The other 1,004 request whole rows — 963 through the
-`find` family, and of the 137 query builders, 17 pass the root alias to `.select(...)`, which reads
+**No read model.** Of the 1,105 load sites in this repository, **103** name the columns they need:
+98 query builders and the five raw statements. The other 1,002 request whole rows — 961 through the
+`find` family, and of the 139 query builders, 17 pass the root alias to `.select(...)`, which reads
 like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
 business logic and pure output paths such as invoices, receipts, history and exports — which need
 fields, not objects.
@@ -157,11 +157,11 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-A hundred and one sites carry a field list. The table below covers the six that were known when this
+A hundred and three sites carry a field list. The table below covers the six that were known when this
 document was written — one query builder and five raw statements — and none of them was converted,
 so it is unchanged. Another 87 are the query builders that name columns one at a time; they are
 not covered by these levels either, which is what their endpoints' `0/4` in
-[endpoints.md](endpoints.md) records. The remaining 8 belong to the endpoints converted so far and
+[endpoints.md](endpoints.md) records. The remaining 10 belong to the endpoints converted so far and
 are covered on all four. Sites a conversion adds are recorded there too, where only
 `4/4` counts as done.
 
@@ -301,20 +301,27 @@ depends on a status field.
 
 ### 3. Mutation
 
-**Remove each field of the projection individually; level 1 must fail every time.**
+**Remove each field of the projection individually; the response must change every time.**
 
 This proves the test looks at anything at all. Where removing a field changes nothing, one of two
-things is true: the field is unnecessary and can be dropped permanently, or the fixture has a gap
-at exactly that point — and a real defect would have slipped through there.
+things is true: the field is unnecessary and can be dropped permanently, or the fixture never
+reaches the branch that reads it — and a real defect would have slipped through there.
+
+**The measure is the response, not emptiness**, and the difference is not academic. The first
+version of this level asked whether a field went empty, and it passed a projection missing
+`UserData.kycStatus`: `getKycWebhookStatus` answers `NA` when handed nothing, which is a valid value
+and a wrong one. Comparing against the response the full projection produced catches it. It is the
+same standard as level 4, applied one field at a time.
 
 Without this level you never know whether a green test verified something or is merely green.
 
-**Where a value has a fallback, the candidate is the chain, not the column.** `UserData.completeName`
-is `organizationName ?? firstname + surname`; the wallet name on the support view is
-`displayName ?? name`. Drop any single one of those columns and the value is still filled, by the
-next alternative — so asserted individually, every one of them reports as removable. That is true
-and useless. The chain is what carries the response value, so the chain is what gets dropped, and
-`expectEveryFieldRequired` accepts a group of fields as one candidate for exactly this.
+**Where a value has a fallback, the candidate may be the chain rather than the column.**
+`UserData.completeName` is `organizationName ?? firstname + surname`. Dropping the chain shows the
+value depends on it at all; each column on its own is covered by the variant in which it is the one
+that gets read — which is also why a fixture has to reach that branch. `kycType` only changes the
+answer for a LOCK account: against a DFX one, the value the absent column would produce and the
+value it does produce are the same, and no assertion can tell them apart.
+`expectEveryFieldRequired` therefore accepts a group of fields as one candidate.
 
 **A missing summand is not a missing field, and level 1 has to say so anyway.** The annual volume on
 the support view is `annualBuyVolume + annualSellVolume + annualCryptoVolume`. Leave one of the three
