@@ -659,26 +659,35 @@ describe('BuyCryptoPreparationService', () => {
     it.each([
       { source: 'Checkout', relation: { checkoutTx: { id: 88 } }, method: 'refundCheckoutTx' },
       { source: 'CryptoInput', relation: { cryptoInput: { id: 89 } }, method: 'refundCryptoInput' },
-    ])('promotes a $source user refund claim without discarding its timestamp', async ({ relation, method }) => {
-      const chargebackAllowedDateUser = new Date('2026-08-01T12:00:00.000Z');
-      const entity = createCustomBuyCrypto({
-        id: 78,
-        ...relation,
-        chargebackAllowedDate: undefined,
-        chargebackAllowedDateUser,
-        chargebackAmount: 1,
-        isComplete: false,
-      });
-      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([]).mockResolvedValueOnce([entity]);
+      {
+        source: 'BankTx',
+        relation: { bankTx: { id: 90 } },
+        method: 'refundBankTx',
+        refundData: {
+          chargebackIban: 'CH9300762011623852957',
+          chargebackCreditorData: JSON.stringify({ name: 'Refund Recipient' }),
+        },
+      },
+    ])(
+      'promotes a $source user refund claim without discarding its timestamp',
+      async ({ relation, method, refundData = {} }) => {
+        const chargebackAllowedDateUser = new Date('2026-08-01T12:00:00.000Z');
+        const entity = createCustomBuyCrypto({
+          id: 78,
+          ...relation,
+          ...refundData,
+          chargebackAllowedDate: undefined,
+          chargebackAllowedDateUser,
+          chargebackAmount: 1,
+          isComplete: false,
+        });
+        jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([]).mockResolvedValueOnce([entity]);
 
-      await service.chargebackTx();
+        await service.chargebackTx();
 
-      const refund =
-        method === 'refundCheckoutTx' ? buyCryptoService.refundCheckoutTx : buyCryptoService.refundCryptoInput;
-      expect(refund).toHaveBeenCalledWith(
-        entity,
-        expect.objectContaining({ chargebackAllowedDateUser }),
-      );
-    });
+        const refund = buyCryptoService[method as 'refundCheckoutTx' | 'refundCryptoInput' | 'refundBankTx'];
+        expect(refund).toHaveBeenCalledWith(entity, expect.objectContaining({ chargebackAllowedDateUser }));
+      },
+    );
   });
 });

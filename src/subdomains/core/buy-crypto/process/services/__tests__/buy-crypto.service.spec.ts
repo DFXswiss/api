@@ -348,9 +348,11 @@ describe('BuyCryptoService', () => {
     });
 
     it('persists the checkout refund claim before calling the external provider', async () => {
+      const chargebackAllowedDateUser = new Date('2026-08-01T12:00:00.000Z');
       const buyCrypto = createCustomBuyCrypto({
         id: 7,
         inputAmount: 10,
+        chargebackAllowedDateUser,
         checkoutTx: Object.assign(new CheckoutTx(), { id: 22, paymentId: 'pay-22' }),
       });
       jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
@@ -373,12 +375,16 @@ describe('BuyCryptoService', () => {
       });
       buyCryptoRepo.update.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
-      await service.refundCheckoutTx(buyCrypto, { chargebackAllowedDate: new Date() });
+      await service.refundCheckoutTx(buyCrypto, { chargebackAllowedDate: new Date(), chargebackAllowedDateUser });
 
       expect(manager.update).toHaveBeenNthCalledWith(
         1,
         BuyCrypto,
-        expect.objectContaining({ id: 7, chargebackAllowedDate: expect.anything() }),
+        expect.objectContaining({
+          id: 7,
+          chargebackAllowedDate: expect.anything(),
+          chargebackAllowedDateUser,
+        }),
         expect.objectContaining({ chargebackAllowedDate: expect.any(Date) }),
       );
       expect(manager.update).toHaveBeenNthCalledWith(2, CheckoutTx, 22, {
@@ -420,6 +426,7 @@ describe('BuyCryptoService', () => {
     });
 
     it('claims CryptoInput return state and BuyCrypto chargeback state in the same transaction', async () => {
+      const chargebackAllowedDateUser = new Date('2026-08-01T12:00:00.000Z');
       const cryptoInput = createCustomCryptoInput({
         id: 24,
         asset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
@@ -427,6 +434,7 @@ describe('BuyCryptoService', () => {
       const buyCrypto = createCustomBuyCrypto({
         id: 9,
         cryptoInput,
+        chargebackAllowedDateUser,
         chargebackAmount: 1,
         isComplete: false,
       });
@@ -455,8 +463,20 @@ describe('BuyCryptoService', () => {
         refundUserAddress: refundUser.address,
         chargebackAmount: 1,
         chargebackAllowedDate: new Date(),
+        chargebackAllowedDateUser,
       });
 
+      expect(manager.findOne).toHaveBeenNthCalledWith(
+        1,
+        BuyCrypto,
+        expect.objectContaining({ where: { id: 9 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.findOne).toHaveBeenNthCalledWith(
+        3,
+        CryptoInput,
+        expect.objectContaining({ where: { id: 24 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.findOne.mock.invocationCallOrder[0]).toBeLessThan(manager.findOne.mock.invocationCallOrder[2]);
       expect(payInService.returnPayIn).toHaveBeenCalledWith(
         cryptoInput,
         refundUser.address,
@@ -465,7 +485,11 @@ describe('BuyCryptoService', () => {
       );
       expect(manager.update).toHaveBeenCalledWith(
         BuyCrypto,
-        expect.objectContaining({ id: 9, chargebackAllowedDate: expect.anything() }),
+        expect.objectContaining({
+          id: 9,
+          chargebackAllowedDate: expect.anything(),
+          chargebackAllowedDateUser,
+        }),
         expect.objectContaining({ chargebackAllowedDate: expect.any(Date), amlCheck: CheckStatus.FAIL }),
       );
     });

@@ -24,6 +24,7 @@ describe('PayInService designate-before-broadcast safeguards', () => {
   let service: PayInService;
   let payInRepository: PayInRepository;
   let notificationService: NotificationService;
+  let transactionService: TransactionService;
 
   beforeAll(() => {
     new ConfigService();
@@ -32,11 +33,12 @@ describe('PayInService designate-before-broadcast safeguards', () => {
   beforeEach(() => {
     payInRepository = mock<PayInRepository>();
     notificationService = mock<NotificationService>();
+    transactionService = mock<TransactionService>();
     service = new PayInService(
       payInRepository,
       mock<RegisterStrategyRegistry>(),
       mock<SendStrategyRegistry>(),
-      mock<TransactionService>(),
+      transactionService,
       mock<PaymentLinkPaymentService>(),
       mock<PayInBitcoinService>(),
       mock<PayInFiroService>(),
@@ -130,12 +132,13 @@ describe('PayInService designate-before-broadcast safeguards', () => {
   );
 
   it('persists a return claim through the supplied transaction manager', async () => {
+    const transaction = { id: 53 } as any;
     const payIn = createCustomCryptoInput({
       id: 52,
       status: PayInStatus.ACKNOWLEDGED,
       action: PayInAction.WAITING,
       returnTxId: null,
-      transaction: undefined,
+      transaction,
     });
     const manager = { save: jest.fn().mockResolvedValue(payIn) };
 
@@ -146,6 +149,11 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       manager as unknown as EntityManager,
     );
 
+    expect(transactionService.updateInternal).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({ user: payIn.route.user }),
+      manager,
+    );
     expect(manager.save).toHaveBeenCalledWith(CryptoInput, payIn);
     expect(payInRepository.save).not.toHaveBeenCalled();
   });
