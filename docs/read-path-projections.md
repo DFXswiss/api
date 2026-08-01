@@ -41,7 +41,7 @@ equally wasteful under a limit of 4,096 — it simply would not have failed yet.
 
 Two properties combine:
 
-**Eager relations.** 94 relations in this repo are declared `eager: true`, across 45 entities. TypeORM expands them
+**Eager relations.** 90 relations in this repo are declared `eager: true`, across 44 entities. TypeORM expands them
 recursively, so a plain `findOne()` on `UserData` already selects **253 columns across 8 joins**,
 and one on `LimitRequest` **434 across 15** — before any `relations` option is passed. The
 decision what to load therefore lives in the entity definition, not at the call site, and no call
@@ -246,6 +246,67 @@ The consequences are worth stating plainly:
 
 The guard is verified by `projection-guard.projection.spec.ts` — it is the one piece the levels
 below cannot check, because they rely on it.
+
+## The other route: reducing the eager relations
+
+Converting endpoints one at a time treats the symptom. The cause is named above — the entity
+decides what a query loads, and no call site can see what it triggers. So the cheaper-looking route
+is to take the decision away from the entity: drop `eager: true`, and let each call site say what
+it needs. This section is what that route costs, measured rather than estimated, because the
+measurement changes the answer.
+
+**How it was measured.** Which relations are declared is an AST question — a text search counts
+comments and misses modifiers. Where each one is *read* is a type question: `.userData` occurs on
+dozens of unrelated receivers, so the reads were resolved with the TypeScript compiler, including
+reads through a base class, which is how single-table inheritance is reached. What a response
+*contains* is neither: it comes from the TypeORM metadata, whose eager closure is what a query
+actually joins.
+
+The two counts in this document are not the same count, and the difference is not a discrepancy.
+The 90 above are declarations in the source. At runtime they are 103 relations, because a
+declaration on a base class is carried by every entity that inherits it (6), and because
+single-table inheritance surfaces a child's relation on the parent as well (8) — a query on
+`DepositRoute` joins what `Sell`, `Swap` and `Staking` declare. In the other direction, `Sell.route`
+and `Swap.route` are two declarations of one column in one table and count once.
+
+**What the measurement says.** 55 handlers answer with an entity rather than a response object, 35
+distinct entities between them. For those, the eager relations are not a loading detail — they are
+the answer. Followed recursively, their closure covers **57 of the 103 eager relations** this
+repository builds at runtime — 17 of the 35 entities carry no eager relation at all, which is why
+the closure is smaller than the root count suggests. Removing one of those 57 changes what an
+endpoint returns; adding one changes it too. All 55 handlers carry a role guard and all but two
+(`POST /userDataRelation`, `PUT /userDataRelation/:id`) are excluded from the Swagger schema, so the
+consumer is the operator's own tooling rather than a published schema — which makes it a decision to
+take, not a wall, but a decision rather than a refactor either way.
+
+That is the part worth carrying forward: **the majority of the eager relations cannot be removed
+mechanically**, and the criterion that decides it is not visible in the entity, the call site, or
+the test. It is visible in the return type of a controller.
+
+**What was removable, and was removed.** Four declarations that no code reads and that no response
+contains: `Buy.route`, `CustodyBalance.user`, `CustodyOrder.transaction`,
+`CryptoStaking.paybackDeposit`. That narrowed 55 load sites — the custody order paths by 98 columns
+each, the widest transaction paths by four — and 47 endpoints in
+[endpoints.md](endpoints.md) now show a smaller number. After it, no eager relation is left that is
+both unread and outside every response: the mechanically decidable part is exhausted.
+
+**What is left.** 32 declarations are read somewhere and are in no response. Each is removable, but
+not by rule: the compiler says where a relation is read, not which query produced the value that
+was read. Connecting the two is a per-case reading of the code, and it is the same work as
+converting an endpoint — with a failure mode that is worse, because a relation that is no longer
+loaded is `undefined` at a call site that no test may reach.
+
+**What guards it.** `eager-relations.projection.spec.ts` pins two things: the closure above, so a
+relation added to any entity in it fails the run naming the controller whose answer it changes, and
+the total count, so a new one anywhere is a decision rather than a detail of an unrelated change.
+It finds the entities that leave through a controller by reading the controllers rather than from a
+list, because a list goes stale the first time someone adds one — which is not hypothetical: the
+first version of this measurement looked only at entities that already carried an eager relation and
+missed 27 handlers for it.
+
+So the two routes are not alternatives, and neither is cheap. The difference between them is the
+failure mode: an incomplete field list now throws, and an eager relation added to the wrong entity
+now fails a test — which is the property both of these are for.
 
 ## Test definition
 

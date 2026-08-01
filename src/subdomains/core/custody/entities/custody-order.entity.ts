@@ -68,7 +68,7 @@ export class CustodyOrder extends IEntity {
   @JoinColumn()
   transactionRequest?: TransactionRequest;
 
-  @OneToOne(() => Transaction, (transaction) => transaction.custodyOrder, { nullable: true, eager: true })
+  @OneToOne(() => Transaction, (transaction) => transaction.custodyOrder, { nullable: true })
   @JoinColumn()
   transaction?: Transaction;
 
