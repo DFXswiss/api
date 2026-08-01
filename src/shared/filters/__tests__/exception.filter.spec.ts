@@ -247,6 +247,24 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
   });
 
+  it('names the status when a plain error says nothing about itself', () => {
+    filter.catch(new Error(), host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
+  });
+
+  it('sends the response even when a plain error cannot be asked what it says', () => {
+    const mute = new Error('x');
+    Object.defineProperty(mute, 'message', {
+      get: () => {
+        throw new Error('nope');
+      },
+    });
+
+    expect(() => filter.catch(mute, host(req(), { status }))).not.toThrow();
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'INTERNAL_SERVER_ERROR' });
+  });
+
   it('takes no message the body would not have sent itself', () => {
     // A property that is not enumerable is left out when the response is serialized, so reading it
     // here would put something on the wire that would never have been on it.

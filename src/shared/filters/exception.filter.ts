@@ -136,7 +136,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // being sent, which is what a replaced status or a body naming another one leaves behind.
   private responseBody(exception: Error, status: { sent: number; declared: number | undefined }): unknown {
     if (!(exception instanceof HttpException)) {
-      return { statusCode: status.sent, message: exception.message };
+      return { statusCode: status.sent, message: ApiExceptionFilter.ownMessage(exception, status.sent) };
     }
 
     try {
@@ -149,6 +149,17 @@ export class ApiExceptionFilter implements ExceptionFilter {
       return { statusCode: status.sent, message: ApiExceptionFilter.publicMessage(body, status.sent) };
     } catch {
       return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
+    }
+  }
+
+  // What the exception says about itself, for the case where there is no body to say it better.
+  // Reading it can throw, and an exception that says nothing is not worth sending in place of the
+  // name of what is being sent.
+  private static ownMessage(exception: Error, status: number): string {
+    try {
+      return exception.message || HttpStatus[status] || 'Error';
+    } catch {
+      return HttpStatus[status] || 'Error';
     }
   }
 
