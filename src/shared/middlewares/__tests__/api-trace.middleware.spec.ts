@@ -233,11 +233,15 @@ describe('apiTraceMiddleware', () => {
   });
 
   it('masks a body key, not only the values under it', () => {
-    // `redact` walks the values; the key is as much the request's to choose as the value is.
-    const { lines } = runTrace(realunitReq({ 'victim\u2028@example.com': 'x' }), 200, (res) => res.json({}));
+    // `redact` walks the values; the key is as much the request's to choose as the value is - and it
+    // reached the line even without a character placed inside it.
+    const plain = runTrace(realunitReq({ 'victim@example.com': 'x' }), 200, (res) => res.json({}));
+    expect(plain.lines[0]).not.toContain('victim');
+    expect(plain.lines[0]).toContain('***');
 
-    expect(lines[0]).not.toContain('victim');
-    expect(lines[0]).toContain('***');
+    const split = runTrace(realunitReq({ 'victim\u2028@example.com': 'x' }), 200, (res) => res.json({}));
+    expect(split.lines[0]).not.toContain('victim');
+    expect(split.lines[0]).toContain('***');
   });
 
   it('keeps the trace on one line, including the separators JSON.stringify leaves raw', () => {
