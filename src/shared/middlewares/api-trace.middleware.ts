@@ -54,17 +54,24 @@ export function maskUrl(url: string): string {
     url
       .split('?')[0]
       .split('/')
-      .map((segment) => decodeSegment(segment))
+      .map((segment) => maskSegment(segment))
       .join('/'),
   );
 }
 
-function decodeSegment(segment: string): string {
+// The decoded form is what a pattern can be recognized in; it is only what gets rendered if one was.
+// Decoding otherwise would rewrite the path itself - `%2F` becomes a separator, `%3F` the start of a
+// query - and the line would describe a route that was never called.
+function maskSegment(segment: string): string {
+  let decoded: string;
   try {
-    return decodeURIComponent(segment);
+    decoded = decodeURIComponent(segment);
   } catch {
     return segment;
   }
+
+  const masked = maskValue(decoded);
+  return masked === decoded ? segment : masked;
 }
 
 // Everything that can break a line or move a cursor in a log viewer: the control characters
@@ -171,7 +178,11 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
     return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskLogText(value);
   }
   if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
+    // No prototype: a key called `constructor` is a key like any other here, and nothing inherited
+    // can be mistaken for something this object already holds.
+    const out: Record<string, unknown> = Object.create(null);
+    const taken = new Map<string, number>();
+
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       if (budget.left <= 0) {
         out['…'] = TRUNCATED;
@@ -180,19 +191,18 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
       // The key is rendered like a value - a request chooses it just as freely, at whatever length,
       // so it goes through the same guard against masking an oversized one. The raw key decides the
       // redaction, since that is the name the list was written against, and two keys that render
-      // the same each keep their entry rather than the second replacing the first.
-      out[unusedKey(maskLogValue(k, MAX_KEY), out)] = redact(v, k, budget);
+      // the same each keep their entry, counted rather than searched for.
+      const rendered = maskLogValue(k, MAX_KEY);
+      const seen = taken.get(rendered) ?? 0;
+      taken.set(rendered, seen + 1);
+
+      const key = seen === 0 ? rendered : `${rendered} (${seen + 1})`;
+      budget.left -= key.length;
+      out[key] = redact(v, k, budget);
     }
     return out;
   }
   return value;
-}
-
-function unusedKey(key: string, out: Record<string, unknown>): string {
-  let unused = key;
-  for (let taken = 2; unused in out; taken++) unused = `${key} (${taken})`;
-
-  return unused;
 }
 
 function format(value: unknown): string {

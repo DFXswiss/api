@@ -255,6 +255,27 @@ describe('apiTraceMiddleware', () => {
     expect(lines[0]).not.toContain('kkkkkkkkkk');
   });
 
+  it('keeps an inherited name from looking like a collision', () => {
+    const { lines } = runTrace(realunitReq({ constructor: 'a', toString: 'b' }), 200, (res) => res.json({}));
+
+    expect(lines[0]).toContain('"constructor":"a"');
+    expect(lines[0]).toContain('"toString":"b"');
+  });
+
+  it('keeps a path segment as it came when there was nothing to mask in it', () => {
+    // Decoding is how a pattern is recognized, not how the path is rendered: `%2F` would otherwise
+    // become a separator and the line would name a route that was never called.
+    const req = {
+      method: 'GET',
+      originalUrl: '/v1/realunit/order/a%2Fb',
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 200, (res) => res.send('ok'));
+
+    expect(lines[0]).toContain('/v1/realunit/order/a%2Fb');
+  });
+
   it('masks a body key, not only the values under it', () => {
     // `redact` walks the values; the key is as much the request's to choose as the value is - and it
     // reached the line even without a character placed inside it.

@@ -33,16 +33,18 @@ export class ApiExceptionFilter implements ExceptionFilter {
     // The response goes out first, and nothing it does not need is read before it. Everything the
     // line renders comes from the request or from the thrower, and reading either can throw - which
     // used to leave the caller with no response at all rather than with a line missing a detail.
+    let failed: Error | undefined;
     try {
       response.status(status.sent).json(this.responseBody(exception, status));
     } catch (e) {
-      this.logger.error(`Failed to set error response content:`, e);
+      failed = e as Error;
     }
 
-    // The response is out; what follows only describes it. A failure to do that must not travel back
-    // to a caller who already has an answer, so it ends here - including a failure of the logger,
-    // which is the one thing that could not be used to report it anyway.
+    // The response is out; what follows only describes it, this failure included. A failure to
+    // describe it must not travel back to a caller who already has an answer, so it ends here -
+    // including a failure of the logger, which is the one thing that could not report it anyway.
     try {
+      if (failed) this.logger.error(`Failed to set error response content:`, failed);
       this.describe(exception, ctx.getRequest<Request>(), status.sent);
     } catch {
       return;
@@ -141,12 +143,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
     return { statusCode: status.sent, message: ApiExceptionFilter.messageOf(exception, status.sent) };
   }
 
-  // A body that carries no status of its own contradicts nothing.
+  // A body that carries no status of its own contradicts nothing. One that carries an accessor is
+  // read again when it is serialized and can answer differently then, so only a plain value counts.
   private static names(body: unknown, status: number): boolean {
-    const declared =
-      typeof body === 'object' && body !== null ? (body as { statusCode?: unknown }).statusCode : undefined;
+    if (typeof body !== 'object' || body === null) return true;
 
-    return declared === undefined || declared === status;
+    const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
+    if (declared && !('value' in declared)) return false;
+
+    return declared === undefined || declared.value === status;
   }
 
   // Not every status in the range has a name, so the name is a fallback and not the last one.
