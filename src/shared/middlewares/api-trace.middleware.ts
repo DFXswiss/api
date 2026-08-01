@@ -23,7 +23,14 @@ const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
 const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
 const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
 
+// The longest match the patterns above can produce - the email's 64 + `@` + 255 + `.` + 24. A
+// caller that masks only the front of a value needs it: it is how far a pattern can reach past
+// where that caller stopped looking, and therefore how much of what it kept could be the start of
+// one that was never seen whole.
+export const MAX_MASKED_PATTERN = 64 + 1 + 255 + 1 + 24;
+
 export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
+const MAX_CLIENT = 32; // per trace line: the client header is a name, not a payload
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
 const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
 const REDACTED = '***';
@@ -68,6 +75,18 @@ export function capCharacters(value: string, maxLength: number): string {
   }
 
   return end >= value.length ? value : `${value.slice(0, end)}\u2026`;
+}
+
+/**
+ * Cuts to a budget in code units, moving off a surrogate pair rather than through it. That is the
+ * measure a section is budgeted in - `capCharacters` counts characters, which for an astral run
+ * would be twice the units - so this is what the serialized sections use.
+ */
+function cutAtCodeUnits(value: string, maxUnits: number): string {
+  if (value.length <= maxUnits) return value;
+
+  const isHighSurrogate = value.charCodeAt(maxUnits - 1) >= 0xd800 && value.charCodeAt(maxUnits - 1) <= 0xdbff;
+  return `${value.slice(0, isHighSurrogate ? maxUnits - 1 : maxUnits)}…`;
 }
 
 /**
@@ -142,7 +161,7 @@ function format(value: unknown): string {
   } catch {
     return '(unserializable)';
   }
-  return s.length > MAX_PART ? `${capCharacters(s, MAX_PART)}(${s.length} code units)` : s;
+  return s.length > MAX_PART ? `${cutAtCodeUnits(s, MAX_PART)}(${s.length} code units)` : s;
 }
 
 /**
@@ -190,7 +209,10 @@ export function apiTraceMiddleware(): RequestHandler {
     res.on('finish', () => {
       const durationMs = Date.now() - start;
       const path = maskUrl(req.originalUrl);
-      const meta = `${req.method} ${path} → ${res.statusCode} (${durationMs}ms)  client=${clientStr || '(none)'}`;
+      // The client header is the one free-form value on this line: it arrives from the caller, so
+      // it is rendered like every other one rather than interpolated as it came.
+      const client = maskLogValue(clientStr, MAX_CLIENT) || '(none)';
+      const meta = `${req.method} ${path} → ${res.statusCode} (${durationMs}ms)  client=${client}`;
       if (isRealUnitPath) {
         logger.info(
           `${meta}  req.headers=${format(req.headers)}  req.body=${format(req.body)}  res.body=${format(responseBody)}`,

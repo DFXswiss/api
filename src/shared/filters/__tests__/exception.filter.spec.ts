@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ValidationError } from 'class-validator';
+import { MAX_MASKED_PATTERN } from 'src/shared/middlewares/api-trace.middleware';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
 import { ValidationFailedException } from 'src/shared/pipes/detailed-validation.pipe';
 
@@ -122,6 +123,38 @@ describe('ApiExceptionFilter', () => {
     expect(msg).not.toContain('someone@example.com');
     expect(msg).toContain('***');
     expect(msg.length).toBeLessThan(700);
+  });
+
+  it('does not let the scan cut expose a pattern it split in half', () => {
+    // Masking only shortens, so text from far beyond the visible cap moves into it: three long
+    // addresses collapse to nine characters. A pattern the scan cut in half is not recognized, and
+    // its head would be what the shortening pulls into view - unless the tail is dropped again.
+    const scanLength = 500 + 2 * MAX_MASKED_PATTERN;
+    const shrinking = Array.from({ length: 3 }, () => `a@${'d'.repeat(240)}.com`).join(' ');
+    const secret = 'ZZTOPSECRET@example.com';
+    const filler = 'f'.repeat(scanLength - 8 - shrinking.length - 1);
+    filter.catch(new BadRequestException(`${shrinking} ${filler}${secret}`), host(req(), { status }));
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('ZZTOPSEC');
+    expect(msg).toContain('***');
+  });
+
+  it('keeps sending the response when the message cannot be read', () => {
+    const unreadable = new BadRequestException({
+      statusCode: 400,
+      message: [
+        {
+          toString: () => {
+            throw new Error('nope');
+          },
+        },
+      ],
+    });
+
+    expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalled();
   });
 
   it('does NOT log routine client errors (401/403/404/429) — they are already in the access log', () => {

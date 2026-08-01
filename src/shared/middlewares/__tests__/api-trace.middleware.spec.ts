@@ -189,7 +189,7 @@ describe('apiTraceMiddleware', () => {
     // Every value stays under MAX_STRING, so the section is cut by its own cap rather than the
     // per-string one; the padding puts an astral character across that cut.
     const notes = Array.from({ length: 9 }, () => 'b'.repeat(400));
-    const withPadding = (padding: number) => ({
+    const withPadding = (padding: number): { notes: string[] } => ({
       notes: [...notes, `${'c'.repeat(padding)}${'\u{1F600}'.repeat(10)}`],
     });
     let padding = 0;
@@ -201,11 +201,21 @@ describe('apiTraceMiddleware', () => {
     expect(line).toContain('code units)');
     expect(line).not.toContain('\ufffd');
     // no lone surrogate: a well-formed pair is one character with a code point above the range
-    const isLoneSurrogate = (character: string) => {
+    const isLoneSurrogate = (character: string): boolean => {
       const codePoint = character.codePointAt(0) as number;
       return codePoint >= 0xd800 && codePoint <= 0xdfff;
     };
     expect([...line].some(isLoneSurrogate)).toBe(false);
+  });
+
+  it('renders the client header like any other value from the caller', () => {
+    const req = realunitReq({ amount: 1 });
+    (req.headers as any)['x-client'] = 'realunit-app\u0085INFO [RealUnitTrace] forged line';
+    const { lines } = runTrace(req, 200, (res) => res.json({}));
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain('\u0085');
+    expect(lines[0]).toContain('client=realunit-app INFO');
   });
 
   it('keeps the trace on one line, including the separators JSON.stringify leaves raw', () => {
