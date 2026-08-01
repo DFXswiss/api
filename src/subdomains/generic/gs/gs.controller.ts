@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -61,6 +62,9 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
+    // Off by default; the switch in `Config.support` states what has to hold before it goes back on.
+    if (!Config.support.dataEndpointEnabled) throw new ForbiddenException('Endpoint disabled');
+
     return this.gsService.getSupportData(query);
   }
 

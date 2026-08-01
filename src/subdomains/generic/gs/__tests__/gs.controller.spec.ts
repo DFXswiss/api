@@ -1,11 +1,14 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Config, ConfigService, Configuration } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { DbQueryDto } from 'src/subdomains/generic/gs/dto/db-query.dto';
+import { SupportTable } from 'src/subdomains/generic/gs/dto/gs.dto';
 import { GsTriggerType } from 'src/subdomains/generic/gs/dto/gs-trigger-type.enum';
+import { SupportDataQuery } from 'src/subdomains/generic/gs/dto/support-data.dto';
 import { GsController } from 'src/subdomains/generic/gs/gs.controller';
 import { GsService } from 'src/subdomains/generic/gs/gs.service';
 
@@ -31,6 +34,10 @@ describe('GsController', () => {
   beforeEach(() => {
     service = createMock<GsService>();
     controller = new GsController(service);
+    // This suite builds the controller directly instead of through a Nest TestingModule, so the
+    // module-level `Config` has to be installed by hand — that is what the ConfigService constructor
+    // does. A fresh one per test keeps the endpoint switch at its shipped default.
+    new ConfigService(new Configuration());
     verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
   });
@@ -112,6 +119,31 @@ describe('GsController', () => {
       expect(caught).toBeInstanceOf(BadRequestException);
       expect((caught as BadRequestException).message).toBe('boom');
       expect(verboseSpy.mock.calls[1][0]).toBe('DB data call for asset in x?forged failed:');
+    });
+  });
+
+  describe('getSupportData', () => {
+    const supportQuery = Object.assign(new SupportDataQuery(), { table: SupportTable.USER_DATA, key: 'id', value: 1 });
+
+    it('rejects while the endpoint switch is off, without reaching the GS service', async () => {
+      // Set explicitly rather than relying on the shipped default: flipping that default is meant to
+      // fail exactly one test — the one below that guards it.
+      Config.support.dataEndpointEnabled = false;
+
+      await expect(controller.getSupportData(supportQuery)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(service.getSupportData).not.toHaveBeenCalled();
+    });
+
+    it('ships with the endpoint switch off', () => {
+      expect(Config.support.dataEndpointEnabled).toBe(false);
+    });
+
+    it('reaches the GS service once the switch is flipped on', async () => {
+      Config.support.dataEndpointEnabled = true;
+
+      await controller.getSupportData(supportQuery);
+
+      expect(service.getSupportData).toHaveBeenCalledWith(supportQuery);
     });
   });
 });

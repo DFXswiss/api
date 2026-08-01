@@ -649,6 +649,10 @@ export class Configuration {
   ];
 
   support = {
+    // Master switch for the support data endpoint (`GET /v1/gs/support`) — hard-coded (intentionally
+    // no env/DB/setting), default OFF. Turn it back on only once that endpoint validates its `key`
+    // query parameter against an allowlist of the target entity's columns.
+    dataEndpointEnabled: false,
     limitRequest: {
       mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
       mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
