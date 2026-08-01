@@ -303,6 +303,13 @@ describe('maskLogValue', () => {
     expect(maskLogValue('\u{1F600}'.repeat(257), 96)).toBe('<514 code units>');
   });
 
+  it('masks a pattern a control character was placed next to, which removing it would join', () => {
+    // Removing the character puts what followed it against the end of the pattern, and the address
+    // no longer ends on a word boundary - so the masking also runs before the removal.
+    expect(maskLogValue('192.0.2.123\u0000a', 96)).toBe('***a');
+    expect(maskLogValue(`0x${'a'.repeat(40)}\u0000b`, 96)).toBe('0x…b');
+  });
+
   it('masks a pattern that a control character was placed inside', () => {
     // Removing the character rather than replacing it puts the pattern back together, so the
     // masking sees it as the value it is.

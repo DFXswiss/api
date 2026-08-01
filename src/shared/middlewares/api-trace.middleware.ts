@@ -37,7 +37,7 @@ export function maskValue(s: string): string {
 export function maskUrl(url: string): string {
   // The request target is client-supplied and reaches a log line: what is left of it after the
   // query is dropped is rendered like any other value from the request.
-  return maskValue(singleLine(url.split('?')[0]));
+  return maskLogText(url.split('?')[0]);
 }
 
 // Everything that can break a line or move a cursor in a log viewer: the control characters
@@ -47,13 +47,24 @@ const LINE_BREAKING = /[\p{C}\u2028\u2029]/gu;
 
 /**
  * Removes everything that could break a log line, so a crafted value cannot forge a second line or
- * smuggle an ANSI escape into the console stream. Every free-form value this file renders into a
- * log line goes through it, and always before the masking: removed rather than replaced, because a
- * character put inside a pattern would otherwise leave the pattern split around whatever replaced
- * it, and the masking would no longer recognize it.
+ * smuggle an ANSI escape into the console stream.
  */
 export function singleLine(value: string): string {
   return value.replace(LINE_BREAKING, '');
+}
+
+/**
+ * Renders free-form text for a log line: masked, on one line, masked again.
+ *
+ * Both passes are needed, because a character that breaks a line also breaks a pattern in either
+ * direction. Put inside one, it hides the pattern from a pass that runs before the removal
+ * (`victim\u0001@example.com`). Removing it joins what stood on either side, which can hide a
+ * pattern that was whole from a pass that runs after (`192.0.2.123\u0000a` becomes `192.0.2.123a`,
+ * where the address no longer ends on a word boundary). Neither order sees both, so both run - and
+ * the second pass cannot invent a match, since what the first one leaves behind is `***` and `0x…`.
+ */
+export function maskLogText(value: string): string {
+  return maskValue(singleLine(maskValue(value)));
 }
 
 /**
@@ -88,12 +99,10 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
 }
 
 /**
- * Renders an untrusted value (header, rejected body field) for inclusion in a log line: anything
- * that could break the line is removed, so a crafted value cannot forge a second log line or
- * smuggle an ANSI escape into the console stream; the value patterns above (wallet address, email,
- * IPv4) are masked and the result is length-capped. Removal runs before the masking, so a character
- * put inside a pattern does not hide it; masking runs before the cut, so a truncated email or
- * wallet cannot slip through.
+ * Renders an untrusted value (header, rejected body field) for inclusion in a log line: it goes
+ * through {@link maskLogText} - masked, stripped of anything that could break the line, masked
+ * again - and is then capped. The masking runs before the cut, so a truncated email or wallet
+ * cannot slip through.
  *
  * Beyond `MAX_STRING` the value is reported by length instead: masking is regex work over the
  * whole string, and the caller's cap alone would not stop an oversized one from paying for it.
@@ -104,7 +113,7 @@ function cutAtCodeUnits(value: string, maxUnits: number): string {
 export function maskLogValue(value: string, maxLength: number): string {
   if (value.length > MAX_STRING) return `<${value.length} code units>`;
 
-  return capCharacters(maskValue(singleLine(value)), maxLength);
+  return capCharacters(maskLogText(value), maxLength);
 }
 
 // `budget` bounds the total work per section: each processed node deducts from
@@ -132,7 +141,7 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
   if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
   if (typeof value === 'string') {
     budget.left -= Math.min(value.length, MAX_STRING);
-    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskValue(singleLine(value));
+    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskLogText(value);
   }
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};

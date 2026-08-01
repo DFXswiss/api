@@ -146,7 +146,7 @@ describe('ApiExceptionFilter', () => {
 
     expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
     expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'x' });
   });
 
   it('keeps sending the response when the message cannot be read', () => {
@@ -166,6 +166,42 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalled();
   });
 
+  it('keeps a failure to write the line away from a caller that already has its answer', () => {
+    warn.mockImplementation(() => {
+      throw new Error('logger down');
+    });
+
+    expect(() => filter.catch(new BadRequestException('bad'), host(req(), { status }))).not.toThrow();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalled();
+  });
+
+  it('describes the response it is sending, not the one the exception named', () => {
+    // The status was replaced, so the body the exception carries no longer says what is being sent.
+    const mismatched = new BadRequestException('x');
+    jest.spyOn(mismatched, 'getStatus').mockReturnValue(600);
+
+    filter.catch(mismatched, host(req(), { status }));
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
+  });
+
+  it('sends the response even when the message cannot be read either', () => {
+    const mute = new BadRequestException('x');
+    jest.spyOn(mute, 'getResponse').mockImplementation(() => {
+      throw new Error('nope');
+    });
+    Object.defineProperty(mute, 'message', {
+      get: () => {
+        throw new Error('nope');
+      },
+    });
+
+    expect(() => filter.catch(mute, host(req(), { status }))).not.toThrow();
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+  });
+
   it('sends a server error when the status cannot be read or is not one Express sends', () => {
     const broken = new BadRequestException('x');
     jest.spyOn(broken, 'getStatus').mockImplementation(() => {
@@ -174,10 +210,12 @@ describe('ApiExceptionFilter', () => {
     filter.catch(broken, host(req(), { status }));
     expect(status).toHaveBeenCalledWith(500);
 
-    const outOfRange = new BadRequestException('x');
-    jest.spyOn(outOfRange, 'getStatus').mockReturnValue(0);
-    filter.catch(outOfRange, host(req(), { status }));
-    expect(status).toHaveBeenLastCalledWith(500);
+    for (const invalid of [0, -1, NaN, 100, 199, 600, 1.5]) {
+      const outOfRange = new BadRequestException('x');
+      jest.spyOn(outOfRange, 'getStatus').mockReturnValue(invalid);
+      filter.catch(outOfRange, host(req(), { status }));
+      expect(status).toHaveBeenLastCalledWith(500);
+    }
   });
 
   it('sends the response even when the request cannot be read', () => {
@@ -190,7 +228,7 @@ describe('ApiExceptionFilter', () => {
       }),
     } as unknown as ArgumentsHost;
 
-    expect(() => filter.catch(new BadRequestException('bad'), brokenHost)).toThrow();
+    expect(() => filter.catch(new BadRequestException('bad'), brokenHost)).not.toThrow();
     expect(status).toHaveBeenCalledWith(400);
     expect(json).toHaveBeenCalled();
   });

@@ -95,10 +95,15 @@ function renderValue(error: ValidationError): string {
   if (value === null) return '(null)';
   if (value === '') return "''";
 
+  // A declared match comes ahead of the name-based redaction: what it renders is a constant of this
+  // program, so the field's name says nothing about it. `personalIbanProvider` is the case - the
+  // name carries `iban` and would otherwise lose a value that was never the client's to begin with.
+  const declared = renderDeclared(error);
+  if (declared !== undefined) return declared;
+
   if (REDACT_KEY.test(property)) return '***';
 
-  const rendered = renderDeclared(error);
-  return rendered ?? summarize(value);
+  return summarize(value);
 }
 
 // A value is rendered only if the field declared it (see {@link LogRejectedValue}) - and what is

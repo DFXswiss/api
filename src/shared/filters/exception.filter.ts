@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
-import { capCharacters, maskUrl, maskValue, singleLine } from 'src/shared/middlewares/api-trace.middleware';
+import { capCharacters, maskLogText, maskUrl } from 'src/shared/middlewares/api-trace.middleware';
 import { ValidationFailedException, describeRejectedValues } from 'src/shared/pipes/detailed-validation.pipe';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { describeCaller } from 'src/shared/utils/request-caller';
@@ -33,7 +33,17 @@ export class ApiExceptionFilter implements ExceptionFilter {
       this.logger.error(`Failed to set error response content:`, e);
     }
 
-    const request = ctx.getRequest<Request>();
+    // The response is out; what follows only describes it. A failure to do that must not travel back
+    // to a caller who already has an answer, so it ends here - including a failure of the logger,
+    // which is the one thing that could not be used to report it anyway.
+    try {
+      this.describe(exception, ctx.getRequest<Request>(), status);
+    } catch {
+      return;
+    }
+  }
+
+  private describe(exception: Error, request: Request, status: number): void {
     const target = `${request.method} request to '${maskUrl(request.originalUrl ?? request.url ?? '')}'`;
     if (status >= 500) {
       // log server errors with the full error + stack
@@ -51,10 +61,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       //
       // All three are untrusted input and rendered as such - single-line, masked and capped. The
       // reason included: an exception message can interpolate a value the request supplied.
-      const reason = capCharacters(
-        maskValue(singleLine(this.getReason(exception))),
-        ApiExceptionFilter.REASON_MAX_LENGTH,
-      );
+      const reason = capCharacters(maskLogText(this.getReason(exception)), ApiExceptionFilter.REASON_MAX_LENGTH);
       const rejected =
         exception instanceof ValidationFailedException
           ? ` (received: ${describeRejectedValues(exception.validationErrors)})`
@@ -64,29 +71,38 @@ export class ApiExceptionFilter implements ExceptionFilter {
   }
 
   // The status an HttpException carries is whatever the thrower put there: reading it can throw, and
-  // what comes back is not necessarily one Express will send. Anything outside the range it accepts
-  // is a server error by the only reading left.
+  // what comes back is not necessarily a final response at all - a 1xx is an interim one, and
+  // nothing outside the range it can send leaves a reading other than server error.
   private static statusOf(exception: Error): number {
     try {
       if (!(exception instanceof HttpException)) return HttpStatus.INTERNAL_SERVER_ERROR;
 
       const status = exception.getStatus();
-      return Number.isInteger(status) && status >= 100 && status <= 599 ? status : HttpStatus.INTERNAL_SERVER_ERROR;
+      return Number.isInteger(status) && status >= 200 && status <= 599 ? status : HttpStatus.INTERNAL_SERVER_ERROR;
     } catch {
       return HttpStatus.INTERNAL_SERVER_ERROR;
     }
   }
 
   // The body an HttpException carries is whatever the thrower put there, and reading it can throw.
-  // A caller gets the generic body then rather than none.
+  // A caller gets the generic body then rather than none - and also when the status it was going to
+  // be sent with is not the one it names, which is what a replaced status leaves behind.
   private responseBody(exception: Error, status: number): unknown {
     try {
-      if (exception instanceof HttpException) return exception.getResponse();
+      if (exception instanceof HttpException && exception.getStatus() === status) return exception.getResponse();
     } catch {
-      return { statusCode: status, message: HttpStatus[status] ?? 'Error' };
+      // an exception that cannot say what it is gets described by what is being sent
     }
 
-    return { statusCode: status, message: exception.message };
+    return { statusCode: status, message: ApiExceptionFilter.messageOf(exception, status) };
+  }
+
+  private static messageOf(exception: Error, status: number): string {
+    try {
+      return exception.message || (HttpStatus[status] as string);
+    } catch {
+      return HttpStatus[status] as string;
+    }
   }
 
   // Human-readable rejection reason. For HttpExceptions the useful text is in the
