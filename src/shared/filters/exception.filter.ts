@@ -1,7 +1,9 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
-import { maskUrl, maskValue } from 'src/shared/middlewares/api-trace.middleware';
+import { capCharacters, maskLogText, maskUrl } from 'src/shared/middlewares/api-trace.middleware';
+import { ValidationFailedException, describeRejectedValues } from 'src/shared/pipes/detailed-validation.pipe';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { describeCaller } from 'src/shared/utils/request-caller';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -20,9 +22,28 @@ export class ApiExceptionFilter implements ExceptionFilter {
   catch(exception: Error, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    const request = ctx.getRequest<Request>();
-    const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = ApiExceptionFilter.statusOf(exception);
 
+    // The response goes out first, and nothing it does not need is read before it. Everything the
+    // line renders comes from the request or from the thrower, and reading either can throw - which
+    // used to leave the caller with no response at all rather than with a line missing a detail.
+    try {
+      response.status(status).json(this.responseBody(exception, status));
+    } catch (e) {
+      this.logger.error(`Failed to set error response content:`, e);
+    }
+
+    // The response is out; what follows only describes it. A failure to do that must not travel back
+    // to a caller who already has an answer, so it ends here - including a failure of the logger,
+    // which is the one thing that could not be used to report it anyway.
+    try {
+      this.describe(exception, ctx.getRequest<Request>(), status);
+    } catch {
+      return;
+    }
+  }
+
+  private describe(exception: Error, request: Request, status: number): void {
     const target = `${request.method} request to '${maskUrl(request.originalUrl ?? request.url ?? '')}'`;
     if (status >= 500) {
       // log server errors with the full error + stack
@@ -32,39 +53,79 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // that surfaces as a 4xx (a valid request the server wrongly rejects) is
       // visible in the logs instead of leaving only a bare morgan status line with
       // no reason (the #4105 support-ticket outage was silent for exactly this).
-      // The reason is masked to the same PII standard as the rest of the logs and
-      // length-capped, because it can embed user-supplied values.
-      const reason = maskValue(this.getReason(exception)).slice(0, ApiExceptionFilter.REASON_MAX_LENGTH);
-      this.logger.warn(`${status} on ${target}: ${reason}`);
+      //
+      // The caller markers and the rejected values are what make a steady stream of rejections
+      // actionable: the constraint message names the field and the allowed values, so without the
+      // value that arrived and a hint at who sent it, a wrong constant in a client can only be
+      // guessed at.
+      //
+      // All three are untrusted input and rendered as such - single-line, masked and capped. The
+      // reason included: an exception message can interpolate a value the request supplied.
+      const reason = capCharacters(maskLogText(this.getReason(exception)), ApiExceptionFilter.REASON_MAX_LENGTH);
+      const rejected =
+        exception instanceof ValidationFailedException
+          ? ` (received: ${describeRejectedValues(exception.validationErrors)})`
+          : '';
+      this.logger.warn(`${status} on ${target} from ${describeCaller(request)}: ${reason}${rejected}`);
+    }
+  }
+
+  // The status an HttpException carries is whatever the thrower put there: reading it can throw, and
+  // what comes back is not necessarily a final response at all - a 1xx is an interim one, and
+  // nothing outside the range it can send leaves a reading other than server error.
+  private static statusOf(exception: Error): number {
+    try {
+      if (!(exception instanceof HttpException)) return HttpStatus.INTERNAL_SERVER_ERROR;
+
+      const status = exception.getStatus();
+      return Number.isInteger(status) && status >= 200 && status <= 599 ? status : HttpStatus.INTERNAL_SERVER_ERROR;
+    } catch {
+      return HttpStatus.INTERNAL_SERVER_ERROR;
+    }
+  }
+
+  // The body an HttpException carries is whatever the thrower put there, and reading it can throw.
+  // A caller gets the generic body then rather than none - and also when the status it was going to
+  // be sent with is not the one it names, which is what a replaced status leaves behind.
+  private responseBody(exception: Error, status: number): unknown {
+    try {
+      if (exception instanceof HttpException && exception.getStatus() === status) return exception.getResponse();
+    } catch {
+      // an exception that cannot say what it is gets described by what is being sent
     }
 
+    return { statusCode: status, message: ApiExceptionFilter.messageOf(exception, status) };
+  }
+
+  private static messageOf(exception: Error, status: number): string {
     try {
-      response.status(status).json(
-        exception instanceof HttpException
-          ? exception.getResponse()
-          : {
-              statusCode: status,
-              message: exception.message,
-            },
-      );
-    } catch (e) {
-      this.logger.error(`Failed to set error response content:`, e);
+      return exception.message || (HttpStatus[status] as string);
+    } catch {
+      return HttpStatus[status] as string;
     }
   }
 
   // Human-readable rejection reason. For HttpExceptions the useful text is in the
   // response body (a plain message, or the class-validator error array), which is
   // more specific than the generic exception.message.
+  //
+  // The body is whatever the thrower put there, so reading it can throw: an array element that
+  // cannot be turned into a string takes `join` with it. The response has already gone out by then;
+  // the line loses its reason instead.
   private getReason(exception: Error): string {
-    if (exception instanceof HttpException) {
-      const res = exception.getResponse();
-      if (typeof res === 'string') return res;
+    try {
+      if (exception instanceof HttpException) {
+        const res = exception.getResponse();
+        if (typeof res === 'string') return res;
 
-      const message = (res as { message?: unknown }).message;
-      if (Array.isArray(message)) return message.join('; ');
-      if (typeof message === 'string') return message;
+        const message = (res as { message?: unknown }).message;
+        if (Array.isArray(message)) return message.join('; ');
+        if (typeof message === 'string') return message;
+      }
+
+      return exception.message;
+    } catch {
+      return '(unreadable reason)';
     }
-
-    return exception.message;
   }
 }

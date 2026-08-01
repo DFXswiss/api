@@ -13,13 +13,14 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
+import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FiatPaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { PersonalIbanProvider } from './personal-iban-provider.enum';
 
@@ -61,6 +62,8 @@ export class GetBuyPaymentInfoDto {
 
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
+  // The crypto members of the union are what a client sends here by mistake.
+  @LogRejectedValue(PaymentMethodSwagger)
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
 
   @ApiPropertyOptional({
@@ -69,6 +72,8 @@ export class GetBuyPaymentInfoDto {
   })
   @IsOptional()
   @IsEnum(PersonalIbanProvider, { message: QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED })
+  // The field's own values: a wrong one that differs only in case is named back as the constant.
+  @LogRejectedValue(PersonalIbanProvider)
   personalIbanProvider?: PersonalIbanProvider;
 
   @ApiPropertyOptional({ description: 'Custom transaction id' })
