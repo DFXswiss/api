@@ -34,7 +34,10 @@ Pro Fall gilt:
 3. Die sechs fehlenden PDF-Nachweise werden mit `pdf-lib` direkt auf Kopien der produktiven
    Google-Sheet-PDF-Vorlagen geschrieben und über einen eindeutigen
    `generationKey` idempotent im WORM-Storage gespeichert. Ein `kyc_file` wird erst nach erfolgreichem
-   Upload als gültig markiert.
+   Upload als gültig markiert. Der Text wird mit einer eingebetteten Unicode-Schrift gesetzt
+   (Liberation Sans, metrisch Arial/Helvetica-kompatibel), damit Namen, Strassen und Arbeitgeber
+   ausserhalb von Latin-1 nicht zum Abbruch führen; Zeichen ohne Glyphe werden ersetzt und
+   protokolliert statt das Dokument zu verwerfen.
 4. Das serverseitige Gate prüft alle fachlichen Voraussetzungen und alle acht Dokumenttypen.
 5. Nur ein vollständig freier Fall wird in einer DB-Transaktion auf `DfxApproval = Completed`,
    `kycLevel = 50` und `kycStatus = Completed` gesetzt. Step- und KYC-Logs werden in derselben
@@ -47,12 +50,15 @@ Die sechs Dokumente behalten ihre voneinander unabhängigen GSheet-Auswahlregeln
   je Dokument.
 - `CustomerProfile`: abgeschlossene FinancialData für Personal-Konten mit `30 <= kycLevel < 50`.
 - `RiskProfile` und `FormA`: DFX-Personal-Konten mit `30 <= kycLevel < 50`; beim RiskProfile zusätzlich
-  `highRisk=false` und ein FATF-freigegebenes Wohnsitzland. Die drei produktiven Legacy-Ausnahmen
-  `374462`, `374428` und `385169` bleiben bestehen.
+  `highRisk=false` und ein FATF-freigegebenes Wohnsitzland. Diese beiden Dokumente hängen am Konto,
+  nicht an einem KYC-Schritt: sie werden auch für Konten erzeugt, die weder einen `DfxApproval`- noch
+  einen `FinancialData`-Schritt haben. Die produktiven Legacy-Ausnahmen stehen in der Einstellung
+  `dfxApprovalDocumentExclusions` (JSON-Array von `user_data`-IDs) und nicht im Quelltext; ohne
+  gesetzte Einstellung ist die Ausnahmeliste leer.
 
 Dadurch kann ein Dokument erzeugt werden, auch wenn ein anderes Dokument oder eine spätere
-Freigabevoraussetzung noch fehlt. Unvollständige oder ungültige JSON-Daten, offene NameChecks und
-Storage-Fehler werden pro Dokument protokolliert; andere Dokumente desselben Falls laufen weiter.
+Freigabevoraussetzung noch fehlt. Unvollständige oder ungültige JSON-Daten, fehlende NameCheck-Daten
+und Storage-Fehler werden pro Dokument protokolliert; andere Dokumente desselben Falls laufen weiter.
 Leere Compliance-Werte werden nicht als `false` interpretiert.
 
 ## Automatisches Freigabe-Gate
@@ -79,6 +85,8 @@ vollständig in der API.
 Die Reihenfolge ist verbindlich, damit GSheets und API niemals parallel schreiben:
 
 1. API inklusive DB-Migration deployen, während `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=false` bleibt.
+   Im selben Schritt die Einstellung `dfxApprovalDocumentExclusions` mit den produktiven
+   Legacy-Ausnahmen setzen — ohne sie erzeugt der Workflow auch für diese Konten Dokumente.
 2. Mit einem Testfall die sechs PDF-Subtypen und die automatische Freigabe im deaktivierten bzw.
    kontrollierten Staging-Betrieb prüfen.
 3. Alle acht minütlichen `admin@dfx.swiss`-Trigger deaktivieren, aber für einen schnellen Rollback
@@ -111,6 +119,8 @@ Alarmiert werden muss bei:
 - steigendem Alter des ältesten wartenden Falls
 - fehlenden oder ungültigen Dokument-Subtypen
 - wiederholten `DfxApproval workflow failed`-Logs
+- wiederkehrenden `DfxApproval step <id> not ready`-Logs mit demselben Blocker: sie nennen den Grund,
+  warum ein Fall nicht freigegeben wird
 - Storage-, PDF-, JSON- oder NameCheck-Fehlern
 
 Ein Rückstau von null ist nur eine Momentaufnahme. Massgeblich sind Durchsatz und Alter der Fälle.
