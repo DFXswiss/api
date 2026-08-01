@@ -33,10 +33,10 @@ The `Ratio` column quantifies it where both sides are known. It is the basis for
 
 | | Endpoints | Share |
 | --- | --- | --- |
-| Eager determined (`yes`/`no`) | 521 | 98 % |
+| Eager determined (`yes`/`no`) | 531 | 100 % |
 | — of those `yes` | 295 | |
-| — of those `no` | 226 | |
-| Eager unresolved (`?`) | 12 | 2 % |
+| — of those `no` | 236 | |
+| Eager unresolved (`?`) | 2 | 0 % |
 | Column count measured | 295 | 55 % |
 | Field count known | 220 | 41 % |
 | — returns `void`, no fields to count | 113 | 21 % |
@@ -65,7 +65,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | POST | `/admin/mail` | public | no | — | n/a | n/a | `AdminController.sendMail` | `subdomains/generic/admin/admin.controller.ts` |
 | POST | `/admin/payout` | hidden | yes | 156 | n/a | n/a | `AdminController.payout` | `subdomains/generic/admin/admin.controller.ts` |
 | POST | `/admin/sendLetter` | hidden | no | — | n/a | n/a | `AdminController.sendLetter` | `subdomains/generic/admin/admin.controller.ts` |
-| POST | `/alchemy/addressWebhook` | public | ? | — | n/a | n/a | `AlchemyController.addressWebhook` | `integration/alchemy/controllers/alchemy.controller.ts` |
+| POST | `/alchemy/addressWebhook` | public | no | — | n/a | n/a | `AlchemyController.addressWebhook` | `integration/alchemy/controllers/alchemy.controller.ts` |
 | GET | `/alchemy/addresses/:webhookId` | public | no | — | n/a | n/a | `AlchemyController.addresses` | `integration/alchemy/controllers/alchemy.controller.ts` |
 | GET | `/app` | public | yes | 6 | n/a | n/a | `AppController.createRefNew` | `app.controller.ts` |
 | GET | `/app/:app` | hidden | yes | 6 | n/a | n/a | `AppController.redirectToStore` | `app.controller.ts` |
@@ -78,7 +78,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/auth/2fa` | hidden | yes | 253 | n/a | n/a | `AuthController.check2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | POST | `/auth/2fa` | public | yes | 253 | 3 | 84× | `AuthController.setup2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | POST | `/auth/2fa/verify` | public | yes | 253 | n/a | n/a | `AuthController.verify2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |
-| GET | `/auth/alby` | hidden | ? | — | — | — | `AuthController.signInWithAlby` | `subdomains/generic/user/models/auth/auth.controller.ts` |
+| GET | `/auth/alby` | hidden | no | — | — | — | `AuthController.signInWithAlby` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/auth/alby/redirect/:id` | hidden | yes | 78 | — | — | `AuthController.redirectAlby` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | `/auth/challenge` | hidden | yes | 20 | 1 | 20× | `AuthController.companyChallenge` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | POST | `/auth/mail` | hidden | yes | 20 | n/a | n/a | `AuthController.signInByMail` | `subdomains/generic/user/models/auth/auth.controller.ts` |
@@ -202,8 +202,8 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | POST | `/fiatOutput` | public | yes | 377 | n/a | n/a | `FiatOutputController.create` | `subdomains/supporting/fiat-output/fiat-output.controller.ts` |
 | PUT | `/fiatOutput/:id` | hidden | yes | 59 | n/a | n/a | `FiatOutputController.update` | `subdomains/supporting/fiat-output/fiat-output.controller.ts` |
 | GET | `/frankencoin/info` | public | yes | 11 | — | — | `FrankencoinController.getInfo` | `integration/blockchain/frankencoin/controllers/frankencoin.controller.ts` |
-| POST | `/gs/db` | public | ? | — | n/a | n/a | `GsController.getDbData` | `subdomains/generic/gs/gs.controller.ts` |
-| POST | `/gs/db/custom` | hidden | ? | — | n/a | n/a | `GsController.getExtendedData` | `subdomains/generic/gs/gs.controller.ts` |
+| POST | `/gs/db` | public | no | — | n/a | n/a | `GsController.getDbData` | `subdomains/generic/gs/gs.controller.ts` |
+| POST | `/gs/db/custom` | hidden | no | — | n/a | n/a | `GsController.getExtendedData` | `subdomains/generic/gs/gs.controller.ts` |
 | POST | `/gs/debug` | hidden | no | — | n/a | n/a | `GsController.executeDebugQuery` | `subdomains/generic/gs/gs.controller.ts` |
 | POST | `/gs/evm/bridgeApproval` | hidden | yes | 33 | n/a | n/a | `GsEvmController.approveBridge` | `subdomains/generic/gs/gs-evm.controller.ts` |
 | POST | `/gs/evm/coinTransaction` | hidden | yes | 6 | n/a | n/a | `GsEvmController.sendCoinTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
@@ -278,7 +278,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | PUT | `/kyc/data/statutes/:id` | public | no | — | n/a | n/a | `KycController.updateStatutesData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | GET | `/kyc/file/:id` | hidden | yes | 264 | 5 | 53× | `KycController.getFile` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | PUT | `/kyc/ident/manual/:id` | hidden | yes | 23 | n/a | n/a | `KycController.updateIdentData` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
-| POST | `/kyc/ident/sumsub` | public | ? | — | n/a | n/a | `KycController.sumsubWebhook` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
+| POST | `/kyc/ident/sumsub` | public | no | — | n/a | n/a | `KycController.sumsubWebhook` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | POST | `/kyc/transfer` | hidden | yes | 20 | n/a | n/a | `KycController.addKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | PUT | `/kyc/transfer` | public | yes | 331 | n/a | n/a | `KycController.transferKycDataV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | DELETE | `/kyc/transfer` | hidden | yes | 20 | n/a | n/a | `KycController.removeKycClient` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
@@ -299,7 +299,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | PATCH | `/liquidityManagement/rule/:id/deactivate` | hidden | yes | 83 | 9 | 9× | `LiquidityManagementRuleController.deactivateRule` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
 | PATCH | `/liquidityManagement/rule/:id/reactivate` | hidden | yes | 83 | 9 | 9× | `LiquidityManagementRuleController.reactivateRule` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
 | PATCH | `/liquidityManagement/rule/:id/settings` | hidden | yes | 83 | 9 | 9× | `LiquidityManagementRuleController.setReactivationTime` | `subdomains/core/liquidity-management/controllers/rule.controller.ts` |
-| GET | `/lnurla` | public | ? | — | 2 | — | `AuthLnurlController.signInWithLnurlAuth` | `subdomains/generic/user/models/auth/auth-lnurl.controller.ts` |
+| GET | `/lnurla` | public | no | — | 2 | — | `AuthLnurlController.signInWithLnurlAuth` | `subdomains/generic/user/models/auth/auth-lnurl.controller.ts` |
 | POST | `/lnurla` | public | no | — | 2 | — | `AuthLnurlController.getLnurlAuth` | `subdomains/generic/user/models/auth/auth-lnurl.controller.ts` |
 | GET | `/lnurla/status` | public | no | — | 2 | — | `AuthLnurlController.lnurlAuthStatus` | `subdomains/generic/user/models/auth/auth-lnurl.controller.ts` |
 | GET | `/lnurld/:id` | public | no | — | — | — | `LnurldForwardController.lnurldForward` | `subdomains/generic/forwarding/controllers/lnurld-forward.controller.ts` |
@@ -329,8 +329,8 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/node/:node/tx/:txId` | hidden | no | — | n/a | n/a | `NodeController.waitForTx` | `integration/blockchain/bitcoin/node/node.controller.ts` |
 | POST | `/notification/send-mail` | public | no | — | n/a | n/a | `NotificationController.sendMail` | `subdomains/supporting/notification/notification.controller.ts` |
 | POST | `/payIn` | public | no | — | n/a | n/a | `PayInController.createPayIn` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
-| POST | `/payIn/lnurlpDeposit/:uniqueId` | public | ? | — | n/a | n/a | `PayInWebhookController.deposit` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
-| POST | `/payIn/lnurlpPayment/:uniqueId` | hidden | ? | — | n/a | n/a | `PayInWebhookController.payment` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
+| POST | `/payIn/lnurlpDeposit/:uniqueId` | public | no | — | n/a | n/a | `PayInWebhookController.deposit` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
+| POST | `/payIn/lnurlpPayment/:uniqueId` | hidden | no | — | n/a | n/a | `PayInWebhookController.payment` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
 | POST | `/payIn/poll` | hidden | ? | — | n/a | n/a | `PayInController.pollAddress` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
 | POST | `/payIn/retry` | hidden | yes | — | n/a | n/a | `PayInController.retryUncertainSend` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
 | GET | `/paymentLink` | public | no | 513 | 15 | 34× | `PaymentLinkController.getAllPaymentLinks` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
@@ -475,7 +475,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | GET | `/support/:id` | hidden | yes | 826 | n/a | n/a | `SupportController.getUserData` | `subdomains/generic/support/support.controller.ts` |
 | GET | `/support/:id/ip-log-pdf` | hidden | no | — | 16 | — | `SupportController.getIpLogPdf` | `subdomains/generic/support/support.controller.ts` |
 | POST | `/support/:id/onboarding-pdf` | hidden | no | — | 11 | — | `SupportController.generateOnboardingPdf` | `subdomains/generic/support/support.controller.ts` |
-| GET | `/support/:id/scorechain` | hidden | ? | — | 16 | — | `SupportController.getScorechainScreenings` | `subdomains/generic/support/support.controller.ts` |
+| GET | `/support/:id/scorechain` | hidden | no | — | 16 | — | `SupportController.getScorechainScreenings` | `subdomains/generic/support/support.controller.ts` |
 | GET | `/support/:id/transaction-pdf` | hidden | no | — | 16 | — | `SupportController.getTransactionPdf` | `subdomains/generic/support/support.controller.ts` |
 | GET | `/support/call-queues` | hidden | no | — | n/a | n/a | `SupportController.getCallQueues` | `subdomains/generic/support/support.controller.ts` |
 | GET | `/support/call-queues/:queue/items` | hidden | yes | 253 | n/a | n/a | `SupportController.getCallQueueItems` | `subdomains/generic/support/support.controller.ts` |
@@ -525,7 +525,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | PUT | `/swap/paymentInfos/:id/confirm` | public | yes | 504 | 35 | 14× | `SwapController.confirmSwap` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | GET | `/swap/paymentInfos/:id/tx` | public | yes | 504 | 15 | 34× | `SwapController.depositTx` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
 | PUT | `/swap/quote` | hidden | yes | 23 | 28 | 1× | `SwapController.getSwapQuote` | `subdomains/core/buy-crypto/routes/swap/swap.controller.ts` |
-| POST | `/tatum/addressWebhook` | public | ? | — | n/a | n/a | `TatumController.addressWebhook` | `integration/tatum/controllers/tatum.controller.ts` |
+| POST | `/tatum/addressWebhook` | public | no | — | n/a | n/a | `TatumController.addressWebhook` | `integration/tatum/controllers/tatum.controller.ts` |
 | PUT | `/trading/rule/:id` | public | yes | 87 | n/a | n/a | `TradingRuleController.update` | `subdomains/core/trading/controllers/trading-rule.controller.ts` |
 | GET | `/transaction` | public | no | — | 35 | — | `TransactionController.getTransactions` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | PUT | `/transaction/:id/invoice` | public | yes | 1220 | 1 | 1220× | `TransactionController.generateInvoiceFromTransaction` | `subdomains/core/history/controllers/transaction.controller.ts` |
