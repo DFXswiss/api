@@ -226,6 +226,14 @@ describe('maskLogValue', () => {
     expect(maskLogValue('x'.repeat(4), 4)).toBe('xxxx');
   });
 
+  it('cuts between characters, so a surrogate pair is not halved at the boundary', () => {
+    const cut = maskLogValue(`${'a'.repeat(63)}\u{1F600}x`, 64);
+
+    expect(cut).toBe(`${'a'.repeat(63)}\u{1F600}\u2026`);
+    expect(cut).not.toContain('\uFFFD');
+    expect([...cut].every((character) => character.codePointAt(0) !== 0xd83d)).toBe(true);
+  });
+
   it('reports an oversized value by length instead of masking it', () => {
     // The caller's cap alone would still pay for masking the whole string first.
     expect(maskLogValue('x'.repeat(513), 96)).toBe('<513 chars>');

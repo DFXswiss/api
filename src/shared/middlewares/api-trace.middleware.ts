@@ -55,7 +55,12 @@ export function maskLogValue(value: string, maxLength: number): string {
   if (value.length > MAX_STRING) return `<${value.length} chars>`;
 
   const masked = maskValue(value.replace(LINE_BREAKING, ' '));
-  return masked.length > maxLength ? `${masked.slice(0, maxLength)}…` : masked;
+
+  // Cut between characters, not between code units: `slice` would halve a surrogate pair sitting
+  // on the boundary and leave the stray half in front of the ellipsis, which reaches the log as a
+  // replacement character. Bounded work — the oversize case above already returned.
+  const characters = [...masked];
+  return characters.length > maxLength ? `${characters.slice(0, maxLength).join('')}…` : masked;
 }
 
 // `budget` bounds the total work per section: each processed node deducts from
