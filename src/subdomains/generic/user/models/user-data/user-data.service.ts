@@ -1766,6 +1766,7 @@ export class UserDataService {
       .createQueryBuilder('userData')
       .where(`userData.${field} >= :start`, { start })
       .andWhere(`userData.${field} <= :end`, { end })
+      .andWhere('userData.kycFileId > 0')
       .getCount();
   }
 
@@ -1775,6 +1776,7 @@ export class UserDataService {
       .select('MAX(userData.kycFileId)', 'maxKycFileId')
       .where(`userData.${field} >= :start`, { start })
       .andWhere(`userData.${field} <= :end`, { end })
+      .andWhere('userData.kycFileId > 0')
       .getRawOne<{ maxKycFileId: number }>()
       .then((r) => r?.maxKycFileId ?? 0);
   }
