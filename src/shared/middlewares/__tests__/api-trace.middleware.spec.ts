@@ -163,6 +163,20 @@ describe('apiTraceMiddleware', () => {
     expect(line).not.toContain('jane@example.com');
   });
 
+  it('masks what a path carries percent-encoded', () => {
+    const req = {
+      method: 'GET',
+      originalUrl: '/v1/realunit/user/victim%40example.com/0x1234567890123456789012345678901234567890',
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 200, (res) => res.send('ok'));
+
+    expect(lines[0]).not.toContain('victim');
+    expect(lines[0]).not.toContain('%40');
+    expect(lines[0]).toContain('/v1/realunit/user/***/0x…');
+  });
+
   it('stops redaction at the compute budget instead of walking a huge body', () => {
     const huge = { items: Array.from({ length: 50_000 }, (_, i) => `leaf-value-${i}-${'x'.repeat(400)}`) };
     const { lines } = runTrace(realunitReq(huge), 200, (res) => res.json({}));
@@ -327,6 +341,21 @@ describe('maskLogValue', () => {
     // to an `@` would be folded into an address of its own and take the text after it with it.
     expect(maskLogValue('192.0.2.123\u2028@error.code', 96)).toBe('***@error.code');
     expect(maskLogValue(`0x${'a'.repeat(40)}\u2028@error.code`, 96)).toBe('0x…@error.code');
+  });
+
+  it('does not let a request forge a redaction by sending the marker itself', () => {
+    // The markers the first pass writes are grown until they do not occur in the value, so what
+    // comes back as `***` is a pattern that matched and not something a request wrote.
+    expect(maskLogValue('/\uFFFCr/', 96)).toBe('/\uFFFCr/');
+    expect(maskLogValue('/\uFFFCw/ and /\uFFFCr/', 96)).toBe('/\uFFFCw/ and /\uFFFCr/');
+  });
+
+  it('masks an address that a letter or an underscore stands next to', () => {
+    // Only a digit on either side means it is a longer number rather than an address.
+    expect(maskLogValue('ip192.0.2.123', 96)).toBe('ip***');
+    expect(maskLogValue('_192.0.2.123', 96)).toBe('_***');
+    expect(maskLogValue('x192.0.2.123y', 96)).toBe('x***y');
+    expect(maskLogValue('1192.0.2.123', 96)).toBe('1192.0.2.123');
   });
 
   it('masks a pattern that a control character was placed inside', () => {

@@ -90,13 +90,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
   private static reasonOf(reason: string): string {
     const scanned = capCharacters(reason, ApiExceptionFilter.REASON_SCAN_LENGTH);
     const masked = maskLogText(scanned);
-    const complete = scanned === reason ? masked : capCharacters(masked, ApiExceptionFilter.visibleOf(masked));
 
-    return capCharacters(complete, ApiExceptionFilter.REASON_MAX_LENGTH);
+    return capCharacters(
+      ApiExceptionFilter.withoutSplitTail(masked, scanned === reason),
+      ApiExceptionFilter.REASON_MAX_LENGTH,
+    );
   }
 
-  private static visibleOf(masked: string): number {
-    return Math.max(0, [...masked].length - MAX_MASKED_PATTERN);
+  // Nothing was cut, or what the masking left is long enough that its end stays past the cap either
+  // way: the tail costs diagnostic text and buys nothing there.
+  private static withoutSplitTail(masked: string, complete: boolean): string {
+    const length = [...masked].length;
+    if (complete || length > ApiExceptionFilter.REASON_MAX_LENGTH + MAX_MASKED_PATTERN) return masked;
+
+    return capCharacters(masked, Math.max(0, length - MAX_MASKED_PATTERN));
   }
 
   // The status an HttpException carries is whatever the thrower put there: reading it can throw, and
@@ -121,13 +128,25 @@ export class ApiExceptionFilter implements ExceptionFilter {
   private responseBody(exception: Error, status: { sent: number; declared: number | undefined }): unknown {
     try {
       // The status is read once, above: reading it again could answer differently, and the body
-      // would then be sent alongside a status it does not name.
-      if (exception instanceof HttpException && status.declared === status.sent) return exception.getResponse();
+      // would then be sent alongside a status it does not name. The body says so itself as well -
+      // `new HttpException({ statusCode: 418 }, 400)` names two - so it is only kept when both agree.
+      if (exception instanceof HttpException && status.declared === status.sent) {
+        const body = exception.getResponse();
+        if (ApiExceptionFilter.names(body, status.sent)) return body;
+      }
     } catch {
       // an exception that cannot say what it is gets described by what is being sent
     }
 
     return { statusCode: status.sent, message: ApiExceptionFilter.messageOf(exception, status.sent) };
+  }
+
+  // A body that carries no status of its own contradicts nothing.
+  private static names(body: unknown, status: number): boolean {
+    const declared =
+      typeof body === 'object' && body !== null ? (body as { statusCode?: unknown }).statusCode : undefined;
+
+    return declared === undefined || declared === status;
   }
 
   // Not every status in the range has a name, so the name is a fallback and not the last one.

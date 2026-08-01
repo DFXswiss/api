@@ -21,7 +21,10 @@ export const REDACT_KEY =
 // backtracking on the request path.
 const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
 const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
-const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
+// The boundaries are against digits rather than word characters: an address is as much an address
+// for having a letter or an underscore next to it, and `ip192.0.2.123` is how one usually arrives.
+// A digit on either side still leaves it alone - that is a longer number, not an address.
+const IPV4 = /(^|[^\d])(\d{1,3}(?:\.\d{1,3}){3})(?!\d)/g;
 
 export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
 const MAX_CLIENT = 32; // per trace line: the client header is a name, not a payload
@@ -38,14 +41,24 @@ export const MAX_MASKED_PATTERN = 64 + 1 + 255 + 1 + 24;
 
 // What the first of two masking passes writes. Both carry a `/`, which every pattern above excludes,
 // so the second pass can neither match through one nor fold one into a match of its own - `***`
-// would be taken for the local part of an address. U+FFFC keeps them apart from what a request
-// plausibly contains, and is not a control character, so the removal between the passes leaves them
-// whole.
-const REDACTED_MARK = '/\uFFFCr/';
-const WALLET_MARK = '/\uFFFCw/';
+// would be taken for the local part of an address. They are not control characters, so the removal
+// between the passes leaves them whole.
+//
+// The seed is grown until it does not occur in the value being rendered: a request can send the
+// marker itself, and it would then come back as `***` on the far side without a pattern ever having
+// matched - a redaction that is not one.
+const REDACTED_SEED = '/\uFFFCr/';
+const WALLET_SEED = '/\uFFFCw/';
+
+function absentFrom(value: string, seed: string): string {
+  let mark = seed;
+  while (value.includes(mark)) mark = `${mark}\uFFFC`;
+
+  return mark;
+}
 
 function mask(s: string, redacted: string, wallet: string): string {
-  return s.replace(WALLET_ADDRESS, wallet).replace(EMAIL, redacted).replace(IPV4, redacted);
+  return s.replace(WALLET_ADDRESS, wallet).replace(EMAIL, redacted).replace(IPV4, `$1${redacted}`);
 }
 
 export function maskValue(s: string): string {
@@ -53,9 +66,26 @@ export function maskValue(s: string): string {
 }
 
 export function maskUrl(url: string): string {
-  // The request target is client-supplied and reaches a log line: what is left of it after the
-  // query is dropped is rendered like any other value from the request.
-  return maskLogText(url.split('?')[0]);
+  // The request target is client-supplied and reaches a log line: what is left of it after the query
+  // is dropped is rendered like any other value from the request. The segments are decoded first -
+  // a path carries its values percent-encoded, and `victim%40example.com` is an address to everyone
+  // reading the line and to no pattern matching it. A segment that will not decode is kept as it
+  // came, which is what it would have been anyway.
+  return maskLogText(
+    url
+      .split('?')[0]
+      .split('/')
+      .map((segment) => decodeSegment(segment))
+      .join('/'),
+  );
+}
+
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 // Everything that can break a line or move a cursor in a log viewer: the control characters
@@ -82,10 +112,13 @@ export function singleLine(value: string): string {
  * the second pass cannot invent a match, since what the first one leaves behind is `***` and `0x…`.
  */
 export function maskLogText(value: string): string {
-  const first = mask(value, REDACTED_MARK, WALLET_MARK);
+  const redactedMark = absentFrom(value, REDACTED_SEED);
+  const walletMark = absentFrom(value, WALLET_SEED);
+
+  const first = mask(value, redactedMark, walletMark);
   const second = mask(singleLine(first), REDACTED, WALLET_SHORT);
 
-  return second.split(REDACTED_MARK).join(REDACTED).split(WALLET_MARK).join(WALLET_SHORT);
+  return second.split(redactedMark).join(REDACTED).split(walletMark).join(WALLET_SHORT);
 }
 
 /**
@@ -171,7 +204,9 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
         out['…'] = TRUNCATED;
         break;
       }
-      out[k] = redact(v, k, budget);
+      // The key is rendered like a value - a request chooses it just as freely - but the raw one
+      // decides the redaction, since that is the name the list was written against.
+      out[maskLogText(k)] = redact(v, k, budget);
     }
     return out;
   }
@@ -188,7 +223,7 @@ function format(value: unknown): string {
     // reaches the values but not the keys, and a key is as much the request's to choose. It is also
     // what keeps the trace the single line the caller below documents, since `JSON.stringify`
     // escapes the control characters but leaves U+2028 / U+2029 as they are.
-    s = maskLogText(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
+    s = singleLine(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
   } catch {
     return '(unserializable)';
   }

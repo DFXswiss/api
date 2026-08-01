@@ -259,6 +259,27 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
   });
 
+  it('drops a body that names a status other than the one being sent', () => {
+    filter.catch(new HttpException({ statusCode: 418, message: 'teapot' }, 400), host(req(), { status }));
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'teapot' });
+  });
+
+  it('keeps a body that names no status of its own', () => {
+    filter.catch(new HttpException({ message: 'plain' }, 400), host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ message: 'plain' });
+  });
+
+  it('keeps the diagnostic text when nothing had to be cut away', () => {
+    // The tail only has to go where the masking could have split a pattern and the shortening could
+    // bring its head into view; a short reason loses nothing.
+    filter.catch(new BadRequestException('amount must be a positive number'), host(req(), { status }));
+
+    expect(warn.mock.calls[0][0]).toContain('amount must be a positive number');
+  });
+
   it('sends a server error when the status cannot be read or is not one Express sends', () => {
     const broken = new BadRequestException('x');
     jest.spyOn(broken, 'getStatus').mockImplementation(() => {
