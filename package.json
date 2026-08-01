@@ -121,6 +121,7 @@
     "opentimestamps": "^0.4.9",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.15.2",
     "pg": "^8.13.3",
     "qrcode": "^1.5.4",

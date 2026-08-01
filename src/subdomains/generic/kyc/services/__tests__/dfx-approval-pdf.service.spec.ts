@@ -1,5 +1,8 @@
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { createDefaultLanguage } from 'src/shared/models/language/__mocks__/language.entity.mock';
+import { createHash } from 'crypto';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { FileSubType } from '../../dto/kyc-file.dto';
@@ -68,7 +71,7 @@ describe('DfxApprovalPdfService', () => {
   it.each([
     [FileSubType.GWG_FILE_COVER, 1],
     [FileSubType.DFX_NAME_CHECK, 1],
-    [FileSubType.FORM_A, 1],
+    [FileSubType.FORM_A, 2],
     [FileSubType.IDENTIFICATION_FORM, 4],
     [FileSubType.CUSTOMER_PROFILE, 2],
     [FileSubType.RISK_PROFILE, 3],
@@ -78,5 +81,29 @@ describe('DfxApprovalPdfService', () => {
 
     expect(source.startsWith('%PDF-')).toBe(true);
     expect(source.match(/\/Type\s*\/Page\b/g)).toHaveLength(expectedPages);
+  });
+
+  it.each([
+    ['gwg-file-cover.pdf', '8b5e6636a0c1c4c64a1fbe94b77ab12aa5ca8cab072b8ac93190d0ffd6889ace'],
+    ['identification-form.pdf', '7e49ae0ffa25962e8cb5319d309733d2581b618a8270183590677ef6f2fcf5c1'],
+    ['customer-profile.pdf', 'bbed3c41fbc940b94470d92c58a3d43046547a2b9785d27f935204b0bd017732'],
+    ['risk-profile.pdf', '184085521abd00161c5f570b5bfdbc36d400a257fd4650c6f3558baf7eab8e71'],
+    ['form-a.pdf', '656bcb34ae66a1479095dd6ff7feda6128d1dc62329606e712e685d765fe3047'],
+    ['name-check.pdf', '20a6e3388801c283840d46d79c06f773b40f9a02ad8f9e6b23fe414559d683a8'],
+  ])('keeps the productive %s template unchanged', async (fileName, expectedHash) => {
+    const template = await readFile(join(__dirname, '../../assets/dfx-approval', fileName));
+    expect(createHash('sha256').update(template).digest('hex')).toBe(expectedHash);
+  });
+
+  it('uses the productive GSheet file names and date sources', () => {
+    const data = context();
+    expect(service.fileName(FileSubType.GWG_FILE_COVER, data)).toBe('20260731-GwGFileDeckblatt-0-42-220000.pdf');
+    expect(service.fileName(FileSubType.IDENTIFICATION_FORM, data)).toBe(
+      '20260731-Identifizierungsformular-0-42-220000.pdf',
+    );
+    expect(service.fileName(FileSubType.CUSTOMER_PROFILE, data)).toBe('20260731-Kundenprofil-0-42-220000.pdf');
+    expect(service.fileName(FileSubType.RISK_PROFILE, data)).toBe('20260731-Risikoprofil-0-42-220000.pdf');
+    expect(service.fileName(FileSubType.FORM_A, data)).toBe('20260731-FormularA-0-42-220000.pdf');
+    expect(service.fileName(FileSubType.DFX_NAME_CHECK, data)).toBe('20260731-NameCheck-0-42-220000.pdf');
   });
 });

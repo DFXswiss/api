@@ -1,6 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { isIP } from 'class-validator';
-import { createHash } from 'crypto';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -65,7 +64,6 @@ import { ContentType } from '../kyc/enums/content-type.enum';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
-import { DfxApprovalWorkflowService } from '../kyc/services/dfx-approval-workflow.service';
 import { KycFileService } from '../kyc/services/kyc-file.service';
 import { KycLogService } from '../kyc/services/kyc-log.service';
 import { KycService } from '../kyc/services/kyc.service';
@@ -79,7 +77,7 @@ import { PhoneCallStatus } from '../user/models/user-data/user-data.enum';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
-import { ComplianceDecision, DfxApprovalDecisionDto, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
+import { ComplianceDecision, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
   BankDataAlternative,
@@ -195,7 +193,6 @@ export class SupportService {
     private readonly recallService: RecallService,
     private readonly supportNoteService: SupportNoteService,
     private readonly scorechainScreeningService: ScorechainScreeningService,
-    private readonly dfxApprovalWorkflowService: DfxApprovalWorkflowService,
   ) {}
 
   async generateIpLogPdf(userDataId: number): Promise<string> {
@@ -213,7 +210,6 @@ export class SupportService {
   async generateAndSaveOnboardingPdf(
     userDataId: number,
     dto: GenerateOnboardingPdfDto,
-    generationKey?: string,
   ): Promise<{ pdfData: string; fileName: string }> {
     // Load UserData with relations
     const userData = await this.userDataService.getUserData(userDataId, {
@@ -236,90 +232,18 @@ export class SupportService {
 
     // Save as KycFile
     const fileName = `GwG_Onboarding_${userDataId}_${Date.now()}.pdf`;
-    if (generationKey) {
-      await this.kycDocumentService.ensureGeneratedUserFile(
-        generationKey,
-        userData,
-        FileType.USER_NOTES,
-        FileSubType.ONBOARDING_REPORT,
-        fileName,
-        Buffer.from(pdfData, 'base64'),
-        { workflow: 'DfxApproval', version: 'v1' },
-      );
-    } else {
-      await this.kycDocumentService.uploadUserFile(
-        userData,
-        FileType.USER_NOTES,
-        fileName,
-        Buffer.from(pdfData, 'base64'),
-        ContentType.PDF,
-        true,
-        undefined,
-        FileSubType.ONBOARDING_REPORT,
-      );
-    }
+    await this.kycDocumentService.uploadUserFile(
+      userData,
+      FileType.USER_NOTES,
+      fileName,
+      Buffer.from(pdfData, 'base64'),
+      ContentType.PDF,
+      true, // isProtected
+      undefined, // kycStep
+      FileSubType.ONBOARDING_REPORT,
+    );
 
     return { pdfData, fileName };
-  }
-
-  async decidePersonalDfxApproval(
-    userDataId: number,
-    actorUserDataId: number,
-    dto: DfxApprovalDecisionDto,
-  ): Promise<{ pdfData: string; fileName: string }> {
-    const userData = await this.userDataService.getUserData(userDataId, { kycSteps: true });
-    if (!userData) throw new NotFoundException('User not found');
-    if (userData.accountType !== AccountType.PERSONAL)
-      throw new BadRequestException('The atomic DfxApproval decision currently supports personal accounts only');
-
-    const step = userData.kycSteps.find((candidate) => candidate.id === dto.stepId);
-    if (!step || step.name !== KycStepName.DFX_APPROVAL) throw new NotFoundException('DfxApproval step not found');
-
-    let existingResult: Record<string, unknown> = {};
-    if (step.result) {
-      try {
-        existingResult = JSON.parse(step.result) as Record<string, unknown>;
-      } catch (error) {
-        throw new BadRequestException(`DfxApproval result is invalid JSON: ${(error as Error).message}`);
-      }
-    }
-
-    const effectivePdfData: GenerateOnboardingPdfDto = {
-      finalDecision: dto.finalDecision,
-      processedBy: dto.processedBy,
-      depositLimit: '100000',
-      amlAccountType: 'natural person',
-    };
-    existingResult.complianceReview = {
-      depositLimit: effectivePdfData.depositLimit,
-      amlAccountType: effectivePdfData.amlAccountType,
-      processedBy: dto.processedBy,
-      finalDecision: dto.finalDecision,
-    };
-    const result = JSON.stringify(existingResult);
-    const status = dto.finalDecision === ComplianceDecision.ACCEPTED ? ReviewStatus.COMPLETED : ReviewStatus.FAILED;
-    const decisionHash = createHash('sha256').update(result).digest('hex').substring(0, 16);
-
-    const pdf = await this.generateAndSaveOnboardingPdf(
-      userDataId,
-      effectivePdfData,
-      `dfx-approval:${step.id}:${FileSubType.ONBOARDING_REPORT}:manual-v1:${decisionHash}`,
-    );
-    await this.dfxApprovalWorkflowService.applyManualDecision(
-      step.id,
-      actorUserDataId,
-      status,
-      result,
-      status === ReviewStatus.FAILED ? 'Blocked' : undefined,
-      {
-        complexOrgStructure: false,
-        highRisk: userData.highRisk,
-        depositLimit: 100000,
-        amlAccountType: 'natural person',
-      },
-    );
-
-    return pdf;
   }
 
   async getUserDataDetails(id: number, role: UserRole, jwtAccount: number): Promise<UserDataSupportInfoDetails> {

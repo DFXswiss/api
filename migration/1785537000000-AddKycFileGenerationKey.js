@@ -5,7 +5,7 @@
 
 /**
  * Adds an idempotency key for API-generated KYC documents. Existing Sheet-generated files remain
- * untouched (NULL); a new workflow can create every document at most once per version and step.
+ * untouched (NULL); a new workflow can create every document at most once per user and version.
  *
  * @class
  * @implements {MigrationInterface}

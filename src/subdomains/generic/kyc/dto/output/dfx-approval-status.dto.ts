@@ -22,7 +22,6 @@ export enum DfxApprovalBlocker {
   COUNTRY_EXCLUDED = 'CountryExcluded',
   MISSING_NATIONALITY = 'MissingNationality',
   NATIONALITY_DISABLED = 'NationalityDisabled',
-  MISSING_RESIDENCE_PERMIT = 'MissingResidencePermit',
   MISSING_IDENT_DOCUMENT_TYPE = 'MissingIdentDocumentType',
   IDENT_DOCUMENT_TYPE_DISABLED = 'IdentDocumentTypeDisabled',
   MISSING_IDENT_DOCUMENT_ID = 'MissingIdentDocumentId',

@@ -42,6 +42,8 @@ describe('DfxApprovalCheckService', () => {
       complexOrgStructure: false,
       highRisk: false,
       pep: false,
+      depositLimit: 100000,
+      amlAccountType: 'natural person',
       country,
       nationality: country,
       identDocumentId: 'DOC-1',
@@ -49,8 +51,19 @@ describe('DfxApprovalCheckService', () => {
       kycSteps: [step],
     });
     step.userData = userData;
+    const identStep = Object.assign(new KycStep(), {
+      name: KycStepName.IDENT,
+      status: ReviewStatus.COMPLETED,
+      sequenceNumber: 1,
+    });
     const files = DFX_APPROVAL_REQUIRED_DOCUMENTS.map((subType, index) =>
-      Object.assign(new KycFile(), { id: index + 1, type: FileType.USER_NOTES, subType, valid: true }),
+      Object.assign(new KycFile(), {
+        id: index + 1,
+        type: subType === FileSubType.PERSONAL_NAME_CHECK ? FileType.NAME_CHECK : FileType.USER_NOTES,
+        subType,
+        valid: true,
+        kycStep: subType === FileSubType.IDENT_REPORT ? identStep : undefined,
+      }),
     );
     return { userData, step, files };
   }
@@ -95,7 +108,7 @@ describe('DfxApprovalCheckService', () => {
     );
   });
 
-  it('requires a completed residence permit for configured nationalities', () => {
+  it('does not require a residence permit when the nationality itself is enabled', () => {
     const { userData, step, files } = eligibleInput();
     userData.kycSteps.push(
       Object.assign(new KycStep(), {
@@ -107,7 +120,7 @@ describe('DfxApprovalCheckService', () => {
 
     const result = service.evaluatePersonal(userData, step, files, false);
 
-    expect(result.blockers).toContainEqual({ code: DfxApprovalBlocker.MISSING_RESIDENCE_PERMIT });
+    expect(result.blockers).not.toContainEqual({ code: DfxApprovalBlocker.NATIONALITY_DISABLED });
   });
 
   it('accepts a disabled nationality only after its required residence permit was completed', () => {
@@ -124,6 +137,5 @@ describe('DfxApprovalCheckService', () => {
     const result = service.evaluatePersonal(userData, step, files, false);
 
     expect(result.blockers).not.toContainEqual({ code: DfxApprovalBlocker.NATIONALITY_DISABLED });
-    expect(result.blockers).not.toContainEqual({ code: DfxApprovalBlocker.MISSING_RESIDENCE_PERMIT });
   });
 });

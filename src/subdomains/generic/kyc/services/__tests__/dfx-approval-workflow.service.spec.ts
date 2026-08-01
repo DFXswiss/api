@@ -1,8 +1,9 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Config, ConfigService } from 'src/config/config';
+import { EntityManager } from 'typeorm';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
-import { KycLevel } from '../../../user/models/user-data/user-data.enum';
+import { KycLevel, KycType, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
 import { FileSubType } from '../../dto/kyc-file.dto';
 import { DfxApprovalBlocker } from '../../dto/output/dfx-approval-status.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
@@ -45,6 +46,7 @@ describe('DfxApprovalWorkflowService', () => {
     if (!Config) new ConfigService();
     Config.kyc.dfxApprovalWorkflowEnabled = true;
     stepRepo = createMock<KycStepRepository>();
+    Object.defineProperty(stepRepo, 'manager', { value: createMock<EntityManager>() });
     documentService = createMock<DfxApprovalDocumentService>();
     notificationService = createMock<KycNotificationService>();
     checkService = createMock<DfxApprovalCheckService>();
@@ -59,6 +61,7 @@ describe('DfxApprovalWorkflowService', () => {
       createMock<NameCheckService>(),
       notificationService,
     );
+    (stepRepo.manager.find as jest.Mock).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -77,7 +80,7 @@ describe('DfxApprovalWorkflowService', () => {
     const first = pendingStep();
     const second = pendingStep();
     second.id = 12;
-    stepRepo.find.mockResolvedValue([first, second]);
+    stepRepo.find.mockResolvedValueOnce([first, second]).mockResolvedValue([]);
     const lock = jest.spyOn(service as any, 'withStepLock').mockResolvedValue(undefined);
 
     await service.reviewPersonalApprovals();
@@ -87,24 +90,12 @@ describe('DfxApprovalWorkflowService', () => {
     expect(lock).toHaveBeenNthCalledWith(2, 12, expect.any(Function));
   });
 
-  it('uses a blocking cross-instance lock for a manual decision', async () => {
-    const lock = jest.spyOn(service as any, 'withStepLock').mockResolvedValue(undefined);
-
-    await service.applyManualDecision(11, 99, ReviewStatus.COMPLETED, '{}', undefined, {
-      complexOrgStructure: false,
-      highRisk: false,
-      depositLimit: 100000,
-      amlAccountType: 'natural person',
-    });
-
-    expect(lock).toHaveBeenCalledWith(11, expect.any(Function), true);
-  });
-
   it('initializes risk data, creates documents and only then completes and notifies', async () => {
     const step = pendingStep();
     jest.spyOn(service as any, 'loadStep').mockResolvedValue(step);
     const initialize = jest.spyOn(service as any, 'initializePersonalRiskData').mockResolvedValue(undefined);
-    const complete = jest.spyOn(service as any, 'completeIfReady').mockResolvedValue(step.userData);
+    const completedUser = createCustomUserData({ ...step.userData, kycLevel: KycLevel.LEVEL_50 });
+    const complete = jest.spyOn(service as any, 'completeIfReady').mockResolvedValue(completedUser);
     (service as any).nameCheckService.hasOpenNameChecks.mockResolvedValue(false);
 
     await (service as any).processPersonalApproval(step.id);
@@ -115,7 +106,7 @@ describe('DfxApprovalWorkflowService', () => {
     expect((documentService.generateMissingPersonalDocuments as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
       complete.mock.invocationCallOrder[0],
     );
-    expect(notificationService.kycChanged).toHaveBeenCalledWith(step.userData, KycLevel.LEVEL_50);
+    expect(notificationService.kycChanged).toHaveBeenCalledWith(completedUser, KycLevel.LEVEL_50);
   });
 
   it('does not touch documents after the step has already advanced', async () => {
@@ -129,10 +120,11 @@ describe('DfxApprovalWorkflowService', () => {
     expect(notificationService.kycChanged).not.toHaveBeenCalled();
   });
 
-  it('does not generate documents while a non-document prerequisite is blocked', async () => {
+  it('generates independent documents even while a non-document prerequisite is blocked', async () => {
     const step = pendingStep();
     jest.spyOn(service as any, 'loadStep').mockResolvedValue(step);
     jest.spyOn(service as any, 'initializePersonalRiskData').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'completeIfReady').mockResolvedValue(undefined);
     (service as any).nameCheckService.hasOpenNameChecks.mockResolvedValue(false);
     checkService.evaluatePersonal.mockReturnValue({
       ready: false,
@@ -144,6 +136,74 @@ describe('DfxApprovalWorkflowService', () => {
 
     await (service as any).processPersonalApproval(step.id);
 
-    expect(documentService.generateMissingPersonalDocuments).not.toHaveBeenCalled();
+    expect(documentService.generateMissingPersonalDocuments).toHaveBeenCalledWith(
+      step.userData,
+      step,
+      step.userData.kycFiles,
+      expect.any(Array),
+    );
+    expect(notificationService.kycChanged).not.toHaveBeenCalled();
+  });
+
+  it('selects all six generated documents only when their original Sheet predicates match', () => {
+    const step = pendingStep();
+    const financialStep = Object.assign(new KycStep(), {
+      id: 12,
+      name: KycStepName.FINANCIAL_DATA,
+      status: ReviewStatus.COMPLETED,
+      sequenceNumber: 1,
+    });
+    Object.assign(step.userData, {
+      status: UserDataStatus.ACTIVE,
+      kycType: KycType.DFX,
+      verifiedName: 'Test User',
+      nationality: { name: 'Switzerland' },
+      country: { fatfEnable: true },
+      highRisk: false,
+      kycSteps: [step, financialStep],
+    });
+
+    expect((service as any).eligiblePersonalDocuments(step.userData)).toEqual(
+      expect.arrayContaining([
+        FileSubType.GWG_FILE_COVER,
+        FileSubType.IDENTIFICATION_FORM,
+        FileSubType.DFX_NAME_CHECK,
+        FileSubType.CUSTOMER_PROFILE,
+        FileSubType.RISK_PROFILE,
+        FileSubType.FORM_A,
+      ]),
+    );
+    expect((service as any).eligiblePersonalDocuments(step.userData)).toHaveLength(6);
+
+    step.userData.highRisk = true;
+    expect((service as any).eligiblePersonalDocuments(step.userData)).not.toContain(FileSubType.RISK_PROFILE);
+    expect((service as any).eligiblePersonalDocuments(step.userData)).toContain(FileSubType.FORM_A);
+  });
+
+  it('applies the productive approval defaults atomically when completing a ready case', async () => {
+    const step = pendingStep();
+    step.userData.depositLimit = 250000;
+    step.userData.amlAccountType = 'legacy';
+    const manager = stepRepo.manager as unknown as jest.Mocked<EntityManager>;
+    (manager.transaction as jest.Mock).mockImplementation((action) => action(manager));
+    (manager.findOne as jest.Mock).mockImplementation((entity) =>
+      Promise.resolve(entity === KycStep ? step : step.userData),
+    );
+    (manager.exists as jest.Mock).mockResolvedValue(false);
+    checkService.evaluatePersonal.mockReturnValue({ ready: true, blockers: [] });
+
+    await (service as any).completeIfReady(step.id);
+
+    expect(manager.update).toHaveBeenCalledWith(
+      expect.any(Function),
+      step.userData.id,
+      expect.objectContaining({
+        kycLevel: KycLevel.LEVEL_50,
+        complexOrgStructure: false,
+        highRisk: false,
+        depositLimit: 100000,
+        amlAccountType: 'natural person',
+      }),
+    );
   });
 });

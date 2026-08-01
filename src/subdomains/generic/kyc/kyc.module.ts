@@ -102,7 +102,6 @@ import { TfaService } from './services/tfa.service';
     KycService,
     KycFileService,
     ScorechainDocumentService,
-    DfxApprovalWorkflowService,
   ],
 })
 export class KycModule {}

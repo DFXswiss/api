@@ -4,7 +4,8 @@
   "compilerOptions": {
     "assets": [
       { "include": "subdomains/supporting/notification/templates/**/*.hbs", "outDir": "dist/src/" },
-      { "include": "shared/i18n/**/*", "outDir": "dist/src/" }
+      { "include": "shared/i18n/**/*", "outDir": "dist/src/" },
+      { "include": "subdomains/generic/kyc/assets/**/*.pdf", "outDir": "dist/src/" }
     ],
     "watchAssets": true
   }

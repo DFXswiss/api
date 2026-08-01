@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import PDFDocument from 'pdfkit';
-import { PdfUtil } from 'src/shared/utils/pdf.util';
-import { Util } from 'src/shared/utils/util';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -10,322 +10,357 @@ import { KycStep } from '../entities/kyc-step.entity';
 import { NameCheckLog, NameCheckRiskStatus } from '../entities/name-check-log.entity';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 
-type Pdf = InstanceType<typeof PDFDocument>;
 type FinancialData = Record<string, string>;
 
 export interface DfxApprovalPdfContext {
   userData: UserData;
   steps: KycStep[];
-  nameCheck: NameCheckLog;
+  nameCheck?: NameCheckLog;
   generatedAt: Date;
 }
 
-const MEMBER_NUMBER = '100919';
-const FORM_VERSION = 'DFX API v1 / 31.07.2026';
+interface TextOptions {
+  x: number;
+  top: number;
+  width?: number;
+  height?: number;
+  size?: number;
+  color?: ReturnType<typeof rgb>;
+  bold?: boolean;
+}
+
+const BLUE = rgb(0, 0, 1);
+const BLACK = rgb(0, 0, 0);
+const WHITE = rgb(1, 1, 1);
+
+const TEMPLATE_FILES: Partial<Record<FileSubType, string>> = {
+  [FileSubType.GWG_FILE_COVER]: 'gwg-file-cover.pdf',
+  [FileSubType.IDENTIFICATION_FORM]: 'identification-form.pdf',
+  [FileSubType.CUSTOMER_PROFILE]: 'customer-profile.pdf',
+  [FileSubType.RISK_PROFILE]: 'risk-profile.pdf',
+  [FileSubType.FORM_A]: 'form-a.pdf',
+  [FileSubType.DFX_NAME_CHECK]: 'name-check.pdf',
+};
 
 @Injectable()
 export class DfxApprovalPdfService {
   async generate(subType: FileSubType, context: DfxApprovalPdfContext): Promise<Buffer> {
+    const templateFile = TEMPLATE_FILES[subType];
+    if (!templateFile) throw new Error(`Unsupported DfxApproval document subtype ${subType}`);
+
+    const template = await readFile(join(__dirname, '../assets/dfx-approval', templateFile));
+    const pdf = await PDFDocument.load(template);
+    const regular = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+
     switch (subType) {
       case FileSubType.GWG_FILE_COVER:
-        return this.createPdf((pdf) => this.renderCover(pdf, context));
+        this.renderCover(pdf, regular, bold, context);
+        break;
       case FileSubType.IDENTIFICATION_FORM:
-        return this.createPdf((pdf) => this.renderIdentificationForm(pdf, context));
+        this.renderIdentificationForm(pdf, regular, bold, context);
+        break;
       case FileSubType.CUSTOMER_PROFILE:
-        return this.createPdf((pdf) => this.renderCustomerProfile(pdf, context));
+        this.renderCustomerProfile(pdf, regular, bold, context);
+        break;
       case FileSubType.RISK_PROFILE:
-        return this.createPdf((pdf) => this.renderRiskProfile(pdf, context));
+        this.renderRiskProfile(pdf, regular, bold, context);
+        break;
       case FileSubType.FORM_A:
-        return this.createPdf((pdf) => this.renderFormA(pdf, context));
+        this.renderFormA(pdf, regular, bold, context);
+        break;
       case FileSubType.DFX_NAME_CHECK:
-        return this.createPdf((pdf) => this.renderNameCheck(pdf, context));
-      default:
-        throw new Error(`Unsupported DfxApproval document subtype ${subType}`);
+        this.renderNameCheck(pdf, regular, bold, context);
+        break;
     }
+
+    return Buffer.from(await pdf.save({ useObjectStreams: false }));
   }
 
-  private createPdf(render: (pdf: Pdf) => void): Promise<Buffer> {
-    return new Promise<Buffer>((resolve, reject) => {
-      try {
-        const pdf = new PDFDocument({ size: 'A4', margin: 42, info: { Producer: 'DFX API' } });
-        const chunks: Buffer[] = [];
-        pdf.on('data', (chunk) => chunks.push(chunk));
-        pdf.on('end', () => resolve(Buffer.concat(chunks)));
-        pdf.on('error', reject);
-        render(pdf);
-        pdf.end();
-      } catch (error) {
-        reject(error);
-      }
+  fileName(subType: FileSubType, context: DfxApprovalPdfContext): string {
+    const label = {
+      [FileSubType.GWG_FILE_COVER]: 'GwGFileDeckblatt',
+      [FileSubType.IDENTIFICATION_FORM]: 'Identifizierungsformular',
+      [FileSubType.CUSTOMER_PROFILE]: 'Kundenprofil',
+      [FileSubType.RISK_PROFILE]: 'Risikoprofil',
+      [FileSubType.FORM_A]: 'FormularA',
+      [FileSubType.DFX_NAME_CHECK]: 'NameCheck',
+    }[subType];
+    if (!label) throw new Error(`Unsupported DfxApproval document subtype ${subType}`);
+    const documentDate =
+      subType === FileSubType.DFX_NAME_CHECK ? this.requiredNameCheck(context).created : context.generatedAt;
+    return `${this.compactDate(documentDate)}-${label}-0-${context.userData.id}-${this.compactTime(context.generatedAt)}.pdf`;
+  }
+
+  private renderCover(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
+    const page = pdf.getPage(0);
+    page.drawRectangle({ x: 292, y: page.getHeight() - 116, width: 120, height: 14, color: WHITE });
+    this.text(page, regular, bold, String(context.userData.id), { x: 296.4, top: 70.2 });
+    this.text(page, regular, bold, this.documentNumber(FileSubType.GWG_FILE_COVER, context), {
+      x: 296.4,
+      top: 86.7,
+      width: 245,
+    });
+    this.text(page, regular, bold, this.timestamp(context.generatedAt), { x: 296.4, top: 103.2, width: 160 });
+    this.text(page, regular, bold, 'Privatperson', { x: 296.4, top: 119.7 });
+    this.text(page, regular, bold, context.userData.verifiedName, { x: 296.4, top: 136.2, width: 245 });
+    this.text(page, regular, bold, context.userData.naturalPersonName, { x: 296.4, top: 152.7, width: 245 });
+  }
+
+  private renderNameCheck(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
+    const nameCheck = this.requiredNameCheck(context);
+    const page = pdf.getPage(0);
+    this.text(page, regular, bold, String(context.userData.id), { x: 198.6, top: 70.1 });
+    this.text(page, regular, bold, this.documentNumber(FileSubType.DFX_NAME_CHECK, context), {
+      x: 198.6,
+      top: 86.6,
+      width: 245,
+    });
+    this.text(page, regular, bold, this.timestamp(nameCheck.created), { x: 198.6, top: 103.1 });
+    this.text(page, regular, bold, 'Privatperson', { x: 198.6, top: 119.5 });
+    this.text(page, regular, bold, context.userData.verifiedName, { x: 198.6, top: 136.0, width: 245 });
+    this.text(page, regular, bold, this.timestamp(nameCheck.created), { x: 198.6, top: 200.5 });
+    this.text(page, regular, bold, this.nameCheckResult(nameCheck), { x: 198.6, top: 217.0, width: 245 });
+    this.text(page, regular, bold, nameCheck.result, { x: 198.6, top: 233.5, width: 360, height: 12 });
+  }
+
+  private renderFormA(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
+    const page = pdf.getPage(0);
+    const value = (text: unknown, top: number, height = 16): void =>
+      this.text(page, regular, bold, text, { x: 202, top, width: 365, height, color: BLUE, bold: true, size: 9 });
+    value(context.userData.id, 82.3);
+    value(context.userData.verifiedName, 231.9);
+    value(context.userData.surname, 349.6);
+    value(context.userData.firstname, 371.5);
+    value(this.date(context.userData.birthday), 393.4);
+    value(context.userData.nationality?.name, 415.4);
+    value(this.address(context.userData), 437.3, 30);
+    this.text(page, regular, bold, this.timestamp(context.userData.created), {
+      x: 16.5,
+      top: 549.5,
+      width: 180,
+      color: BLUE,
+      bold: true,
+      size: 9,
     });
   }
 
-  private renderCover(pdf: Pdf, context: DfxApprovalPdfContext): void {
-    this.header(pdf, 'GwG-File', context);
-    this.fields(pdf, [
-      ['User Data ID', context.userData.id],
-      ['DFX Dokument Nr.', this.documentNumber(context, FileSubType.GWG_FILE_COVER)],
-      ['Timestamp Dokument', context.generatedAt.toISOString()],
-      ['Art der Gegenpartei', 'Privatperson'],
-      ['Kunde', context.userData.completeName],
-      ['Konversationspartner', context.userData.naturalPersonName],
-      ['Status der Geschäftsbeziehung', 'aktiv'],
-    ]);
-    this.footer(pdf);
+  private renderIdentificationForm(
+    pdf: PDFDocument,
+    regular: PDFFont,
+    bold: PDFFont,
+    context: DfxApprovalPdfContext,
+  ): void {
+    const first = pdf.getPage(0);
+    const value = (text: unknown, top: number, height = 18): void =>
+      this.text(first, regular, bold, text, { x: 257.1, top, width: 305, height, color: BLUE, bold: true, size: 9 });
+    this.text(first, regular, bold, context.userData.id, {
+      x: 420.3,
+      top: 46.3,
+      width: 135,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    this.text(first, regular, bold, this.timestamp(context.generatedAt), {
+      x: 158.4,
+      top: 211.8,
+      width: 395,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    value(context.userData.naturalPersonName, 294.5);
+    value(this.address(context.userData), 318.2);
+    value(context.userData.phone, 342.0);
+    value(context.userData.mail, 365.7);
+    value(this.date(context.userData.birthday), 389.5);
+    value(context.userData.nationality?.name, 413.2);
+    value(context.userData.identDocumentType, 437.0);
+
+    const second = pdf.getPage(1);
+    this.text(second, regular, bold, this.timestamp(context.userData.created), {
+      x: 257.1,
+      top: 402.1,
+      width: 305,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    const identificationType = context.userData.identificationType;
+    if (identificationType === KycIdentificationType.VIDEO_ID) this.check(second, 239.3, 424.5);
+    else if (identificationType === KycIdentificationType.MANUAL) this.check(second, 239.3, 465.0);
+    else this.check(second, 239.3, 446.0);
+
+    const language = context.userData.language?.name;
+    if (language === 'German' || language === 'Portuguese') this.check(second, 239.3, 522.5);
+    else if (language === 'Italian') this.check(second, 239.3, 546.3);
+    else if (language === 'French') this.check(second, 402.5, 546.3);
+    else this.check(second, 402.5, 522.5);
+
+    this.check(pdf.getPage(2), 233.5, 118.5);
+    if (context.userData.sellVolume > 0) this.check(pdf.getPage(3), 239.3, 202.0);
+    this.check(pdf.getPage(3), 239.3, 219.0);
   }
 
-  private renderNameCheck(pdf: Pdf, context: DfxApprovalPdfContext): void {
-    this.header(pdf, 'NameCheck Sanktions- und PEP-Prüfung', context);
-    this.fields(pdf, [
-      ['User Data ID', context.userData.id],
-      ['DFX Dokument Nr.', this.documentNumber(context, FileSubType.DFX_NAME_CHECK)],
-      ['Timestamp Dokument', context.generatedAt.toISOString()],
-      ['Art der Gegenpartei', 'Privatperson'],
-      ['Kunde', context.userData.completeName],
-    ]);
-    this.section(pdf, 'Prüfnachweis');
-    this.fields(pdf, [
-      ['Prüfung durchgeführt mit', 'dilisense.com API'],
-      ['Timestamp API-Abfrage', context.nameCheck.created?.toISOString()],
-      ['Ergebnis', this.nameCheckResult(context.nameCheck)],
-      ['Risikobewertung', context.nameCheck.riskStatus],
-      ['RAW-Datei Original', context.nameCheck.result],
-    ]);
-    this.footer(pdf);
-  }
-
-  private renderFormA(pdf: Pdf, context: DfxApprovalPdfContext): void {
-    this.header(pdf, 'Feststellung des wirtschaftlich Berechtigten (A)', context);
-    this.fields(pdf, [
-      ['Vertragspartner', context.userData.completeName],
-      ['Name(n)', context.userData.surname],
-      ['Vorname(n)', context.userData.firstname],
-      ['Geburtsdatum', this.date(context.userData.birthday)],
-      ['Nationalität', context.userData.nationality?.name],
-      ['Effektive Wohnadresse', this.address(context.userData)],
-    ]);
-    this.paragraph(
-      pdf,
-      'Der Vertragspartner erklärt, dass er selbst allein an den in die Geschäftsbeziehung eingebrachten Vermögenswerten wirtschaftlich berechtigt ist. Änderungen sind DFX unaufgefordert mitzuteilen.',
-    );
-    this.section(pdf, 'Bestätigung');
-    this.fields(pdf, [
-      ['Bestätigt durch', 'Onboarding mit TAN-Verfahren'],
-      ['Zeitpunkt', context.generatedAt.toISOString()],
-      ['Datengrundlage', 'KYC-Schritte und unveränderbar gespeicherte Nachweise'],
-    ]);
-    this.paragraph(
-      pdf,
-      'Die vorsätzliche Angabe falscher Informationen kann eine strafbare Handlung darstellen. VQF Dok. Nr. 902.9; DFX-Fassung vom 1. Dezember 2023.',
-    );
-    this.footer(pdf);
-  }
-
-  private renderIdentificationForm(pdf: Pdf, context: DfxApprovalPdfContext): void {
-    this.header(pdf, 'Identifizierungsformular', context);
-    this.section(pdf, '1. Angaben zur Vertragspartei');
-    this.fields(pdf, [
-      ['Vorname/Nachname', context.userData.naturalPersonName],
-      ['Wohnsitzadresse', this.address(context.userData)],
-      ['Telefon', context.userData.phone],
-      ['Mail', context.userData.mail],
-      ['Geburtsdatum', this.date(context.userData.birthday)],
-      ['Staatsangehörigkeit', context.userData.nationality?.name],
-      ['Identifizierungsdokument', context.userData.identDocumentType],
-      ['Dokumentnummer', context.userData.identDocumentId],
-      ['Kopie im Anhang', 'Ja'],
-    ]);
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.1');
-
-    pdf.addPage();
-    this.pageTitle(pdf, 'Identifizierungsformular – Fortsetzung');
-    this.section(pdf, '2. Eröffner für juristische Personen');
-    this.paragraph(pdf, 'Nicht anwendbar: Die Vertragspartei ist eine natürliche Person.');
-    this.section(pdf, '3. Aufnahme der Geschäftsbeziehung');
-    this.fields(pdf, [
-      ['Datum (Vertragsschluss)', this.date(context.generatedAt)],
-      ['Aufnahme durch', this.identificationMethod(context.userData.identificationType)],
-      ['Art der Korrespondenzzustellung', 'elektronisch'],
-      ['Sprache', context.userData.language?.name],
-    ]);
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.1');
-
-    pdf.addPage();
-    this.pageTitle(pdf, 'Identifizierungsformular – Fortsetzung');
-    this.section(pdf, '4. Wirtschaftlich berechtigte Person / Kontrollinhaber');
-    this.check(pdf, true, 'Natürliche Person; wirtschaftliche Berechtigung bei der Vertragspartei selbst');
-    this.check(pdf, false, 'Juristische Person oder Personengesellschaft');
-    this.section(pdf, '5. Embargomassnahmen / Terrorismuslisten');
-    this.paragraph(
-      pdf,
-      `Die Vertragspartei wurde über die Dilisense-Sanktions- und PEP-Prüfung geprüft. Ergebnis: ${this.nameCheckResult(context.nameCheck)}. Der Einzelnachweis ist als DfxNameCheck und PersonalNameCheck gespeichert.`,
-    );
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.1');
-
-    pdf.addPage();
-    this.pageTitle(pdf, 'Identifizierungsformular – Fortsetzung');
-    this.section(pdf, '6. Art und Zweck der Geschäftsbeziehung');
-    this.check(pdf, true, 'Geldwechsel');
-    this.check(pdf, true, 'Geldwechsel von Fiat-Währungen zu digitalen Vermögenswerten');
-    this.check(pdf, true, 'Geldwechsel zwischen digitalen Vermögenswerten');
-    this.section(pdf, '7. Beilagen');
-    for (const label of [
-      'Identifizierungsdokument',
-      'Feststellung des wirtschaftlich Berechtigten (Formular A)',
-      'Kundenprofil',
-      'Risikoprofil',
-      'NameCheck-Nachweise',
-    ])
-      this.check(pdf, true, label);
-    this.paragraph(pdf, 'Bei einer Änderung der Verhältnisse ist das Formular zu aktualisieren.');
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.1');
-  }
-
-  private renderCustomerProfile(pdf: Pdf, context: DfxApprovalPdfContext): void {
+  private renderCustomerProfile(
+    pdf: PDFDocument,
+    regular: PDFFont,
+    bold: PDFFont,
+    context: DfxApprovalPdfContext,
+  ): void {
     const financial = this.financialData(context.steps);
-    this.header(pdf, 'Kundenprofil', context);
-    this.paragraph(pdf, 'Für dauernde Geschäftsbeziehungen und Stammkunden.');
-    this.fields(pdf, [
-      ['Vertragspartei', context.userData.completeName],
-      ['Beruf / geschäftliche Aktivität', financial.occupation],
-      ['Beschreibung Arbeitgeber / Tätigkeit', financial.occupation_description],
-      ['Branche', financial.sector],
-      ['Jährliches Einkommen', financial.income],
-      ['Vermögen', financial.assets],
-      ['Herkunft der Vermögenswerte', financial.source_of_funds],
-      ['Geplantes Handelsvolumen in CHF', financial.income],
-    ]);
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.5');
+    const first = pdf.getPage(0);
+    const value = (text: unknown, top: number, height = 20): void =>
+      this.text(first, regular, bold, text, { x: 249, top, width: 322, height, color: BLUE, bold: true, size: 8.7 });
+    this.text(first, regular, bold, context.userData.id, {
+      x: 440.1,
+      top: 83,
+      width: 125,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    this.text(first, regular, bold, context.userData.verifiedName, {
+      x: 159,
+      top: 270.9,
+      width: 410,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    this.text(first, regular, bold, this.timestamp(context.generatedAt), {
+      x: 159,
+      top: 368.1,
+      width: 410,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    value(this.employment(financial), 440.4, 56);
+    value(this.financialBand(financial.income), 518.7);
+    value(this.financialBand(financial.assets), 552.4);
+    value(this.volumeBand(context.userData.totalVolumeChfAuditPeriod ?? 0), 615.9);
 
-    pdf.addPage();
-    this.pageTitle(pdf, 'Kundenprofil – Fortsetzung');
-    this.section(pdf, 'Art und Zweck der Geschäftsbeziehung');
-    this.check(pdf, true, 'Geldwechsel');
-    this.check(pdf, true, 'Geldwechsel von Fiat-Währungen zu digitalen Vermögenswerten');
-    this.check(pdf, true, 'Geldwechsel zwischen digitalen Vermögenswerten');
-    this.fields(pdf, [
-      ['Entwicklung der Geschäftsbeziehung', 'Wachstum und weitere Investitionen nach Marktsituation'],
-      ['Beziehung zu Dritten', 'Keine Angaben / keine Drittpartei aus den Onboarding-Daten'],
-      ['Weitere Informationen', financial.risky_business],
-    ]);
-    this.paragraph(pdf, 'Bei einer Änderung der Verhältnisse ist das Kundenprofil zu aktualisieren.');
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.5');
+    const source = financial.source_of_funds;
+    if (source === 'business' || financial.occupation === 'self_employed' || financial.occupation === 'inhaber')
+      this.check(first, 267.2, 633.2);
+    if (source === 'business') this.check(first, 267.2, 647.3);
+    if (source === 'real_estate_sale') this.check(first, 267.2, 661.4);
+    if (source === 'OTHER') this.check(first, 267.2, 703.8);
+    if ((context.userData.totalVolumeChfAuditPeriod ?? 0) > 100000)
+      value("Siehe eigene Aktennotiz bezüglich Freigabe Handelsvolumen > 100'000 CHF", 727.0, 36);
+
+    const second = pdf.getPage(1);
+    if (context.userData.sellVolume > 0) this.check(second, 267.2, 167.5);
+    if (context.userData.cryptoVolume > 0) this.check(second, 267.2, 197.1);
   }
 
-  private renderRiskProfile(pdf: Pdf, context: DfxApprovalPdfContext): void {
-    this.header(pdf, 'Risikoprofil GwG', context);
-    this.paragraph(
-      pdf,
-      'Ermittlung von Geschäftsbeziehungen mit erhöhtem Risiko und Festlegung von Kriterien zur Transaktionsüberwachung.',
-    );
-    this.section(pdf, '1. Politisch exponierte Personen (PEP)');
-    this.check(pdf, context.userData.pep === false, 'Kein PEP-Hinweis');
-    this.check(pdf, context.userData.pep === true, 'PEP-Hinweis vorhanden – automatische Freigabe unzulässig');
-    this.fields(pdf, [['NameCheck-Nachweis', this.nameCheckResult(context.nameCheck)]]);
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.4');
+  private renderRiskProfile(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
+    const first = pdf.getPage(0);
+    this.text(first, regular, bold, context.userData.id, {
+      x: 430.9,
+      top: 79.6,
+      width: 125,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    this.text(first, regular, bold, context.userData.verifiedName, {
+      x: 135.9,
+      top: 265.7,
+      width: 420,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    this.text(first, regular, bold, this.timestamp(context.userData.amlListAddedDate), {
+      x: 135.9,
+      top: 347.9,
+      width: 420,
+      color: BLUE,
+      bold: true,
+      size: 9,
+    });
+    this.check(first, 259.4, context.userData.pep ? 529.2 : 514.4);
+    this.check(first, 259.4, context.userData.pep ? 606.3 : 592.8);
 
-    pdf.addPage();
-    this.pageTitle(pdf, 'Risikoprofil GwG – Fortsetzung');
-    this.section(pdf, '2. High-Risk- oder nicht kooperatives Land');
-    this.check(pdf, context.userData.highRisk === false, 'Kein High-Risk-Merkmal in den Onboarding-Daten');
-    this.check(pdf, context.userData.highRisk === true, 'High-Risk-Merkmal vorhanden');
-    this.fields(pdf, [
-      ['Wohnsitzland', context.userData.country?.name],
-      ['Verifiziertes Land', context.userData.verifiedCountry?.name],
-      ['Nationalität', context.userData.nationality?.name],
-    ]);
-    this.section(pdf, '3. Komplexe Struktur');
-    this.check(pdf, context.userData.complexOrgStructure === false, 'Keine komplexe Organisationsstruktur');
-    this.section(pdf, '4. Herkunft der Vermögenswerte');
-    this.fields(pdf, Object.entries(this.financialData(context.steps)));
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.4');
+    const second = pdf.getPage(1);
+    this.booleanChecks(second, context.userData.highRisk === false, 150.0, 166.7);
+    this.booleanChecks(second, context.userData.complexOrgStructure === false, 301.0, 316.5);
+    const normalCountry = context.userData.country?.fatfEnable === true;
+    this.booleanChecks(second, normalCountry, 455.6, 471.7);
+    this.booleanChecks(second, normalCountry, 503.8, 519.9);
+    this.booleanChecks(second, normalCountry, 568.1, 584.2);
+    this.booleanChecks(second, context.userData.highRisk === false, 677.4, 693.5);
 
-    pdf.addPage();
-    this.pageTitle(pdf, 'Risikoprofil GwG – Fortsetzung');
-    this.section(pdf, '5. DFX-eigene Kriterien');
-    this.paragraph(
-      pdf,
-      'Eine Blockchain-Analyse wird nicht pauschal als bestanden bescheinigt. Adressen und Transaktionen werden in den dafür vorgesehenen AML-Prozessen geprüft; deren Einzelnachweise bleiben separat erhalten.',
-    );
-    this.section(pdf, 'Gesamtbewertung');
-    this.check(pdf, context.userData.highRisk === false, 'Geschäftsbeziehung ohne erhöhtes Onboarding-Risiko');
-    this.check(pdf, context.userData.highRisk === true, 'Geschäftsbeziehung mit erhöhtem Risiko');
-    this.section(pdf, '6. Transaktionsüberwachung');
-    this.paragraph(
-      pdf,
-      'Reglementarische Schwellen, Länder- und Sanktionsrisiken sowie auffällige Transaktionsmuster werden durch die laufenden AML-Prüfungen bewertet. Dieses Dokument ersetzt keinen transaktionsbezogenen Prüfnachweis.',
-    );
-    this.paragraph(pdf, 'Bei einer Änderung der Verhältnisse ist das Risikoprofil zu aktualisieren.');
-    this.formMeta(pdf, context, 'VQF Dok. Nr. 902.4');
+    const third = pdf.getPage(2);
+    this.booleanChecks(third, normalCountry, 134.6, 166.7);
+    this.booleanChecks(third, context.userData.highRisk === false, 313.0, 329.1);
   }
 
-  private header(pdf: Pdf, title: string, context: DfxApprovalPdfContext): void {
-    PdfUtil.drawLogo(pdf);
-    pdf.moveDown(2.2).font('Helvetica-Bold').fontSize(19).fillColor('#072440').text(title);
-    pdf.moveDown(0.7);
-    this.fields(pdf, [
-      ['VQF Mitglied Nr.', MEMBER_NUMBER],
-      ['User Id.', context.userData.id],
-      ['Erstellt', context.generatedAt.toISOString()],
-    ]);
+  private booleanChecks(page: PDFPage, positive: boolean, positiveTop: number, negativeTop: number): void {
+    this.check(page, 259.4, positive ? positiveTop : negativeTop);
   }
 
-  private pageTitle(pdf: Pdf, title: string): void {
-    pdf.font('Helvetica-Bold').fontSize(16).fillColor('#072440').text(title).moveDown(1);
+  private text(page: PDFPage, regular: PDFFont, bold: PDFFont, raw: unknown, options: TextOptions): void {
+    if (raw == null || raw === '') return;
+    const value = String(raw)
+      .split(/\r?\n/)
+      .map((line) => line.replace(/[\t ]+/g, ' ').trim())
+      .join('\n')
+      .trim();
+    if (!value) return;
+    const font = options.bold ? bold : regular;
+    const size = options.size ?? 8.5;
+    const width = options.width ?? 260;
+    const lineHeight = size * 1.12;
+    const maxLines = Math.max(1, Math.floor((options.height ?? lineHeight) / lineHeight));
+    const lines = value
+      .split('\n')
+      .flatMap((line) => this.wrap(line, font, size, width, maxLines))
+      .slice(0, maxLines);
+    lines.forEach((line, index) => {
+      page.drawText(line, {
+        x: options.x,
+        y: page.getHeight() - options.top - size - index * lineHeight + 1.5,
+        size,
+        font,
+        color: options.color ?? BLACK,
+      });
+    });
   }
 
-  private section(pdf: Pdf, title: string): void {
-    if (pdf.y > 720) pdf.addPage();
-    pdf.moveDown(0.7).font('Helvetica-Bold').fontSize(12).fillColor('#072440').text(title).moveDown(0.35);
-  }
-
-  private fields(pdf: Pdf, rows: [string, unknown][]): void {
-    for (const [label, rawValue] of rows) {
-      const value = rawValue == null || rawValue === '' ? '–' : String(rawValue);
-      if (pdf.y > 755) pdf.addPage();
-      const y = pdf.y;
-      pdf.font('Helvetica').fontSize(8.5).fillColor('#333333').text(label, 42, y, { width: 170 });
-      pdf.font('Helvetica-Bold').fillColor('#0824d8').text(value, 215, y, { width: 335 });
-      pdf.y = Math.max(pdf.y, y + 17);
-      pdf
-        .moveTo(42, pdf.y - 3)
-        .lineTo(553, pdf.y - 3)
-        .lineWidth(0.3)
-        .stroke('#999999');
+  private wrap(value: string, font: PDFFont, size: number, width: number, maxLines: number): string[] {
+    const words = value.split(' ');
+    const lines: string[] = [];
+    let current = '';
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= width) {
+        current = candidate;
+      } else {
+        if (current) lines.push(current);
+        current = word;
+        if (lines.length === maxLines) break;
+      }
     }
+    if (current && lines.length < maxLines) lines.push(this.fit(current, font, size, width));
+    return lines.slice(0, maxLines);
   }
 
-  private paragraph(pdf: Pdf, text: string): void {
-    if (pdf.y > 700) pdf.addPage();
-    pdf.moveDown(0.5).font('Helvetica').fontSize(9).fillColor('#222222').text(text, { align: 'left' }).moveDown(0.5);
+  private fit(value: string, font: PDFFont, size: number, width: number): string {
+    let result = value;
+    while (result && font.widthOfTextAtSize(result, size) > width) result = result.slice(0, -1);
+    return result;
   }
 
-  private check(pdf: Pdf, checked: boolean, label: string): void {
-    if (pdf.y > 755) pdf.addPage();
-    const y = pdf.y;
-    pdf.rect(44, y, 10, 10).lineWidth(1).stroke('#0824d8');
-    if (checked)
-      pdf
-        .font('Helvetica-Bold')
-        .fontSize(10)
-        .fillColor('#0824d8')
-        .text('X', 45, y - 1);
-    pdf.font('Helvetica').fontSize(9).fillColor('#222222').text(label, 62, y, { width: 485 });
-    pdf.y = Math.max(pdf.y, y + 17);
-  }
-
-  private formMeta(pdf: Pdf, context: DfxApprovalPdfContext, source: string): void {
-    this.section(pdf, 'Dokumentation');
-    this.fields(pdf, [
-      ['Ausgefüllt / aktualisiert von', 'DFX API (automatisierter, regelgebundener Workflow)'],
-      ['Zeitpunkt', context.generatedAt.toISOString()],
-      ['Vorlage / Grundlage', `${source}; ${FORM_VERSION}`],
-    ]);
-    this.footer(pdf);
-  }
-
-  private footer(pdf: Pdf): void {
-    pdf.font('Helvetica').fontSize(7).fillColor('#777777').text(FORM_VERSION, 42, 790, { width: 511 });
+  private check(page: PDFPage, x: number, top: number): void {
+    const size = 12;
+    const y = page.getHeight() - top - size;
+    page.drawRectangle({ x, y, width: size, height: size, color: BLUE, borderColor: BLUE, borderWidth: 0.8 });
+    page.drawLine({ start: { x: x + 2.2, y: y + 6.2 }, end: { x: x + 5, y: y + 3.2 }, color: WHITE, thickness: 1.6 });
+    page.drawLine({ start: { x: x + 4.8, y: y + 3.2 }, end: { x: x + 10, y: y + 9.4 }, color: WHITE, thickness: 1.6 });
   }
 
   private financialData(steps: KycStep[]): FinancialData {
@@ -342,33 +377,108 @@ export class DfxApprovalPdfService {
     }
     if (!Array.isArray(responses) || responses.some((response) => !response?.key || !response?.value))
       throw new Error('FinancialData result has an invalid structure');
-
     return Object.fromEntries(responses.map((response) => [response.key, response.value]));
   }
 
-  private nameCheckResult(nameCheck: NameCheckLog): string {
-    return nameCheck.riskStatus === NameCheckRiskStatus.NOT_SANCTIONED
-      ? 'keine Treffer gefunden'
-      : `Treffer vorhanden; Bewertung ${nameCheck.riskEvaluation ?? 'offen'}`;
+  private employment(financial: FinancialData): string {
+    const occupation = financial.occupation === 'self_employed' ? 'Selbständig' : financial.occupation;
+    return [
+      occupation && `Beruf: ${occupation}`,
+      financial.occupation_description && `Arbeitgeber: ${financial.occupation_description}`,
+      financial.sector && `Branche: ${financial.sector}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+      .replace(/n\.a\./g, '');
   }
 
-  private documentNumber(context: DfxApprovalPdfContext, subType: FileSubType): string {
-    return `${Util.isoDate(context.generatedAt).replace(/-/g, '')}-${subType}-${context.userData.id}`;
+  private financialBand(value?: string): string {
+    return (
+      {
+        '1m': " > 1'000'000 CHF",
+        '500k_1m': "zwischen 500'000 und 1'000'000 CHF",
+        '100k_500k': "zwischen 100'000 und 500'000 CHF",
+        '50k_100k': "zwischen 0 und 100'000 CHF",
+        '50k': "zwischen 0 und 100'000 CHF",
+      }[value ?? ''] ?? ''
+    );
+  }
+
+  private volumeBand(volume: number): string {
+    if (volume <= 100000) return "zwischen 0 und 100'000 CHF";
+    if (volume <= 500000) return "zwischen 100'000 und 500'000 CHF";
+    if (volume <= 1000000) return "zwischen 500'000 und 1'000'000 CHF";
+    if (volume <= 5000000) return "zwischen 1'000'000 und 5'000'000 CHF";
+    if (volume <= 10000000) return "zwischen 5'000'000 und 10'000'000 CHF";
+    if (volume <= 15000000) return "zwischen 10'000'000 und 15'000'000 CHF";
+    return "grösser 15'000'000 CHF";
+  }
+
+  private nameCheckResult(nameCheck: NameCheckLog): string {
+    try {
+      const result = JSON.parse(nameCheck.result) as { total_hits?: number };
+      if (result.total_hits === 0) return 'keine Treffer gefunden';
+    } catch {
+      // The productive Sheet leaves the result field empty when the raw result cannot be parsed.
+    }
+    return nameCheck.riskStatus === NameCheckRiskStatus.NOT_SANCTIONED ? 'keine Treffer gefunden' : '';
+  }
+
+  private requiredNameCheck(context: DfxApprovalPdfContext): NameCheckLog {
+    if (!context.nameCheck) throw new Error('NameCheck evidence is missing');
+    return context.nameCheck;
+  }
+
+  private documentNumber(subType: FileSubType, context: DfxApprovalPdfContext): string {
+    return this.fileName(subType, context).replace(/\.pdf$/, '');
   }
 
   private address(userData: UserData): string {
-    return [userData.street, userData.houseNumber, userData.zip, userData.location, userData.country?.name]
+    return [
+      [userData.street, userData.houseNumber].filter(Boolean).join(' '),
+      [userData.zip, userData.location].filter(Boolean).join(' '),
+      userData.country?.name,
+    ]
       .filter(Boolean)
       .join(', ');
   }
 
   private date(value?: Date): string {
-    return value ? Util.localeDataString(value, 'DE') : '–';
+    if (!value) return '';
+    return new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich' }).format(value);
   }
 
-  private identificationMethod(type?: string): string {
-    if (type === KycIdentificationType.VIDEO_ID) return 'Online-Registrierung mittels Video-Identifikation';
-    if (type === KycIdentificationType.MANUAL) return 'Persönliche / manuelle Identifikation';
-    return 'Online-Registrierung mittels Online-Identifikation';
+  private timestamp(value?: Date): string {
+    if (!value) return '';
+    const parts = this.zurichParts(value);
+    return `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
+  }
+
+  private compactDate(value?: Date): string {
+    if (!value) throw new Error('Document date is missing');
+    const parts = this.zurichParts(value);
+    return `${parts.year}${parts.month}${parts.day}`;
+  }
+
+  private compactTime(value: Date): string {
+    const parts = this.zurichParts(value);
+    return `${parts.hour}${parts.minute}${parts.second}`;
+  }
+
+  private zurichParts(value: Date): Record<'year' | 'month' | 'day' | 'hour' | 'minute' | 'second', string> {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Zurich',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(value);
+    return Object.fromEntries(parts.map((part) => [part.type, part.value])) as Record<
+      'year' | 'month' | 'day' | 'hour' | 'minute' | 'second',
+      string
+    >;
   }
 }

@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { FileSubType, FileType } from '../dto/kyc-file.dto';
 import { KycFile } from '../entities/kyc-file.entity';
@@ -25,8 +24,13 @@ export class DfxApprovalDocumentService {
     private readonly documentService: KycDocumentService,
   ) {}
 
-  async generateMissingPersonalDocuments(userData: UserData, step: KycStep, files: KycFile[]): Promise<void> {
-    const missing = DFX_APPROVAL_GENERATED_DOCUMENTS.filter(
+  async generateMissingPersonalDocuments(
+    userData: UserData,
+    step: KycStep,
+    files: KycFile[],
+    requestedDocuments: readonly FileSubType[] = DFX_APPROVAL_GENERATED_DOCUMENTS,
+  ): Promise<void> {
+    const missing = requestedDocuments.filter(
       (subType) => !files.some((file) => file.subType === subType && file.valid),
     );
     if (!missing.length) return;
@@ -35,28 +39,30 @@ export class DfxApprovalDocumentService {
       where: { userData: { id: userData.id } },
       order: { created: 'DESC' },
     });
-    if (!nameCheck) throw new Error(`NameCheck evidence is missing for userData ${userData.id}`);
+    if (missing.includes(FileSubType.DFX_NAME_CHECK) && !nameCheck)
+      throw new Error(`NameCheck evidence is missing for userData ${userData.id}`);
 
     const generatedAt = new Date();
+    const failures: string[] = [];
     for (const subType of missing) {
-      const data = await this.pdfService.generate(subType, {
-        userData,
-        steps: userData.kycSteps,
-        nameCheck,
-        generatedAt,
-      });
-      const version = 'v1';
-      const generationKey = `dfx-approval:${step.id}:${subType}:${version}`;
-      const date = Util.isoDate(generatedAt).replace(/-/g, '');
-      await this.documentService.ensureGeneratedUserFile(
-        generationKey,
-        userData,
-        FileType.USER_NOTES,
-        subType,
-        `${date}-${subType}-${userData.id}-${step.id}-${version}.pdf`,
-        data,
-        { workflow: 'DfxApproval', version, stepId: String(step.id) },
-      );
+      try {
+        const context = { userData, steps: userData.kycSteps, nameCheck, generatedAt };
+        const data = await this.pdfService.generate(subType, context);
+        const version = 'v1';
+        const generationKey = `dfx-approval:${userData.id}:${subType}:${version}`;
+        await this.documentService.ensureGeneratedUserFile(
+          generationKey,
+          userData,
+          FileType.USER_NOTES,
+          subType,
+          this.pdfService.fileName(subType, context),
+          data,
+          { workflow: 'DfxApproval', version, stepId: String(step.id) },
+        );
+      } catch (error) {
+        failures.push(`${subType}: ${(error as Error).message}`);
+      }
     }
+    if (failures.length) throw new Error(`DfxApproval document generation failed (${failures.join('; ')})`);
   }
 }

@@ -16,22 +16,13 @@ import { Transaction } from 'src/subdomains/supporting/payment/entities/transact
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
 import { KycService } from '../../kyc/services/kyc.service';
-import { KycStep } from '../../kyc/entities/kyc-step.entity';
-import { KycStepName } from '../../kyc/enums/kyc-step-name.enum';
-import { ReviewStatus } from '../../kyc/enums/review-status.enum';
-import { KycDocumentService } from '../../kyc/services/integration/kyc-document.service';
-import { DfxApprovalWorkflowService } from '../../kyc/services/dfx-approval-workflow.service';
-import { KycFileService } from '../../kyc/services/kyc-file.service';
 import { Recommendation } from '../../user/models/recommendation/recommendation.entity';
 import { RecommendationService } from '../../user/models/recommendation/recommendation.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { User } from '../../user/models/user/user.entity';
 import { UserService } from '../../user/models/user/user.service';
 import { ComplianceSearchType, RecommendationGraphEdgeKind } from '../dto/user-data-support.dto';
-import { ComplianceDecision } from '../dto/onboarding-pdf.dto';
-import { SupportPdfService } from '../support-pdf.service';
 import { SupportService } from '../support.service';
 
 // --- entity builders --- //
@@ -88,10 +79,6 @@ describe('SupportService', () => {
   let payInService: PayInService;
   let transactionService: TransactionService;
   let scorechainScreeningService: ScorechainScreeningService;
-  let dfxApprovalWorkflowService: DfxApprovalWorkflowService;
-  let supportPdfService: SupportPdfService;
-  let kycDocumentService: KycDocumentService;
-  let kycFileService: KycFileService;
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -112,10 +99,6 @@ describe('SupportService', () => {
     payInService = module.get(PayInService);
     transactionService = module.get(TransactionService);
     scorechainScreeningService = module.get(ScorechainScreeningService);
-    dfxApprovalWorkflowService = module.get(DfxApprovalWorkflowService);
-    supportPdfService = module.get(SupportPdfService);
-    kycDocumentService = module.get(KycDocumentService);
-    kycFileService = module.get(KycFileService);
   });
 
   // by default a node returns a UserData entity from getUserDataByIds for every requested id
@@ -135,89 +118,6 @@ describe('SupportService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
-  });
-
-  describe('decidePersonalDfxApproval', () => {
-    const step = Object.assign(new KycStep(), {
-      id: 11,
-      name: KycStepName.DFX_APPROVAL,
-      status: ReviewStatus.MANUAL_REVIEW,
-      result: '{}',
-    });
-    const userData = Object.assign(new UserData(), {
-      id: 42,
-      accountType: AccountType.PERSONAL,
-      highRisk: false,
-      kycSteps: [step],
-    });
-    const decision = {
-      stepId: step.id,
-      finalDecision: ComplianceDecision.ACCEPTED,
-      processedBy: 'Compliance Test',
-    };
-
-    beforeEach(() => {
-      jest.spyOn(userDataService, 'getUserData').mockResolvedValue(userData);
-      jest.spyOn(kycFileService, 'getUserDataKycFiles').mockResolvedValue([]);
-      jest.spyOn(kycService, 'getStepsByUserData').mockResolvedValue([step]);
-      jest.spyOn(supportPdfService, 'createOnboardingPdf').mockResolvedValue(Buffer.from('pdf').toString('base64'));
-      jest
-        .spyOn(kycDocumentService, 'ensureGeneratedUserFile')
-        .mockResolvedValue({ file: undefined, url: 'url' } as any);
-      jest.spyOn(dfxApprovalWorkflowService, 'applyManualDecision').mockResolvedValue(undefined);
-    });
-
-    it('stores the report before applying the atomic decision', async () => {
-      await service.decidePersonalDfxApproval(userData.id, 99, decision);
-
-      expect(kycDocumentService.ensureGeneratedUserFile).toHaveBeenCalledWith(
-        expect.stringMatching(new RegExp(`^dfx-approval:${step.id}:OnboardingReport:manual-v1:[a-f0-9]{16}$`)),
-        userData,
-        expect.any(String),
-        'OnboardingReport',
-        expect.stringMatching(/^GwG_Onboarding_42_/),
-        expect.any(Buffer),
-        { workflow: 'DfxApproval', version: 'v1' },
-      );
-      expect((kycDocumentService.ensureGeneratedUserFile as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-        (dfxApprovalWorkflowService.applyManualDecision as jest.Mock).mock.invocationCallOrder[0],
-      );
-    });
-
-    it('leaves the approval untouched when report generation fails', async () => {
-      jest.spyOn(supportPdfService, 'createOnboardingPdf').mockRejectedValue(new Error('PDF failed'));
-
-      await expect(service.decidePersonalDfxApproval(userData.id, 99, decision)).rejects.toThrow('PDF failed');
-
-      expect(dfxApprovalWorkflowService.applyManualDecision).not.toHaveBeenCalled();
-    });
-
-    it('uses a new report key when a retried decision changes', async () => {
-      await service.decidePersonalDfxApproval(userData.id, 99, decision);
-      await service.decidePersonalDfxApproval(userData.id, 99, {
-        ...decision,
-        finalDecision: ComplianceDecision.REJECTED,
-      });
-
-      const firstKey = (kycDocumentService.ensureGeneratedUserFile as jest.Mock).mock.calls[0][0];
-      const secondKey = (kycDocumentService.ensureGeneratedUserFile as jest.Mock).mock.calls[1][0];
-      expect(firstKey).not.toBe(secondKey);
-    });
-
-    it('rejects malformed existing step data before creating a report', async () => {
-      jest.spyOn(userDataService, 'getUserData').mockResolvedValue(
-        Object.assign(new UserData(), userData, {
-          kycSteps: [Object.assign(new KycStep(), step, { result: '{invalid' })],
-        }),
-      );
-
-      await expect(service.decidePersonalDfxApproval(userData.id, 99, decision)).rejects.toThrow(
-        'DfxApproval result is invalid JSON',
-      );
-
-      expect(supportPdfService.createOnboardingPdf).not.toHaveBeenCalled();
-      expect(dfxApprovalWorkflowService.applyManualDecision).not.toHaveBeenCalled();
-    });
   });
 
   describe('getRecommendationGraphNeighbors', () => {
