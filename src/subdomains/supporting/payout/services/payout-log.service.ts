@@ -37,7 +37,7 @@ export class PayoutLogService {
       // a single line, so a reader (human or monitoring) only sees the whole batch by parsing a variable-length list.
       // These lines carry what is needed to judge the escalation without a DB lookup - the payout amount, its asset
       // and the chain it was going out on. The summary line is left as it is because processFailedOrders in
-      // payout.service.ts hands its return value to createMailRequest as the mail body.
+      // payout.service.ts hands its return value to createMailRequest, which puts it into the escalation mail.
       for (const order of failedOrders) this.logger.error(this.createEscalationLog(order));
     }
 
