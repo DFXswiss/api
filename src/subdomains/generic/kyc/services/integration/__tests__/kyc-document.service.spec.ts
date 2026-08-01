@@ -19,7 +19,7 @@ import { FileSubType, FileType } from '../../../dto/kyc-file.dto';
 import { KycFile } from '../../../entities/kyc-file.entity';
 import { ContentType } from '../../../enums/content-type.enum';
 import { KycFileService } from '../../kyc-file.service';
-import { KycDocumentService } from '../kyc-document.service';
+import { GENERATION_KEY_INDEX, KycDocumentService } from '../kyc-document.service';
 
 describe('KycDocumentService - storage', () => {
   let service: KycDocumentService;
@@ -113,7 +113,7 @@ describe('KycDocumentService - storage', () => {
       const generated = Object.assign(new KycFile(), { id: 18, name: 'generated.pdf', valid: false });
       (kycFileService.getByGenerationKey as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce(generated);
       (kycFileService.createKycFile as jest.Mock).mockRejectedValue({
-        driverError: { code: '23505', constraint: 'IDX_dfx_kyc_file_generation_key' },
+        driverError: { code: '23505', constraint: GENERATION_KEY_INDEX },
       });
 
       await service.ensureGeneratedUserFile(

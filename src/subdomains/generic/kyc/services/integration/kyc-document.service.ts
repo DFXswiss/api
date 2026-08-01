@@ -13,6 +13,10 @@ import { KycFileService } from '../kyc-file.service';
 
 const KYC_CONTAINER = 'kyc';
 
+// TypeORM's generated name for the unique index on `kyc_file.generationKey`; the repository does not
+// use custom index names.
+export const GENERATION_KEY_INDEX = 'IDX_840d5653c5f3bc7c76de2d156d';
+
 @Injectable()
 export class KycDocumentService {
   private readonly storageService: StorageService;
@@ -200,6 +204,6 @@ export class KycDocumentService {
     const candidate = error as { code?: string; driverError?: { code?: string; constraint?: string } };
     const code = candidate.driverError?.code ?? candidate.code;
     const constraint = candidate.driverError?.constraint;
-    return code === '23505' && (!constraint || constraint === 'IDX_dfx_kyc_file_generation_key');
+    return code === '23505' && (!constraint || constraint === GENERATION_KEY_INDEX);
   }
 }

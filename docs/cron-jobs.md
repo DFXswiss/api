@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **131 `@DfxCron` declarations** across 92 files and 33 areas.
+Every scheduled job this service runs: **132 `@DfxCron` declarations** across 93 files and 33 areas.
 
 ## Columns
 
@@ -13,7 +13,7 @@ Every scheduled job this service runs: **131 `@DfxCron` declarations** across 92
 
 ## Flags
 
-110 of the 131 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
+111 of the 132 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -45,7 +45,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | second | 5 |
 | 10 seconds | 3 |
 | 30 seconds | 8 |
-| minute | 49 |
+| minute | 50 |
 | 5 minutes | 17 |
 | 10 minutes | 15 |
 | hour | 16 |
@@ -70,7 +70,7 @@ Jobs by area:
 | `subdomains/core/buy-crypto` | 6 | 4 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
 | `subdomains/core/payment-link` | 4 | — |
-| `subdomains/generic/kyc` | 4 | — |
+| `subdomains/generic/kyc` | 5 | — |
 | `subdomains/supporting/bank-tx` | 4 | — |
 | `subdomains/supporting/bank` | 4 | — |
 | `subdomains/supporting/fiat-output` | 4 | — |
@@ -100,7 +100,7 @@ Jobs by area:
 
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses four of them. The parsed
-count is asserted against a raw text count of the decorator: **131 = 131**, no gap. Class and
+count is asserted against a raw text count of the decorator: **132 = 132**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -146,6 +146,7 @@ the interval while running as an independent timer with its own lock.
 | minute | `MONITORING` | `CheckoutObserver::fetch` | `subdomains/core/monitoring/observers/checkout.observer.ts` |
 | minute | `PAY_IN` | `CitreaBaseStrategy::checkPayInEntries` | `subdomains/supporting/payin/strategies/register/impl/base/citrea.strategy.ts` |
 | minute | `CUSTODY` | `CustodyJobService::handleOrders` | `subdomains/core/custody/services/custody-job.service.ts` |
+| minute | `KYC_DFX_APPROVAL` | `DfxApprovalWorkflowService::reviewPersonalApprovals` | `subdomains/generic/kyc/services/dfx-approval-workflow.service.ts` |
 | minute | `FIAT_OUTPUT` | `FiatOutputJobService::fillFiatOutput` | `subdomains/supporting/fiat-output/fiat-output-job.service.ts` |
 | minute | `FIAT_PAY_IN` | `FiatPayInSyncService::syncCheckout` | `subdomains/supporting/fiat-payin/services/fiat-payin-sync.service.ts` |
 | minute | `PAY_IN` | `InternetComputerStrategy::checkPayInEntries` | `subdomains/supporting/payin/strategies/register/impl/icp.strategy.ts` |
