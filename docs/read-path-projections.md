@@ -27,9 +27,9 @@ This service loads far more data than it returns. Measured against the real enti
 
 - The whole database schema has **1,736 columns across 99 tables**.
 - `PUT /v1/transaction/:id/invoice` selected **1,664 of them** — 96% of the entire schema — to
-  render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
-  columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
-  `transaction_request`) broke every invoice and receipt in production until it was fixed.
+  render a PDF containing a handful of values. That is exactly Postgres' limit of 1,664 columns per
+  statement, so the query was one added column away from failing outright, whatever the column and
+  wherever it was added.
 - Of the 534 endpoints, **398 reach at least one load site that fetches whole rows**; 98 read
   nothing at all, and **36 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
@@ -398,11 +398,15 @@ unless that response is complete.
 
 **Where the same value exists twice, the two must agree.**
 
-For a conversion the second source is always available and always exact: **the unprojected load.**
-Run the endpoint's mapper over a full `find` of the same fixture, and the two responses must be
-identical, per variant. The full load fetches every column, so what it produces is by construction
-what the endpoint answered before the conversion — no second implementation is involved that could
-be wrong in the same way, which is what makes this the strongest of the four. It is also the only
+For a conversion the second source is always available: **the unprojected load.** Run the endpoint's
+mapper over a full `find` of the same fixture, and the two responses must be identical, per variant.
+The full load fetches every column, so the *field set* it produces is by construction the one the
+endpoint answered from before the conversion — the mapper is the same function in both runs, so a
+difference can only come from the columns.
+
+What the level does not verify is the query around them: each spec restates the filter and the
+joins, so a spec that restates them wrongly compares two things neither of which is the endpoint.
+That part is covered by level 2, which asserts the filter against seeded rows. It is also the only
 level that catches a projection loading the *wrong* field rather than too few: level 1 sees a field
 that went empty, level 4 sees any field that changed.
 
