@@ -188,19 +188,28 @@ export class DfxApprovalPdfService {
       size: 9,
     });
     const identificationType = context.userData.identificationType;
+    [424.5, 446.0, 465.0].forEach((top) => this.uncheck(second, 239.3, top));
     if (identificationType === KycIdentificationType.VIDEO_ID) this.check(second, 239.3, 424.5);
     else if (identificationType === KycIdentificationType.MANUAL) this.check(second, 239.3, 465.0);
     else this.check(second, 239.3, 446.0);
 
     const language = context.userData.language?.name;
+    [522.5, 546.3].forEach((top) => this.uncheck(second, 239.3, top));
+    [522.5, 546.3].forEach((top) => this.uncheck(second, 402.5, top));
     if (language === 'German' || language === 'Portuguese') this.check(second, 239.3, 522.5);
     else if (language === 'Italian') this.check(second, 239.3, 546.3);
     else if (language === 'French') this.check(second, 402.5, 546.3);
     else this.check(second, 402.5, 522.5);
 
-    this.check(pdf.getPage(2), 233.5, 118.5);
-    if (context.userData.sellVolume > 0) this.check(pdf.getPage(3), 239.3, 202.0);
-    this.check(pdf.getPage(3), 239.3, 219.0);
+    const third = pdf.getPage(2);
+    this.uncheck(third, 233.5, 118.5);
+    this.check(third, 233.5, 118.5);
+
+    const fourth = pdf.getPage(3);
+    this.uncheck(fourth, 239.3, 202.0);
+    this.uncheck(fourth, 239.3, 219.0);
+    if (context.userData.sellVolume > 0) this.check(fourth, 239.3, 202.0);
+    if (context.userData.cryptoVolume > 0) this.check(fourth, 239.3, 219.0);
   }
 
   private renderCustomerProfile(
@@ -240,20 +249,23 @@ export class DfxApprovalPdfService {
     value(this.employment(financial), 440.4, 56);
     value(this.financialBand(financial.income), 518.7);
     value(this.financialBand(financial.assets), 552.4);
-    value(this.volumeBand(context.userData.totalVolumeChfAuditPeriod ?? 0), 615.9);
+    value(this.volumeBand(context.userData.totalVolumeChfAuditPeriod ?? 0), 609.5);
 
     const source = financial.source_of_funds;
+    [633.2, 647.3, 661.4, 689.6, 703.8].forEach((top) => this.uncheck(first, 267.2, top));
     if (source === 'business' || financial.occupation === 'self_employed' || financial.occupation === 'inhaber')
       this.check(first, 267.2, 633.2);
     if (source === 'business') this.check(first, 267.2, 647.3);
     if (source === 'real_estate_sale') this.check(first, 267.2, 661.4);
     if (source === 'OTHER') this.check(first, 267.2, 703.8);
     if ((context.userData.totalVolumeChfAuditPeriod ?? 0) > 100000)
-      value("Siehe eigene Aktennotiz bezüglich Freigabe Handelsvolumen > 100'000 CHF", 727.0, 36);
+      value("Siehe eigene Aktennotiz bezüglich Freigabe Handelsvolumen > 100'000 CHF", 722.0, 36);
 
     const second = pdf.getPage(1);
-    if (context.userData.sellVolume > 0) this.check(second, 267.2, 167.5);
-    if (context.userData.cryptoVolume > 0) this.check(second, 267.2, 197.1);
+    this.uncheck(second, 282.2, 167.5);
+    this.uncheck(second, 282.2, 197.1);
+    if (context.userData.sellVolume > 0) this.check(second, 282.2, 167.5);
+    if (context.userData.cryptoVolume > 0) this.check(second, 282.2, 197.1);
   }
 
   private renderRiskProfile(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, context: DfxApprovalPdfContext): void {
@@ -282,8 +294,8 @@ export class DfxApprovalPdfService {
       bold: true,
       size: 9,
     });
-    this.check(first, 259.4, context.userData.pep ? 529.2 : 514.4);
-    this.check(first, 259.4, context.userData.pep ? 606.3 : 592.8);
+    this.booleanChecks(first, !context.userData.pep, 514.4, 529.2);
+    this.booleanChecks(first, !context.userData.pep, 592.8, 606.3);
 
     const second = pdf.getPage(1);
     this.booleanChecks(second, context.userData.highRisk === false, 150.0, 166.7);
@@ -300,6 +312,8 @@ export class DfxApprovalPdfService {
   }
 
   private booleanChecks(page: PDFPage, positive: boolean, positiveTop: number, negativeTop: number): void {
+    this.uncheck(page, 259.4, positiveTop);
+    this.uncheck(page, 259.4, negativeTop);
     this.check(page, 259.4, positive ? positiveTop : negativeTop);
   }
 
@@ -361,6 +375,12 @@ export class DfxApprovalPdfService {
     page.drawRectangle({ x, y, width: size, height: size, color: BLUE, borderColor: BLUE, borderWidth: 0.8 });
     page.drawLine({ start: { x: x + 2.2, y: y + 6.2 }, end: { x: x + 5, y: y + 3.2 }, color: WHITE, thickness: 1.6 });
     page.drawLine({ start: { x: x + 4.8, y: y + 3.2 }, end: { x: x + 10, y: y + 9.4 }, color: WHITE, thickness: 1.6 });
+  }
+
+  private uncheck(page: PDFPage, x: number, top: number): void {
+    const size = 12;
+    const y = page.getHeight() - top - size;
+    page.drawRectangle({ x, y, width: size, height: size, color: WHITE, borderColor: BLUE, borderWidth: 0.8 });
   }
 
   private financialData(steps: KycStep[]): FinancialData {

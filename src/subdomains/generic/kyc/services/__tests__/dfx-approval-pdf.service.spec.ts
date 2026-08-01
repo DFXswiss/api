@@ -106,4 +106,27 @@ describe('DfxApprovalPdfService', () => {
     expect(service.fileName(FileSubType.FORM_A, data)).toBe('20260731-FormularA-0-42-220000.pdf');
     expect(service.fileName(FileSubType.DFX_NAME_CHECK, data)).toBe('20260731-NameCheck-0-42-220000.pdf');
   });
+
+  it('replaces cached template values for every dynamic checkbox', async () => {
+    const data = context();
+    data.userData.sellVolume = 0;
+    data.userData.cryptoVolume = 0;
+    const uncheck = jest.spyOn(service as any, 'uncheck');
+    const check = jest.spyOn(service as any, 'check');
+
+    await service.generate(FileSubType.IDENTIFICATION_FORM, data);
+    await service.generate(FileSubType.CUSTOMER_PROFILE, data);
+    await service.generate(FileSubType.RISK_PROFILE, data);
+
+    expect(uncheck).toHaveBeenCalledWith(expect.anything(), 239.3, 202.0);
+    expect(uncheck).toHaveBeenCalledWith(expect.anything(), 239.3, 219.0);
+    expect(uncheck).toHaveBeenCalledWith(expect.anything(), 282.2, 167.5);
+    expect(uncheck).toHaveBeenCalledWith(expect.anything(), 282.2, 197.1);
+    expect(uncheck).toHaveBeenCalledWith(expect.anything(), 259.4, 150.0);
+    expect(uncheck).toHaveBeenCalledWith(expect.anything(), 259.4, 166.7);
+    expect(check).not.toHaveBeenCalledWith(expect.anything(), 239.3, 202.0);
+    expect(check).not.toHaveBeenCalledWith(expect.anything(), 239.3, 219.0);
+    expect(check).not.toHaveBeenCalledWith(expect.anything(), 282.2, 167.5);
+    expect(check).not.toHaveBeenCalledWith(expect.anything(), 282.2, 197.1);
+  });
 });
