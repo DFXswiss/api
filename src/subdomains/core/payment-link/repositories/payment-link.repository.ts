@@ -6,45 +6,32 @@ import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentStatus } from '../enums';
 
 /**
- * What `createPosLinkFor` reads to build a point-of-sale link.
+ * What `PUT /paymentLink/:id/pos` reads.
  *
- * Three configuration sources can be merged into the answer, and which ones depends on the `scoped`
- * argument: the link's own config, the account's, and the recipient block the account's address and
- * contact data make up. The union of the three is the field list.
+ * The endpoint answers with a URL built from `uniqueId` and one access key. The key comes out of a
+ * configuration, and which of the three configurations is consulted depends on the `scoped`
+ * argument — the link's own, the account's, or the two merged. `accessKeys` is the only value read
+ * out of them, so the two columns holding them are the whole field list.
  *
- * The organization side is here because `UserData.address` switches to it for organization and
- * sole-proprietorship accounts — the same five values, read off another row.
+ * `accountType` is deliberately NOT selected. `configObj` also assembles a recipient block, which
+ * this endpoint discards, and that block reads `UserData.address` — a getter that switches to the
+ * organization row for an organization account and would dereference a relation this query has no
+ * reason to join. Left unselected, the getter takes its other branch and reads columns that are
+ * simply absent, which nothing here looks at.
  */
 export const POS_LINK_RESPONSE_FIELDS = [
   'paymentLink.uniqueId',
   'paymentLink.config',
-  'posUserData.accountType',
-  // `completeName`: the organization name, falling back to the two personal ones.
-  'posUserData.organizationName',
-  'posUserData.firstname',
-  'posUserData.surname',
-  'posUserData.phone',
-  'posUserData.mail',
   'posUserData.paymentLinksConfig',
-  'posUserData.street',
-  'posUserData.houseNumber',
-  'posUserData.location',
-  'posUserData.zip',
-  'posCountry.symbol',
-  'posOrganization.street',
-  'posOrganization.houseNumber',
-  'posOrganization.location',
-  'posOrganization.zip',
-  'posOrganizationCountry.symbol',
 ];
 
 /**
  * `PUT /paymentLink/:id/pos` — 513 columns before.
  *
  * The endpoint writes, but through `update(id, …)` on the link and on the account rather than by
- * saving either row back, so a projected read cannot blank a column it did not load. `config` is
- * part of the projection for that reason as much as for the response: the write merges the new
- * access key into the existing configuration, and a config the query did not load would be a
+ * saving either row back, so a projected read cannot blank a column it did not load. `config` and
+ * `paymentLinksConfig` are in the projection for the write as much as for the answer: it merges the
+ * new key into whichever of them applies, and a configuration the query failed to load would be a
  * configuration silently reset.
  */
 export const POS_LINK_PROJECTION = new ReadProjection<PaymentLink>(
@@ -53,22 +40,11 @@ export const POS_LINK_PROJECTION = new ReadProjection<PaymentLink>(
     ['paymentLink.route', 'posRoute'],
     ['posRoute.user', 'posUser'],
     ['posUser.userData', 'posUserData'],
-    ['posUserData.country', 'posCountry'],
-    ['posUserData.organization', 'posOrganization'],
-    ['posOrganization.country', 'posOrganizationCountry'],
   ],
   POS_LINK_RESPONSE_FIELDS,
   // Never part of the answer: the primary keys that make the ORM materialise the joined rows, and
   // the two ids the two updates are scoped by.
-  [
-    'paymentLink.id',
-    'posRoute.id',
-    'posUser.id',
-    'posUserData.id',
-    'posCountry.id',
-    'posOrganization.id',
-    'posOrganizationCountry.id',
-  ],
+  ['paymentLink.id', 'posRoute.id', 'posUser.id', 'posUserData.id'],
 );
 
 @Injectable()
@@ -83,7 +59,10 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
    * `fields` is what the mutation test in `pos-link.projection.spec.ts` re-runs the query with;
    * `PaymentLinkService.createPosLinkAdmin` calls this without it.
    */
-  async findForPosLink(id: number, fields: ReadonlyArray<string> = POS_LINK_PROJECTION.fields): Promise<PaymentLink> {
+  async findForPosLink(
+    id: number,
+    fields: ReadonlyArray<string> = POS_LINK_PROJECTION.fields,
+  ): Promise<PaymentLink | null> {
     return POS_LINK_PROJECTION.apply(this.createQueryBuilder('paymentLink'), fields)
       .where('paymentLink.id = :id', { id })
       .getOne();

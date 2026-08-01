@@ -1,5 +1,5 @@
+import { createMock } from '@golevelup/ts-jest';
 import { ConfigService } from 'src/config/config';
-import { Country } from 'src/shared/models/country/country.entity';
 import {
   createProjectionDataSource,
   describeProjection,
@@ -9,19 +9,24 @@ import {
   projectionFieldsWithout,
   seedEntity,
 } from 'src/shared/utils/projection-test.util';
-import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import {
   POS_LINK_PROJECTION,
   POS_LINK_RESPONSE_FIELDS,
   PaymentLinkRepository,
 } from 'src/subdomains/core/payment-link/repositories/payment-link.repository';
-import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
+import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
+import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
+import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { Organization } from 'src/subdomains/generic/user/models/organization/organization.entity';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
 import { DataSource } from 'typeorm';
 
 const SCHEMA = 'pos_link_projection_spec';
@@ -29,23 +34,39 @@ const SCHEMA = 'pos_link_projection_spec';
 /**
  * `PUT /paymentLink/:id/pos` — the four levels from `docs/read-path-projections.md`.
  *
- * The link was loaded with its route, its user, the account and the account's organization, which
- * came to 513 columns for a recipient block and two configuration strings.
+ * The link was loaded with its route, its user, the account and the account's organization: 513
+ * columns for a URL built from one identifier and one access key.
  *
- * The endpoint writes as well as reads, but only through `update(id, …)` — it never saves the row
- * it read — so a projected read cannot blank a column it did not load. What it can do is lose the
- * existing configuration, because the write merges into it; `config` is asserted here for that.
+ * The endpoint is driven through `PaymentLinkService.createPosLinkAdmin` rather than through a
+ * rebuilt query, so what these levels compare is the answer the endpoint gives. Its collaborators
+ * are mocked except the repository under test; the account-side write goes through
+ * `UserDataService`, which is asserted on rather than executed, and the write itself is covered
+ * separately below.
  */
 describeProjection('point-of-sale link — read-path projection', () => {
   let dataSource: DataSource;
   let paymentLinks: PaymentLinkRepository;
+  let userDataService: UserDataService;
+  let service: PaymentLinkService;
 
   beforeAll(async () => {
-    // The recipient defaults come from the module-level Config.
+    // The URL prefix comes from the module-level Config.
     new ConfigService();
     dataSource = await createProjectionDataSource(SCHEMA);
     paymentLinks = new PaymentLinkRepository(dataSource.manager);
   }, 300000);
+
+  beforeEach(() => {
+    userDataService = createMock<UserDataService>();
+    service = new PaymentLinkService(
+      paymentLinks,
+      createMock<PaymentLinkPaymentService>(),
+      createMock<PaymentQuoteService>(),
+      userDataService,
+      createMock<DepositRouteService>(),
+      createMock<C2BPaymentLinkService>(),
+    );
+  });
 
   afterAll(async () => {
     await destroyProjectionDataSource(dataSource, SCHEMA);
@@ -54,24 +75,19 @@ describeProjection('point-of-sale link — read-path projection', () => {
   /**
    * A link on a route of an account.
    *
-   * `accountType` is set explicitly: it is a TypeScript enum in a text column and `UserData.address`
-   * branches on it, so a generated value silently selects the personal address on an account whose
-   * data lives on the organization.
+   * `accountType` is set explicitly because `UserData.address` branches on it — the endpoint does
+   * not read that address, and the organization fixture below is what shows that it does not.
    */
   async function seedLink(
     accountType = AccountType.PERSONAL,
     account: Partial<UserData> = {},
     link: Partial<PaymentLink> = {},
   ): Promise<{ paymentLink: PaymentLink; userData: UserData }> {
-    const country = await seedEntity<Country>(dataSource, Country);
-    const organizationCountry = await seedEntity<Country>(dataSource, Country);
-    const organization = await seedEntity<Organization>(dataSource, Organization, {
-      values: { country: organizationCountry },
-    });
+    const organization = await seedEntity<Organization>(dataSource, Organization);
     const userData = await seedEntity<UserData>(dataSource, UserData, {
       // `paymentLinksConfig` holds JSON and is read through `JSON.parse`; a generated string throws
       // before any assertion is reached.
-      values: { country, organization, accountType, paymentLinksConfig: '{}', ...account },
+      values: { organization, accountType, paymentLinksConfig: '{}', ...account },
     });
     const user = await seedEntity<User>(dataSource, User, { values: { userData } });
     // An active sell route carries a check constraint requiring a bank data row.
@@ -83,180 +99,144 @@ describeProjection('point-of-sale link — read-path projection', () => {
     return { paymentLink, userData };
   }
 
+  /** A configuration carrying one access key, as the endpoint stores it. */
+  const withKey = (key: string): string => JSON.stringify({ accessKeys: [key] });
+
   /**
-   * The three configuration sources the endpoint can answer from, as the service reads them.
+   * The `key` parameter of the URL the endpoint answers with.
    *
-   * `scoped` selects between them: unset merges the account and the link, `true` takes the link
-   * alone, `false` the account alone.
+   * Read off the query string rather than through `URL`: the prefix comes from the configuration
+   * and is not necessarily absolute.
    */
-  async function posConfigOf(
+  const keyOf = (url: string): string => new URLSearchParams(url.slice(url.indexOf('?') + 1)).get('key');
+
+  /** The answer of the endpoint, through the projected query. */
+  async function posLinkOf(
     id: number,
+    scoped?: boolean,
     fields = POS_LINK_PROJECTION.fields,
-  ): Promise<{
-    merged: PaymentLinkConfig;
-    linkOnly: PaymentLinkConfig;
-    accountOnly: PaymentLinkConfig;
-    uniqueId: string;
-    storedConfig: string;
-  }> {
-    const link = await paymentLinks.findForPosLink(id, fields);
-    return {
-      merged: link.configObj,
-      linkOnly: link.linkConfigObj,
-      accountOnly: link.route.userData.paymentLinksConfigObj,
-      uniqueId: link.uniqueId,
-      // What the write merges into. A projection that dropped it would reset the configuration.
-      storedConfig: link.config,
-    };
+  ): Promise<{ url: string; key: string }> {
+    jest
+      .spyOn(paymentLinks, 'findForPosLink')
+      .mockImplementationOnce((linkId) =>
+        POS_LINK_PROJECTION.apply(paymentLinks.createQueryBuilder('paymentLink'), fields)
+          .where('paymentLink.id = :linkId', { linkId })
+          .getOne(),
+      );
+
+    const url = await service.createPosLinkAdmin(id, scoped);
+
+    return { url, key: keyOf(url) };
   }
 
   // --- LEVEL 1: completeness --- //
 
-  it('level 1 — a link answers with a complete recipient', async () => {
-    const { paymentLink } = await seedLink();
+  it('level 1 — a link with a stored key answers with it', async () => {
+    const { paymentLink } = await seedLink(AccountType.PERSONAL, {}, { config: withKey('stored-on-the-link') });
 
-    const config = await posConfigOf(paymentLink.id);
+    const answer = await posLinkOf(paymentLink.id);
 
-    expect(config.merged.recipient).toBeDefined();
-    expectNoEmptyFields(config.merged.recipient);
-    expect(config.uniqueId).toBeDefined();
+    expect(answer.key).toEqual('stored-on-the-link');
+    expectNoEmptyFields(answer);
   }, 120000);
 
   // --- LEVEL 2: variants --- //
 
-  it.each([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP])(
-    'level 2 — on a %s account the recipient address comes from the organization',
-    async (accountType) => {
-      const { paymentLink, userData } = await seedLink(accountType);
+  it.each([
+    ['unset, which merges the account into the link', undefined],
+    ['true, which reads the link alone', true],
+  ])(
+    'level 2 — with scoped %s the key comes from the link',
+    async (_name, scoped) => {
+      const { paymentLink } = await seedLink(AccountType.PERSONAL, {}, { config: withKey('from-the-link') });
 
-      const config = await posConfigOf(paymentLink.id);
-
-      // `UserData.address` switches rows entirely for these two account types. Reading the personal
-      // columns here would answer with an address that belongs to the wrong entity.
-      expect(config.merged.recipient.address.street).toEqual(userData.organization.street);
-      expect(config.merged.recipient.address.street).not.toEqual(userData.street);
-      expectNoEmptyFields(config.merged.recipient);
+      expect((await posLinkOf(paymentLink.id, scoped as boolean)).key).toEqual('from-the-link');
     },
     120000,
   );
 
-  it('level 2 — an account without a country answers without an address block', async () => {
-    const { paymentLink } = await seedLink(AccountType.PERSONAL, { country: null });
+  it.each([
+    ['unset, which merges the account into the link', undefined],
+    ['false, which reads the account alone', false],
+  ])(
+    'level 2 — with scoped %s the key comes from the account',
+    async (_name, scoped) => {
+      const { paymentLink } = await seedLink(AccountType.PERSONAL, { paymentLinksConfig: withKey('from-the-account') });
 
-    // The address is emitted only when the country is there; the rest of the recipient must stay.
-    const config = await posConfigOf(paymentLink.id);
+      expect((await posLinkOf(paymentLink.id, scoped as boolean)).key).toEqual('from-the-account');
+    },
+    120000,
+  );
 
-    expect(config.merged.recipient.address).toBeUndefined();
-    expect(config.merged.recipient.mail).toBeDefined();
+  it.each([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP])(
+    'level 2 — a %s account answers without reading its address',
+    async (accountType) => {
+      // `configObj` assembles a recipient block the endpoint discards, and that block reads
+      // `UserData.address`, a getter that switches to the organization row for these two account
+      // types. The projection joins no organization — this is the case that shows it needs none.
+      const { paymentLink } = await seedLink(accountType, {}, { config: withKey('regardless-of-address') });
+
+      expect((await posLinkOf(paymentLink.id)).key).toEqual('regardless-of-address');
+    },
+    120000,
+  );
+
+  it('level 2 — a link without a stored key gets one, written to the link', async () => {
+    const { paymentLink } = await seedLink();
+
+    const answer = await posLinkOf(paymentLink.id, true);
+
+    const stored = await dataSource.getRepository(PaymentLink).findOneBy({ id: paymentLink.id });
+    expect(JSON.parse(stored.config).accessKeys).toEqual([answer.key]);
   }, 120000);
 
-  it('level 2 — the link configuration overrides the account configuration', async () => {
-    const { paymentLink } = await seedLink(
-      AccountType.PERSONAL,
-      { paymentLinksConfig: JSON.stringify({ recipient: { name: 'from-account' } }) },
-      { config: JSON.stringify({ recipient: { name: 'from-link' } }) },
+  it('level 2 — the unscoped branch writes through the account service instead', async () => {
+    const { paymentLink, userData } = await seedLink();
+
+    const answer = await posLinkOf(paymentLink.id, false);
+
+    expect(userDataService.updatePaymentLinksConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ id: userData.id }),
+      {
+        accessKeys: [answer.key],
+      },
     );
+  }, 120000);
 
-    const config = await posConfigOf(paymentLink.id);
+  it('level 2 — an unknown id is refused', async () => {
+    const { paymentLink } = await seedLink();
 
-    expect(config.merged.recipient.name).toEqual('from-link');
-    expect(config.linkOnly.recipient.name).toEqual('from-link');
-    expect(config.accountOnly.recipient.name).toEqual('from-account');
-    expect(config.storedConfig).toContain('from-link');
+    await expect(posLinkOf(paymentLink.id + 1_000_000)).rejects.toThrow('Payment link not found');
   }, 120000);
 
   // --- LEVEL 3: mutation --- //
 
-  /** The five address columns of the account, read only for a personal account. */
-  const PERSONAL_ADDRESS = [
-    'posUserData.street',
-    'posUserData.houseNumber',
-    'posUserData.location',
-    'posUserData.zip',
-    'posCountry.symbol',
-  ];
+  /** The fields each configuration source contributes, keyed by the fixture that reads it. */
+  const LINK_FIELDS = ['paymentLink.uniqueId', 'paymentLink.config'];
+  const ACCOUNT_FIELDS = ['paymentLink.uniqueId', 'posUserData.paymentLinksConfig'];
 
-  /** The same five, read off the organization for the other account types. */
-  const ORGANIZATION_ADDRESS = [
-    'posOrganization.street',
-    'posOrganization.houseNumber',
-    'posOrganization.location',
-    'posOrganization.zip',
-    'posOrganizationCountry.symbol',
-  ];
-
-  /**
-   * The name, which is `organizationName` falling back to the two personal ones.
-   *
-   * Typed as a mutation candidate: a group of fields is one candidate, because dropping any single
-   * member leaves the value filled by the next alternative.
-   */
-  const NAME_FIELDS: string[] = ['posUserData.organizationName', 'posUserData.firstname', 'posUserData.surname'];
-
-  /**
-   * Two configurations that differ from the defaults and from each other, so both columns are
-   * required — set on `fee` rather than on `recipient`, which would mask the columns the recipient
-   * is built from and make them look removable.
-   */
-  const ACCOUNT_CONFIG = JSON.stringify({ fee: 0.5 });
-  const LINK_CONFIG = JSON.stringify({ fee: 0.7 });
-
+  // Only one of the two configurations is consulted per call, so each is a candidate in the fixture
+  // that reads it and not in the other — dropping the unread one changes nothing, which is true and
+  // proves nothing.
   it.each([
-    // `UserData.address` reads one row or the other, never both, so the unread half is droppable for
-    // the account type at hand — and covered by the other row of this table.
-    // `accountType` is skipped for the personal row for the same reason: dropped it reads
-    // undefined, which is not one of the two organization types either, so the branch and the
-    // answer are unchanged. The organization row is where it becomes visible.
-    ['personal', AccountType.PERSONAL, [...ORGANIZATION_ADDRESS, 'posUserData.accountType']],
-    ['organization', AccountType.ORGANIZATION, PERSONAL_ADDRESS],
-  ])(
-    'level 3 — on a %s account every field feeding the answer is required',
-    async (_name, accountType, skipped) => {
-      const { paymentLink } = await seedLink(
-        accountType,
-        { paymentLinksConfig: ACCOUNT_CONFIG },
-        { config: LINK_CONFIG },
-      );
+    ['the link', undefined, { config: withKey('mutation-link') }, {}, LINK_FIELDS],
+    ['the account', false, {}, { paymentLinksConfig: withKey('mutation-account') }, ACCOUNT_FIELDS],
+  ] as [string, boolean, Partial<PaymentLink>, Partial<UserData>, string[]][])(
+    'level 3 — with the key on %s every field feeding the answer is required',
+    async (_name, scoped, link, account, candidates) => {
+      const { paymentLink } = await seedLink(AccountType.PERSONAL, account, link);
 
-      const candidates: (string | string[])[] = POS_LINK_RESPONSE_FIELDS.filter(
-        // The name falls back, so no single one of its three columns is required here; the case
-        // below is the one that reaches the fallback.
-        (field) => !skipped.includes(field) && !NAME_FIELDS.includes(field),
-      );
-
-      await expectEveryFieldRequired([...candidates, NAME_FIELDS], (omitted) =>
-        posConfigOf(paymentLink.id, projectionFieldsWithout(POS_LINK_PROJECTION.fields, omitted)),
+      await expectEveryFieldRequired(candidates, (omitted) =>
+        posLinkOf(paymentLink.id, scoped, projectionFieldsWithout(POS_LINK_PROJECTION.fields, omitted)),
       );
     },
     300000,
   );
 
-  it('level 3 — the personal name is required when the account has no organization name', async () => {
-    // `completeName` is `organizationName ?? firstname + surname`. With the organization name set,
-    // the two personal columns are unreachable and report as removable — true, and useless.
-    const { paymentLink } = await seedLink(
-      AccountType.PERSONAL,
-      { organizationName: null, paymentLinksConfig: ACCOUNT_CONFIG },
-      { config: LINK_CONFIG },
-    );
-
-    await expectEveryFieldRequired(['posUserData.firstname', 'posUserData.surname'], (omitted) =>
-      posConfigOf(paymentLink.id, projectionFieldsWithout(POS_LINK_PROJECTION.fields, omitted)),
-    );
-  }, 300000);
-
-  // --- the projection must not lose the guards the write depends on --- //
-
-  it('loads the two ids the endpoint scopes its updates by', async () => {
-    // Neither appears in the answer, so no level would notice their absence — and both updates are
-    // scoped by them: the link's own configuration and the account's payment-link configuration.
-    const { paymentLink, userData } = await seedLink();
-
-    const loaded = await paymentLinks.findForPosLink(paymentLink.id);
-
-    expect(loaded.id).toEqual(paymentLink.id);
-    expect(loaded.route.userData.id).toEqual(userData.id);
-  }, 120000);
+  it('level 3 — the two fixtures together cover every field of the projection', () => {
+    // Splitting the candidates per fixture is only sound if nothing falls between them.
+    expect([...new Set([...LINK_FIELDS, ...ACCOUNT_FIELDS])].sort()).toEqual([...POS_LINK_RESPONSE_FIELDS].sort());
+  });
 
   // --- the claim that makes this endpoint convertible at all --- //
 
@@ -275,7 +255,7 @@ describeProjection('point-of-sale link — read-path projection', () => {
       const before = await rowOf();
 
       const loaded = await paymentLinks.findForPosLink(paymentLink.id);
-      const written = JSON.stringify({ accessKeys: ['written-key'] });
+      const written = withKey('written-key');
       if (table === 'payment_link') await paymentLinks.update(loaded.id, { config: written });
       else await dataSource.getRepository(UserData).update(loaded.route.userData.id, { paymentLinksConfig: written });
 
@@ -292,15 +272,25 @@ describeProjection('point-of-sale link — read-path projection', () => {
   );
 
   it('carries the stored configuration verbatim, so the write has something to merge into', async () => {
-    // The write merges the new access key into what was read. A projection that dropped `config`
-    // would hand the merge an empty object and reset the configuration to just the key.
-    const existing = JSON.stringify({ fee: 0.9, recipient: { name: 'existing' } });
+    // The scoped write merges the new key into what was read. A projection that dropped `config`
+    // would hand the merge an empty object and reset the configuration to nothing but the key.
+    const existing = JSON.stringify({ fee: 0.9, cancellable: true });
     const { paymentLink } = await seedLink(AccountType.PERSONAL, {}, { config: existing });
 
     const loaded = await paymentLinks.findForPosLink(paymentLink.id);
 
     expect(loaded.config).toEqual(existing);
-    expect(JSON.parse(loaded.config)).toEqual({ fee: 0.9, recipient: { name: 'existing' } });
+  }, 120000);
+
+  it('loads the two ids the endpoint scopes its updates by', async () => {
+    // Neither appears in the answer, so no level would notice their absence — and both updates are
+    // scoped by them.
+    const { paymentLink, userData } = await seedLink();
+
+    const loaded = await paymentLinks.findForPosLink(paymentLink.id);
+
+    expect(loaded.id).toEqual(paymentLink.id);
+    expect(loaded.route.userData.id).toEqual(userData.id);
   }, 120000);
 
   // --- LEVEL 4: consistency against a second source --- //
@@ -308,19 +298,19 @@ describeProjection('point-of-sale link — read-path projection', () => {
   it.each([AccountType.PERSONAL, AccountType.ORGANIZATION])(
     'level 4 — for %s the projected answer equals the one from a full load',
     async (accountType) => {
-      const { paymentLink } = await seedLink(accountType);
+      const { paymentLink } = await seedLink(accountType, {}, { config: withKey('same-either-way') });
 
-      const projected = await posConfigOf(paymentLink.id);
+      const projected = await posLinkOf(paymentLink.id);
       // The unprojected load is the second source: the relation set the endpoint used before.
-      const full = await dataSource.getRepository(PaymentLink).findOne({
-        where: { id: paymentLink.id },
-        relations: { route: { user: { userData: { organization: true } } } },
-      });
+      jest.spyOn(paymentLinks, 'findForPosLink').mockImplementationOnce((id) =>
+        paymentLinks.findOne({
+          where: { id },
+          relations: { route: { user: { userData: { organization: true } } } },
+        }),
+      );
+      const full = await service.createPosLinkAdmin(paymentLink.id);
 
-      expect(projected.merged).toEqual(full.configObj);
-      expect(projected.linkOnly).toEqual(full.linkConfigObj);
-      expect(projected.accountOnly).toEqual(full.route.userData.paymentLinksConfigObj);
-      expect(projected.storedConfig).toEqual(full.config);
+      expect(projected.url).toEqual(full);
     },
     120000,
   );

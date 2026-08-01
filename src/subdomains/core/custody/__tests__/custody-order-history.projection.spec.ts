@@ -2,6 +2,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import {
   CUSTODY_ORDER_HISTORY_PROJECTION,
   CUSTODY_ORDER_HISTORY_RESPONSE_FIELDS,
+  CustodyOrderRepository,
 } from 'src/subdomains/core/custody/repositories/custody-order.repository';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { CustodyOrderHistoryDto } from 'src/subdomains/core/custody/dto/output/custody-order-history.dto';
@@ -31,9 +32,11 @@ const SCHEMA = 'custody_order_history_projection_spec';
  */
 describeProjection('GET /custody/order — read-path projection', () => {
   let dataSource: DataSource;
+  let orders: CustodyOrderRepository;
 
   beforeAll(async () => {
     dataSource = await createProjectionDataSource(SCHEMA);
+    orders = new CustodyOrderRepository(dataSource.manager);
   }, 300000);
 
   afterAll(async () => {
@@ -77,16 +80,7 @@ describeProjection('GET /custody/order — read-path projection', () => {
     userDataId: number,
     fields = CUSTODY_ORDER_HISTORY_PROJECTION.fields,
   ): Promise<CustodyOrderHistoryDto[]> {
-    const orders = await CUSTODY_ORDER_HISTORY_PROJECTION.apply(
-      dataSource.getRepository(CustodyOrder).createQueryBuilder('custodyOrder'),
-      fields,
-    )
-      .innerJoin('custodyOrder.user', 'user')
-      .innerJoin('user.userData', 'userData')
-      .where('userData.id = :userDataId', { userDataId })
-      .andWhere('custodyOrder.status != :createdStatus', { createdStatus: CustodyOrderStatus.CREATED })
-      .getMany();
-    return CustodyOrderHistoryDtoMapper.mapList(orders);
+    return CustodyOrderHistoryDtoMapper.mapList(await orders.findHistoryFor(userDataId, fields));
   }
 
   // --- LEVEL 1: completeness --- //

@@ -242,26 +242,7 @@ export class CustodyOrderService {
     userDataId: number,
     fields: ReadonlyArray<string> = CUSTODY_ORDER_HISTORY_PROJECTION.fields,
   ): Promise<CustodyOrderHistoryDto[]> {
-    const orders = await CUSTODY_ORDER_HISTORY_PROJECTION.apply(
-      this.custodyOrderRepo.createQueryBuilder('custodyOrder'),
-      fields,
-    )
-      .innerJoin('custodyOrder.user', 'user')
-      .innerJoin('user.userData', 'userData')
-      .where('userData.id = :userDataId', { userDataId })
-      .andWhere('custodyOrder.status != :createdStatus', { createdStatus: CustodyOrderStatus.CREATED })
-      // The list shows completedAt where the order is completed, created otherwise. Sorting by
-      // created alone would put rows out of order against the dates the reader can see.
-      .orderBy('COALESCE("custodyOrder"."completedAt", "custodyOrder"."created")', 'DESC')
-      // Two orders can share a timestamp, and an undefined order among them would let rows swap
-      // places between calls - or cross the cap below and vanish. The id keeps it deterministic.
-      .addOrderBy('custodyOrder.id', 'DESC')
-      // limit, not take: take() splits the query in two and parses the raw orderBy at every dot,
-      // which turns the expression above into a lookup for an alias named COALESCE("custodyOrder"
-      // and throws on every call. Every relation joined here is to-one, so no row can be
-      // duplicated and limiting rows is the same as limiting entities.
-      .limit(100)
-      .getMany();
+    const orders = await this.custodyOrderRepo.findHistoryFor(userDataId, fields);
 
     return CustodyOrderHistoryDtoMapper.mapList(orders);
   }
