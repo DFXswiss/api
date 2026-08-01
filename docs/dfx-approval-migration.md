@@ -1,11 +1,11 @@
-# Ablösung der acht DfxApproval-GSheets
+# Replacing the eight DfxApproval GSheets
 
-## Umfang
+## Scope
 
-Der neue API-Workflow ersetzt ausschliesslich die acht minütlichen Personal-Onboarding-Projekte:
+The API workflow replaces exactly the eight minute-interval personal onboarding projects:
 
-1. DfxApproval-Freigabe
-2. DfxApproval-Risikoflags
+1. DfxApproval approval
+2. DfxApproval risk flags
 3. `GwGFileCover`
 4. `IdentificationForm`
 5. `CustomerProfile`
@@ -13,114 +13,116 @@ Der neue API-Workflow ersetzt ausschliesslich die acht minütlichen Personal-Onb
 7. `FormA`
 8. `DfxNameCheck`
 
-`IdentReport` und `PersonalNameCheck` werden weiterhin von ihren bestehenden KYC-Prozessen erzeugt.
-Sie gehören zum Freigabe-Gate, sind aber keine der acht abzulösenden GSheets. Organisationen sind
-nicht Teil dieser Personal-GSheet-Migration.
+`IdentReport` and `PersonalNameCheck` keep being produced by their existing KYC processes. They are
+part of the approval gate, but they are not among the eight sheets being replaced. Organizations are
+not part of this personal-sheet migration.
 
-## Ablauf in der API
+## How the API handles a case
 
-`DfxApprovalWorkflowService` sucht jede Minute höchstens 50 der ältesten Personal-Fälle mit
-`DfxApproval = ManualReview` und `kycLevel >= 40`. Der Prozess ist standardmässig ausgeschaltet und
-wird erst mit `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=true` aktiviert.
+`DfxApprovalWorkflowService` picks up at most 50 of the oldest personal cases with
+`DfxApproval = ManualReview` and `kycLevel >= 40` every minute. The process is off by default and is
+only activated with `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=true`.
 
-Pro Fall gilt:
+Per case:
 
-1. Ein PostgreSQL-Advisory-Lock verhindert parallele Verarbeitung durch mehrere API-Instanzen.
-2. Nur nach einem höchstens 90 Tage alten, abgeschlossenen NameCheck werden noch leere
-   Personal-Risikofelder mit den bisherigen GSheet-Werten initialisiert: `pep=false`,
-   `highRisk=false`, `complexOrgStructure=false` und `depositLimit=100000`. `amlAccountType` wird wie
-   im Freigabe-Sheet erst für den DfxApproval-Fall auf `natural person` gesetzt. Vorhandene Werte
-   werden nie überschrieben und jede Änderung wird im `kyc_log` protokolliert.
-3. Die sechs fehlenden PDF-Nachweise werden mit `pdf-lib` direkt auf Kopien der produktiven
-   Google-Sheet-PDF-Vorlagen geschrieben und über einen eindeutigen
-   `generationKey` idempotent im WORM-Storage gespeichert. Ein `kyc_file` wird erst nach erfolgreichem
-   Upload als gültig markiert. Der Text wird mit einer eingebetteten Unicode-Schrift gesetzt
-   (Liberation Sans, metrisch Arial/Helvetica-kompatibel), damit Namen, Strassen und Arbeitgeber
-   ausserhalb von Latin-1 nicht zum Abbruch führen; Zeichen ohne Glyphe werden ersetzt und
-   protokolliert statt das Dokument zu verwerfen.
-4. Das serverseitige Gate prüft alle fachlichen Voraussetzungen und alle acht Dokumenttypen.
-5. Nur ein vollständig freier Fall wird in einer DB-Transaktion auf `DfxApproval = Completed`,
-   `kycLevel = 50` und `kycStatus = Completed` gesetzt. Step- und KYC-Logs werden in derselben
-   Transaktion geschrieben; die Benachrichtigung folgt erst nach dem Commit.
+1. A PostgreSQL advisory lock prevents parallel processing across API instances.
+2. Empty personal risk fields are initialised with the previous GSheet values only after a completed
+   NameCheck that is at most 90 days old: `pep=false`, `highRisk=false`, `complexOrgStructure=false`
+   and `depositLimit=100000`. As in the approval sheet, `amlAccountType` is only set to
+   `natural person` for the DfxApproval case itself. Existing values are never overwritten, and every
+   change is recorded in `kyc_log`.
+3. The six missing PDF records are written with `pdf-lib` onto copies of the productive Google Sheet
+   PDF templates and stored idempotently in WORM storage under a unique `generationKey`. A `kyc_file`
+   is marked valid only after a successful upload. The text is set in an embedded Unicode font
+   (Liberation Sans, metrically compatible with Arial/Helvetica) so that names, streets and employers
+   outside Latin-1 do not abort the document; characters without a glyph are substituted and logged
+   instead of discarding the document.
+4. The server-side gate checks every business precondition and all eight document types.
+5. Only a fully unblocked case is set to `DfxApproval = Completed`, `kycLevel = 50` and
+   `kycStatus = Completed` in one database transaction. Step and KYC logs are written in the same
+   transaction; the notification follows after the commit.
 
-Die sechs Dokumente behalten ihre voneinander unabhängigen GSheet-Auswahlregeln:
+The six documents keep their mutually independent GSheet selection rules:
 
-- `GwGFileCover`, `IdentificationForm` und `DfxNameCheck`: DfxApproval in `InternalReview` oder
-  `ManualReview`; die spezifischen Prüfungen auf Personal, Name, Nationalität und Merge-Status gelten
-  je Dokument.
-- `CustomerProfile`: abgeschlossene FinancialData für Personal-Konten mit `30 <= kycLevel < 50`.
-- `RiskProfile` und `FormA`: DFX-Personal-Konten mit `30 <= kycLevel < 50`; beim RiskProfile zusätzlich
-  `highRisk=false` und ein FATF-freigegebenes Wohnsitzland. Diese beiden Dokumente hängen am Konto,
-  nicht an einem KYC-Schritt: sie werden auch für Konten erzeugt, die weder einen `DfxApproval`- noch
-  einen `FinancialData`-Schritt haben. Die produktiven Legacy-Ausnahmen stehen in der Einstellung
-  `dfxApprovalDocumentExclusions` (JSON-Array von `user_data`-IDs) und nicht im Quelltext; ohne
-  gesetzte Einstellung ist die Ausnahmeliste leer.
+- `GwGFileCover`, `IdentificationForm` and `DfxNameCheck`: DfxApproval in `InternalReview` or
+  `ManualReview`; the specific checks on personal account, name, nationality and merge status apply
+  per document.
+- `CustomerProfile`: completed FinancialData for personal accounts with `30 <= kycLevel < 50`.
+- `RiskProfile` and `FormA`: DFX personal accounts with `30 <= kycLevel < 50`; RiskProfile
+  additionally requires `highRisk=false` and a FATF-enabled country of residence. These two documents
+  belong to the account, not to a KYC step: they are also generated for accounts that have neither a
+  `DfxApproval` nor a `FinancialData` step, which is what the productive Sheet covers. The productive
+  legacy exceptions live in the `dfxApprovalDocumentExclusions` setting (a JSON array of `user_data`
+  IDs) instead of the source tree; without that setting the exclusion list is empty.
 
-Dadurch kann ein Dokument erzeugt werden, auch wenn ein anderes Dokument oder eine spätere
-Freigabevoraussetzung noch fehlt. Unvollständige oder ungültige JSON-Daten, fehlende NameCheck-Daten
-und Storage-Fehler werden pro Dokument protokolliert; andere Dokumente desselben Falls laufen weiter.
-Leere Compliance-Werte werden nicht als `false` interpretiert.
+A document can therefore be produced even when another document or a later approval precondition is
+still missing. Incomplete or invalid JSON data, missing NameCheck data and storage errors are logged
+per document; the other documents of the same case continue. Empty compliance values are never
+interpreted as `false`.
 
-## Automatisches Freigabe-Gate
+## Automatic approval gate
 
-Die automatische Freigabe verlangt:
+Automatic approval requires:
 
-- Personal-Konto, DfxApproval `ManualReview`, `kycLevel >= 40`
-- `verifiedName`, `kycHash`, Vorname, Geburtstag und E-Mail
+- personal account, DfxApproval `ManualReview`, `kycLevel` of at least 40
+- `verifiedName`, `kycHash`, first name, date of birth and e-mail
 - `complexOrgStructure = false`, `highRisk = false`, `pep = false`
-- zulässigen User- und KYC-Status
-- aktiviertes Land ohne manuelle Länderprüfung; Brasilien bleibt ausgeschlossen
-- erlaubten Identifikationsdokumenttyp und vorhandene Dokumentnummer
-- vorhandene Nationalität; bei deaktivierter Nationalität einen abgeschlossenen Aufenthaltstitel
-- keinen offenen sanktionierten NameCheck
-- gültige Dateien für `GwGFileCover`, `IdentReport`, `IdentificationForm`, `CustomerProfile`,
-  `RiskProfile`, `FormA`, `DfxNameCheck` und `PersonalNameCheck`
+- a permitted user and KYC status
+- an enabled country without manual country review; Brazil stays excluded
+- a permitted identification document type and a present document number
+- a present nationality; for a disabled nationality a completed residence permit
+- no open sanctioned NameCheck
+- valid files for `GwGFileCover`, `IdentReport`, `IdentificationForm`, `CustomerProfile`,
+  `RiskProfile`, `FormA`, `DfxNameCheck` and `PersonalNameCheck`
 
-Für diese Migration ist keine Änderung an `DFXswiss/services` und kein zusätzlicher manueller
-Endpoint erforderlich. Freigabe, Dokumenterzeugung, Sperren, Idempotenz und Auditierung liegen
-vollständig in der API.
+Whenever the gate refuses, the blocking reasons are logged as
+`DfxApproval step <id> not ready: <blockers>`.
 
-## Produktiver Cutover
+This migration requires no change in `DFXswiss/services` and no additional manual endpoint.
+Approval, document generation, locking, idempotency and auditing live entirely in the API.
 
-Die Reihenfolge ist verbindlich, damit GSheets und API niemals parallel schreiben:
+## Productive cutover
 
-1. API inklusive DB-Migration deployen, während `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=false` bleibt.
-   Im selben Schritt die Einstellung `dfxApprovalDocumentExclusions` mit den produktiven
-   Legacy-Ausnahmen setzen — ohne sie erzeugt der Workflow auch für diese Konten Dokumente.
-2. Mit einem Testfall die sechs PDF-Subtypen und die automatische Freigabe im deaktivierten bzw.
-   kontrollierten Staging-Betrieb prüfen.
-3. Alle acht minütlichen `admin@dfx.swiss`-Trigger deaktivieren, aber für einen schnellen Rollback
-   noch nicht löschen.
-4. Mindestens drei Minuten prüfen, dass keines der acht Projekte mehr ausgeführt wird.
-5. `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=true` setzen und die API kontrolliert neu starten.
-6. Über mehrere Minuten Durchsatz, ältesten wartenden Fall, neue `kyc_file`-Subtypen, Step-Logs und
-   Fehlerlogs beobachten.
-7. Erst nach stabiler Beobachtung die acht alten Trigger endgültig entfernen.
+The order is binding so that GSheets and API never write in parallel:
 
-Zusätzlich bleibt `Process.KYC_DFX_APPROVAL` über die bestehende `disabledProcesses`-Einstellung als
-schneller Kill-Switch verfügbar.
+1. Deploy the API including the database migration while `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=false`
+   stays in place. In the same step, fill the `dfxApprovalDocumentExclusions` setting with the
+   productive legacy exceptions — without it the workflow also generates documents for those
+   accounts.
+2. Verify the six PDF subtypes and the automatic approval with a test case in the disabled or
+   controlled staging setup.
+3. Disable all eight minute-interval triggers on the operator account, but do not delete them yet, so
+   that a rollback stays quick.
+4. Confirm for at least three minutes that none of the eight projects runs any more.
+5. Set `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=true` and restart the API in a controlled way.
+6. Watch throughput, the oldest waiting case, new `kyc_file` subtypes, step logs and error logs over
+   several minutes.
+7. Remove the eight old triggers for good only after a stable observation period.
+
+`Process.KYC_DFX_APPROVAL` also remains available as a fast kill switch through the existing
+`disabledProcesses` setting.
 
 ## Rollback
 
-1. `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=false` setzen oder `KycDfxApproval` über
-   `disabledProcesses` ausschalten.
-2. Sicherstellen, dass keine API-Ausführung mehr läuft.
-3. Die acht alten Trigger wieder aktivieren und deren Ausführungen sowie den Rückstau überwachen.
+1. Set `KYC_DFX_APPROVAL_WORKFLOW_ENABLED=false` or disable `KycDfxApproval` through
+   `disabledProcesses`.
+2. Make sure no API execution is still running.
+3. Re-enable the eight old triggers and watch their executions and the backlog.
 
-Die Schema-Migration wird nicht zurückgerollt: `generationKey` ist für bestehende Dateien nullable
-und beeinträchtigt den alten Ablauf nicht. Bereits korrekt erzeugte API-Dokumente bleiben gültige
-KYC-Nachweise; die alten Sheets müssen vorhandene Subtypen wie bisher überspringen.
+The schema migration is not rolled back: `generationKey` is nullable for existing files and does not
+affect the old process. Documents already generated correctly by the API stay valid KYC records; as
+before, the old sheets have to skip subtypes that already exist.
 
-## Betriebsüberwachung
+## Operational monitoring
 
-Alarmiert werden muss bei:
+Alerts are needed for:
 
-- wachsender Anzahl `DfxApproval = ManualReview` mit `kycLevel = 40`
-- steigendem Alter des ältesten wartenden Falls
-- fehlenden oder ungültigen Dokument-Subtypen
-- wiederholten `DfxApproval workflow failed`-Logs
-- wiederkehrenden `DfxApproval step <id> not ready`-Logs mit demselben Blocker: sie nennen den Grund,
-  warum ein Fall nicht freigegeben wird
-- Storage-, PDF-, JSON- oder NameCheck-Fehlern
+- a growing number of `DfxApproval = ManualReview` with `kycLevel = 40`
+- an increasing age of the oldest waiting case
+- missing or invalid document subtypes
+- repeated `DfxApproval workflow failed` logs
+- recurring `DfxApproval step <id> not ready` logs with the same blocker: they name the reason a case
+  is not being approved
+- storage, PDF, JSON or NameCheck errors
 
-Ein Rückstau von null ist nur eine Momentaufnahme. Massgeblich sind Durchsatz und Alter der Fälle.
+A backlog of zero is only a snapshot. Throughput and case age are what matter.
