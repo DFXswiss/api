@@ -2,6 +2,8 @@ import { GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import {
   ScryptBalanceTransaction,
+  ScryptCancellation,
+  ScryptExecutionReport,
   ScryptOrderStatus,
   ScryptTransactionStatus,
   ScryptTransactionType,
@@ -9,6 +11,7 @@ import {
 import {
   ScryptAmendRejectedError,
   ScryptMessageType,
+  ScryptOrderStuckPendingError,
   ScryptRequestTimeoutError,
   ScryptUnconfirmedWriteError,
   ScryptVenueRejectionError,
@@ -361,15 +364,20 @@ describe('ScryptService', () => {
     expect((service as any).lastCatchUpAt).toBeGreaterThan(startStamp!);
   });
 
-  it('a warm-up that failed does not claim the catch-up slot', async () => {
+  it('a warm-up that failed schedules catch-up without waiting for a reconnect', async () => {
+    // After FIX 2 a failed warm-up immediately reuses catchUpAfterReconnect. That stamps lastCatchUpAt at
+    // the end of every round (pacing, independent of success) and arms catchUpRetryTimer when legs stay
+    // owed — so lastCatchUpAt is no longer undefined after a failed warm-up. The invariant that matters is
+    // that a retry is scheduled without onReconnect ever firing the registered callback.
     const MockedConnection = ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>;
+    const onReconnect = jest.fn();
     MockedConnection.mockImplementationOnce(
       () =>
         ({
           fetchAll: jest.fn().mockRejectedValue(new Error('Connection closed')),
           fetch: jest.fn().mockResolvedValue([]),
           subscribeToStream: jest.fn().mockReturnValue(() => undefined),
-          onReconnect: jest.fn(),
+          onReconnect,
           send: jest.fn(),
           requestAndWaitForUpdate: jest.fn(),
         }) as any,
@@ -377,10 +385,57 @@ describe('ScryptService', () => {
 
     const freshService = new ScryptService();
     jest.spyOn((freshService as any).logger, 'error').mockImplementation(() => undefined);
+    jest.spyOn((freshService as any).logger, 'warn').mockImplementation(() => undefined);
     await flushPromises();
 
-    // The caches are not whole, so the next reconnect must repair immediately instead of sitting out the interval.
-    expect((freshService as any).lastCatchUpAt).toBeUndefined();
+    // onReconnect only registers the handler; we never invoke that callback. The timer proves the
+    // boot-failure path armed a retry on its own without a reconnect.
+    expect(onReconnect).toHaveBeenCalled();
+    expect(typeof onReconnect.mock.calls[0][0]).toBe('function');
+    expect((freshService as any).catchUpRetryTimer).toBeDefined();
+    (freshService as any).clearCatchUpRetry();
+  });
+
+  it('a failed boot warm-up retries catch-up without a reconnect and respects catchUpMinInterval', async () => {
+    // FIX 2: when warm-up rejects and the socket stays up, catchUpAfterReconnect must run immediately and
+    // its scheduled retry must actually re-enter after catchUpMinInterval — otherwise the empty cache is a
+    // permanent deferral (anchor check forever false) rather than a temporary one.
+    jest.useFakeTimers();
+    const MockedConnection = ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>;
+    const fetchAll = jest.fn().mockRejectedValue(new Error('Connection closed'));
+    const onReconnect = jest.fn();
+    MockedConnection.mockImplementationOnce(
+      () =>
+        ({
+          fetchAll,
+          fetch: jest.fn().mockResolvedValue([]),
+          subscribeToStream: jest.fn().mockReturnValue(() => undefined),
+          onReconnect,
+          send: jest.fn(),
+          requestAndWaitForUpdate: jest.fn(),
+        }) as any,
+    );
+
+    const freshService = new ScryptService();
+    jest.spyOn((freshService as any).logger, 'error').mockImplementation(() => undefined);
+    jest.spyOn((freshService as any).logger, 'warn').mockImplementation(() => undefined);
+    await flushPromises();
+
+    // (1) Retry armed without ever invoking the reconnect callback registered via onReconnect.
+    expect((freshService as any).catchUpRetryTimer).toBeDefined();
+    const reconnectHandler = onReconnect.mock.calls[0]?.[0] as (() => void) | undefined;
+    // Handler is registered; we never call it — refill must not depend on a drop.
+    expect(typeof reconnectHandler).toBe('function');
+
+    // (2) The armed retry is not cosmetic: after catchUpMinInterval further fetchAll calls land.
+    const callsBeforeRetry = fetchAll.mock.calls.length;
+    expect(callsBeforeRetry).toBeGreaterThan(0);
+    jest.advanceTimersByTime((freshService as any).catchUpMinInterval);
+    await flushPromises();
+    expect(fetchAll.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
+
+    (freshService as any).clearCatchUpRetry();
+    jest.useRealTimers();
   });
 
   it('a warm-up that loaded both streams claims the catch-up slot', async () => {
@@ -677,6 +732,72 @@ describe('ScryptService', () => {
     expect((freshService as any).balanceTransactions.get('warm-old')).toBeUndefined();
   });
 
+  it('bulk applyBalanceTransactions caches rows without Timestamp when TransactTime is set', async () => {
+    // Field priority: Timestamp missing → TransactTime; recent stamp must still land in the cache.
+    const recent = new Date().toISOString();
+    const noTimestamp = {
+      ClReqID: 'warm-transact-time',
+      TransactionID: 'tx-warm-tt',
+      Status: ScryptTransactionStatus.COMPLETED,
+      TransactTime: recent,
+    };
+
+    const MockedConnection = ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>;
+    MockedConnection.mockImplementationOnce(
+      () =>
+        ({
+          fetchAll: jest.fn().mockImplementation(async (streamName: string) => {
+            if (streamName === ScryptMessageType.BALANCE_TRANSACTION) {
+              return [noTimestamp];
+            }
+            return [];
+          }),
+          fetch: jest.fn().mockResolvedValue([]),
+          subscribeToStream: jest.fn().mockReturnValue(() => undefined),
+          onReconnect: jest.fn(),
+          send: jest.fn(),
+          requestAndWaitForUpdate: jest.fn(),
+        }) as any,
+    );
+
+    const freshService = new ScryptService();
+    await flushPromises();
+
+    expect((freshService as any).balanceTransactions.get('warm-transact-time')).toEqual(noTimestamp);
+  });
+
+  it('bulk applyBalanceTransactions caches rows with neither Timestamp nor TransactTime (conservative)', async () => {
+    // Missing/unreadable stamp must not drop a withdrawal we later need for findWithdrawal / live recheck.
+    const noStamp = {
+      ClReqID: 'warm-no-stamp',
+      TransactionID: 'tx-warm-no-stamp',
+      Status: ScryptTransactionStatus.COMPLETED,
+    };
+
+    const MockedConnection = ScryptWebSocketConnection as jest.MockedClass<typeof ScryptWebSocketConnection>;
+    MockedConnection.mockImplementationOnce(
+      () =>
+        ({
+          fetchAll: jest.fn().mockImplementation(async (streamName: string) => {
+            if (streamName === ScryptMessageType.BALANCE_TRANSACTION) {
+              return [noStamp];
+            }
+            return [];
+          }),
+          fetch: jest.fn().mockResolvedValue([]),
+          subscribeToStream: jest.fn().mockReturnValue(() => undefined),
+          onReconnect: jest.fn(),
+          send: jest.fn(),
+          requestAndWaitForUpdate: jest.fn(),
+        }) as any,
+    );
+
+    const freshService = new ScryptService();
+    await flushPromises();
+
+    expect((freshService as any).balanceTransactions.get('warm-no-stamp')).toEqual(noStamp);
+  });
+
   it('catchUpAfterReconnect coalesces a reconnect seen during the fetches into one follow-up round', async () => {
     let fetchAllCallCount = 0;
 
@@ -806,6 +927,399 @@ describe('ScryptService', () => {
       ]);
     });
   });
+  describe('confirmWithdrawalAbsent', () => {
+    const soughtId = 'dfx-lm-withdraw-9';
+
+    function balanceTx(overrides: Partial<ScryptBalanceTransaction> = {}): ScryptBalanceTransaction {
+      return {
+        TransactionID: 'tx-1',
+        ClReqID: 'other-ref',
+        Currency: 'CHF',
+        TransactionType: ScryptTransactionType.WITHDRAWAL,
+        Status: ScryptTransactionStatus.COMPLETED,
+        Quantity: '100',
+        Timestamp: '2026-07-15T12:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('returns true when the cache is empty and the sought reference is absent from a non-empty fresh history', async () => {
+      // Empty process cache is no longer a reason to refuse: absence is decided from the fresh venue reply
+      // (plus the live recheck). No local anchor is required.
+      instance.fetchAll.mockResolvedValue([balanceTx({ ClReqID: 'unrelated-in-history', TransactionID: 'tx-u' })]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(true);
+    });
+
+    it('returns true when the cache holds only post-since rows and the sought reference is absent from fresh', async () => {
+      // Cache rows newer than the order no longer act as consistency anchors; missing sought id → true.
+      (service as any).balanceTransactions.set('recent-only', {
+        ...balanceTx({ ClReqID: 'recent-only', Timestamp: '2026-07-20T00:00:00.000Z' }),
+      });
+      instance.fetchAll.mockResolvedValue([
+        balanceTx({ ClReqID: 'recent-only', TransactionID: 'tx-r', Timestamp: '2026-07-20T00:00:00.000Z' }),
+        balanceTx({ ClReqID: 'unrelated-in-history', TransactionID: 'tx-u', Timestamp: '2026-07-21T00:00:00.000Z' }),
+      ]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(true);
+    });
+
+    it('returns false when the fresh history contains the sought reference', async () => {
+      instance.fetchAll.mockResolvedValue([balanceTx({ ClReqID: soughtId, TransactionID: 'tx-sought' })]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(false);
+    });
+
+    it('returns false and warns when the history fetch fails', async () => {
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      instance.fetchAll.mockRejectedValue(new Error('Connection closed'));
+
+      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it('returns true when the venue returns an empty history — no rows at all is a complete answer, not a reason to wait', async () => {
+      const infoSpy = jest.spyOn(service['logger'], 'info').mockImplementation();
+      instance.fetchAll.mockResolvedValue([]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(true);
+      expect(infoSpy).toHaveBeenCalled();
+    });
+
+    it('returns false when the sought reference appears in the live cache while the history fetch is in flight', async () => {
+      // Live push mid-flight lands in this.balanceTransactions; freshIds does not include soughtId. Only the
+      // post-await re-read of the live map can block absence confirmation for that race.
+      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+
+      instance.fetchAll.mockImplementationOnce(async () => {
+        (service as any).cacheBalanceTransaction(
+          balanceTx({ ClReqID: soughtId, TransactionID: 'tx-live', Timestamp: '2026-07-10T00:00:00.000Z' }),
+        );
+        return [balanceTx({ ClReqID: 'unrelated', TransactionID: 'tx-u', Timestamp: '2026-07-20T00:00:00.000Z' })];
+      });
+
+      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+      expect(warnSpy.mock.calls.some((c) => String(c[0]).includes(soughtId))).toBe(true);
+    });
+
+    it('returns true when the sought reference is absent from a non-empty fresh history', async () => {
+      // Cache content is irrelevant for absence confirmation as long as the live recheck does not hit.
+      instance.fetchAll.mockResolvedValue([
+        balanceTx({ ClReqID: 'unrelated-in-history', TransactionID: 'tx-u', Timestamp: '2026-07-21T00:00:00.000Z' }),
+      ]);
+
+      await expect(service.confirmWithdrawalAbsent(soughtId)).resolves.toBe(true);
+    });
+  });
+
+  describe('cancelIfOutstanding', () => {
+    /** A complete report, so the fixture cannot drift from the contract cancelOrder now promises. */
+    function cancelReport(overrides: Partial<ScryptExecutionReport> = {}): ScryptExecutionReport {
+      return {
+        ClOrdID: 'cancel-req-1',
+        OrigClOrdID: 'dfx-lm-7',
+        Symbol: 'EUR/USDT',
+        Side: 'Sell',
+        OrdStatus: ScryptOrderStatus.CANCELED,
+        OrderQty: '100',
+        CumQty: '0',
+        LeavesQty: '0',
+        ...overrides,
+      };
+    }
+
+    function stubCancel(report: ScryptExecutionReport | Error): void {
+      jest.spyOn(service as any, 'getTradePair').mockResolvedValue({ symbol: 'EUR/USDT' });
+      const connection = (service as any).connection;
+      jest
+        .spyOn(connection, 'requestAndWaitForUpdate')
+        .mockImplementation(async () => (report instanceof Error ? Promise.reject(report) : report));
+    }
+
+    it('settles a cancellation that filled nothing', async () => {
+      stubCancel(cancelReport());
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.SETTLED);
+    });
+
+    it('reports a partial fill as executed — a terminal status does not mean nothing happened', async () => {
+      // the venue cancels a partially filled order with BOTH a terminal state and a non-zero filled size;
+      // reading only the state is how a real fill gets dropped
+      stubCancel(cancelReport({ CumQty: '40' }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.EXECUTED);
+    });
+
+    it('settles a refusal that says there is no such order', async () => {
+      // a refused cancel arrives as an execution report, not as an error
+      stubCancel(
+        cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'UnknownOrder' }),
+      );
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.SETTLED);
+    });
+
+    it.each([ScryptOrderStatus.CANCELED, ScryptOrderStatus.FILLED])(
+      'settles nothing when a %s report claims the order is unknown yet reports a fill',
+      async (ordStatus) => {
+        // the contradiction is the same whatever status rides along; deciding on the status first would let
+        // it through with a terminal one attached
+        stubCancel(
+          cancelReport({
+            OrdStatus: ordStatus,
+            ExecType: 'CancelRejected',
+            CxlRejReason: 'UnknownOrder',
+            CumQty: '40',
+          }),
+        );
+
+        await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+          ScryptCancellation.UNCONFIRMED,
+        );
+      },
+    );
+
+    it.each(['', '   ', 'abc', undefined])('does not cache a cancellation whose filled size is %p', async (cumQty) => {
+      // readers derive the fill with `parseFloat(...) || 0`, so such an entry would quietly claim nothing
+      // was filled on every later lookup
+      stubCancel(cancelReport({ CumQty: cumQty as unknown as string }));
+
+      await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
+    });
+
+    it('settles nothing when a refusal claims the order is unknown yet reports a fill', async () => {
+      // an order the venue has no record of cannot have traded — the report disagrees with itself, and
+      // nothing may be concluded from that, least of all that walking away is safe
+      stubCancel(
+        cancelReport({
+          OrdStatus: ScryptOrderStatus.PARTIALLY_FILLED,
+          ExecType: 'CancelRejected',
+          CxlRejReason: 'UnknownOrder',
+          CumQty: '40',
+          LeavesQty: '60',
+        }),
+      );
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('settles nothing on any other refusal — too late to cancel means it may yet execute', async () => {
+      stubCancel(
+        cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'TooLateToCancel' }),
+      );
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it.each([
+      ['nothing filled', '0', ScryptCancellation.SETTLED],
+      ['a fill', '40', ScryptCancellation.EXECUTED],
+    ])('treats a rejected order with %s as terminal too', async (_label, cumQty, expected) => {
+      // a rejected order is as final as a cancelled one; a second opinion on what counts as terminal would
+      // be free to disagree with the first and leave such an order stuck
+      stubCancel(cancelReport({ OrdStatus: ScryptOrderStatus.REJECTED, CumQty: cumQty }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(expected);
+    });
+
+    it('settles nothing when a refused cancel reports a fill — the order is still open', async () => {
+      // a refusal carries the order's last known state, so a partially filled order that could NOT be
+      // cancelled reports a fill while remaining live. Reading the fill alone would call it finished and
+      // let the caller walk away from a reference that can still trade.
+      stubCancel(
+        cancelReport({
+          OrdStatus: ScryptOrderStatus.PARTIALLY_FILLED,
+          ExecType: 'CancelRejected',
+          CxlRejReason: 'TooLateToCancel',
+          CumQty: '40',
+          LeavesQty: '60',
+        }),
+      );
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('reports a fully filled order as executed', async () => {
+      stubCancel(cancelReport({ OrdStatus: ScryptOrderStatus.FILLED, CumQty: '100', LeavesQty: '0' }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(ScryptCancellation.EXECUTED);
+    });
+
+    it('settles nothing when the filled size cannot be read — that is not a zero', async () => {
+      stubCancel(cancelReport({ CumQty: undefined as unknown as string }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it.each([
+      ['', 'empty'],
+      ['   ', 'whitespace'],
+    ])('settles nothing when the filled size is %p (%s) — that is missing, not zero', async (cumQty) => {
+      // Number('') is 0, not NaN, so this would otherwise pass a finite check and read as untouched
+      stubCancel(cancelReport({ CumQty: cumQty }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('settles nothing when the filled size is not a number at all', async () => {
+      stubCancel(cancelReport({ CumQty: 'abc' }));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it.each(['-1', '-0.5'])(
+      'settles nothing when the filled size is %p — below zero is not untouched',
+      async (cumQty) => {
+        // A negative value is finite and parses cleanly, so it would pass every check above and then lose to
+        // `filled > 0` — reported as an order nothing ever traded. A cumulative filled size cannot be below
+        // zero, so this is a report not being understood, and misreading it grants exactly the false certainty
+        // that lets a live reference be walked away from.
+        stubCancel(cancelReport({ CumQty: cumQty }));
+
+        await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+          ScryptCancellation.UNCONFIRMED,
+        );
+      },
+    );
+
+    it('waits past a PendingCancel report instead of taking it for the answer', async () => {
+      // the waiter resolves on its first match and then stops listening, so accepting the interim state
+      // would freeze it as the result and the real terminal report would never be seen. Exercises the
+      // matcher itself rather than mocking around it.
+      const connection = (service as any).connection;
+      let matcher: (reports: ScryptExecutionReport[]) => ScryptExecutionReport | null;
+      jest.spyOn(service as any, 'getTradePair').mockResolvedValue({ symbol: 'EUR/USDT' });
+      jest.spyOn(connection, 'requestAndWaitForUpdate').mockImplementation(async (..._args: unknown[]) => {
+        matcher = _args[3] as typeof matcher;
+        return cancelReport();
+      });
+
+      await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
+
+      const pending = cancelReport({ OrdStatus: ScryptOrderStatus.PENDING_CANCEL });
+      const terminal = cancelReport();
+      expect(matcher([pending])).toBeNull();
+      expect(matcher([pending, terminal])).toBe(terminal);
+    });
+
+    it('settles nothing when the cancel never came back', async () => {
+      stubCancel(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+
+      await expect(service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+    });
+
+    it('files nothing when the cancel was refused — a refusal carries the last known state, not a verdict', async () => {
+      // for a reference the venue never had, that state reads as a live New order. Filing it would invent
+      // one, and the next lookup would call the order sent against a reference that never executed.
+      stubCancel(
+        cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'UnknownOrder' }),
+      );
+
+      await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
+    });
+
+    it('never files a cleanup cancellation under the order it cancelled', async () => {
+      // the confirmation carries the cancel request's id; filing it under the order would make a later
+      // status lookup read that order as terminally cancelled. A cleanup cancellation says nothing about
+      // the order as a whole — sibling references may still be unsettled and live — so a lookup reporting
+      // it as known would take it out of quarantine and let a replacement be opened beside them.
+      stubCancel(cancelReport({ CumQty: '40' }));
+
+      await service.cancelIfOutstanding('dfx-lm-7', 'EUR', 'USDT');
+
+      expect((service as any).executionReports.has('dfx-lm-7')).toBe(false);
+    });
+  });
+
+  describe('cancelIfOutstandingBySymbol', () => {
+    /** A complete report, so the fixture cannot drift from the contract cancelOrderBySymbol now promises. */
+    function cancelReport(overrides: Partial<ScryptExecutionReport> = {}): ScryptExecutionReport {
+      return {
+        ClOrdID: 'cancel-req-2',
+        OrigClOrdID: 'legacy-ref-1',
+        Symbol: 'XRP/USDT',
+        Side: 'Sell',
+        OrdStatus: ScryptOrderStatus.CANCELED,
+        OrderQty: '10',
+        CumQty: '0',
+        LeavesQty: '0',
+        ...overrides,
+      };
+    }
+
+    it('cancels under the given symbol without deriving a trade pair', async () => {
+      const getTradePairSpy = jest.spyOn(service as any, 'getTradePair');
+      const connection = (service as any).connection;
+      jest.spyOn(connection, 'requestAndWaitForUpdate').mockImplementation(async (..._args: unknown[]) => {
+        const [, [payload]] = _args as [unknown, [{ Symbol: string }]];
+        expect(payload.Symbol).toBe('XRP/USDT');
+        return cancelReport();
+      });
+
+      await expect(service.cancelIfOutstandingBySymbol('legacy-ref-1', 'XRP/USDT')).resolves.toBe(
+        ScryptCancellation.SETTLED,
+      );
+      expect(getTradePairSpy).not.toHaveBeenCalled();
+    });
+
+    it('shares the same evaluation as cancelIfOutstanding — a fill is reported as executed here too', async () => {
+      const connection = (service as any).connection;
+      jest.spyOn(connection, 'requestAndWaitForUpdate').mockResolvedValue(cancelReport({ CumQty: '3' }));
+
+      await expect(service.cancelIfOutstandingBySymbol('legacy-ref-1', 'XRP/USDT')).resolves.toBe(
+        ScryptCancellation.EXECUTED,
+      );
+    });
+
+    it('goes unconfirmed and forgets the cached report the same way cancelIfOutstanding does', async () => {
+      const connection = (service as any).connection;
+      jest
+        .spyOn(connection, 'requestAndWaitForUpdate')
+        .mockRejectedValue(new ScryptRequestTimeoutError('Timeout waiting for ExecutionReport update after 60000ms'));
+      (service as any).executionReports.set('legacy-ref-1', {
+        ClOrdID: 'legacy-ref-1',
+        OrdStatus: ScryptOrderStatus.NEW,
+      });
+
+      await expect(service.cancelIfOutstandingBySymbol('legacy-ref-1', 'XRP/USDT')).resolves.toBe(
+        ScryptCancellation.UNCONFIRMED,
+      );
+      expect((service as any).executionReports.has('legacy-ref-1')).toBe(false);
+    });
+
+    it('settles a refusal that says there is no such order — same UnknownOrder inference as cancelIfOutstanding', async () => {
+      const connection = (service as any).connection;
+      jest
+        .spyOn(connection, 'requestAndWaitForUpdate')
+        .mockResolvedValue(
+          cancelReport({ OrdStatus: ScryptOrderStatus.NEW, ExecType: 'CancelRejected', CxlRejReason: 'UnknownOrder' }),
+        );
+
+      await expect(service.cancelIfOutstandingBySymbol('legacy-ref-1', 'XRP/USDT')).resolves.toBe(
+        ScryptCancellation.SETTLED,
+      );
+    });
+  });
+
   describe('checkTrade — the amend write boundary', () => {
     function stubAmendPath(editOutcome: Error): void {
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
@@ -816,7 +1330,16 @@ describe('ScryptService', () => {
       });
       jest.spyOn(service as any, 'getTradePrice').mockResolvedValue(2);
       jest.spyOn(service as any, 'editOrder').mockRejectedValue(editOutcome);
-      jest.spyOn(service as any, 'cancelOrder').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'cancelOrder').mockResolvedValue({
+        ClOrdID: 'cancel-req-1',
+        OrigClOrdID: 'dfx-lm-7',
+        Symbol: 'EUR/USDT',
+        Side: 'Sell',
+        OrdStatus: ScryptOrderStatus.CANCELED,
+        OrderQty: '5',
+        CumQty: '0',
+        LeavesQty: '0',
+      } satisfies ScryptExecutionReport);
     }
 
     it('propagates an unconfirmed amend instead of swallowing it', async () => {
@@ -864,28 +1387,239 @@ describe('ScryptService', () => {
       expect((service as any).executionReports.has('dfx-lm-7')).toBe(true);
     });
 
-    it('keeps waiting on a pending order however old it is — pending is observed, not unknown', async () => {
-      // quarantining it would make reconciliation find the reference, hand the order back, and the next
-      // completion check quarantine it again: a loop, not a resolution
+    it('keeps waiting on a pending order that is still young, without asking Scrypt to cancel it', async () => {
+      // without this, a fresh PENDING report would trigger a cancel-and-decide it has not earned yet — the
+      // bound exists precisely so a normal, seconds-long transition is never treated as stuck
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PENDING_NEW,
         remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('keeps waiting when an old order has only just entered a pending state', async () => {
+      // Without the dwell-time clock, a price adjustment on an hours-old healthy order would cancel it
+      // because the old logic measured order age instead of time spent pending.
+      //
+      // Two passes on purpose: the FIRST pending poll only records the observation and returns, whatever
+      // the bound is measured against, so asserting it alone would pass just as happily against the age
+      // clock this replaced. The second pass is where the two differ — 120 minutes of age is past the
+      // bound, seconds of dwell time are not — so only this one actually pins the fix down.
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_REPLACE,
+        remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
+      const orderCreated = new Date(Date.now() - 120 * 60 * 1000);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('starts a fresh pending clock when a reference leaves pending before re-entering it', async () => {
+      // Without clearing pendingSince on the intervening non-pending status, a later PENDING entry would
+      // inherit the old, potentially expired wait instead of starting a new observation period.
+      jest
+        .spyOn(service as any, 'getOrderStatus')
+        .mockResolvedValueOnce({
+          id: 'dfx-lm-7',
+          status: ScryptOrderStatus.PENDING_NEW,
+          remainingQuantity: 5,
+        })
+        .mockResolvedValueOnce({
+          id: 'dfx-lm-7',
+          status: ScryptOrderStatus.FILLED,
+          remainingQuantity: 0,
+        })
+        .mockResolvedValueOnce({
+          id: 'dfx-lm-7',
+          status: ScryptOrderStatus.PENDING_NEW,
+          remainingQuantity: 5,
+        });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding');
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(true);
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('keeps a reference that is still being observed, however long it has been pending', async () => {
+      // The prune sweep runs on lastSeen, never on since. A reference the venue has reported pending for
+      // more than a day is not stale — it is still polled every pass and retried under the cancel throttle.
+      // Pruning it by `since` would drop a live entry and hand it a fresh five-minute grace period, so the
+      // stuck order would never reach its bound at all.
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      const orderCreated = new Date(Date.now() - 30 * 60 * 60 * 1000);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+
+      // Age BOTH stamps, then observe the reference again. That second pass is the point: it takes the
+      // known-entry branch, which is the only place lastSeen is refreshed. Without asserting it here, that
+      // refresh could be deleted outright and the sweep below would still find the stamp the first pass
+      // wrote — the test would pass while the entry silently aged into being prunable.
+      const staleAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      (service as any).pendingSince.set('dfx-lm-7', { since: staleAt, lastSeen: staleAt });
+      // a day past its bound, so this pass reaches the cancel — the venue not confirming it is what keeps
+      // such a reference pending indefinitely, which is exactly the case the sweep must not collect
+      jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      expect((service as any).pendingSince.get('dfx-lm-7').lastSeen.getTime()).toBeGreaterThan(staleAt.getTime());
+      // the clock itself must NOT be pushed forward, or the bound would never be reached
+      expect((service as any).pendingSince.get('dfx-lm-7').since).toEqual(staleAt);
+
+      // a different reference entering pending for the first time is what triggers the sweep
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-8',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      await expect(service.checkTrade('dfx-lm-8', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+
+      expect((service as any).pendingSince.has('dfx-lm-7')).toBe(true);
+    });
+
+    it('keeps waiting on a pending order past its bound when Scrypt will not confirm a cancel', async () => {
+      // the most important case here: without a confirmed cancel the order may still be live in the book, and
+      // giving it up on unconfirmed evidence could let the onFail chain place a second, genuinely competing buy;
+      // resolving false alone would not distinguish waiting after an unconfirmed cancel from never trying one
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
       });
 
       await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 120 * 60 * 1000))).resolves.toBe(
         false,
       );
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('keeps waiting on a pending order that is still young', async () => {
+    it('fails a pending order past its bound once Scrypt confirms nothing can execute under it any more', async () => {
+      // without this, a trade stuck reporting PENDING forever would have no exit but a human noticing
       jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
         id: 'dfx-lm-7',
         status: ScryptOrderStatus.PENDING_NEW,
         remainingQuantity: 5,
       });
+      jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.SETTLED);
 
-      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date())).resolves.toBe(false);
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
+
+      await expect(
+        service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 6 * 60 * 1000)),
+      ).rejects.toBeInstanceOf(ScryptOrderStuckPendingError);
+      expect((service as any).pendingSince.has('dfx-lm-7')).toBe(false);
+    });
+
+    it('completes a pending order past its bound when Scrypt confirms it filled after all', async () => {
+      // without this, a trade that actually filled would be failed instead of counted as complete
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.EXECUTED);
+
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', new Date(Date.now() - 6 * 60 * 1000))).resolves.toBe(
+        true,
+      );
+      expect((service as any).pendingSince.has('dfx-lm-7')).toBe(false);
+    });
+
+    it('does not retry the cancel write on the very next pass after an unconfirmed attempt', async () => {
+      // the cancel is a WRITE and checkRunningOrders runs nominally every 10 seconds, and possibly more often
+      // within one pass — without a retry floor per reference this would fire a fresh cancel on every one of
+      // those calls for as long as the venue keeps not confirming it
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+      const orderCreated = new Date(Date.now() - 6 * 60 * 1000);
+
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries the cancel write again once the retry floor has passed', async () => {
+      // Mirrors the previous test but advances past PENDING_CANCEL_RETRY_MINUTES between passes: without
+      // this, an implementation whose retry floor never expires would look identical to a correct one to
+      // the test above alone, and a permanently blocked cancel is itself a new stuck-forever wait state.
+      jest.spyOn(service as any, 'getOrderStatus').mockResolvedValue({
+        id: 'dfx-lm-7',
+        status: ScryptOrderStatus.PENDING_NEW,
+        remainingQuantity: 5,
+      });
+      const cancelSpy = jest.spyOn(service, 'cancelIfOutstanding').mockResolvedValue(ScryptCancellation.UNCONFIRMED);
+      const orderCreated = new Date(Date.now() - 6 * 60 * 1000);
+
+      // PENDING_STUCK_AFTER_MINUTES is private, so backdate the service's observation clock directly instead
+      // of driving Date.now(); only the pending-dwell input needs to be past its bound in this test.
+      (service as any).pendingSince.set('dfx-lm-7', {
+        since: new Date(Date.now() - 6 * 60 * 1000),
+        lastSeen: new Date(Date.now() - 6 * 60 * 1000),
+      });
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
+
+      // PENDING_CANCEL_RETRY_MINUTES is a private module-level constant (1 minute) with no export to
+      // import in this test, so the recorded attempt is backdated directly on the service's private map
+      // instead of driving Date.now() itself — this is the one throttle input the test needs to move, and
+      // moving only it keeps the assertion tied to the retry floor, not incidentally to the pending dwell.
+      const pastRetryFloor = new Date(Date.now() - 2 * 60 * 1000);
+      (service as any).pendingCancelAttempts.set('dfx-lm-7', pastRetryFloor);
+
+      await expect(service.checkTrade('dfx-lm-7', 'EUR', 'USDT', orderCreated)).resolves.toBe(false);
+      expect(cancelSpy).toHaveBeenCalledTimes(2);
     });
 
     it('cancels on an explicit rejection, but reports the refusal and the spent reference', async () => {

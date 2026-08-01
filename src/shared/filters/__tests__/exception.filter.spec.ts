@@ -8,7 +8,10 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ValidationError } from 'class-validator';
+import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
+import { ValidationFailedException } from 'src/shared/pipes/detailed-validation.pipe';
 
 describe('ApiExceptionFilter', () => {
   let filter: ApiExceptionFilter;
@@ -97,6 +100,139 @@ describe('ApiExceptionFilter', () => {
     expect(msg).not.toContain('foo@bar.com');
   });
 
+  it('keeps the reason on one line, so a value interpolated into it cannot forge a second', () => {
+    // Exception messages interpolate request values (`Invalid address for ...: ${address}`), so a
+    // line break in one of those would otherwise reach the log as a line of its own.
+    filter.catch(
+      new BadRequestException('Invalid address for to: abc\nWARN [ApiExceptionFilter] forged line'),
+      host(req(), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('\n');
+    expect(msg).toContain('abcWARN');
+  });
+
+  it('caps a reason as large as the body it came from, and still masks up to the cap', () => {
+    // Exception messages interpolate request values, and a request body is large; the reason is
+    // cut to the cap, and a pattern that starts inside it is masked even though it runs past it.
+    const message = `${'a'.repeat(480)}someone@example.com${'b'.repeat(200_000)}`;
+    filter.catch(new BadRequestException(message), host(req(), { status }));
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('someone@example.com');
+    expect(msg).toContain('***');
+    expect(msg.length).toBeLessThan(700);
+  });
+
+  it('masks a pattern that a control character sits inside', () => {
+    // Removing the control character rather than replacing it puts the pattern back together, so
+    // the masking that runs after it sees the value as the one it is.
+    filter.catch(
+      new BadRequestException('Invalid recipient victim\u0001@example.com and victim\u0085@example.com'),
+      host(req(), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('victim');
+    expect(msg).not.toContain('example.com');
+  });
+
+  it('sends the response even when the body cannot be read', () => {
+    const unreadable = new BadRequestException('x');
+    jest.spyOn(unreadable, 'getResponse').mockImplementation(() => {
+      throw new Error('nope');
+    });
+
+    expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'x' });
+  });
+
+  it('keeps sending the response when the message cannot be read', () => {
+    const unreadable = new BadRequestException({
+      statusCode: 400,
+      message: [
+        {
+          toString: () => {
+            throw new Error('nope');
+          },
+        },
+      ],
+    });
+
+    expect(() => filter.catch(unreadable, host(req(), { status }))).not.toThrow();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalled();
+  });
+
+  it('keeps a failure to write the line away from a caller that already has its answer', () => {
+    warn.mockImplementation(() => {
+      throw new Error('logger down');
+    });
+
+    expect(() => filter.catch(new BadRequestException('bad'), host(req(), { status }))).not.toThrow();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalled();
+  });
+
+  it('describes the response it is sending, not the one the exception named', () => {
+    // The status was replaced, so the body the exception carries no longer says what is being sent.
+    const mismatched = new BadRequestException('x');
+    jest.spyOn(mismatched, 'getStatus').mockReturnValue(600);
+
+    filter.catch(mismatched, host(req(), { status }));
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
+  });
+
+  it('sends the response even when the message cannot be read either', () => {
+    const mute = new BadRequestException('x');
+    jest.spyOn(mute, 'getResponse').mockImplementation(() => {
+      throw new Error('nope');
+    });
+    Object.defineProperty(mute, 'message', {
+      get: () => {
+        throw new Error('nope');
+      },
+    });
+
+    expect(() => filter.catch(mute, host(req(), { status }))).not.toThrow();
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+  });
+
+  it('sends a server error when the status cannot be read or is not one Express sends', () => {
+    const broken = new BadRequestException('x');
+    jest.spyOn(broken, 'getStatus').mockImplementation(() => {
+      throw new Error('nope');
+    });
+    filter.catch(broken, host(req(), { status }));
+    expect(status).toHaveBeenCalledWith(500);
+
+    for (const invalid of [0, -1, NaN, 100, 199, 600, 1.5]) {
+      const outOfRange = new BadRequestException('x');
+      jest.spyOn(outOfRange, 'getStatus').mockReturnValue(invalid);
+      filter.catch(outOfRange, host(req(), { status }));
+      expect(status).toHaveBeenLastCalledWith(500);
+    }
+  });
+
+  it('sends the response even when the request cannot be read', () => {
+    const brokenHost = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status }),
+        getRequest: () => {
+          throw new Error('nope');
+        },
+      }),
+    } as unknown as ArgumentsHost;
+
+    expect(() => filter.catch(new BadRequestException('bad'), brokenHost)).not.toThrow();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalled();
+  });
+
   it('does NOT log routine client errors (401/403/404/429) — they are already in the access log', () => {
     const routine = [
       new UnauthorizedException(),
@@ -118,6 +254,49 @@ describe('ApiExceptionFilter', () => {
     expect(warn).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalledTimes(1);
     expect(status).toHaveBeenCalledWith(500);
+  });
+
+  it('names the caller, so a rejection on an unauthenticated endpoint is attributable', () => {
+    filter.catch(
+      new BadRequestException('bad'),
+      host(req({ headers: { 'x-client': 'dfx-services', origin: 'https://app.dfx.swiss' } }), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).toContain('client=dfx-services');
+    expect(msg).toContain('origin=https://app.dfx.swiss');
+  });
+
+  it('marks a caller that identifies itself with nothing', () => {
+    filter.catch(new BadRequestException('bad'), host(req({ headers: {} }), { status }));
+
+    expect(warn.mock.calls[0][0]).toContain('client=(none)');
+  });
+
+  it('appends the rejected values of a failed validation — the message alone names only the field', () => {
+    class PaymentDto {
+      @LogRejectedValue(['Bank', 'Instant', 'Card', 'Crypto'])
+      paymentMethod: string;
+    }
+
+    const error: ValidationError = {
+      property: 'paymentMethod',
+      value: 'Crypto',
+      constraints: { isEnum: 'paymentMethod must be one of the following values: Bank, Instant, Card' },
+      children: [],
+      target: new PaymentDto(),
+    };
+
+    filter.catch(
+      new ValidationFailedException({ statusCode: 400, message: [error.constraints.isEnum] }, [error]),
+      host(req({ headers: {} }), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).toContain('must be one of the following values');
+    expect(msg).toContain("received: paymentMethod='Crypto'");
+    // the client still gets exactly the body the validation pipe built
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: [error.constraints.isEnum] });
   });
 
   it('treats a non-HttpException as a 500 and returns a generic body', () => {

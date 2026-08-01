@@ -4,7 +4,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
-import { LiquidityManagementOrderStatus } from '../enums';
+import { LiquidityManagementOrderStatus, LiquidityManagementSystem } from '../enums';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
 import { OrderOutcomeUnknownException } from '../exceptions/order-outcome-unknown.exception';
@@ -18,6 +18,131 @@ import { LiquidityManagementPipeline } from './liquidity-management-pipeline.ent
  * order concluded it, and this only stops an unreachable venue from vetoing them forever.
  */
 const RELEASE_WITHOUT_VENUE_MINUTES = 60;
+
+/**
+ * How long a quarantined order may go unaccounted for before cleaning it up is worth attempting.
+ *
+ * Reaching this bound does not abandon anything by itself — it starts a cancellation. Whether the order is
+ * then given up depends on the venue settling every reference it claimed, so an order whose integration
+ * cannot cancel, or whose venue will not answer, stays quarantined past this bound.
+ *
+ * The quarantine was built to wait for an operator, on the reasoning that absence at the venue is not proof
+ * of non-execution. That reasoning is sound but incomplete: it assumed the wait ends. Where nobody checks a
+ * venue by hand, it does not — the order stays UNCERTAIN forever and takes its rule with it, so the venue
+ * stops being served at all. A liquidity rule that never runs again is the larger failure, and it is certain,
+ * while the double execution being guarded against is merely possible.
+ *
+ * What carries abandoning is not a conclusion about the order but two things outside it: the venue has
+ * confirmed that none of its references can execute any more, and a rule replans from the venue's balance
+ * rather than from the abandoned order. An order that did execute has already moved that balance, so the
+ * replan sizes itself against what is actually left. That balance is pushed rather than polled, so a fill
+ * that has only just landed may briefly not be in it — see the adapter's cancellation for that window.
+ *
+ * That argument is only as good as the balance behind it, which is why abandoning is confined to orders an
+ * integration can actually ask the venue about — in practice an exchange, read live at plan time. It is
+ * deliberately NOT extended to orders no integration can look up: a chain balance omits transactions that
+ * are sent but unconfirmed, and a bank balance is carried over from the last imported batch, so for those
+ * the replan could well be sizing itself against a balance the execution has not reached yet.
+ *
+ * Within an askable venue, though, an outcome nobody observed at least gets an automatic attempt at cleaning
+ * itself up, rather than only ever an operator who never comes. Leaving those to a person sounds like the
+ * careful choice, but where nobody performs the manual release it is not caution, it is a rule that never
+ * runs again.
+ *
+ * "Gets an attempt" is the whole claim, and it is much weaker than "is bounded": the attempt is a cancellation
+ * (or, for a Scrypt withdrawal that has no cancel, a venue history reply that does not name it), and a
+ * venue that will not confirm still holds its order here indefinitely. What these bounds end is the assumption
+ * that somebody will eventually look; the manual release stays a shortcut, not the only way out for venues
+ * that can answer.
+ *
+ * Each bound has to outlast the window in which its order could still be in flight, and that window differs
+ * by an order of magnitude between kinds of request, so a single value would be either useless or unsafe.
+ * The two answered bounds are anchored on what completed Scrypt orders actually took over the 30 days to
+ * 2026-07-29, measured in prod:
+ *
+ *   trades (n=55):      median 9.6s   p95 19.8s   max 57.1s
+ *   withdrawals (n=49): median 7.7min p95 82min   max 5.6h
+ *
+ * Read those as a floor, not a ceiling: they describe orders that finished, so one that never becomes
+ * observable at all is by construction absent from them. Which is why nothing is concluded from the clock
+ * alone — it only decides when cleaning up is worth attempting. What makes giving up safe is the venue
+ * confirming that none of the order's references can still execute.
+ *
+ * Balances refresh every minute and the pipeline runs every 10 seconds, so no bound is limited by how
+ * quickly an abandonment can be noticed — only by how long the request itself may still be alive.
+ */
+const ABANDON_UNCERTAIN_MINUTES = {
+  /**
+   * Settled inside the venue, no network leg. Five minutes is roughly five times the slowest such order
+   * observed, which leaves room for a market phase that keeps one open longer than anything on record.
+   */
+  TRADE: 5,
+  /**
+   * A withdrawal at a venue that answers about its own transaction history — today only Scrypt.
+   *
+   * Five minutes, and deliberately not derived from how long withdrawals take: measured over 60 days they
+   * run to 336 minutes, and 39% of them past ten. That tail does not reach this bound, because the bound
+   * only applies while the venue does NOT name the reference. One it does name is SENT and runs to
+   * completion on its own clock, but not unbounded — without a transaction hash,
+   * `SCRYPT_WITHDRAWAL_STUCK_AFTER_MINUTES` (24 hours, in the adapter) fails it so the rule can replan.
+   *
+   * What the short value buys is the ceiling the orderer set: five minutes here plus the five a withdrawal
+   * may stay unobservable (see SCRYPT_UNOBSERVABLE_QUARANTINE_MINUTES) is the ten-minute maximum a
+   * quarantined order may take to resolve itself. Ten nominal, not to the second: the pass runs on a
+   * ten-second cron with a few seconds of jitter, and a deadline missed just after a tick waits out the
+   * one-minute cooldown floor. Read it as ten to eleven minutes plus the venue round-trip. What it costs is
+   * the case where the venue accepted a withdrawal and publishes it late: it is then given up and reissued.
+   * That is an internal rebooking — every Scrypt withdrawal address is DFX-owned — and accepted on exactly
+   * that ground; see `confirmWithdrawalAbsent` for the same trade-off argued at the check itself.
+   */
+  VENUE_WITHDRAWAL: 5,
+  /**
+   * Everything else: transfers, withdrawals, bridges, mints. Twice the slowest withdrawal observed, because
+   * the tail here is genuinely long — a bound near the median would reach orders that are simply still
+   * running, and reissuing those is what actually moves funds twice.
+   *
+   * Reaching this bound only starts the automatic exit attempt — it abandons nothing by itself. For trades
+   * that attempt is a cancellation whose venue confirmation lets the order go; for a Scrypt withdrawal,
+   * which has no cancel operation at the venue, it is a confirmed absence from the venue's full transaction
+   * history. Other transfer kinds and venues that cannot answer that question keep waiting past this bound
+   * (on the venue, or until an operator releases them as a shortcut). This value is the age at which trying
+   * is worth it, not a guarantee that giving up is safe.
+   */
+  TRANSFER: 12 * 60,
+};
+
+/**
+ * Actions that settle inside a venue rather than moving funds across one, as `system/command` pairs.
+ *
+ * Keyed on both halves, because the command name alone does not say what an action does: `sell` on an
+ * exchange is matched off against a book in seconds, while `sell` on the DEX adapter is an on-chain swap
+ * with a confirmation time. Matching the name alone would hand the short bound to exactly the actions that
+ * least deserve it.
+ *
+ * An allowlist, not a denylist: anything unrecognised — a new adapter, a renamed command — gets the long
+ * bound. Being slow to abandon costs a rule some minutes; being fast to abandon a transfer that is still in
+ * flight is what duplicates it.
+ *
+ * The system half comes from the enum so a rename cannot silently detach the list from reality. The command
+ * half stays literal: those enums live in the adapters, which import this entity, and importing them back
+ * would close a cycle.
+ */
+const VENUE_INTERNAL_ACTIONS = [
+  `${LiquidityManagementSystem.SCRYPT}/buy`.toLowerCase(),
+  `${LiquidityManagementSystem.SCRYPT}/sell`.toLowerCase(),
+];
+
+/**
+ * Withdrawals at a venue that can be asked about its own transaction history, as `system/command` pairs.
+ *
+ * Separate from the general transfer bound on purpose. Lowering TRANSFER itself would also shorten the
+ * bound for bridges, mints and other systems' transfers — and none of those adapters implements
+ * `cancelOutstanding`, so no exit would be attempted there anyway; the only effect would be asking their
+ * venues more often for nothing.
+ *
+ * Same allowlist discipline as {@link VENUE_INTERNAL_ACTIONS}: anything unrecognised keeps the long bound.
+ */
+const VENUE_SELF_RESOLVING_TRANSFERS = [`${LiquidityManagementSystem.SCRYPT}/withdraw`.toLowerCase()];
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -240,6 +365,98 @@ export class LiquidityManagementOrder extends IEntity {
    */
   releaseWaitedOutVenue(): boolean {
     return this.notSentRecheckDue != null && Util.minutesDiff(this.notSentRecheckDue) > RELEASE_WITHOUT_VENUE_MINUTES;
+  }
+
+  /**
+   * Whether an unresolved order is old enough that cleaning it up is worth attempting.
+   *
+   * Gates both inconclusive outcomes — a venue that answers and has no record, and one that could not be
+   * asked — because neither improves with waiting. Not a safety judgement on its own: what follows is a
+   * cancellation, and only the venue confirming that nothing can execute makes giving up safe. See
+   * {@link ABANDON_UNCERTAIN_MINUTES}.
+   */
+  unresolvableTooLong(): boolean {
+    // Measured from `updated`, not `created`: an order can run normally for a long time and only become
+    // UNCERTAIN late, when a completion check amends or restarts it and that write goes unconfirmed. Its
+    // `created` is then already old, so a bound read from it would expire on the very first pass while the
+    // fresh replacement request is seconds old and plausibly still arriving — the exact double-send this
+    // guards against. `updated` moves with the transition into quarantine, so the clock starts there.
+    //
+    // When `updated` is missing at runtime (entity `copy()` clears it; some raw loads omit the column) fall
+    // back to `created` deliberately — not a silent default. `created` is always older than or equal to
+    // `updated`, so the bound expires earlier rather than later. That is safe here: automatic abandon still
+    // requires venue confirmation (cancel settled / confirmed absence); this clock only decides *when* a
+    // cleanup attempt is worth making, not whether giving up is safe. Preferring `updated` when present
+    // remains correct for the long-running-then-quarantined case above.
+    //
+    // Without either timestamp there is no clock to run out. Guarded explicitly because Util.minutesDiff
+    // treats a missing date as the epoch and would report tens of millions of minutes — abandoning instantly
+    // every order whose dates were not loaded. Absent evidence this must hold the order, never drop it.
+    const since = this.updated ?? this.created;
+    if (!since) return false;
+
+    // `>=`, so that reaching the bound is enough. With `>`, the instant the bound is exactly met left the two
+    // halves of this clock disagreeing: {@link getAbandonableAt} already reported nothing left — which is
+    // what lets the reconciliation pass run at that moment — while this said not yet. The pass then re-stamped
+    // its cooldown and the order waited out another full interval, so a five-minute bound gave up at six.
+    return Util.minutesDiff(since) >= this.getAbandonBoundMinutes();
+  }
+
+  /**
+   * The moment this order becomes abandonable — null while it never does.
+   *
+   * The same bound and the same clock as {@link unresolvableTooLong}, stated as an absolute instant so that a
+   * caller deciding *when to look at this order again* can keep its own wait on the near side of it. A pass
+   * throttled past this point would push the abandonment beyond the ceiling that bound exists to impose, and
+   * nothing in the throttle itself would reveal that it had.
+   *
+   * Absolute rather than "time remaining" on purpose. A remaining duration has to be clamped at zero, and that
+   * clamp erases the one fact a throttle needs after the deadline: whether the wait it is about to impose
+   * started before it. Measured against a fixed instant the question does not arise — and the caller can ask
+   * about any moment, not only about now.
+   *
+   * Null without `updated` and without `created`, mirroring that method's refusal to run a clock it does not
+   * have: no deadline to respect means no constraint to impose on a caller's wait.
+   */
+  getAbandonableAt(): Date | null {
+    // Same clock as {@link unresolvableTooLong}: prefer `updated`, fall back to `created` when `updated` was
+    // not loaded (see that method for why the fallback is earlier-not-later and still safe). Both missing →
+    // no deadline, mirroring the refusal to run a clock we do not have.
+    const since = this.updated ?? this.created;
+    if (!since) return null;
+
+    return new Date(since.getTime() + this.getAbandonBoundMinutes() * 60_000);
+  }
+
+  /**
+   * The quarantine bound that applies to this order's action, in minutes. Deliberately the single place that
+   * reads {@link ABANDON_UNCERTAIN_MINUTES}: the deadline and the remaining time to it must never be able to
+   * disagree about which bound they are talking about.
+   */
+  private getAbandonBoundMinutes(): number {
+    // Unknown, unloaded or unlisted action falls to the long bound, for the same reason as a missing date.
+    const action = `${this.action?.system}/${this.action?.command}`.toLowerCase();
+
+    if (VENUE_INTERNAL_ACTIONS.includes(action)) return ABANDON_UNCERTAIN_MINUTES.TRADE;
+    if (VENUE_SELF_RESOLVING_TRANSFERS.includes(action)) return ABANDON_UNCERTAIN_MINUTES.VENUE_WITHDRAWAL;
+
+    return ABANDON_UNCERTAIN_MINUTES.TRANSFER;
+  }
+
+  /**
+   * End a quarantined order that has nothing left outstanding at the venue, and let the rule move on.
+   *
+   * FAILED rather than a verified non-execution: nothing here establishes that the request never took
+   * effect — a reference may well have executed — and the reason says so, so the record does not claim more
+   * than was actually observed. Named for the state it ends rather than for what ended it, because several
+   * routes arrive here.
+   */
+  abandonUncertain(reason: string): this {
+    this.status = LiquidityManagementOrderStatus.FAILED;
+    this.errorMessage = reason;
+    this.notSentRecheckDue = null;
+
+    return this;
   }
 
   /**

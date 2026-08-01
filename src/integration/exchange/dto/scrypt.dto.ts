@@ -107,9 +107,49 @@ export enum ScryptOrderStatus {
   PENDING_REPLACE = 'PendingReplace',
 }
 
+/**
+ * Terminal order statuses at Scrypt: nothing under the reference can still execute.
+ *
+ * Single source of truth for both execution-report caching (`OrdStatus`) and order-status lookups
+ * (`ScryptOrderInfo.status`). Do not re-list these three values elsewhere.
+ */
+export const SCRYPT_TERMINAL_ORDER_STATUSES: readonly ScryptOrderStatus[] = [
+  ScryptOrderStatus.FILLED,
+  ScryptOrderStatus.CANCELED,
+  ScryptOrderStatus.REJECTED,
+];
+
+export function isTerminalScryptOrderStatus(status: ScryptOrderStatus): boolean {
+  return (SCRYPT_TERMINAL_ORDER_STATUSES as readonly ScryptOrderStatus[]).includes(status);
+}
+
 export enum ScryptOrderSide {
   BUY = 'Buy',
   SELL = 'Sell',
+}
+
+/**
+ * What asking the venue to cancel a reference established about it.
+ *
+ * Three outcomes, not two, because "cancelled" does not mean "nothing happened": a partially filled order
+ * is cancelled with a terminal status AND a fill, and that fill is worth naming rather than folding into
+ * the same answer as an untouched one.
+ */
+export enum ScryptCancellation {
+  /**
+   * Nothing can execute under this reference any more. Two different qualities of answer: cancelled with
+   * nothing filled settles it outright, while the venue not knowing the reference is an inference from its
+   * own words — see SCRYPT_UNKNOWN_ORDER for what that evidence covers.
+   */
+  SETTLED = 'Settled',
+  /**
+   * It reached a terminal state with something filled. Like a cancelled reference it cannot trade further,
+   * so the order may be given up — the fill already moved the venue balance the rule replans from. Kept
+   * distinct from SETTLED because a fill is worth seeing in a log and worth reconciling against.
+   */
+  EXECUTED = 'Executed',
+  /** No usable answer. Nothing may be concluded, least of all that the reference is safe to walk away from. */
+  UNCONFIRMED = 'Unconfirmed',
 }
 
 export enum ScryptOrderType {

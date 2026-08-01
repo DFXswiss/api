@@ -26,6 +26,180 @@ describe('LiquidityManagementOrder', () => {
     });
   });
 
+  describe('unresolvableTooLong', () => {
+    function quarantined(minutes?: number, command = 'sell', system = 'Scrypt'): LiquidityManagementOrder {
+      return Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: minutes == null ? undefined : minutesAgo(minutes),
+        action: { system, command },
+      });
+    }
+
+    it('is false without a quarantine timestamp — a missing date reads as the epoch, which would fire at once', () => {
+      expect(quarantined(undefined).unresolvableTooLong()).toBe(false);
+    });
+
+    it.each(['sell', 'buy'])('applies the short trade bound to scrypt/%s', (command) => {
+      expect(quarantined(4, command).unresolvableTooLong()).toBe(false);
+      expect(quarantined(6, command).unresolvableTooLong()).toBe(true);
+    });
+
+    it('applies the short bound to scrypt/withdraw — the venue answers about its own history', () => {
+      // Not derived from how long withdrawals take (they reach hours): the bound only applies while the
+      // venue does not name the reference, and it exists to hold the ten-minute ceiling together with the
+      // unobservable window.
+      expect(quarantined(4, 'withdraw').unresolvableTooLong()).toBe(false);
+      expect(quarantined(6, 'withdraw').unresolvableTooLong()).toBe(true);
+    });
+
+    it('leaves the long bound on a transfer at a venue that cannot be asked', () => {
+      // Lowering the shared transfer bound would have reached bridges and mints too, whose adapters cannot
+      // attempt any exit — they would only be polled more often for nothing.
+      expect(quarantined(11 * 60, 'withdraw', 'Kraken').unresolvableTooLong()).toBe(false);
+      expect(quarantined(13 * 60, 'withdraw', 'Kraken').unresolvableTooLong()).toBe(true);
+    });
+
+    it('applies the long bound to a command that only looks like a trade elsewhere', () => {
+      // an on-chain swap is not a book match, whatever it is called
+      expect(quarantined(30, 'sell', 'DfxDex').unresolvableTooLong()).toBe(false);
+    });
+
+    it('applies the long bound to anything unrecognised', () => {
+      expect(quarantined(30, 'some-new-command', 'SomeNewSystem').unresolvableTooLong()).toBe(false);
+    });
+
+    it('falls back to created when updated is missing — bound can still expire', () => {
+      // deliberate fallback: created is older-or-equal, so the bound fires earlier, not later; abandon still
+      // needs venue confirmation, so an earlier cleanup attempt is safe
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: undefined,
+        created: minutesAgo(6),
+        action: { system: 'Scrypt', command: 'sell' },
+      });
+      expect(order.unresolvableTooLong()).toBe(true);
+    });
+
+    it('stays false when both updated and created are missing', () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: undefined,
+        created: undefined,
+        action: { system: 'Scrypt', command: 'sell' },
+      });
+      expect(order.unresolvableTooLong()).toBe(false);
+    });
+  });
+
+  describe('getAbandonableAt', () => {
+    function quarantined(minutes?: number, command = 'sell', system = 'Scrypt'): LiquidityManagementOrder {
+      return Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: minutes == null ? undefined : minutesAgo(minutes),
+        action: { system, command },
+      });
+    }
+
+    /** Milliseconds from now until the order may be given up; negative once it already may be. */
+    function headroom(order: LiquidityManagementOrder): number {
+      const at = order.getAbandonableAt();
+      if (!at) throw new Error('expected a deadline');
+
+      return at.getTime() - Date.now();
+    }
+
+    it('is null without a timestamp — no deadline to respect constrains nobody', () => {
+      expect(quarantined(undefined).getAbandonableAt()).toBeNull();
+    });
+
+    it('falls back to created when updated is missing and returns a Date', () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: undefined,
+        created: minutesAgo(6),
+        action: { system: 'Scrypt', command: 'sell' },
+      });
+      expect(order.getAbandonableAt()).toBeInstanceOf(Date);
+    });
+
+    it('is null when both updated and created are missing', () => {
+      const order = Object.assign(new LiquidityManagementOrder(), {
+        status: LiquidityManagementOrderStatus.UNCERTAIN,
+        updated: undefined,
+        created: undefined,
+        action: { system: 'Scrypt', command: 'sell' },
+      });
+      expect(order.getAbandonableAt()).toBeNull();
+    });
+
+    it('falls the trade bound after the moment quarantine began', () => {
+      // 2 of the 5 minutes spent, so 3 left; tolerance covers the clock moving during the test
+      expect(headroom(quarantined(2))).toBeGreaterThan(2.9 * 60_000);
+      expect(headroom(quarantined(2))).toBeLessThanOrEqual(3 * 60_000);
+    });
+
+    it('lies in the past once the bound has passed, and says by how much', () => {
+      // The sign is the point: a duration clamped at zero cannot say whether a wait started before the
+      // deadline, which is exactly what a throttle has to know after it.
+      expect(headroom(quarantined(6))).toBeLessThan(0);
+      expect(headroom(quarantined(6))).toBeGreaterThan(-1.1 * 60_000);
+      expect(headroom(quarantined(60 * 24))).toBeLessThan(-23 * 60 * 60_000);
+    });
+
+    it('falls the long bound for a transfer nobody can ask about', () => {
+      // an hour into a twelve-hour bound leaves eleven
+      expect(headroom(quarantined(60, 'withdraw', 'Kraken'))).toBeGreaterThan(10.9 * 60 * 60_000);
+      expect(headroom(quarantined(60, 'withdraw', 'Kraken'))).toBeLessThanOrEqual(11 * 60 * 60_000);
+    });
+
+    it('turns over at the bound itself, not a tick later', () => {
+      // The one instant a live clock cannot be asked about: elapsed exactly equal to the bound. Anything built
+      // from a real `Date.now()` is already a fraction past it, where `>` and `>=` agree — so the clock is held
+      // still. With `>` the pass would run (the deadline has arrived) and abandon nothing (not yet past it),
+      // re-stamp its cooldown, and the order would wait out another interval: five minutes became six.
+      jest.useFakeTimers();
+      try {
+        const order = quarantined(5);
+        expect(headroom(order)).toBe(0);
+        expect(order.unresolvableTooLong()).toBe(true);
+
+        // and one millisecond short of it, both still say no
+        const justInside = Object.assign(new LiquidityManagementOrder(), {
+          status: LiquidityManagementOrderStatus.UNCERTAIN,
+          updated: new Date(Date.now() - (5 * 60_000 - 1)),
+          action: { system: 'Scrypt', command: 'sell' },
+        });
+        expect(headroom(justInside)).toBe(1);
+        expect(justInside.unresolvableTooLong()).toBe(false);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('has passed exactly when the order has become abandonable', () => {
+      // The two halves of one clock, and they must agree in both directions. The deadline having arrived is what
+      // lets the reconciliation pass run at all, and being past the bound is what lets it give the order up: a
+      // state where one holds and the other does not is a pass that runs, re-stamps its cooldown and abandons
+      // nothing — which is how a five-minute bound came to give up at six.
+      for (const minutes of [1, 4, 5, 6, 30, 11 * 60, 12 * 60, 13 * 60, 60 * 24])
+        for (const command of ['sell', 'buy', 'withdraw']) {
+          const order = quarantined(minutes, command);
+          expect(headroom(order) <= 0).toBe(order.unresolvableTooLong());
+        }
+    });
+
+    it('applies the same bound to the same action as unresolvableTooLong', () => {
+      // Both read one shared source, so two actions must disagree here exactly where they disagree there: at
+      // 30 minutes both Scrypt bounds are long spent, while a transfer at a venue that cannot be asked is not.
+      expect(headroom(quarantined(30, 'sell'))).toBeLessThan(0);
+      expect(quarantined(30, 'sell').unresolvableTooLong()).toBe(true);
+      expect(headroom(quarantined(30, 'withdraw'))).toBeLessThan(0);
+      expect(quarantined(30, 'withdraw').unresolvableTooLong()).toBe(true);
+      expect(headroom(quarantined(30, 'withdraw', 'Kraken'))).toBeGreaterThan(0);
+      expect(quarantined(30, 'withdraw', 'Kraken').unresolvableTooLong()).toBe(false);
+    });
+  });
+
   describe('resolveAsSent / resolveAsNotSent / requestNotSentRelease', () => {
     it('accepts a release without acting on it: the order keeps blocking', () => {
       const order = Object.assign(new LiquidityManagementOrder(), {

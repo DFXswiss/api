@@ -7,7 +7,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RealIP } from 'src/shared/auth/real-ip.decorator';
-import { hasRoleAccess, RoleGuard } from 'src/shared/auth/role.guard';
+import { hasStaffAccess, RoleGuard } from 'src/shared/auth/role.guard';
 import { isUserActive, UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CLIENT_HEADER } from 'src/shared/utils/request-client';
@@ -205,7 +205,9 @@ export class SupportIssueController {
     // Staff routing requires an active account: blocked staff keep their JWT role until token
     // expiry (default 2d) but must not be able to post official replies. Non-staff callers
     // (including anonymous, since the guard is Optional) fall through to createMessage.
-    if (jwt?.role && hasRoleAccess(UserRole.SUPPORT, jwt.role) && isUserActive(jwt)) {
+    // `hasStaffAccess`, not `hasRoleAccess`: this route is OptionalJwtAuthGuard-only, so the staff KYC gate
+    // has to be applied here — posting official DFX replies is a staff privilege like any other.
+    if (jwt?.role && hasStaffAccess(UserRole.SUPPORT, jwt) && isUserActive(jwt)) {
       // Mail-origin staff sessions must complete STRICT 2FA before posting an official reply. The global
       // TfaEnforcementInterceptor already enforces this invariant on every route; this inline check is kept as
       // defense-in-depth on this sensitive sink. Wallet-signature logins (no tfaRequired) are unaffected.

@@ -23,7 +23,8 @@ const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
 const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
 const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
 
-const MAX_STRING = 512; // per string leaf
+export const MAX_STRING = 512; // per logged string: beyond this only its length is reported
+const MAX_CLIENT = 32; // per trace line: the client header is a name, not a payload
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
 const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
 const REDACTED = '***';
@@ -34,7 +35,85 @@ export function maskValue(s: string): string {
 }
 
 export function maskUrl(url: string): string {
-  return maskValue(url.split('?')[0]);
+  // The request target is client-supplied and reaches a log line: what is left of it after the
+  // query is dropped is rendered like any other value from the request.
+  return maskLogText(url.split('?')[0]);
+}
+
+// Everything that can break a line or move a cursor in a log viewer: the control characters
+// (which include the ordinary line breaks and the ANSI escape) plus the two Unicode separators
+// that sit outside that category.
+const LINE_BREAKING = /[\p{C}\u2028\u2029]/gu;
+
+/**
+ * Removes everything that could break a log line, so a crafted value cannot forge a second line or
+ * smuggle an ANSI escape into the console stream.
+ */
+export function singleLine(value: string): string {
+  return value.replace(LINE_BREAKING, '');
+}
+
+/**
+ * Renders free-form text for a log line: masked, on one line, masked again.
+ *
+ * Both passes are needed, because a character that breaks a line also breaks a pattern in either
+ * direction. Put inside one, it hides the pattern from a pass that runs before the removal
+ * (`victim\u0001@example.com`). Removing it joins what stood on either side, which can hide a
+ * pattern that was whole from a pass that runs after (`192.0.2.123\u0000a` becomes `192.0.2.123a`,
+ * where the address no longer ends on a word boundary). Neither order sees both, so both run - and
+ * the second pass cannot invent a match, since what the first one leaves behind is `***` and `0x…`.
+ */
+export function maskLogText(value: string): string {
+  return maskValue(singleLine(maskValue(value)));
+}
+
+/**
+ * Caps a rendered value, cutting between characters rather than between code units: `slice` would
+ * halve a surrogate pair sitting on the boundary and leave the stray half in front of the ellipsis,
+ * which reaches the log as a replacement character.
+ *
+ * The walk stops at the cap rather than materializing the value first, so the work is the cap and
+ * not the length of what was passed - a caller holding a request-sized string (an exception message
+ * that interpolated a body value) would otherwise pay for all of it to render 500 characters.
+ */
+export function capCharacters(value: string, maxLength: number): string {
+  let end = 0;
+  for (let taken = 0; taken < maxLength; taken++) {
+    if (end >= value.length) return value;
+    end += (value.codePointAt(end) as number) > 0xffff ? 2 : 1;
+  }
+
+  return end >= value.length ? value : `${value.slice(0, end)}\u2026`;
+}
+
+/**
+ * Cuts to a budget in code units, moving off a surrogate pair rather than through it. That is the
+ * measure a section is budgeted in - `capCharacters` counts characters, which for an astral run
+ * would be twice the units - so this is what the serialized sections use.
+ */
+function cutAtCodeUnits(value: string, maxUnits: number): string {
+  if (value.length <= maxUnits) return value;
+
+  const isHighSurrogate = value.charCodeAt(maxUnits - 1) >= 0xd800 && value.charCodeAt(maxUnits - 1) <= 0xdbff;
+  return `${value.slice(0, isHighSurrogate ? maxUnits - 1 : maxUnits)}…`;
+}
+
+/**
+ * Renders an untrusted value (header, rejected body field) for inclusion in a log line: it goes
+ * through {@link maskLogText} - masked, stripped of anything that could break the line, masked
+ * again - and is then capped. The masking runs before the cut, so a truncated email or wallet
+ * cannot slip through.
+ *
+ * Beyond `MAX_STRING` the value is reported by length instead: masking is regex work over the
+ * whole string, and the caller's cap alone would not stop an oversized one from paying for it.
+ * That length is in UTF-16 code units, the measure `MAX_STRING` is compared against and the one
+ * `String.length` gives for free - counting characters would mean walking the oversized string
+ * this branch exists to avoid, so the unit is named rather than converted.
+ */
+export function maskLogValue(value: string, maxLength: number): string {
+  if (value.length > MAX_STRING) return `<${value.length} code units>`;
+
+  return capCharacters(maskLogText(value), maxLength);
 }
 
 // `budget` bounds the total work per section: each processed node deducts from
@@ -62,7 +141,7 @@ function redact(value: unknown, key: string | undefined, budget: { left: number 
   if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
   if (typeof value === 'string') {
     budget.left -= Math.min(value.length, MAX_STRING);
-    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskValue(value);
+    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskLogText(value);
   }
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
@@ -84,11 +163,14 @@ function format(value: unknown): string {
   try {
     // redact() handles Buffer + the array case (Array.isArray first), so the
     // raw value is never length/type-inspected here.
-    s = JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET }));
+    // `JSON.stringify` escapes the control characters but leaves U+2028 / U+2029 as they are, so
+    // the serialized section is put through the same collapse as the free-form values above - it is
+    // what keeps the trace the single line the caller below documents.
+    s = singleLine(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
   } catch {
     return '(unserializable)';
   }
-  return s.length > MAX_PART ? `${s.slice(0, MAX_PART)}…(${s.length} chars)` : s;
+  return s.length > MAX_PART ? `${cutAtCodeUnits(s, MAX_PART)}(${s.length} code units)` : s;
 }
 
 /**
@@ -136,7 +218,10 @@ export function apiTraceMiddleware(): RequestHandler {
     res.on('finish', () => {
       const durationMs = Date.now() - start;
       const path = maskUrl(req.originalUrl);
-      const meta = `${req.method} ${path} → ${res.statusCode} (${durationMs}ms)  client=${clientStr || '(none)'}`;
+      // The client header is the one free-form value on this line: it arrives from the caller, so
+      // it is rendered like every other one rather than interpolated as it came.
+      const client = maskLogValue(clientStr, MAX_CLIENT) || '(none)';
+      const meta = `${req.method} ${path} → ${res.statusCode} (${durationMs}ms)  client=${client}`;
       if (isRealUnitPath) {
         logger.info(
           `${meta}  req.headers=${format(req.headers)}  req.body=${format(req.body)}  res.body=${format(responseBody)}`,

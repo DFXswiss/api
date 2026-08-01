@@ -4,7 +4,7 @@
 // internal HTTP usage is auto-instrumented.
 import './tracing';
 import './polyfills'; // registers global EventSource for @arkade-os/sdk; see src/polyfills.ts
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -20,6 +20,7 @@ import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
 import { apiTraceMiddleware, maskUrl } from './shared/middlewares/api-trace.middleware';
+import { DetailedValidationPipe } from './shared/pipes/detailed-validation.pipe';
 import { DfxLogger } from './shared/services/dfx-logger';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
@@ -86,7 +87,9 @@ async function bootstrap() {
     defaultVersion: [Config.defaultVersion],
   });
   app.useGlobalPipes(
-    new ValidationPipe({
+    // Same validation and same 400 body as the stock ValidationPipe; it additionally carries the
+    // rejected values through to the exception filter's log line.
+    new DetailedValidationPipe({
       whitelist: true,
       transformOptions: {
         exposeUnsetFields: false,

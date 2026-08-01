@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -164,6 +165,11 @@ describe('HistoryAccessService', () => {
     const ownerJwt: JwtPayload = { role: UserRole.USER, ip: '1.1.1.1', account: 1, user: 10, address: '0xAAA' };
     const otherJwt: JwtPayload = { role: UserRole.USER, ip: '1.1.1.1', account: 2, user: 20, address: '0xCCC' };
 
+    // Staff full access now additionally requires KYC clearance for the calling account; account 99 is
+    // the cleared staff account used by the staff cases below.
+    beforeEach(() => SetStaffKycClearance([99]));
+    afterEach(() => SetStaffKycClearance([]));
+
     it('denies full view without JWT', () => {
       const tx = { userData: { id: 1 } } as Transaction;
       expect(service.canViewFullTransaction(undefined, tx)).toBe(false);
@@ -203,6 +209,27 @@ describe('HistoryAccessService', () => {
     it('allows ADMIN via hierarchy', () => {
       const staff: JwtPayload = { role: UserRole.ADMIN, ip: '1.1.1.1', account: 99 };
       const tx = { userData: { id: 1 } } as Transaction;
+      expect(service.canViewFullTransaction(staff, tx)).toBe(true);
+    });
+
+    it.each([UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN])(
+      'denies %s staff full access without KYC clearance',
+      (role) => {
+        SetStaffKycClearance([]);
+        const staff: JwtPayload = { role, ip: '1.1.1.1', account: 99 };
+        const tx = { userData: { id: 1 } } as Transaction;
+
+        // These routes are OptionalJwtAuthGuard-only, so this predicate is the only place the staff KYC
+        // gate can apply — without it, an uncleared admin keeps blanket access to every customer's tx.
+        expect(service.canViewFullTransaction(staff, tx)).toBe(false);
+      },
+    );
+
+    it('still allows an uncleared staff member to view their OWN transaction', () => {
+      SetStaffKycClearance([]);
+      const staff: JwtPayload = { role: UserRole.ADMIN, ip: '1.1.1.1', account: 99 };
+      const tx = { userData: { id: 99 } } as Transaction;
+
       expect(service.canViewFullTransaction(staff, tx)).toBe(true);
     });
 

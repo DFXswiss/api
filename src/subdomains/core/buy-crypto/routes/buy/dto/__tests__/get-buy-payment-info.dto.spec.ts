@@ -1,12 +1,17 @@
-import { ArgumentMetadata, BadRequestException, ValidationPipe } from '@nestjs/common';
+import { ArgumentMetadata, BadRequestException } from '@nestjs/common';
+import {
+  DetailedValidationPipe,
+  ValidationFailedException,
+  describeRejectedValues,
+} from 'src/shared/pipes/detailed-validation.pipe';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { GetBuyPaymentInfoDto, PersonalIbanProvider } from '../get-buy-payment-info.dto';
 
 describe('GetBuyPaymentInfoDto.personalIbanProvider', () => {
   // Mirror the production global pipe (src/main.ts): custom decorator messages must surface as-is
-  // in the 400 body (no exceptionFactory override).
-  const pipe = new ValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });
+  // in the 400 body.
+  const pipe = new DetailedValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });
   const metadata: ArgumentMetadata = { type: 'body', metatype: GetBuyPaymentInfoDto, data: '' };
 
   const validBody = {
@@ -39,5 +44,34 @@ describe('GetBuyPaymentInfoDto.personalIbanProvider', () => {
     const messageText = Array.isArray(response.message) ? response.message.join(' ') : String(response.message);
     expect(messageText).toContain(QuoteError.PERSONAL_IBAN_PROVIDER_UNSUPPORTED);
     expect(messageText).not.toMatch(/must be one of the following values/i);
+  });
+
+  it('names a provider that differs only in case, despite the field name carrying `iban`', async () => {
+    // The declared value wins over the name-based redaction: what it renders is this program's
+    // constant, and the message alone would not say which provider the client meant.
+    let caught: unknown;
+    try {
+      await pipe.transform({ ...validBody, personalIbanProvider: 'frick' }, metadata);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(ValidationFailedException);
+    expect(describeRejectedValues((caught as ValidationFailedException).validationErrors)).toBe(
+      "personalIbanProvider='Frick'",
+    );
+  });
+
+  it('still redacts a provider value the field never declared', async () => {
+    let caught: unknown;
+    try {
+      await pipe.transform({ ...validBody, personalIbanProvider: 'CH9300762011623852957' }, metadata);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(describeRejectedValues((caught as ValidationFailedException).validationErrors)).toBe(
+      'personalIbanProvider=***',
+    );
   });
 });

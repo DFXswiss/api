@@ -114,6 +114,31 @@ export class ScryptUnconfirmedWriteError extends Error {
 export class ScryptOrderNotFoundError extends Error {}
 
 /**
+ * A trade whose venue reference this process has continuously observed reporting PENDING_NEW/PENDING_CANCEL/
+ * PENDING_REPLACE for longer than PENDING_STUCK_AFTER_MINUTES, and whose outstanding reference the venue then
+ * answered on an explicit cancel request with `ScryptCancellation.SETTLED` — one of two distinct qualities of
+ * answer, per that enum's own documentation: a terminal cancel with nothing filled, or the venue not
+ * recognising the reference at all (`SCRYPT_UNKNOWN_ORDER`), which is an inference from its own words rather
+ * than a statement about execution.
+ *
+ * The bound measures how long this process has continuously observed the reference as PENDING, beginning
+ * with its first such observation. It does not measure the age of the order itself.
+ *
+ * Both qualities of SETTLED carry the weight this error rests on, but not for the same reason. A terminal
+ * cancel states it outright. `UnknownOrder` rests on the inference documented at SCRYPT_UNKNOWN_ORDER: a
+ * venue that does not recognise a reference cannot execute anything under it. Deliberately NOT argued as
+ * the venue contradicting its own last answer — the status read here comes from the cached execution report
+ * and is not re-fetched before the cancel, so a live push may have moved it on in between, and "its last
+ * answer" is then not what this branch saw.
+ *
+ * Distinct from {@link ScryptOrderNotFoundError}: that one means the venue cannot find the order at all, an
+ * unresolved blind spot. Here the venue found it, answered PENDING, and then settled it on request — which is
+ * why the caller may fail the order instead of quarantining it. No change in behaviour from this wording,
+ * only a more honest account of what SETTLED actually rests on.
+ */
+export class ScryptOrderStuckPendingError extends Error {}
+
+/**
  * An amend the venue refused. The replacement was never created, so the ORIGINAL order is still live — and
  * its reference is spent, because the venue requires references to be unique. Carries it so the caller can
  * record it and derive a fresh one next time instead of reusing a burnt reference forever.
