@@ -772,6 +772,9 @@ describe('BuyService', () => {
       jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockRejectedValue(transientError);
+      // No collection account resolves, so the transfer fallback cannot apply and a BadRequest surfaces
+      // instead of the raw transient error.
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
 
       const resolution = service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData }, buy);
 
@@ -1050,6 +1053,9 @@ describe('BuyService', () => {
       jest
         .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
         .mockRejectedValue(new Error('transient issuance error'));
+      // No collection account resolves, so the outage surfaces as PersonalIbanIssuanceFailed rather than
+      // degrading to the transfer fallback — this pins the error discrimination, not the fallback.
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
 
       const resolution = service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData }, buy);
 
