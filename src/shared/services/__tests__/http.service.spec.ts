@@ -22,7 +22,7 @@ describe('HttpService signed responses', () => {
   it('verifies exact raw JSON bytes before parsing them', async () => {
     const rawBody = '{ "answer": 42 }';
     const headers = { signature: 'synthetic-signature', algorithm: 'rsa-sha512' };
-    nestHttp.request.mockReturnValue(of({ data: Buffer.from(rawBody), headers }));
+    nestHttp.request.mockReturnValue(of({ data: Buffer.from(rawBody), headers, status: 200 }));
     const responseVerifier = jest.fn();
 
     await expect(
@@ -33,7 +33,7 @@ describe('HttpService signed responses', () => {
       }),
     ).resolves.toEqual({ answer: 42 });
 
-    expect(responseVerifier).toHaveBeenCalledWith(Buffer.from(rawBody), headers);
+    expect(responseVerifier).toHaveBeenCalledWith(Buffer.from(rawBody), headers, 200);
     const transportConfig = nestHttp.request.mock.calls[0][0];
     expect(transportConfig.responseType).toBe('arraybuffer');
     expect(transportConfig.transformResponse[0](rawBody)).toBe(rawBody);
@@ -50,12 +50,12 @@ describe('HttpService signed responses', () => {
       Buffer.from([0xff]),
     ]);
     const headers = { signature: 'synthetic-signature', algorithm: 'rsa-sha512' };
-    nestHttp.request.mockReturnValue(of({ data: rawBytes, headers }));
+    nestHttp.request.mockReturnValue(of({ data: rawBytes, headers, status: 200 }));
     const responseVerifier = jest.fn();
 
     await service.request({ url: 'https://synthetic.example/signed', responseType: 'text', responseVerifier });
 
-    expect(responseVerifier).toHaveBeenCalledWith(rawBytes, headers);
+    expect(responseVerifier).toHaveBeenCalledWith(rawBytes, headers, 200);
     expect(Buffer.isBuffer(responseVerifier.mock.calls[0][0])).toBe(true);
   });
 
@@ -117,8 +117,27 @@ describe('HttpService signed responses', () => {
       originalError,
     );
 
-    expect(responseVerifier).toHaveBeenCalledWith(errorBody, headers);
+    expect(responseVerifier).toHaveBeenCalledWith(errorBody, headers, 401);
     expect(originalError.response.status).toBe(401);
+  });
+
+  it('hands the error-response status to the verifier so a rejected error body can still name it', async () => {
+    // The verifier's error replaces the axios error, so the status it carried is lost unless the
+    // verifier is told what it was. This is the outage case: an upstream 5xx whose error body is
+    // unsigned must not be reported as if it were an unsigned 200.
+    const errorBody = Buffer.from('<html>gateway error</html>');
+    const originalError = Object.assign(new Error('Request failed with status code 502'), {
+      response: { status: 502, data: errorBody, headers: {} },
+      isAxiosError: true,
+    });
+    nestHttp.request.mockReturnValue(throwError(() => originalError));
+    const responseVerifier = jest.fn((_body: Buffer, _headers: unknown, status?: number) => {
+      throw new Error(`unsigned response (HTTP ${status})`);
+    });
+
+    await expect(service.request({ url: 'https://synthetic.example/signed', responseVerifier })).rejects.toThrow(
+      'unsigned response (HTTP 502)',
+    );
   });
 
   it('propagates the verifier error instead of the original axios error when the error-response signature is invalid', async () => {
