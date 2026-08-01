@@ -170,13 +170,15 @@ describe('Partner statistic suppression', () => {
       expect(buckets[0].suppressed).toBe(true);
       expect(buckets[0].volume).toBeNull();
       expect(buckets[0].transactions).toBeNull();
-      // complementary may also suppress large if it is the only other filled
-      expect(suppressedCount).toBeGreaterThanOrEqual(1);
-      // total − visible must not recover sell=1
-      if (!buckets[1].suppressed) {
-        // if complementary did not fire (shouldn't with only one under), buy stays
-        expect(buckets[1].transactions?.sell).not.toBe(1);
-      }
+      // Exactly one under-k bucket → complementary also suppresses the only other filled bucket.
+      // (The old `if (!buckets[1].suppressed)` body was dead: complementary always fires here.)
+      expect(buckets[1].suppressed).toBe(true);
+      expect(buckets[1].transactions).toBeNull();
+      expect(suppressedCount).toBe(2);
+      // total − visible must not recover sell=1: every filled bucket is withheld.
+      const visibleSell = buckets.filter((b) => !b.suppressed).reduce((sum, b) => sum + (b.transactions?.sell ?? 0), 0);
+      expect(visibleSell).toBe(0);
+      expect(visibleSell).not.toBe(1);
     });
 
     it('keeps a bucket at exactly k when no complementary case applies', () => {

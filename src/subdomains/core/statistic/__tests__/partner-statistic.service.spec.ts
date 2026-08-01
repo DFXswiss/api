@@ -104,6 +104,7 @@ describe('PartnerStatisticService', () => {
   let amlFilterClauses: string[];
   let groupByCapture: GroupByCapture;
   let managerCreateQueryBuilderCalls: number;
+  let getQueryCalls: number;
   let activeUserCountFromManager: number | undefined;
   let concurrentQueries: number;
   let maxConcurrentQueries: number;
@@ -244,7 +245,11 @@ describe('PartnerStatisticService', () => {
       }
       return self();
     });
-    qb.getQuery = jest.fn(() => `SELECT user.id AS id FROM mock_${kind}_${state.direction ?? 'x'}`);
+    qb.getQuery = jest.fn(() => {
+      // countActiveUsers is the only production caller of getQuery (UNION legs).
+      getQueryCalls += 1;
+      return `SELECT user.id AS id FROM mock_${kind}_${state.direction ?? 'x'}`;
+    });
     qb.getParameters = jest.fn(() => ({
       walletId: state.walletId,
       check: 'Pass',
@@ -354,6 +359,7 @@ describe('PartnerStatisticService', () => {
     fixtures = new Map();
     groupByCapture = { groupBys: [], selectAliases: [] };
     managerCreateQueryBuilderCalls = 0;
+    getQueryCalls = 0;
     activeUserCountFromManager = undefined;
     concurrentQueries = 0;
     maxConcurrentQueries = 0;
@@ -381,6 +387,13 @@ describe('PartnerStatisticService', () => {
     service = module.get(PartnerStatisticService);
   });
 
+  // Fake timers must not leak into later tests (e.g. the concurrency cap that uses real setTimeout).
+  // useRealTimers only on the success path left a broken assertion with fake time still on —
+  // the next async test then hung until Jest's 5s timeout.
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   // --- PERIOD VALIDATION --- //
 
   describe('resolvePeriod', () => {
@@ -396,8 +409,6 @@ describe('PartnerStatisticService', () => {
       );
       const spanDays = (period.to.getTime() - period.from.getTime()) / (24 * 3600 * 1000);
       expect(spanDays).toBe(PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS);
-
-      jest.useRealTimers();
     });
 
     it('snaps from to UTC day start and to to exclusive end of day', () => {
@@ -562,7 +573,35 @@ describe('PartnerStatisticService', () => {
       await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
       await service.getTimeline(1, PERIOD_FROM, new Date('2024-05-30T00:00:00.000Z'), PartnerStatisticGranularity.DAY);
 
-      expect(groupByCapture.groupBys.length).toBeGreaterThan(0);
+      // Full ordered list from getStatistics breakdowns + getTimeline (runAll starts tasks
+      // left-to-right before the first await, so groupBy registration order is stable).
+      // arrayContaining / length>0 missed dropped payment/fiat/blockchain groupBys and
+      // extra columns (assetQuery still contributes outputAsset.blockchain).
+      const EXPECTED_GROUP_BYS = [
+        // aggregateAssets: BUY, SELL, SWAP
+        'outputAsset.name',
+        'outputAsset.blockchain',
+        'tx.inputAsset',
+        'inputAsset.blockchain',
+        'outputAsset.name',
+        'outputAsset.blockchain',
+        // aggregateFiatCurrencies: BUY input, SELL fiat
+        'tx.inputAsset',
+        'fiat.name',
+        // aggregateBlockchains: BUY, SWAP, SELL
+        'outputAsset.blockchain',
+        'outputAsset.blockchain',
+        'inputAsset.blockchain',
+        // aggregatePaymentMethods: BUY, SELL, SWAP
+        'transaction.sourceType',
+        'transaction.sourceType',
+        'transaction.sourceType',
+        // timelineByDirection: BUY, SELL, SWAP
+        "DATE_TRUNC('day', tx.created) AT TIME ZONE 'UTC'",
+        "DATE_TRUNC('day', tx.created) AT TIME ZONE 'UTC'",
+        "DATE_TRUNC('day', tx.created) AT TIME ZONE 'UTC'",
+      ];
+      expect(groupByCapture.groupBys).toEqual(EXPECTED_GROUP_BYS);
 
       const aliases = new Set(groupByCapture.selectAliases);
       for (const g of groupByCapture.groupBys) {
@@ -571,15 +610,6 @@ describe('PartnerStatisticService', () => {
         expect(isQualified || isDateTrunc).toBe(true);
         expect(aliases.has(g)).toBe(false);
       }
-
-      expect(groupByCapture.groupBys).toEqual(
-        expect.arrayContaining([
-          'tx.inputAsset',
-          'inputAsset.blockchain',
-          'outputAsset.name',
-          'outputAsset.blockchain',
-        ]),
-      );
     });
   });
 
@@ -638,6 +668,15 @@ describe('PartnerStatisticService', () => {
       expect(amlFilterClauses).toHaveLength(GET_STATISTICS_AML_FILTERS);
       expect(amlFilterClauses.every((c) => AML_EXACT_RE.test(c))).toBe(true);
 
+      // Total captured where/andWhere calls: 17×(scope+period+aml) + newUsers(scope+period)
+      // + allTime(scope) + referral(scope) = 55. Filtered pins (20/17/18) miss an extra
+      // unscoped WHERE that matches none of the three exact regexes (e.g. a free UNION leg).
+      const GET_STATISTICS_WHERE_CLAUSES = 55;
+      expect(whereClauses).toHaveLength(GET_STATISTICS_WHERE_CLAUSES);
+      // countActiveUsers UNION legs only — a WHERE-less 4th leg leaves 55/20/17/18 unchanged.
+      const GET_STATISTICS_ACTIVE_USER_UNION_LEGS = 3;
+      expect(getQueryCalls).toBe(GET_STATISTICS_ACTIVE_USER_UNION_LEGS);
+
       expect(result.totals.volume.buy).toBe(1000);
       expect(result.totals.volume.sell).toBe(200);
       expect(result.totals.volume.swap).toBe(50);
@@ -658,9 +697,13 @@ describe('PartnerStatisticService', () => {
       const result = await service.getStatistics(2, PERIOD_FROM, PERIOD_TO);
 
       const GET_STATISTICS_SCOPED_BUILDERS = 20;
+      const GET_STATISTICS_WHERE_CLAUSES = 55;
+      const GET_STATISTICS_ACTIVE_USER_UNION_LEGS = 3;
       const SCOPE_EXACT_RE = /^(?:user\.walletId|wallet\.id)\s*=\s*:walletId$/;
       const scopeClauses = whereClauses.filter((c) => SCOPE_EXACT_RE.test(c));
       expect(scopeClauses).toHaveLength(GET_STATISTICS_SCOPED_BUILDERS);
+      expect(whereClauses).toHaveLength(GET_STATISTICS_WHERE_CLAUSES);
+      expect(getQueryCalls).toBe(GET_STATISTICS_ACTIVE_USER_UNION_LEGS);
       expect(lastWalletIds.length).toBeGreaterThanOrEqual(GET_STATISTICS_SCOPED_BUILDERS);
       expect(lastWalletIds.every((id) => id === 2)).toBe(true);
 
@@ -1138,12 +1181,12 @@ describe('PartnerStatisticService', () => {
         PartnerStatisticGranularity.DAY,
       );
 
-      // getTimeline fans out BUY/SELL/SWAP; each timelineByDirection groupBy's DATE_TRUNC once.
-      // length>0 + for-over-survivors is vacuum-true if one direction drops the trunc.
-      const TIMELINE_DATE_TRUNC_GROUP_BYS = 3;
-      const truncs = groupByCapture.groupBys.filter((g) => g.includes('DATE_TRUNC'));
-      expect(truncs).toHaveLength(TIMELINE_DATE_TRUNC_GROUP_BYS);
-      for (const g of truncs) {
+      // getTimeline fans out BUY/SELL/SWAP; each timelineByDirection groupBy's DATE_TRUNC once
+      // and nothing else. Filtering to DATE_TRUNC survivors then pinning length missed an
+      // extra .addGroupBy('tx.id') (COUNT(DISTINCT user.id) collapses to 1 per tx row).
+      const TIMELINE_GROUP_BY = "DATE_TRUNC('day', tx.created) AT TIME ZONE 'UTC'";
+      expect(groupByCapture.groupBys).toEqual([TIMELINE_GROUP_BY, TIMELINE_GROUP_BY, TIMELINE_GROUP_BY]);
+      for (const g of groupByCapture.groupBys) {
         expect(g).toContain("AT TIME ZONE 'UTC'");
         // SQL unit is lowercase via PartnerStatisticDateTruncUnit, not the PascalCase API value.
         expect(g).toMatch(/DATE_TRUNC\('day',\s*tx\.created\)/);
@@ -1188,6 +1231,8 @@ describe('PartnerStatisticService', () => {
       // OR-extending a bound drops/breaks the match set. filter(includes)+every alone was
       // vacuum-true on survivors (and the previous comment claimed the opposite).
       const GET_STATISTICS_PERIOD_FILTERS = 18;
+      const GET_STATISTICS_WHERE_CLAUSES = 55;
+      const GET_STATISTICS_ACTIVE_USER_UNION_LEGS = 3;
       const PERIOD_EXACT_RE = /^(?:tx|user)\.created\s*>=\s*:from\s+AND\s+(?:tx|user)\.created\s*<\s*:to$/;
       const halfOpen = whereClauses.filter((c) => PERIOD_EXACT_RE.test(c));
       expect(halfOpen).toHaveLength(GET_STATISTICS_PERIOD_FILTERS);
@@ -1195,6 +1240,9 @@ describe('PartnerStatisticService', () => {
       const createdRelated = whereClauses.filter((c) => /created/i.test(c));
       expect(createdRelated).toHaveLength(GET_STATISTICS_PERIOD_FILTERS);
       expect(createdRelated.every((c) => !/BETWEEN/i.test(c))).toBe(true);
+      // Same total pin as wallet-scope isolation: an extra unscoped WHERE slips past 18 alone.
+      expect(whereClauses).toHaveLength(GET_STATISTICS_WHERE_CLAUSES);
+      expect(getQueryCalls).toBe(GET_STATISTICS_ACTIVE_USER_UNION_LEGS);
     });
   });
 
