@@ -208,7 +208,7 @@ describe('KycService getFileByUid protected-file access', () => {
 
       expect(error.getResponse()).toEqual({
         code: 'STAFF_KYC_REQUIRED',
-        message: expect.stringContaining('KYC level 50'),
+        message: expect.stringContaining('verified name'),
       });
     });
 
