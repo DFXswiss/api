@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
@@ -10,7 +10,8 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { AmlSourceType, TransactionAmlCheck } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
@@ -21,6 +22,8 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -28,16 +31,19 @@ import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-ou
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { EntityManager } from 'typeorm';
 import { BuyRepository } from '../../../routes/buy/buy.repository';
 import { BuyService } from '../../../routes/buy/buy.service';
 import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
 import { UpdateBuyCryptoDto } from '../../dto/update-buy-crypto.dto';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
-import { BuyCrypto } from '../../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../../entities/buy-crypto.entity';
+import { BuyCryptoFee } from '../../entities/buy-crypto-fees.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
@@ -329,6 +335,162 @@ describe('BuyCryptoService', () => {
   });
 
   describe('amlCheck audit trail', () => {
+    function reviewResetFixture(
+      kycStatus = KycStatus.CHECK,
+      amlCheck = CheckStatus.PASS,
+    ): { entity: BuyCrypto; manager: Record<'findOne' | 'create' | 'save' | 'update' | 'remove', jest.Mock> } {
+      const entity = createCustomBuyCrypto({
+        id: 7,
+        amlCheck,
+        amlReason: AmlReason.NA,
+        batch: null,
+        status: BuyCryptoStatus.MISSING_LIQUIDITY,
+        chargebackOutput: undefined,
+        chargebackAllowedDate: undefined,
+        isComplete: false,
+        fee: Object.assign(new BuyCryptoFee(), {
+          id: 8,
+          allowedTotalFeeAmount: 0.5,
+          feeReferenceAsset: { id: 9 },
+        }),
+        transaction: Object.assign(new Transaction(), {
+          id: 70,
+          userData: Object.assign(new UserData(), { id: 42 }),
+        }),
+      });
+      const manager = {
+        findOne: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 7 })
+          .mockResolvedValueOnce(entity)
+          .mockResolvedValueOnce({ id: 42, kycStatus })
+          .mockResolvedValueOnce({ id: 8 })
+          .mockResolvedValueOnce(entity.fee),
+        create: jest.fn((_type: unknown, dto: unknown) => dto),
+        save: jest.fn().mockResolvedValue(undefined),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+        remove: jest.fn().mockResolvedValue(undefined),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+      return { entity, manager };
+    }
+
+    it('atomically audits a review reset with the authenticated actor before the conditional update', async () => {
+      const { manager } = reviewResetFixture();
+
+      await service.resetAmlCheckForReview(
+        7,
+        { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA },
+        99,
+      );
+
+      expect(manager.create).toHaveBeenCalledWith(
+        TransactionAmlCheck,
+        expect.objectContaining({
+          entityType: 'BuyCrypto',
+          entityId: 7,
+          source: AmlSourceType.MANUAL_RESET,
+          previousAmlCheck: CheckStatus.PASS,
+          previousAmlReason: AmlReason.NA,
+          amlResponsible: 'UserData 99',
+          comment: expect.any(String),
+        }),
+      );
+      const auditPayload = JSON.parse(manager.create.mock.calls[0][1].comment as string);
+      expect(auditPayload).toMatchObject({
+        operation: 'BuyCryptoAmlReviewReset',
+        before: { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA, status: BuyCryptoStatus.MISSING_LIQUIDITY },
+        after: { amlCheck: null, amlReason: null, status: BuyCryptoStatus.CREATED },
+        deletedFee: { id: 8, allowedTotalFeeAmount: 0.5, feeReferenceAssetId: 9 },
+      });
+      expect(manager.save.mock.invocationCallOrder[0]).toBeLessThan(manager.update.mock.invocationCallOrder[0]);
+      expect(manager.update).toHaveBeenCalledWith(
+        BuyCrypto,
+        expect.objectContaining({
+          id: 7,
+          amlCheck: CheckStatus.PASS,
+          amlReason: AmlReason.NA,
+          status: BuyCryptoStatus.MISSING_LIQUIDITY,
+          isComplete: false,
+          batch: expect.anything(),
+          chargebackOutput: expect.anything(),
+          chargebackAllowedDate: expect.anything(),
+          chargebackAllowedDateUser: expect.anything(),
+        }),
+        expect.objectContaining({ amlCheck: null, amlReason: null }),
+      );
+    });
+
+    it('rejects a review reset until the user KYC status is Check', async () => {
+      const { manager } = reviewResetFixture(KycStatus.COMPLETED);
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow(ConflictException);
+
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('does not reactivate a transaction that was stopped before the review reset acquired its lock', async () => {
+      const { entity, manager } = reviewResetFixture();
+      entity.status = BuyCryptoStatus.STOPPED;
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('does not mutate or delete state when the immutable audit event cannot be saved', async () => {
+      const { manager } = reviewResetFixture();
+      manager.save.mockRejectedValue(new Error('audit unavailable'));
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow('audit unavailable');
+
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(manager.remove).not.toHaveBeenCalled();
+    });
+
+    it('rejects a stale review reset before writing the audit event', async () => {
+      const { manager } = reviewResetFixture(KycStatus.CHECK, CheckStatus.FAIL);
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow(ConflictException);
+
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('rolls back the audit event when the transaction is stopped concurrently', async () => {
+      const { manager } = reviewResetFixture();
+      manager.update.mockResolvedValue({ affected: 0 });
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow(ConflictException);
+
+      expect(manager.save).toHaveBeenCalledTimes(1);
+      expect(manager.update).toHaveBeenCalledWith(
+        BuyCrypto,
+        expect.objectContaining({ status: BuyCryptoStatus.MISSING_LIQUIDITY }),
+        expect.objectContaining({ status: BuyCryptoStatus.CREATED }),
+      );
+      expect(manager.remove).not.toHaveBeenCalled();
+    });
+
     it('records a MANUAL_RESET history row (previous verdict → null) when resetAmlCheckInternal clears the check', async () => {
       const entity = createCustomBuyCrypto({
         id: 7,
@@ -339,6 +501,7 @@ describe('BuyCryptoService', () => {
         chargebackAllowedDate: undefined,
         isComplete: false,
       });
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
       await service.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
 
@@ -365,9 +528,15 @@ describe('BuyCryptoService', () => {
       });
       jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
       jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
-      // save returns exactly what it is handed, so forceUpdate's amlCheck=undefined clobber survives and the
-      // test actually exercises update()'s in-memory coalesce (not a DB round-trip that would refill it).
-      jest.spyOn(buyCryptoRepo, 'save').mockImplementation(async (e) => e as BuyCrypto);
+      const manager = {
+        create: jest.fn((_type: unknown, value: unknown) => value),
+        save: jest.fn(async (_type: unknown, value: BuyCrypto) => value),
+      };
+      jest
+        .spyOn(service as any, 'runWithVersionLock')
+        .mockImplementation(async (_id: number, _version: number, run: (manager: EntityManager) => unknown) =>
+          run(manager as unknown as EntityManager),
+        );
 
       await service.update(
         11,
@@ -376,13 +545,7 @@ describe('BuyCryptoService', () => {
       );
 
       // the entity handed to the audit trail carries the persisted (unchanged) PENDING verdict, NOT undefined
-      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
-        expect.objectContaining({ amlCheck: CheckStatus.PENDING }),
-        'BuyCrypto',
-        AmlSourceType.MANUAL_UPDATE,
-        CheckStatus.PENDING,
-        null,
-      );
+      expect(manager.create).not.toHaveBeenCalled();
     });
 
     // Companion: an admin PUT that EXPLICITLY sets amlCheck: null is a genuine verdict clear that save()
@@ -397,7 +560,15 @@ describe('BuyCryptoService', () => {
       });
       jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
       jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
-      jest.spyOn(buyCryptoRepo, 'save').mockImplementation(async (e) => e as BuyCrypto);
+      const manager = {
+        create: jest.fn((_type: unknown, value: unknown) => value),
+        save: jest.fn(async (_type: unknown, value: BuyCrypto) => value),
+      };
+      jest
+        .spyOn(service as any, 'runWithVersionLock')
+        .mockImplementation(async (_id: number, _version: number, run: (manager: EntityManager) => unknown) =>
+          run(manager as unknown as EntityManager),
+        );
 
       await service.update(
         13,
@@ -406,13 +577,117 @@ describe('BuyCryptoService', () => {
       );
 
       // the explicit null verdict change survives the coalesce and is handed to the audit trail as null
-      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
-        expect.objectContaining({ amlCheck: null }),
-        'BuyCrypto',
-        AmlSourceType.MANUAL_UPDATE,
-        CheckStatus.PENDING,
-        null,
+      expect(manager.create).toHaveBeenCalledWith(
+        TransactionAmlCheck,
+        expect.objectContaining({
+          entityType: 'BuyCrypto',
+          entityId: 13,
+          source: AmlSourceType.MANUAL_UPDATE,
+          previousAmlCheck: CheckStatus.PENDING,
+          amlCheck: null,
+        }),
       );
+    });
+
+    it('rejects a generic compliance update before its callback when the locked version changed', async () => {
+      const manager = {
+        findOne: jest.fn().mockResolvedValue({ id: 15, version: 6 }),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+
+      const sideEffect = jest.fn();
+      await expect((service as any).runWithVersionLock(15, 5, sideEffect)).rejects.toThrow(ConflictException);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        BuyCrypto,
+        expect.objectContaining({
+          where: { id: 15 },
+          select: { id: true, version: true },
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      expect(sideEffect).not.toHaveBeenCalled();
+    });
+
+    it('does not run manual AML post-processing after the saved AML state changed', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 17,
+        version: 8,
+        status: BuyCryptoStatus.CREATED,
+        amlCheck: CheckStatus.PASS,
+        amlReason: AmlReason.NA,
+        isComplete: false,
+      });
+      const manager = { findOne: jest.fn().mockResolvedValue(null) };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+      const postProcess = jest.fn();
+
+      await expect((service as any).runIfAmlStateCurrent(entity, postProcess)).resolves.toBe(false);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        BuyCrypto,
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 17, version: 8, amlCheck: CheckStatus.PASS }),
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      expect(postProcess).not.toHaveBeenCalled();
+    });
+
+    it('requires the dedicated refund endpoint for checkout refunds in a generic compliance update', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 18,
+        checkoutTx: { id: 22, paymentId: 'pay-22' } as any,
+        isComplete: false,
+      });
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
+      jest
+        .spyOn(service as any, 'runWithVersionLock')
+        .mockImplementation(async (_id: number, _version: number, run: (manager: EntityManager) => unknown) =>
+          run({} as EntityManager),
+        );
+
+      await expect(
+        service.update(
+          18,
+          Object.assign(new UpdateBuyCryptoDto(), { chargebackAllowedDate: new Date() }),
+          AmlSourceType.MANUAL_UPDATE,
+        ),
+      ).rejects.toThrow('Checkout refunds must use the dedicated refund endpoint');
+
+      expect(checkoutService.refundPayment).not.toHaveBeenCalled();
+    });
+
+    it('does not reset AML or reactivate a stopped BuyCrypto after a phone call', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 16,
+        amlCheck: CheckStatus.FAIL,
+        amlReason: AmlReason.MANUAL_CHECK_PHONE,
+        status: BuyCryptoStatus.STOPPED,
+        isComplete: false,
+      });
+
+      await expect(service.resetAmlCheckInternal(entity, AmlSourceType.PHONE_CALL_RESET)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
     });
   });
 

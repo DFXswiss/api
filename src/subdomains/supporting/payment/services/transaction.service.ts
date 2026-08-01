@@ -1,4 +1,11 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
@@ -112,6 +119,7 @@ export class TransactionService {
   async updateInternal(
     entity: Transaction,
     dto: UpdateTransactionInternalDto | UpdateTransactionDto,
+    manager?: EntityManager,
   ): Promise<Transaction> {
     Object.assign(entity, dto);
 
@@ -123,7 +131,7 @@ export class TransactionService {
         entity.supportIssues = [...(entity.supportIssues ?? []), ...(entity.request.supportIssues ?? [])];
     }
 
-    return this.repo.save(entity);
+    return manager ? manager.save(Transaction, entity) : this.repo.save(entity);
   }
 
   async stop(id: number): Promise<void> {
@@ -134,8 +142,10 @@ export class TransactionService {
     if (entity.buyCrypto.status === BuyCryptoStatus.STOPPED)
       throw new BadRequestException('Transaction is already stopped');
 
-    entity.buyCrypto.stop();
-    await this.buyCryptoRepo.save(entity.buyCrypto);
+    const previousStatus = entity.buyCrypto.status;
+    const [buyCryptoId, update] = entity.buyCrypto.stop();
+    const result = await this.buyCryptoRepo.update({ id: buyCryptoId, status: previousStatus }, update);
+    if (result.affected !== 1) throw new ConflictException('BuyCrypto status changed concurrently');
   }
 
   async getTransactionById(

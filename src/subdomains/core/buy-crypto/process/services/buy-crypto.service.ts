@@ -21,6 +21,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
+import { AmlSourceType, TransactionAmlCheck } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
@@ -42,6 +43,7 @@ import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -60,9 +62,8 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { Between, EntityManager, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
-import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
 import { canManualPass, ManualPassBlacklistErrors } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -71,7 +72,9 @@ import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
+import { ResetBuyCryptoAmlReviewDto } from '../dto/reset-buy-crypto-aml-review.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
+import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto, BuyCryptoEditableAmlCheck, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
@@ -80,6 +83,20 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 @Injectable()
 export class BuyCryptoService implements OnModuleInit {
   private readonly logger = new DfxLogger(BuyCryptoService);
+
+  private static scalarAuditSnapshot(record: object): Record<string, unknown> {
+    return Object.fromEntries(
+      Object.entries(record)
+        .filter(
+          ([, value]) =>
+            value === null ||
+            value === undefined ||
+            value instanceof Date ||
+            ['string', 'number', 'boolean'].includes(typeof value),
+        )
+        .map(([key, value]) => [key, value instanceof Date ? value.toISOString() : value]),
+    );
+  }
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -135,6 +152,7 @@ export class BuyCryptoService implements OnModuleInit {
       transaction: { userData: { id: userData.id } },
       amlCheck: CheckStatus.FAIL,
       amlReason: In(PhoneAmlReasons),
+      status: Not(BuyCryptoStatus.STOPPED),
       isComplete: false,
       chargebackAllowedDate: IsNull(),
     });
@@ -313,85 +331,107 @@ export class BuyCryptoService implements OnModuleInit {
       if (!update.bankData) throw new NotFoundException('BankData not found');
     }
 
-    if ((dto.bankDataApproved != null || dto.bankDataManualApproved != null) && (update.bankData || entity.bankData))
-      await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
-        approved: dto.bankDataApproved,
-        manualApproved: dto.bankDataManualApproved,
-      });
-
-    if (dto.amlCheck === CheckStatus.PASS && ManualPassBlacklistErrors.some((b) => entity.comment?.includes(b)))
-      throw new BadRequestException('Blacklisted aml error cannot set Pass');
-
-    if (dto.chargebackAllowedDate) {
-      if (entity.bankTx && !entity.chargebackOutput) {
-        if (!dto.chargebackCreditorName && !entity.creditorData)
-          throw new BadRequestException('Creditor data is required for chargeback');
-
-        const inputCurrency = await this.transactionHelper.getRefundInputCurrency(entity);
-        const chargebackIban = dto.chargebackIban ?? entity.chargebackIban;
-        const chargebackCurrency = await this.transactionHelper.getRefundCurrency(inputCurrency, chargebackIban);
-
-        update.chargebackOutput = await this.fiatOutputService.createInternal(
-          FiatOutputType.BUY_CRYPTO_FAIL,
-          { buyCrypto: entity },
-          entity.id,
-          false,
-          {
-            iban: chargebackIban,
-            amount: entity.chargebackAmount ?? entity.bankTx.amount,
-            currency: chargebackCurrency.name,
-            name: dto.chargebackCreditorName ?? entity.creditorData?.name,
-            address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
-            houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
-            zip: dto.chargebackCreditorZip ?? entity.creditorData?.zip,
-            city: dto.chargebackCreditorCity ?? entity.creditorData?.city,
-            country: dto.chargebackCreditorCountry ?? entity.creditorData?.country,
-          },
-        );
-      }
-
-      if (entity.checkoutTx) {
-        await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
-        Object.assign(dto, { isComplete: true, chargebackDate: new Date() });
-      }
+    let newRoute: Buy | Swap | undefined;
+    if (dto.buyId) {
+      if (!entity.buy) throw new BadRequestException(`Cannot update buy route: entity is not a buy`);
+      newRoute = await this.getBuy(dto.buyId);
+    }
+    if (dto.cryptoRouteId) {
+      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot update crypto route: entity is not a crypto`);
+      newRoute = await this.getCryptoRoute(dto.cryptoRouteId);
     }
 
-    if (dto.chargebackIban && entity.amlCheck === CheckStatus.FAIL) entity.mailSendDate = null;
+    const expectedVersion = entity.version;
+    const result = await this.runWithVersionLock(entity.id, expectedVersion, async (manager) => {
+      if ((dto.bankDataApproved != null || dto.bankDataManualApproved != null) && (update.bankData || entity.bankData))
+        await this.bankDataService.updateBankDataInternal(
+          update.bankData ?? entity.bankData,
+          {
+            approved: dto.bankDataApproved,
+            manualApproved: dto.bankDataManualApproved,
+          },
+          manager,
+        );
 
-    update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
+      if (dto.amlCheck === CheckStatus.PASS && ManualPassBlacklistErrors.some((b) => entity.comment?.includes(b)))
+        throw new BadRequestException('Blacklisted aml error cannot set Pass');
 
-    const forceUpdate: Partial<BuyCrypto> = {
-      ...((BuyCryptoEditableAmlCheck.includes(entity.amlCheck) ||
-        (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
-      !entity.isComplete &&
-      (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
-        ? {
-            amlCheck: update.amlCheck,
-            mailSendDate: null,
-            amlReason: update.amlReason,
-            comment: update.comment,
-            ...(update.amlCheck === CheckStatus.PASS
-              ? {
-                  priceDefinitionAllowedDate:
-                    update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
-                }
-              : undefined),
-          }
-        : undefined),
-      isComplete: dto.isComplete,
-    };
+      if (dto.chargebackAllowedDate) {
+        if (entity.checkoutTx) throw new BadRequestException('Checkout refunds must use the dedicated refund endpoint');
+        if (entity.bankTx && !entity.chargebackOutput) {
+          if (!dto.chargebackCreditorName && !entity.creditorData)
+            throw new BadRequestException('Creditor data is required for chargeback');
 
-    const amlCheckBefore = entity.amlCheck;
-    const amlReasonBefore = entity.amlReason;
+          const inputCurrency = await this.transactionHelper.getRefundInputCurrency(entity);
+          const chargebackIban = dto.chargebackIban ?? entity.chargebackIban;
+          const chargebackCurrency = await this.transactionHelper.getRefundCurrency(inputCurrency, chargebackIban);
 
-    entity = await this.buyCryptoRepo.save(
-      Object.assign(new BuyCrypto(), {
-        ...update,
-        ...Util.removeNullFields(entity),
-        ...forceUpdate,
-        fee: entity.fee,
-      }),
-    );
+          update.chargebackOutput = await this.fiatOutputService.createInternal(
+            FiatOutputType.BUY_CRYPTO_FAIL,
+            { buyCrypto: entity },
+            entity.id,
+            false,
+            {
+              iban: chargebackIban,
+              amount: entity.chargebackAmount ?? entity.bankTx.amount,
+              currency: chargebackCurrency.name,
+              name: dto.chargebackCreditorName ?? entity.creditorData?.name,
+              address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
+              houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
+              zip: dto.chargebackCreditorZip ?? entity.creditorData?.zip,
+              city: dto.chargebackCreditorCity ?? entity.creditorData?.city,
+              country: dto.chargebackCreditorCountry ?? entity.creditorData?.country,
+            },
+            manager,
+          );
+        }
+      }
+
+      if (dto.chargebackIban && entity.amlCheck === CheckStatus.FAIL) entity.mailSendDate = null;
+
+      update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
+
+      const forceUpdate: Partial<BuyCrypto> = {
+        ...((BuyCryptoEditableAmlCheck.includes(entity.amlCheck) ||
+          (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
+        !entity.isComplete &&
+        (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
+          ? {
+              amlCheck: update.amlCheck,
+              mailSendDate: null,
+              amlReason: update.amlReason,
+              comment: update.comment,
+              ...(update.amlCheck === CheckStatus.PASS
+                ? {
+                    priceDefinitionAllowedDate:
+                      update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
+                  }
+                : undefined),
+            }
+          : undefined),
+        isComplete: dto.isComplete,
+        ...(dto.chargebackIban && entity.amlCheck === CheckStatus.FAIL ? { mailSendDate: null } : undefined),
+      };
+
+      const amlCheckBefore = entity.amlCheck;
+      const amlReasonBefore = entity.amlReason;
+      let savedEntity = await manager.save(
+        BuyCrypto,
+        Object.assign(new BuyCrypto(), {
+          ...update,
+          ...Util.removeNullFields(entity),
+          ...forceUpdate,
+          fee: entity.fee,
+        }),
+      );
+      if (newRoute) savedEntity = await this.changeRoute(savedEntity, newRoute, manager);
+      savedEntity.amlCheck = savedEntity.amlCheck === undefined ? amlCheckBefore : savedEntity.amlCheck;
+      savedEntity.amlReason = savedEntity.amlReason === undefined ? amlReasonBefore : savedEntity.amlReason;
+      await this.saveAmlAudit(manager, savedEntity, amlSource, amlCheckBefore, amlReasonBefore);
+      return { entity: savedEntity, forceUpdate, amlCheckBefore, amlReasonBefore };
+    });
+    entity = result.entity;
+    const { forceUpdate, amlCheckBefore, amlReasonBefore } = result;
 
     // `forceUpdate` injects amlCheck/amlReason: undefined when the admin PUT omits them; save() skips
     // undefined, so the DB keeps the prior verdict. Restore ONLY the undefined-clobber to the persisted
@@ -400,18 +440,8 @@ export class BuyCryptoService implements OnModuleInit {
     entity.amlCheck = entity.amlCheck === undefined ? amlCheckBefore : entity.amlCheck;
     entity.amlReason = entity.amlReason === undefined ? amlReasonBefore : entity.amlReason;
 
-    await this.transactionAmlCheckService.createFromEntity(
-      entity,
-      'BuyCrypto',
-      amlSource,
-      amlCheckBefore,
-      amlReasonBefore,
-    );
-
     if (forceUpdate.amlCheck || (!amlCheckBefore && update.amlCheck)) {
       if (update.amlCheck === CheckStatus.PASS) {
-        await this.buyCryptoNotificationService.paymentProcessing(entity);
-
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
@@ -426,24 +456,13 @@ export class BuyCryptoService implements OnModuleInit {
           inputReferenceCurrency,
         );
 
-        await this.amlService.postProcessing(entity, last30dVolume);
+        await this.runIfAmlStateCurrent(entity, async (manager) => {
+          await this.buyCryptoNotificationService.paymentProcessing(entity, manager);
+          await this.amlService.postProcessing(entity, last30dVolume);
+        });
       } else {
-        await this.amlService.postProcessing(entity, undefined);
+        await this.runIfAmlStateCurrent(entity, () => this.amlService.postProcessing(entity, undefined));
       }
-    }
-
-    // route change
-    if (dto.buyId) {
-      if (!entity.buy) throw new BadRequestException(`Cannot update buy route: entity is not a buy`);
-
-      const buy = await this.getBuy(dto.buyId);
-      await this.changeRoute(entity, buy);
-    }
-    if (dto.cryptoRouteId) {
-      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot update crypto route: entity is not a crypto`);
-
-      const swap = await this.getCryptoRoute(dto.cryptoRouteId);
-      await this.changeRoute(entity, swap);
     }
 
     // create sift transaction (non-blocking)
@@ -467,7 +486,76 @@ export class BuyCryptoService implements OnModuleInit {
     return entity;
   }
 
-  private async changeRoute(entity: BuyCrypto, route: Buy | Swap) {
+  private async runWithVersionLock<T>(
+    id: number,
+    expectedVersion: number,
+    run: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    return this.buyCryptoRepo.manager.transaction(async (manager) => {
+      const current = await manager.findOne(BuyCrypto, {
+        where: { id },
+        select: { id: true, version: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!current) throw new NotFoundException('Buy-crypto not found');
+      if (current.version !== expectedVersion) throw new ConflictException('BuyCrypto changed concurrently');
+      return run(manager);
+    });
+  }
+
+  private async runIfAmlStateCurrent(
+    entity: BuyCrypto,
+    run: (manager: EntityManager) => Promise<void>,
+  ): Promise<boolean> {
+    return this.buyCryptoRepo.manager.transaction(async (manager) => {
+      const current = await manager.findOne(BuyCrypto, {
+        where: {
+          id: entity.id,
+          version: entity.version,
+          status: entity.status,
+          amlCheck: entity.amlCheck == null ? IsNull() : entity.amlCheck,
+          amlReason: entity.amlReason == null ? IsNull() : entity.amlReason,
+          isComplete: entity.isComplete,
+        },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!current) return false;
+
+      await run(manager);
+      return true;
+    });
+  }
+
+  private async saveAmlAudit(
+    manager: EntityManager,
+    entity: BuyCrypto,
+    source: AmlSourceType,
+    previousAmlCheck?: CheckStatus,
+    previousAmlReason?: AmlReason,
+  ): Promise<void> {
+    if (previousAmlCheck === entity.amlCheck && previousAmlReason === entity.amlReason) return;
+
+    const audit = manager.create(TransactionAmlCheck, {
+      transaction: entity.transaction,
+      entityType: 'BuyCrypto',
+      entityId: entity.id,
+      source,
+      previousAmlCheck,
+      amlCheck: entity.amlCheck,
+      previousAmlReason,
+      amlReason: entity.amlReason,
+      amlResponsible: entity.amlResponsible,
+      comment: entity.comment,
+      priceDefinitionAllowedDate: entity.priceDefinitionAllowedDate,
+      highRisk: entity.highRisk,
+    });
+    await manager.save(TransactionAmlCheck, audit);
+  }
+
+  private async changeRoute(entity: BuyCrypto, route: Buy | Swap, manager: EntityManager): Promise<BuyCrypto> {
     // check tx status
     if (
       [
@@ -496,17 +584,23 @@ export class BuyCryptoService implements OnModuleInit {
 
     entity.resetFees();
 
-    await this.buyCryptoRepo.save(Object.assign(entity, update));
+    entity = await manager.save(BuyCrypto, Object.assign(entity, update));
 
     // update depending entities
-    await this.buyCryptoRepo.updateFee(entity.fee.id, { feeReferenceAsset: route.asset });
+    await manager.update(BuyCryptoFee, entity.fee.id, { feeReferenceAsset: route.asset });
 
     if (entity.transaction.user.id !== route.user.id)
-      entity.transaction = await this.transactionService.updateInternal(entity.transaction, {
-        user: route.user,
-      });
+      entity.transaction = await this.transactionService.updateInternal(
+        entity.transaction,
+        {
+          user: route.user,
+        },
+        manager,
+      );
 
-    if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
+    if (entity.bankTx) await manager.update(BankTx, entity.bankTx.id, { updated: new Date() });
+
+    return entity;
   }
 
   async refundBuyCrypto(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
@@ -774,11 +868,101 @@ export class BuyCryptoService implements OnModuleInit {
     await this.updateRefVolume([...new Set(refs)]);
   }
 
-  async resetAmlCheck(id: number): Promise<void> {
-    const entity = await this.buyCryptoRepo.findOne({ where: { id }, relations: { chargebackOutput: true } });
-    if (!entity) throw new NotFoundException('BuyCrypto not found');
+  async resetAmlCheckForReview(id: number, dto: ResetBuyCryptoAmlReviewDto, actorUserDataId: number): Promise<void> {
+    await this.buyCryptoRepo.manager.transaction(async (manager) => {
+      const lockedEntity = await manager.findOne(BuyCrypto, {
+        where: { id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedEntity) throw new NotFoundException('BuyCrypto not found');
 
-    await this.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
+      const entity = await manager.findOne(BuyCrypto, {
+        where: { id },
+        relations: { chargebackOutput: true, fee: true, transaction: { userData: true } },
+      });
+      if (!entity) throw new NotFoundException('BuyCrypto not found');
+
+      const userDataId = entity.userData?.id;
+      if (!userDataId) throw new BadRequestException('BuyCrypto has no user data');
+      const userData = await manager.findOne(UserData, {
+        where: { id: userDataId },
+        select: { id: true, kycStatus: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_read' },
+      });
+      if (!userData || userData.kycStatus !== KycStatus.CHECK)
+        throw new ConflictException('KYC status must be Check before resetting AML');
+      if (
+        entity.isComplete ||
+        entity.status === BuyCryptoStatus.STOPPED ||
+        entity.batch ||
+        entity.chargebackOutput ||
+        entity.chargebackAllowedDate ||
+        entity.chargebackAllowedDateUser
+      )
+        throw new BadRequestException('BuyCrypto is already complete or payout initiated');
+      if (entity.amlCheck !== dto.expectedAmlCheck || (entity.amlReason ?? null) !== dto.expectedAmlReason)
+        throw new ConflictException('BuyCrypto AML status changed concurrently');
+
+      const previousAmlCheck = entity.amlCheck;
+      const previousAmlReason = entity.amlReason;
+      const previousStatus = entity.status;
+      let fee = entity.fee;
+      if (fee) {
+        await manager.findOne(BuyCryptoFee, {
+          where: { id: fee.id },
+          select: { id: true },
+          loadEagerRelations: false,
+          lock: { mode: 'pessimistic_write' },
+        });
+        fee = await manager.findOne(BuyCryptoFee, { where: { id: fee.id }, relations: { feeReferenceAsset: true } });
+      }
+      const beforeReset = { ...entity };
+      const [, update] = entity.resetAmlCheck();
+      const before = Object.fromEntries(
+        (Object.keys(update) as Array<keyof BuyCrypto>).map((key) => [key, beforeReset[key] ?? null]),
+      );
+      const deletedFee = fee
+        ? {
+            ...BuyCryptoService.scalarAuditSnapshot(fee),
+            feeReferenceAssetId: fee.feeReferenceAsset?.id ?? null,
+          }
+        : null;
+
+      const audit = manager.create(TransactionAmlCheck, {
+        transaction: entity.transaction,
+        entityType: 'BuyCrypto',
+        entityId: entity.id,
+        source: AmlSourceType.MANUAL_RESET,
+        previousAmlCheck,
+        previousAmlReason,
+        amlResponsible: `UserData ${actorUserDataId}`,
+        comment: JSON.stringify({ operation: 'BuyCryptoAmlReviewReset', before, after: update, deletedFee }),
+      });
+      await manager.save(TransactionAmlCheck, audit);
+
+      const result = await manager.update(
+        BuyCrypto,
+        {
+          id,
+          amlCheck: dto.expectedAmlCheck,
+          amlReason:
+            dto.expectedAmlReason === null || dto.expectedAmlReason === undefined ? IsNull() : dto.expectedAmlReason,
+          status: previousStatus,
+          isComplete: false,
+          batch: IsNull(),
+          chargebackOutput: IsNull(),
+          chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: IsNull(),
+        },
+        update,
+      );
+      if (result.affected !== 1) throw new ConflictException('BuyCrypto AML status changed concurrently');
+
+      if (fee) await manager.remove(BuyCryptoFee, fee);
+    });
   }
 
   // Manual re-trigger of the Scorechain on-chain screening for an existing buy-crypto: screens the
@@ -807,8 +991,14 @@ export class BuyCryptoService implements OnModuleInit {
   }
 
   async resetAmlCheckInternal(entity: BuyCrypto, source: AmlSourceType): Promise<void> {
-    if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete || entity.chargebackAllowedDate)
-      throw new BadRequestException('BuyCrypto is already complete or payout initiated');
+    if (
+      entity.isComplete ||
+      entity.status === BuyCryptoStatus.STOPPED ||
+      entity.batch ||
+      entity.chargebackOutput?.isComplete ||
+      entity.chargebackAllowedDate
+    )
+      throw new BadRequestException('BuyCrypto is already complete, stopped or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');
 
     const fee = entity.fee;
@@ -816,8 +1006,23 @@ export class BuyCryptoService implements OnModuleInit {
 
     const previousAmlCheck = entity.amlCheck;
     const previousAmlReason = entity.amlReason;
-
-    await this.buyCryptoRepo.update(...entity.resetAmlCheck());
+    const previousStatus = entity.status;
+    const previousVersion = entity.version;
+    const [, update] = entity.resetAmlCheck();
+    const updateResult = await this.buyCryptoRepo.update(
+      {
+        id: entity.id,
+        version: previousVersion,
+        amlCheck: previousAmlCheck,
+        amlReason: previousAmlReason === null || previousAmlReason === undefined ? IsNull() : previousAmlReason,
+        status: previousStatus,
+        isComplete: false,
+        batch: IsNull(),
+        chargebackAllowedDate: IsNull(),
+      },
+      update,
+    );
+    if (updateResult.affected !== 1) throw new ConflictException('BuyCrypto changed concurrently');
     await this.transactionAmlCheckService.createFromEntity(
       entity,
       'BuyCrypto',

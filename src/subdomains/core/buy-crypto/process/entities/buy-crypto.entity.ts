@@ -37,7 +37,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne, VersionColumn } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { ScorechainOutcome } from '../../../aml/enums/scorechain-outcome.enum';
@@ -73,6 +73,9 @@ export interface CreditorData {
 // Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
 @Index((b: BuyCrypto) => [b.updated, b.id])
 export class BuyCrypto extends IEntity {
+  @VersionColumn()
+  version: number;
+
   // References
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()

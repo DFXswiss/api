@@ -73,7 +73,7 @@ export class UserDataController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: SetKycStatusCheckDto,
   ): Promise<void> {
-    if (jwt.account == null) throw new ForbiddenException('Staff account is missing');
+    if (jwt.account === null || jwt.account === undefined) throw new ForbiddenException('Staff account is missing');
     return this.userDataService.setKycStatusCheck(id, dto.expectedKycStatus, jwt.account);
   }
 

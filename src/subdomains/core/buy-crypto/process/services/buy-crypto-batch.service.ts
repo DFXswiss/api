@@ -6,6 +6,7 @@ import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
@@ -93,7 +94,20 @@ export class BuyCryptoBatchService {
       for (const riskyTx of riskyTxs) {
         const previousAmlCheck = riskyTx.amlCheck;
         const previousAmlReason = riskyTx.amlReason;
-        await this.buyCryptoRepo.update(...riskyTx.resetAmlCheck());
+        const previousStatus = riskyTx.status;
+        const previousVersion = riskyTx.version;
+        const [, update] = riskyTx.resetAmlCheck();
+        const result = await this.buyCryptoRepo.update(
+          {
+            id: riskyTx.id,
+            version: previousVersion,
+            amlCheck: previousAmlCheck,
+            amlReason: previousAmlReason === null || previousAmlReason === undefined ? IsNull() : previousAmlReason,
+            status: previousStatus,
+          },
+          update,
+        );
+        if (result.affected !== 1) continue;
         await this.transactionAmlCheckService.createFromEntity(
           riskyTx,
           'BuyCrypto',
@@ -119,7 +133,8 @@ export class BuyCryptoBatchService {
       const batches = await this.createBatches(txWithReferenceAmount);
 
       for (const batch of batches) {
-        const savedBatch = await this.buyCryptoBatchRepo.save(batch);
+        const savedBatch = await this.saveBatchIfTransactionsUnchanged(batch);
+        if (!savedBatch) continue;
         this.logger.verbose(
           `Created buy-crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset.uniqueName}. Transaction(s) count ${batch.transactions.length}`,
         );
@@ -127,6 +142,35 @@ export class BuyCryptoBatchService {
     } catch (e) {
       this.logger.error('Error during buy-crypto batching:', e);
     }
+  }
+
+  private async saveBatchIfTransactionsUnchanged(batch: BuyCryptoBatch): Promise<BuyCryptoBatch | undefined> {
+    return this.buyCryptoBatchRepo.manager.transaction(async (manager) => {
+      for (const transaction of batch.transactions) {
+        const claim = await manager.findOne(BuyCrypto, {
+          where: {
+            id: transaction.id,
+            version: transaction.version,
+            amlCheck: CheckStatus.PASS,
+            status: In([
+              BuyCryptoStatus.CREATED,
+              BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
+              BuyCryptoStatus.PRICE_INVALID,
+              BuyCryptoStatus.MISSING_LIQUIDITY,
+            ]),
+            priceDefinitionAllowedDate: Not(IsNull()),
+            batch: IsNull(),
+            isComplete: false,
+          },
+          select: { id: true },
+          loadEagerRelations: false,
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!claim) return undefined;
+      }
+
+      return manager.save(BuyCryptoBatch, batch);
+    });
   }
 
   private async defineReferenceAmount(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
@@ -394,18 +438,44 @@ export class BuyCryptoBatchService {
       const minDeficit = Util.round(minTargetAmount - availableTargetAmount, 8);
       const deficit = Util.round(targetAmount - availableTargetAmount, 8);
 
-      await this.setMissingLiquidityStatus(transactions);
+      if (!(await this.setMissingLiquidityStatus(transactions))) return;
 
       // order liquidity
       try {
-        const asset = oa;
-        const pipeline = await this.liquidityService.buyLiquidity(asset.id, minDeficit, deficit, true);
-        this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
+        await this.buyCryptoRepo.manager.transaction(async (manager) => {
+          for (const transaction of transactions) {
+            const locked = await manager.findOne(BuyCrypto, {
+              where: {
+                id: transaction.id,
+                version: transaction.version,
+                amlCheck: CheckStatus.PASS,
+                status: BuyCryptoStatus.MISSING_LIQUIDITY,
+                batch: IsNull(),
+                isComplete: false,
+              },
+              select: { id: true },
+              loadEagerRelations: false,
+              lock: { mode: 'pessimistic_write' },
+            });
+            if (!locked) return;
+          }
 
-        await this.buyCryptoRepo.update(
-          { id: In(batch.transactions.map((b) => b.id)) },
-          { liquidityPipeline: pipeline },
-        );
+          const pipeline = await this.liquidityService.buyLiquidity(oa.id, minDeficit, deficit, true);
+          this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
+
+          const result = await manager.update(
+            BuyCrypto,
+            {
+              id: In(transactions.map((transaction) => transaction.id)),
+              amlCheck: CheckStatus.PASS,
+              status: BuyCryptoStatus.MISSING_LIQUIDITY,
+              batch: IsNull(),
+              isComplete: false,
+            },
+            { liquidityPipeline: pipeline },
+          );
+          if (result.affected !== transactions.length) throw new Error('BuyCrypto changed before pipeline assignment');
+        });
       } catch (e) {
         this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
 
@@ -490,25 +560,55 @@ export class BuyCryptoBatchService {
 
   private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      await this.buyCryptoRepo.update(...tx.waitingForLowerFee());
+      const previousStatus = tx.status;
+      const previousVersion = tx.version;
+      const [, update] = tx.waitingForLowerFee();
+      const result = await this.buyCryptoRepo.update(
+        { id: tx.id, version: previousVersion, amlCheck: CheckStatus.PASS, status: previousStatus },
+        update,
+      );
+      if (result.affected === 1 && previousVersion !== undefined) tx.version = previousVersion + 1;
     }
   }
 
   private async setPriceInvalidStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      await this.buyCryptoRepo.update(...tx.setPriceInvalidStatus());
+      const previousStatus = tx.status;
+      const previousVersion = tx.version;
+      const [, update] = tx.setPriceInvalidStatus();
+      const result = await this.buyCryptoRepo.update(
+        { id: tx.id, version: previousVersion, amlCheck: CheckStatus.PASS, status: previousStatus },
+        update,
+      );
+      if (result.affected === 1 && previousVersion !== undefined) tx.version = previousVersion + 1;
     }
   }
 
-  private async setMissingLiquidityStatus(transactions: BuyCrypto[]): Promise<void> {
+  private async setMissingLiquidityStatus(transactions: BuyCrypto[]): Promise<boolean> {
     for (const tx of transactions) {
-      await this.buyCryptoRepo.update(...tx.setMissingLiquidityStatus());
+      const previousStatus = tx.status;
+      const previousVersion = tx.version;
+      const [, update] = tx.setMissingLiquidityStatus();
+      const result = await this.buyCryptoRepo.update(
+        { id: tx.id, version: previousVersion, amlCheck: CheckStatus.PASS, status: previousStatus },
+        update,
+      );
+      if (result.affected !== 1) return false;
+      if (previousVersion !== undefined) tx.version = previousVersion + 1;
     }
+    return true;
   }
 
   private async resetTransactionButKeepState(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      await this.buyCryptoRepo.update(...tx.resetTransactionButKeepState());
+      const previousStatus = tx.status;
+      const previousVersion = tx.version;
+      const [, update] = tx.resetTransactionButKeepState();
+      const result = await this.buyCryptoRepo.update(
+        { id: tx.id, version: previousVersion, amlCheck: CheckStatus.PASS, status: previousStatus },
+        update,
+      );
+      if (result.affected === 1 && previousVersion !== undefined) tx.version = previousVersion + 1;
     }
   }
 }

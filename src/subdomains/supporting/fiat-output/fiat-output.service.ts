@@ -10,6 +10,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { EntityManager } from 'typeorm';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
@@ -141,6 +142,7 @@ export class FiatOutputService {
     originEntityId: number,
     createReport = false,
     inputCreditorData?: Partial<FiatOutput>,
+    manager?: EntityManager,
   ): Promise<FiatOutput> {
     let creditorData: Partial<FiatOutput> = inputCreditorData ?? {};
 
@@ -173,7 +175,8 @@ export class FiatOutputService {
       }
     }
 
-    const entity = this.fiatOutputRepo.create({
+    const repo = manager?.getRepository(FiatOutput) ?? this.fiatOutputRepo;
+    const entity = repo.create({
       type,
       buyCrypto,
       buyFiats,
@@ -192,7 +195,7 @@ export class FiatOutputService {
 
     if (createReport) entity.reportCreated = false;
 
-    return this.fiatOutputRepo.save(entity);
+    return repo.save(entity);
   }
 
   private validateRequiredCreditorFields(data: Partial<FiatOutput>): void {
