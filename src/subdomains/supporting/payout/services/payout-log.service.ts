@@ -56,7 +56,7 @@ export class PayoutLogService {
   // `amount` is numeric and `chain`/`context` are enum values, so a bare literal fence holds for them by construction.
   // The free-form values - the asset name and the correlation id - are JSON-encoded instead, and that is a deliberate
   // choice over fencing them with a plain quote. A plain quote only works as long as no value contains one, and both
-  // ways of reading such a field are forgeable: read up to the FIRST quote and a name like `Foo' on chain Ethereum`
+  // ways of reading such a field are forgeable: read up to the FIRST quote and a name like `Foo" on chain Ethereum`
   // closes its own field and imitates the next fence; read up to the LAST one and any later free-form field can offer
   // a competing fence instead. Both produce a wrong chain with no parse error - a silently wrong value in a critical
   // alert, which is worse than a loud one. JSON encoding removes the class rather than moving it: a quote inside the

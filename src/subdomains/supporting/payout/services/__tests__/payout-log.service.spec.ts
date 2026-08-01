@@ -10,7 +10,7 @@ import { PayoutLogService } from '../payout-log.service';
 //
 // The free-form fields are read as JSON strings, with `(?:[^"\\]|\\.)*` skipping escape pairs. That is what makes the
 // closing quote unambiguous: a plain-quote fence is forgeable whichever way it is read - up to the FIRST quote, a name
-// like `Foo' on chain Ethereum` closes its own field and imitates the next fence; up to the LAST one, a later
+// like `Foo" on chain Ethereum` closes its own field and imitates the next fence; up to the LAST one, a later
 // free-form field can offer a competing fence. Both yield a wrong chain with no parse error. The adversarial tests
 // below pin exactly those two attempts.
 const ESCALATION_PATTERN =
@@ -159,7 +159,7 @@ describe('PayoutLogService', () => {
     });
 
     // First of the two forgery attempts a plain-quote fence cannot survive: the name closes its own field and then
-    // imitates the chain fence. Read up to the first quote, this yields chain="Ethereum' on chain Tron" - wrong, and
+    // imitates the chain fence. Read up to the first quote, this yields chain=`Ethereum" on chain Tron` - wrong, and
     // silently so. The chain must still come out as Tron.
     it('cannot be tricked by an asset name that imitates the chain fence', () => {
       const order = createCustomPayoutOrder({
@@ -192,6 +192,25 @@ describe('PayoutLogService', () => {
       const groups = ESCALATION_PATTERN.exec(escalationLines()[0])?.groups;
       expect(groups).toMatchObject({ asset: 'XMR', chain: 'Monero', context: 'BuyCrypto' });
       expect(decode(groups.correlation)).toBe('129680" on chain FAKECHAIN, context FAKECTX, correlation "tail');
+    });
+
+    // The escape mechanism itself: a trailing backslash is what would let a forged quote slip past a reader that
+    // does not track escape pairs, because `\"` then looks like an escaped quote when it is really an escaped
+    // backslash followed by the real closing one. Both fields carry one, and both must still come back verbatim.
+    it('handles backslashes in the free-form fields', () => {
+      const order = createCustomPayoutOrder({
+        id: 49,
+        asset: createCustomAsset({ name: 'Foo\\' }),
+        chain: Blockchain.MONERO,
+        correlationId: 'bar\\" on chain FAKE',
+      });
+
+      service.logFailedOrders([order]);
+
+      const groups = ESCALATION_PATTERN.exec(escalationLines()[0])?.groups;
+      expect(decode(groups.asset)).toBe('Foo\\');
+      expect(groups.chain).toBe('Monero');
+      expect(decode(groups.correlation)).toBe('bar\\" on chain FAKE');
     });
 
     // The reason the asset name is quoted: unquoted, this name would end the asset field at its own " on chain " and
