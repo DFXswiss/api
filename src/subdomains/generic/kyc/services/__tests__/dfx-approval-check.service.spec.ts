@@ -2,8 +2,8 @@ import { createCustomCountry } from 'src/shared/models/country/__mocks__/country
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { KycLevel, KycStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
-import { FileSubType, FileType } from '../../dto/kyc-file.dto';
 import { DfxApprovalBlocker } from '../../dto/dfx-approval-status.dto';
+import { FileSubType, FileType } from '../../dto/kyc-file.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepName } from '../../enums/kyc-step-name.enum';

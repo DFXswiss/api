@@ -1,11 +1,11 @@
-import fontkit from '@pdf-lib/fontkit';
 import { Injectable } from '@nestjs/common';
+import fontkit from '@pdf-lib/fontkit';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
-import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { FileSubType } from '../dto/kyc-file.dto';
 import { KycStep } from '../entities/kyc-step.entity';
