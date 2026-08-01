@@ -537,7 +537,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 45 | 0 | query-builder (ohne-select) | `User` | `subdomains/generic/user/models/user/user.service.ts:177` | `UserService.getOpenRefCreditUser` |
 | 42 | 1 | find | `FaucetRequest` | `subdomains/core/faucet-request/services/faucet-request.service.ts:41` | `FaucetRequestService.checkFaucetRequests` |
 | 42 | 1 | find | `FaucetRequest` | `subdomains/core/faucet-request/services/faucet-request.service.ts:93` | `FaucetRequestService.resetFaucet` |
-| 41 | 0 | query-builder (feldliste) | `UserData` | `subdomains/generic/user/models/user-data/user-data.repository.ts:264` | `UserDataRepository.getProfile` |
+| 41 | 0 | query-builder (feldliste) | `UserData` | `subdomains/generic/user/models/user-data/user-data.repository.ts:267` | `UserDataRepository.getProfile` |
 | 40 | 1 | find | `LiquidityBalance` | `subdomains/core/liquidity-management/services/liquidity-management-balance.service.ts:38` | `LiquidityManagementBalanceService.getAllLiqBalancesForAssets` |
 | 40 | 1 | find | `LiquidityBalance` | `subdomains/core/liquidity-management/services/liquidity-management-balance.service.ts:68` | `LiquidityManagementBalanceService.refreshBankBalance` |
 | 40 | 1 | find | `LiquidityBalance` | `subdomains/core/liquidity-management/services/liquidity-management-balance.service.ts:82` | `LiquidityManagementBalanceService.getBalances` |
@@ -596,7 +596,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 30 | 0 | find | `ExchangeTx` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:387` | `DashboardReconciliationService.getExchangeFlows` |
 | 30 | 0 | find | `ExchangeTx` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:544` | `DashboardReconciliationService.getExchangeWithdrawalsForBlockchain` |
 | 27 | 2 | find | `LiquidityManagementAction` | `subdomains/core/liquidity-management/services/liquidity-management-rule.service.ts:257` | `LiquidityManagementRuleService.findExistingAction` |
-| 26 | 0 | query-builder (feldliste) | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:66` | `PaymentLinkRepository.findForPosLink` |
 | 26 | 0 | query-builder (nur-alias) | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:22` | `BankAccountService.getBankAccountByKey` |
 | 26 | 0 | find | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:40` | `BankAccountService.checkFailedBankAccounts` |
 | 26 | 0 | find | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:48` | `BankAccountService.reloadErrorBankAccounts` |
@@ -711,6 +710,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 7 | 0 | find | `Language` | `shared/models/language/language.service.ts:15` | `LanguageService.getLanguage` |
 | 7 | 0 | find | `Language` | `shared/models/language/language.service.ts:19` | `LanguageService.getLanguageBySymbol` |
 | 7 | 0 | find | `Language` | `shared/models/language/language.service.ts:24` | `LanguageService.getLanguageByCountry` |
+| 7 | 0 | query-builder (feldliste) | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:66` | `PaymentLinkRepository.findForPosLink` |
 | 7 | 0 | find | `UserDataRelation` | `subdomains/generic/user/models/user-data-relation/user-data-relation.service.ts:40` | `UserDataRelationService.updateUserDataRelation` |
 | 7 | 0 | query-builder (feldliste) | `Wallet` | `subdomains/generic/user/models/wallet/wallet.repository.ts:48` | `WalletRepository.findKycData` |
 | 7 | 0 | find | `SpecialExternalAccount` | `subdomains/supporting/payment/services/special-external-account.service.ts:12` | `SpecialExternalAccountService.createSpecialExternalAccount` |
