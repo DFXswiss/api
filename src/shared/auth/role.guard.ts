@@ -91,10 +91,11 @@ class RoleGuardClass implements CanActivate {
     const user = context.switchToHttp().getRequest().user;
     if (!this.entryRoles.some((entryRole) => hasRoleAccess(entryRole, user?.role))) return false;
 
-    // Elevated endpoint: an identified natural person must be behind the account (see KycGatedRoles).
-    // The gate is a property of the ENDPOINT, not of the caller, so it applies only when EVERY entry
-    // role is gated — a gate that also admits e.g. UserRole.USER is an ordinary endpoint that an admin
-    // happens to reach through the role hierarchy, and must not start demanding staff KYC.
+    // Elevated endpoint: the account must carry an identity-verified name or an operator-reviewed
+    // service designation (see KycGatedRoles). The gate is a property of the ENDPOINT, not of the
+    // caller, so it applies only when EVERY entry role is gated — a gate that also admits e.g.
+    // UserRole.USER is an ordinary endpoint that an admin happens to reach through the role hierarchy,
+    // and must not start demanding staff KYC.
     //
     // Throws rather than returning false: a bare false becomes the generic "Forbidden resource", which
     // a caller cannot tell apart from a removed role, so neither staff nor tooling would learn that the

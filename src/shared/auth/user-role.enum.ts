@@ -26,11 +26,12 @@ export enum UserRole {
 // Priority-ordered (highest privilege first) for mail-login role resolution.
 export const StaffRoles = [UserRole.COMPLIANCE, UserRole.SUPPORT, UserRole.REALUNIT];
 
-// Entry roles that mark an endpoint as elevated: reaching it requires an identified natural person
-// behind the account, on top of the role itself. `RoleGuard` therefore demands staff KYC clearance
-// (a non-empty `verifiedName`, see `HasStaffKycClearance`) whenever every entry role of a gate is
-// listed here. Distinct from `StaffRoles` above, which is about mail-login
-// role resolution — this list is about endpoint sensitivity and also covers ADMIN and DEBUG.
+// Entry roles that mark an endpoint as elevated: reaching it requires an identity-verified personal
+// name or an operator-reviewed service designation on the account, on top of the role itself.
+// `RoleGuard` therefore demands staff KYC clearance (a non-empty `verifiedName`, see
+// `HasStaffKycClearance`) whenever every entry role of a gate is listed here. Distinct from
+// `StaffRoles` above, which is about mail-login role resolution — this list is about endpoint
+// sensitivity and also covers ADMIN and DEBUG.
 //
 // Not listed, deliberately: BANKING_BOT and CUSTODY are non-staff entry roles and stay ungated, so a
 // cleared-role holder reaching those endpoints via the `additionalRoles` hierarchy is not KYC-gated.

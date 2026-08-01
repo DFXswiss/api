@@ -11,7 +11,9 @@ import { UserRepository } from './user.repository';
 // SUPER_ADMIN, which satisfies every gate but is not itself listed in KycGatedRoles). Derived, not
 // hand-written — a role added to the hierarchy must not silently fall out of the clearance sync and
 // lose access.
-const ClearanceRelevantRoles = rolesSatisfying(KycGatedRoles);
+// Exported so the write-side guard in UserService gates the exact same set this service clears —
+// a single source keeps the read and write sides from drifting.
+export const ClearanceRelevantRoles = rolesSatisfying(KycGatedRoles);
 
 // Every character `String.prototype.trim()` strips (ECMAScript WhiteSpace + LineTerminator). Postgres'
 // bare `TRIM(x)` removes ASCII space ONLY, so a name of a single tab or a non-breaking space would pass
@@ -58,9 +60,10 @@ export class StaffKycClearanceService {
         userData: {
           // A non-empty verified name is the sole clearance condition: it is only ever set by an
           // identity-verified path or a reviewed migration, never self-service (see the write paths of
-          // `verifiedName`), so it is the authoritative identification signal on its own. A KYC level is
-          // deliberately NOT required — it is unreachable for the DEBUG role and impossible for the
-          // service accounts that legitimately hold a gated role.
+          // `verifiedName`). Personal accounts carry an identity-verified name; operator-reviewed service
+          // accounts carry a non-personal designation. A KYC level is deliberately NOT required — it is
+          // unreachable for the DEBUG role and impossible for service accounts that legitimately hold a
+          // gated role.
           //
           // `verifiedName IS NOT NULL` is the stated rule, but an empty or blank name carries no
           // identification either — the predicate covers both, and NULL drops out on its own because the

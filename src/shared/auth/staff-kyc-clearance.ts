@@ -1,8 +1,9 @@
 // Staff KYC clearance ALLOWlist — the inverse of the JWT denylists in ProcessService. Elevated
 // endpoints (every `RoleGuard` whose entry roles are all in `KycGatedRoles`) require, on top of the
-// role, that an identified natural person is behind the calling account: a non-empty `verifiedName`.
-// That name is only ever set by an identity-verified path or a reviewed migration, never self-service,
-// so it is the authoritative identification signal on its own — no KYC level is required.
+// role, a non-empty `verifiedName`. For personal accounts this is an identity-verified natural-person
+// name; an operator-reviewed service account may instead carry a non-personal designation. The value
+// is only ever set by an identity-verified path or a reviewed migration, never self-service, so it is
+// the authoritative clearance signal on its own — no KYC level is required.
 // `StaffKycClearanceService` derives the cleared account (user data) ids from the DB into the
 // `staffKycClearance` setting; `ProcessService` primes this Set from it, so revoking a staff member's
 // clearance takes effect on live tokens within one refresh interval — no re-login, no JWT-secret rotation.
