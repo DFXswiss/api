@@ -28,25 +28,25 @@ export class ApiExceptionFilter implements ExceptionFilter {
   catch(exception: Error, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    const status = ApiExceptionFilter.statusOf(exception);
+    const status = ApiExceptionFilter.resolveStatus(exception);
 
     // The response goes out first, and nothing it does not need is read before it. Everything the
     // line renders comes from the request or from the thrower, and reading either can throw - which
     // used to leave the caller with no response at all rather than with a line missing a detail.
     let responseError: unknown;
-    let sent = true;
+    let responseSent = true;
     try {
-      response.status(status.sent).json(this.responseBody(exception, status));
+      response.status(status.effective).json(this.responseBody(exception, status));
     } catch (e) {
       responseError = e;
-      sent = false;
+      responseSent = false;
     }
 
     // What follows only describes what happened, this failure included. It must not travel back to
     // a caller who by now either has an answer or is past being given one, so it ends here -
     // including a failure of the logger, which is the one thing that could not report it anyway.
     try {
-      if (!sent) {
+      if (!responseSent) {
         // Only a thrown `Error` is reported as what it is. Anything else - a string included - could
         // carry whatever the body carried, and this line is not the place to find that out.
         this.logger.error(
@@ -54,7 +54,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
           responseError instanceof Error ? responseError : new Error('Non-error thrown'),
         );
       }
-      this.describe(exception, ctx.getRequest<Request>(), status.sent);
+      this.describe(exception, ctx.getRequest<Request>(), status.effective);
     } catch {
       return;
     }
@@ -78,7 +78,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       //
       // All three are untrusted input and rendered as such - single-line, masked and capped. The
       // reason included: an exception message can interpolate a value the request supplied.
-      const reason = ApiExceptionFilter.reasonOf(this.getReason(exception));
+      const reason = ApiExceptionFilter.maskReason(this.getReason(exception));
       const rejected =
         exception instanceof ValidationFailedException
           ? ` (received: ${describeRejectedValues(exception.validationErrors)})`
@@ -98,19 +98,19 @@ export class ApiExceptionFilter implements ExceptionFilter {
    * masking rather than before it: masking only shortens, so a position past the cap can move into
    * view, and dropping the tail first would leave that halved head to move with it.
    */
-  private static reasonOf(reason: string): string {
+  private static maskReason(reason: string): string {
     const scanned = capCharacters(reason, ApiExceptionFilter.REASON_SCAN_LENGTH);
     const masked = maskLogText(scanned);
 
     return capCharacters(
-      ApiExceptionFilter.withoutSplitTail(masked, scanned === reason),
+      ApiExceptionFilter.removeSplitTail(masked, scanned === reason),
       ApiExceptionFilter.REASON_MAX_LENGTH,
     );
   }
 
   // Nothing was cut, or what the masking left is long enough that its end stays past the cap either
   // way: the tail costs diagnostic text and buys nothing there.
-  private static withoutSplitTail(masked: string, complete: boolean): string {
+  private static removeSplitTail(masked: string, complete: boolean): string {
     const length = [...masked].length;
     if (complete || length > ApiExceptionFilter.REASON_MAX_LENGTH + MAX_MASKED_PATTERN) return masked;
 
@@ -120,33 +120,37 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // The status an HttpException carries is whatever the thrower put there: reading it can throw, and
   // what comes back is not necessarily a final response at all - a 1xx is an interim one, and
   // nothing outside the range it can send leaves a reading other than server error.
-  private static statusOf(exception: Error): { sent: number; declared: number | undefined } {
+  private static resolveStatus(exception: Error): { effective: number; declared: number | undefined } {
     try {
-      if (!(exception instanceof HttpException)) return { sent: HttpStatus.INTERNAL_SERVER_ERROR, declared: undefined };
+      if (!(exception instanceof HttpException))
+        return { effective: HttpStatus.INTERNAL_SERVER_ERROR, declared: undefined };
 
       const declared = exception.getStatus();
       const usable = Number.isInteger(declared) && declared >= 200 && declared <= 599;
 
-      return { sent: usable ? declared : HttpStatus.INTERNAL_SERVER_ERROR, declared };
+      return { effective: usable ? declared : HttpStatus.INTERNAL_SERVER_ERROR, declared };
     } catch {
-      return { sent: HttpStatus.INTERNAL_SERVER_ERROR, declared: undefined };
+      return { effective: HttpStatus.INTERNAL_SERVER_ERROR, declared: undefined };
     }
   }
 
   // The body an HttpException carries is whatever the thrower put there, and reading it can throw.
   // A caller gets the generic body then rather than none - and also when the body is not the one
   // being sent, which is what a replaced status or a body naming another one leaves behind.
-  private responseBody(exception: Error, status: { sent: number; declared: number | undefined }): unknown {
+  private responseBody(exception: Error, status: { effective: number; declared: number | undefined }): unknown {
     try {
       if (!(exception instanceof HttpException)) {
-        return { statusCode: status.sent, message: ApiExceptionFilter.ownMessage(exception, status.sent) };
+        return {
+          statusCode: status.effective,
+          message: ApiExceptionFilter.readOwnMessage(exception, status.effective),
+        };
       }
 
       // A status that had to be replaced takes the body with it: what the thrower wrote belongs to
       // the status it wrote it for, and reading it for another one is reading it for something it
       // was not.
-      if (status.declared !== status.sent) {
-        return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
+      if (status.declared !== status.effective) {
+        return { statusCode: status.effective, message: HttpStatus[status.effective] || 'Error' };
       }
 
       const body = exception.getResponse();
@@ -155,18 +159,19 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // this, and so is one that agrees with the status being sent. Anything else is replaced whole:
       // a body that cannot be passed on cannot be read either, because what it holds is not what it
       // would have sent, and the name of the status is the one thing that is certain here.
-      if (ApiExceptionFilter.rewritesItself(body) || ApiExceptionFilter.agreesWith(body, status.sent)) return body;
+      if (ApiExceptionFilter.serializesItself(body) || ApiExceptionFilter.agreesWith(body, status.effective))
+        return body;
 
-      return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
+      return { statusCode: status.effective, message: HttpStatus[status.effective] || 'Error' };
     } catch {
-      return { statusCode: status.sent, message: HttpStatus[status.sent] || 'Error' };
+      return { statusCode: status.effective, message: HttpStatus[status.effective] || 'Error' };
     }
   }
 
   // What the exception says about itself, for the case where there is no body to say it better.
   // Reading it can throw, and an exception that says nothing is not worth sending in place of the
   // name of what is being sent.
-  private static ownMessage(exception: Error, status: number): string {
+  private static readOwnMessage(exception: Error, status: number): string {
     try {
       const message: unknown = exception.message;
 
@@ -178,15 +183,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
   // A body that answers `toJSON` is serialized from what that returns, not from what it holds, so
   // what it holds says nothing about what it sends - which is why it is passed on rather than read.
-  private static rewritesItself(body: unknown): boolean {
+  private static serializesItself(body: unknown): boolean {
     if (typeof body !== 'object' || body === null) return false;
 
     // Asked for as a descriptor rather than read: reading it would be one read, and the
-    // serialization another, and something that answers differently between them would be sent as
-    // whatever it holds. Anything that answers at all counts, wherever it is declared.
+    // serialization another. Only a function that is simply there serializes the body; an accessor
+    // might answer with one and might not, and a body that only might is judged like any other.
     for (let level: object | null = body; level; level = Object.getPrototypeOf(level)) {
       const declared = Object.getOwnPropertyDescriptor(level, 'toJSON');
-      if (declared) return !('value' in declared) || typeof declared.value === 'function';
+      if (declared) return 'value' in declared && typeof declared.value === 'function';
     }
 
     return false;

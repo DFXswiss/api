@@ -348,16 +348,16 @@ describe('ApiExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith(listed.getResponse());
   });
 
-  it('passes on a body whose toJSON is only there when asked for', () => {
-    // Reading it would be one read and the serialization another; something that answers
-    // differently between them would be sent as whatever it holds.
+  it('judges a body whose toJSON is only there when asked for like any other', () => {
+    // An accessor might answer with a function and might not; the serialization would then send
+    // what the body holds, under a status the body does not name.
     const shifting = new HttpException({ statusCode: 418, message: 'INTERNAL_SECRET' }, 400);
-    const body = shifting.getResponse();
-    Object.defineProperty(body, 'toJSON', { get: () => () => ({ message: 'public' }) });
+    Object.defineProperty(shifting.getResponse(), 'toJSON', { get: () => 42 });
 
     filter.catch(shifting, host(req(), { status }));
 
-    expect(json).toHaveBeenCalledWith(body);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
   });
 
   it('passes on a body whose status is a value the serialization leaves out', () => {
