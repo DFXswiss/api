@@ -2,12 +2,12 @@
 // spy and no real S3/Azure/mock storage is touched.
 const uploadWormBlobMock = jest.fn();
 const copyBlobsMock = jest.fn();
-const getBlobMock = jest.fn();
+const listKeysMock = jest.fn();
 jest.mock('src/integration/infrastructure/storage/storage.factory', () => ({
   createStorageService: jest.fn(() => ({
     uploadWormBlob: (...args: any[]) => uploadWormBlobMock(...args),
     copyBlobs: (...args: any[]) => copyBlobsMock(...args),
-    getBlob: (...args: any[]) => getBlobMock(...args),
+    listKeys: (...args: any[]) => listKeysMock(...args),
     blobUrl: (name: string) => `https://storage/${name}`,
   })),
 }));
@@ -93,7 +93,7 @@ describe('KycDocumentService - storage', () => {
     it('verifies and reuses an already valid generated document', async () => {
       const generated = Object.assign(new KycFile(), { id: 17, name: 'generated.pdf', valid: true });
       (kycFileService.getByGenerationKey as jest.Mock).mockResolvedValue(generated);
-      getBlobMock.mockResolvedValue({ data: Buffer.from('pdf') });
+      listKeysMock.mockImplementation((prefix: string) => Promise.resolve([prefix]));
 
       await service.ensureGeneratedUserFile(
         'dfx-approval:11:RiskProfile:v1',
@@ -104,7 +104,7 @@ describe('KycDocumentService - storage', () => {
         Buffer.from('pdf'),
       );
 
-      expect(getBlobMock).toHaveBeenCalled();
+      expect(listKeysMock).toHaveBeenCalled();
       expect(uploadWormBlobMock).not.toHaveBeenCalled();
       expect(kycFileService.markValid).not.toHaveBeenCalled();
     });
@@ -128,6 +128,23 @@ describe('KycDocumentService - storage', () => {
       expect(kycFileService.getByGenerationKey).toHaveBeenCalledTimes(2);
       expect(uploadWormBlobMock).toHaveBeenCalled();
       expect(kycFileService.markValid).toHaveBeenCalledWith(generated);
+    });
+
+    it('fails loudly when a document marked valid is gone from storage', async () => {
+      const generated = Object.assign(new KycFile(), { id: 17, name: 'generated.pdf', valid: true });
+      (kycFileService.getByGenerationKey as jest.Mock).mockResolvedValue(generated);
+      listKeysMock.mockResolvedValue([]);
+
+      await expect(
+        service.ensureGeneratedUserFile(
+          'dfx-approval:11:RiskProfile:v1',
+          userData,
+          FileType.USER_NOTES,
+          FileSubType.RISK_PROFILE,
+          generated.name,
+          Buffer.from('pdf'),
+        ),
+      ).rejects.toThrow('missing in storage');
     });
 
     it('does not hide unrelated database errors', async () => {

@@ -130,7 +130,11 @@ export class KycDocumentService {
     let file = await this.kycFileService.getByGenerationKey(generationKey);
     if (file?.valid) {
       const blobName = this.toFileId(FileCategory.USER, userData.id, type, file.name);
-      await this.storageService.getBlob(blobName);
+      // Existence check only - listing the key avoids transferring the whole document.
+      const storedKeys = await this.storageService.listKeys(blobName);
+      if (!storedKeys.includes(blobName))
+        throw new Error(`Generated document ${generationKey} is marked valid but missing in storage`);
+
       return { file, url: this.storageService.blobUrl(blobName) };
     }
 
@@ -157,6 +161,12 @@ export class KycDocumentService {
     await this.kycFileService.markValid(file);
 
     return { file, url };
+  }
+
+  // Lets a caller reuse the name of a document that was already registered, so a retry after a
+  // failed upload keeps the document number that is printed into the PDF.
+  async findGeneratedUserFile(generationKey: string): Promise<KycFile | null> {
+    return this.kycFileService.getByGenerationKey(generationKey);
   }
 
   async downloadFile(category: FileCategory, userDataId: number, type: FileType, name: string): Promise<BlobContent> {
