@@ -28,6 +28,7 @@ import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-dat
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
@@ -348,21 +349,22 @@ describe('BuyCryptoService', () => {
     });
 
     it('persists the checkout refund claim before calling the external provider', async () => {
-      const chargebackAllowedDateUser = new Date('2026-08-01T12:00:00.000Z');
       const buyCrypto = createCustomBuyCrypto({
         id: 7,
         inputAmount: 10,
-        chargebackAllowedDateUser,
         checkoutTx: Object.assign(new CheckoutTx(), { id: 22, paymentId: 'pay-22' }),
       });
       jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
-      const refundPaymentSpy = jest.spyOn(checkoutService, 'refundPayment').mockResolvedValue({
+      const refundPaymentSpy = jest.spyOn(checkoutService, 'refundBuyCryptoPayment').mockResolvedValue({
         action_id: 'action-22',
-        reference: 'refund-22',
         _links: { payment: { href: 'https://example.test/payment/pay-22' } },
       });
       const manager = {
-        findOne: jest.fn().mockResolvedValueOnce(buyCrypto).mockResolvedValueOnce(buyCrypto.checkoutTx),
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyCrypto) return options.select?.id ? { id: 7 } : buyCrypto;
+          if (type === CheckoutTx) return buyCrypto.checkoutTx;
+          return undefined;
+        }),
         update: jest.fn().mockResolvedValue({ affected: 1 }),
       };
       Object.defineProperty(buyCryptoRepo, 'manager', {
@@ -373,17 +375,19 @@ describe('BuyCryptoService', () => {
           ),
         },
       });
-      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
-      await service.refundCheckoutTx(buyCrypto, { chargebackAllowedDate: new Date(), chargebackAllowedDateUser });
+      await service.refundCheckoutTx(buyCrypto, { chargebackAllowedDate: new Date() });
 
       expect(manager.update).toHaveBeenNthCalledWith(
         1,
         BuyCrypto,
         expect.objectContaining({
           id: 7,
+          chargebackOutput: expect.anything(),
           chargebackAllowedDate: expect.anything(),
-          chargebackAllowedDateUser,
+          chargebackDate: expect.anything(),
+          chargebackCryptoTxId: expect.anything(),
+          chargebackBankTx: expect.anything(),
         }),
         expect.objectContaining({ chargebackAllowedDate: expect.any(Date) }),
       );
@@ -391,61 +395,85 @@ describe('BuyCryptoService', () => {
         status: CheckoutPaymentStatus.REFUND_PENDING,
       });
       expect(manager.update.mock.invocationCallOrder[1]).toBeLessThan(refundPaymentSpy.mock.invocationCallOrder[0]);
-      expect(refundPaymentSpy).toHaveBeenCalledWith('pay-22', 'buy-crypto-7-checkout-refund');
+      expect(refundPaymentSpy).toHaveBeenCalledWith('pay-22', 7);
     });
 
-    it('can safely resume a persisted checkout refund claim with the same idempotency key', async () => {
+    it('leaves a failed Checkout submission durably pending for the idempotent retry job', async () => {
       const buyCrypto = createCustomBuyCrypto({
-        id: 8,
+        id: 7,
         inputAmount: 10,
-        chargebackAmount: 10,
-        chargebackAllowedDate: new Date(),
-        isComplete: false,
-        checkoutTx: Object.assign(new CheckoutTx(), { id: 23, paymentId: 'pay-23' }),
+        checkoutTx: Object.assign(new CheckoutTx(), { id: 22, paymentId: 'pay-22' }),
       });
-      const refundPaymentSpy = jest.spyOn(checkoutService, 'refundPayment').mockResolvedValue({
-        action_id: 'action-23',
-        reference: 'refund-23',
-        _links: { payment: { href: 'https://example.test/payment/pay-23' } },
-      });
-      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-
-      await service.resumeCheckoutRefund(buyCrypto);
-
-      expect(refundPaymentSpy).toHaveBeenCalledWith('pay-23', 'buy-crypto-8-checkout-refund');
-      expect(buyCryptoRepo.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 8,
-          isComplete: false,
-          chargebackAllowedDate: buyCrypto.chargebackAllowedDate,
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(checkoutService, 'refundBuyCryptoPayment').mockRejectedValue(new Error('network timeout'));
+      const manager = {
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyCrypto) return options.select?.id ? { id: 7 } : buyCrypto;
+          if (type === CheckoutTx) return buyCrypto.checkoutTx;
+          return undefined;
         }),
-        expect.objectContaining({ isComplete: true, status: BuyCryptoStatus.COMPLETE }),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+
+      await expect(service.refundCheckoutTx(buyCrypto, { chargebackAllowedDate: new Date() })).rejects.toThrow(
+        'network timeout',
       );
+
+      expect(manager.update).toHaveBeenNthCalledWith(
+        1,
+        BuyCrypto,
+        expect.anything(),
+        expect.objectContaining({
+          amlCheck: CheckStatus.FAIL,
+          chargebackAllowedDate: expect.any(Date),
+          isComplete: true,
+          status: BuyCryptoStatus.COMPLETE,
+        }),
+      );
+      expect(manager.update).toHaveBeenNthCalledWith(2, CheckoutTx, 22, {
+        status: CheckoutPaymentStatus.REFUND_PENDING,
+      });
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalled();
     });
 
-    it('claims CryptoInput return state and BuyCrypto chargeback state in the same transaction', async () => {
-      const chargebackAllowedDateUser = new Date('2026-08-01T12:00:00.000Z');
+    it('claims and schedules a crypto refund atomically before releasing the BuyCrypto lock', async () => {
       const cryptoInput = createCustomCryptoInput({
-        id: 24,
-        asset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
       });
       const buyCrypto = createCustomBuyCrypto({
-        id: 9,
-        cryptoInput,
-        chargebackAllowedDateUser,
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        batch: null,
+        outputAmount: null,
         chargebackAmount: 1,
-        isComplete: false,
+        cryptoInput,
       });
-      const refundUser = { address: '0x0000000000000000000000000000000000000001' } as any;
-      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser);
-      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const currentBuyCrypto = createCustomBuyCrypto({ ...buyCrypto, cryptoInput: undefined });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyCrypto.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
       jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
       const manager = {
-        findOne: jest
-          .fn()
-          .mockResolvedValueOnce({ id: 9 })
-          .mockResolvedValueOnce(buyCrypto)
-          .mockResolvedValueOnce(cryptoInput),
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyCrypto) return options.select?.id ? { id: 7 } : currentBuyCrypto;
+          if (type === CryptoInput) return cryptoInput;
+          return undefined;
+        }),
         update: jest.fn().mockResolvedValue({ affected: 1 }),
       };
       Object.defineProperty(buyCryptoRepo, 'manager', {
@@ -459,37 +487,174 @@ describe('BuyCryptoService', () => {
 
       await service.refundCryptoInput(buyCrypto, {
         refundUserAddress: refundUser.address,
-        chargebackAmount: 1,
         chargebackAllowedDate: new Date(),
-        chargebackAllowedDateUser,
       });
 
-      expect(manager.findOne).toHaveBeenNthCalledWith(
-        1,
-        BuyCrypto,
-        expect.objectContaining({ where: { id: 9 }, lock: { mode: 'pessimistic_write' } }),
-      );
-      expect(manager.findOne).toHaveBeenNthCalledWith(
-        3,
-        CryptoInput,
-        expect.objectContaining({ where: { id: 24 }, lock: { mode: 'pessimistic_write' } }),
-      );
-      expect(manager.findOne.mock.invocationCallOrder[0]).toBeLessThan(manager.findOne.mock.invocationCallOrder[2]);
-      expect(payInService.returnPayIn).toHaveBeenCalledWith(
-        cryptoInput,
-        refundUser.address,
-        1,
-        manager as unknown as EntityManager,
-      );
       expect(manager.update).toHaveBeenCalledWith(
         BuyCrypto,
         expect.objectContaining({
-          id: 9,
+          id: 7,
           chargebackAllowedDate: expect.anything(),
-          chargebackAllowedDateUser,
+          chargebackDate: expect.anything(),
+          chargebackCryptoTxId: expect.anything(),
+          chargebackBankTx: expect.anything(),
         }),
-        expect.objectContaining({ chargebackAllowedDate: expect.any(Date), amlCheck: CheckStatus.FAIL }),
+        expect.objectContaining({ chargebackAllowedDate: expect.any(Date) }),
       );
+      expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, refundUser.address, 1, manager);
+      expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(returnPayInSpy.mock.invocationCallOrder[0]);
+    });
+
+    it('does not schedule a crypto refund when a concurrent AML reset wins', async () => {
+      const cryptoInput = createCustomCryptoInput({ id: 23 });
+      const buyCrypto = createCustomBuyCrypto({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        batch: null,
+        outputAmount: null,
+        chargebackAmount: 1,
+        cryptoInput,
+      });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyCrypto.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const manager = {
+        findOne: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 7 })
+          .mockResolvedValueOnce(buyCrypto)
+          .mockResolvedValueOnce({ id: 23 })
+          .mockResolvedValueOnce(cryptoInput),
+        update: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+
+      await expect(
+        service.refundCryptoInput(buyCrypto, {
+          refundUserAddress: refundUser.address,
+          chargebackAllowedDate: new Date(),
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(returnPayInSpy).not.toHaveBeenCalled();
+    });
+
+    it('creates and claims a bank refund in the same BuyCrypto transaction', async () => {
+      const buyCrypto = createCustomBuyCrypto({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        batch: null,
+        outputAmount: null,
+        inputAsset: 'CHF',
+        chargebackAmount: 10,
+        chargebackAsset: 'CHF',
+        bankTx: { iban: 'CH9300762011623852957' } as any,
+      });
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionUtilService, 'validateChargebackIban').mockResolvedValue(true);
+      const chargebackOutput = { id: 44 } as any;
+      const createOutputSpy = jest.spyOn(fiatOutputService, 'createInternal').mockResolvedValue(chargebackOutput);
+      const manager = {
+        findOne: jest.fn(async (_type: unknown, options: { select?: { id?: boolean } }) =>
+          options.select?.id ? { id: 7 } : buyCrypto,
+        ),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+      const chargebackAllowedDate = new Date();
+
+      await service.refundBankTx(buyCrypto, {
+        refundIban: 'CH9300762011623852957',
+        chargebackAllowedDate,
+        creditorData: {
+          name: 'Refund Recipient',
+          address: 'Main Street',
+          zip: '8000',
+          city: 'Zurich',
+          country: 'CH',
+        },
+      });
+
+      expect(createOutputSpy).toHaveBeenCalledWith(
+        FiatOutputType.BUY_CRYPTO_FAIL,
+        { buyCrypto },
+        7,
+        false,
+        expect.objectContaining({ iban: 'CH9300762011623852957', amount: 10, currency: 'CHF' }),
+        manager,
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        BuyCrypto,
+        expect.objectContaining({ id: 7, chargebackOutput: expect.anything() }),
+        expect.objectContaining({ chargebackAllowedDate, chargebackOutput }),
+      );
+    });
+
+    it('rolls back a bank refund output when a concurrent AML reset wins', async () => {
+      const buyCrypto = createCustomBuyCrypto({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        batch: null,
+        outputAmount: null,
+        inputAsset: 'CHF',
+        chargebackAmount: 10,
+        chargebackAsset: 'CHF',
+        bankTx: { iban: 'CH9300762011623852957' } as any,
+      });
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionUtilService, 'validateChargebackIban').mockResolvedValue(true);
+      jest.spyOn(fiatOutputService, 'createInternal').mockResolvedValue({ id: 44 } as any);
+      const manager = {
+        findOne: jest.fn(async (_type: unknown, options: { select?: { id?: boolean } }) =>
+          options.select?.id ? { id: 7 } : buyCrypto,
+        ),
+        update: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+
+      await expect(
+        service.refundBankTx(buyCrypto, {
+          refundIban: 'CH9300762011623852957',
+          chargebackAllowedDate: new Date(),
+          creditorData: {
+            name: 'Refund Recipient',
+            address: 'Main Street',
+            zip: '8000',
+            city: 'Zurich',
+            country: 'CH',
+          },
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
     });
 
     function reviewResetFixture(
@@ -581,6 +746,9 @@ describe('BuyCryptoService', () => {
           chargebackOutput: expect.anything(),
           chargebackAllowedDate: expect.anything(),
           chargebackAllowedDateUser: expect.anything(),
+          chargebackDate: expect.anything(),
+          chargebackCryptoTxId: expect.anything(),
+          chargebackBankTx: expect.anything(),
         }),
         expect.objectContaining({ amlCheck: null, amlReason: null }),
       );
@@ -664,6 +832,22 @@ describe('BuyCryptoService', () => {
         CryptoInput,
         expect.objectContaining({ where: { id: 24 }, lock: { mode: 'pessimistic_write' } }),
       );
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['chargeback date', { chargebackDate: new Date() }],
+      ['crypto return transaction', { chargebackCryptoTxId: 'return-tx' }],
+      ['bank return transaction', { chargebackBankTx: { id: 42 } }],
+    ])('rejects a review reset with an established %s marker', async (_name, marker) => {
+      const { entity, manager } = reviewResetFixture();
+      Object.assign(entity, marker);
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow(BadRequestException);
+
       expect(manager.save).not.toHaveBeenCalled();
       expect(manager.update).not.toHaveBeenCalled();
     });
@@ -894,7 +1078,7 @@ describe('BuyCryptoService', () => {
         ),
       ).rejects.toThrow('Checkout refunds must use the dedicated refund endpoint');
 
-      expect(checkoutService.refundPayment).not.toHaveBeenCalled();
+      expect(checkoutService.refundBuyCryptoPayment).not.toHaveBeenCalled();
     });
 
     it('does not reset AML or reactivate a stopped BuyCrypto after a phone call', async () => {

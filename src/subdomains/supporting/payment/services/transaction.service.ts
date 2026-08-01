@@ -221,6 +221,7 @@ export class TransactionService {
           outputAsset: true,
           bankData: true,
           batch: true,
+          chargebackBankTx: true,
           chargebackOutput: true,
         },
         buyFiat: { cryptoInput: true, outputAsset: true, bankData: true },

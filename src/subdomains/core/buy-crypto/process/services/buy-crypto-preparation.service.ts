@@ -743,22 +743,6 @@ export class BuyCryptoPreparationService {
   }
 
   async chargebackTx(): Promise<void> {
-    const checkoutRefundsInProgress = await this.buyCryptoRepo.find({
-      where: {
-        checkoutTx: { id: Not(IsNull()) },
-        chargebackAllowedDate: Not(IsNull()),
-        isComplete: false,
-      },
-      relations: { checkoutTx: true, transaction: { userData: true } },
-    });
-    for (const entity of checkoutRefundsInProgress) {
-      try {
-        await this.buyCryptoService.resumeCheckoutRefund(entity);
-      } catch (e) {
-        this.logger.error(`Failed to resume Checkout chargeback for buy-crypto ${entity.id}:`, e);
-      }
-    }
-
     const baseRequest: FindOptionsWhere<BuyCrypto> = {
       chargebackAllowedDate: IsNull(),
       chargebackAllowedDateUser: Not(IsNull()),

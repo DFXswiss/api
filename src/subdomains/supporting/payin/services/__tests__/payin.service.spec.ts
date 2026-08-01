@@ -7,6 +7,7 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Util } from 'src/shared/utils/util';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { EntityManager, In, IsNull, LessThan, Not } from 'typeorm';
 import { RetryPayInSendDto } from '../../dto/retry-payin-send.dto';
@@ -131,30 +132,24 @@ describe('PayInService designate-before-broadcast safeguards', () => {
     },
   );
 
-  it('persists a return claim through the supplied transaction manager', async () => {
-    const transaction = { id: 53 } as any;
+  it('uses the caller transaction when scheduling a return', async () => {
     const payIn = createCustomCryptoInput({
       id: 52,
-      status: PayInStatus.ACKNOWLEDGED,
       action: PayInAction.WAITING,
-      returnTxId: null,
-      transaction,
+      status: PayInStatus.ACKNOWLEDGED,
+      transaction: { id: 53 } as any,
+      route: { user: { id: 54 } } as any,
     });
-    const manager = { save: jest.fn().mockResolvedValue(payIn) };
+    const manager = { save: jest.fn().mockResolvedValue(payIn) } as unknown as EntityManager;
 
-    await service.returnPayIn(
-      payIn,
-      '0x0000000000000000000000000000000000000001',
-      0.1,
-      manager as unknown as EntityManager,
-    );
+    await service.returnPayIn(payIn, '0x0000000000000000000000000000000000000001', 0.1, manager);
 
+    expect(manager.save).toHaveBeenCalledWith(CryptoInput, payIn);
     expect(transactionService.updateInternal).toHaveBeenCalledWith(
-      transaction,
-      expect.objectContaining({ user: payIn.route.user }),
+      payIn.transaction,
+      { type: TransactionTypeInternal.CRYPTO_INPUT_RETURN, user: payIn.route.user },
       manager,
     );
-    expect(manager.save).toHaveBeenCalledWith(CryptoInput, payIn);
     expect(payInRepository.save).not.toHaveBeenCalled();
   });
 

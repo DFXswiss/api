@@ -20,7 +20,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason, NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -632,6 +632,36 @@ export class SupportService {
   }
 
   private toTransactionSupportInfo(tx: Transaction): TransactionSupportInfo {
+    const buyCryptoHasChargeback = !!(
+      tx.buyCrypto?.chargebackOutput ||
+      tx.buyCrypto?.chargebackAllowedDate ||
+      tx.buyCrypto?.chargebackAllowedDateUser ||
+      tx.buyCrypto?.chargebackDate ||
+      tx.buyCrypto?.chargebackCryptoTxId ||
+      tx.buyCrypto?.chargebackBankTx ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUND_PENDING ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.PARTIALLY_REFUNDED ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUNDED ||
+      tx.buyCrypto?.cryptoInput?.action === PayInAction.RETURN ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.TO_RETURN ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURNED ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURN_CONFIRMED ||
+      tx.buyCrypto?.cryptoInput?.returnTxId
+    );
+    const cryptoForwardStarted = !!(
+      tx.buyCrypto?.cryptoInput?.action === PayInAction.FORWARD ||
+      (tx.buyCrypto?.cryptoInput?.status != null &&
+        [
+          PayInStatus.PREPARING,
+          PayInStatus.PREPARED,
+          PayInStatus.SENDING,
+          PayInStatus.SEND_UNCERTAIN,
+          PayInStatus.FORWARDED,
+          PayInStatus.FORWARD_CONFIRMED,
+        ].includes(tx.buyCrypto.cryptoInput.status)) ||
+      tx.buyCrypto?.cryptoInput?.outTxId
+    );
+
     return {
       id: tx.id,
       uid: tx.uid,
@@ -639,19 +669,16 @@ export class SupportService {
       buyCryptoIsComplete: tx.buyCrypto?.isComplete,
       buyCryptoStatus: tx.buyCrypto?.status,
       buyCryptoHasBatch: !!tx.buyCrypto?.batch,
-      buyCryptoHasChargeback: !!(
-        tx.buyCrypto?.chargebackOutput ||
-        tx.buyCrypto?.chargebackAllowedDate ||
-        tx.buyCrypto?.chargebackAllowedDateUser ||
-        tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUND_PENDING ||
-        tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.PARTIALLY_REFUNDED ||
-        tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUNDED ||
-        tx.buyCrypto?.cryptoInput?.action === PayInAction.RETURN ||
-        tx.buyCrypto?.cryptoInput?.status === PayInStatus.TO_RETURN ||
-        tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURNED ||
-        tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURN_CONFIRMED ||
-        tx.buyCrypto?.cryptoInput?.returnTxId
-      ),
+      buyCryptoHasChargeback,
+      buyCryptoReviewResetBlocked: tx.buyCrypto
+        ? !!(
+            tx.buyCrypto.isComplete ||
+            tx.buyCrypto.status === BuyCryptoStatus.STOPPED ||
+            tx.buyCrypto.batch ||
+            buyCryptoHasChargeback ||
+            cryptoForwardStarted
+          )
+        : undefined,
       buyFiatId: tx.buyFiat?.id,
       bankDataId: tx.buyCrypto?.bankData?.id ?? tx.buyFiat?.bankData?.id,
       type: tx.type,

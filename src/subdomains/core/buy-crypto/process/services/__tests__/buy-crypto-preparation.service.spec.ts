@@ -640,22 +640,7 @@ describe('BuyCryptoPreparationService', () => {
     });
   });
 
-  describe('chargebackTx — durable Checkout refund recovery', () => {
-    it('resumes a persisted incomplete Checkout refund claim before processing new claims', async () => {
-      const entity = createCustomBuyCrypto({
-        id: 77,
-        chargebackAllowedDate: new Date(),
-        isComplete: false,
-        checkoutTx: { id: 88 } as any,
-      });
-      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]).mockResolvedValueOnce([]);
-
-      await service.chargebackTx();
-
-      expect(buyCryptoService.resumeCheckoutRefund).toHaveBeenCalledWith(entity);
-      expect(buyCryptoService.refundCheckoutTx).not.toHaveBeenCalled();
-    });
-
+  describe('chargebackTx — user refund claim promotion', () => {
     it.each([
       { source: 'Checkout', relation: { checkoutTx: { id: 88 } as any }, method: 'refundCheckoutTx' },
       { source: 'CryptoInput', relation: { cryptoInput: { id: 89 } as any }, method: 'refundCryptoInput' },
@@ -681,7 +666,7 @@ describe('BuyCryptoPreparationService', () => {
           chargebackAmount: 1,
           isComplete: false,
         });
-        jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([]).mockResolvedValueOnce([entity]);
+        jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]);
 
         await service.chargebackTx();
 
