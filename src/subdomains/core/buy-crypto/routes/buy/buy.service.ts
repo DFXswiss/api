@@ -13,6 +13,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
@@ -45,6 +46,8 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
+  private readonly logger = new DfxLogger(BuyService);
+
   private cache: { id: number; bankUsage: string }[] = undefined;
 
   constructor(
@@ -487,16 +490,21 @@ export class BuyService {
       if (selector.paymentMethod !== FiatPaymentMethod.BANK)
         throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
 
-      const virtualIban = await this.virtualIbanService.getOrCreateFrickForUser(selector.userData, selector.currency);
-      if (!virtualIban.bank.receive || virtualIban.bank.name !== IbanBankName.FRICK)
-        throw new BadRequestException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+      const virtualIban = await this.virtualIbanService
+        .getOrCreateFrickForUser(selector.userData, selector.currency)
+        .catch(() => null);
+      if (virtualIban?.bank.receive && virtualIban.bank.name === IbanBankName.FRICK) {
+        return {
+          bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
+          bankId: virtualIban.bank.id,
+          virtualIbanId: virtualIban.id,
+          bankName: virtualIban.bank.name,
+        };
+      }
 
-      return {
-        bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
-        bankId: virtualIban.bank.id,
-        virtualIbanId: virtualIban.id,
-        bankName: virtualIban.bank.name,
-      };
+      // Personal Frick vIBAN could not be issued - degrade to the referenced collection account, the
+      // same rule the user-level path uses below (KYC-cleared customer, reference present, logged at ERROR).
+      return this.collectionAccountOrThrow(selector, buy);
     }
 
     // CARD keeps the same active-vIBAN lookups as BANK so an existing personal IBAN remains visible,
@@ -568,25 +576,10 @@ export class BuyService {
       };
     }
 
-    // No personal IBAN could be resolved, and a collection account must never be shown - so a transfer
-    // fails here instead of falling back to one. This applies to EVERY currency, not just EUR: it is
-    // the deliberate policy that a bank transfer requires a personal IBAN, and therefore KYC 50.
-    // Card payments use no deposit IBAN at all (the response carries a payment link), so they keep
-    // resolving a bank rather than breaking.
-    //
-    // Three reasons are told apart, because sending a customer after the wrong one wastes their time:
-    // no provider covers the currency at all; the customer has not reached KYC 50; or issuance failed
-    // for someone who has. KYC is read directly rather than through isUserEligible, which also folds
-    // in whether the provider is reachable right now - during an outage that would tell a fully
-    // verified customer to complete a level they already hold.
-    if (selector.paymentMethod !== FiatPaymentMethod.CARD)
-      throw new BadRequestException(
-        !this.virtualIbanService.hasProviderSupportingCurrency(selector.currency)
-          ? QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED
-          : selector.userData.kycLevel >= KycLevel.LEVEL_50
-            ? QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED
-            : QuoteError.KYC_REQUIRED,
-      );
+    // No personal IBAN could be resolved. Bank transfers degrade through collectionAccountOrThrow (see
+    // there); card payments carry a payment link rather than a deposit IBAN, so they keep resolving a
+    // bank instead of degrading.
+    if (selector.paymentMethod !== FiatPaymentMethod.CARD) return this.collectionAccountOrThrow(selector, buy);
 
     const bank = await this.bankService.getBank(selector);
 
@@ -594,6 +587,44 @@ export class BuyService {
 
     return {
       bankInfo: this.buildBankResponse(bank, buy?.bankUsage),
+      bankId: bank.id,
+      bankName: bank.name,
+    };
+  }
+
+  // Fallback when a personal IBAN could not be issued for a bank transfer (e.g. the provider is down).
+  // Three reasons are told apart, because sending a customer after the wrong one wastes their time: no
+  // provider covers the currency at all; the customer has not reached KYC 50; or issuance failed for
+  // someone who has. Only the last case degrades to the shared collection account, and only WITH a
+  // per-buy reference so the incoming transfer stays attributable - an unreferenced collection transfer
+  // cannot be matched to a customer and must never be shown, so without a reference the request still
+  // fails. The failure is logged at ERROR regardless, so a provider outage stays visible even though the
+  // customer no longer sees an error. A customer below KYC 50 keeps getting KYC_REQUIRED, so the
+  // personal-IBAN/KYC coupling holds. KYC is read directly rather than through isUserEligible, which also
+  // folds in whether the provider is reachable right now - during an outage that would tell a fully
+  // verified customer to complete a level they already hold.
+  private async collectionAccountOrThrow(
+    selector: BankSelectorInput,
+    buy?: Buy,
+  ): Promise<{
+    bankInfo: BankInfoDto & { isPersonalIban: boolean; reference?: string };
+    bankId: number;
+    bankName: IbanBankName;
+  }> {
+    if (!this.virtualIbanService.hasProviderSupportingCurrency(selector.currency))
+      throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
+    if (selector.userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException(QuoteError.KYC_REQUIRED);
+
+    const bank = await this.bankService.getBank(selector);
+    const reference = buy?.bankUsage;
+    if (!bank || !reference) throw new BadRequestException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+
+    this.logger.error(
+      `Personal IBAN issuance failed for a KYC-cleared customer (userData ${selector.userData.id}, ${selector.currency}); showing the collection account instead`,
+    );
+
+    return {
+      bankInfo: this.buildBankResponse(bank, reference),
       bankId: bank.id,
       bankName: bank.name,
     };

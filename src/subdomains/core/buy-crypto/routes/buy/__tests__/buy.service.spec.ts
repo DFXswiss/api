@@ -341,8 +341,9 @@ describe('BuyService', () => {
       },
     );
 
-    it('delegates the KYC decision to the locked issuance read and preserves its KycRequired error', async () => {
+    it('reports KycRequired for an explicit Frick request below KYC 50 after issuance fails', async () => {
       jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockRejectedValue(new Error(QuoteError.KYC_REQUIRED));
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
 
       await expect(
         service['resolveBankInfo'](
@@ -361,6 +362,37 @@ describe('BuyService', () => {
         expect.objectContaining({ kycLevel: KycLevel.LEVEL_40 }),
         'EUR',
       );
+    });
+
+    it('falls back to the referenced collection account when an explicit Frick request fails for an eligible customer', async () => {
+      jest
+        .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
+        .mockRejectedValue(new Error('transient issuance error'));
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+      const collectionBank = {
+        id: 16,
+        name: IbanBankName.OLKY,
+        iban: 'FR7616798060015010806550926',
+        receive: true,
+      } as any;
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+      const errorLog = jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+      const resolved = await service['resolveBankInfo'](
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData },
+        buy,
+        asset,
+        undefined,
+        PersonalIbanProvider.FRICK,
+      );
+
+      expect(resolved).toMatchObject({ bankId: 16, bankName: IbanBankName.OLKY });
+      expect(resolved.bankInfo).toMatchObject({
+        iban: collectionBank.iban,
+        isPersonalIban: false,
+        reference: buy.bankUsage,
+      });
+      expect(errorLog).toHaveBeenCalledTimes(1);
     });
 
     it('uses the standard bank for CARD when implicit providers are ineligible for EUR', async () => {
@@ -750,23 +782,70 @@ describe('BuyService', () => {
       // because isUserEligible also folds in provider availability - asking it there would report a
       // missing KYC level to a customer who holds it whenever the provider is down.
       expect(virtualIbanService.isUserEligible).toHaveBeenCalledTimes(1);
-      expect(bankService.getBank).not.toHaveBeenCalled();
+      // The transfer fallback is attempted (getBank resolves the collection account); with none mocked
+      // it resolves to undefined, so a BadRequest still surfaces rather than the raw transient error.
+      expect(bankService.getBank).toHaveBeenCalled();
     });
 
-    it('reports PersonalIbanIssuanceFailed for an eligible EUR transfer after issuance fails', async () => {
+    it('reports PersonalIbanIssuanceFailed for an eligible EUR transfer when no collection account resolves', async () => {
       jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
       jest
         .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
         .mockRejectedValue(new Error('transient issuance error'));
+      // No collection bank resolves, so the transfer cannot fall back and still fails.
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
 
       await expect(
         service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData }, buy),
       ).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
 
       expect(virtualIbanService.getOrCreateFrickForUser).toHaveBeenCalledWith(userData, 'EUR');
-      expect(bankService.getBank).not.toHaveBeenCalled();
+      expect(bankService.getBank).toHaveBeenCalled();
+    });
+
+    it('falls back to the referenced collection account for an eligible EUR transfer after issuance fails', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+      jest
+        .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
+        .mockRejectedValue(new Error('transient issuance error'));
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+      const errorLog = jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData },
+        buy,
+      );
+
+      expect(bankInfo).toMatchObject({
+        bank: IbanBankName.OLKY,
+        iban: collectionBank.iban,
+        isPersonalIban: false,
+        reference: buy.bankUsage,
+      });
+      // The outage must stay visible even though the customer no longer sees an error.
+      expect(errorLog).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not show a collection account without a reference, even for an eligible EUR transfer', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+      jest
+        .spyOn(virtualIbanService, 'getOrCreateFrickForUser')
+        .mockRejectedValue(new Error('transient issuance error'));
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+
+      // A collection transfer without a reference cannot be attributed - it must never be shown.
+      await expect(
+        service.getBankInfo({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData }, {
+          ...buy,
+          bankUsage: undefined,
+        } as Buy),
+      ).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
     });
 
     it('reports KycRequired for an ineligible EUR transfer without a personal IBAN', async () => {
@@ -902,18 +981,20 @@ describe('BuyService', () => {
       expect(bankService.getBank).not.toHaveBeenCalled();
     });
 
-    it('reports PersonalIbanIssuanceFailed for an eligible CHF transfer after issuance fails', async () => {
+    it('reports PersonalIbanIssuanceFailed for an eligible CHF transfer when no collection account resolves', async () => {
       jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
       jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
       jest.spyOn(virtualIbanService, 'createForUser').mockRejectedValue(new Error('transient issuance error'));
+      // No collection bank resolves, so the transfer cannot fall back and still fails.
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
 
       await expect(
         service.getBankInfo({ currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData }, buy),
       ).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
 
       expect(virtualIbanService.createForUser).toHaveBeenCalledWith(userData, 'CHF');
-      expect(bankService.getBank).not.toHaveBeenCalled();
+      expect(bankService.getBank).toHaveBeenCalled();
     });
 
     it('continues to the standard bank for CHF CARD below KYC LEVEL_50', async () => {
