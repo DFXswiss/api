@@ -162,7 +162,10 @@ describe('Query Builder Alias Enforcement', () => {
       aliases.add(match[2]);
       const end = fileContent.indexOf('\n);', match.index);
       const declaration = fileContent.slice(match.index, end < 0 ? undefined : end);
-      const joinPattern = /\[\s*['"`][^'"`]+\.[^'"`]+['"`]\s*,\s*['"`](\w+)['"`]\s*\]/g;
+      // The third element is the optional join kind. Without it in the pattern a projection that
+      // declares an inner join contributes no alias at all, and every reference to it is reported
+      // as a bare column.
+      const joinPattern = /\[\s*['"`][^'"`]+\.[^'"`]+['"`]\s*,\s*['"`](\w+)['"`]\s*(?:,\s*['"`]\w+['"`]\s*)?\]/g;
       let joinMatch;
       while ((joinMatch = joinPattern.exec(declaration)) !== null) aliases.add(joinMatch[1]);
     }
@@ -554,6 +557,15 @@ export const SECOND_PROJECTION = new ReadProjection<Thing>(
   [['thing.other', 'secondOther']],
   ['thing.id'],
 );
+
+export const THIRD_PROJECTION = new ReadProjection<Thing>(
+  'thing',
+  [
+    ['thing.inner', 'innerJoined', 'inner'],
+    ['thing.left', 'leftJoined'],
+  ],
+  ['thing.id'],
+);
 `;
 
     it('accepts an alias declared by the projection the query applies', () => {
@@ -567,6 +579,18 @@ export const SECOND_PROJECTION = new ReadProjection<Thing>(
 
       // Without this the query would pass the scan while referencing a relation it never joined.
       expect(extractAllAliases(chain, 'thing', twoProjections).has('secondOther')).toBe(false);
+    });
+
+    it('takes the aliases of a projection declaring a join kind', () => {
+      // A join carrying `'inner'` is a three-element tuple. Read with a two-element pattern it
+      // matches nothing, and the scan then rejects every reference to the relation it joined.
+      const chain = `THIRD_PROJECTION.apply(this.createQueryBuilder('thing')).where('innerJoined.id = :id', { id })`;
+
+      const aliases = extractAllAliases(chain, 'thing', twoProjections);
+
+      expect(aliases.has('innerJoined')).toBe(true);
+      // The plain join beside it still resolves — the optional element must not swallow the pair.
+      expect(aliases.has('leftJoined')).toBe(true);
     });
 
     it('takes no projection aliases at all when the chain applies none', () => {

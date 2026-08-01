@@ -212,8 +212,8 @@ export async function seedEntity<E extends ObjectLiteral>(
  * `undefined`, `null`, `''` and `NaN` count as empty; `0` and `false` do not. `NaN` is on the list
  * because a field computed as `a + b + c` becomes `NaN` as soon as one column is missing.
  *
- * `optional` lists paths allowed to be empty for the fixture at hand; each entry asserts that
- * another variant covers the field.
+ * `optional` lists paths allowed to be empty for the fixture at hand. Covering those fields is the
+ * job of another fixture, which this function does not track.
  */
 export function expectNoEmptyFields(value: unknown, optional: string[] = [], path = ''): void {
   const empty =

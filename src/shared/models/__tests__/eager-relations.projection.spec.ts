@@ -14,9 +14,10 @@ const SRC = join(__dirname, '../../..');
  * The entities that leave through a controller as themselves — for those, the eager relations are
  * the response rather than a loading detail.
  *
- * Read out of the source rather than listed, so that adding a controller cannot narrow the closure
- * silently. Deliberately generous: any method in a controller file whose return type names an
- * entity counts. An over-match costs precision in the message, a miss costs the guarantee.
+ * Read out of the source rather than listed, so that a controller added later is covered without
+ * anyone remembering a list. Deliberately generous: any method in a controller file whose return
+ * type names an entity counts. Names are matched as written — a return type reached through an
+ * alias is not seen — so an over-match costs precision in the message, a miss costs the guarantee.
  */
 function entitiesReturnedWhole(entities: Set<string>): Map<string, string[]> {
   const controllers: string[] = [];
