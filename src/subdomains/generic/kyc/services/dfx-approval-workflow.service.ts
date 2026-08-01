@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -22,8 +23,19 @@ import { DfxApprovalDocumentService } from './dfx-approval-document.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { NameCheckService } from './name-check.service';
 
-const ADVISORY_LOCK_NAMESPACE = 1145466968;
-const LEGACY_DOCUMENT_EXCLUSIONS = [374462, 374428, 385169];
+// Separate advisory-lock namespaces: step IDs and user data IDs are independent sequences and must
+// not collide in the same lock space.
+const STEP_ADVISORY_LOCK_NAMESPACE = 1145466968;
+const USER_DATA_ADVISORY_LOCK_NAMESPACE = 1145466969;
+
+// Accounts excluded from generated GwG documents, kept out of the source tree because they are
+// productive account IDs. Empty unless the setting is present.
+export const DOCUMENT_EXCLUSION_SETTING_KEY = 'dfxApprovalDocumentExclusions';
+
+// Lock aliases must be lower case: TypeORM emits `FOR UPDATE OF <alias>` unquoted and Postgres
+// folds unquoted identifiers to lower case, so a camelCase alias is not found in the FROM clause.
+const STEP_LOCK_ALIAS = 'step';
+const USER_DATA_LOCK_ALIAS = 'user_data';
 
 @Injectable()
 export class DfxApprovalWorkflowService {
@@ -35,11 +47,14 @@ export class DfxApprovalWorkflowService {
     private readonly documentService: DfxApprovalDocumentService,
     private readonly nameCheckService: NameCheckService,
     private readonly notificationService: KycNotificationService,
+    private readonly settingService: SettingService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.KYC_DFX_APPROVAL, timeout: 900 })
   async reviewPersonalApprovals(): Promise<void> {
     if (!Config.kyc.dfxApprovalWorkflowEnabled) return;
+
+    const exclusions = await this.documentExclusions();
 
     await this.initializePendingPersonalRiskData();
 
@@ -55,16 +70,21 @@ export class DfxApprovalWorkflowService {
 
     for (const step of steps) {
       try {
-        await this.withStepLock(step.id, () => this.processPersonalApproval(step.id));
+        await this.withStepLock(step.id, () => this.processPersonalApproval(step.id, exclusions));
       } catch (error) {
         this.logger.error(`DfxApproval workflow failed for step ${step.id}:`, error);
       }
     }
 
-    await this.generatePendingPersonalDocuments();
+    await this.generatePendingPersonalDocuments(exclusions);
   }
 
-  private async processPersonalApproval(stepId: number): Promise<void> {
+  // Productive account IDs stay in configuration, never in the source tree.
+  private async documentExclusions(): Promise<number[]> {
+    return (await this.settingService.getObjCached<number[]>(DOCUMENT_EXCLUSION_SETTING_KEY, [])) ?? [];
+  }
+
+  private async processPersonalApproval(stepId: number, exclusions: number[]): Promise<void> {
     let step = await this.loadStep(stepId);
     if (step.status !== ReviewStatus.MANUAL_REVIEW || step.userData.kycLevel < KycLevel.LEVEL_40) return;
 
@@ -72,7 +92,7 @@ export class DfxApprovalWorkflowService {
     await this.initializePersonalRiskData(step.userData, hasOpenNameChecks);
 
     step = await this.loadStep(stepId);
-    const requestedDocuments = this.eligiblePersonalDocuments(step.userData);
+    const requestedDocuments = this.eligiblePersonalDocuments(step.userData, exclusions);
     await this.documentService.generateMissingPersonalDocuments(
       step.userData,
       step,
@@ -95,10 +115,7 @@ export class DfxApprovalWorkflowService {
     if (!Object.keys(update).length) return;
 
     await this.kycStepRepo.manager.transaction(async (manager) => {
-      const current = await manager.findOne(UserData, {
-        where: { id: userData.id },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const current = await this.lockUserData(manager, userData.id);
       if (!current) throw new NotFoundException('UserData not found');
 
       const effectiveUpdate = Object.fromEntries(
@@ -145,10 +162,10 @@ export class DfxApprovalWorkflowService {
     }
   }
 
-  private async generatePendingPersonalDocuments(): Promise<void> {
+  private async generatePendingPersonalDocuments(exclusions: number[]): Promise<void> {
     await this.generatePendingApprovalStepDocuments();
     await this.generatePendingCustomerProfiles();
-    await this.generatePendingRiskAndFormADocuments();
+    await this.generatePendingRiskAndFormADocuments(exclusions);
   }
 
   private async generatePendingApprovalStepDocuments(): Promise<void> {
@@ -211,10 +228,10 @@ export class DfxApprovalWorkflowService {
     }
   }
 
-  private async generatePendingRiskAndFormADocuments(): Promise<void> {
+  private async generatePendingRiskAndFormADocuments(exclusions: number[]): Promise<void> {
     const users = await this.kycStepRepo.manager.find(UserData, {
       where: {
-        id: Not(In(LEGACY_DOCUMENT_EXCLUSIONS)),
+        ...(exclusions.length ? { id: Not(In(exclusions)) } : {}),
         accountType: AccountType.PERSONAL,
         status: Not(UserDataStatus.MERGED),
         kycType: KycType.DFX,
@@ -234,13 +251,19 @@ export class DfxApprovalWorkflowService {
     });
 
     for (const userData of users) {
-      const step = this.documentAnchorStep(userData);
-      if (!step) continue;
-      const requested = this.eligibleRiskAndFormADocuments(userData);
+      const requested = this.eligibleRiskAndFormADocuments(userData, exclusions);
 
       try {
-        await this.withStepLock(step.id, () =>
-          this.documentService.generateMissingPersonalDocuments(userData, step, userData.kycFiles, requested),
+        // These two documents follow the account, not a KYC step. Locking on the user data keeps
+        // accounts without a DfxApproval or FinancialData step in scope, which the productive Sheet
+        // covers as well.
+        await this.withUserDataLock(userData.id, () =>
+          this.documentService.generateMissingPersonalDocuments(
+            userData,
+            this.documentAnchorStep(userData),
+            userData.kycFiles,
+            requested,
+          ),
         );
       } catch (error) {
         this.logger.error(`DfxApproval risk/FormA generation failed for userData ${userData.id}:`, error);
@@ -248,13 +271,14 @@ export class DfxApprovalWorkflowService {
     }
   }
 
+  // Optional: only used to reference the triggering step in the document metadata.
   private documentAnchorStep(userData: UserData): KycStep | undefined {
     return [...(userData.kycSteps ?? [])]
       .filter((step) => [KycStepName.DFX_APPROVAL, KycStepName.FINANCIAL_DATA].includes(step.name))
       .sort((a, b) => b.created.getTime() - a.created.getTime())[0];
   }
 
-  private eligiblePersonalDocuments(userData: UserData): FileSubType[] {
+  private eligiblePersonalDocuments(userData: UserData, exclusions: number[]): FileSubType[] {
     const documents = this.eligibleApprovalStepDocuments(userData);
     const isPreApprovalPersonal =
       userData.accountType === AccountType.PERSONAL &&
@@ -265,7 +289,7 @@ export class DfxApprovalWorkflowService {
     );
     if (isPreApprovalPersonal && userData.verifiedName && hasFinancialData)
       documents.push(FileSubType.CUSTOMER_PROFILE);
-    documents.push(...this.eligibleRiskAndFormADocuments(userData));
+    documents.push(...this.eligibleRiskAndFormADocuments(userData, exclusions));
     return [...new Set(documents)];
   }
 
@@ -278,14 +302,14 @@ export class DfxApprovalWorkflowService {
     return documents;
   }
 
-  private eligibleRiskAndFormADocuments(userData: UserData): FileSubType[] {
+  private eligibleRiskAndFormADocuments(userData: UserData, exclusions: number[]): FileSubType[] {
     const eligible =
       userData.accountType === AccountType.PERSONAL &&
       userData.status !== UserDataStatus.MERGED &&
       userData.kycType === KycType.DFX &&
       userData.kycLevel >= KycLevel.LEVEL_30 &&
       userData.kycLevel < KycLevel.LEVEL_50 &&
-      !LEGACY_DOCUMENT_EXCLUSIONS.includes(userData.id);
+      !exclusions.includes(userData.id);
     if (!eligible) return [];
 
     const documents = [FileSubType.FORM_A];
@@ -295,10 +319,7 @@ export class DfxApprovalWorkflowService {
 
   private async completeIfReady(stepId: number): Promise<UserData | undefined> {
     return this.kycStepRepo.manager.transaction(async (manager) => {
-      const step = await manager.findOne(KycStep, {
-        where: { id: stepId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const step = await this.lockStep(manager, stepId);
       if (!step || step.status !== ReviewStatus.MANUAL_REVIEW) return undefined;
 
       const userData = await this.loadUserData(manager, step.userData.id);
@@ -311,7 +332,16 @@ export class DfxApprovalWorkflowService {
         },
       });
       const status = this.checkService.evaluatePersonal(userData, step, userData.kycFiles, hasOpenNameChecks);
-      if (!status.ready) return undefined;
+      if (!status.ready) {
+        // The gate decision is the operational signal of this workflow: without the blockers, a case
+        // waiting forever is indistinguishable from a case nobody looked at.
+        this.logger.verbose(
+          `DfxApproval step ${step.id} not ready: ${status.blockers
+            .map((blocker) => blocker.code + (blocker.documentSubType ? `(${blocker.documentSubType})` : ''))
+            .join(', ')}`,
+        );
+        return undefined;
+      }
 
       const result = JSON.stringify({
         workflow: 'DfxApproval',
@@ -372,13 +402,40 @@ export class DfxApprovalWorkflowService {
         manager.create(KycLog, {
           type: KycLogType.KYC,
           userData: { id: userData.id },
-          result: `KycLevel confirmed at ${finalKycLevel} by DfxApproval API workflow`,
+          // Same wording as the manual approval path (KycService.createKycLevelLog), so existing
+          // log evaluations keep matching.
+          result: `KycLevel changed to ${finalKycLevel}`,
         }),
       );
 
       Object.assign(userData, userStatusUpdate);
       return userData;
     });
+  }
+
+  // Row lock for the approval transaction. The step is joined to its user data because a
+  // `ManyToOne` without `eager` is not populated by a plain load, and the completion needs the
+  // user data ID. `FOR UPDATE OF` names the step alone: Postgres rejects `FOR UPDATE` on the
+  // nullable side of an outer join, and the user data is only read here, never written.
+  private async lockStep(manager: EntityManager, stepId: number): Promise<KycStep | undefined> {
+    return manager
+      .createQueryBuilder(KycStep, STEP_LOCK_ALIAS)
+      .leftJoinAndSelect(`${STEP_LOCK_ALIAS}.userData`, 'joinedUserData')
+      .where(`${STEP_LOCK_ALIAS}.id = :stepId`, { stepId })
+      .setLock('pessimistic_write', undefined, [STEP_LOCK_ALIAS])
+      .getOne()
+      .then((step) => step ?? undefined);
+  }
+
+  // Row lock on user data only. A find with relations would join the eager, nullable relations of
+  // `UserData` (country, verifiedCountry, organization), which Postgres refuses to lock.
+  private async lockUserData(manager: EntityManager, userDataId: number): Promise<UserData | undefined> {
+    return manager
+      .createQueryBuilder(UserData, USER_DATA_LOCK_ALIAS)
+      .where(`${USER_DATA_LOCK_ALIAS}.id = :userDataId`, { userDataId })
+      .setLock('pessimistic_write', undefined, [USER_DATA_LOCK_ALIAS])
+      .getOne()
+      .then((userData) => userData ?? undefined);
   }
 
   private async loadStep(stepId: number): Promise<KycStep> {
@@ -417,24 +474,27 @@ export class DfxApprovalWorkflowService {
     return userData;
   }
 
-  private async withStepLock(stepId: number, action: () => Promise<void>, wait = false): Promise<void> {
+  private async withStepLock(stepId: number, action: () => Promise<void>): Promise<void> {
+    return this.withAdvisoryLock(STEP_ADVISORY_LOCK_NAMESPACE, stepId, action);
+  }
+
+  private async withUserDataLock(userDataId: number, action: () => Promise<void>): Promise<void> {
+    return this.withAdvisoryLock(USER_DATA_ADVISORY_LOCK_NAMESPACE, userDataId, action);
+  }
+
+  private async withAdvisoryLock(namespace: number, key: number, action: () => Promise<void>): Promise<void> {
     const runner = this.kycStepRepo.manager.connection.createQueryRunner();
     await runner.connect();
     let acquired = false;
     try {
-      if (wait) {
-        await runner.query('SELECT pg_advisory_lock($1, $2)', [ADVISORY_LOCK_NAMESPACE, stepId]);
-        acquired = true;
-      } else {
-        const rows = (await runner.query('SELECT pg_try_advisory_lock($1, $2) AS acquired', [
-          ADVISORY_LOCK_NAMESPACE,
-          stepId,
-        ])) as { acquired: boolean }[];
-        acquired = rows[0]?.acquired === true;
-      }
+      const rows = (await runner.query('SELECT pg_try_advisory_lock($1, $2) AS acquired', [namespace, key])) as {
+        acquired: boolean;
+      }[];
+      acquired = rows[0]?.acquired === true;
+
       if (acquired) await action();
     } finally {
-      if (acquired) await runner.query('SELECT pg_advisory_unlock($1, $2)', [ADVISORY_LOCK_NAMESPACE, stepId]);
+      if (acquired) await runner.query('SELECT pg_advisory_unlock($1, $2)', [namespace, key]);
       await runner.release();
     }
   }

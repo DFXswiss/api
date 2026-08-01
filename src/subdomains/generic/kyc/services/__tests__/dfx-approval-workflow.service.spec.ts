@@ -1,11 +1,12 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Config, ConfigService } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { EntityManager } from 'typeorm';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { KycLevel, KycType, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
 import { FileSubType } from '../../dto/kyc-file.dto';
-import { DfxApprovalBlocker } from '../../dto/output/dfx-approval-status.dto';
+import { DfxApprovalBlocker } from '../../dto/dfx-approval-status.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
@@ -22,6 +23,25 @@ describe('DfxApprovalWorkflowService', () => {
   let documentService: jest.Mocked<DfxApprovalDocumentService>;
   let notificationService: jest.Mocked<KycNotificationService>;
   let checkService: jest.Mocked<DfxApprovalCheckService>;
+  let settingService: jest.Mocked<SettingService>;
+
+  // Chainable query-builder double: the production code locks through the builder, so the double
+  // has to return itself from every chained call.
+  function queryBuilder(result: unknown): Record<string, jest.Mock> {
+    const builder: Record<string, jest.Mock> = {};
+    for (const method of ['leftJoinAndSelect', 'where', 'setLock'])
+      builder[method] = jest.fn().mockReturnValue(builder);
+    builder.getOne = jest.fn().mockResolvedValue(result);
+
+    return builder;
+  }
+
+  // TypeORM emits `FOR UPDATE OF <alias>` unquoted; Postgres folds it to lower case and then fails
+  // to match a camelCase alias in the FROM clause.
+  function expectLowerCaseLockAlias(builder: Record<string, jest.Mock>): void {
+    const tables = builder.setLock.mock.calls[0][2] as string[];
+    expect(tables).toEqual(tables.map((table) => table.toLowerCase()));
+  }
 
   function pendingStep(): KycStep {
     const userData = createCustomUserData({
@@ -50,6 +70,8 @@ describe('DfxApprovalWorkflowService', () => {
     documentService = createMock<DfxApprovalDocumentService>();
     notificationService = createMock<KycNotificationService>();
     checkService = createMock<DfxApprovalCheckService>();
+    settingService = createMock<SettingService>();
+    settingService.getObjCached.mockResolvedValue([]);
     checkService.evaluatePersonal.mockReturnValue({
       ready: false,
       blockers: [{ code: DfxApprovalBlocker.MISSING_DOCUMENT, documentSubType: FileSubType.RISK_PROFILE }],
@@ -60,6 +82,7 @@ describe('DfxApprovalWorkflowService', () => {
       documentService,
       createMock<NameCheckService>(),
       notificationService,
+      settingService,
     );
     (stepRepo.manager.find as jest.Mock).mockResolvedValue([]);
   });
@@ -163,7 +186,7 @@ describe('DfxApprovalWorkflowService', () => {
       kycSteps: [step, financialStep],
     });
 
-    expect((service as any).eligiblePersonalDocuments(step.userData)).toEqual(
+    expect((service as any).eligiblePersonalDocuments(step.userData, [])).toEqual(
       expect.arrayContaining([
         FileSubType.GWG_FILE_COVER,
         FileSubType.IDENTIFICATION_FORM,
@@ -173,11 +196,11 @@ describe('DfxApprovalWorkflowService', () => {
         FileSubType.FORM_A,
       ]),
     );
-    expect((service as any).eligiblePersonalDocuments(step.userData)).toHaveLength(6);
+    expect((service as any).eligiblePersonalDocuments(step.userData, [])).toHaveLength(6);
 
     step.userData.highRisk = true;
-    expect((service as any).eligiblePersonalDocuments(step.userData)).not.toContain(FileSubType.RISK_PROFILE);
-    expect((service as any).eligiblePersonalDocuments(step.userData)).toContain(FileSubType.FORM_A);
+    expect((service as any).eligiblePersonalDocuments(step.userData, [])).not.toContain(FileSubType.RISK_PROFILE);
+    expect((service as any).eligiblePersonalDocuments(step.userData, [])).toContain(FileSubType.FORM_A);
   });
 
   it('applies the productive approval defaults atomically when completing a ready case', async () => {
@@ -186,13 +209,20 @@ describe('DfxApprovalWorkflowService', () => {
     step.userData.amlAccountType = 'legacy';
     const manager = stepRepo.manager as unknown as jest.Mocked<EntityManager>;
     (manager.transaction as jest.Mock).mockImplementation((action) => action(manager));
-    (manager.findOne as jest.Mock).mockImplementation((entity) =>
-      Promise.resolve(entity === KycStep ? step : step.userData),
-    );
+    const stepBuilder = queryBuilder(step);
+    (manager.createQueryBuilder as jest.Mock).mockReturnValue(stepBuilder);
+    (manager.findOne as jest.Mock).mockResolvedValue(step.userData);
     (manager.exists as jest.Mock).mockResolvedValue(false);
     checkService.evaluatePersonal.mockReturnValue({ ready: true, blockers: [] });
 
     await (service as any).completeIfReady(step.id);
+
+    // The step is loaded together with its user data: a ManyToOne without eager loading is not
+    // populated otherwise, and the completion needs the user data ID.
+    expect(stepBuilder.leftJoinAndSelect).toHaveBeenCalledWith('step.userData', 'joinedUserData');
+    // Postgres rejects FOR UPDATE on the nullable side of an outer join, so the lock names the step.
+    expect(stepBuilder.setLock).toHaveBeenCalledWith('pessimistic_write', undefined, ['step']);
+    expectLowerCaseLockAlias(stepBuilder);
 
     expect(manager.update).toHaveBeenCalledWith(
       expect.any(Function),
@@ -205,5 +235,66 @@ describe('DfxApprovalWorkflowService', () => {
         amlAccountType: 'natural person',
       }),
     );
+  });
+
+  it('locks user data without joining its eager relations', async () => {
+    const userData = createCustomUserData({ id: 42, pep: null, highRisk: null, lastNameCheckDate: new Date() });
+    const manager = stepRepo.manager as unknown as jest.Mocked<EntityManager>;
+    (manager.transaction as jest.Mock).mockImplementation((action) => action(manager));
+    const userDataBuilder = queryBuilder(userData);
+    (manager.createQueryBuilder as jest.Mock).mockReturnValue(userDataBuilder);
+
+    await (service as any).initializePersonalRiskData(userData, false);
+
+    expect(manager.findOne).not.toHaveBeenCalled();
+    expect(userDataBuilder.leftJoinAndSelect).not.toHaveBeenCalled();
+    expect(userDataBuilder.setLock).toHaveBeenCalledWith('pessimistic_write', undefined, ['user_data']);
+    expectLowerCaseLockAlias(userDataBuilder);
+  });
+
+  it('generates RiskProfile and FormA for accounts without any approval or financial step', async () => {
+    const userData = createCustomUserData({
+      id: 42,
+      accountType: AccountType.PERSONAL,
+      status: UserDataStatus.ACTIVE,
+      kycType: KycType.DFX,
+      kycLevel: KycLevel.LEVEL_30,
+      verifiedName: 'Test User',
+      highRisk: false,
+      country: { fatfEnable: true } as never,
+      kycSteps: [],
+      kycFiles: [],
+    });
+    (stepRepo.manager.find as jest.Mock).mockResolvedValueOnce([userData]);
+    jest.spyOn(service as any, 'withUserDataLock').mockImplementation((_id, action: any) => action());
+
+    await (service as any).generatePendingRiskAndFormADocuments([]);
+
+    expect(documentService.generateMissingPersonalDocuments).toHaveBeenCalledWith(
+      userData,
+      undefined,
+      userData.kycFiles,
+      [FileSubType.FORM_A, FileSubType.RISK_PROFILE],
+    );
+  });
+
+  it('takes the document exclusions from configuration, never from the source tree', async () => {
+    settingService.getObjCached.mockResolvedValue([42]);
+    const userData = createCustomUserData({
+      id: 42,
+      accountType: AccountType.PERSONAL,
+      status: UserDataStatus.ACTIVE,
+      kycType: KycType.DFX,
+      kycLevel: KycLevel.LEVEL_30,
+      highRisk: false,
+      country: { fatfEnable: true } as never,
+    });
+
+    expect((service as any).eligibleRiskAndFormADocuments(userData, [42])).toEqual([]);
+    expect((service as any).eligibleRiskAndFormADocuments(userData, [])).toContain(FileSubType.FORM_A);
+
+    await service.reviewPersonalApprovals();
+
+    expect(settingService.getObjCached).toHaveBeenCalledWith('dfxApprovalDocumentExclusions', []);
   });
 });

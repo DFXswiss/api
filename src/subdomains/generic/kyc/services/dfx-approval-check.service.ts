@@ -4,7 +4,7 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycStatus, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { IdentDocumentType } from '../dto/ident-result-data.dto';
 import { FileSubType, FileType } from '../dto/kyc-file.dto';
-import { DfxApprovalBlocker, DfxApprovalBlockerDto, DfxApprovalStatusDto } from '../dto/output/dfx-approval-status.dto';
+import { DfxApprovalBlocker, DfxApprovalBlockerDto, DfxApprovalStatusDto } from '../dto/dfx-approval-status.dto';
 import { KycFile } from '../entities/kyc-file.entity';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName } from '../enums/kyc-step-name.enum';

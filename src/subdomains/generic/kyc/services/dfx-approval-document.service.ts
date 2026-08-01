@@ -24,9 +24,11 @@ export class DfxApprovalDocumentService {
     private readonly documentService: KycDocumentService,
   ) {}
 
+  // `step` is optional: RiskProfile and FormA follow the account, not a KYC step, and the productive
+  // Sheet selects them from user data alone. It is only recorded in the document metadata.
   async generateMissingPersonalDocuments(
     userData: UserData,
-    step: KycStep,
+    step: KycStep | undefined,
     files: KycFile[],
     requestedDocuments: readonly FileSubType[] = DFX_APPROVAL_GENERATED_DOCUMENTS,
   ): Promise<void> {
@@ -39,25 +41,31 @@ export class DfxApprovalDocumentService {
       where: { userData: { id: userData.id } },
       order: { created: 'DESC' },
     });
-    if (missing.includes(FileSubType.DFX_NAME_CHECK) && !nameCheck)
-      throw new Error(`NameCheck evidence is missing for userData ${userData.id}`);
 
     const generatedAt = new Date();
     const failures: string[] = [];
     for (const subType of missing) {
       try {
-        const context = { userData, steps: userData.kycSteps, nameCheck, generatedAt };
-        const data = await this.pdfService.generate(subType, context);
+        // Only the NameCheck document depends on this evidence; failing it here keeps every other
+        // document of the same case unblocked.
+        if (subType === FileSubType.DFX_NAME_CHECK && !nameCheck)
+          throw new Error(`NameCheck evidence is missing for userData ${userData.id}`);
+
         const version = 'v1';
         const generationKey = `dfx-approval:${userData.id}:${subType}:${version}`;
+        // A retry keeps the name of the first attempt; the same string is printed into the document
+        // as its document number, so name and content must not drift apart.
+        const registered = await this.documentService.findGeneratedUserFile(generationKey);
+        const context = { userData, steps: userData.kycSteps, nameCheck, generatedAt, documentName: registered?.name };
+        const data = await this.pdfService.generate(subType, context);
         await this.documentService.ensureGeneratedUserFile(
           generationKey,
           userData,
           FileType.USER_NOTES,
           subType,
-          this.pdfService.fileName(subType, context),
+          registered?.name ?? this.pdfService.fileName(subType, context),
           data,
-          { workflow: 'DfxApproval', version, stepId: String(step.id) },
+          { workflow: 'DfxApproval', version, ...(step ? { stepId: String(step.id) } : {}) },
         );
       } catch (error) {
         failures.push(`${subType}: ${(error as Error).message}`);

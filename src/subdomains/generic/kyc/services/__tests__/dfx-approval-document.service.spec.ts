@@ -20,6 +20,7 @@ describe('DfxApprovalDocumentService', () => {
     nameCheckRepo = createMock<NameCheckLogRepository>();
     pdfService = createMock<DfxApprovalPdfService>();
     documentService = createMock<KycDocumentService>();
+    documentService.findGeneratedUserFile.mockResolvedValue(null);
     nameCheckRepo.findOne.mockResolvedValue(null);
     pdfService.generate.mockResolvedValue(Buffer.from('pdf'));
     pdfService.fileName.mockReturnValue('document.pdf');
@@ -68,5 +69,56 @@ describe('DfxApprovalDocumentService', () => {
     ).rejects.toThrow(`NameCheck evidence is missing for userData ${userData.id}`);
 
     expect(pdfService.generate).not.toHaveBeenCalled();
+  });
+
+  it('keeps the other documents of the same case when NameCheck evidence is missing', async () => {
+    await expect(
+      service.generateMissingPersonalDocuments(
+        userData,
+        step,
+        [],
+        [FileSubType.DFX_NAME_CHECK, FileSubType.GWG_FILE_COVER, FileSubType.FORM_A],
+      ),
+    ).rejects.toThrow('NameCheck evidence is missing');
+
+    expect(documentService.ensureGeneratedUserFile).toHaveBeenCalledTimes(2);
+    expect(documentService.ensureGeneratedUserFile).toHaveBeenCalledWith(
+      expect.stringContaining(FileSubType.GWG_FILE_COVER),
+      ...Array(6).fill(expect.anything()),
+    );
+  });
+
+  it('generates account-bound documents without a KYC step', async () => {
+    await service.generateMissingPersonalDocuments(userData, undefined, [], [FileSubType.FORM_A]);
+
+    expect(documentService.ensureGeneratedUserFile).toHaveBeenCalledWith(
+      expect.any(String),
+      userData,
+      expect.any(String),
+      FileSubType.FORM_A,
+      expect.any(String),
+      expect.any(Buffer),
+      { workflow: 'DfxApproval', version: 'v1' },
+    );
+  });
+
+  it('reuses the registered file name when a document is generated again', async () => {
+    documentService.findGeneratedUserFile.mockResolvedValue({ name: 'first-attempt.pdf' } as never);
+
+    await service.generateMissingPersonalDocuments(userData, step, [], [FileSubType.FORM_A]);
+
+    expect(pdfService.generate).toHaveBeenCalledWith(
+      FileSubType.FORM_A,
+      expect.objectContaining({ documentName: 'first-attempt.pdf' }),
+    );
+    expect(documentService.ensureGeneratedUserFile).toHaveBeenCalledWith(
+      expect.any(String),
+      userData,
+      expect.any(String),
+      FileSubType.FORM_A,
+      'first-attempt.pdf',
+      expect.any(Buffer),
+      expect.any(Object),
+    );
   });
 });

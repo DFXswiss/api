@@ -1,5 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { FileSubType } from '../kyc-file.dto';
+import { FileSubType } from './kyc-file.dto';
+
+// Internal result of the approval gate: the workflow decides on it and logs it. It is not exposed
+// through an endpoint, so it carries no Swagger contract.
 
 export enum DfxApprovalBlocker {
   WRONG_ACCOUNT_TYPE = 'WrongAccountType',
@@ -30,17 +32,13 @@ export enum DfxApprovalBlocker {
 }
 
 export class DfxApprovalBlockerDto {
-  @ApiProperty({ enum: DfxApprovalBlocker })
   code: DfxApprovalBlocker;
 
-  @ApiProperty({ enum: FileSubType, required: false })
   documentSubType?: FileSubType;
 }
 
 export class DfxApprovalStatusDto {
-  @ApiProperty()
   ready: boolean;
 
-  @ApiProperty({ type: DfxApprovalBlockerDto, isArray: true })
   blockers: DfxApprovalBlockerDto[];
 }
