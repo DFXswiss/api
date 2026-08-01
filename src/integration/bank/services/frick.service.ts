@@ -38,8 +38,8 @@ type FrickResponseType = 'json' | 'text';
 /**
  * Bodyless request Content-Type policy for signed Bank Frick calls.
  * Required explicitly at every call site — no default — so WebAPI and vIBAN cannot silently share
- * the wrong policy. WebAPI bodyless GETs send `*/*`; vIBAN bodyless GETs must omit Content-Type
- * entirely (production Azure gateway returns unsigned HTTP 403 when `Content-Type: */*` is present).
+ * the wrong policy. WebAPI bodyless GETs send a wildcard Content-Type; vIBAN bodyless GETs must
+ * omit it entirely (production Azure gateway otherwise returns unsigned HTTP 403).
  * Requests with a body always use `application/json` on both APIs and ignore this value.
  */
 type FrickBodylessContentType = '*/*' | undefined;
