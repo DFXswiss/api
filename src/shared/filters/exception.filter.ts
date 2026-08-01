@@ -17,6 +17,13 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // Cap the (masked) reason: exception messages can embed user-supplied free text.
   private static readonly REASON_MAX_LENGTH = 500;
 
+  // How much of the message is looked at before it is masked. An exception message can be as large
+  // as the body it interpolated a value from, and masking is regex work over what it is given, so
+  // it is not given the whole of it. The margin over the cap is wider than the longest pattern
+  // `maskValue` matches, so a pattern that starts inside the cap and runs past it is still seen
+  // whole and still masked.
+  private static readonly REASON_SCAN_LENGTH = 1000;
+
   private readonly logger = new DfxLogger(ApiExceptionFilter);
 
   catch(exception: Error, host: ArgumentsHost) {
@@ -45,10 +52,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // The reason is untrusted like the rest of the line: an exception message can interpolate a
       // value the request supplied, so it goes through the same collapse and the same
       // character-safe cut as the caller markers and the rejected values.
-      const reason = capCharacters(
-        maskValue(singleLine(this.getReason(exception))),
-        ApiExceptionFilter.REASON_MAX_LENGTH,
-      );
+      const scanned = capCharacters(this.getReason(exception), ApiExceptionFilter.REASON_SCAN_LENGTH);
+      const reason = capCharacters(maskValue(singleLine(scanned)), ApiExceptionFilter.REASON_MAX_LENGTH);
       const rejected =
         exception instanceof ValidationFailedException
           ? ` (received: ${describeRejectedValues(exception.validationErrors)})`

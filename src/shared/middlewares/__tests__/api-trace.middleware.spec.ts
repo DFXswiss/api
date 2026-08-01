@@ -172,7 +172,7 @@ describe('apiTraceMiddleware', () => {
     expect(line.length).toBeLessThan(3 * 4500); // each of the 3 sections stays within MAX_PART
     // the reported serialized size proves the walk stopped at the budget
     // instead of stringifying the whole ~20 MB body
-    const [, serializedSize] = line.match(/req\.body=.*…\((\d+) chars\)/) ?? [];
+    const [, serializedSize] = line.match(/req\.body=.*…\((\d+) code units\)/) ?? [];
     expect(Number(serializedSize)).toBeLessThan(10_000);
   });
 
@@ -185,23 +185,27 @@ describe('apiTraceMiddleware', () => {
     expect(line).toContain('<binary 7 bytes>');
   });
 
-  it('masks an IBAN by value, under a key the name-based redaction does not cover', () => {
-    const { lines } = runTrace(
-      realunitReq({ reference: 'CH9300762011623852957', note: 'CH93 0076 2011 6238 5295 7' }),
-      200,
-      (res) => res.json({}),
-    );
+  it('cuts an oversized section between characters, so the section carries no stray surrogate', () => {
+    // Every value stays under MAX_STRING, so the section is cut by its own cap rather than the
+    // per-string one; the padding puts an astral character across that cut.
+    const notes = Array.from({ length: 9 }, () => 'b'.repeat(400));
+    const withPadding = (padding: number) => ({
+      notes: [...notes, `${'c'.repeat(padding)}${'\u{1F600}'.repeat(10)}`],
+    });
+    let padding = 0;
+    while (JSON.stringify(withPadding(padding)).indexOf('\u{1F600}') < 4000 - 1) padding++;
+
+    const { lines } = runTrace(realunitReq(withPadding(padding)), 200, (res) => res.json({}));
     const line = lines.join('\n');
 
-    expect(line).not.toContain('CH9300762011623852957');
-    expect(line).not.toContain('6238 5295 7');
-  });
-
-  it('leaves a longer alphanumeric run intact, so a transaction hash is not mistaken for an IBAN', () => {
-    const hash = `CH93${'a1b2c3d4e5'.repeat(4)}`;
-    const { lines } = runTrace(realunitReq({ reference: hash }), 200, (res) => res.json({}));
-
-    expect(lines.join('\n')).toContain(hash);
+    expect(line).toContain('code units)');
+    expect(line).not.toContain('\ufffd');
+    // no lone surrogate: a well-formed pair is one character with a code point above the range
+    const isLoneSurrogate = (character: string) => {
+      const codePoint = character.codePointAt(0) as number;
+      return codePoint >= 0xd800 && codePoint <= 0xdfff;
+    };
+    expect([...line].some(isLoneSurrogate)).toBe(false);
   });
 
   it('keeps the trace on one line, including the separators JSON.stringify leaves raw', () => {

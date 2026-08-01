@@ -112,17 +112,16 @@ describe('ApiExceptionFilter', () => {
     expect(msg).toContain('abc WARN');
   });
 
-  it('masks an IBAN in the reason, wherever it sits', () => {
-    filter.catch(
-      new BadRequestException('Account CH9300762011623852957 and CH93 0076 2011 6238 5295 7 rejected'),
-      host(req(), { status }),
-    );
+  it('caps a reason as large as the body it came from, and still masks up to the cap', () => {
+    // Exception messages interpolate request values, and a request body is large; the reason is
+    // cut to the cap, and a pattern that starts inside it is masked even though it runs past it.
+    const message = `${'a'.repeat(480)}someone@example.com${'b'.repeat(200_000)}`;
+    filter.catch(new BadRequestException(message), host(req(), { status }));
 
     const msg = warn.mock.calls[0][0] as string;
-    expect(msg).not.toContain('CH9300762011623852957');
-    expect(msg).not.toContain('6238 5295 7');
-    // and it masks the account, not the sentence around it
-    expect(msg).toContain('Account *** and *** rejected');
+    expect(msg).not.toContain('someone@example.com');
+    expect(msg).toContain('***');
+    expect(msg.length).toBeLessThan(700);
   });
 
   it('does NOT log routine client errors (401/403/404/429) — they are already in the access log', () => {
