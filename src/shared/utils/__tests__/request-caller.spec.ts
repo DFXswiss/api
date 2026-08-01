@@ -46,6 +46,16 @@ describe('describeCaller', () => {
     expect(describeCaller(req({ origin: 'not a url' }))).toBe('client=(none)');
   });
 
+  it('keeps an opaque origin — having none to name says something too', () => {
+    expect(describeCaller(req({ origin: 'null' }))).toBe('client=(none) origin=null');
+  });
+
+  it('falls back to the referer when the origin yields nothing, not just when it is absent', () => {
+    const caller = describeCaller(req({ origin: 'not a url', referer: 'https://partner.example.com/x?t=1' }));
+
+    expect(caller).toBe('client=(none) origin=https://partner.example.com');
+  });
+
   it('takes the first value of a tampered array header', () => {
     expect(describeCaller(req({ 'x-client': ['dfx-services', 'other'] }))).toBe('client=dfx-services');
     expect(describeCaller(req({ 'x-client': [], origin: [] }))).toBe('client=(none)');

@@ -36,9 +36,23 @@ export function describeCaller(req: Request): string {
 // Both headers are reduced to their origin, `Origin` included: it is supposed to carry nothing
 // else, but it arrives from the client like everything here, and a value that is not what it is
 // supposed to be is exactly the one that must not reach the log with a query string attached.
+//
+// The first header that yields an origin wins, not the first one that is present: an `Origin` the
+// client filled with something else should cost its own attribution, not the `Referer`'s too.
 function callerOrigin(req: Request): string {
-  const url = firstHeader(req, 'origin') || firstHeader(req, 'referer');
-  if (!url) return '';
+  for (const header of ['origin', 'referer']) {
+    const origin = toOrigin(firstHeader(req, header));
+    if (origin) return origin;
+  }
+
+  return '';
+}
+
+function toOrigin(url: string): string {
+  // What a browser sends for an opaque origin — a sandboxed frame, a redirect across sites. It is
+  // not a URL and cannot be reduced to one, but "the caller has no origin to name" is itself worth
+  // the line, and it is a fixed word rather than anything the client composed.
+  if (url === 'null') return url;
 
   try {
     return new URL(url).origin;

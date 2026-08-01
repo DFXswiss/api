@@ -6,8 +6,9 @@ import {
 } from 'src/shared/pipes/detailed-validation.pipe';
 import { GetBuyQuoteDto } from '../get-buy-quote.dto';
 
-// The 400 body names the field and the accepted values, not the value that arrived. These cases
-// pin what the log line shows instead, for the two rejections this DTO can produce.
+// The 400 body names the field and, where the field declares them, the accepted values - never the
+// value that arrived. These cases pin what the log line shows instead, for the two rejections
+// covered below.
 describe('GetBuyQuoteDto rejections', () => {
   // Mirrors the production global pipe (src/main.ts).
   const pipe = new DetailedValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });
