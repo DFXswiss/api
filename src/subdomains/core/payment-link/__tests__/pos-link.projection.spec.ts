@@ -9,6 +9,7 @@ import {
   projectionFieldsWithout,
   seedEntity,
 } from 'src/shared/utils/projection-test.util';
+import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import {
   POS_LINK_PROJECTION,
@@ -88,7 +89,16 @@ describeProjection('point-of-sale link — read-path projection', () => {
    * `scoped` selects between them: unset merges the account and the link, `true` takes the link
    * alone, `false` the account alone.
    */
-  async function posConfigOf(id: number, fields = POS_LINK_PROJECTION.fields) {
+  async function posConfigOf(
+    id: number,
+    fields = POS_LINK_PROJECTION.fields,
+  ): Promise<{
+    merged: PaymentLinkConfig;
+    linkOnly: PaymentLinkConfig;
+    accountOnly: PaymentLinkConfig;
+    uniqueId: string;
+    storedConfig: string;
+  }> {
     const link = await paymentLinks.findForPosLink(id, fields);
     return {
       merged: link.configObj,
@@ -175,8 +185,13 @@ describeProjection('point-of-sale link — read-path projection', () => {
     'posOrganizationCountry.symbol',
   ];
 
-  /** The name, which is `organizationName` falling back to the two personal ones. */
-  const NAME_FIELDS = ['posUserData.organizationName', 'posUserData.firstname', 'posUserData.surname'];
+  /**
+   * The name, which is `organizationName` falling back to the two personal ones.
+   *
+   * Typed as a mutation candidate: a group of fields is one candidate, because dropping any single
+   * member leaves the value filled by the next alternative.
+   */
+  const NAME_FIELDS: string[] = ['posUserData.organizationName', 'posUserData.firstname', 'posUserData.surname'];
 
   /**
    * Two configurations that differ from the defaults and from each other, so both columns are
@@ -203,13 +218,14 @@ describeProjection('point-of-sale link — read-path projection', () => {
         { config: LINK_CONFIG },
       );
 
-      await expectEveryFieldRequired(
-        POS_LINK_RESPONSE_FIELDS.filter(
-          // The name falls back, so no single one of its three columns is required here; the case
-          // below is the one that reaches the fallback.
-          (field) => !skipped.includes(field) && !NAME_FIELDS.includes(field),
-        ).concat([NAME_FIELDS as unknown as string]),
-        (omitted) => posConfigOf(paymentLink.id, projectionFieldsWithout(POS_LINK_PROJECTION.fields, omitted)),
+      const candidates: (string | string[])[] = POS_LINK_RESPONSE_FIELDS.filter(
+        // The name falls back, so no single one of its three columns is required here; the case
+        // below is the one that reaches the fallback.
+        (field) => !skipped.includes(field) && !NAME_FIELDS.includes(field),
+      );
+
+      await expectEveryFieldRequired([...candidates, NAME_FIELDS], (omitted) =>
+        posConfigOf(paymentLink.id, projectionFieldsWithout(POS_LINK_PROJECTION.fields, omitted)),
       );
     },
     300000,
@@ -228,6 +244,64 @@ describeProjection('point-of-sale link — read-path projection', () => {
       posConfigOf(paymentLink.id, projectionFieldsWithout(POS_LINK_PROJECTION.fields, omitted)),
     );
   }, 300000);
+
+  // --- the projection must not lose the guards the write depends on --- //
+
+  it('loads the two ids the endpoint scopes its updates by', async () => {
+    // Neither appears in the answer, so no level would notice their absence — and both updates are
+    // scoped by them: the link's own configuration and the account's payment-link configuration.
+    const { paymentLink, userData } = await seedLink();
+
+    const loaded = await paymentLinks.findForPosLink(paymentLink.id);
+
+    expect(loaded.id).toEqual(paymentLink.id);
+    expect(loaded.route.userData.id).toEqual(userData.id);
+  }, 120000);
+
+  // --- the claim that makes this endpoint convertible at all --- //
+
+  it.each([
+    ['the link', 'payment_link', 'config'],
+    ['the account', 'user_data', 'paymentLinksConfig'],
+  ])(
+    'writing %s after a projected read leaves every other column untouched',
+    async (_name, table, column) => {
+      // This is the whole reason a write endpoint can be converted: both updates name their columns,
+      // so neither can blank the ones the projection left out. Saving a loaded row back would.
+      const { paymentLink, userData } = await seedLink();
+      const id = table === 'payment_link' ? paymentLink.id : userData.id;
+      const rowOf = async (): Promise<Record<string, unknown>> =>
+        (await dataSource.query(`SELECT * FROM "${SCHEMA}"."${table}" WHERE id = $1`, [id]))[0];
+      const before = await rowOf();
+
+      const loaded = await paymentLinks.findForPosLink(paymentLink.id);
+      const written = JSON.stringify({ accessKeys: ['written-key'] });
+      if (table === 'payment_link') await paymentLinks.update(loaded.id, { config: written });
+      else await dataSource.getRepository(UserData).update(loaded.route.userData.id, { paymentLinksConfig: written });
+
+      const after = await rowOf();
+      expect(after[column]).toEqual(written);
+
+      const ignored = [column, 'updated'];
+      const comparable = (row: Record<string, unknown>): Record<string, unknown> =>
+        Object.fromEntries(Object.entries(row).filter(([name]) => !ignored.includes(name)));
+
+      expect(comparable(after)).toEqual(comparable(before));
+    },
+    120000,
+  );
+
+  it('carries the stored configuration verbatim, so the write has something to merge into', async () => {
+    // The write merges the new access key into what was read. A projection that dropped `config`
+    // would hand the merge an empty object and reset the configuration to just the key.
+    const existing = JSON.stringify({ fee: 0.9, recipient: { name: 'existing' } });
+    const { paymentLink } = await seedLink(AccountType.PERSONAL, {}, { config: existing });
+
+    const loaded = await paymentLinks.findForPosLink(paymentLink.id);
+
+    expect(loaded.config).toEqual(existing);
+    expect(JSON.parse(loaded.config)).toEqual({ fee: 0.9, recipient: { name: 'existing' } });
+  }, 120000);
 
   // --- LEVEL 4: consistency against a second source --- //
 

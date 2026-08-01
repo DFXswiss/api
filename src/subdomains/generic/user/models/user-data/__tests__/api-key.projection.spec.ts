@@ -120,6 +120,34 @@ describeProjection('API key — read-path projection', () => {
     );
   }, 300000);
 
+  // --- the claim that makes this endpoint convertible at all --- //
+
+  it('writing after a projected read leaves every column the query did not load untouched', async () => {
+    // This is the whole reason a write endpoint can be converted: the update names its columns, so
+    // it cannot blank the ones the projection left out. Saving the loaded row back would.
+    const account = await seedAccount({ apiKeyCT: null });
+    // Read at the storage level, so the comparison covers every column of the table rather than the
+    // ones some load happens to materialise.
+    const rowOf = async (): Promise<Record<string, unknown>> =>
+      (await dataSource.query(`SELECT * FROM "${SCHEMA}"."user_data" WHERE id = $1`, [account.id]))[0];
+    const before = await rowOf();
+
+    const loaded = await userDataRepo.getForApiKey(account.id);
+    await userDataRepo.update(loaded.id, { apiKeyCT: 'written-key', apiFilterCT: 'written-filter' });
+
+    const after = await rowOf();
+    expect(after.apiKeyCT).toEqual('written-key');
+    expect(after.apiFilterCT).toEqual('written-filter');
+    // Every other column - including the ones the projection never selected - has to be what it
+    // was. `updated` is excluded because the write is what moves it.
+    const ignored = ['apiKeyCT', 'apiFilterCT', 'updated'];
+    const comparable = (row: Record<string, unknown>): Record<string, unknown> =>
+      Object.fromEntries(Object.entries(row).filter(([column]) => !ignored.includes(column)));
+
+    expect(comparable(after)).toEqual(comparable(before));
+    expect(Object.keys(before).length).toBeGreaterThan(50);
+  }, 120000);
+
   // --- LEVEL 4: consistency against a second source --- //
 
   it('level 4 — the projected answer equals the one from a full load', async () => {
