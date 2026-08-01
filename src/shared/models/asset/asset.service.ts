@@ -130,11 +130,17 @@ export class AssetService {
   // Writes have to go through here: the cached reads above are served from this instance, and
   // invalidateCache() only clears the instance it is called on.
   async updateAssets(updates: UpdateResult<Asset>[]): Promise<void> {
-    for (const update of updates) {
-      await this.assetRepo.update(...update);
-    }
+    if (!updates.length) return;
 
-    this.assetRepo.invalidateCache();
+    try {
+      for (const update of updates) {
+        await this.assetRepo.update(...update);
+      }
+    } finally {
+      // Also on failure: the updates before it are already written, and leaving them out of the
+      // cache is the very staleness this method exists to prevent.
+      this.assetRepo.invalidateCache();
+    }
   }
 
   async getEvmAssetsWithoutDecimals(blockchains: Blockchain[]): Promise<Asset[]> {

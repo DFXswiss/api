@@ -35,8 +35,6 @@ export class EvmDecimalsService {
       }
     }
 
-    // Nothing to write means nothing to invalidate: this job runs hourly and usually finds no asset,
-    // so an unconditional call would drop the whole asset cache every hour for no reason.
-    if (updates.length) await this.assetService.updateAssets(updates);
+    await this.assetService.updateAssets(updates);
   }
 }

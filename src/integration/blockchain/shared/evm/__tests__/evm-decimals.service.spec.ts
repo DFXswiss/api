@@ -46,12 +46,14 @@ describe('EvmDecimalsService.setDecimals', () => {
     ]);
   });
 
-  it('does not write when no asset is missing its decimals', async () => {
+  // The empty case is handed on rather than short-circuited here; AssetService.updateAssets is what
+  // decides that an empty list must not touch the cache.
+  it('collects nothing when no asset is missing its decimals', async () => {
     assetService.getEvmAssetsWithoutDecimals.mockResolvedValue([]);
 
     await service.setDecimals();
 
-    expect(assetService.updateAssets).not.toHaveBeenCalled();
+    expect(assetService.updateAssets).toHaveBeenCalledWith([]);
   });
 
   it('keeps the assets it could read when one lookup fails', async () => {
@@ -63,12 +65,12 @@ describe('EvmDecimalsService.setDecimals', () => {
     expect(assetService.updateAssets).toHaveBeenCalledWith([[9, { decimals: 18 }]]);
   });
 
-  it('does not write when every lookup fails', async () => {
+  it('collects nothing when every lookup fails', async () => {
     assetService.getEvmAssetsWithoutDecimals.mockResolvedValue([usdt, dai]);
     getToken.mockRejectedValue(new Error('node unreachable'));
 
     await service.setDecimals();
 
-    expect(assetService.updateAssets).not.toHaveBeenCalled();
+    expect(assetService.updateAssets).toHaveBeenCalledWith([]);
   });
 });
