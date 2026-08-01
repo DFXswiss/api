@@ -1,4 +1,4 @@
-import { ExecutionContext } from '@nestjs/common';
+import { ExecutionContext, HttpStatus } from '@nestjs/common';
 
 // The clearance Set is primed by cron; mocked here so the guard's gating logic is tested in isolation
 // from the cron/DB plumbing.
@@ -6,6 +6,7 @@ jest.mock('src/shared/auth/staff-kyc-clearance', () => ({
   HasStaffKycClearance: jest.fn(),
 }));
 
+import { StaffKycRequiredException } from 'src/shared/auth/exceptions/staff-kyc-required.exception';
 import { HasStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { hasRoleAccess, hasStaffAccess, RoleGuard, rolesSatisfying } from '../role.guard';
 import { KycGatedRoles, UserRole } from '../user-role.enum';
@@ -198,7 +199,8 @@ describe('RoleGuard (staff KYC gate on elevated endpoints)', () => {
     it('denies the matching role when the account has no KYC clearance', () => {
       hasStaffKycClearanceMock.mockReturnValue(false);
 
-      expect(RoleGuard(entryRole).canActivate(contextFor(entryRole, 42))).toBe(false);
+      // Throws rather than returning false, so the caller learns the reason instead of a bare 403.
+      expect(() => RoleGuard(entryRole).canActivate(contextFor(entryRole, 42))).toThrow(StaffKycRequiredException);
     });
 
     it('grants the matching role when the account is cleared', () => {
@@ -212,10 +214,12 @@ describe('RoleGuard (staff KYC gate on elevated endpoints)', () => {
   it('gates super-roles too — an uncleared ADMIN loses every elevated endpoint', () => {
     hasStaffKycClearanceMock.mockReturnValue(false);
 
-    expect(RoleGuard(UserRole.SUPPORT).canActivate(contextFor(UserRole.ADMIN, 42))).toBe(false);
-    expect(RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG).canActivate(contextFor(UserRole.SUPER_ADMIN, 42))).toBe(
-      false,
+    expect(() => RoleGuard(UserRole.SUPPORT).canActivate(contextFor(UserRole.ADMIN, 42))).toThrow(
+      StaffKycRequiredException,
     );
+    expect(() =>
+      RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG).canActivate(contextFor(UserRole.SUPER_ADMIN, 42)),
+    ).toThrow(StaffKycRequiredException);
   });
 
   it('does not gate ordinary endpoints, even for a staff caller without clearance', () => {
@@ -240,6 +244,35 @@ describe('RoleGuard (staff KYC gate on elevated endpoints)', () => {
     // letting `undefined` slip through the clearance lookup.
     hasStaffKycClearanceMock.mockImplementation((account) => account != null);
 
-    expect(RoleGuard(UserRole.ADMIN).canActivate(contextFor(UserRole.ADMIN, undefined))).toBe(false);
+    expect(() => RoleGuard(UserRole.ADMIN).canActivate(contextFor(UserRole.ADMIN, undefined))).toThrow(
+      StaffKycRequiredException,
+    );
+  });
+
+  // The point of throwing: a client — a person, a script, or an agent — must be able to tell this apart
+  // from a removed role without matching on prose.
+  it('answers 403 with a machine-readable code and an actionable message', () => {
+    hasStaffKycClearanceMock.mockReturnValue(false);
+
+    let thrown: StaffKycRequiredException;
+    try {
+      RoleGuard(UserRole.ADMIN).canActivate(contextFor(UserRole.ADMIN, 42));
+    } catch (e) {
+      thrown = e as StaffKycRequiredException;
+    }
+
+    expect(thrown.getStatus()).toBe(HttpStatus.FORBIDDEN);
+    expect(thrown.getResponse()).toEqual({
+      code: 'STAFF_KYC_REQUIRED',
+      message: expect.stringContaining('KYC level 50'),
+    });
+  });
+
+  // A wrong role is a different situation with a different fix, so it must not produce the KYC answer.
+  it('still returns a plain false when the role itself does not satisfy the gate', () => {
+    hasStaffKycClearanceMock.mockReturnValue(false);
+
+    expect(RoleGuard(UserRole.ADMIN).canActivate(contextFor(UserRole.USER, 42))).toBe(false);
+    expect(hasStaffKycClearanceMock).not.toHaveBeenCalled();
   });
 });

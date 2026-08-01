@@ -16,6 +16,12 @@ module.exports = {
   coverageThreshold: {
     'src/shared/auth/role.guard.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
     'src/shared/auth/staff-kyc-clearance.ts': { branches: 100, functions: 100, lines: 100, statements: 100 },
+    'src/shared/auth/exceptions/staff-kyc-required.exception.ts': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
     'src/subdomains/generic/user/models/user/staff-kyc-clearance.service.ts': {
       branches: 100,
       functions: 100,
