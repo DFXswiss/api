@@ -51,11 +51,17 @@ export class PayoutLogService {
   }
 
   // Treat the wording and the field order as an interface, not as prose: log-based monitoring parses this line
-  // positionally. `amount`, `asset` and `chain` are each fenced by a literal on both sides, so a value containing a
-  // space or a comma cannot swallow the next field. The pinning test in __tests__ fails if the shape changes.
+  // positionally, and the pinning test in __tests__ fails if the shape changes.
+  //
+  // Every field is fenced by a literal on both sides. `amount` is numeric and `chain`/`context` are enum values, so
+  // their fences hold by construction. The asset name is the only free-form value here and is therefore quoted: with a
+  // bare fence of ` of `…` on chain `, a name that happened to contain the string " on chain " would shift the chain
+  // field without any parse error - a silently wrong value in a critical alert, which is worse than a loud one. Quoted,
+  // the only name that can break parsing is one containing an apostrophe, and that breaks visibly instead of lying.
+  // `||` rather than `??` on purpose: an empty name would produce '' and fail the same way a missing one would.
   private createEscalationLog(order: PayoutOrder): string {
-    return `Payout order ${order.id} escalated to PayoutUncertain: amount ${order.amount} of ${
-      order.asset?.name ?? 'unknown'
-    } on chain ${order.chain}, context ${order.context}, correlation ${order.correlationId}`;
+    return `Payout order ${order.id} escalated to PayoutUncertain: amount ${order.amount} of '${
+      order.asset?.name || 'unknown'
+    }' on chain ${order.chain}, context ${order.context}, correlation ${order.correlationId}`;
   }
 }

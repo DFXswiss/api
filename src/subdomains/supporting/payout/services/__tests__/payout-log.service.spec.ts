@@ -8,7 +8,7 @@ import { PayoutLogService } from '../payout-log.service';
 // The shape log-based monitoring extracts from the per-order escalation line. Pinned here so a reworded log line
 // fails in CI instead of silently reducing the escalation alert to a bare order count.
 const ESCALATION_PATTERN =
-  /Payout order (?<order>[0-9]+) escalated to PayoutUncertain: amount (?<amount>[^ ]+) of (?<asset>.+?) on chain (?<chain>[^,]+), context (?<context>[^,]+), correlation (?<correlation>.+)$/;
+  /Payout order (?<order>[0-9]+) escalated to PayoutUncertain: amount (?<amount>[^ ]+) of '(?<asset>[^']+)' on chain (?<chain>[^,]+), context (?<context>[^,]+), correlation (?<correlation>.+)$/;
 
 describe('PayoutLogService', () => {
   describe('#logFailedOrders(...)', () => {
@@ -93,6 +93,16 @@ describe('PayoutLogService', () => {
       expect(groups).toMatchObject({ order: '42', amount: '0.5', asset: 'unknown', chain: 'Bitcoin' });
     });
 
+    // An empty name has to reach the same placeholder as a missing relation: quoted, '' would fail to parse just like
+    // a missing one, so `??` would not be enough here.
+    it('falls back to the placeholder when the asset name is empty', () => {
+      const order = createCustomPayoutOrder({ id: 44, asset: createCustomAsset({ name: '' }) });
+
+      service.logFailedOrders([order]);
+
+      expect(ESCALATION_PATTERN.exec(escalationLines()[0])?.groups).toMatchObject({ asset: 'unknown' });
+    });
+
     // A chain or asset value carrying a space must not shift the following field, which is why every value is fenced
     // by a literal on both sides.
     it('keeps the fields separated when a value contains a space', () => {
@@ -106,6 +116,21 @@ describe('PayoutLogService', () => {
 
       const groups = ESCALATION_PATTERN.exec(escalationLines()[0])?.groups;
       expect(groups).toMatchObject({ asset: 'Wrapped BTC', chain: 'Ethereum' });
+    });
+
+    // The reason the asset name is quoted: unquoted, this name would end the asset field at its own " on chain " and
+    // hand the parser a wrong chain without any error. The quotes keep both fields intact.
+    it('keeps the chain intact when the asset name contains the fence wording', () => {
+      const order = createCustomPayoutOrder({
+        id: 45,
+        asset: createCustomAsset({ name: 'Foo on chain Bar' }),
+        chain: Blockchain.ETHEREUM,
+      });
+
+      service.logFailedOrders([order]);
+
+      const groups = ESCALATION_PATTERN.exec(escalationLines()[0])?.groups;
+      expect(groups).toMatchObject({ asset: 'Foo on chain Bar', chain: 'Ethereum' });
     });
   });
 });
