@@ -36,7 +36,7 @@ export class AssetController {
     const queryBlockchains = blockchains?.split(',').map((value) => value as Blockchain);
 
     const specRepo = this.repoFactory.transactionSpecification;
-    const specs = await specRepo.find();
+    const specs = await specRepo.findCached('all');
 
     return this.assetService
       .getAllBlockchainAssets(queryBlockchains ?? jwt?.blockchains ?? [], includePrivate === 'true')
