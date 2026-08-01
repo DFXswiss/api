@@ -65,13 +65,11 @@ interface DirectionAgg {
 
 /**
  * Per-request semaphore for actual SQL executions. Nested fan-outs share one gate so the
- * concurrency cap applies to queries, not to each runLimited call site.
+ * concurrency cap applies to queries, not to each runAll call site.
  */
 class QueryConcurrencyGate {
   private active = 0;
   private readonly waiters: Array<() => void> = [];
-  /** Peak simultaneous holders — used by concurrency tests. */
-  maxActive = 0;
 
   constructor(private readonly max: number) {}
 
@@ -87,13 +85,11 @@ class QueryConcurrencyGate {
   private acquire(): Promise<void> {
     if (this.active < this.max) {
       this.active += 1;
-      this.maxActive = Math.max(this.maxActive, this.active);
       return Promise.resolve();
     }
     return new Promise((resolve) => {
       this.waiters.push(() => {
         this.active += 1;
-        this.maxActive = Math.max(this.maxActive, this.active);
         resolve();
       });
     });
@@ -234,7 +230,7 @@ export class PartnerStatisticService {
     walletId: number,
     from?: string | Date,
     to?: string | Date,
-    granularity: string = PartnerStatisticGranularity.DAY,
+    granularity: PartnerStatisticGranularity = PartnerStatisticGranularity.DAY,
   ): Promise<PartnerTimelineDto> {
     return this.withQueryGate(async () => {
       const resolvedGranularity = this.parseGranularity(granularity);
@@ -336,6 +332,8 @@ export class PartnerStatisticService {
    * - full ISO-8601 timestamp with explicit `Z` or numeric offset.
    * Bare local-looking timestamps (`…T00:00:00` without Z/offset), free text, and
    * numeric strings are rejected — `new Date(value)` would silently apply process TZ.
+   * Non-existent calendar days (`2024-06-31`, `2023-02-29`) are rejected even when
+   * `new Date` would silently roll them into the next month.
    */
   parseDate(value?: string | Date): Date | undefined {
     if (value == null || value === '') return undefined;
@@ -354,7 +352,25 @@ export class PartnerStatisticService {
       );
     }
 
+    // Reject non-existent calendar days before Date's rollover (June 31 → July 1).
+    // Applied to both accepted forms via the shared YYYY-MM-DD prefix.
+    const y = Number(value.slice(0, 4));
+    const m = Number(value.slice(5, 7));
+    const d = Number(value.slice(8, 10));
+    const calendarCheck = new Date(Date.UTC(y, m - 1, d));
+    if (
+      calendarCheck.getUTCFullYear() !== y ||
+      calendarCheck.getUTCMonth() + 1 !== m ||
+      calendarCheck.getUTCDate() !== d
+    ) {
+      throw new BadRequestException(
+        `Invalid date '${value}'. Expected YYYY-MM-DD or an ISO-8601 timestamp with Z or offset (e.g. 2024-06-15T12:00:00.000Z)`,
+      );
+    }
+
     const date = new Date(value);
+    // Still needed for out-of-range time components (e.g. T25:00:00Z) that pass the regex
+    // and the calendar-day check but produce an Invalid Date.
     if (isNaN(date.getTime())) {
       throw new BadRequestException(
         `Invalid date '${value}'. Expected YYYY-MM-DD or an ISO-8601 timestamp with Z or offset (e.g. 2024-06-15T12:00:00.000Z)`,
@@ -873,9 +889,12 @@ export class PartnerStatisticService {
   }
 
   /**
-   * UTC date-part key — matches resolvePeriod (UTC day snap) and SQL
-   * `DATE_TRUNC(...) AT TIME ZONE 'UTC'`. Not process-local: unlike support-issue.service,
-   * this timeline is period-normalized to UTC, so keys must be UTC too.
+   * Stable date-part key for timeline bucket maps. Uses UTC getters to match the
+   * UTC-normalized bucket starts from {@link startOfBucket} and SQL `DATE_TRUNC` /
+   * `AT TIME ZONE 'UTC'`. The fill path builds the same keys, so SQL rows and empty
+   * fillers collide correctly; any consistent timezone would work as long as both
+   * sides match (bucket starts are ≥ 24 h apart, so local-vs-UTC day shifts do not
+   * collide distinct buckets under this spacing).
    */
   private bucketKey(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0');

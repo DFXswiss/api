@@ -5,7 +5,20 @@ import { PartnerStatisticService } from '../partner-statistic.service';
 
 /**
  * Real-Postgres integration for partner-statistic **service methods**.
- * Skipped unless MIGRATION_TEST_PG is set (CI / local disposable DB).
+ *
+ * Runs only when BOTH are true:
+ *   1. MIGRATION_TEST_PG is set (CI / local disposable DB)
+ *   2. Process timezone is UTC (`getTimezoneOffset() === 0`)
+ *
+ * CI meets the UTC process-timezone condition. This suite deliberately does **not**
+ * force `process.env.TZ = 'UTC'` (that would hide the dependency and leak into other
+ * specs in the same Jest worker). The application enforces the same requirement via
+ * `ENV TZ=UTC` in the Dockerfile and `assertUtcProcessTimezone` at process start.
+ * Run this suite with `TZ=UTC` when developing outside UTC.
+ *
+ * Why UTC process TZ is required: `created` is `timestamp without time zone`. The
+ * Postgres driver serializes a JS `Date` in process-local wall time; Postgres then
+ * drops the offset. Session `TimeZone=UTC` does not fix driver-side serialization.
  *
  * Calls `getStatistics` / `getTimeline` / `mergeNamedRows` against a minimal schema that
  * mirrors the production join columns. Lightweight entity stubs provide TypeORM relation
@@ -16,7 +29,24 @@ import { PartnerStatisticService } from '../partner-statistic.service';
  */
 
 const PG_URL = process.env.MIGRATION_TEST_PG;
-const describeDb = PG_URL ? describe : describe.skip;
+// Offset is the reliable signal for driver Date→timestamp serialization; IANA name alone
+// can be empty/non-UTC under odd hosts even when the wall clock is already UTC-offset.
+const isProcessTimezoneUtc = new Date().getTimezoneOffset() === 0;
+const describeDb = PG_URL && isProcessTimezoneUtc ? describe : describe.skip;
+
+if (PG_URL && !isProcessTimezoneUtc) {
+  const resolved = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '(unknown)';
+  console.warn(
+    `[partner-statistic.integration] suite skipped: process timezone must be UTC ` +
+      `(got offset=${new Date().getTimezoneOffset()} min, timeZone=${resolved}). ` +
+      `Column "created" is timestamp without time zone; the Postgres driver serializes ` +
+      `JS Date values in process-local wall time and Postgres drops the offset, so ` +
+      `half-open period bounds shift under non-UTC hosts. The application enforces the ` +
+      `same requirement via ENV TZ=UTC and assertUtcProcessTimezone at start. Run with ` +
+      `TZ=UTC when developing outside UTC.`,
+  );
+}
+
 const SCHEMA = 'partner_statistic_spec';
 
 // --- Minimal entities (relation graph only; no production entity import tree) --- //
@@ -145,19 +175,21 @@ const ENTITIES = [
 describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
   let dataSource: DataSource;
   let service: PartnerStatisticService;
-  let prevTz: string | undefined;
 
   beforeAll(async () => {
-    // Confine TZ change to this suite only (D3) — never set process.env.TZ at module scope.
-    prevTz = process.env.TZ;
-    process.env.TZ = 'UTC';
-
     new ConfigService();
+    // `schema` qualifies every entity table name so QueryBuilder work is correct on any
+    // pool connection. `SET search_path` alone is per-connection and is lost under
+    // Promise.all fan-out (getStatistics / getTimeline open multiple clients).
+    // Session TimeZone=UTC is still set so PG-side TIMESTAMP arithmetic stays UTC; it does
+    // not fix driver-side JS Date serialization (see file header — process TZ must be UTC).
     dataSource = new DataSource({
       type: 'postgres',
       url: PG_URL,
       entities: ENTITIES,
       synchronize: false,
+      schema: SCHEMA,
+      extra: { options: '-c TimeZone=UTC' },
     });
     await dataSource.initialize();
   });
@@ -262,7 +294,12 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
       INSERT INTO "buy_fiat"
         ("sellId", "cryptoInputId", "outputAssetId", "transactionId", "amountInChf", "amlCheck", "created", "inputAsset")
       VALUES
-        (1, 1, 3, 7, 50, 'Pass', '2024-06-11 12:00:00', 'BTC');
+        -- inputAsset left null so the SELL asset breakdown emits no under-k named row.
+        -- Period totals still see the 1 sell tx (block-suppressed). A named under-k SELL
+        -- asset (e.g. inputAsset='BTC') would trigger complementary suppression and drop
+        -- the COMMON BUY BTC row at exactly k — which is correct product behaviour but
+        -- would hide the SQL asset-join proof this fixture is meant to exercise.
+        (1, 1, 3, 7, 50, 'Pass', '2024-06-11 12:00:00', NULL);
     `);
 
     const buyCryptoRepo = dataSource.getRepository(TestBuyCrypto) as unknown as Repository<TestBuyCrypto>;
@@ -279,8 +316,6 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
   });
 
   afterAll(async () => {
-    if (prevTz === undefined) delete process.env.TZ;
-    else process.env.TZ = prevTz;
     if (dataSource?.isInitialized) await dataSource.destroy();
   });
 
@@ -307,8 +342,8 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
     expect(result.referral.creditOpen).toBe(15);
     expect(result.referral.currency).toBe('EUR');
 
-    // Asset breakdown: BTC buy rows (5 txs ≥ k after complementary may still drop)
-    // RARE path not present; COMMON BTC has 5 txs at exactly k — visible unless complementary.
+    // Asset breakdown: BUY BTC has 5 txs at exactly k and is visible (no under-k named
+    // SELL asset in this fixture — see seed comment — so complementary does not fire).
     const btc = result.breakdown.assets.filter((a) => a.name === 'BTC');
     expect(btc.length).toBeGreaterThanOrEqual(1);
     expect(btc.some((a) => a.volume === 500)).toBe(true);

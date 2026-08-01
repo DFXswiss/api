@@ -502,6 +502,32 @@ describe('PartnerStatisticService', () => {
       expect(() => service.parseDate('0')).toThrow(BadRequestException);
       expect(() => service.parseDate('0')).toThrow(/YYYY-MM-DD|ISO-8601|Z or offset/);
     });
+
+    it('rejects non-existent calendar days that Date would silently roll over', () => {
+      // June has 30 days; Date('2024-06-31') becomes 2024-07-01 without this guard.
+      expect(() => service.parseDate('2024-06-31')).toThrow(BadRequestException);
+      expect(() => service.parseDate('2024-06-31')).toThrow(/YYYY-MM-DD|ISO-8601|Z or offset/);
+      // 2023 is not a leap year.
+      expect(() => service.parseDate('2023-02-29')).toThrow(BadRequestException);
+      expect(() => service.parseDate('2024-02-30')).toThrow(BadRequestException);
+    });
+
+    it('rejects non-existent calendar days in ISO-with-Z form too', () => {
+      expect(() => service.parseDate('2024-06-31T00:00:00.000Z')).toThrow(BadRequestException);
+      expect(() => service.parseDate('2023-02-29T12:00:00+01:00')).toThrow(BadRequestException);
+    });
+
+    it('accepts a real leap-day (2024-02-29)', () => {
+      const d = service.parseDate('2024-02-29');
+      expect(d?.toISOString()).toBe('2024-02-29T00:00:00.000Z');
+      expect(service.parseDate('2024-02-29T00:00:00.000Z')?.toISOString()).toBe('2024-02-29T00:00:00.000Z');
+    });
+
+    it('rejects out-of-range time components that pass the regex but yield Invalid Date', () => {
+      // Calendar day is fine; hour 25 is not — this is the remaining isNaN guard path.
+      expect(() => service.parseDate('2024-06-15T25:00:00.000Z')).toThrow(BadRequestException);
+      expect(() => service.parseDate('2024-06-15T25:00:00.000Z')).toThrow(/YYYY-MM-DD|ISO-8601|Z or offset/);
+    });
   });
 
   // --- B1: GROUP BY must not use SELECT aliases --- //
@@ -896,6 +922,19 @@ describe('PartnerStatisticService', () => {
       expect(merged.find((r) => r.name === 'BTC')?.users).not.toBe(4);
       expect(merged).toHaveLength(2);
     });
+
+    it('drops nameless rows from the breakdown payload', () => {
+      const merged = service.mergeNamedRows([
+        { name: null, volume: 999, transactions: 50, users: 20 },
+        { name: '', volume: 100, transactions: 5, users: 3 },
+        { name: 'BTC', volume: 200, transactions: 10, users: 6 },
+      ]);
+      expect(merged).toHaveLength(1);
+      expect(merged[0].name).toBe('BTC');
+      expect(merged.find((r) => r.name === null || r.name === '')).toBeUndefined();
+      // Nameless volume must not appear under any key
+      expect(merged.every((r) => r.volume !== 999)).toBe(true);
+    });
   });
 
   // --- K1: partial edge buckets --- //
@@ -1057,7 +1096,9 @@ describe('PartnerStatisticService', () => {
 
   describe('getTimeline validation', () => {
     it('throws 400 for invalid granularity', async () => {
-      await expect(service.getTimeline(1, PERIOD_FROM, PERIOD_TO, 'hour')).rejects.toThrow(BadRequestException);
+      await expect(
+        service.getTimeline(1, PERIOD_FROM, PERIOD_TO, 'hour' as PartnerStatisticGranularity),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws 400 for period over max days', async () => {
@@ -1135,6 +1176,59 @@ describe('PartnerStatisticService', () => {
       nonNumericVolume = 'not-a-number';
 
       await expect(service.getStatistics(1, PERIOD_FROM, PERIOD_TO)).rejects.toThrow(/non-numeric volume/);
+    });
+
+    it('toCount rejects non-numeric values instead of producing NaN', () => {
+      expect(() => service['toCount']('not-a-number')).toThrow(/non-numeric count/);
+      // Driver could return an unexpected non-primitive; coerce path still NaNs.
+      expect(() => service['toCount']({} as unknown as string)).toThrow(/non-numeric count/);
+    });
+  });
+
+  // --- Granularity default (Swagger documents Day) --- //
+
+  describe('getTimeline granularity default', () => {
+    it('defaults to Day when granularity is omitted', async () => {
+      const result = await service.getTimeline(1, '2024-06-10T00:00:00.000Z', '2024-06-12T23:59:59.000Z');
+      expect(result.granularity).toBe(PartnerStatisticGranularity.DAY);
+      expect(result.granularity).not.toBe(PartnerStatisticGranularity.MONTH);
+      expect(result.granularity).not.toBe(PartnerStatisticGranularity.WEEK);
+      // Day buckets: 10, 11, 12 — Month would collapse to one
+      expect(result.buckets.length).toBe(3);
+    });
+  });
+
+  // --- Query gate release on error --- //
+
+  describe('query concurrency gate release on error', () => {
+    it('releases the semaphore slot when a query rejects so later work is not starved', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 100, transactions: 10, users: 5 },
+          allTime: { buy: 100, sell: 0, registeredUsers: 10, tradingUsers: 5 },
+          activeUserIds: [1, 2, 3, 4, 5],
+        }),
+      );
+      nonNumericVolume = 'not-a-number';
+
+      await expect(service.getStatistics(1, PERIOD_FROM, PERIOD_TO)).rejects.toThrow(/non-numeric volume/);
+
+      // Gate must be free again: a subsequent request must complete (not hang on a full semaphore).
+      nonNumericVolume = false;
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 500, transactions: 20, users: 10 },
+          allTime: { buy: 500, sell: 0, registeredUsers: 20, tradingUsers: 10 },
+          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        }),
+      );
+      activeUserCountFromManager = 10;
+
+      await expect(service.getStatistics(1, PERIOD_FROM, PERIOD_TO)).resolves.toMatchObject({
+        currency: 'CHF',
+      });
     });
   });
 });
