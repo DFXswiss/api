@@ -9,10 +9,13 @@ There is **no KYC-level requirement**. `verifiedName` is only ever written by an
 path (bank-data verification) or a reviewed migration — never by customer self-service — so the
 presence of the name is the authoritative identification signal on its own.
 
-`StaffKycClearanceService.syncStaffKycClearance` (`@DfxCron(EVERY_MINUTE)`) derives the cleared
-account ids from the DB: staff users whose `user_data.verifiedName` is non-blank. The gate reads
-that set, refreshed on every account within one minute — no re-login and no deploy needed once the
-name is in the database.
+Clearance flows through two cron steps: `StaffKycClearanceService.syncStaffKycClearance`
+(`@DfxCron(EVERY_MINUTE)`) derives the cleared account ids from the DB — staff users whose
+`user_data.verifiedName` is non-blank — and writes them to the `staffKycClearance` setting;
+`ProcessService.resyncStaffKycClearance` (`@DfxCron(EVERY_30_SECONDS)`) then primes the in-memory set
+that `RoleGuard` actually reads. A database change therefore takes effect within about 90 seconds
+(up to one minute for the DB scan plus up to 30 seconds for the prime) — no re-login and no deploy
+needed once the name is in the database.
 
 ## Why an account is refused
 
@@ -38,11 +41,11 @@ be reviewed and reproducible like any other schema/data change.
 3. Merge the PR through the normal review, then release `develop → main`. The production deploy runs
    pending migrations automatically when `SQL_MIGRATE=true` (see `migrationsRun` in
    `src/config/config.ts`) — no shell access to the database is involved.
-4. Within one minute of the deploy the clearance cron re-derives the set and the account's elevated
-   endpoints answer normally again.
+4. Within about 90 seconds of the deploy (the two cron steps above) the clearance set is re-derived
+   and the account's elevated endpoints answer normally again.
 
 ## Revoking access
 
 Removing a staff member's `verifiedName` (or their role) drops them out of the clearance query on
-the next cron run, within a minute — again with no deploy or token rotation. Clearance is never
+the next cron run, within about 90 seconds — again with no deploy or token rotation. Clearance is never
 auto-revoked by the migration's `down()`; removal is always a deliberate action.

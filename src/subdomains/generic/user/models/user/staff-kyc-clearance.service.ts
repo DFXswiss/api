@@ -11,7 +11,9 @@ import { UserRepository } from './user.repository';
 // SUPER_ADMIN, which satisfies every gate but is not itself listed in KycGatedRoles). Derived, not
 // hand-written — a role added to the hierarchy must not silently fall out of the clearance sync and
 // lose access.
-const ClearanceRelevantRoles = rolesSatisfying(KycGatedRoles);
+// Exported so the write-side guard in UserService gates the exact same set this service clears —
+// a single source keeps the read and write sides from drifting.
+export const ClearanceRelevantRoles = rolesSatisfying(KycGatedRoles);
 
 // Every character `String.prototype.trim()` strips (ECMAScript WhiteSpace + LineTerminator). Postgres'
 // bare `TRIM(x)` removes ASCII space ONLY, so a name of a single tab or a non-breaking space would pass
