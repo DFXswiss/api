@@ -30,8 +30,8 @@ This service loads far more data than it returns. Measured against the real enti
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
   `transaction_request`) broke every invoice and receipt in production until it was fixed.
-- Of the 534 endpoints, **408 reach at least one load site that fetches whole rows**; 98 read
-  nothing at all, and **26 read only the fields they return**. The widest query a fetching endpoint
+- Of the 534 endpoints, **407 reach at least one load site that fetches whole rows**; 98 read
+  nothing at all, and **27 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
@@ -47,8 +47,8 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,105 load sites in this repository, **103** name the columns they need:
-98 query builders and the five raw statements. The other 1,002 request whole rows — 961 through the
+**No read model.** Of the 1,105 load sites in this repository, **104** name the columns they need:
+99 query builders and the five raw statements. The other 1,001 request whole rows — 961 through the
 `find` family, and of the 139 query builders, 17 pass the root alias to `.select(...)`, which reads
 like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
 business logic and pure output paths such as invoices, receipts, history and exports — which need
@@ -149,9 +149,9 @@ The last step removes six endpoints whose DTO has a field typed as an entity —
 have to list them all and would save nothing. Narrowing those means changing the contract, which is
 a different decision.
 
-Nine of the 28 are converted. The remaining 19 are the ones marked `not yet` with a `whole rows`
-access in [endpoints.md](endpoints.md); the widest is `GET /user` at 351 columns, and eleven of them
-are support and dashboard reads between 7 and 99.
+Ten of the 28 are converted. The remaining 18 are the ones marked `not yet` with a `whole rows`
+access in [endpoints.md](endpoints.md); the widest is `GET /user` at 351 columns, and most of the
+rest are support and dashboard reads between 7 and 99.
 
 ## The risk this must guard against
 
@@ -187,11 +187,11 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-A hundred and three sites carry a field list. The table below covers the six that were known when this
+A hundred and four sites carry a field list. The table below covers the six that were known when this
 document was written — one query builder and five raw statements — and none of them was converted,
 so it is unchanged. Another 87 are the query builders that name columns one at a time; they are
 not covered by these levels either, which is what their endpoints' `0/4` in
-[endpoints.md](endpoints.md) records. The remaining 10 belong to the endpoints converted so far and
+[endpoints.md](endpoints.md) records. The remaining 11 belong to the endpoints converted so far and
 are covered on all four. Sites a conversion adds are recorded there too, where only
 `4/4` counts as done.
 

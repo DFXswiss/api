@@ -41,7 +41,7 @@ import { CustodyOrderHistoryDtoMapper } from '../mappers/custody-order-history-d
 import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response-dto.mapper';
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
-import { CustodyOrderRepository } from '../repositories/custody-order.repository';
+import { CUSTODY_ORDER_HISTORY_PROJECTION, CustodyOrderRepository } from '../repositories/custody-order.repository';
 import { CustodyAccountService } from './custody-account.service';
 import { CustodyService } from './custody.service';
 
@@ -232,12 +232,19 @@ export class CustodyOrderService {
     };
   }
 
-  async getOrdersByUserData(userDataId: number): Promise<CustodyOrderHistoryDto[]> {
-    const orders = await this.custodyOrderRepo
-      .createQueryBuilder('custodyOrder')
-      .leftJoinAndSelect('custodyOrder.inputAsset', 'inputAsset')
-      .leftJoinAndSelect('custodyOrder.outputAsset', 'outputAsset')
-      .leftJoinAndSelect('custodyOrder.transactionRequest', 'transactionRequest')
+  /**
+   * A user's custody order history.
+   *
+   * `fields` exists for the mutation test; nothing in production passes it.
+   */
+  async getOrdersByUserData(
+    userDataId: number,
+    fields: ReadonlyArray<string> = CUSTODY_ORDER_HISTORY_PROJECTION.fields,
+  ): Promise<CustodyOrderHistoryDto[]> {
+    const orders = await CUSTODY_ORDER_HISTORY_PROJECTION.apply(
+      this.custodyOrderRepo.createQueryBuilder('custodyOrder'),
+      fields,
+    )
       .innerJoin('custodyOrder.user', 'user')
       .innerJoin('user.userData', 'userData')
       .where('userData.id = :userDataId', { userDataId })

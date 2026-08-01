@@ -5,6 +5,7 @@ import {
   BUY_CRYPTO_BUY_HISTORY_PROJECTION,
   BUY_CRYPTO_ROUTE_HISTORY_PROJECTION,
 } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
+import { CUSTODY_ORDER_HISTORY_PROJECTION } from 'src/subdomains/core/custody/repositories/custody-order.repository';
 import { BUY_FIAT_HISTORY_PROJECTION } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { USER_PROFILE_PROJECTION } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { USER_KYC_FILES_PROJECTION } from 'src/subdomains/generic/user/models/user/user.repository';
@@ -26,6 +27,7 @@ const DOCUMENTED: [string, string, ReadProjection<unknown>][] = [
   ['GET', '/support/issue/:id', SUPPORT_ISSUE_PROJECTION],
   ['GET', '/kyc/users', WALLET_KYC_DATA_PROJECTION],
   ['GET', '/kyc/:id/documents', USER_KYC_FILES_PROJECTION],
+  ['GET', '/custody/order', CUSTODY_ORDER_HISTORY_PROJECTION],
 ];
 
 describe('ReadProjection', () => {

@@ -23,20 +23,20 @@ Two rules follow from that, and both are binding:
 1. **An endpoint counts as converted only when its tests reach `4/4`** against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). A projection without them is worse than no projection: a forgotten field does not crash, it returns a wrong value with a 200, and in a service moving money that can run for weeks unnoticed. Anything short of `4/4` is unfinished work, not a partial success.
 2. **The state of every endpoint is recorded here**, in the `Tests` column, and kept in sync with the code in the same pull request that changes it. An undocumented conversion is indistinguishable from one that was never tested.
 
-Today 28 endpoints read only what they return and 408 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
+Today 29 endpoints read only what they return and 407 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
 
 ## What the numbers say
 
 | Data access | Endpoints | Share |
 | ----------- | --------: | ----: |
-| `whole rows` | 408 | 76 % |
+| `whole rows` | 407 | 76 % |
 | `none` | 98 | 18 % |
-| `projected` | 26 | 5 % |
+| `projected` | 27 | 5 % |
 | `caller-defined` | 2 | 0 % |
 
-Of the 26 that read only what they return, 9 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 41), `GET /buy/:id/history` (497 columns to 12), `GET /swap/:id/history` (509 columns to 12), `GET /sell/:id/history` (470 columns to 14), `GET /support/issue/:id/data` (951 columns to 81), `GET /support/issue` (450 columns to 11), `GET /support/issue/:id` (450 columns to 11), `GET /kyc/users` (328 columns to 7), `GET /kyc/:id/documents` (328 columns to 2). The other 17 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why their `Tests` column reads `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
+Of the 27 that read only what they return, 10 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 41), `GET /buy/:id/history` (497 columns to 12), `GET /swap/:id/history` (509 columns to 12), `GET /sell/:id/history` (470 columns to 14), `GET /support/issue/:id/data` (951 columns to 81), `GET /support/issue` (450 columns to 11), `GET /support/issue/:id` (450 columns to 11), `GET /kyc/users` (328 columns to 7), `GET /kyc/:id/documents` (328 columns to 2), `GET /custody/order` (19 columns to 14). The other 17 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why their `Tests` column reads `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
 
-Among the 408 that fetch whole rows, the widest query they can trigger is **308 columns** at the median; 311 exceed 100, 87 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns, which is what broke every invoice and receipt in production once a single column was added elsewhere.
+Among the 407 that fetch whole rows, the widest query they can trigger is **308 columns** at the median; 311 exceed 100, 87 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns, which is what broke every invoice and receipt in production once a single column was added elsewhere.
 
 ### How to read this column, and how not to
 
@@ -50,9 +50,9 @@ Among the 408 that fetch whole rows, the widest query they can trigger is **308 
 
 Stated exactly, so the numbers can be checked rather than believed:
 
-- **436 of 534 endpoints rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 408 is a lower bound.
+- **436 of 534 endpoints rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 407 is a lower bound.
 - All 98 endpoints marked `none` are the opposite case: their graph resolved completely, or the remaining target was read in the source (27 of them, listed below). None of them rests on an unresolved edge.
-- The 26 `projected` and 2 `caller-defined` endpoints do each carry an unresolved edge — a call through the entity manager inside a transaction callback. Their reads were read in the source, but the classification is not proven exhaustive the way the `none` group is.
+- The 27 `projected` and 2 `caller-defined` endpoints do each carry an unresolved edge — a call through the entity manager inside a transaction callback. Their reads were read in the source, but the classification is not proven exhaustive the way the `none` group is.
 - 2 endpoints in the `whole rows` group have no measured column count and show `—`: `POST /payIn/retry`, `GET /support/issue/:id/message/:messageId/file`. The classification holds; only the width is unknown.
 
 ### Two controller classes may share a name
@@ -212,7 +212,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/custody/admin/orders` | public | whole rows | 525 | not yet |  | `CustodyAdminController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | PUT | 1 |  | `/custody/admin/user/:id/balance` | public | whole rows | 308 | not yet |  | `CustodyAdminController.updateUserBalance` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | GET | 1 |  | `/custody/history` | public | whole rows | 253 | not yet |  | `CustodyController.getUserCustodyHistory` | `subdomains/core/custody/controllers/custody.controller.ts` |
-| GET | 1 |  | `/custody/order` | public | whole rows | 19 | not yet |  | `CustodyController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
+| GET | 1 |  | `/custody/order` | public | projected | 14 | 4/4 |  | `CustodyController.getOrders` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | POST | 1 |  | `/custody/order` | public | whole rows | 364 | not yet |  | `CustodyController.createOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | POST | 1 |  | `/custody/order/:id/confirm` | public | whole rows | 525 | not yet |  | `CustodyController.confirmOrder` | `subdomains/core/custody/controllers/custody.controller.ts` |
 | GET | 1 |  | `/custody/pdf` | public | whole rows | 253 | not yet |  | `CustodyController.getCustodyPdf` | `subdomains/core/custody/controllers/custody.controller.ts` |
