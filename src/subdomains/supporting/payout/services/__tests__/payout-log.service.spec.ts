@@ -118,6 +118,19 @@ describe('PayoutLogService', () => {
       expect(groups).toMatchObject({ asset: 'Wrapped BTC', chain: 'Ethereum' });
     });
 
+    // The accepted limit of the quoting, pinned so it stays a deliberate trade rather than prose: an apostrophe in the
+    // name makes the whole line fail to match. That is the point - the alternative is a line that parses into a wrong
+    // chain. If a future change to the escaping turns this back into a partial match, this test fails.
+    it('fails to match rather than mis-parse when the asset name contains an apostrophe', () => {
+      const order = createCustomPayoutOrder({ id: 46, asset: createCustomAsset({ name: "O'Brien Token" }) });
+
+      service.logFailedOrders([order]);
+
+      const line = escalationLines()[0];
+      expect(line).toContain("O'Brien Token");
+      expect(ESCALATION_PATTERN.exec(line)).toBeNull();
+    });
+
     // The reason the asset name is quoted: unquoted, this name would end the asset field at its own " on chain " and
     // hand the parser a wrong chain without any error. The quotes keep both fields intact.
     it('keeps the chain intact when the asset name contains the fence wording', () => {
