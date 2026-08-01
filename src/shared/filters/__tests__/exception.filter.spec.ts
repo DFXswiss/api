@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ValidationError } from 'class-validator';
 import { LogRejectedValue } from 'src/shared/decorators/log-rejected-value.decorator';
+import { MAX_MASKED_PATTERN } from 'src/shared/middlewares/api-trace.middleware';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
 import { ValidationFailedException } from 'src/shared/pipes/detailed-validation.pipe';
 
@@ -113,6 +114,35 @@ describe('ApiExceptionFilter', () => {
     expect(msg).toContain('abcWARN');
   });
 
+  it('masks only the front of a request-sized reason, and does so quickly', () => {
+    // Masking is regex work over what it is given; the cap throws the rest away anyway.
+    const message = `${'a'.repeat(480)}someone@example.com${'b'.repeat(5_000_000)}`;
+
+    const started = process.hrtime.bigint();
+    filter.catch(new BadRequestException(message), host(req(), { status }));
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('someone@example.com');
+    expect(msg).toContain('***');
+    expect(elapsedMs).toBeLessThan(100);
+  });
+
+  it('does not let the point where masking stopped expose a pattern it split', () => {
+    // Masking only shortens, so text from far past the cap moves into view: three long addresses
+    // collapse to nine characters. A pattern the masking never saw whole would be what moves with
+    // them - unless a pattern length is dropped from the end of what was masked.
+    const scanLength = 500 + 2 * MAX_MASKED_PATTERN;
+    const shrinking = Array.from({ length: 3 }, () => `a@${'d'.repeat(240)}.com`).join(' ');
+    const secret = 'ZZTOPSECRET@example.com';
+    const filler = 'f'.repeat(scanLength - 8 - shrinking.length - 1);
+    filter.catch(new BadRequestException(`${shrinking} ${filler}${secret}`), host(req(), { status }));
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('ZZTOPSEC');
+    expect(msg).toContain('***');
+  });
+
   it('caps a reason as large as the body it came from, and still masks up to the cap', () => {
     // Exception messages interpolate request values, and a request body is large; the reason is
     // cut to the cap, and a pattern that starts inside it is masked even though it runs past it.
@@ -200,6 +230,33 @@ describe('ApiExceptionFilter', () => {
 
     expect(() => filter.catch(mute, host(req(), { status }))).not.toThrow();
     expect(json).toHaveBeenCalledWith({ statusCode: 400, message: 'BAD_REQUEST' });
+  });
+
+  it('names a status that has no name, rather than leaving the message out', () => {
+    const unnamed = new HttpException('x', 599);
+    jest.spyOn(unnamed, 'getResponse').mockImplementation(() => {
+      throw new Error('nope');
+    });
+    Object.defineProperty(unnamed, 'message', {
+      get: () => {
+        throw new Error('nope');
+      },
+    });
+
+    filter.catch(unnamed, host(req(), { status }));
+
+    expect(json).toHaveBeenCalledWith({ statusCode: 599, message: 'Error' });
+  });
+
+  it('reads the status once, so a body cannot arrive under a status it does not name', () => {
+    const shifting = new BadRequestException('x');
+    let call = 0;
+    jest.spyOn(shifting, 'getStatus').mockImplementation(() => (call++ === 0 ? 600 : 400));
+
+    filter.catch(shifting, host(req(), { status }));
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({ statusCode: 500, message: 'x' });
   });
 
   it('sends a server error when the status cannot be read or is not one Express sends', () => {

@@ -28,10 +28,28 @@ const MAX_CLIENT = 32; // per trace line: the client header is a name, not a pay
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
 const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
 const REDACTED = '***';
+const WALLET_SHORT = '0x…';
 const TRUNCATED = '<…truncated…>';
 
+// The longest match the patterns above can produce - the email's 64 + `@` + 255 + `.` + 24. A caller
+// that masks only the front of a value needs it: it is how far a pattern can reach past where that
+// caller stopped looking.
+export const MAX_MASKED_PATTERN = 64 + 1 + 255 + 1 + 24;
+
+// What the first of two masking passes writes. Both carry a `/`, which every pattern above excludes,
+// so the second pass can neither match through one nor fold one into a match of its own - `***`
+// would be taken for the local part of an address. U+FFFC keeps them apart from what a request
+// plausibly contains, and is not a control character, so the removal between the passes leaves them
+// whole.
+const REDACTED_MARK = '/\uFFFCr/';
+const WALLET_MARK = '/\uFFFCw/';
+
+function mask(s: string, redacted: string, wallet: string): string {
+  return s.replace(WALLET_ADDRESS, wallet).replace(EMAIL, redacted).replace(IPV4, redacted);
+}
+
 export function maskValue(s: string): string {
-  return s.replace(WALLET_ADDRESS, '0x…').replace(EMAIL, REDACTED).replace(IPV4, REDACTED);
+  return mask(s, REDACTED, WALLET_SHORT);
 }
 
 export function maskUrl(url: string): string {
@@ -64,7 +82,10 @@ export function singleLine(value: string): string {
  * the second pass cannot invent a match, since what the first one leaves behind is `***` and `0x…`.
  */
 export function maskLogText(value: string): string {
-  return maskValue(singleLine(maskValue(value)));
+  const first = mask(value, REDACTED_MARK, WALLET_MARK);
+  const second = mask(singleLine(first), REDACTED, WALLET_SHORT);
+
+  return second.split(REDACTED_MARK).join(REDACTED).split(WALLET_MARK).join(WALLET_SHORT);
 }
 
 /**
@@ -163,10 +184,11 @@ function format(value: unknown): string {
   try {
     // redact() handles Buffer + the array case (Array.isArray first), so the
     // raw value is never length/type-inspected here.
-    // `JSON.stringify` escapes the control characters but leaves U+2028 / U+2029 as they are, so
-    // the serialized section is put through the same collapse as the free-form values above - it is
-    // what keeps the trace the single line the caller below documents.
-    s = singleLine(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
+    // The whole serialized section goes through the same rendering as a single value: `redact`
+    // reaches the values but not the keys, and a key is as much the request's to choose. It is also
+    // what keeps the trace the single line the caller below documents, since `JSON.stringify`
+    // escapes the control characters but leaves U+2028 / U+2029 as they are.
+    s = maskLogText(JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET })));
   } catch {
     return '(unserializable)';
   }

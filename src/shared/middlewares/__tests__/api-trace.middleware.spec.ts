@@ -232,6 +232,14 @@ describe('apiTraceMiddleware', () => {
     expect(lines[0]).toContain('client=realunit-appINFO');
   });
 
+  it('masks a body key, not only the values under it', () => {
+    // `redact` walks the values; the key is as much the request's to choose as the value is.
+    const { lines } = runTrace(realunitReq({ 'victim\u2028@example.com': 'x' }), 200, (res) => res.json({}));
+
+    expect(lines[0]).not.toContain('victim');
+    expect(lines[0]).toContain('***');
+  });
+
   it('keeps the trace on one line, including the separators JSON.stringify leaves raw', () => {
     // `JSON.stringify` escapes the control characters, but not U+2028 / U+2029.
     const note = 'first\u2028second\u2029third\nfourth';
@@ -308,6 +316,13 @@ describe('maskLogValue', () => {
     // no longer ends on a word boundary - so the masking also runs before the removal.
     expect(maskLogValue('192.0.2.123\u0000a', 96)).toBe('***a');
     expect(maskLogValue(`0x${'a'.repeat(40)}\u0000b`, 96)).toBe('0x…b');
+  });
+
+  it('does not let the first pass become part of a match in the second', () => {
+    // `***` is a valid local part as far as the address pattern is concerned, so a placeholder next
+    // to an `@` would be folded into an address of its own and take the text after it with it.
+    expect(maskLogValue('192.0.2.123\u2028@error.code', 96)).toBe('***@error.code');
+    expect(maskLogValue(`0x${'a'.repeat(40)}\u2028@error.code`, 96)).toBe('0x…@error.code');
   });
 
   it('masks a pattern that a control character was placed inside', () => {
