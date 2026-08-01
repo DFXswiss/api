@@ -7,7 +7,7 @@ Every HTTP endpoint this service exposes: **533 handlers** across 93 controller 
 | Column | Meaning |
 | ------ | ------- |
 | **Swagger** | `public` — in the Swagger schema; `hidden` — carries `@ApiExcludeEndpoint` |
-| **Eager** | Whether the load path triggers TypeORM's automatic eager relations. `yes` — reached through `find`/`findOne` on a repository; `no` — reached only through `createQueryBuilder` with an explicit field list or raw SQL, or no database access at all; `?` — the call chain could not be resolved statically |
+| **Eager** | Whether the load path triggers TypeORM's automatic eager relations. `yes` — reached through `find`/`findOne` on a repository; `no` — reached only through `createQueryBuilder` with an explicit field list or raw SQL, or no database access at all. Every endpoint resolves; there are no unknowns. |
 | **Cols** | Columns the query actually selects, measured from the TypeORM metadata (largest load site reachable from the handler) |
 | **Fields** | Fields of the response DTO, nested DTOs included |
 | **Ratio** | Cols ÷ Fields — how much is loaded per field returned |
@@ -33,10 +33,10 @@ The `Ratio` column quantifies it where both sides are known. It is the basis for
 
 | | Endpoints | Share |
 | --- | --- | --- |
-| Eager determined (`yes`/`no`) | 531 | 100 % |
+| Eager determined (`yes`/`no`) | 533 | 100 % |
 | — of those `yes` | 295 | |
-| — of those `no` | 236 | |
-| Eager unresolved (`?`) | 2 | 0 % |
+| — of those `no` | 238 | |
+| Eager unresolved (`?`) | 0 | 0 % |
 | Column count measured | 295 | 55 % |
 | Field count known | 220 | 41 % |
 | — returns `void`, no fields to count | 113 | 21 % |
@@ -331,7 +331,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | POST | `/payIn` | public | no | — | n/a | n/a | `PayInController.createPayIn` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
 | POST | `/payIn/lnurlpDeposit/:uniqueId` | public | no | — | n/a | n/a | `PayInWebhookController.deposit` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
 | POST | `/payIn/lnurlpPayment/:uniqueId` | hidden | no | — | n/a | n/a | `PayInWebhookController.payment` | `subdomains/supporting/payin/controllers/payin-webhook.controller.ts` |
-| POST | `/payIn/poll` | hidden | ? | — | n/a | n/a | `PayInController.pollAddress` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
+| POST | `/payIn/poll` | hidden | no | — | n/a | n/a | `PayInController.pollAddress` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
 | POST | `/payIn/retry` | hidden | yes | — | n/a | n/a | `PayInController.retryUncertainSend` | `subdomains/supporting/payin/controllers/payin.controller.ts` |
 | GET | `/paymentLink` | public | no | 513 | 15 | 34× | `PaymentLinkController.getAllPaymentLinks` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | POST | `/paymentLink` | public | yes | 472 | 15 | 31× | `PaymentLinkController.createPaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
@@ -584,7 +584,7 @@ Where both sides are known, the median ratio is **16×** — 14 endpoints exceed
 | PUT | `/userData/:id/merge` | hidden | yes | 331 | n/a | n/a | `UserDataController.mergeUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | PUT | `/userData/:id/volumes` | hidden | no | — | n/a | n/a | `UserDataController.updateVolumes` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | PUT | `/userData/auditPeriodNumbers` | hidden | no | — | n/a | n/a | `UserDataController.calculateAuditPeriodNumbers` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
-| POST | `/userData/download` | public | ? | — | n/a | n/a | `UserDataController.downloadUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| POST | `/userData/download` | public | no | — | n/a | n/a | `UserDataController.downloadUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | POST | `/userDataRelation` | public | yes | 253 | n/a | n/a | `UserDataRelationController.create` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
 | PUT | `/userDataRelation/:id` | public | yes | 7 | n/a | n/a | `UserDataRelationController.update` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
 | DELETE | `/userDataRelation/:id` | public | no | — | n/a | n/a | `UserDataRelationController.delete` | `subdomains/generic/user/models/user-data-relation/user-data-relation.controller.ts` |
