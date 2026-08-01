@@ -921,6 +921,19 @@ export class BuyCryptoService implements OnModuleInit {
           (cryptoInput.status != null &&
             [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(cryptoInput.status)) ||
           cryptoInput.returnTxId != null);
+      const cryptoForwardStarted =
+        cryptoInput != null &&
+        (cryptoInput.action === PayInAction.FORWARD ||
+          (cryptoInput.status != null &&
+            [
+              PayInStatus.PREPARING,
+              PayInStatus.PREPARED,
+              PayInStatus.SENDING,
+              PayInStatus.SEND_UNCERTAIN,
+              PayInStatus.FORWARDED,
+              PayInStatus.FORWARD_CONFIRMED,
+            ].includes(cryptoInput.status)) ||
+          cryptoInput.outTxId != null);
 
       const userDataId = entity.userData?.id;
       if (!userDataId) throw new BadRequestException('BuyCrypto has no user data');
@@ -940,7 +953,8 @@ export class BuyCryptoService implements OnModuleInit {
         entity.chargebackAllowedDate ||
         entity.chargebackAllowedDateUser ||
         checkoutRefundStarted ||
-        cryptoReturnStarted
+        cryptoReturnStarted ||
+        cryptoForwardStarted
       )
         throw new BadRequestException('BuyCrypto is already complete or payout initiated');
       if (entity.amlCheck !== dto.expectedAmlCheck || (entity.amlReason ?? null) !== dto.expectedAmlReason)

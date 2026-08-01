@@ -515,6 +515,26 @@ describe('BuyCryptoService', () => {
       expect(manager.update).not.toHaveBeenCalled();
     });
 
+    it('locks and rejects a crypto input that was already released for forwarding', async () => {
+      const { entity, manager } = reviewResetFixture();
+      entity.cryptoInput = Object.assign(new CryptoInput(), {
+        id: 24,
+        action: PayInAction.FORWARD,
+        status: PayInStatus.ACKNOWLEDGED,
+      });
+
+      await expect(
+        service.resetAmlCheckForReview(7, { expectedAmlCheck: CheckStatus.PASS, expectedAmlReason: AmlReason.NA }, 99),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        CryptoInput,
+        expect.objectContaining({ where: { id: 24 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
     it('does not mutate or delete state when the immutable audit event cannot be saved', async () => {
       const { manager } = reviewResetFixture();
       manager.save.mockRejectedValue(new Error('audit unavailable'));
