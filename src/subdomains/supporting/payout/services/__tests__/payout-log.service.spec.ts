@@ -8,12 +8,16 @@ import { PayoutLogService } from '../payout-log.service';
 // The shape log-based monitoring extracts from the per-order escalation line. Pinned here so a reworded log line
 // fails in CI instead of silently reducing the escalation alert to a bare order count.
 //
-// The asset group is GREEDY on purpose, and that is the whole point of this pattern. Lazily (`[^']+` or `.+?`) it
-// stops at the first quote inside the name, so a name that closes its own field and then imitates the next fence
-// (`Foo' on chain Ethereum`) parses into a WRONG chain without any error. Greedy, the group runs to the LAST
-// `' on chain ` before `, context` - the one the service itself wrote - which no value inside the name can forge.
+// The free-form fields are read as JSON strings, with `(?:[^"\\]|\\.)*` skipping escape pairs. That is what makes the
+// closing quote unambiguous: a plain-quote fence is forgeable whichever way it is read - up to the FIRST quote, a name
+// like `Foo' on chain Ethereum` closes its own field and imitates the next fence; up to the LAST one, a later
+// free-form field can offer a competing fence. Both yield a wrong chain with no parse error. The adversarial tests
+// below pin exactly those two attempts.
 const ESCALATION_PATTERN =
-  /Payout order (?<order>[0-9]+) escalated to PayoutUncertain: amount (?<amount>[^ ]+) of '(?<asset>.*)' on chain (?<chain>[^,]+), context (?<context>[^,]+), correlation (?<correlation>.+)$/;
+  /Payout order (?<order>[0-9]+) escalated to PayoutUncertain: amount (?<amount>[^ ]+) of "(?<asset>(?:[^"\\]|\\.)*)" on chain (?<chain>[^,]+), context (?<context>[^,]+), correlation "(?<correlation>(?:[^"\\]|\\.)*)"$/;
+
+// The values come back JSON-encoded; decode before comparing to the entity value.
+const decode = (v: string): string => JSON.parse(`"${v}"`);
 
 describe('PayoutLogService', () => {
   describe('#logFailedOrders(...)', () => {
@@ -115,8 +119,8 @@ describe('PayoutLogService', () => {
       expect(groups).toMatchObject({ order: '42', amount: '0.5', asset: 'unknown', chain: 'Bitcoin' });
     });
 
-    // An empty name has to reach the same placeholder as a missing relation: quoted, '' would fail to parse just like
-    // a missing one, so `??` would not be enough here.
+    // An empty name has to reach the same placeholder as a missing relation: it would otherwise encode to "" and read
+    // back as an empty asset rather than as a name, so `??` would not be enough here.
     it('falls back to the placeholder when the asset name is empty', () => {
       const order = createCustomPayoutOrder({ id: 44, asset: createCustomAsset({ name: '' }) });
 
@@ -125,8 +129,7 @@ describe('PayoutLogService', () => {
       expect(ESCALATION_PATTERN.exec(escalationLines()[0])?.groups).toMatchObject({ asset: 'unknown' });
     });
 
-    // A chain or asset value carrying a space must not shift the following field, which is why every value is fenced
-    // by a literal on both sides.
+    // A value carrying a space must not shift the following field.
     it('keeps the fields separated when a value contains a space', () => {
       const order = createCustomPayoutOrder({
         id: 43,
@@ -155,22 +158,40 @@ describe('PayoutLogService', () => {
       });
     });
 
-    // The adversarial case the greedy quantifier exists for: this name closes its own quoted field and then imitates
-    // the chain fence. Read lazily it yields asset='Foo' and chain="Ethereum' on chain Tron" - a wrong chain with no
-    // parse error at all. The real fence is always the last one, so the chain must still come out as Tron.
+    // First of the two forgery attempts a plain-quote fence cannot survive: the name closes its own field and then
+    // imitates the chain fence. Read up to the first quote, this yields chain="Ethereum' on chain Tron" - wrong, and
+    // silently so. The chain must still come out as Tron.
     it('cannot be tricked by an asset name that imitates the chain fence', () => {
       const order = createCustomPayoutOrder({
         id: 47,
-        asset: createCustomAsset({ name: "Foo' on chain Ethereum" }),
+        asset: createCustomAsset({ name: "Foo\" on chain Ethereum" }),
         chain: Blockchain.TRON,
       });
 
       service.logFailedOrders([order]);
 
-      expect(ESCALATION_PATTERN.exec(escalationLines()[0])?.groups).toMatchObject({
-        asset: "Foo' on chain Ethereum",
-        chain: 'Tron',
+      const groups = ESCALATION_PATTERN.exec(escalationLines()[0])?.groups;
+      expect(decode(groups.asset)).toBe('Foo" on chain Ethereum');
+      expect(groups.chain).toBe('Tron');
+    });
+
+    // The other forgery attempt, and the one that a "read up to the LAST fence" reader falls for: a later free-form
+    // field offers a competing fence. correlationId is a plain string column, so this is reachable without touching
+    // the asset at all. chain and context must stay the ones the service wrote.
+    it('cannot be tricked by a correlation id that imitates the fence', () => {
+      const order = createCustomPayoutOrder({
+        id: 48,
+        asset: createCustomAsset({ name: 'XMR' }),
+        chain: Blockchain.MONERO,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '129680" on chain FAKECHAIN, context FAKECTX, correlation "tail',
       });
+
+      service.logFailedOrders([order]);
+
+      const groups = ESCALATION_PATTERN.exec(escalationLines()[0])?.groups;
+      expect(groups).toMatchObject({ asset: 'XMR', chain: 'Monero', context: 'BuyCrypto' });
+      expect(decode(groups.correlation)).toBe('129680" on chain FAKECHAIN, context FAKECTX, correlation "tail');
     });
 
     // The reason the asset name is quoted: unquoted, this name would end the asset field at its own " on chain " and
