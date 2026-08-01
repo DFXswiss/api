@@ -338,6 +338,27 @@ describe('BuyCryptoService', () => {
   });
 
   describe('amlCheck audit trail', () => {
+    it('persists the checkout refund claim before calling the external provider', async () => {
+      const buyCrypto = createCustomBuyCrypto({
+        id: 7,
+        inputAmount: 10,
+        checkoutTx: Object.assign(new CheckoutTx(), { id: 22, paymentId: 'pay-22' }),
+      });
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      checkoutService.refundPayment.mockResolvedValue({
+        action_id: 'action-22',
+        reference: 'refund-22',
+        _links: { payment: { href: 'https://example.test/payment/pay-22' } },
+      });
+
+      await service.refundCheckoutTx(buyCrypto, { chargebackAllowedDate: new Date() });
+
+      expect(checkoutTxService.paymentRefunded).toHaveBeenCalledWith(22);
+      expect(checkoutTxService.paymentRefunded.mock.invocationCallOrder[0]).toBeLessThan(
+        checkoutService.refundPayment.mock.invocationCallOrder[0],
+      );
+    });
+
     function reviewResetFixture(
       kycStatus = KycStatus.CHECK,
       amlCheck = CheckStatus.PASS,

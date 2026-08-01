@@ -645,8 +645,10 @@ export class BuyCryptoService implements OnModuleInit {
     TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount, assetMismatch: false });
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
-      dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
+      // Persist the refund claim before the irreversible provider call. Review resets lock and inspect this row,
+      // so a concurrent reset cannot treat an already-started checkout refund as an untouched payment.
       await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx.id);
+      dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
     }
 
     const previousAmlCheck = buyCrypto.amlCheck;
