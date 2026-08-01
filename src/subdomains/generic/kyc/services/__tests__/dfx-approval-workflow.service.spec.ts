@@ -1,13 +1,12 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Config, ConfigService } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { KycLogService } from '../kyc-log.service';
 import { EntityManager } from 'typeorm';
-import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { KycLevel, KycType, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
-import { FileSubType } from '../../dto/kyc-file.dto';
 import { DfxApprovalBlocker } from '../../dto/dfx-approval-status.dto';
+import { FileSubType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
@@ -15,6 +14,7 @@ import { KycStepRepository } from '../../repositories/kyc-step.repository';
 import { DFX_APPROVAL_REQUIRED_DOCUMENTS, DfxApprovalCheckService } from '../dfx-approval-check.service';
 import { DfxApprovalDocumentService } from '../dfx-approval-document.service';
 import { DfxApprovalWorkflowService } from '../dfx-approval-workflow.service';
+import { KycLogService } from '../kyc-log.service';
 import { KycNotificationService } from '../kyc-notification.service';
 import { NameCheckService } from '../name-check.service';
 

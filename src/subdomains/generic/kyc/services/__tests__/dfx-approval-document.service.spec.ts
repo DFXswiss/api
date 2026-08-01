@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
-import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { FileSubType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { NameCheckLogRepository } from '../../repositories/name-check-log.repository';

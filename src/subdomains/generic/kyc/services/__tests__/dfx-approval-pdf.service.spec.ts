@@ -1,10 +1,10 @@
-import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
-import { createDefaultLanguage } from 'src/shared/models/language/__mocks__/language.entity.mock';
 import { createHash } from 'crypto';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { AccountType } from '../../../user/models/user-data/account-type.enum';
+import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { createDefaultLanguage } from 'src/shared/models/language/__mocks__/language.entity.mock';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { FileSubType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { NameCheckLog, NameCheckRiskStatus } from '../../entities/name-check-log.entity';
