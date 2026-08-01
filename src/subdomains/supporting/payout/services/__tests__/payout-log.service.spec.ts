@@ -45,10 +45,24 @@ describe('PayoutLogService', () => {
       expect(errorSpy).toHaveBeenCalledWith(message);
     });
 
+    // Different chains and assets in one batch on purpose: a batch is exactly where fields could get mixed up
+    // between orders, and every value has to stay with the line of its own order.
     it('logs one parsable escalation line per order in addition to the summary', () => {
       const orders = [
-        createCustomPayoutOrder({ id: 113108, correlationId: '129680' }),
-        createCustomPayoutOrder({ id: 113109, correlationId: '129672' }),
+        createCustomPayoutOrder({
+          id: 113108,
+          correlationId: '129680',
+          amount: 0.31000703,
+          asset: createCustomAsset({ name: 'XMR' }),
+          chain: Blockchain.MONERO,
+        }),
+        createCustomPayoutOrder({
+          id: 113109,
+          correlationId: '129672',
+          amount: 329.67763343,
+          asset: createCustomAsset({ name: 'USDT' }),
+          chain: Blockchain.TRON,
+        }),
       ];
 
       service.logFailedOrders(orders);
@@ -56,7 +70,10 @@ describe('PayoutLogService', () => {
       const lines = escalationLines();
       expect(lines).toHaveLength(2);
       expect(errorSpy).toHaveBeenCalledTimes(3);
-      expect(lines.map((l) => ESCALATION_PATTERN.exec(l)?.groups.order)).toEqual(['113108', '113109']);
+      expect(lines.map((l) => ESCALATION_PATTERN.exec(l)?.groups)).toMatchObject([
+        { order: '113108', amount: '0.31000703', asset: 'XMR', chain: 'Monero', correlation: '129680' },
+        { order: '113109', amount: '329.67763343', asset: 'USDT', chain: 'Tron', correlation: '129672' },
+      ]);
     });
 
     it('exposes amount, asset and chain of the payout', () => {
