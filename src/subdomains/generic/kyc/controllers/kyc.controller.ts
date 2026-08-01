@@ -80,6 +80,9 @@ const MergedResponse = {
   type: MergedDto,
 };
 const TfaResponse = { description: '2FA is required' };
+// Staff reaching a protected file without a completed identification; the body carries
+// code STAFF_KYC_REQUIRED so clients can branch on it rather than on the message text.
+const StaffKycResponse = { description: 'Staff access requires a completed identification' };
 
 @ApiTags('KYC')
 @Controller({ path: 'kyc', version: [GetConfig().kycVersion] })
@@ -163,6 +166,7 @@ export class KycController {
 
   @Get('file/:id')
   @ApiBearerAuth()
+  @ApiForbiddenResponse(StaffKycResponse)
   @UseGuards(OptionalJwtAuthGuard)
   async getFile(
     @GetJwt() jwt: JwtPayload | undefined,
