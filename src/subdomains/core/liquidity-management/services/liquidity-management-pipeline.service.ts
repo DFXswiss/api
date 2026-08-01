@@ -147,7 +147,7 @@ export class LiquidityManagementPipelineService {
   }
 
   async getPipelineStatus(pipelineId: number): Promise<LiquidityManagementPipelineStatus> {
-    const pipeline = await this.pipelineRepo.findOneBy({ id: pipelineId });
+    const pipeline = await this.pipelineRepo.findForStatus(pipelineId);
 
     if (!pipeline) throw new NotFoundException(`No liquidity management pipeline found for id ${pipelineId}`);
 

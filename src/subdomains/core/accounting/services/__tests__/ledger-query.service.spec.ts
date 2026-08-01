@@ -186,6 +186,11 @@ describe('LedgerQueryService', () => {
     logService = createMock<LogService>();
 
     jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() => legQb());
+    // The suspense query lives in the repository now; what it selects is asserted against a real
+    // database in ledger-suspense.projection.spec.ts.
+    jest
+      .spyOn(ledgerLegRepository, 'findSuspenseLegs')
+      .mockImplementation(() => Promise.resolve(qbStub.suspenseLegs ?? []));
     jest.spyOn(ledgerLegRepository, 'find').mockResolvedValue([]);
     jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([]);
     jest.spyOn(ledgerAccountRepository, 'findOneBy').mockResolvedValue(null);
