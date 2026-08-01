@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
-import { capCharacters, maskLogText, maskUrl } from 'src/shared/middlewares/api-trace.middleware';
+import { MAX_MASKED_PATTERN, capCharacters, maskLogText, maskUrl } from 'src/shared/middlewares/api-trace.middleware';
 import { ValidationFailedException, describeRejectedValues } from 'src/shared/pipes/detailed-validation.pipe';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { describeCaller } from 'src/shared/utils/request-caller';
@@ -17,27 +17,44 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // Cap the (masked) reason: exception messages can embed user-supplied free text.
   private static readonly REASON_MAX_LENGTH = 500;
 
+  // How much of the message is masked at all. An exception message can be as large as the body it
+  // interpolated a value from, and masking is regex work over what it is given - a request-sized one
+  // held the thread for seconds. Two pattern lengths of margin over the cap: one for a pattern that
+  // starts inside what stays visible, one for the tail that is dropped again below.
+  private static readonly REASON_SCAN_LENGTH = ApiExceptionFilter.REASON_MAX_LENGTH + 2 * MAX_MASKED_PATTERN;
+
   private readonly logger = new DfxLogger(ApiExceptionFilter);
 
-  catch(exception: Error, host: ArgumentsHost) {
+  catch(exception: Error, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    const status = ApiExceptionFilter.statusOf(exception);
+    const status = ApiExceptionFilter.resolveStatus(exception);
 
     // The response goes out first, and nothing it does not need is read before it. Everything the
     // line renders comes from the request or from the thrower, and reading either can throw - which
     // used to leave the caller with no response at all rather than with a line missing a detail.
+    let responseError: unknown;
+    let responseSent = true;
     try {
-      response.status(status).json(this.responseBody(exception, status));
+      response.status(status.effective).json(this.responseBody(exception, status));
     } catch (e) {
-      this.logger.error(`Failed to set error response content:`, e);
+      responseError = e;
+      responseSent = false;
     }
 
-    // The response is out; what follows only describes it. A failure to do that must not travel back
-    // to a caller who already has an answer, so it ends here - including a failure of the logger,
-    // which is the one thing that could not be used to report it anyway.
+    // What follows only describes what happened, this failure included. It must not travel back to
+    // a caller who by now either has an answer or is past being given one, so it ends here -
+    // including a failure of the logger, which is the one thing that could not report it anyway.
     try {
-      this.describe(exception, ctx.getRequest<Request>(), status);
+      if (!responseSent) {
+        // Only a thrown `Error` is reported as what it is. Anything else - a string included - could
+        // carry whatever the body carried, and this line is not the place to find that out.
+        this.logger.error(
+          `Failed to set error response content:`,
+          responseError instanceof Error ? responseError : new Error('Non-error thrown'),
+        );
+      }
+      this.describe(exception, ctx.getRequest<Request>(), status.effective);
     } catch {
       return;
     }
@@ -61,7 +78,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       //
       // All three are untrusted input and rendered as such - single-line, masked and capped. The
       // reason included: an exception message can interpolate a value the request supplied.
-      const reason = capCharacters(maskLogText(this.getReason(exception)), ApiExceptionFilter.REASON_MAX_LENGTH);
+      const reason = ApiExceptionFilter.maskReason(this.getReason(exception));
       const rejected =
         exception instanceof ValidationFailedException
           ? ` (received: ${describeRejectedValues(exception.validationErrors)})`
@@ -70,39 +87,132 @@ export class ApiExceptionFilter implements ExceptionFilter {
     }
   }
 
+  /**
+   * The masked, single-line, capped part of the message that reaches the line.
+   *
+   * Only the front of the message is masked, because masking is the expensive part and the cap
+   * would throw the rest away anyway. A pattern crossing the point where the masking stopped
+   * arrives halved and is not recognized, and its head is then the last thing the masking produced
+   * - so a pattern length is dropped from the end of what came back. What is kept can only hold
+   * patterns that ended before that point, and those were seen whole. The tail goes after the
+   * masking rather than before it: masking only shortens, so a position past the cap can move into
+   * view, and dropping the tail first would leave that halved head to move with it.
+   */
+  private static maskReason(reason: string): string {
+    const scanned = capCharacters(reason, ApiExceptionFilter.REASON_SCAN_LENGTH);
+    const masked = maskLogText(scanned);
+
+    return capCharacters(
+      ApiExceptionFilter.removeSplitTail(masked, scanned === reason),
+      ApiExceptionFilter.REASON_MAX_LENGTH,
+    );
+  }
+
+  // Nothing was cut, or what the masking left is long enough that its end stays past the cap either
+  // way: the tail costs diagnostic text and buys nothing there.
+  private static removeSplitTail(masked: string, complete: boolean): string {
+    const length = [...masked].length;
+    if (complete || length > ApiExceptionFilter.REASON_MAX_LENGTH + MAX_MASKED_PATTERN) return masked;
+
+    return capCharacters(masked, Math.max(0, length - MAX_MASKED_PATTERN));
+  }
+
   // The status an HttpException carries is whatever the thrower put there: reading it can throw, and
   // what comes back is not necessarily a final response at all - a 1xx is an interim one, and
   // nothing outside the range it can send leaves a reading other than server error.
-  private static statusOf(exception: Error): number {
+  private static resolveStatus(exception: Error): { effective: number; declared: number | undefined } {
     try {
-      if (!(exception instanceof HttpException)) return HttpStatus.INTERNAL_SERVER_ERROR;
+      if (!(exception instanceof HttpException))
+        return { effective: HttpStatus.INTERNAL_SERVER_ERROR, declared: undefined };
 
-      const status = exception.getStatus();
-      return Number.isInteger(status) && status >= 200 && status <= 599 ? status : HttpStatus.INTERNAL_SERVER_ERROR;
+      const declared = exception.getStatus();
+      const usable = Number.isInteger(declared) && declared >= 200 && declared <= 599;
+
+      return { effective: usable ? declared : HttpStatus.INTERNAL_SERVER_ERROR, declared };
     } catch {
-      return HttpStatus.INTERNAL_SERVER_ERROR;
+      return { effective: HttpStatus.INTERNAL_SERVER_ERROR, declared: undefined };
     }
   }
 
   // The body an HttpException carries is whatever the thrower put there, and reading it can throw.
-  // A caller gets the generic body then rather than none - and also when the status it was going to
-  // be sent with is not the one it names, which is what a replaced status leaves behind.
-  private responseBody(exception: Error, status: number): unknown {
+  // A caller gets the generic body then rather than none - and also when the body is not the one
+  // being sent, which is what a replaced status or a body naming another one leaves behind.
+  private responseBody(exception: Error, status: { effective: number; declared: number | undefined }): unknown {
     try {
-      if (exception instanceof HttpException && exception.getStatus() === status) return exception.getResponse();
-    } catch {
-      // an exception that cannot say what it is gets described by what is being sent
-    }
+      if (!(exception instanceof HttpException)) {
+        return {
+          statusCode: status.effective,
+          message: ApiExceptionFilter.readOwnMessage(exception, status.effective),
+        };
+      }
 
-    return { statusCode: status, message: ApiExceptionFilter.messageOf(exception, status) };
+      // A status that had to be replaced takes the body with it: what the thrower wrote belongs to
+      // the status it wrote it for, and reading it for another one is reading it for something it
+      // was not.
+      if (status.declared !== status.effective) {
+        return { statusCode: status.effective, message: HttpStatus[status.effective] ?? 'Error' };
+      }
+
+      const body = exception.getResponse();
+
+      // A body that serializes itself is sent as it is, the way it would have been without any of
+      // this, and so is one that agrees with the status being sent. Anything else is replaced whole:
+      // a body that cannot be passed on cannot be read either, because what it holds is not what it
+      // would have sent, and the name of the status is the one thing that is certain here.
+      if (ApiExceptionFilter.isSelfSerializing(body) || ApiExceptionFilter.isConsistentWith(body, status.effective))
+        return body;
+
+      return { statusCode: status.effective, message: HttpStatus[status.effective] ?? 'Error' };
+    } catch {
+      return { statusCode: status.effective, message: HttpStatus[status.effective] ?? 'Error' };
+    }
   }
 
-  private static messageOf(exception: Error, status: number): string {
+  // What the exception says about itself, for the case where there is no body to say it better.
+  // Reading it can throw, and an exception that says nothing is not worth sending in place of the
+  // name of what is being sent.
+  private static readOwnMessage(exception: Error, status: number): string {
     try {
-      return exception.message || (HttpStatus[status] as string);
+      const message: unknown = exception.message;
+
+      return typeof message === 'string' && message ? message : (HttpStatus[status] ?? 'Error');
     } catch {
-      return HttpStatus[status] as string;
+      return HttpStatus[status] ?? 'Error';
     }
+  }
+
+  // A body that answers `toJSON` is serialized from what that returns, not from what it holds, so
+  // what it holds says nothing about what it sends - which is why it is passed on rather than read.
+  private static isSelfSerializing(body: unknown): boolean {
+    if (typeof body !== 'object' || body === null) return false;
+
+    // Asked for as a descriptor rather than read: reading it would be one read, and the
+    // serialization another. Only a function that is simply there serializes the body; an accessor
+    // might answer with one and might not, and a body that only might is judged like any other.
+    for (let level: object | null = body; level; level = Object.getPrototypeOf(level)) {
+      const declared = Object.getOwnPropertyDescriptor(level, 'toJSON');
+      if (declared) return 'value' in declared && typeof declared.value === 'function';
+    }
+
+    return false;
+  }
+
+  // A body agrees with the status being sent unless it carries one of its own that differs. What
+  // `JSON.stringify` leaves out carries nothing: a name that is not enumerable, one whose value is
+  // `undefined`, a function, a symbol, a name put on an array alongside its elements. An accessor is the other way round - it
+  // is serialized, so it does carry one, and it answers again when it is, so what it would carry
+  // cannot be read here. That is not agreement.
+  private static isConsistentWith(body: unknown, status: number): boolean {
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) return true;
+
+    const declared = Object.getOwnPropertyDescriptor(body, 'statusCode');
+    if (!declared?.enumerable) return true;
+    if (!('value' in declared)) return false;
+
+    const carried: unknown = declared.value;
+    if (carried === undefined || typeof carried === 'function' || typeof carried === 'symbol') return true;
+
+    return carried === status;
   }
 
   // Human-readable rejection reason. For HttpExceptions the useful text is in the

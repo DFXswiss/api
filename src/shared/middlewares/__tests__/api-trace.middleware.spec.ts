@@ -163,6 +163,20 @@ describe('apiTraceMiddleware', () => {
     expect(line).not.toContain('jane@example.com');
   });
 
+  it('leaves percent-encoded personal data in a path visible', () => {
+    // A path carries its values encoded, and no pattern matches `%40`. Reading them decoded is a
+    // question about what this trace is for rather than a wider pattern list, and is left open.
+    const req = {
+      method: 'GET',
+      originalUrl: '/v1/realunit/user/victim%40example.com',
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 200, (res) => res.send('ok'));
+
+    expect(lines[0]).toContain('victim%40example.com');
+  });
+
   it('stops redaction at the compute budget instead of walking a huge body', () => {
     const huge = { items: Array.from({ length: 50_000 }, (_, i) => `leaf-value-${i}-${'x'.repeat(400)}`) };
     const { lines } = runTrace(realunitReq(huge), 200, (res) => res.json({}));
@@ -206,6 +220,22 @@ describe('apiTraceMiddleware', () => {
       return codePoint >= 0xd800 && codePoint <= 0xdfff;
     };
     expect([...line].some(isLoneSurrogate)).toBe(false);
+  });
+
+  it('caps the request target after reading it, so a pattern across the cap is still masked', () => {
+    // The address starts before the cap and runs past it: capping first would have cut it in half
+    // and left the front of it in the line.
+    const prefix = '/v1/realunit/user/';
+    const req = {
+      method: 'GET',
+      originalUrl: `${prefix}${'a'.repeat(505 - prefix.length)}jane@example.com`,
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 200, (res) => res.send('ok'));
+
+    expect(lines[0]).not.toContain('jane');
+    expect(lines[0]).toContain('***');
   });
 
   it('keeps the request target on one line as well', () => {
@@ -303,11 +333,28 @@ describe('maskLogValue', () => {
     expect(maskLogValue('\u{1F600}'.repeat(257), 96)).toBe('<514 code units>');
   });
 
-  it('masks a pattern a control character was placed next to, which removing it would join', () => {
-    // Removing the character puts what followed it against the end of the pattern, and the address
-    // no longer ends on a word boundary - so the masking also runs before the removal.
+  it('masks an address that removing a character puts a letter against', () => {
     expect(maskLogValue('192.0.2.123\u0000a', 96)).toBe('***a');
+  });
+
+  it('masks a wallet address that removing a character would turn into a longer hex run', () => {
+    // The pass before the removal is what sees it: afterwards it is a longer run, and a longer run
+    // is left alone on purpose because that is what a transaction hash looks like.
     expect(maskLogValue(`0x${'a'.repeat(40)}\u0000b`, 96)).toBe('0x…b');
+  });
+
+  it('errs towards masking where the second pass folds what the first one wrote', () => {
+    // `***` reads as the local part of an address, so the domain after it goes too. Masking more
+    // than was there is the safe direction to be wrong in.
+    expect(maskLogValue('192.0.2.123\u2028@error.code', 96)).toBe('***');
+  });
+
+  it('masks an address that a letter or an underscore stands next to', () => {
+    // Only a digit on either side means it is a longer number rather than an address.
+    expect(maskLogValue('ip192.0.2.123', 96)).toBe('ip***');
+    expect(maskLogValue('_192.0.2.123', 96)).toBe('_***');
+    expect(maskLogValue('x192.0.2.123y', 96)).toBe('x***y');
+    expect(maskLogValue('1192.0.2.123', 96)).toBe('1192.0.2.123');
   });
 
   it('masks a pattern that a control character was placed inside', () => {
