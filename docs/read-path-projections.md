@@ -30,8 +30,8 @@ This service loads far more data than it returns. Measured against the real enti
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
   `transaction_request`) broke every invoice and receipt in production until it was fixed.
-- Of the 534 endpoints, **428 reach at least one load site that fetches whole rows**; 98 read
-  nothing at all, and **6 read only the fields they return**. The widest query a fetching endpoint
+- Of the 534 endpoints, **417 reach at least one load site that fetches whole rows**; 98 read
+  nothing at all, and **17 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
@@ -47,12 +47,21 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the load sites in this repository — at most 1,105, see [load-sites.md](load-sites.md#measurements) — **six** name the columns they need:
-one query builder and the five raw statements. Practically all the rest request whole rows — 971 through the
-`find` family, and of the 129 query builders, 105 pass the root alias to `.select(...)`, which reads
+**No read model.** Of the 1,105 load sites in this repository, **94** name the columns they need:
+89 query builders and the five raw statements. The other 1,011 request whole rows — 967 through the
+`find` family, and of the 133 query builders, 20 pass the root alias to `.select(...)`, which reads
 like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
 business logic and pure output paths such as invoices, receipts, history and exports — which need
 fields, not objects.
+
+Read the first number carefully, because an earlier revision of this document got it wrong. The 89
+query builders that do name columns are almost entirely counts, maxima and id lookups —
+`.select('userData.id', 'id')` and the like — and they select **one column at the median**. They are
+projections, and they were miscounted as full loads because the classification only recognised the
+array form `.select([...])` and read every string argument as the bare root alias. Correcting it
+moves 11 endpoints out of the `whole rows` group. What it does not do is change the picture: a
+`COUNT(*)` that was always narrow is not a read path that was converted, and the response payloads —
+history, profile, invoices, exports — are still served by `find`.
 
 ## Vocabulary
 
@@ -146,9 +155,12 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-Six sites carried a field list before any conversion. The table below is what the suite covers of
-them — unchanged, because none of the six was converted. Sites a conversion adds are recorded per
-endpoint in [endpoints.md](endpoints.md), where only `4/4` counts as done.
+Ninety-four sites carry a field list. The table below covers the six that were known when this
+document was written — one query builder and five raw statements — and none of them was converted,
+so it is unchanged. The other 88 are the query builders that name columns one at a time; they are
+not covered by these levels either, which is what their endpoints' `0/4` in
+[endpoints.md](endpoints.md) records. Sites a conversion adds are recorded there too, where only
+`4/4` counts as done.
 
 | Site | Form | Runs in a test | Column list asserted | Real database |
 | ---- | ---- | -------------- | -------------------- | ------------- |
