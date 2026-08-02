@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AxiosError, AxiosResponse, Method } from 'axios';
+import { isISO8601 } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -8,7 +9,9 @@ import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import {
   FrickApproveVirtualIbanActivationRequest,
+  FrickApproveVirtualIbanDeactivationRequest,
   FrickCreateVirtualIbanRequest,
+  FrickDeactivateVirtualIbanRequest,
   FrickVirtualIban,
   FrickVirtualIbanState,
   FrickVirtualIbansResponse,
@@ -61,7 +64,7 @@ export interface FrickVirtualIbansFetchResult {
   virtualIbans: FrickVirtualIban[];
   // False when at least one list entry failed per-entry validation and was dropped. Callers that
   // inspect listing misses must treat fullyValidated=false as an incomplete check, never as proof of
-  // absence. Reconciliation is alert-only; well-formed entries may still prove positive matches.
+  // absence. Reconciliation only acts on positive matches; a miss never enables another create.
   fullyValidated: boolean;
   /** Local instant immediately before the first page request was dispatched. */
   listingStartedAt: Date;
@@ -243,6 +246,40 @@ export class BankFrickService {
     const request: FrickApproveVirtualIbanActivationRequest = { vban };
     const response = await this.callVbanApi<FrickVirtualIban>(
       'virtual-ibans/activations/approvals',
+      'PUT',
+      request,
+      'application/json',
+      'json',
+      true,
+      false,
+    );
+    this.validateVirtualIbanResponse(response);
+    return response;
+  }
+
+  async deactivateViban(vban: string): Promise<FrickVirtualIban> {
+    this.assertVibanAvailable();
+    this.validateString(vban, 'vban', 34, true);
+    const request: FrickDeactivateVirtualIbanRequest = { vban };
+    const response = await this.callVbanApi<FrickVirtualIban>(
+      'virtual-ibans/deactivations',
+      'PUT',
+      request,
+      'application/json',
+      'json',
+      true,
+      false,
+    );
+    this.validateVirtualIbanResponse(response);
+    return response;
+  }
+
+  async approveVibanDeactivation(vban: string): Promise<FrickVirtualIban> {
+    this.assertVibanAvailable();
+    this.validateString(vban, 'vban', 34, true);
+    const request: FrickApproveVirtualIbanDeactivationRequest = { vban };
+    const response = await this.callVbanApi<FrickVirtualIban>(
+      'virtual-ibans/deactivations/approvals',
       'PUT',
       request,
       'application/json',
@@ -1146,6 +1183,19 @@ export class BankFrickService {
       typeof r.createdBy !== 'string' ||
       !Array.isArray(r.activationApprovals) ||
       !Array.isArray(r.deactivationApprovals)
+    )
+      throw new Error('Invalid Bank Frick virtual IBAN response');
+
+    // Require a full RFC-3339 calendar instant: YYYY-MM-DDTHH:mm:ss[.fraction]Z or ±HH:MM.
+    // Hours 00-23, minutes/seconds 00-59 (rejects ISO-8601 end-of-day 24:00:00); offset hours/minutes
+    // likewise bounded. Anchored format regex excludes ordinal/week/basic dates; isISO8601 checks
+    // calendar validity; Date.parse must yield a finite epoch so downstream epoch comparisons never see NaN.
+    if (
+      !/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/.test(
+        r.createdAt,
+      ) ||
+      !isISO8601(r.createdAt, { strict: true, strictSeparator: true }) ||
+      !Number.isFinite(Date.parse(r.createdAt))
     )
       throw new Error('Invalid Bank Frick virtual IBAN response');
 

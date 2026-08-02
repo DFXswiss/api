@@ -3,4 +3,5 @@ export enum VirtualIbanIssuanceIntentStatus {
   IN_FLIGHT = 'InFlight',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
+  FALLBACK = 'Fallback',
 }

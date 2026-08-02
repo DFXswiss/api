@@ -1220,7 +1220,7 @@ describe('BankFrickService', () => {
     expect(http.request).toHaveBeenCalledTimes(5);
   });
 
-  it('rejects virtual IBAN responses with missing or wrong-typed createdAt/createdBy', async () => {
+  it('rejects virtual IBAN responses with missing, wrong-typed or non-RFC-3339 createdAt/createdBy', async () => {
     http.request
       .mockResolvedValueOnce({ token: jwt() })
       .mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: undefined });
@@ -1229,11 +1229,95 @@ describe('BankFrickService', () => {
     http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: 123 });
     await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
 
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-07-01' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-07-01T00:00:00' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-07-01 00:00:00Z' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    // ISO-8601 allows 24:00:00 as end-of-day; RFC 3339 / this validator require hours 00-23.
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-07-01T24:00:00Z' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    // Invalid calendar day: passes the RFC-3339 calendar regex but fails isISO8601 (strict).
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-02-30T00:00:00Z' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    // Ordinal / week / basic forms can pass isISO8601 yet fail the anchored RFC-3339 calendar regex.
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-182T00:00:00Z' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-W27-2T00:00:00Z' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '20260701T000000Z' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
     http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdBy: undefined });
     await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
 
     http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdBy: 456 });
     await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+  });
+
+  it('rejects a virtual IBAN response when Date.parse does not yield a finite epoch for a valid RFC-3339 createdAt', async () => {
+    const validCreatedAt = '2026-07-01T00:00:00Z';
+    const realParse = Date.parse;
+    const parseSpy = jest.spyOn(Date, 'parse').mockImplementation((value: string) => {
+      if (value === validCreatedAt) return Number.NaN;
+      return realParse(value);
+    });
+
+    try {
+      http.request
+        .mockResolvedValueOnce({ token: jwt() })
+        .mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: validCreatedAt });
+      await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+      expect(parseSpy).toHaveBeenCalledWith(validCreatedAt);
+    } finally {
+      parseSpy.mockRestore();
+    }
+  });
+
+  it('accepts virtual IBAN responses with explicit Z or ±HH:MM createdAt offsets', async () => {
+    const withZ = virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE });
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(withZ);
+    await expect(service.createViban(debtorIban)).resolves.toEqual(withZ);
+
+    const withOffset = { ...virtualIbanResponse(), createdAt: '2026-07-01T02:00:00+02:00' };
+    http.request.mockResolvedValueOnce(withOffset);
+    await expect(service.createViban(debtorIban)).resolves.toEqual(withOffset);
+  });
+
+  it('drops list entries with empty, date-only or timezone-less createdAt and reports fullyValidated=false', async () => {
+    const valid = virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE });
+    const emptyCreatedAt = { ...valid, createdAt: '' };
+    const dateOnly = { ...valid, createdAt: '2026-07-01' };
+    const noTimezone = { ...valid, createdAt: '2026-07-01T00:00:00' };
+    const otherValidWithOffset = {
+      ...virtualIbanResponse({
+        state: FrickVirtualIbanState.PREPARED,
+        vban: createSyntheticIban('LI', '00000VBANACCOUNT2'),
+      }),
+      createdAt: '2026-07-01T12:00:00+02:00',
+    };
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({
+      pagination: { hasMore: false, pageIndex: 0, pageSize: 50, totalCount: 5 },
+      virtualIbans: [valid, emptyCreatedAt, dateOnly, noTimezone, otherValidWithOffset],
+    });
+
+    await expect(service.listAllVibans(undefined, undefined, 50)).resolves.toEqual({
+      virtualIbans: [valid, otherValidWithOffset],
+      fullyValidated: false,
+      listingStartedAt: expect.any(Date),
+      listingCompletedAt: expect.any(Date),
+    });
   });
 
   it('approves a virtual IBAN activation with a signed PUT', async () => {
@@ -1254,6 +1338,36 @@ describe('BankFrickService', () => {
 
   it('rejects an empty vban before any HTTP call when approving activation', async () => {
     await expect(service.approveVibanActivation('')).rejects.toThrow('Invalid Bank Frick vban');
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
+  it('requests and approves virtual IBAN deactivation with signed PUT requests', async () => {
+    const requested = virtualIbanResponse({ state: FrickVirtualIbanState.DEACTIVATION_REQUESTED });
+    const deactivated = virtualIbanResponse({ state: FrickVirtualIbanState.DEACTIVATED });
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce(requested)
+      .mockResolvedValueOnce(deactivated);
+
+    await expect(service.deactivateViban(requested.vban)).resolves.toEqual(requested);
+    await expect(service.approveVibanDeactivation(requested.vban)).resolves.toEqual(deactivated);
+
+    const deactivateRequest = http.request.mock.calls[1][0];
+    expect(deactivateRequest.url).toBe('https://vban.bank.invalid/vban/virtual-ibans/deactivations');
+    expect(deactivateRequest.method).toBe('PUT');
+    expect(deactivateRequest.data).toBe(JSON.stringify({ vban: requested.vban }));
+    expectSignature(deactivateRequest.data, deactivateRequest.headers.Signature);
+
+    const approveRequest = http.request.mock.calls[2][0];
+    expect(approveRequest.url).toBe('https://vban.bank.invalid/vban/virtual-ibans/deactivations/approvals');
+    expect(approveRequest.method).toBe('PUT');
+    expect(approveRequest.data).toBe(JSON.stringify({ vban: requested.vban }));
+    expectSignature(approveRequest.data, approveRequest.headers.Signature);
+  });
+
+  it('rejects an empty vban before either deactivation HTTP call', async () => {
+    await expect(service.deactivateViban('')).rejects.toThrow('Invalid Bank Frick vban');
+    await expect(service.approveVibanDeactivation('')).rejects.toThrow('Invalid Bank Frick vban');
     expect(http.request).not.toHaveBeenCalled();
   });
 
