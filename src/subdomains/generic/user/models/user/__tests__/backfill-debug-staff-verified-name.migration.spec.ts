@@ -6,6 +6,7 @@ const SCHEMA = 'backfill_debug_staff_verified_name_spec';
 const STAFF_NAME_ENV = 'STAFF_VERIFIED_NAME_403938';
 const ACCOUNT_ID = 403938;
 const OTHER_ACCOUNT_ID = 111222;
+const OTHER_ACCOUNT_NAME = 'Other Cleared Staff';
 
 let BackfillDebugStaffVerifiedName: new () => {
   up(queryRunner: QueryRunner): Promise<void>;
@@ -176,7 +177,12 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
     if (dataSource?.isInitialized) await dataSource.destroy();
   });
 
-  async function insertAccounts(targetName: string | null = null, otherName: string | null = null): Promise<void> {
+  // The non-target account carries a cleared name on purpose: an unscoped postcondition would then
+  // count it too, so `count(*) = 1` only holds while the assertion stays pinned to ACCOUNT_ID.
+  async function insertAccounts(
+    targetName: string | null = null,
+    otherName: string | null = OTHER_ACCOUNT_NAME,
+  ): Promise<void> {
     await queryRunner.query(
       `INSERT INTO "user_data" ("id", "updated", "verifiedName")
        VALUES (${ACCOUNT_ID}, TIMESTAMP '2000-01-01', $1), (${OTHER_ACCOUNT_ID}, TIMESTAMP '2000-01-01', $2)`,
@@ -198,7 +204,7 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
        FROM "user_data" ORDER BY "id"`,
     )) as { id: number; verifiedName: string | null; wasUpdated: boolean }[];
     expect(users).toEqual([
-      { id: OTHER_ACCOUNT_ID, verifiedName: null, wasUpdated: false },
+      { id: OTHER_ACCOUNT_ID, verifiedName: OTHER_ACCOUNT_NAME, wasUpdated: false },
       { id: ACCOUNT_ID, verifiedName: 'Test Staff Name', wasUpdated: true },
     ]);
 
@@ -226,7 +232,25 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
     const logCount = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "log"`)) as { count: number }[];
     expect(logCount[0].count).toBe(1);
     expect(await readAccounts()).toEqual([
-      { id: OTHER_ACCOUNT_ID, verifiedName: null },
+      { id: OTHER_ACCOUNT_ID, verifiedName: OTHER_ACCOUNT_NAME },
+      { id: ACCOUNT_ID, verifiedName: 'Test Staff Name' },
+    ]);
+  });
+
+  // `BlankChars` is defined as every character `String.prototype.trim()` strips, so derive that set from
+  // the runtime instead of restating it, and assert the migration's duplicated copy repairs a name built
+  // from all of them at once. A copy that lost a code point — the drift the migration's own comment warns
+  // about — would leave such a name unrepaired and then fail its own assertion.
+  it('repairs a name built from every character trim() strips, pinning the duplicated BlankChars', async () => {
+    const blankChars = Array.from({ length: 0x10000 }, (_, code) => String.fromCharCode(code)).filter(
+      (char) => char.trim() === '',
+    );
+    await insertAccounts(blankChars.join(''));
+
+    await new BackfillDebugStaffVerifiedName().up(queryRunner);
+
+    expect(await readAccounts()).toEqual([
+      { id: OTHER_ACCOUNT_ID, verifiedName: OTHER_ACCOUNT_NAME },
       { id: ACCOUNT_ID, verifiedName: 'Test Staff Name' },
     ]);
   });
@@ -240,7 +264,7 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
     await new BackfillDebugStaffVerifiedName().up(queryRunner);
 
     expect(await readAccounts()).toEqual([
-      { id: OTHER_ACCOUNT_ID, verifiedName: null },
+      { id: OTHER_ACCOUNT_ID, verifiedName: OTHER_ACCOUNT_NAME },
       { id: ACCOUNT_ID, verifiedName: 'Test Staff Name' },
     ]);
     const logs = (await queryRunner.query(`SELECT "message" FROM "log"`)) as { message: string }[];
@@ -263,7 +287,7 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
     await expect(new BackfillDebugStaffVerifiedName().up(queryRunner)).resolves.toBeUndefined();
 
     expect(await readAccounts()).toEqual([
-      { id: OTHER_ACCOUNT_ID, verifiedName: null },
+      { id: OTHER_ACCOUNT_ID, verifiedName: OTHER_ACCOUNT_NAME },
       { id: ACCOUNT_ID, verifiedName: 'Existing Verified Name' },
     ]);
     const logs = (await queryRunner.query(`SELECT "message" FROM "log"`)) as { message: string }[];
@@ -279,16 +303,21 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
   });
 
   it('rejects when the target row is absent and relies on the migration transaction to roll back', async () => {
-    await queryRunner.query(`INSERT INTO "user_data" ("id") VALUES (${OTHER_ACCOUNT_ID})`);
+    await queryRunner.query(`INSERT INTO "user_data" ("id", "verifiedName") VALUES (${OTHER_ACCOUNT_ID}, $1)`, [
+      OTHER_ACCOUNT_NAME,
+    ]);
     await queryRunner.startTransaction();
 
     await expect(new BackfillDebugStaffVerifiedName().up(queryRunner)).rejects.toThrow(
       `did not reach the required state for user data ${ACCOUNT_ID}`,
     );
-    await queryRunner.rollbackTransaction();
 
+    // Read INSIDE the transaction: after the rollback every write is gone regardless, so the same
+    // assertion afterwards would hold even if the migration had written an audit row.
     const logs = (await queryRunner.query(`SELECT "message" FROM "log"`)) as { message: string }[];
     expect(logs).toHaveLength(0);
+
+    await queryRunner.rollbackTransaction();
   });
 
   it('changes nothing when a trigger suppresses the audit insert', async () => {
@@ -312,7 +341,7 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
     );
 
     expect(await readAccounts()).toEqual([
-      { id: OTHER_ACCOUNT_ID, verifiedName: null },
+      { id: OTHER_ACCOUNT_ID, verifiedName: OTHER_ACCOUNT_NAME },
       { id: ACCOUNT_ID, verifiedName: null },
     ]);
     const logCount = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "log"`)) as { count: number }[];
