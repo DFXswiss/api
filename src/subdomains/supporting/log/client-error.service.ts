@@ -90,8 +90,8 @@ export class ClientErrorService {
     // and would otherwise be indistinguishable from the key=value context a log query parses.
     //
     // The account is a correlation hint and nothing else. This endpoint takes no session (see the
-    // controller), so the id is whatever the request carried — it answers "which reports belong to
-    // the customer who called support", never "who is this".
+    // controller), so the id is whatever the request carried: it lets a support case be matched
+    // against the reports carrying the same id, and says nothing about who sent them.
     const fields = [
       `client=${ClientErrorService.quote(client)}`,
       `accountId=${ClientErrorService.quote(accountId?.toString())}`,

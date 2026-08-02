@@ -19,7 +19,7 @@ describe('CreateClientErrorDto.accountId', () => {
     await expect(submit(123456)).resolves.toEqual({ rejected: [], accountId: 123456 });
   });
 
-  it('keeps the largest id that survives being parsed', async () => {
+  it('keeps the largest safe account id', async () => {
     await expect(submit(Number.MAX_SAFE_INTEGER)).resolves.toEqual({
       rejected: [],
       accountId: Number.MAX_SAFE_INTEGER,
@@ -53,8 +53,8 @@ describe('CreateClientErrorDto.accountId', () => {
     ['null', null],
     ['zero, which is no account', 0],
     ['a negative id', -1],
-    // What 9007199254740993 arrives as once the body is parsed, which is why the range ends here:
-    // past the safe integers, two ids that differ can reach the log as the same number.
+    // What 9007199254740993 arrives as once the body is parsed. Dropping it is the point: without
+    // the bound, ids that differ would be recorded under the same number.
     ['an id past the safe integer range', Number.MAX_SAFE_INTEGER + 1],
   ])('drops %s and keeps the report', async (_case, value) => {
     await expect(submit(value)).resolves.toEqual({ rejected: [], accountId: undefined });

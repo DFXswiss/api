@@ -40,8 +40,8 @@ describe('ClientErrorService', () => {
     expect(loggedLine()).toContain('userAgent="Mozilla/5.0"');
   });
 
-  // What the report is for: tying a failure to the customer who called support. The value comes
-  // from the request, which is why it is logged as context and never used for anything else.
+  // What the report is for: matching a support case against the failures recorded under the same
+  // id. The value comes from the request, which is why it is logged as context and nothing else.
   it('logs the reported account', () => {
     service.logError(dto({ accountId: 123456 }));
 
