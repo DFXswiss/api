@@ -36,7 +36,7 @@ describe('CreateClientErrorDto.accountId', () => {
     });
   });
 
-  it('accepts a report without an account, which is what an error before sign-in looks like', async () => {
+  it('accepts a report that carries no account at all', async () => {
     const errors = await validate(plainToInstance(CreateClientErrorDto, { message: 'boom' }));
 
     expect(errors).toEqual([]);
