@@ -18,7 +18,7 @@ describe('Bank Frick operations runbook', () => {
     expect(runbook).toContain('authorization preflight before the create call can consume 30s');
     expect(runbook).toContain('120s is not a Bank Frick SLA or processing deadline');
     expect(runbook).toContain('not a retry or automatic-fallback precondition');
-    expect(runbook).toContain('Bank Frick may queue or finish work after the local HTTP attempt has ended');
+    expect(compactRunbook).toContain('Bank Frick may queue or finish work after the local HTTP attempt has ended');
     expect(runbook).not.toContain('FRICK_CREATE_MAX_PROCESSING_MS');
     expect(runbook).not.toContain('latestPossibleCreateProcessedAt');
   });
