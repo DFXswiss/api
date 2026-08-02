@@ -53,9 +53,12 @@ export class CreateClientErrorDto {
   // The range is enforced here rather than by a validator, because a validator would reject the
   // report along with the value: the pipe answers 400 for the whole body, and losing message,
   // stack and route over the one field that only helps to find them is the blind spot this
-  // endpoint exists to close. The range itself is what the value has to be to stay the value that
-  // was sent - past the safe integers, parsing the body can round, and two ids that differ arrive
-  // as the same number.
+  // endpoint exists to close.
+  //
+  // The upper bound is where parsing stops being faithful: past the safe integers, ids that differ
+  // arrive as the same number. It bounds what arrives, not what was written - the body is parsed
+  // before anything here sees it, so a value written with a fractional part near the bound arrives
+  // as an integer and is recorded as one. Nothing on this side can tell the two apart.
   @Transform(({ value }) => (Number.isSafeInteger(value) && value > 0 ? value : undefined))
   accountId?: number;
 }

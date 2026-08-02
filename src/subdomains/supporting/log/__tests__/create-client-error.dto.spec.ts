@@ -26,6 +26,16 @@ describe('CreateClientErrorDto.accountId', () => {
     });
   });
 
+  // The limit is on what arrives, not on what was written: the body is parsed before any of this
+  // runs, and a fractional value near the limit arrives as an integer. Recorded as parsed - pinned
+  // so the guarantee is not read as wider than it is.
+  it('keeps what the parser made of a value written with a fraction', async () => {
+    await expect(submit(JSON.parse('9007199254740991.1'))).resolves.toEqual({
+      rejected: [],
+      accountId: Number.MAX_SAFE_INTEGER,
+    });
+  });
+
   it('accepts a report without an account, which is what an error before sign-in looks like', async () => {
     const errors = await validate(plainToInstance(CreateClientErrorDto, { message: 'boom' }));
 
