@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
 
 export class CreateClientErrorDto {
@@ -50,15 +50,12 @@ export class CreateClientErrorDto {
       'outside the range is dropped rather than rejected, so a bad hint does not cost the report.',
   })
   @IsOptional()
-  // Dropped, not rejected: the pipe answers 400 for the whole body, and losing message, stack and
-  // route over the one field that only helps to find them is the blind spot this endpoint exists
-  // to close. The range is what the value has to be to stay the value that was sent - past the
-  // safe integers, parsing the body can round, and two ids that differ arrive as the same number.
+  // The range is enforced here rather than by a validator, because a validator would reject the
+  // report along with the value: the pipe answers 400 for the whole body, and losing message,
+  // stack and route over the one field that only helps to find them is the blind spot this
+  // endpoint exists to close. The range itself is what the value has to be to stay the value that
+  // was sent - past the safe integers, parsing the body can round, and two ids that differ arrive
+  // as the same number.
   @Transform(({ value }) => (Number.isSafeInteger(value) && value > 0 ? value : undefined))
-  // Kept as the contract this field advertises, in Swagger and to a reader. The transform above
-  // means they are never what rejects a report.
-  @IsInt()
-  @Min(1)
-  @Max(Number.MAX_SAFE_INTEGER)
   accountId?: number;
 }

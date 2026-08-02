@@ -50,17 +50,23 @@ describe('CreateClientErrorDto.accountId', () => {
     await expect(submit(value)).resolves.toEqual({ rejected: [], accountId: undefined });
   });
 
-  // Dropping instead of rejecting only holds if the pipe this app is bootstrapped with applies the
-  // transformation at all. Same options as main.ts passes, so a change there that stops it fails
-  // here rather than in production.
-  it('drops a bad account through the pipe the app runs, instead of answering 400', async () => {
+  // What the field does under the pipe the app is actually bootstrapped with - same options as
+  // main.ts passes. Two things only hold there: `whitelist: true` strips a property the DTO does
+  // not declare, so an account that is declared but loses its decorators would silently stop being
+  // recorded; and the transformation is what drops a bad value instead of rejecting the report.
+  describe('under the pipe the app runs', () => {
     const pipe = new DetailedValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });
 
-    const body = await pipe.transform(
-      { message: 'boom', accountId: 'Robert' },
-      { type: 'body', metatype: CreateClientErrorDto },
-    );
+    function submitTo(accountId: unknown): Promise<unknown> {
+      return pipe.transform({ message: 'boom', accountId }, { type: 'body', metatype: CreateClientErrorDto });
+    }
 
-    expect(body).toEqual({ message: 'boom' });
+    it('records the account rather than stripping it', async () => {
+      await expect(submitTo(123456)).resolves.toEqual({ message: 'boom', accountId: 123456 });
+    });
+
+    it('drops a bad account instead of answering 400', async () => {
+      await expect(submitTo('Robert')).resolves.toEqual({ message: 'boom' });
+    });
   });
 });
