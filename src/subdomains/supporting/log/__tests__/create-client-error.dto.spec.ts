@@ -28,6 +28,10 @@ describe('CreateClientErrorDto.accountId', () => {
     await expect(errorsFor(null)).resolves.toEqual([]);
   });
 
+  it('accepts the largest id that survives being parsed', async () => {
+    await expect(errorsFor(Number.MAX_SAFE_INTEGER)).resolves.toEqual([]);
+  });
+
   it.each([
     ['free text', 'Robert'],
     // The pipe runs without implicit conversion, so a client that sends the id as text is rejected
@@ -35,6 +39,11 @@ describe('CreateClientErrorDto.accountId', () => {
     ['the id as a string', '123456'],
     ['a fraction', 1.5],
     ['a boolean', true],
+    ['zero, which is no account', 0],
+    ['a negative id', -1],
+    // What an id beyond the safe range arrives as: the parser rounds 9007199254740993 to this,
+    // so two different ids sent would otherwise be logged as the same one.
+    ['an id past the safe integer range', Number.MAX_SAFE_INTEGER + 1],
   ])('rejects %s', async (_case, value) => {
     await expect(errorsFor(value)).resolves.toEqual(['accountId']);
   });

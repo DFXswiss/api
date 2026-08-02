@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
 
 export class CreateClientErrorDto {
@@ -44,9 +44,14 @@ export class CreateClientErrorDto {
   @ApiPropertyOptional({
     description:
       'Account ID of the signed-in user, absent when nobody is signed in. Correlation hint only: this endpoint is ' +
-      'unauthenticated, so the value is whatever the caller sent and says nothing about who they are.',
+      'unauthenticated, so the value is whatever the request carried and says nothing about who sent it.',
   })
   @IsOptional()
   @IsInt()
+  // An account id is a positive number, and one beyond the safe integer range would be rounded on
+  // the way in: two different ids sent would then be logged as the same one, which is this service
+  // altering the value rather than merely recording an unverified one.
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
   accountId?: number;
 }
