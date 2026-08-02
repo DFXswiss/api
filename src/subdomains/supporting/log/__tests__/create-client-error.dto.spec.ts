@@ -22,6 +22,12 @@ describe('CreateClientErrorDto.accountId', () => {
     expect(errors).toEqual([]);
   });
 
+  // A client that fills the field with null rather than leaving it out sends a report worth
+  // keeping, and `@IsOptional()` treats it as absent - the log then carries an empty account.
+  it('accepts null as an absent account', async () => {
+    await expect(errorsFor(null)).resolves.toEqual([]);
+  });
+
   it.each([
     ['free text', 'Robert'],
     // The pipe runs without implicit conversion, so a client that sends the id as text is rejected

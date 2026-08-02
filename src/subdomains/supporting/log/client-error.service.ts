@@ -90,11 +90,11 @@ export class ClientErrorService {
     // and would otherwise be indistinguishable from the key=value context a log query parses.
     //
     // The account is a correlation hint and nothing else. This endpoint takes no session (see the
-    // controller), so the id is whatever the caller sent — it answers "which reports belong to the
-    // customer who called support", never "who is this".
+    // controller), so the id is whatever the request carried — it answers "which reports belong to
+    // the customer who called support", never "who is this".
     const fields = [
       `client=${ClientErrorService.quote(client)}`,
-      `account=${ClientErrorService.quote(accountId?.toString())}`,
+      `accountId=${ClientErrorService.quote(accountId?.toString())}`,
       `route=${ClientErrorService.quote(ClientErrorService.toPath(route))}`,
       `version=${ClientErrorService.quote(version)}`,
       `userAgent=${ClientErrorService.quote(userAgent)}`,
