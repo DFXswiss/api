@@ -43,8 +43,8 @@ describe('CreateClientErrorDto.accountId', () => {
     ['null', null],
     ['zero, which is no account', 0],
     ['a negative id', -1],
-    // What an id beyond the safe range arrives as: parsing rounds 9007199254740993 to this, so two
-    // different ids sent would otherwise be logged as the same one.
+    // What 9007199254740993 arrives as once the body is parsed, which is why the range ends here:
+    // past the safe integers, two ids that differ can reach the log as the same number.
     ['an id past the safe integer range', Number.MAX_SAFE_INTEGER + 1],
   ])('drops %s and keeps the report', async (_case, value) => {
     await expect(submit(value)).resolves.toEqual({ rejected: [], accountId: undefined });
