@@ -397,24 +397,23 @@ processes setting.
 The listing result carries `listingStartedAt` (captured immediately before page 0 is dispatched)
 and `listingCompletedAt` (captured after the final page validates). In Phase 1, invalid/reversed
 timestamps fail that snapshot group for the run and likewise exclude fallback for that group.
-For each intent, the code computes
-`latestPossibleCreateProcessedAt = intent.updated + FRICK_CREATE_MAX_PROCESSING_MS`. The absence
-log context includes the count of inconclusive intents. `listingCompletedAt` is checked for a valid
-`Date` and for not preceding `listingStartedAt`; it is not compared with
-`latestPossibleCreateProcessedAt` and establishes no temporal coverage of the create window. These
-times are not an automatic-retry precondition: even a correctly ordered listing miss remains
-non-authoritative because Bank Frick provides no authoritative “this create did not happen”
-operation.
+The absence log context includes the count of inconclusive intents. `listingCompletedAt` is
+checked for a valid `Date` and for not preceding `listingStartedAt`; it establishes no temporal
+coverage of the create window. These times are not an automatic-retry precondition: even a
+correctly ordered listing miss remains non-authoritative because Bank Frick provides no
+authoritative “this create did not happen” operation.
 
-`FRICK_CREATE_MAX_PROCESSING_MS = 120_000` is derived from
-`BankFrickService.HTTP_TIMEOUT_MS = 30_000`:
+A conservative **local** upper-bound estimate for the create attempt is **120 seconds**, derived
+from `BankFrickService.HTTP_TIMEOUT_MS = 30_000`:
 
 - authorization preflight before the create call can consume 30s;
 - the locally bounded create HTTP attempt then lasts at most 90s: original request (30s) +
   `/authorize` re-auth after 401 (30s) + one-shot retried request (30s). `requestSigned` has no
   further internal retry beyond that.
-- **120s is not an upper bound on Bank Frick processing or on when its create side effect can
-  occur.** Bank Frick may queue or finish work after the local HTTP attempt has ended.
+- **120s is not a Bank Frick SLA or processing deadline**, not an upper bound on when Bank Frick’s
+  create side effect can occur, and not a retry or automatic-fallback precondition. Bank Frick may
+  queue or finish work after the local HTTP attempt has ended. The estimate is for operator
+  planning only (e.g. draining the local create window before changing a reference account).
 
 The 30-minute `FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS` controls when an inconclusive miss becomes
 an `ERROR`; the 24-hour `FRICK_AUTOMATIC_FALLBACK_THRESHOLD_MS` bounds recovery before terminal
@@ -473,7 +472,8 @@ DEACTIVATED object is a completed cleanup and causes no further mutation.
 Markers (shared constants on `VirtualIbanService`):
 
 - `CREATE_PATH_REFERENCE_MARKER` = `previousRequestReference=` — current writer format
-  (deactivation-reopen + merge supersede) and historical Phase-1 reset format
+  (deactivation-reopen + merge supersede + automatic collection-account fallback) and historical
+  Phase-1 reset format
 - `RECOVERY_PATH_REFERENCE_MARKER` = `recovery listing found no match under requestReference=` —
   retained so Phase 2 still parses any historical events from older builds
 - `MERGE_SUPERSEDED_MARKER` = `merge-superseded` — permanent retirement marker written only by the

@@ -53,9 +53,10 @@ class IssuanceIntegrityError extends Error {
 
 /**
  * Prefixes written into issuance-event `nextError` when a Frick requestReference is retired.
- * Current writers are deactivation reopen and account-merge supersede (via
- * CREATE_PATH_REFERENCE_MARKER co-located in the merge-fail message). Historical reconciliation
- * events may also contain either marker. Request-path issuance never retires references on its own.
+ * Current writers are deactivation reopen, account-merge supersede (via
+ * CREATE_PATH_REFERENCE_MARKER co-located in the merge-fail message), and automatic
+ * collection-account fallback. Historical reconciliation events may also contain either marker.
+ * Request-path issuance never retires references on its own.
  * Phase 2 of the reconciliation job parses these markers; keep writer and parser on the same constants.
  *
  * CREATE_PATH_REFERENCE_MARKER is the current writer format.
@@ -91,12 +92,6 @@ export type FrickReconciliationRecoveryResult =
 @Injectable()
 export class VirtualIbanService {
   private readonly logger = new DfxLogger(VirtualIbanService);
-
-  /**
-   * Longest local window from intent claim through create processing: authorization preflight
-   * (30s) plus create, re-authorization, and one retried create request (90s).
-   */
-  static readonly FRICK_CREATE_MAX_PROCESSING_MS = 120_000;
 
   /** Providers eligible for implicit/default personal-IBAN behavior, selected by their supported currency. */
   private readonly genericProviders: VibanProvider[];
@@ -1616,7 +1611,9 @@ export class VirtualIbanService {
    *    UserData.virtualIbans has no cascade, so that save does not reassign VirtualIban.userData.
    * 3. Reconcile both accounts' Frick intents for the pair: winner-side Completed stays Completed and
    *    moves to masterId; loser-side Pending/InFlight/Failed is permanently merge-failed (never left
-   *    reopenable under a retired userDataId). COMPLETED non-winner historical rows stay untouched.
+   *    reopenable under a retired userDataId). COMPLETED non-winner historical rows stay untouched by
+   *    this merge path; Phase 1 does not load Completed, but the separate Completed-intent cleanup
+   *    does load and process them.
    */
   private async resolveMergedVirtualIbanPairLocked(
     manager: EntityManager,
@@ -1696,7 +1693,8 @@ export class VirtualIbanService {
 
       // PENDING / IN_FLIGHT / FAILED: permanently mark merge-superseded so runPhase1StuckIntents
       // excludes the retired userDataId from automatic recovery. COMPLETED non-winner historical
-      // rows are left untouched (reconciliation never loads Completed).
+      // rows stay untouched here: Phase 1 does not load Completed; the separate Completed-intent
+      // cleanup loads and processes them.
       if (
         intent.status === VirtualIbanIssuanceIntentStatus.PENDING ||
         intent.status === VirtualIbanIssuanceIntentStatus.IN_FLIGHT ||

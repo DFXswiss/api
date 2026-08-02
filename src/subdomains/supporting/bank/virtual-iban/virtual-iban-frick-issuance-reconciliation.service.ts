@@ -23,25 +23,17 @@ interface AbandonedReferenceHit {
   abandonedReference: string;
   eventId: number;
   intentId: number;
-  userDataId: number;
-  currencyId: number;
   bankId: number;
   provider: IbanBankName;
   referenceAccountIban: string;
   referenceAccountReceive: boolean;
-  created: Date;
 }
 
 interface StuckIntentListingMatch {
   intentId: number;
-  requestReference: string;
   /** Intent-captured reference-account IBAN snapshot — never the listing response value. */
   referenceAccountIban: string;
-  userDataId: number;
-  currencyId: number;
   bankId: number;
-  status: VirtualIbanIssuanceIntentStatus;
-  updated: Date;
   virtualIbans: FrickVirtualIban[];
 }
 
@@ -222,13 +214,8 @@ export class VirtualIbanFrickIssuanceReconciliationService {
             if (virtualIbans.length > 0) {
               listingMatches.push({
                 intentId: intent.id,
-                requestReference: intent.requestReference,
                 referenceAccountIban: intent.referenceAccountIban,
-                userDataId: intent.userDataId,
-                currencyId: intent.currencyId,
                 bankId: intent.bankId,
-                status: intent.status,
-                updated: intent.updated,
                 virtualIbans,
               });
             } else {
@@ -256,13 +243,8 @@ export class VirtualIbanFrickIssuanceReconciliationService {
           if (virtualIbans.length > 0) {
             listingMatches.push({
               intentId: intent.id,
-              requestReference: intent.requestReference,
               referenceAccountIban: intent.referenceAccountIban,
-              userDataId: intent.userDataId,
-              currencyId: intent.currencyId,
               bankId: intent.bankId,
-              status: intent.status,
-              updated: intent.updated,
               virtualIbans,
             });
             continue;
@@ -775,13 +757,10 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         abandonedReference,
         eventId: event.id,
         intentId: event.intentId,
-        userDataId: event.userDataId,
-        currencyId: event.currencyId,
         bankId: event.bankId,
         provider: event.provider,
         referenceAccountIban: event.referenceAccountIban,
         referenceAccountReceive: event.referenceAccountReceive,
-        created: event.created,
       });
     }
     return { hits, unresolvedCount };

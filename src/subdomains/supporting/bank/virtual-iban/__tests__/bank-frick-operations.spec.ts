@@ -14,11 +14,13 @@ describe('Bank Frick operations runbook', () => {
   const compactRunbook = runbook.replace(/\s+/g, ' ');
 
   it('includes preflight in the 120-second local window without treating it as a Frick deadline', () => {
-    expect(runbook).toContain('FRICK_CREATE_MAX_PROCESSING_MS = 120_000');
+    expect(runbook).toContain('conservative **local** upper-bound estimate for the create attempt is **120 seconds**');
     expect(runbook).toContain('authorization preflight before the create call can consume 30s');
-    expect(runbook).toContain('120s is not an upper bound on Bank Frick processing');
+    expect(runbook).toContain('120s is not a Bank Frick SLA or processing deadline');
+    expect(runbook).toContain('not a retry or automatic-fallback precondition');
     expect(runbook).toContain('Bank Frick may queue or finish work after the local HTTP attempt has ended');
-    expect(runbook).not.toContain('FRICK_CREATE_MAX_PROCESSING_MS = 90_000');
+    expect(runbook).not.toContain('FRICK_CREATE_MAX_PROCESSING_MS');
+    expect(runbook).not.toContain('latestPossibleCreateProcessedAt');
   });
 
   it('documents durable per-effect completion and target verification before manual replay', () => {
@@ -56,9 +58,8 @@ describe('Bank Frick operations runbook', () => {
     expect(compactRunbook).toContain(
       '`listingCompletedAt` is checked for a valid `Date` and for not preceding `listingStartedAt`',
     );
-    expect(compactRunbook).toContain(
-      'it is not compared with `latestPossibleCreateProcessedAt` and establishes no temporal coverage',
-    );
+    expect(compactRunbook).toContain('it establishes no temporal coverage of the create window');
+    expect(compactRunbook).not.toContain('latestPossibleCreateProcessedAt');
     expect(compactRunbook).not.toContain('validated when deciding whether a miss is fully covered');
   });
 

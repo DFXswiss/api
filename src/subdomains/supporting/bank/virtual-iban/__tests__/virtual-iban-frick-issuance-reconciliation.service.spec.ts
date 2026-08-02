@@ -443,13 +443,8 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       await service['recoverPhase1ListingMatch'](
         {
           intentId: 150,
-          requestReference: stuckRequestReference,
           referenceAccountIban,
-          userDataId: 30,
-          currencyId: 40,
           bankId,
-          status: VirtualIbanIssuanceIntentStatus.IN_FLIGHT,
-          updated: new Date('2026-07-01T12:00:00.000Z'),
           virtualIbans: [],
         },
         {
