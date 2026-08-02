@@ -35,25 +35,38 @@ be reviewed and reproducible like any other schema/data change.
    `UPDATE user_data SET "verifiedName" = … WHERE id = … AND BTRIM(COALESCE("verifiedName", ''), <BlankChars>) = ''`.
    The closing assertion must check the **clearance predicate itself** — that
    `… WHERE id = … AND BTRIM("verifiedName", <BlankChars>) <> ''` yields exactly one row — and never
-   equality with the supplied name. An equality assertion (as in the first such migration) throws when
-   an identity-verified path wrote a different but perfectly valid name in the meantime, failing the
-   deploy over a spelling difference.
+   equality with the supplied name. The goal state is a cleared account, not a particular spelling, and
+   an equality assertion fails whichever precondition it is paired with: against a blankness
+   precondition (the shape of the first such migration) it throws when an identity-verified path wrote a
+   different but perfectly valid name in the meantime; against its own negation it does the opposite and
+   silently overwrites that name.
 
-   The precondition must then be the **exact negation** of that assertion, using the same `BlankChars`
-   set as `StaffKycClearanceService`. A narrower `"verifiedName" IS NULL` precondition leaves a
-   present-but-blank name (a lone tab, a non-breaking space) as a state the migration refuses to repair
-   and then refuses to accept.
+   The precondition must then be the **exact negation** of that assertion **including the NULL case** —
+   `BTRIM(COALESCE("verifiedName", ''), <BlankChars>) = ''`, not
+   `BTRIM("verifiedName", <BlankChars>) = ''`. Without the `COALESCE`, NULL yields NULL rather than
+   true, so the ordinary un-backfilled account is neither repaired nor accepted. Use the same
+   `BlankChars` set as `StaffKycClearanceService`. A narrower `"verifiedName" IS NULL` precondition has
+   the mirror-image flaw: it leaves a present-but-blank name (a lone tab, a non-breaking space) as a
+   state the migration refuses to repair and then refuses to accept.
 
-   Both mistakes are boot-fatal, not merely wrong: `migrationsTransactionMode` defaults to `all`, so the
-   throw rolls back the whole release's migration batch and fails `DataSource.initialize()`.
+   The `UPDATE` must be coupled to a durable before/after audit row — a `log` insert (`system` `'User'`,
+   `subsystem` `'StaffVerifiedNameBackfill'`, `severity` `'Info'`) in the same statement via a
+   data-modifying CTE, with the update conditioned on `EXISTS (SELECT 1 FROM "audit")` so the column
+   cannot change unaudited. `verifiedName` is PII; CONTRIBUTING treats unaudited mutation of it as
+   blocking.
+
+   Every one of these mistakes is boot-fatal rather than merely wrong: `migrationsTransactionMode`
+   defaults to `all`, so the throw rolls back the whole release's migration batch and fails
+   `DataSource.initialize()`.
 
 2. **A real person's name is PII and must not be hard-coded in this public repo.** The migration
    reads the value from a deployment variable (e.g. `process.env.STAFF_VERIFIED_NAME_<id>`), set in the
    production config. On PRD the variable is **mandatory**: the migration throws when it is absent,
    rather than silently recording a no-op — so the value has to be live in the production environment
-   before the migration is merged to `develop`. `auto-release-pr.yaml` opens the `develop` → `main`
-   release PR on every `develop` push, so `develop` is the last point at which the order can still be
-   arranged. A non-personal service designation (for a machine account that cannot complete a personal
+   before the migration is merged to `develop`. `auto-release-pr.yaml` keeps a `develop` → `main`
+   release PR open continuously — every `develop` push either opens one or lands on the one already
+   open — so `develop` is the last point at which the order can still be arranged. A non-personal
+   service designation (for a machine account that cannot complete a personal
    identification) is not PII and may appear inline. The concrete name↔account mapping is recorded in
    the private operations repo, not here.
 3. Merge the PR through the normal review, then release `develop → main`. The production deploy runs

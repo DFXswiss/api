@@ -86,7 +86,7 @@ describe('BackfillDebugStaffVerifiedName migration (SQL content)', () => {
     expect(sql).not.toContain('Test Staff Name');
 
     // The precondition must be the exact negation of the postcondition — otherwise a present-but-blank
-    // name is a state the update refuses to produce and the assertion refuses to accept, and the deploy
+    // name is a state the update refuses to repair and the assertion refuses to accept, and the deploy
     // dies on a row the migration itself could have repaired.
     expect(sql).toContain("BTRIM(COALESCE(\"verifiedName\", ''), $2::varchar) = ''");
     expect(sql).toContain("'action', CASE WHEN \"needsBackfill\" THEN 'backfilled' ELSE 'keptExistingName' END");
