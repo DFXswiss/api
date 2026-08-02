@@ -40,10 +40,19 @@ describe('ClientErrorService', () => {
     expect(loggedLine()).toContain('userAgent="Mozilla/5.0"');
   });
 
+  // What the report is for: tying a failure to the customer who called support. The value is the
+  // caller's own, which is why it is logged as context and never used for anything else.
+  it('logs the reported account', () => {
+    service.logError(dto({ accountId: 123456 }));
+
+    expect(loggedLine()).toContain('account="123456"');
+  });
+
   it('logs absent context as an empty value', () => {
     service.logError(dto());
 
     expect(loggedLine()).toContain('client=""');
+    expect(loggedLine()).toContain('account=""');
     expect(loggedLine()).toContain('route=""');
     expect(loggedLine()).toContain('version=""');
     expect(loggedLine()).toContain('userAgent=""');
