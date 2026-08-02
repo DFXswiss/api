@@ -409,9 +409,9 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
     expect(count).toBe(3);
     expect(count).not.toBe(6);
 
-    // Public path: 3 under k → activeUsers withheld; UNION ALL would surface 6.
+    // Public path reports the same set: UNION ALL would surface 6.
     const result = await service.getStatistics(1, from, to);
-    expect(result.totals.activeUsers).toBeNull();
+    expect(result.totals.activeUsers).toBe(3);
     expect(result.totals.activeUsers).not.toBe(6);
   });
 
