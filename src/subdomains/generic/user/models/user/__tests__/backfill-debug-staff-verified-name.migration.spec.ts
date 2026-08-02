@@ -240,11 +240,14 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
   // `BlankChars` is defined as every character `String.prototype.trim()` strips, so derive that set from
   // the runtime instead of restating it, and assert the migration's duplicated copy repairs a name built
   // from all of them at once. A copy that lost a code point — the drift the migration's own comment warns
-  // about — would leave such a name unrepaired and then fail its own assertion.
+  // about — would leave such a name unrepaired and still report success, because the postcondition
+  // shares the drifted constant and reads the residual character as non-blank. The migration cannot
+  // self-detect this; that is why the test asserts the repaired state rather than a rejection.
   it('repairs a name built from every character trim() strips, pinning the duplicated BlankChars', async () => {
     const blankChars = Array.from({ length: 0x10000 }, (_, code) => String.fromCharCode(code)).filter(
       (char) => char.trim() === '',
     );
+    expect(blankChars.length).toBeGreaterThan(20); // sanity: the derivation actually found them
     await insertAccounts(blankChars.join(''));
 
     await new BackfillDebugStaffVerifiedName().up(queryRunner);
@@ -302,7 +305,7 @@ describeDb('BackfillDebugStaffVerifiedName migration (real Postgres)', () => {
     ]);
   });
 
-  it('rejects when the target row is absent and relies on the migration transaction to roll back', async () => {
+  it('rejects when the target row is absent, without writing an audit row first', async () => {
     await queryRunner.query(`INSERT INTO "user_data" ("id", "verifiedName") VALUES (${OTHER_ACCOUNT_ID}, $1)`, [
       OTHER_ACCOUNT_NAME,
     ]);

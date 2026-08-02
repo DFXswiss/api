@@ -33,19 +33,29 @@ be reviewed and reproducible like any other schema/data change.
 1. Open a PR against the api repo that adds a new migration under `migration/` (never modify an
    existing one — `api-migration-check.yaml` blocks that). The migration runs a guarded, idempotent
    `UPDATE user_data SET "verifiedName" = … WHERE id = … AND BTRIM(COALESCE("verifiedName", ''), <BlankChars>) = ''`.
-   The precondition must be the **exact negation** of the migration's closing assertion, and both must
-   use the same `BlankChars` set as `StaffKycClearanceService`. A narrower `"verifiedName" IS NULL`
-   precondition against a non-blank assertion leaves a present-but-blank name (a lone tab, a
-   non-breaking space) as a state the migration refuses to repair and then refuses to accept — and since
-   `migrationsTransactionMode` defaults to `all`, that throw rolls back the whole release's migration
-   batch and crash-loops the boot.
+   The closing assertion must check the **clearance predicate itself** — that
+   `… WHERE id = … AND BTRIM("verifiedName", <BlankChars>) <> ''` yields exactly one row — and never
+   equality with the supplied name. An equality assertion (as in the first such migration) throws when
+   an identity-verified path wrote a different but perfectly valid name in the meantime, failing the
+   deploy over a spelling difference.
+
+   The precondition must then be the **exact negation** of that assertion, using the same `BlankChars`
+   set as `StaffKycClearanceService`. A narrower `"verifiedName" IS NULL` precondition leaves a
+   present-but-blank name (a lone tab, a non-breaking space) as a state the migration refuses to repair
+   and then refuses to accept.
+
+   Both mistakes are boot-fatal, not merely wrong: `migrationsTransactionMode` defaults to `all`, so the
+   throw rolls back the whole release's migration batch and fails `DataSource.initialize()`.
+
 2. **A real person's name is PII and must not be hard-coded in this public repo.** The migration
    reads the value from a deployment variable (e.g. `process.env.STAFF_VERIFIED_NAME_<id>`), set in the
    production config. On PRD the variable is **mandatory**: the migration throws when it is absent,
    rather than silently recording a no-op — so the value has to be live in the production environment
-   before the migration reaches `main`. A non-personal service designation (for a machine account that
-   cannot complete a personal identification) is not PII and may appear inline. The concrete
-   name↔account mapping is recorded in the private operations repo, not here.
+   before the migration is merged to `develop`. `auto-release-pr.yaml` opens the `develop` → `main`
+   release PR on every `develop` push, so `develop` is the last point at which the order can still be
+   arranged. A non-personal service designation (for a machine account that cannot complete a personal
+   identification) is not PII and may appear inline. The concrete name↔account mapping is recorded in
+   the private operations repo, not here.
 3. Merge the PR through the normal review, then release `develop → main`. The production deploy runs
    pending migrations automatically when `SQL_MIGRATE=true` (see `migrationsRun` in
    `src/config/config.ts`) — no shell access to the database is involved.

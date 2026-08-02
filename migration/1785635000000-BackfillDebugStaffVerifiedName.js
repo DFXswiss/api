@@ -19,8 +19,8 @@ const BLANK_CHARS =
  *
  * No plaintext personal name lives in this file: the value is read from the deployment variable
  * STAFF_VERIFIED_NAME_403938, which is mandatory on PRD so TypeORM cannot record a partial/no-op
- * migration when it is missing. The update is idempotent (only touches a still-null verifiedName) and
- * coupled to a durable before/after audit entry. Guarded to prd; a no-op elsewhere.
+ * migration when it is missing. The update is idempotent (only touches a null-or-blank verifiedName)
+ * and coupled to a durable before/after audit entry. Guarded to prd; a no-op elsewhere.
  *
  * The closing assertion checks the clearance predicate itself rather than equality with the supplied
  * name: should an identity-verified path have written a different (correct) name in the meantime, that
