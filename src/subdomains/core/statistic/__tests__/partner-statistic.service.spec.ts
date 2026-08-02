@@ -99,20 +99,6 @@ function emptyFixture(overrides: Partial<WalletFixture> = {}): WalletFixture {
   };
 }
 
-/** Recursively collect every own-property key name in a JSON-serializable value. */
-function collectKeys(value: unknown, out: Set<string> = new Set()): Set<string> {
-  if (value == null || typeof value !== 'object') return out;
-  if (Array.isArray(value)) {
-    for (const item of value) collectKeys(item, out);
-    return out;
-  }
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    out.add(k);
-    collectKeys(v, out);
-  }
-  return out;
-}
-
 interface QbState {
   walletId?: number;
   direction?: Direction;
@@ -806,87 +792,6 @@ describe('PartnerStatisticService', () => {
     });
   });
 
-  // --- B3: totals / allTime suppression via service --- //
-
-  describe('totals and allTime suppression (B3)', () => {
-    it('nulls totals when overall transaction count is below k (boundary at k)', async () => {
-      fixtures.set(
-        1,
-        emptyFixture({
-          buy: { volume: 99, transactions: 4, users: 4 },
-          allTime: { buy: 99, sell: 0, registeredUsers: 10, tradingUsers: 4 },
-          newUsers: 0,
-          activeUserIds: [1, 2, 3, 4],
-        }),
-      );
-
-      const under = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
-      expect(under.totals.volume.total).toBeNull();
-      expect(under.totals.volume.buy).toBeNull();
-      expect(under.totals.transactions.total).toBeNull();
-      expect(under.totals.averageTransactionVolume).toBeNull();
-      expect(under.allTime.volume.total).toBeNull();
-      expect(under.allTime.volume.buy).toBeNull();
-      expect(under.allTime.registeredUsers).toBe(10);
-      expect(under.allTime.tradingUsers).toBeNull();
-      expect(under.referral.volume).toBeNull();
-      expect(under.meta.suppressedCount).toBeGreaterThanOrEqual(2);
-
-      fixtures.set(
-        1,
-        emptyFixture({
-          buy: { volume: 100, transactions: 5, users: 5 },
-          allTime: { buy: 100, sell: 0, registeredUsers: 10, tradingUsers: 5 },
-          newUsers: 0,
-          activeUserIds: [1, 2, 3, 4, 5],
-        }),
-      );
-
-      const atK = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
-      expect(atK.totals.volume.total).toBe(100);
-      expect(atK.totals.transactions.total).toBe(5);
-      expect(atK.allTime.volume.total).toBe(100);
-      expect(atK.allTime.tradingUsers).toBe(5);
-    });
-
-    it('nulls totals when person count is under k even with high transaction counts', async () => {
-      fixtures.set(
-        1,
-        emptyFixture({
-          buy: { volume: 1000, transactions: 20, users: 2 },
-          allTime: { buy: 1000, sell: 0, registeredUsers: 10, tradingUsers: 5 },
-          newUsers: 0,
-          activeUserIds: [1, 2],
-        }),
-      );
-      activeUserCountFromManager = 2;
-
-      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
-      expect(result.totals.volume.total).toBeNull();
-      expect(result.totals.activeUsers).toBeNull();
-    });
-
-    it('sums buy+sell+swap into totals.volume.total (not a multiple of one direction)', async () => {
-      fixtures.set(
-        1,
-        emptyFixture({
-          buy: { volume: 100, transactions: 10, users: 8 },
-          sell: { volume: 40, transactions: 10, users: 8 },
-          swap: { volume: 25, transactions: 10, users: 8 },
-          allTime: { buy: 100, sell: 40, registeredUsers: 20, tradingUsers: 15 },
-          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8],
-          newUsers: 0,
-        }),
-      );
-      activeUserCountFromManager = 10;
-
-      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
-      expect(result.totals.volume.total).toBe(165);
-      expect(result.totals.volume.total).not.toBe(100 + 40 + 2 * 25);
-      expect(result.totals.transactions.total).toBe(30);
-    });
-  });
-
   // --- M2: active users via manager UNION count --- //
 
   describe('countActiveUsers uses DB COUNT over UNION (M2)', () => {
@@ -911,8 +816,8 @@ describe('PartnerStatisticService', () => {
     });
 
     it('gates period totals on the UNION active-user count, not buyAgg.users alone', async () => {
-      // Each direction looks fine (≥ k users), but the true UNION is 3 → totals block-suppressed.
-      // Mutation rawUsers.total = buyAgg.users would keep totals visible (buy users = 10).
+      // Each direction reports 10 users, but the true DISTINCT union across directions is 3.
+      // activeUsers must come from the UNION count, not from one direction's user count.
       fixtures.set(
         1,
         emptyFixture({
@@ -927,9 +832,11 @@ describe('PartnerStatisticService', () => {
       activeUserCountFromManager = 3;
 
       const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
-      expect(result.totals.volume.total).toBeNull();
-      expect(result.totals.transactions.total).toBeNull();
-      expect(result.totals.activeUsers).toBeNull();
+      expect(result.totals.activeUsers).toBe(3);
+      expect(result.totals.activeUsers).not.toBe(10);
+      // Every day reports what happened; nothing is withheld for being thin.
+      expect(result.totals.volume.total).toBe(1700);
+      expect(result.totals.transactions.total).toBe(45);
     });
   });
 
@@ -1005,77 +912,6 @@ describe('PartnerStatisticService', () => {
       // Wallet QB with no where() — state.walletId stays undefined (the flake condition).
       const qb = createQb('wallet');
       await expect(qb.getRawOne()).resolves.toBeNull();
-    });
-  });
-
-  // --- Response-path suppression (Block C) --- //
-
-  describe('response-path k-anonymity (getStatistics / getTimeline)', () => {
-    it('drops under-k breakdown rows, nulls newUsers in 1..k-1, and never exposes users', async () => {
-      fixtures.set(
-        1,
-        emptyFixture({
-          // Totals above k so period totals stay visible — focus on breakdown + newUsers.
-          buy: { volume: 1000, transactions: 20, users: 10 },
-          sell: { volume: 500, transactions: 15, users: 10 },
-          swap: { volume: 200, transactions: 10, users: 8 },
-          allTime: { buy: 5000, sell: 1000, registeredUsers: 50, tradingUsers: 20 },
-          newUsers: 3, // 1..k-1 → null
-          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-          namedRows: [
-            { name: 'RARE', blockchain: 'Bitcoin', volume: 10, transactions: 2, users: 2 }, // under k
-            { name: 'COMMON', blockchain: 'Bitcoin', volume: 500, transactions: 20, users: 12 },
-            { name: 'COMMON2', blockchain: 'Ethereum', volume: 400, transactions: 18, users: 11 },
-          ],
-        }),
-      );
-      activeUserCountFromManager = 10;
-
-      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
-
-      const assetNames = result.breakdown.assets.map((a) => a.name);
-      expect(assetNames).not.toContain('RARE');
-      expect(assetNames).toContain('COMMON');
-      expect(result.totals.newUsers).toBeNull();
-
-      const keys = collectKeys(JSON.parse(JSON.stringify(result)));
-      expect(keys.has('users')).toBe(false);
-    });
-
-    it('suppresses under-k timeline buckets (suppressed:true, volume null) and strips users', async () => {
-      fixtures.set(
-        1,
-        emptyFixture({
-          timelineRows: [
-            // Day with 3 txs → under k → suppressed (+ complementary may hit another day)
-            { bucket: new Date('2024-06-10T00:00:00.000Z'), volume: 30, transactions: 3, users: 3 },
-            { bucket: new Date('2024-06-11T00:00:00.000Z'), volume: 200, transactions: 20, users: 15 },
-            { bucket: new Date('2024-06-12T00:00:00.000Z'), volume: 300, transactions: 30, users: 20 },
-          ],
-        }),
-      );
-
-      const result = await service.getTimeline(
-        1,
-        '2024-06-10T00:00:00.000Z',
-        '2024-06-12T23:59:59.000Z',
-        PartnerStatisticGranularity.DAY,
-      );
-
-      const under = result.buckets.find((b) => b.date.toISOString() === '2024-06-10T00:00:00.000Z');
-      expect(under).toBeDefined();
-      expect(under!.suppressed).toBe(true);
-      expect(under!.volume).toBeNull();
-      expect(under!.transactions).toBeNull();
-
-      // At least one more day may be complementary-suppressed; a large day stays visible.
-      const large = result.buckets.find((b) => b.date.toISOString() === '2024-06-12T00:00:00.000Z');
-      // complementary suppresses the smallest filled remaining (day 11 with 20), day 12 stays
-      expect(large!.suppressed).toBe(false);
-      expect(large!.volume).not.toBeNull();
-
-      const keys = collectKeys(JSON.parse(JSON.stringify(result)));
-      expect(keys.has('users')).toBe(false);
     });
   });
 

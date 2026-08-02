@@ -1,8 +1,5 @@
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 
-/** k-anonymity threshold: disclosure units need min(transactions, distinct users) ≥ k. */
-export const PARTNER_STATISTIC_SUPPRESSION_THRESHOLD = 5;
-
 /**
  * Default lookback when `from`/`to` are omitted: this many inclusive UTC calendar days
  * ending on the resolved `to` day (half-open period after snap).

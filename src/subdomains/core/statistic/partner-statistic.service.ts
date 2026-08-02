@@ -14,7 +14,6 @@ import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 import {
   PartnerAssetBreakdownDto,
   PartnerNamedBreakdownDto,
-  PartnerReferralDto,
   PartnerStatisticDto,
   PartnerTimelineBucketDto,
   PartnerTimelineDto,
@@ -23,19 +22,11 @@ import {
   PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS,
   PARTNER_STATISTIC_MAX_PERIOD_DAYS,
   PARTNER_STATISTIC_QUERY_CONCURRENCY,
-  PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
   PartnerPaymentMethodMap,
   PartnerStatisticDateTruncUnit,
   PartnerStatisticDirection,
   PartnerStatisticGranularity,
 } from './partner-statistic.enum';
-import {
-  suppressAllTimeVolume,
-  suppressBreakdownRows,
-  suppressPeriodTotals,
-  suppressScalar,
-  suppressTimelineBuckets,
-} from './partner-statistic.suppression';
 
 type Direction = PartnerStatisticDirection;
 
@@ -158,68 +149,37 @@ export class PartnerStatisticService {
         swap: swapAgg.transactions,
         total: buyAgg.transactions + sellAgg.transactions + swapAgg.transactions,
       };
-      const rawUsers = {
-        buy: buyAgg.users,
-        sell: sellAgg.users,
-        swap: swapAgg.users,
-        total: activeUsersRaw,
-      };
 
-      const totalsSuppressed = suppressPeriodTotals(rawVolume, rawTransactions, rawUsers);
       const averageTransactionVolume =
-        totalsSuppressed.averageTransactionVolume != null
-          ? Util.round(totalsSuppressed.averageTransactionVolume, Config.defaultVolumeDecimal)
+        rawTransactions.total > 0
+          ? Util.round(rawVolume.total / rawTransactions.total, Config.defaultVolumeDecimal)
           : null;
-
-      const tradingUsersSuppressed = suppressScalar(allTimeRaw.tradingUsers);
-      const allTimeSuppressed = suppressAllTimeVolume(allTimeRaw.volume, allTimeRaw.tradingUsers);
-      const referral = this.applyReferralSuppression(referralRaw, allTimeRaw.tradingUsers);
-
-      const assets = suppressBreakdownRows(assetRows);
-      const fiatCurrencies = suppressBreakdownRows(fiatRows);
-      const blockchains = suppressBreakdownRows(blockchainRows);
-      const paymentMethods = suppressBreakdownRows(paymentMethodRows);
-
-      const activeUsers = suppressScalar(activeUsersRaw);
-      const newUsers = suppressScalar(newUsersRaw);
-
-      const suppressedCount =
-        assets.suppressedCount +
-        fiatCurrencies.suppressedCount +
-        blockchains.suppressedCount +
-        paymentMethods.suppressedCount +
-        totalsSuppressed.suppressedCount +
-        allTimeSuppressed.suppressedCount +
-        (activeUsers === null ? 1 : 0) +
-        (newUsers === null ? 1 : 0) +
-        (tradingUsersSuppressed === null ? 1 : 0) +
-        (referral.volume === null && referralRaw.volume !== 0 ? 1 : 0);
 
       return {
         period,
         currency: 'CHF',
         totals: {
-          volume: totalsSuppressed.volume,
-          transactions: totalsSuppressed.transactions,
+          volume: rawVolume,
+          transactions: rawTransactions,
           averageTransactionVolume,
-          activeUsers,
-          newUsers,
+          activeUsers: activeUsersRaw,
+          newUsers: newUsersRaw,
         },
         allTime: {
-          volume: allTimeSuppressed.volume,
+          volume: allTimeRaw.volume,
           registeredUsers: allTimeRaw.registeredUsers,
-          tradingUsers: tradingUsersSuppressed,
+          tradingUsers: allTimeRaw.tradingUsers,
         },
+        // The internal `users` count per row stays server-side: it is a distinct-person figure the
+        // partner has no use for, and the DTO does not carry it.
         breakdown: {
-          assets: assets.rows.map(({ users: _u, ...row }) => row),
-          fiatCurrencies: fiatCurrencies.rows.map(({ users: _u, ...row }) => row),
-          blockchains: blockchains.rows.map(({ users: _u, ...row }) => row),
-          paymentMethods: paymentMethods.rows.map(({ users: _u, ...row }) => row),
+          assets: assetRows.map(({ users: _u, ...row }) => row),
+          fiatCurrencies: fiatRows.map(({ users: _u, ...row }) => row),
+          blockchains: blockchainRows.map(({ users: _u, ...row }) => row),
+          paymentMethods: paymentMethodRows.map(({ users: _u, ...row }) => row),
         },
-        referral,
+        referral: { ...referralRaw, currency: 'EUR' },
         meta: {
-          suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
-          suppressedCount,
           generatedAt: new Date(),
         },
       };
@@ -264,20 +224,16 @@ export class PartnerStatisticService {
       ]);
 
       const filled = this.fillTimelineGaps(period.from, period.to, resolvedGranularity, buyRows, sellRows, swapRows);
-      const { buckets, suppressedCount } = suppressTimelineBuckets(filled);
 
       // Drop internal users field from the public payload.
-      const publicBuckets: PartnerTimelineBucketDto[] = buckets.map(({ users: _u, ...rest }) => rest);
+      const publicBuckets: PartnerTimelineBucketDto[] = filled.map(({ users: _u, ...rest }) => rest);
 
       return {
         period,
         currency: 'CHF',
         granularity: resolvedGranularity,
         buckets: publicBuckets,
-        meta: {
-          suppressionThreshold: PARTNER_STATISTIC_SUPPRESSION_THRESHOLD,
-          suppressedCount,
-        },
+        meta: {},
       };
     });
   }
@@ -525,26 +481,6 @@ export class PartnerStatisticService {
     };
   }
 
-  private applyReferralSuppression(
-    raw: { volume: number; creditEarned: number; creditPaid: number; creditOpen: number },
-    tradingUsers: number,
-  ): PartnerReferralDto {
-    // Referral balances move with individual customer trades. Gate them on tradingUsers so two
-    // successive polls cannot recover a single trade’s credit delta when the cohort is under k.
-    // These are the partner’s own account figures (owner-scoped), but the leakage path is the same.
-    // suppressScalar is null only for 1..k-1, so a separate `> 0` check is redundant.
-    if (suppressScalar(tradingUsers) === null) {
-      return {
-        volume: null,
-        creditEarned: null,
-        creditPaid: null,
-        creditOpen: null,
-        currency: 'EUR',
-      };
-    }
-    return { ...raw, currency: 'EUR' };
-  }
-
   private async aggregateAssets(
     walletId: number,
     from: Date,
@@ -771,7 +707,6 @@ export class PartnerStatisticService {
         volume: { buy: b.volume, sell: s.volume, swap: w.volume },
         transactions: { buy: b.transactions, sell: s.transactions, swap: w.transactions },
         users: { buy: b.users, sell: s.users, swap: w.users },
-        suppressed: false,
         partial,
       });
 
@@ -890,7 +825,7 @@ export class PartnerStatisticService {
   /**
    * Coerce a SQL aggregate cell to a finite number.
    * COUNT(*)/COALESCE(SUM(...), 0) return 0 over an empty match set (a row is still returned).
-   * Non-numeric driver values must not become JSON `null` (which this API uses for suppression).
+   * Non-numeric driver values must not become JSON `null` — an absent number is data loss, not a zero.
    */
   private toVolume(value: string | number | null | undefined): number {
     const n = +(value ?? 0);

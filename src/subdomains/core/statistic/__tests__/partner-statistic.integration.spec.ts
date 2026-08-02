@@ -303,11 +303,8 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
       INSERT INTO ${t('buy_fiat')}
         ("sellId", "cryptoInputId", "outputAssetId", "transactionId", "amountInChf", "amlCheck", "created", "inputAsset")
       VALUES
-        -- inputAsset left null so the SELL asset breakdown emits no under-k named row.
-        -- Period totals still see the 1 sell tx (block-suppressed). A named under-k SELL
-        -- asset (e.g. inputAsset='BTC') would trigger complementary suppression and drop
-        -- the COMMON BUY BTC row at exactly k — which is correct product behaviour but
-        -- would hide the SQL asset-join proof this fixture is meant to exercise.
+        -- inputAsset left null: the SELL asset row is not the subject of this fixture,
+        -- which exercises the buy-side asset join against real rows.
         (1, 1, 3, 7, 50, 'Pass', '2024-06-11 12:00:00', NULL);
     `);
 
@@ -334,13 +331,12 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
     const result = await service.getStatistics(1, from, to);
 
     // buy 5×100 = 500; sell 50; swap 0 (no crypto_route rows — documented)
-    // sell has 1 tx → period totals block-suppressed (under k on sell direction)
-    expect(result.totals.volume.total).toBeNull();
-    expect(result.totals.volume.buy).toBeNull();
-    expect(result.totals.volume.sell).toBeNull();
+    expect(result.totals.volume.buy).toBe(500);
+    expect(result.totals.volume.sell).toBe(50);
+    expect(result.totals.volume.swap).toBe(0);
+    expect(result.totals.volume.total).toBe(550);
 
-    // Foreign wallet (id=2) volume must not inflate anything when totals become visible at k
-    // — exercised via active-user / allTime scope instead:
+    // Foreign wallet (id=2) rows must not inflate anything:
     expect(result.allTime.registeredUsers).toBe(6); // users 1–5 + owner 100 on wallet 1
     expect(result.allTime.registeredUsers).not.toBe(7); // must not include wallet-2 user 6
 
@@ -361,7 +357,7 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
     expect(JSON.stringify(result)).not.toMatch(/"users"/);
   });
 
-  it('getTimeline builds UTC day buckets from real DATE_TRUNC rows and applies suppression', async () => {
+  it('getTimeline builds UTC day buckets from real DATE_TRUNC rows', async () => {
     const result = await service.getTimeline(
       1,
       '2024-06-10T00:00:00.000Z',
@@ -375,19 +371,17 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
       '2024-06-11T00:00:00.000Z',
     ]);
 
-    // Day-1 has 3 buy txs (under k) → suppressed; day-2 has 2 buy + 1 sell = 3 under k → suppressed
-    expect(result.buckets[0].suppressed).toBe(true);
-    expect(result.buckets[0].volume).toBeNull();
-    expect(result.buckets[1].suppressed).toBe(true);
-    expect(result.buckets[1].volume).toBeNull();
+    // Day-1 has 3 buy txs, day-2 has 2 buy + 1 sell — every day reports what happened.
+    expect(result.buckets[0].volume?.buy).toBe(300);
+    expect(result.buckets[1].volume?.buy).toBe(200);
+    expect(result.buckets[1].volume?.sell).toBe(50);
 
     expect(JSON.stringify(result)).not.toMatch(/"users"/);
   });
 
   it('countActiveUsers is a set across directions (UNION, not UNION ALL)', async () => {
     // Three users each active on buy AND sell → DISTINCT 3; bag-count (UNION ALL) would be 6.
-    // That bag count is rawUsers.total in suppressPeriodTotals and activeUsers on the DTO —
-    // k=5 would pass for 6 and fail for 3, which is exactly the disclosure the gate blocks.
+    // The DTO reports activeUsers from this set; a bag count would double anyone active in two directions.
     await dataSource.query(`DELETE FROM ${t('buy_crypto')}`);
     await dataSource.query(`DELETE FROM ${t('buy_fiat')}`);
     await dataSource.query(`DELETE FROM ${t('sell')}`);

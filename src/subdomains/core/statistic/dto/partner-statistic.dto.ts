@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PartnerStatisticDirection, PartnerStatisticGranularity } from '../partner-statistic.enum';
 
 // --- PERIOD / META --- //
@@ -14,65 +14,55 @@ export class PartnerStatisticPeriodDto {
 }
 
 export class PartnerStatisticMetaDto {
-  @ApiProperty({ description: 'Minimum effective count (min of transactions and distinct users) for disclosure' })
-  suppressionThreshold: number;
-
-  @ApiProperty({
-    description:
-      'Number of withheld disclosure units: suppressed fields and breakdown rows on the summary, ' +
-      'suppressed timeline buckets on the timeline',
-  })
-  suppressedCount: number;
-
-  @ApiProperty({ nullable: true, required: false })
+  @ApiPropertyOptional({ description: 'Server time the response was assembled' })
   generatedAt?: Date;
 }
 
 // --- VOLUME / COUNTS --- //
 
 export class PartnerVolumeByTypeDto {
-  @ApiProperty({ type: Number, nullable: true, description: 'CHF; null when the totals group is suppressed' })
-  buy: number | null;
+  @ApiProperty({ description: 'CHF' })
+  buy: number;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'CHF; null when the totals group is suppressed' })
-  sell: number | null;
+  @ApiProperty({ description: 'CHF' })
+  sell: number;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'CHF; null when the totals group is suppressed' })
-  swap: number | null;
+  @ApiProperty({ description: 'CHF' })
+  swap: number;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'CHF; null when the totals group is suppressed' })
-  total: number | null;
+  @ApiProperty({ description: 'CHF' })
+  total: number;
 }
 
 export class PartnerVolumeBuySellDto {
-  @ApiProperty({ type: Number, nullable: true, description: 'CHF; null when tradingUsers < k' })
-  buy: number | null;
+  @ApiProperty({ description: 'CHF' })
+  buy: number;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'CHF; null when tradingUsers < k' })
-  sell: number | null;
+  @ApiProperty({ description: 'CHF' })
+  sell: number;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'CHF; null when tradingUsers < k' })
-  total: number | null;
+  @ApiProperty({ description: 'CHF' })
+  total: number;
 }
 
 export class PartnerTransactionsByTypeDto {
-  @ApiProperty({ type: Number, nullable: true, description: 'Null when the totals group is suppressed' })
-  buy: number | null;
+  @ApiProperty()
+  buy: number;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'Null when the totals group is suppressed' })
-  sell: number | null;
+  @ApiProperty()
+  sell: number;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'Null when the totals group is suppressed' })
-  swap: number | null;
+  @ApiProperty()
+  swap: number;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'Null when the totals group is suppressed' })
-  total: number | null;
+  @ApiProperty()
+  total: number;
 }
 
 export class PartnerTotalsDto {
   @ApiProperty({
     type: PartnerVolumeByTypeDto,
-    description: 'Volume in CHF; entire group null when any direction is under the suppression threshold',
+    description: 'Volume in CHF, by trade direction',
   })
   volume: PartnerVolumeByTypeDto;
 
@@ -82,23 +72,23 @@ export class PartnerTotalsDto {
   @ApiProperty({
     type: Number,
     nullable: true,
-    description: 'Average volume per transaction in CHF; null if no transactions or totals suppressed',
+    description: 'Average volume per transaction in CHF; null when there were no transactions',
   })
   averageTransactionVolume: number | null;
 
   @ApiProperty({
     type: Number,
     nullable: true,
-    description: 'Distinct users with ≥1 counted transaction in the period; null if 1..k-1',
+    description: 'Distinct users with ≥1 counted transaction in the period',
   })
-  activeUsers: number | null;
+  activeUsers: number;
 
   @ApiProperty({
     type: Number,
     nullable: true,
-    description: 'Users of this wallet created in the period; null if 1..k-1',
+    description: 'Users of this wallet created in the period',
   })
-  newUsers: number | null;
+  newUsers: number;
 }
 
 export class PartnerAllTimeDto {
@@ -114,9 +104,9 @@ export class PartnerAllTimeDto {
   @ApiProperty({
     type: Number,
     nullable: true,
-    description: 'Users of this wallet with buyVolume > 0 or sellVolume > 0; null if 1..k-1',
+    description: 'Users of this wallet with buyVolume > 0 or sellVolume > 0',
   })
-  tradingUsers: number | null;
+  tradingUsers: number;
 }
 
 // --- BREAKDOWN --- //
@@ -167,40 +157,27 @@ export class PartnerBreakdownDto {
 
 export class PartnerReferralDto {
   @ApiProperty({
-    type: Number,
-    nullable: true,
-    description:
-      'Partner referral volume in EUR on the wallet owner’s account (all wallets of that owner). ' +
-      'Null when tradingUsers < k (moves with individual customer trades).',
+    description: 'Partner referral volume in EUR on the wallet owner’s account (all wallets of that owner)',
   })
-  volume: number | null;
+  volume: number;
 
   @ApiProperty({
-    type: Number,
-    nullable: true,
-    description:
-      'Partner referral credit earned (owner.partnerRefCredit only) in EUR, account-wide. ' +
-      'Null when tradingUsers < k.',
+    description: 'Partner referral credit earned (owner.partnerRefCredit only) in EUR, account-wide',
   })
-  creditEarned: number | null;
+  creditEarned: number;
 
   @ApiProperty({
-    type: Number,
-    nullable: true,
     description:
       'Referral credit already paid out (owner.paidRefCredit) in EUR, account-wide across both ' +
-      'personal and partner pots. Null when tradingUsers < k.',
+      'personal and partner pots',
   })
-  creditPaid: number | null;
+  creditPaid: number;
 
   @ApiProperty({
-    type: Number,
-    nullable: true,
     description:
-      'Open referral credit in EUR: owner.refCredit + owner.partnerRefCredit − owner.paidRefCredit ' +
-      '(account-wide). Null when tradingUsers < k.',
+      'Open referral credit in EUR: owner.refCredit + owner.partnerRefCredit − owner.paidRefCredit ' + '(account-wide)',
   })
-  creditOpen: number | null;
+  creditOpen: number;
 
   @ApiProperty({ enum: ['EUR'], description: 'Native currency of the referral system' })
   currency: 'EUR';
@@ -252,19 +229,16 @@ export class PartnerTimelineBucketDto {
   @ApiProperty({
     type: PartnerTimelineByDirectionDto,
     nullable: true,
-    description: 'Volume in CHF; null when suppressed',
+    description: 'Volume in CHF, by trade direction',
   })
   volume: PartnerTimelineByDirectionDto | null;
 
   @ApiProperty({
     type: PartnerTimelineByDirectionDto,
     nullable: true,
-    description: 'Transaction counts; null when suppressed',
+    description: 'Transaction counts, by trade direction',
   })
   transactions: PartnerTimelineByDirectionDto | null;
-
-  @ApiProperty({ description: 'True when values are withheld under the suppression threshold' })
-  suppressed: boolean;
 
   @ApiProperty({
     description:
