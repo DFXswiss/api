@@ -94,11 +94,11 @@ export class PartnerTotalsDto {
 export class PartnerAllTimeDto {
   @ApiProperty({
     type: PartnerVolumeBuySellDto,
-    description: 'Lifetime volume in CHF; null fields when tradingUsers < k',
+    description: 'Lifetime volume in CHF',
   })
   volume: PartnerVolumeBuySellDto;
 
-  @ApiProperty({ description: 'Always visible (installation count, no transaction linkage)' })
+  @ApiProperty({ description: 'Installation count; no transaction linkage' })
   registeredUsers: number;
 
   @ApiProperty({
