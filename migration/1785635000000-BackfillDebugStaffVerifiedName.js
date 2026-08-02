@@ -24,7 +24,9 @@ const BLANK_CHARS =
  *
  * The closing assertion checks the clearance predicate itself rather than equality with the supplied
  * name: should an identity-verified path have written a different (correct) name in the meantime, that
- * account is cleared and the migration must not fail the deploy over the spelling.
+ * account is cleared and the migration must not fail the deploy over the spelling. That divergence is
+ * not silent — it is recorded as its own audit entry, so the deployed state never differs from the
+ * reviewed one without a trace.
  * @class @implements {MigrationInterface}
  */
 module.exports = class BackfillDebugStaffVerifiedName1785635000000 {
@@ -36,13 +38,29 @@ module.exports = class BackfillDebugStaffVerifiedName1785635000000 {
     const verifiedName = process.env.STAFF_VERIFIED_NAME_403938?.trim();
     if (!verifiedName) throw new Error('STAFF_VERIFIED_NAME_403938 is required for the PRD staff-name backfill');
 
+    // `needsBackfill` is the exact negation of the closing assertion below. The two must stay
+    // complementary: a precondition of `verifiedName IS NULL` against a non-blank postcondition would
+    // leave a present-but-blank name (a lone tab, a non-breaking space) as a state the migration
+    // refuses to repair and then refuses to accept — and because `migrationsTransactionMode` defaults
+    // to 'all', that throw rolls back the whole release's batch and takes the boot down with it.
+    //
+    // `noteworthy` is what gets audited: the repair itself, or the deliberate decision to keep a
+    // divergent name that an identity-verified path wrote in the meantime. A re-run after a successful
+    // backfill is neither, so it stays a true no-op instead of appending an audit row every time.
     // Array.of avoids looking like MSSQL bracket quoting to the repository's migration syntax guard.
     await queryRunner.query(
-      `WITH "affected" AS (
-         SELECT "id", "verifiedName" AS "previousVerifiedName"
+      `WITH "target" AS (
+         SELECT "id",
+                "verifiedName" AS "previousVerifiedName",
+                BTRIM(COALESCE("verifiedName", ''), $2::varchar) = '' AS "needsBackfill"
          FROM "user_data"
-         WHERE "id" = 403938 AND "verifiedName" IS NULL
+         WHERE "id" = 403938
          FOR UPDATE
+       ),
+       "noteworthy" AS (
+         SELECT "id", "previousVerifiedName", "needsBackfill"
+         FROM "target"
+         WHERE "needsBackfill" OR "previousVerifiedName" IS DISTINCT FROM $1::varchar
        ),
        "audit" AS (
          INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
@@ -50,17 +68,18 @@ module.exports = class BackfillDebugStaffVerifiedName1785635000000 {
            json_agg(json_build_object(
              'userDataId', "id",
              'previousVerifiedName', "previousVerifiedName",
-             'nextVerifiedName', $1::varchar
+             'nextVerifiedName', CASE WHEN "needsBackfill" THEN $1::varchar ELSE "previousVerifiedName" END,
+             'action', CASE WHEN "needsBackfill" THEN 'backfilled' ELSE 'keptExistingName' END
            ) ORDER BY "id")::text
-         FROM "affected"
+         FROM "noteworthy"
          HAVING count(*) > 0
          RETURNING 1
        )
        UPDATE "user_data" ud
        SET "verifiedName" = $1::varchar, "updated" = now()
-       FROM "affected" a
-       WHERE ud."id" = a."id" AND EXISTS (SELECT 1 FROM "audit")`,
-      Array.of(verifiedName),
+       FROM "target" t
+       WHERE ud."id" = t."id" AND t."needsBackfill" AND EXISTS (SELECT 1 FROM "audit")`,
+      Array.of(verifiedName, BLANK_CHARS),
     );
 
     const rows = await queryRunner.query(
