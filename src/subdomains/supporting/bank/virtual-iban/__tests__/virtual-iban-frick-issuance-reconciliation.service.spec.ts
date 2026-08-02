@@ -315,8 +315,9 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       expect(loggerError).toHaveBeenCalledWith(expect.stringContaining('duplicates left untouched'));
     });
 
-    it('finalizes the deterministic winner first, then deactivates duplicates with the intent snapshot', async () => {
-      intentRepo.find.mockResolvedValue([intent({ id: 130, requestReference: stuckRequestReference })]);
+    it('finalizes only the deterministic winner on multi-match and never deactivates in Phase 1', async () => {
+      // COMPLETED query empty → isolates Phase-1 side effects (no completed-intent cleanup).
+      mockIntentFinds([intent({ id: 130, requestReference: stuckRequestReference })]);
       const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
       const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([newer, older], true));
@@ -334,13 +335,10 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
       await service.reconcileRetiredIssuanceReferences();
 
-      expect(callOrder).toEqual(['recover', 'deactivate']);
+      expect(callOrder).toEqual(['recover']);
       expect(virtualIbanService.recoverFrickIntentForReconciliation).toHaveBeenCalledWith(130, older);
-      expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledWith(
-        newer,
-        referenceAccountIban,
-        stuckRequestReference,
-      );
+      expect(virtualIbanService.recoverFrickIntentForReconciliation).toHaveBeenCalledTimes(1);
+      expect(frickVibanProvider.deactivateAndApprove).not.toHaveBeenCalled();
       expect(loggerError).toHaveBeenCalledWith(
         expect.stringContaining('positive listing match for InFlight/Failed intent intentId=130'),
       );
@@ -348,7 +346,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
     });
 
     it('uses the vIBAN as deterministic tie-breaker when duplicate timestamps are equal', async () => {
-      intentRepo.find.mockResolvedValue([intent({ id: 134, requestReference: stuckRequestReference })]);
+      mockIntentFinds([intent({ id: 134, requestReference: stuckRequestReference })]);
       const higher = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002' };
       const lower = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001' };
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([higher, lower], true));
@@ -356,11 +354,8 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       await service.reconcileRetiredIssuanceReferences();
 
       expect(virtualIbanService.recoverFrickIntentForReconciliation).toHaveBeenCalledWith(134, lower);
-      expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledWith(
-        higher,
-        referenceAccountIban,
-        stuckRequestReference,
-      );
+      expect(virtualIbanService.recoverFrickIntentForReconciliation).toHaveBeenCalledTimes(1);
+      expect(frickVibanProvider.deactivateAndApprove).not.toHaveBeenCalled();
     });
 
     it('never deactivates when a race already finalized a different canonical IBAN', async () => {
@@ -382,7 +377,8 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       expect(loggerError).toHaveBeenCalledWith(expect.stringContaining('candidateCount=2'));
     });
 
-    it('still deactivates duplicates when recovery reports already_finalized with the winner canonical', async () => {
+    it('does not deactivate in Phase 1 when recovery reports already_finalized with the winner canonical', async () => {
+      // Phase 1 confirms only; COMPLETED empty so completed-intent cleanup does not run for this intent.
       mockIntentFinds([intent({ id: 142, requestReference: stuckRequestReference })]);
       const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
       const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
@@ -395,11 +391,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       await service.reconcileRetiredIssuanceReferences();
 
       expect(virtualIbanService.recoverFrickIntentForReconciliation).toHaveBeenCalledWith(142, older);
-      expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledWith(
-        newer,
-        referenceAccountIban,
-        stuckRequestReference,
-      );
+      expect(frickVibanProvider.deactivateAndApprove).not.toHaveBeenCalled();
     });
 
     it('logs ERROR and performs no external action on cross-account listing mismatch', async () => {
@@ -423,11 +415,10 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
     it('returns early from recoverPhase1ListingMatch when virtualIbans is empty', async () => {
       // Productively unreachable via runPhase1StuckIntents (only pushes matches with length > 0).
-      // Direct private-helper call covers the empty-candidates guard at line 897.
+      // Direct private-helper call covers the empty-candidates guard.
       const loggerError = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation(() => undefined);
       const onRecovered = jest.fn();
       const onRecoveryFailure = jest.fn();
-      const onDuplicateDeactivated = jest.fn();
 
       await service['recoverPhase1ListingMatch'](
         {
@@ -444,7 +435,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
         {
           onRecovered,
           onRecoveryFailure,
-          onDuplicateDeactivated,
         },
       );
 
@@ -453,7 +443,6 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       expect(frickVibanProvider.deactivateAndApprove).not.toHaveBeenCalled();
       expect(onRecovered).not.toHaveBeenCalled();
       expect(onRecoveryFailure).not.toHaveBeenCalled();
-      expect(onDuplicateDeactivated).not.toHaveBeenCalled();
     });
 
     it('logs PII-safe ERROR for a single Phase-1 positive match before recovery', async () => {
@@ -530,29 +519,83 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
       expect(virtualIbanService.recoverFrickIntentForReconciliation).not.toHaveBeenCalled();
     });
 
-    it('leaves remaining duplicates untouched and ERROR-logs when cleanup fails after canonical finalize', async () => {
-      mockIntentFinds([intent({ id: 141, requestReference: stuckRequestReference })]);
-      const mid = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
+    it('same run: after Phase-1 finalize, completed-intent cleanup deactivates an unprotected duplicate once', async () => {
+      const phase1Intent = intent({ id: 141, requestReference: stuckRequestReference });
+      const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
       const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
-      const newest = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000003', createdAt: '2026-07-03' };
-      jest
-        .spyOn(frickVibanProvider, 'listByReferenceAccount')
-        .mockResolvedValue(listingResult([newest, mid, older], true));
-      jest.spyOn(frickVibanProvider, 'deactivateAndApprove').mockRejectedValueOnce(new Error('deactivation ambiguous'));
+      // COMPLETED query sees the post-recovery persisted state (externalIban = winner).
+      const completedAfterRecovery = intent({
+        id: 141,
+        requestReference: stuckRequestReference,
+        status: VirtualIbanIssuanceIntentStatus.COMPLETED,
+        externalIban: older.vban,
+      });
+      mockIntentFinds([phase1Intent], [completedAfterRecovery]);
+      jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([newer, older], true));
+      const callOrder: string[] = [];
+      virtualIbanService.recoverFrickIntentForReconciliation.mockImplementation(
+        async (_id: number, match: { vban: string }) => {
+          callOrder.push('recover');
+          return { kind: 'finalized' as const, canonicalIban: match.vban };
+        },
+      );
+      jest.spyOn(frickVibanProvider, 'deactivateAndApprove').mockImplementation(async () => {
+        callOrder.push('deactivate');
+      });
       const loggerError = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation(() => undefined);
 
       await service.reconcileRetiredIssuanceReferences();
 
+      expect(callOrder).toEqual(['recover', 'deactivate']);
       expect(virtualIbanService.recoverFrickIntentForReconciliation).toHaveBeenCalledWith(141, older);
+      expect(virtualIbanService.recoverFrickIntentForReconciliation).toHaveBeenCalledTimes(1);
       expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledTimes(1);
-      expect(loggerError).toHaveBeenCalledWith(
-        expect.stringContaining('duplicate cleanup failed for intentId=141'),
-        expect.any(Error),
+      expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledWith(
+        newer,
+        referenceAccountIban,
+        stuckRequestReference,
       );
       expect(loggerError).toHaveBeenCalledWith(
-        expect.stringContaining('remaining duplicates left for completed-intent cleanup retry'),
-        expect.any(Error),
+        'Frick vIBAN reconciliation completed-intent cleanup: duplicate match for COMPLETED intent ' +
+          `intentId=141 bankId=${bankId} candidateCount=2`,
       );
+      expect(loggerError.mock.calls.flat().join(' ')).not.toMatch(/LI\d{2}/);
+    });
+
+    it('same run: protected duplicate after Phase-1 finalize is not deactivated and ERROR-logs PII-safe', async () => {
+      const phase1Intent = intent({ id: 143, requestReference: stuckRequestReference });
+      const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
+      const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
+      const completedAfterRecovery = intent({
+        id: 143,
+        requestReference: stuckRequestReference,
+        status: VirtualIbanIssuanceIntentStatus.COMPLETED,
+        externalIban: older.vban,
+      });
+      mockIntentFinds([phase1Intent], [completedAfterRecovery]);
+      jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([newer, older], true));
+      const callOrder: string[] = [];
+      virtualIbanService.recoverFrickIntentForReconciliation.mockImplementation(
+        async (_id: number, match: { vban: string }) => {
+          callOrder.push('recover');
+          return { kind: 'finalized' as const, canonicalIban: match.vban };
+        },
+      );
+      jest.spyOn(frickVibanProvider, 'deactivateAndApprove').mockImplementation(async () => {
+        callOrder.push('deactivate');
+      });
+      virtualIbanService.isIbanProtectedFromReconciliationDeactivation.mockResolvedValue(true);
+      const loggerError = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation(() => undefined);
+
+      await service.reconcileRetiredIssuanceReferences();
+
+      expect(callOrder).toEqual(['recover']);
+      expect(virtualIbanService.recoverFrickIntentForReconciliation).toHaveBeenCalledWith(143, older);
+      expect(frickVibanProvider.deactivateAndApprove).not.toHaveBeenCalled();
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining('protected IBAN refused deactivation for intentId=143'),
+      );
+      expect(loggerError.mock.calls.flat().join(' ')).not.toMatch(/LI\d{2}/);
     });
 
     it('moves a day-old listing miss to the collection-account fallback', async () => {
@@ -948,6 +991,44 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
           `intentId=500 bankId=${bankId} candidateCount=2`,
       );
       expect(loggerError.mock.calls.flat().join(' ')).not.toMatch(/LI\d{2}/);
+      expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledTimes(1);
+      expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledWith(
+        duplicate,
+        referenceAccountIban,
+        completedRef,
+      );
+    });
+
+    it('deactivates a shared unprotected duplicate only once when two COMPLETED intents map to it in the same run', async () => {
+      // Covers processedDuplicateVibans.has → continue (line 553): second intent sees the same
+      // technical description, same persisted canonical, and same listed unprotected duplicate.
+      const first = completedIntent({ id: 500 });
+      const second = completedIntent({ id: 501 });
+      mockIntentFinds([], [first, second]);
+      const canonical = listingEntry(completedRef, { vban: canonicalVban });
+      const duplicate = listingEntry(completedRef, {
+        vban: duplicateVban,
+        createdAt: '2026-07-02T00:00:00Z',
+      });
+      jest
+        .spyOn(frickVibanProvider, 'listByReferenceAccount')
+        .mockResolvedValue(listingResult([canonical, duplicate], true));
+      // beforeEach already resolves isIbanProtectedFromReconciliationDeactivation to false.
+      const loggerError = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation(() => undefined);
+
+      await service.reconcileRetiredIssuanceReferences();
+
+      // Both intents enter cleanup (duplicate-match ERROR each), but per-run set skips the second act.
+      expect(loggerError).toHaveBeenCalledWith(
+        'Frick vIBAN reconciliation completed-intent cleanup: duplicate match for COMPLETED intent ' +
+          `intentId=500 bankId=${bankId} candidateCount=2`,
+      );
+      expect(loggerError).toHaveBeenCalledWith(
+        'Frick vIBAN reconciliation completed-intent cleanup: duplicate match for COMPLETED intent ' +
+          `intentId=501 bankId=${bankId} candidateCount=2`,
+      );
+      expect(virtualIbanService.isIbanProtectedFromReconciliationDeactivation).toHaveBeenCalledTimes(1);
+      expect(virtualIbanService.isIbanProtectedFromReconciliationDeactivation).toHaveBeenCalledWith(duplicateVban);
       expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledTimes(1);
       expect(frickVibanProvider.deactivateAndApprove).toHaveBeenCalledWith(
         duplicate,

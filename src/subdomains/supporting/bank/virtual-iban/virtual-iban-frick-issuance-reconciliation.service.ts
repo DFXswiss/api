@@ -80,10 +80,11 @@ interface UnprovenAbsenceIntent {
 
 /**
  * Periodic Frick issuance reconciliation:
- * - Phase 1: automatically adopt a uniquely identified delayed create. After a bounded recovery
- *   window, move listing misses to the safe collection-account fallback without issuing a second POST.
- * - Completed-intent cleanup: permanently retryable duplicate deactivation for COMPLETED Frick intents
- *   (same technical description; canonical = persisted externalIban). No free-text log as state.
+ * - Phase 1: automatically adopt a uniquely identified delayed create (canonical winner only).
+ *   After a bounded recovery window, move listing misses to the safe collection-account fallback
+ *   without issuing a second POST. Phase 1 never deactivates duplicates.
+ * - Completed-intent cleanup: sole permanently retryable duplicate deactivation for COMPLETED Frick
+ *   intents (same technical description; canonical = persisted externalIban). No free-text log as state.
  * - Phase 2: automatically deactivate delayed vIBANs found under retired issuance references, with a
  *   local active/canonical protection check before every external action.
  */
@@ -330,7 +331,6 @@ export class VirtualIbanFrickIssuanceReconciliationService {
 
     let recoveredCount = 0;
     let recoveryFailureCount = 0;
-    let duplicateCleanupCount = 0;
     const matchedIntentIds = new Set(listingMatches.map((match) => match.intentId));
     for (const match of listingMatches) {
       await this.recoverPhase1ListingMatch(match, {
@@ -339,9 +339,6 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         },
         onRecoveryFailure: () => {
           recoveryFailureCount += 1;
-        },
-        onDuplicateDeactivated: () => {
-          duplicateCleanupCount += 1;
         },
       });
     }
@@ -384,8 +381,8 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         `${byReferenceAccountSnapshot.size} reference-account snapshot(s); ` +
         `${listingMatches.length} listing match(es), ${skippedFreshCount} skipped (too fresh), ` +
         `${recoveredCount} recovered, ${recoveryFailureCount} recovery failure(s), ` +
-        `${duplicateCleanupCount} duplicate(s) deactivated, ${fallbackCount} moved to fallback, ` +
-        `${unprovenAbsences.length} inconclusive absence(s), ${failedBankCount} bank failure(s), ` +
+        `${fallbackCount} moved to fallback, ${unprovenAbsences.length} inconclusive absence(s), ` +
+        `${failedBankCount} bank failure(s), ` +
         `${skippedIncompleteCount} skipped (incomplete listing across ${incompleteListingBankCount} bank(s))` +
         (skippedMergeSupersededCount > 0 ? `, ${skippedMergeSupersededCount} skipped (merge-superseded)` : ''),
     );
@@ -428,6 +425,8 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     let protectedSkipCount = 0;
     let failedBankCount = 0;
     let incompleteListingBankCount = 0;
+    // Each distinct duplicate IBAN is acted on at most once per cleanup run.
+    const processedDuplicateVibans = new Set<string>();
 
     for (const group of byReferenceAccountSnapshot.values()) {
       const snapshot = group.at(0)!;
@@ -467,7 +466,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         }
 
         for (const intent of group) {
-          const result = await this.cleanupCompletedIntentDuplicates(intent, byDescription);
+          const result = await this.cleanupCompletedIntentDuplicates(intent, byDescription, processedDuplicateVibans);
           duplicateCleanupCount += result.deactivated;
           cleanupFailureCount += result.failures;
           protectedSkipCount += result.protectedSkips;
@@ -494,10 +493,12 @@ export class VirtualIbanFrickIssuanceReconciliationService {
   /**
    * Fail-closed duplicate cleanup for one COMPLETED intent against a fully validated listing group.
    * Never deactivates the persisted canonical; never issues a second create.
+   * Each distinct duplicate IBAN is acted on at most once per run via {@link processedDuplicateVibans}.
    */
   private async cleanupCompletedIntentDuplicates(
     intent: VirtualIbanIssuanceIntent,
     byDescription: Map<string, FrickVirtualIban[]>,
+    processedDuplicateVibans: Set<string>,
   ): Promise<{ deactivated: number; failures: number; protectedSkips: number }> {
     const empty = { deactivated: 0, failures: 0, protectedSkips: 0 };
 
@@ -548,6 +549,10 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     let failures = 0;
     let protectedSkips = 0;
     for (const duplicate of duplicates) {
+      // Each distinct duplicate IBAN is acted on at most once per cleanup run.
+      if (processedDuplicateVibans.has(duplicate.vban)) continue;
+      processedDuplicateVibans.add(duplicate.vban);
+
       if (await this.virtualIbanService.isIbanProtectedFromReconciliationDeactivation(duplicate.vban)) {
         protectedSkips += 1;
         this.logger.error(
@@ -867,16 +872,16 @@ export class VirtualIbanFrickIssuanceReconciliationService {
 
   /**
    * Phase-1 positive-match handling: validate candidates against the intent reference-account
-   * snapshot, log a PII-safe ERROR, finalize the deterministic winner first, and only then
-   * deactivate remaining duplicates when the persisted canonical IBAN is that winner.
-   * Never deactivates cleanup-first; never deactivates a raced different canonical.
+   * snapshot, log a PII-safe ERROR, and finalize or confirm exclusively the deterministic canonical
+   * winner. Never deactivates duplicates here — sole duplicate cleanup is
+   * {@link runCompletedIntentDuplicateCleanup} against the persisted externalIban on COMPLETED.
+   * Never deactivates a raced different canonical; never issues a second create.
    */
   private async recoverPhase1ListingMatch(
     match: StuckIntentListingMatch,
     counters: {
       onRecovered: () => void;
       onRecoveryFailure: () => void;
-      onDuplicateDeactivated: () => void;
     },
   ): Promise<void> {
     const expectedReferenceAccountIban = this.normalizeReferenceAccountIban(match.referenceAccountIban);
@@ -916,7 +921,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     }
 
     if (recoveryResult.kind === 'not_eligible') {
-      // No durable canonical known to this caller — leave duplicates untouched (fail-closed).
+      // No durable canonical known to this caller — leave listing untouched (fail-closed).
       this.logger.error(
         `Frick vIBAN reconciliation Phase 1: recovery not eligible after positive match for ` +
           `intentId=${match.intentId} bankId=${match.bankId} candidateCount=${candidates.length} — ` +
@@ -926,7 +931,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     }
 
     if (recoveryResult.canonicalIban !== winner.vban) {
-      // Race already finalized a different canonical — never deactivate that IBAN (or any other).
+      // Race already finalized a different canonical — never act on listing duplicates here.
       this.logger.error(
         `Frick vIBAN reconciliation Phase 1: raced different canonical for intentId=${match.intentId} ` +
           `bankId=${match.bankId} candidateCount=${candidates.length} — no deactivation`,
@@ -939,32 +944,9 @@ export class VirtualIbanFrickIssuanceReconciliationService {
       this.logger.info(`Frick vIBAN reconciliation Phase 1: automatically recovered intent ${match.intentId}`);
     }
 
-    // Only after successful canonical establishment of the winner may other candidates be deactivated.
-    // Pass the intent snapshot as expected reference account — never the listing-response value.
-    // Cleanup failures here are okay to leave pending: the COMPLETED intent remains the durable
-    // retry source for the dedicated completed-intent cleanup pass (same run and every hourly run).
-    const duplicates = candidates.slice(1);
-    for (let i = 0; i < duplicates.length; i++) {
-      const duplicate = duplicates[i];
-      try {
-        await this.frickVibanProvider.deactivateAndApprove(
-          duplicate,
-          match.referenceAccountIban,
-          match.requestReference,
-        );
-        counters.onDuplicateDeactivated();
-      } catch (error) {
-        // Leave remaining duplicates untouched fail-closed — never cleanup-first. The completed-intent
-        // cleanup pass will retry against the now-COMPLETED intent on subsequent hourly runs.
-        this.logger.error(
-          `Frick vIBAN reconciliation Phase 1: duplicate cleanup failed for intentId=${match.intentId} ` +
-            `bankId=${match.bankId} remainingDuplicates=${duplicates.length - i} — ` +
-            `remaining duplicates left for completed-intent cleanup retry`,
-          error,
-        );
-        return;
-      }
-    }
+    // Duplicates are not deactivated in Phase 1. After the intent is COMPLETED with
+    // externalIban = winner, runCompletedIntentDuplicateCleanup (same hourly run and every later
+    // run) is the sole, protected, permanently retryable cleanup path.
   }
 
   private normalizeReferenceAccountIban(iban: string): string {
