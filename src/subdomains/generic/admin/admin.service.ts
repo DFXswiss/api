@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
@@ -41,8 +42,14 @@ export class AdminService {
     const lContext = context as LiquidityOrderContext;
     const pContext = context as PayoutOrderContext;
 
-    const allowedAddresses = await this.settingService.getObj('manualPayoutAddresses', []);
-    if (!allowedAddresses.includes(address.toLowerCase()))
+    const configuredAddresses = await this.settingService.getObj<unknown>('manualPayoutAddresses', []);
+    const allowedAddresses = Array.isArray(configuredAddresses)
+      ? configuredAddresses.filter((value): value is string => typeof value === 'string')
+      : [];
+    const normalizeAddress = EvmBlockchains.includes(asset.blockchain)
+      ? (value: string) => value.toLowerCase()
+      : (value: string) => value;
+    if (!allowedAddresses.some((allowedAddress) => normalizeAddress(allowedAddress) === normalizeAddress(address)))
       throw new BadRequestException('Payout address not permitted');
 
     try {
