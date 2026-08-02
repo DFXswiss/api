@@ -1531,10 +1531,10 @@ export class VirtualIbanService {
           `currencyId=${currencyId}, bankId=${bankId}, intentStatus=${intent.status})`,
       );
     } else {
-      // PENDING / IN_FLIGHT / FAILED: this intent's current cycle has nothing to do with the vIBAN
+      // PENDING / IN_FLIGHT / FAILED / FALLBACK: this intent's current cycle has nothing to do with the vIBAN
       // being deactivated — only a COMPLETED intent can ever point at a live vIBAN. Benign, expected.
       this.logger.info(
-        `Issuance intent non-terminal on virtual IBAN deactivation; leaving intent unchanged ` +
+        `Issuance intent non-completed on virtual IBAN deactivation; leaving intent unchanged ` +
           `(virtualIbanId=${virtualIban.id}, intentId=${intent.id}, userDataId=${userDataId}, ` +
           `currencyId=${currencyId}, bankId=${bankId}, intentStatus=${intent.status})`,
       );
