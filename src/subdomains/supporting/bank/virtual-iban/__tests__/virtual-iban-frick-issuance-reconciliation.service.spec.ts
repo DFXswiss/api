@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { CronExpression } from '@nestjs/schedule';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FrickVirtualIban, FrickVirtualIbanState } from 'src/integration/bank/dto/frick-vban.dto';
+import { FrickVirtualIbansFetchResult } from 'src/integration/bank/services/frick.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
@@ -90,7 +91,7 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
     };
   }
 
-  function listingResult(virtualIbans: FrickVirtualIban[], fullyValidated: boolean) {
+  function listingResult(virtualIbans: FrickVirtualIban[], fullyValidated: boolean): FrickVirtualIbansFetchResult {
     const listingStartedAt = new Date();
     return { virtualIbans, fullyValidated, listingStartedAt, listingCompletedAt: new Date() };
   }
@@ -317,9 +318,22 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
     it('finalizes only the deterministic winner on multi-match and never deactivates in Phase 1', async () => {
       // COMPLETED query empty → isolates Phase-1 side effects (no completed-intent cleanup).
+      // Offsets chosen so lexical string order differs from true UTC chronology:
+      //   '2026-07-01T20:00:00Z' < '2026-07-01T23:00:00+05:00' lexicographically,
+      //   but +05:00 is 18:00 UTC (older) and Z is 20:00 UTC (newer).
       mockIntentFinds([intent({ id: 130, requestReference: stuckRequestReference })]);
-      const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
-      const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
+      const newer = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000002',
+        createdAt: '2026-07-01T20:00:00Z',
+      };
+      const older = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000001',
+        createdAt: '2026-07-01T23:00:00+05:00',
+      };
+      expect(newer.createdAt.localeCompare(older.createdAt)).toBeLessThan(0);
+      expect(Date.parse(older.createdAt)).toBeLessThan(Date.parse(newer.createdAt));
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([newer, older], true));
       const callOrder: string[] = [];
       virtualIbanService.recoverFrickIntentForReconciliation.mockImplementation(
@@ -360,8 +374,16 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
     it('never deactivates when a race already finalized a different canonical IBAN', async () => {
       mockIntentFinds([intent({ id: 135, requestReference: stuckRequestReference })]);
-      const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
-      const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
+      const newer = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000002',
+        createdAt: '2026-07-02T00:00:00Z',
+      };
+      const older = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000001',
+        createdAt: '2026-07-01T00:00:00Z',
+      };
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([newer, older], true));
       virtualIbanService.recoverFrickIntentForReconciliation.mockResolvedValue({
         kind: 'already_finalized',
@@ -380,8 +402,16 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
     it('does not deactivate in Phase 1 when recovery reports already_finalized with the winner canonical', async () => {
       // Phase 1 confirms only; COMPLETED empty so completed-intent cleanup does not run for this intent.
       mockIntentFinds([intent({ id: 142, requestReference: stuckRequestReference })]);
-      const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
-      const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
+      const newer = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000002',
+        createdAt: '2026-07-02T00:00:00Z',
+      };
+      const older = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000001',
+        createdAt: '2026-07-01T00:00:00Z',
+      };
       jest.spyOn(frickVibanProvider, 'listByReferenceAccount').mockResolvedValue(listingResult([newer, older], true));
       virtualIbanService.recoverFrickIntentForReconciliation.mockResolvedValue({
         kind: 'already_finalized',
@@ -521,8 +551,16 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
     it('same run: after Phase-1 finalize, completed-intent cleanup deactivates an unprotected duplicate once', async () => {
       const phase1Intent = intent({ id: 141, requestReference: stuckRequestReference });
-      const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
-      const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
+      const newer = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000002',
+        createdAt: '2026-07-02T00:00:00Z',
+      };
+      const older = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000001',
+        createdAt: '2026-07-01T00:00:00Z',
+      };
       // COMPLETED query sees the post-recovery persisted state (externalIban = winner).
       const completedAfterRecovery = intent({
         id: 141,
@@ -564,8 +602,16 @@ describe('VirtualIbanFrickIssuanceReconciliationService', () => {
 
     it('same run: protected duplicate after Phase-1 finalize is not deactivated and ERROR-logs PII-safe', async () => {
       const phase1Intent = intent({ id: 143, requestReference: stuckRequestReference });
-      const newer = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000002', createdAt: '2026-07-02' };
-      const older = { ...listingEntry(stuckRequestReference), vban: 'LI11ACTIVE00000000001', createdAt: '2026-07-01' };
+      const newer = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000002',
+        createdAt: '2026-07-02T00:00:00Z',
+      };
+      const older = {
+        ...listingEntry(stuckRequestReference),
+        vban: 'LI11ACTIVE00000000001',
+        createdAt: '2026-07-01T00:00:00Z',
+      };
       const completedAfterRecovery = intent({
         id: 143,
         requestReference: stuckRequestReference,

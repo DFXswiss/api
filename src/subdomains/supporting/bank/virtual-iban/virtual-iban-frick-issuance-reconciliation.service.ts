@@ -896,8 +896,10 @@ export class VirtualIbanFrickIssuanceReconciliationService {
       return;
     }
 
+    // Chronological by epoch ms (Frick validation guarantees a finite RFC-3339 instant). vban is
+    // only the deterministic tie-breaker — never localeCompare of the original createdAt string.
     const candidates = [...match.virtualIbans].sort(
-      (a, b) => a.createdAt.localeCompare(b.createdAt) || a.vban.localeCompare(b.vban),
+      (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.vban.localeCompare(b.vban),
     );
     if (candidates.length === 0) return;
 

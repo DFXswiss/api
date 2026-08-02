@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AxiosError, AxiosResponse, Method } from 'axios';
+import { isISO8601 } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -7,8 +8,8 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import {
-  FrickApproveVirtualIbanDeactivationRequest,
   FrickApproveVirtualIbanActivationRequest,
+  FrickApproveVirtualIbanDeactivationRequest,
   FrickCreateVirtualIbanRequest,
   FrickDeactivateVirtualIbanRequest,
   FrickVirtualIban,
@@ -1183,6 +1184,11 @@ export class BankFrickService {
       !Array.isArray(r.activationApprovals) ||
       !Array.isArray(r.deactivationApprovals)
     )
+      throw new Error('Invalid Bank Frick virtual IBAN response');
+
+    // Require a full RFC-3339/ISO-8601 instant: calendar-valid date, T separator, and explicit
+    // timezone (Z or ±HH:MM). isISO8601 alone still accepts date-only / timezone-less forms.
+    if (!isISO8601(r.createdAt, { strict: true, strictSeparator: true }) || !/(?:Z|[+-]\d{2}:\d{2})$/.test(r.createdAt))
       throw new Error('Invalid Bank Frick virtual IBAN response');
 
     r.vban = this.normalizeAndValidateIban(r.vban, 'virtual IBAN');
