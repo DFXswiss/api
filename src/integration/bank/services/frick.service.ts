@@ -1187,10 +1187,13 @@ export class BankFrickService {
       throw new Error('Invalid Bank Frick virtual IBAN response');
 
     // Require a full RFC-3339 calendar instant: YYYY-MM-DDTHH:mm:ss[.fraction]Z or ±HH:MM.
-    // Anchored format regex excludes ordinal/week/basic dates; isISO8601 checks calendar validity;
-    // Date.parse must yield a finite epoch so downstream epoch comparisons never see NaN.
+    // Hours 00-23, minutes/seconds 00-59 (rejects ISO-8601 end-of-day 24:00:00); offset hours/minutes
+    // likewise bounded. Anchored format regex excludes ordinal/week/basic dates; isISO8601 checks
+    // calendar validity; Date.parse must yield a finite epoch so downstream epoch comparisons never see NaN.
     if (
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(r.createdAt) ||
+      !/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/.test(
+        r.createdAt,
+      ) ||
       !isISO8601(r.createdAt, { strict: true, strictSeparator: true }) ||
       !Number.isFinite(Date.parse(r.createdAt))
     )

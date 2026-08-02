@@ -1241,6 +1241,10 @@ describe('BankFrickService', () => {
     http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-07-01 00:00:00Z' });
     await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
 
+    // ISO-8601 allows 24:00:00 as end-of-day; RFC 3339 / this validator require hours 00-23.
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-07-01T24:00:00Z' });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
     // Invalid calendar day: passes the RFC-3339 calendar regex but fails isISO8601 (strict).
     http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: '2026-02-30T00:00:00Z' });
     await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
