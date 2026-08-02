@@ -1186,9 +1186,14 @@ export class BankFrickService {
     )
       throw new Error('Invalid Bank Frick virtual IBAN response');
 
-    // Require a full RFC-3339/ISO-8601 instant: calendar-valid date, T separator, and explicit
-    // timezone (Z or ±HH:MM). isISO8601 alone still accepts date-only / timezone-less forms.
-    if (!isISO8601(r.createdAt, { strict: true, strictSeparator: true }) || !/(?:Z|[+-]\d{2}:\d{2})$/.test(r.createdAt))
+    // Require a full RFC-3339 calendar instant: YYYY-MM-DDTHH:mm:ss[.fraction]Z or ±HH:MM.
+    // Anchored format regex excludes ordinal/week/basic dates; isISO8601 checks calendar validity;
+    // Date.parse must yield a finite epoch so downstream epoch comparisons never see NaN.
+    if (
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(r.createdAt) ||
+      !isISO8601(r.createdAt, { strict: true, strictSeparator: true }) ||
+      !Number.isFinite(Date.parse(r.createdAt))
+    )
       throw new Error('Invalid Bank Frick virtual IBAN response');
 
     r.vban = this.normalizeAndValidateIban(r.vban, 'virtual IBAN');
