@@ -478,27 +478,18 @@ function guardAgainst(
           return wrap(value, child);
         }
 
-        const relation = at.metadata.relations.find((each) => each.propertyName === name);
-        if (relation) {
-          // Dereferencing an undeclared relation throws on its own, but `if (row.relation)` does
-          // not dereference: it reads undefined, takes the absent branch and answers.
-          //
-          // Only eager relations are a projection defect. Those the unprojected query did load, so
-          // failing to join one changes what the endpoint answers. A lazy relation was undefined
-          // before the conversion too — reading it may well be a defect, but not one this change
-          // introduced, and the guard would report the same thing on the code it replaced.
-          //
-          // Guarded on the value rather than the declaration, because TypeORM reports the
-          // owner-side join column under the relation's own property name, and a query selecting
-          // that column did fill it.
-          if (relation.isEager && value == null && !at.asked.has(name) && !written.has(name))
-            throw new Error(
-              `read of '${at.metadata.name}.${name}', an eager relation this query does not join — ` +
-                `the unprojected query carried it, so join it in the projection or stop reading it`,
-            );
-
-          return value;
-        }
+        // A relation the projection does not declare is left alone, and deliberately so.
+        //
+        // Reading one answers `undefined`, and `if (row.relation)` then takes the absent branch
+        // without dereferencing anything — a real hazard. But whether that is a defect depends on
+        // what the replaced query loaded, and no metadata on this entity says. `isEager` is not it:
+        // `getIssueData` passed `loadEagerRelations: false` and named its relations explicitly, so
+        // an eager relation it never carried would fail here, while a non-eager one it did load and
+        // the projection dropped would pass. Both directions exist in this branch.
+        //
+        // What the replaced query loaded is compared where it can actually be observed: level 4
+        // runs the endpoint against a full load and compares the two answers.
+        if (at.metadata.relations.some((relation) => relation.propertyName === name)) return value;
 
         // A `@RelationId` is filled from the foreign-key column of the row, which a query naming its
         // fields does not carry, and no field list can select it. Guarded on the value rather than
