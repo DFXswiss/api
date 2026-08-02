@@ -78,6 +78,16 @@ export const RECOVERY_PATH_REFERENCE_MARKER = 'recovery listing found no match u
 export const MERGE_SUPERSEDED_MARKER = 'merge-superseded';
 export const AUTOMATIC_FALLBACK_MARKER = 'automatic-collection-account-fallback';
 
+/**
+ * Result of {@link VirtualIbanService.recoverFrickIntentForReconciliation}.
+ * Surfaces the locally persisted canonical external IBAN so reconciliation can decide
+ * whether duplicate cleanup is safe — never log the IBAN value itself.
+ */
+export type FrickReconciliationRecoveryResult =
+  | { kind: 'finalized'; canonicalIban: string }
+  | { kind: 'already_finalized'; canonicalIban: string }
+  | { kind: 'not_eligible' };
+
 @Injectable()
 export class VirtualIbanService {
   private readonly logger = new DfxLogger(VirtualIbanService);
@@ -620,17 +630,31 @@ export class VirtualIbanService {
     return this.finalizeFrickIssuance(intent.id, intent.requestReference, userData, bank, currency, reserved);
   }
 
-  async recoverFrickIntentForReconciliation(intentId: number, match: FrickVirtualIban): Promise<boolean> {
+  /**
+   * Recovers a stuck InFlight/Failed Frick intent from a listing match and finalizes it locally.
+   * Returns the actually persisted canonical external IBAN so callers can fail closed on a raced
+   * different canonical before any external deactivation. Never logs IBAN values.
+   */
+  async recoverFrickIntentForReconciliation(
+    intentId: number,
+    match: FrickVirtualIban,
+  ): Promise<FrickReconciliationRecoveryResult> {
     const intent = await this.dataSource.getRepository(VirtualIbanIssuanceIntent).findOne({
       where: { id: intentId, provider: IbanBankName.FRICK },
     });
     if (!intent) throw new Error(`Bank Frick reconciliation intent not found (intentId=${intentId})`);
+    if (intent.error?.includes(MERGE_SUPERSEDED_MARKER)) return { kind: 'not_eligible' };
+
+    if (intent.status === VirtualIbanIssuanceIntentStatus.COMPLETED) {
+      if (intent.externalIban == null) return { kind: 'not_eligible' };
+      return { kind: 'already_finalized', canonicalIban: intent.externalIban };
+    }
+
     if (
       intent.status !== VirtualIbanIssuanceIntentStatus.IN_FLIGHT &&
       intent.status !== VirtualIbanIssuanceIntentStatus.FAILED
     )
-      return false;
-    if (intent.error?.includes(MERGE_SUPERSEDED_MARKER)) return false;
+      return { kind: 'not_eligible' };
 
     const [userData, bank, currency] = await Promise.all([
       this.dataSource.getRepository(UserData).findOne({ where: { id: intent.userDataId } }),
@@ -650,7 +674,7 @@ export class VirtualIbanService {
       intent.requestReference,
     );
     await this.finalizeFrickIssuance(intent.id, intent.requestReference, userData, bank, currency, reserved);
-    return true;
+    return { kind: 'finalized', canonicalIban: reserved.iban };
   }
 
   async moveFrickIntentToFallbackForReconciliation(
@@ -678,6 +702,35 @@ export class VirtualIbanService {
       );
       return true;
     });
+  }
+
+  /**
+   * Read-only protection check for reconciliation deactivation.
+   * Returns true when the exact IBAN must not be deactivated: it is a locally active
+   * {@link VirtualIban} (`active` + {@link VirtualIbanStatus.ACTIVE}) and/or the persisted
+   * `externalIban` of any COMPLETED Frick issuance intent.
+   * Never logs the IBAN value. Performs no database mutations.
+   */
+  async isIbanProtectedFromReconciliationDeactivation(iban: string): Promise<boolean> {
+    const activeVirtualIban = await this.virtualIbanRepo.findOne({
+      where: {
+        iban,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      },
+      select: ['id'],
+    });
+    if (activeVirtualIban != null) return true;
+
+    const completedCanonicalIntent = await this.dataSource.getRepository(VirtualIbanIssuanceIntent).findOne({
+      where: {
+        provider: IbanBankName.FRICK,
+        status: VirtualIbanIssuanceIntentStatus.COMPLETED,
+        externalIban: iban,
+      },
+      select: ['id'],
+    });
+    return completedCanonicalIntent != null;
   }
 
   private async finalizeFrickIssuance(
