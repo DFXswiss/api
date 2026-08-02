@@ -32,24 +32,6 @@ interface AbandonedReferenceHit {
   created: Date;
 }
 
-/**
- * Fixed-vocabulary reason only — never free-text from nextError.
- * Sole remaining unresolved path: query matched a marker substring, but the value after the marker
- * is empty (unextractable). `nextError IS NULL` cannot appear here — SQL `NULL LIKE pattern` is
- * never true, so the productive find() never returns null nextError rows.
- */
-type UnresolvedAbandonedReferenceReason = 'reference_unextractable';
-
-interface UnresolvedAbandonedReferenceCandidate {
-  eventId: number;
-  intentId: number;
-  userDataId: number;
-  currencyId: number;
-  bankId: number;
-  created: Date;
-  reason: UnresolvedAbandonedReferenceReason;
-}
-
 interface StuckIntentListingMatch {
   intentId: number;
   requestReference: string;
@@ -65,17 +47,6 @@ interface StuckIntentListingMatch {
 
 interface AbandonedReferenceMatch extends AbandonedReferenceHit {
   virtualIban: FrickVirtualIban;
-}
-
-interface UnprovenAbsenceIntent {
-  intentId: number;
-  userDataId: number;
-  currencyId: number;
-  bankId: number;
-  status: VirtualIbanIssuanceIntentStatus;
-  updated: Date;
-  listingStartedAt: Date;
-  latestPossibleCreateProcessedAt: Date;
 }
 
 /**
@@ -105,7 +76,6 @@ export class VirtualIbanFrickIssuanceReconciliationService {
    */
   static readonly FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS = 1_800_000;
   static readonly FRICK_AUTOMATIC_FALLBACK_THRESHOLD_MS = 86_400_000;
-  static readonly FRICK_CREATE_MAX_PROCESSING_MS = VirtualIbanService.FRICK_CREATE_MAX_PROCESSING_MS;
 
   private static readonly CLEANUP_TARGET_STATES: ReadonlySet<FrickVirtualIbanState> = new Set([
     FrickVirtualIbanState.PREPARED,
@@ -197,7 +167,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     }
 
     const listingMatches: StuckIntentListingMatch[] = [];
-    const unprovenAbsences: UnprovenAbsenceIntent[] = [];
+    let unprovenAbsenceCount = 0;
     /**
      * Fallback is only armed for intents whose listing in this run succeeded with valid timestamps
      * and fullyValidated === true. Listing failures, invalid timestamps, and incomplete listings
@@ -304,19 +274,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
             continue;
           }
 
-          const latestPossibleCreateProcessedAt = new Date(
-            intent.updated.getTime() + VirtualIbanFrickIssuanceReconciliationService.FRICK_CREATE_MAX_PROCESSING_MS,
-          );
-          unprovenAbsences.push({
-            intentId: intent.id,
-            userDataId: intent.userDataId,
-            currencyId: intent.currencyId,
-            bankId: intent.bankId,
-            status: intent.status,
-            updated: intent.updated,
-            listingStartedAt: listingResult.listingStartedAt,
-            latestPossibleCreateProcessedAt,
-          });
+          unprovenAbsenceCount += 1;
         }
       } catch (error) {
         // Isolate per-bank failures so one misconfigured/unreachable bank cannot abort every other bank.
@@ -343,8 +301,8 @@ export class VirtualIbanFrickIssuanceReconciliationService {
       });
     }
 
-    if (unprovenAbsences.length > 0) {
-      this.logUnprovenAbsences(unprovenAbsences);
+    if (unprovenAbsenceCount > 0) {
+      this.logUnprovenAbsences(unprovenAbsenceCount);
     }
 
     let fallbackCount = 0;
@@ -381,7 +339,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         `${byReferenceAccountSnapshot.size} reference-account snapshot(s); ` +
         `${listingMatches.length} listing match(es), ${skippedFreshCount} skipped (too fresh), ` +
         `${recoveredCount} recovered, ${recoveryFailureCount} recovery failure(s), ` +
-        `${fallbackCount} moved to fallback, ${unprovenAbsences.length} inconclusive absence(s), ` +
+        `${fallbackCount} moved to fallback, ${unprovenAbsenceCount} inconclusive absence(s), ` +
         `${failedBankCount} bank failure(s), ` +
         `${skippedIncompleteCount} skipped (incomplete listing across ${incompleteListingBankCount} bank(s))` +
         (skippedMergeSupersededCount > 0 ? `, ${skippedMergeSupersededCount} skipped (merge-superseded)` : ''),
@@ -589,15 +547,15 @@ export class VirtualIbanFrickIssuanceReconciliationService {
 
   /** Phase 2: deactivate vIBANs that appear under a retired requestReference. */
   private async runPhase2RetiredReferences(listingCache: Map<string, FrickVirtualIbansFetchResult>): Promise<void> {
-    const { hits: abandoned, unresolved } = await this.loadAbandonedReferences();
+    const { hits: abandoned, unresolvedCount } = await this.loadAbandonedReferences();
 
-    if (unresolved.length > 0)
+    if (unresolvedCount > 0)
       this.logger.error(
-        `Frick vIBAN reconciliation Phase 2: ${unresolved.length} abandoned reference(s) could not be extracted`,
+        `Frick vIBAN reconciliation Phase 2: ${unresolvedCount} abandoned reference(s) could not be extracted`,
       );
 
     if (abandoned.length === 0) {
-      if (unresolved.length === 0) {
+      if (unresolvedCount === 0) {
         this.logger.info('Frick vIBAN reconciliation Phase 2: no abandoned references pending check');
       }
       return;
@@ -775,7 +733,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
    */
   private async loadAbandonedReferences(): Promise<{
     hits: AbandonedReferenceHit[];
-    unresolved: UnresolvedAbandonedReferenceCandidate[];
+    unresolvedCount: number;
   }> {
     const events = await this.dataSource.getRepository(VirtualIbanIssuanceEvent).find({
       where: [
@@ -792,7 +750,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     });
 
     const hits: AbandonedReferenceHit[] = [];
-    const unresolved: UnresolvedAbandonedReferenceCandidate[] = [];
+    let unresolvedCount = 0;
     for (const event of events) {
       // Invariant of the LIKE query above: NULL LIKE pattern is never true in SQL, so a matched
       // row cannot have nextError = null. Fail closed (throws into runPhase2RetiredReferences →
@@ -810,15 +768,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         this.logger.error(
           `Frick vIBAN reconciliation Phase 2: could not extract abandoned reference from event ${event.id}`,
         );
-        unresolved.push({
-          eventId: event.id,
-          intentId: event.intentId,
-          userDataId: event.userDataId,
-          currencyId: event.currencyId,
-          bankId: event.bankId,
-          created: event.created,
-          reason: 'reference_unextractable',
-        });
+        unresolvedCount += 1;
         continue;
       }
       hits.push({
@@ -834,7 +784,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
         created: event.created,
       });
     }
-    return { hits, unresolved };
+    return { hits, unresolvedCount };
   }
 
   /**
@@ -863,9 +813,9 @@ export class VirtualIbanFrickIssuanceReconciliationService {
     return (end >= 0 ? rest.slice(0, end) : rest).trim();
   }
 
-  private logUnprovenAbsences(intents: UnprovenAbsenceIntent[]): void {
+  private logUnprovenAbsences(count: number): void {
     this.logger.error(
-      `Frick vIBAN reconciliation Phase 1: ${intents.length} intent(s) remain inconclusive because ` +
+      `Frick vIBAN reconciliation Phase 1: ${count} intent(s) remain inconclusive because ` +
         `listing absence is not authoritative; automatic recovery will continue`,
     );
   }
