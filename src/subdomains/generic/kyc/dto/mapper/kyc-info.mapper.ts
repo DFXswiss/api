@@ -31,14 +31,26 @@ export class KycInfoMapper {
     // surfacing it as current produced a dead-end (blank) screen on the client.
     if (currentStep && KycStepNonUserActionable.includes(currentStep.name)) currentStep = undefined;
 
+    const contextSteps = context ? contextRequiredSteps(context) : undefined;
+
+    // The fallback answers "what should this caller do next", so it has to obey the same scope as
+    // `processStatus`, which already reports only over the context's steps. Without this a step that is
+    // irrelevant to the flow — an open AddressChange, PhoneChange or PaymentAgreement — hijacks `currentStep`
+    // and sends the caller off to something its flow never asked for.
+    //
+    // Scoped by the CONTEXT set, deliberately not by `requiredStepNames`: those change steps are not members
+    // of `requiredKycSteps` at all, so filtering by it would drop them from `currentStep` for every caller and
+    // break the change flows. With no context nothing is narrowed and the answer is byte-identical to before.
+    const isCurrentStepCandidate = (s: KycStep): boolean =>
+      !KycStepNonUserActionable.includes(s.name) && (!contextSteps || contextSteps.has(s.name));
+
     currentStep ??=
-      kycSteps.find((s) => s.status === ReviewStatus.IN_PROGRESS && !KycStepNonUserActionable.includes(s.name)) ??
-      kycSteps.find((s) => s.status === ReviewStatus.FAILED && !KycStepNonUserActionable.includes(s.name));
+      kycSteps.find((s) => s.status === ReviewStatus.IN_PROGRESS && isCurrentStepCandidate(s)) ??
+      kycSteps.find((s) => s.status === ReviewStatus.FAILED && isCurrentStepCandidate(s));
 
     const userKycClients = kycClients.filter((kc) => userData.kycClientList.includes(kc.id));
 
     const allRequiredSteps = requiredKycSteps(userData);
-    const contextSteps = context ? contextRequiredSteps(context) : undefined;
     const requiredStepNames = new Set(
       contextSteps ? allRequiredSteps.filter((s) => contextSteps.has(s)) : allRequiredSteps,
     );

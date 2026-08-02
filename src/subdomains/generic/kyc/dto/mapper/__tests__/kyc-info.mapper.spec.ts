@@ -432,4 +432,82 @@ describe('KycInfoMapper', () => {
       expect(result.processStatus).toBe(KycProcessStatus.IN_PROGRESS);
     });
   });
+
+  // `processStatus` already reports only over the context's steps; `currentStep` did not, so a step that is
+  // irrelevant to the flow could hijack it and send the caller somewhere its flow never asked for.
+  describe('currentStep context scoping', () => {
+    const session = (userData: UserData, context?: KycContext): KycSessionDto =>
+      KycInfoMapper.toDto(userData, true, [], undefined, context) as KycSessionDto;
+
+    // OwnerDirectory sorts BEFORE ResidencePermit in the step order, so the unscoped fallback would reach it
+    // first. Picking a later-sorting out-of-context step would pass either way and prove nothing.
+    it('does not surface an out-of-context step as currentStep', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.RESIDENCE_PERMIT);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.OWNER_DIRECTORY, ReviewStatus.IN_PROGRESS),
+          buildStep(KycStepName.RESIDENCE_PERMIT, ReviewStatus.IN_PROGRESS),
+        ],
+      });
+
+      expect(session(userData, KycContext.REALUNIT_BUY).currentStep?.name).toBe(KycStepName.RESIDENCE_PERMIT);
+    });
+
+    it('leaves currentStep undefined when only out-of-context steps are open', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.NATIONALITY_DATA);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.NATIONALITY_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.ADDRESS_CHANGE, ReviewStatus.IN_PROGRESS),
+        ],
+      });
+
+      const result = session(userData, KycContext.REALUNIT_BUY);
+      // the context is satisfied, so the caller is done — it must not be pointed at the change step
+      expect(result.currentStep).toBeUndefined();
+      expect(result.processStatus).toBe(KycProcessStatus.COMPLETED);
+    });
+
+    it('applies the same scoping to the FAILED fallback', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.RESIDENCE_PERMIT);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.OWNER_DIRECTORY, ReviewStatus.FAILED),
+          buildStep(KycStepName.RESIDENCE_PERMIT, ReviewStatus.FAILED),
+        ],
+      });
+
+      expect(session(userData, KycContext.REALUNIT_BUY).currentStep?.name).toBe(KycStepName.RESIDENCE_PERMIT);
+    });
+
+    // The regression guard for every other client. AddressChange/PhoneChange/NameChange/PaymentAgreement are
+    // NOT members of requiredKycSteps, so scoping by requiredStepNames instead of the context set would drop
+    // them from currentStep for callers that pass no context and break the change flows.
+    it('still surfaces a change step when no context is supplied', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.NATIONALITY_DATA);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.ADDRESS_CHANGE, ReviewStatus.IN_PROGRESS),
+        ],
+      });
+
+      expect(session(userData).currentStep?.name).toBe(KycStepName.ADDRESS_CHANGE);
+    });
+
+    it('does not narrow anything for a context without a step whitelist (RealunitSell)', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.NATIONALITY_DATA);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.ADDRESS_CHANGE, ReviewStatus.IN_PROGRESS),
+        ],
+      });
+
+      expect(session(userData, KycContext.REALUNIT_SELL).currentStep?.name).toBe(KycStepName.ADDRESS_CHANGE);
+    });
+  });
 });
