@@ -238,6 +238,20 @@ describe('effectiveNewLimit', () => {
     expect(effectiveNewLimit(dto)).toBe(100000);
   });
 
+  it('follows the decision, not field presence: a rejection ignores a granted limit', () => {
+    // This is the case the pure function exists for — with `grantedLimit ?? previousLimit`,
+    // a stray grantedLimit on a rejection would be printed as the limit in force.
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      grantedLimit: 500000,
+      previousLimit: 100000,
+    };
+
+    expect(effectiveNewLimit(dto)).toBe(100000);
+  });
+
   it('returns undefined when a rejection has no previous limit', () => {
     const dto: GenerateLimitRequestPdfDto = {
       decision: LimitRequestDecision.REJECTED,
