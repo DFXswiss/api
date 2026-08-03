@@ -155,7 +155,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async setOnboardingFee(@Param('id') id: string, @Body() dto: SetOnboardingFeeDto): Promise<void> {
-    return this.feeService.setOnboardingFee(await this.getUserDataOrThrow(+id), dto.amount);
+    return this.feeService.setOnboardingFee(await this.getUserDataOrThrow(id), dto.amount);
   }
 
   @Delete(':id/onboardingFee')
@@ -163,7 +163,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async removeOnboardingFee(@Param('id') id: string): Promise<void> {
-    return this.feeService.removeOnboardingFee(await this.getUserDataOrThrow(+id));
+    return this.feeService.removeOnboardingFee(await this.getUserDataOrThrow(id));
   }
 
   // --- IDENT --- //
@@ -221,12 +221,13 @@ export class UserDataController {
   // `wallet` is not an eager relation and has to be requested explicitly, or `Fee.verifyForUser`
   // silently skips its wallet check. No fee this operation hands out is wallet-bound today - the
   // lookup requires an empty `wallet` column - so the check only bites if that ever loosens.
-  private async getUserDataOrThrow(id: number): Promise<UserData> {
-    // `+id` of a path segment like 'abc', '1.5' or 'Infinity' is NaN or a non-integer, which would
-    // reach the integer column as a bound parameter and fail the query instead of answering 404.
-    if (!Number.isInteger(id) || id < 1) throw new NotFoundException('User data not found');
+  private async getUserDataOrThrow(id: string): Promise<UserData> {
+    // Not `+id`: that turns '1.5', 'Infinity' or an id beyond the int4 range into a bound parameter
+    // the query cannot use, which fails as a 500 instead of answering 404.
+    const userDataId = Util.toDbId(id);
+    if (!userDataId) throw new NotFoundException('User data not found');
 
-    const userData = await this.userDataService.getUserData(id, { wallet: true });
+    const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
     if (!userData) throw new NotFoundException('User data not found');
 
     return userData;
