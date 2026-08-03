@@ -4,7 +4,7 @@ import { CreateFiatOutputDto } from '../create-fiat-output.dto';
 import { UpdateFiatOutputDto } from '../update-fiat-output.dto';
 import { FiatOutputType } from '../../fiat-output.entity';
 
-describe('CreateFiatOutputDto.valutaDate', () => {
+describe('CreateFiatOutputDto', () => {
   const baseDto = {
     type: FiatOutputType.BUY_FIAT,
     amount: 100,
@@ -36,6 +36,17 @@ describe('CreateFiatOutputDto.valutaDate', () => {
     const errors = await validateDto({ ...baseDto, valutaDate: 46225 });
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toHaveProperty('minDate');
+  });
+
+  it.each([true, false])('accepts isInstant=%s', async (isInstant) => {
+    const errors = await validateDto({ ...baseDto, isInstant });
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects a string value for isInstant', async () => {
+    const errors = await validateDto({ ...baseDto, isInstant: 'true' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].constraints).toHaveProperty('isBoolean');
   });
 });
 

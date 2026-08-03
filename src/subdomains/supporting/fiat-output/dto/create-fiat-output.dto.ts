@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, MinDate, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsDate,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MinDate,
+  ValidateIf,
+} from 'class-validator';
 import { FiatOutputType } from '../fiat-output.entity';
 
 export const MIN_FIAT_OUTPUT_DATE = new Date('2000-01-01T00:00:00Z');
@@ -81,6 +91,10 @@ export class CreateFiatOutputDto {
   @IsOptional()
   @IsString()
   bic?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isInstant?: boolean;
 
   @IsNotEmpty()
   @IsString()
