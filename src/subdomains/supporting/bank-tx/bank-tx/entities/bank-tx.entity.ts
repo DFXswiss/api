@@ -219,10 +219,11 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   type?: BankTxType;
 
-  // Immutable ownership fact captured when both transfer IBANs belong to DFX. Do not
-  // recompute it from current bank configuration because accounts can be retired later.
-  @Column({ default: false })
-  isInternalTransfer: boolean;
+  // Immutable ownership fact captured when both transfer IBANs belong to DFX. Null is
+  // reserved for legacy/rolling-deployment writes that have not made this decision yet.
+  // Do not recompute true/false from current bank configuration: accounts can be retired later.
+  @Column({ nullable: true })
+  isInternalTransfer: boolean | null;
 
   // ISO 20022 bank transaction codes
   @Column({ length: 256, nullable: true })

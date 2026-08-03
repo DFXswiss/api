@@ -14,15 +14,16 @@ describe('TrackInternalBankTransfers migration', () => {
     await new MigrationClass().up({ query });
 
     const backfillSql = query.mock.calls[1][0] as string;
-    expect(query).toHaveBeenNthCalledWith(
-      1,
-      'ALTER TABLE "bank_tx" ADD "isInternalTransfer" boolean NOT NULL DEFAULT false',
-    );
+    expect(query).toHaveBeenNthCalledWith(1, 'ALTER TABLE "bank_tx" ADD "isInternalTransfer" boolean');
     expect(backfillSql).toContain("l.subsystem = 'InternalBankTransferBackfill'");
-    expect(backfillSql).toContain('bt.created >= c."cutoverDate" - INTERVAL \'21 days\'');
-    expect(backfillSql).toContain('bt.created >= c."cutoverDate"');
+    expect(backfillSql).toContain('COALESCE(MIN(a."classificationDate"), s."trackingCutover")');
+    expect(backfillSql).toContain('bt.created >= c."classificationCutover" - INTERVAL \'21 days\'');
+    expect(backfillSql).toContain('bt.created >= c."classificationCutover"');
     expect(backfillSql).toContain('FOR UPDATE OF bt');
     expect(backfillSql).toContain("'InternalBankTransferTrackingBackfill'");
+    expect(backfillSql).toContain("'previousIsInternalTransfer', NULL");
+    expect(backfillSql).toContain("'nextIsInternalTransfer', true");
+    expect(backfillSql).toContain('\'changedAt\', s."trackingCutover"');
     expect(backfillSql).toContain('SET "isInternalTransfer" = true');
     expect(backfillSql.indexOf('INSERT INTO "log"')).toBeLessThan(backfillSql.indexOf('UPDATE "bank_tx"'));
     expect(query).toHaveBeenNthCalledWith(

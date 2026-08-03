@@ -267,9 +267,21 @@ describe('BankTxService', () => {
         isInternalTransfer: true,
       });
       (bankTxRepo.findBy as jest.Mock).mockResolvedValue([historical]);
+      const recoveryQuery = jest.fn().mockResolvedValue([]);
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: { query: recoveryQuery },
+      });
 
       await expect(service.getTrackedInternalTransfers()).resolves.toEqual([historical]);
 
+      const recoverySql = recoveryQuery.mock.calls[0][0] as string;
+      expect(recoverySql).toContain("l.subsystem = 'InternalBankTransferTrackingBackfill'");
+      expect(recoverySql).toContain('bt."isInternalTransfer" IS NULL');
+      expect(recoverySql).toContain('bt.created >= c."trackingCutover"');
+      expect(recoverySql).toContain("'InternalBankTransferRollingRecovery'");
+      expect(recoverySql).toContain("'previousIsInternalTransfer', NULL");
+      expect(recoverySql.indexOf('INSERT INTO "log"')).toBeLessThan(recoverySql.indexOf('UPDATE "bank_tx"'));
       expect(bankTxRepo.findBy).toHaveBeenCalledWith({
         type: BankTxType.INTERNAL,
         isInternalTransfer: true,
@@ -294,6 +306,21 @@ describe('BankTxService', () => {
   });
 
   describe('#updateInternal(...)', () => {
+    it('records a negative ownership decision for a newly reviewed external transfer', async () => {
+      const bankTx = createCustomBankTx({
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: null,
+        accountIban: 'OLKY-IBAN',
+        iban: 'EXTERNAL-IBAN',
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
+
+      await service.updateInternal(bankTx, { type: BankTxType.INTERNAL });
+
+      expect(bankTx.isInternalTransfer).toBe(false);
+      expect(bankService.areKnownBankIbans).toHaveBeenCalledWith('OLKY-IBAN', 'EXTERNAL-IBAN');
+    });
+
     it('never revokes an immutable ownership marker after bank configuration changes', async () => {
       const bankTx = createCustomBankTx({
         type: BankTxType.INTERNAL,

@@ -413,10 +413,9 @@ export class BankTxService implements OnModuleInit {
   async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, user?: User): Promise<BankTx> {
     if (
       dto.type === BankTxType.INTERNAL &&
-      !bankTx.isInternalTransfer &&
-      (await this.bankService.areKnownBankIbans(bankTx.accountIban, bankTx.iban))
+      (bankTx.isInternalTransfer === null || bankTx.isInternalTransfer === undefined)
     )
-      bankTx.isInternalTransfer = true;
+      bankTx.isInternalTransfer = await this.bankService.areKnownBankIbans(bankTx.accountIban, bankTx.iban);
 
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
@@ -589,7 +588,52 @@ export class BankTxService implements OnModuleInit {
   }
 
   async getTrackedInternalTransfers(): Promise<BankTx[]> {
+    await this.recoverRollingInternalTransfers();
     return this.bankTxRepo.findBy({ type: BankTxType.INTERNAL, isInternalTransfer: true });
+  }
+
+  private async recoverRollingInternalTransfers(): Promise<void> {
+    await this.bankTxRepo.manager.query(`
+      WITH "trackingCutover" AS (
+        SELECT MIN((l.message::jsonb->>'trackingCutover')::timestamptz) AS "trackingCutover"
+        FROM "log" l
+        WHERE l.subsystem = 'InternalBankTransferTrackingBackfill'
+      ),
+      "affected" AS (
+        SELECT bt.id AS "bankTxId"
+        FROM "bank_tx" bt
+        CROSS JOIN "trackingCutover" c
+        WHERE bt.type = 'Internal'
+          AND bt."isInternalTransfer" IS NULL
+          AND bt.created >= c."trackingCutover"
+        FOR UPDATE OF bt
+      ),
+      "stamp" AS (
+        SELECT now() AS "changedAt"
+      ),
+      "audit" AS (
+        INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
+        SELECT s."changedAt", s."changedAt", 'BankTx', 'InternalBankTransferRollingRecovery', 'Info',
+               json_build_object(
+                 'changes', json_agg(json_build_object(
+                   'bankTxId', a."bankTxId",
+                   'previousIsInternalTransfer', NULL,
+                   'nextIsInternalTransfer', true,
+                   'changedAt', s."changedAt"
+                 ) ORDER BY a."bankTxId")
+               )::text
+        FROM "affected" a
+        CROSS JOIN "stamp" s
+        GROUP BY s."changedAt"
+        HAVING count(*) > 0
+        RETURNING 1
+      )
+      UPDATE "bank_tx" bt
+      SET "isInternalTransfer" = true
+      FROM "affected" a
+      WHERE bt.id = a."bankTxId"
+        AND EXISTS (SELECT 1 FROM "audit")
+    `);
   }
 
   async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
