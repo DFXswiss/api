@@ -51,7 +51,8 @@ const PAYMENT_WAIT_TIMEOUT_SECONDS = 60;
  *
  * Only the identity: what a device is owed follows from the payments themselves, not from when it
  * happened to connect. A device that reconnects is the same device, and the delivery record below
- * outlives the connection precisely so that it is treated as one.
+ * outlives the connection precisely so that it is treated as one — within the span the read
+ * covers. What has aged out of that span is owed to nobody any more.
  */
 export interface ConnectedDevice {
   id: string;
@@ -445,6 +446,18 @@ export class PaymentLinkPaymentService {
     const delivered = this.deliveriesFor(connected.id);
     if (delivered.get(payment.id)?.state === payment.waitState) return;
 
+    // Recorded BEFORE the send, and the two ways that can be wrong are not equal. A send that
+    // fails after this line is not retried, because the record says it went out; a record written
+    // after a successful send would instead repeat every command whenever the send path is slower
+    // than the next tick. The first costs one missed command on a socket that is being torn down —
+    // and the gateway drops such a socket, so the device stops being connected and the command
+    // goes out again on the next tick under a new connection. The second costs a repeat on a
+    // healthy one.
+    //
+    // What no ordering fixes: this record lives in the process. A restart empties it, and a device
+    // still inside the read gets its current state again. Delivering the same state twice is what
+    // `waitState` makes harmless; the alternative — persisting a delivery log — is a table for a
+    // problem a duplicate command already answers.
     delivered.set(payment.id, { state: payment.waitState, expiryDate: payment.expiryDate });
 
     this.deviceActivationSubject.next(device);

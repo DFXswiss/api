@@ -9,9 +9,10 @@
  * Until now the only thing stopping a job from running twice was `LockClass`, and its state is a
  * field in process memory — it cannot see a second process. That was acceptable while the API ran
  * as a single process. With the HTTP process and the worker split apart, "exactly one process runs
- * this job" became an assumption held up by configuration, a runbook sentence and an alert that
- * *reports* a double run after the fact. For a path that moves money, detection is the second-best
- * answer.
+ * this job" became an assumption held up by configuration, a runbook sentence and an alert — and
+ * that alert reports a WRONG ROLE, not a double run: it reads the role each process states, which
+ * says what a process WOULD run, never what two of them did. For a path that moves money, an
+ * assumption checked from the outside is the second-best answer.
  *
  * This table is what a second process has to get past before it may start such a job: a job scoped
  * to exactly one process must take a row here before it starts, and the row is claimable by one

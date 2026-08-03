@@ -33,7 +33,7 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
 
   constructor(private readonly paymentService: PaymentLinkPaymentService) {}
 
-  onModuleInit() {
+  onModuleInit(): void {
     this.paymentService.getDeviceActivationObservable().subscribe((a) => this.sendMessage(a));
 
     // The delivery reads what is connected out of the map below instead of being told about it, so
@@ -41,7 +41,7 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     this.paymentService.useDeviceSource(() => this.connectedDevices());
   }
 
-  handleConnection(client: PaymentSocket, message: IncomingMessage) {
+  handleConnection(client: PaymentSocket, message: IncomingMessage): void {
     const device = new URLSearchParams(message.url?.split('?')[1]).get('device');
     if (!device) throw new BadRequestException('device should not be empty');
 
@@ -53,7 +53,9 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
    *
    * A device appears here for exactly as long as at least one of its connections is in the map.
    * When it connected is deliberately not part of it: the delivery selects payments by their own
-   * lifetime, so a device that reconnects is owed the same thing it was owed before.
+   * lifetime, so a device that reconnects is owed what it was owed before — for as long as those
+   * payments are still inside the read (see DEVICE_DELIVERY_GRACE_SECONDS). A device that stays
+   * away past that gets nothing for the payments that aged out meanwhile.
    */
   connectedDevices(): ConnectedDevice[] {
     return [...this.clients.keys()].map((id) => ({ id }));
@@ -93,7 +95,7 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private addClient(device: string, client: PaymentSocket) {
+  private addClient(device: string, client: PaymentSocket): void {
     const clientId = Util.createUniqueId('client');
 
     const connections = this.clients.get(device) ?? new Map<string, Connection>();
@@ -107,7 +109,7 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     client.on('pong', () => this.markResponsive(device, clientId));
   }
 
-  private removeClient(device: string, clientId: string) {
+  private removeClient(device: string, clientId: string): void {
     const connections = this.clients.get(device);
     if (!connections) return;
 
@@ -118,17 +120,32 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     if (!connections.size) this.clients.delete(device);
   }
 
-  private markResponsive(device: string, clientId: string) {
+  private markResponsive(device: string, clientId: string): void {
     const connection = this.clients.get(device)?.get(clientId);
     if (connection) connection.responsive = true;
   }
 
-  private sendMessage(device: PaymentDevice) {
+  /**
+   * Sends to every socket of a device, and drops the ones that cannot take it.
+   *
+   * A `send` that throws leaves a socket the peer is no longer on. Left in the map it would keep
+   * the device in `connectedDevices`, so the delivery would go on selecting payments for a device
+   * it can no longer reach — and would count them as delivered. Removal is idempotent and the
+   * `close`/`error` handlers do the same thing, so a socket that reports both is removed once.
+   *
+   * One failing socket does not stop the others: a device with two connections is still reachable
+   * through the second.
+   */
+  private sendMessage(device: PaymentDevice): void {
     const connections = this.clients.get(device.id);
     if (!connections) return;
 
-    for (const { socket } of connections.values()) {
-      socket.send(device.command);
+    for (const [clientId, { socket }] of [...connections]) {
+      try {
+        socket.send(device.command);
+      } catch {
+        this.removeClient(device.id, clientId);
+      }
     }
   }
 }

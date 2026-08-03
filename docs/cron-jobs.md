@@ -162,7 +162,7 @@ here rather than fixed in passing. Of the 140 declarations, 139 have a registrat
 | 10 seconds | `LIQUIDITY_MANAGEMENT` | `worker` | `LiquidityManagementPipelineService::processPipelines` | `subdomains/core/liquidity-management/services/liquidity-management-pipeline.service.ts` |
 | 10 seconds | `MONITOR_CONNECTION_POOL` | `both` | `MonitorConnectionPoolService::monitorConnectionPoolStatic` | `subdomains/core/monitoring/monitor-connection-pool.service.ts` |
 | 10 seconds | `MONITOR_EVENT_LOOP` | `both` | `MonitorEventLoopService::monitorEventLoop` | `subdomains/core/monitoring/monitor-event-loop.service.ts` |
-| 15 seconds | `PAYMENT_DELIVERY` | `both` | `PaymentCronService::deliverPaymentUpdates` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
+| 15 seconds | — | `both` | `PaymentCronService::deliverPaymentUpdates` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | 30 seconds | `LNURL_AUTH_CACHE` | `both` | `AuthLnUrlService::processCleanupAccessToken` | `subdomains/generic/user/models/auth/auth-lnurl.service.ts` |
 | 30 seconds | — | `both` | `PaymentLinkGateway::checkConnections` | `subdomains/core/payment-link/controllers/payment-link.gateway.ts` |
 | 30 seconds | `BANK_TX` | `worker` | `BankTxService::checkBankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts` |

@@ -47,8 +47,9 @@ const SHUTDOWN_GRACE_MS = 10 * 1000;
  * `LockClass` keeps its state in a field of a process-local object. That was enough while the API
  * ran as one process; it cannot see a second one. Since the HTTP process and the worker are split
  * apart, "exactly one process runs this job" rests on configuration, a runbook sentence and an
- * alert that *reports* a double run after the fact. For a path that moves money that is the
- * second-best answer, so this adds a layer underneath it.
+ * alert — and that alert reports a WRONG ROLE, not a double run: a role that both processes can
+ * see is not one the logs distinguish. For a path that moves money, an assumption checked from
+ * the outside is the second-best answer, so this adds a layer underneath it.
  *
  * A layer, not a guarantee — read "What it does not do" below before relying on this. A job runs
  * once because the deployment runs one worker and because the job tolerates being run again; what

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Bech32mService } from '../shared/bech32m/bech32m.service';
@@ -9,8 +8,6 @@ import { SparkClient, SparkTransaction } from './spark-client';
 @Injectable()
 export class SparkService extends Bech32mService {
   readonly defaultPrefix = 'spark';
-
-  private readonly logger = new DfxLogger(SparkService);
 
   private readonly client: SparkClient;
 
@@ -33,14 +30,13 @@ export class SparkService extends Bech32mService {
    * includes this work. That is every deployment, for as long as the outgoing container is still
    * up. Registered here, it goes through the lease like any other worker job.
    *
-   * Errors are logged rather than rethrown: this is best-effort housekeeping, the next run is five
-   * minutes away, and a wallet that cannot be reached now is not a reason to raise an incident.
+   * Errors are left to the wrapper, per CONTRIBUTING ("@DfxCron already handles errors"). Catching
+   * them here to log them again was the redundant try-catch that rule names; what it added over
+   * the wrapper was a lower log level, which is not worth an exception to the rule.
    */
   @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.SPARK_TOKEN_OPTIMIZATION })
   async optimizeTokenOutputs(): Promise<void> {
-    await this.client
-      .optimizeTokenOutputs()
-      .catch((e) => this.logger.warn('Token optimization failed, will retry on the next run:', e));
+    await this.client.optimizeTokenOutputs();
   }
 
   async isHealthy(): Promise<boolean> {

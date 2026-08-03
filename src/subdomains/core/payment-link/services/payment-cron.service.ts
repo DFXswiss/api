@@ -48,12 +48,21 @@ export class PaymentCronService {
   // `useDelay: false` for the same reason: the jitter exists to spread jobs that do real work per
   // run, and up to five seconds of it would be a third of this interval.
   //
-  // Switching the flag off does not stop payments from being processed, but callers of
-  // `GET /v1/paymentLink/payment/wait` and `GET /v1/lnurlp/wait/:id` on a process that is not the
-  // one writing then stay connected until they give up.
+  // Deliberately WITHOUT a `process` flag, and that is a correction. It carried one, and the flag
+  // looked like any other job's — but this job is not work, it is the bridge that carries a result
+  // from the process that wrote it to the process holding the connection. Switched off in the
+  // single-process setup nothing happens, because `doSave` delivers directly there; switched off
+  // after the split it silently cuts delivery to everything attached to the OTHER container:
+  // waiting callers of `GET /v1/paymentLink/payment/wait` and `GET /v1/lnurlp/wait/:id` hang until
+  // they give up, and connected devices are never told their payment went through. No alert sees
+  // it — every process still reports its role and a usable lease.
+  //
+  // A switch whose failure mode is invisible is worse than no switch. The same reasoning already
+  // applies to the role heartbeat and to `PaymentLinkGateway.checkConnections`: a mechanism the
+  // rest depends on does not get a kill switch. Whatever a switch here would have been used for —
+  // load, a misbehaving device — is reached by disabling the jobs that WRITE, which do have flags.
   @DfxCron(CustomCronExpression.EVERY_15_SECONDS, {
     scope: CronScope.BOTH,
-    process: Process.PAYMENT_DELIVERY,
     useDelay: false,
   })
   async deliverPaymentUpdates(): Promise<void> {

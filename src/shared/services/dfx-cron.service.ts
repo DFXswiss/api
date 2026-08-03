@@ -95,7 +95,7 @@ export class DfxCronService implements OnModuleInit {
    *
    * ```
    * CronRole <role>: heartbeat, <n> jobs registered, lease ok
-   * CronRole <role>: heartbeat, <n> jobs registered, lease unusable: <reason>
+   * CronRole <role>: heartbeat, <n> jobs registered, lease unusable: <n> failure(s) since the last heartbeat, last error: <reason>
    * ```
    *
    * Three properties make that safe to match on, and all three are load-bearing. One of `lease ok`
