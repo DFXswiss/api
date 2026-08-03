@@ -10,7 +10,10 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import {
+  TransactionSourceType,
+  TransactionTypeInternal,
+} from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BankTxFrickService } from '../bank-tx-frick.service';
@@ -420,7 +423,10 @@ describe('BankTxService Bank Frick wiring', () => {
   });
 
   it('hands Bank Frick a callback that performs the real BankTx creation', async () => {
-    const bankService = { getBankInternal: jest.fn().mockResolvedValue(undefined) };
+    const bankService = {
+      getBankInternal: jest.fn().mockResolvedValue(undefined),
+      areKnownBankIbans: jest.fn().mockResolvedValue(false),
+    };
     const frickTxServiceMock: jest.Mocked<Pick<BankTxFrickService, 'checkTransactions'>> = {
       checkTransactions: jest.fn().mockResolvedValue(undefined),
     };
@@ -462,7 +468,10 @@ describe('BankTxService Bank Frick wiring', () => {
     // type mapping, transaction creation, and persistence
     expect(bankTxRepo.findOneBy).toHaveBeenCalledWith({ accountServiceRef: 'FRICK-CB-1' });
     expect(getSenderAccount).toHaveBeenCalledWith(multiAccounts);
-    expect(transactionService.create).toHaveBeenCalledWith({ sourceType: TransactionSourceType.BANK_TX });
+    expect(transactionService.create).toHaveBeenCalledWith({
+      sourceType: TransactionSourceType.BANK_TX,
+      type: TransactionTypeInternal.KRAKEN,
+    });
     expect(bankTxRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         accountServiceRef: 'FRICK-CB-1',
