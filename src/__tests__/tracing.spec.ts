@@ -18,7 +18,7 @@ jest.mock('@opentelemetry/sdk-metrics', () => ({
 
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base';
-import { ClientErrorSpanProcessor, isClientError, startTracing } from '../tracing';
+import { ClientErrorSpanProcessor, isClientError, startTracing, tracingServiceName } from '../tracing';
 
 function fakeSpan(kind: SpanKind, statusCode: SpanStatusCode, httpStatus?: number): ReadableSpan {
   return {
@@ -93,5 +93,28 @@ describe('startTracing', () => {
     const sdk = startTracing();
     expect(sdk).toBeDefined();
     expect(mockStart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('tracingServiceName', () => {
+  const original = process.env.CRON_ROLE;
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.CRON_ROLE;
+    else process.env.CRON_ROLE = original;
+  });
+
+  it('reports the worker under its own name', () => {
+    // Both processes run the same image and would otherwise report as one service, mixing the
+    // worker's outgoing calls into every panel not restricted to server spans.
+    process.env.CRON_ROLE = 'worker';
+    expect(tracingServiceName()).toBe('dfx-api-worker');
+  });
+
+  it.each(['api', 'all', undefined])('reports %p as the API service', (role) => {
+    if (role === undefined) delete process.env.CRON_ROLE;
+    else process.env.CRON_ROLE = role;
+
+    expect(tracingServiceName()).toBe('dfx-api');
   });
 });

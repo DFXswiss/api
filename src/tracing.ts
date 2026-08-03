@@ -95,6 +95,19 @@ export function isTelemetryEnabled(): boolean {
   return Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
 }
 
+/**
+ * The name both processes report to the collector. Without the distinction they would appear as
+ * one service, and any panel not restricted to server spans would mix the worker's outgoing calls
+ * with the request traffic.
+ *
+ * Reads the environment directly rather than the configuration: tracing starts before anything
+ * else, and importing the configuration here would pull in the instrumented modules before the
+ * SDK has had a chance to patch them. The value is validated where the configuration is built.
+ */
+export function tracingServiceName(): string {
+  return process.env.CRON_ROLE === 'worker' ? 'dfx-api-worker' : 'dfx-api';
+}
+
 export function startTracing(): NodeSDK | undefined {
   // Disabled unless a collector endpoint is configured (e.g. on LOC / in tests).
   if (!isTelemetryEnabled()) return undefined;
@@ -103,7 +116,7 @@ export function startTracing(): NodeSDK | undefined {
   const intervalMs = metricExportIntervalMs();
 
   sdk = new NodeSDK({
-    serviceName: 'dfx-api',
+    serviceName: tracingServiceName(),
     // The 4xx-not-a-failure processor runs before the exporting batch
     // processor so corrected statuses are what gets exported. The exporter
     // reads OTEL_EXPORTER_OTLP_ENDPOINT from the environment.
