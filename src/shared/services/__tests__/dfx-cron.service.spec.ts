@@ -228,11 +228,11 @@ describe('DfxCronService', () => {
     });
 
     it('does not turn a long job timeout into a long lease', async () => {
-      // The lease used to expire when the job's own timeout did. Nineteen @DfxCron declarations
-      // carry `timeout: 7200` — seconds, per LockClass, and the longest value in this repository —
-      // so a process killed mid-run left the row behind for two hours and its successor sat the
-      // job out for that long, silently. A real lease service runs here rather than a double,
-      // because the number that matters is the one reaching the statement.
+      // The lease used to expire when the job's own timeout did. `timeout` is in seconds, per
+      // LockClass, so the 7200 declared below left the row behind for two hours after a process
+      // was killed mid-run, and its successor sat the job out for that long, silently. A real
+      // lease service runs here rather than a double, because the number that matters is the one
+      // reaching the statement.
       process.env.CRON_ROLE = 'worker';
       new ConfigService(GetConfig());
 
