@@ -11,7 +11,7 @@ import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.en
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne, RelationId } from 'typeorm';
 import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
@@ -249,6 +249,9 @@ export class BankTx extends IEntity {
   @JoinColumn()
   transaction?: Transaction;
 
+  @RelationId((bankTx: BankTx) => bankTx.transaction)
+  transactionId?: number;
+
   @OneToOne(() => FiatOutput, (fiatOutput) => fiatOutput.bankTx, { nullable: true })
   fiatOutput?: FiatOutput;
 
@@ -387,20 +390,31 @@ export class BankTx extends IEntity {
   }
 
   pendingBankAmount(asset: Asset, type: BankExchangeType, sourceIban?: string, targetIban?: string): number {
-    if (this.instructedCurrency !== asset.dexName) return 0;
-
     switch (type) {
-      case BankTxType.INTERNAL:
-        if (!BankService.isBankMatching(asset, targetIban)) return 0;
+      case BankTxType.INTERNAL: {
+        // Only unmatched debit entries are pending. The corresponding credit is used by
+        // FinancialLog to retire the debit before this method is called; counting the credit
+        // as a negative amount on another asset would be lost in the per-asset plus-balance clamp.
+        if (this.creditDebitIndicator !== BankTxIndicator.DEBIT) return 0;
 
-        return this.iban === targetIban && this.accountIban === sourceIban
-          ? this.instructedAmount
-          : this.iban === sourceIban && this.accountIban === targetIban
-            ? -this.instructedAmount
-            : 0;
+        sourceIban ??= this.accountIban;
+        targetIban ??= this.iban;
+        if (!sourceIban || !targetIban) return 0;
+        if (!BankService.isInternalBankMatching(asset, this.accountIban)) return 0;
+
+        const accountCurrency = this.currency ?? this.instructedCurrency;
+        const accountAmount = this.internalTransferAmount();
+        if (accountCurrency !== asset.dexName || !Number.isFinite(accountAmount)) return 0;
+
+        const isSource =
+          BankService.normalizeIban(this.accountIban) === BankService.normalizeIban(sourceIban) &&
+          BankService.normalizeIban(this.iban) === BankService.normalizeIban(targetIban);
+        return isSource ? accountAmount : 0;
+      }
 
       case BankTxType.KRAKEN:
       case BankTxType.SCRYPT:
+        if (this.instructedCurrency !== asset.dexName) return 0;
         if (
           !BankService.isBankMatching(asset, targetIban ?? this.accountIban) ||
           (targetIban && asset.dexName !== this.instructedCurrency)
@@ -412,6 +426,25 @@ export class BankTx extends IEntity {
       default:
         return 0;
     }
+  }
+
+  internalTransferAmount(): number | undefined {
+    const hasBookedAmount = typeof this.amount === 'number' && Number.isFinite(this.amount);
+    const amount = hasBookedAmount ? this.amount : this.instructedAmount;
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) return undefined;
+
+    // Frick debit entries can include the outgoing bank charge in the booked amount.
+    // Only the principal reaches the other DFX account and therefore remains in transit.
+    const charge =
+      hasBookedAmount &&
+      this.creditDebitIndicator === BankTxIndicator.DEBIT &&
+      (!this.chargeCurrency || this.chargeCurrency === this.currency)
+        ? (this.chargeAmount ?? 0)
+        : 0;
+    if (!Number.isFinite(charge)) return undefined;
+
+    const principal = amount - charge;
+    return principal > 0 ? principal : undefined;
   }
 }
 

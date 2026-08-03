@@ -38,6 +38,7 @@ import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-ou
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { createCustomBank, olkyEUR, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
@@ -971,6 +972,74 @@ describe('FiatOutputJobService', () => {
           isConfirmedDate: bankTx.created,
         }),
       );
+    });
+
+    it('classifies a matched internal liquidity-management transfer', async () => {
+      const bankTx = createCustomBankTx({ id: 401, created: new Date('2026-07-02'), type: BankTxType.GSHEET });
+      const fiatOutput = createCustomFiatOutput({
+        id: 5,
+        endToEndId: 'E2E-79059',
+        isComplete: false,
+        isReadyDate: new Date('2026-07-01'),
+        type: FiatOutputType.LIQ_MANAGEMENT,
+      });
+      const classifiedBankTx = createCustomBankTx({ ...bankTx, type: BankTxType.INTERNAL });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
+      jest.spyOn(bankTxService, 'classifyKnownTypeIfAssignable').mockResolvedValue(classifiedBankTx);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(bankTxService.classifyKnownTypeIfAssignable).toHaveBeenCalledWith(bankTx);
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ isComplete: true, bankTx: classifiedBankTx }),
+      );
+      expect((bankTxService.classifyKnownTypeIfAssignable as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        (fiatOutputRepo.update as jest.Mock).mock.invocationCallOrder[0],
+      );
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
+    });
+
+    it('keeps liquidity-management reconciliation retryable when internal classification fails', async () => {
+      const bankTx = createCustomBankTx({ id: 401, created: new Date('2026-07-02'), type: BankTxType.GSHEET });
+      const fiatOutput = createCustomFiatOutput({
+        id: 5,
+        endToEndId: 'E2E-79059',
+        isComplete: false,
+        isReadyDate: new Date('2026-07-01'),
+        type: FiatOutputType.LIQ_MANAGEMENT,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
+      jest
+        .spyOn(bankTxService, 'classifyKnownTypeIfAssignable')
+        .mockRejectedValue(new Error('temporary bank lookup error'));
+
+      await service['searchOutgoingBankTx']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
+    });
+
+    it('does not complete liquidity-management reconciliation after a conflicting locked classification', async () => {
+      const bankTx = createCustomBankTx({ id: 401, created: new Date('2026-07-02'), type: BankTxType.GSHEET });
+      const fiatOutput = createCustomFiatOutput({
+        id: 5,
+        endToEndId: 'E2E-79059',
+        isComplete: false,
+        isReadyDate: new Date('2026-07-01'),
+        type: FiatOutputType.LIQ_MANAGEMENT,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
+      jest.spyOn(bankTxService, 'classifyKnownTypeIfAssignable').mockResolvedValue(undefined);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+      expect(bankTxService.getType).not.toHaveBeenCalled();
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
     });
   });
 

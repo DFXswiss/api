@@ -24,6 +24,7 @@ export interface BankSelectorInput {
 export class BankService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankService);
   private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
+  private static unboundIbanCache: Map<string, Set<string>> = new Map(); // only IBANs with no asset-bound bank row
 
   // The VirtualIbanRepository is injected instead of the VirtualIbanService: that service depends on this
   // one, and both live in BankModule, so the service-level dependency would close a provider cycle.
@@ -37,7 +38,7 @@ export class BankService implements OnModuleInit {
   }
 
   async getAllBanks(): Promise<Bank[]> {
-    return this.bankRepo.findCached(`all`);
+    return this.bankRepo.findCached(`all`, { relations: { asset: true } });
   }
 
   async getBanksWithAsset(): Promise<Bank[]> {
@@ -74,6 +75,16 @@ export class BankService implements OnModuleInit {
 
   async getBankByIban(iban: string): Promise<Bank> {
     return this.bankRepo.findOneCachedBy(iban, { iban });
+  }
+
+  async areKnownBankIbans(...ibans: string[]): Promise<boolean> {
+    if (!ibans.length || ibans.some((iban) => !iban)) return false;
+
+    const banks = await this.getAllBanks();
+    BankService.setIbanAttributionCache(banks);
+    const knownIbans = new Set(banks.map((bank) => BankService.normalizeIban(bank.iban)));
+
+    return ibans.every((iban) => knownIbans.has(BankService.normalizeIban(iban)));
   }
 
   async getReceiveBanks(): Promise<Bank[]> {
@@ -145,11 +156,35 @@ export class BankService implements OnModuleInit {
   }
 
   static isBankMatching(asset: Asset, accountIban: string): boolean {
+    const normalizedAccountIban = BankService.normalizeIban(accountIban);
+    if (!normalizedAccountIban) return false;
+
+    if (asset.bank?.iban) return BankService.normalizeIban(asset.bank.iban) === normalizedAccountIban;
+
     const bankName = this.blockchainToBankName(asset.blockchain);
     if (!bankName) return false;
 
     const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
-    return expectedIban === accountIban;
+    const normalizedExpectedIban = BankService.normalizeIban(expectedIban);
+    return Boolean(normalizedExpectedIban && normalizedExpectedIban === normalizedAccountIban);
+  }
+
+  static isInternalBankMatching(asset: Asset, accountIban: string): boolean {
+    const normalizedIban = BankService.normalizeIban(accountIban);
+    if (!normalizedIban) return false;
+    if (BankService.normalizeIban(asset.bank?.iban) === normalizedIban) return true;
+
+    const bankName = this.blockchainToBankName(asset.blockchain);
+    if (!bankName) return false;
+
+    const key = `${bankName}-${asset.dexName}`;
+    if (!BankService.unboundIbanCache.get(normalizedIban)?.has(key)) return false;
+
+    const selectedIban = BankService.ibanCache.get(key);
+    return (
+      Boolean(asset.bank?.iban && selectedIban) &&
+      BankService.normalizeIban(asset.bank.iban) === BankService.normalizeIban(selectedIban)
+    );
   }
 
   // --- RECEIVE IBAN CHECK --- //
@@ -199,7 +234,7 @@ export class BankService implements OnModuleInit {
   // IBAN), but it means only ASCII surroundings are reliably rejected.
   // The parameter is widened past the callers' types on purpose: this sits on the trust boundary between a
   // request body and the comparison, so it answers for anything the type system cannot actually guarantee.
-  private static normalizeIban(iban: string | null | undefined): string | null {
+  static normalizeIban(iban: string | null | undefined): string | null {
     if (typeof iban !== 'string') return null;
 
     return iban.replace(/[^A-Za-z0-9]/g, '').toUpperCase() || null;
@@ -220,6 +255,7 @@ export class BankService implements OnModuleInit {
     // Newest-first so that within each (name, currency) group the order handed to
     // selectAttributionBank is deterministic; asset-linked rows still beat newer unbound ones.
     const banks = await this.bankRepo.find({ order: { id: 'DESC' }, relations: { asset: true } });
+    BankService.setIbanAttributionCache(banks);
 
     const byKey = Util.groupByAccessor(banks, (b) => `${b.name}-${b.currency}`);
 
@@ -237,6 +273,24 @@ export class BankService implements OnModuleInit {
       }
 
       BankService.ibanCache.set(key, selected.iban);
+    }
+  }
+
+  private static setIbanAttributionCache(banks: Bank[]): void {
+    BankService.unboundIbanCache.clear();
+
+    const banksByIban = Util.groupByAccessor(banks, (bank) => BankService.normalizeIban(bank.iban));
+
+    for (const [normalizedIban, ibanBanks] of banksByIban) {
+      if (!normalizedIban) continue;
+
+      const keys = new Set(ibanBanks.map((bank) => `${bank.name}-${bank.currency}`));
+
+      // A loaded asset relation makes the IBAN attributable only to that exact asset.bank IBAN.
+      // The name/currency fallback is reserved for bank rows that are genuinely unbound, otherwise
+      // two asset-bound accounts of the same bank/currency would both count the same transfer.
+      if (ibanBanks.every((bank) => bank.asset === null || bank.asset === undefined))
+        BankService.unboundIbanCache.set(normalizedIban, keys);
     }
   }
 
