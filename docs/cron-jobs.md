@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **137 `@DfxCron` declarations** across 96 files and 34 areas.
+Every scheduled job this service runs: **138 `@DfxCron` declarations** across 97 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **137 `@DfxCron` declarations** across 96
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-116 are `worker`, 7 are `api`, 14 are `both`. `CRON_ROLE` decides what a process is
+117 are `worker`, 7 are `api`, 14 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -30,7 +30,7 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-116 of the 137 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
+117 of the 138 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -64,7 +64,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | 10 seconds | 3 |
 | 30 seconds | 9 |
 | minute | 52 |
-| 5 minutes | 17 |
+| 5 minutes | 18 |
 | 10 minutes | 16 |
 | hour | 16 |
 | day at 3am | 1 |
@@ -85,7 +85,7 @@ Jobs by area:
 | `subdomains/core/monitoring` | 14 | — |
 | `subdomains/core/accounting` | 13 | — |
 | `subdomains/supporting/payin` | 12 | — |
-| `integration/blockchain` | 6 | — |
+| `integration/blockchain` | 7 | — |
 | `subdomains/core/buy-crypto` | 6 | 4 |
 | `shared/services` | 5 | 5 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
@@ -121,7 +121,7 @@ Jobs by area:
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses 26 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **137 = 137**, no gap. Class and
+count is asserted against a raw text count of the decorator: **138 = 138**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -145,7 +145,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 137 declarations, 136 have a registration path.
+here rather than fixed in passing. Of the 138 declarations, 137 have a registration path.
 
 ## Jobs
 
@@ -233,6 +233,7 @@ here rather than fixed in passing. Of the 137 declarations, 136 have a registrat
 | 5 minutes | `LIQUIDITY_MANAGEMENT` | `worker` | `LiquidityManagementRuleService::reactivateRules` | `subdomains/core/liquidity-management/services/liquidity-management-rule.service.ts` |
 | 5 minutes | `PAY_IN_MAIL` | `worker` | `PayInNotificationService::sendNotificationMails` | `subdomains/supporting/payin/services/payin-notification.service.ts` |
 | 5 minutes | `REALUNIT_TRANSFER_RECONCILIATION` | `worker` | `RealUnitJobService::reconcilePendingTransfers` | `subdomains/supporting/realunit/realunit-job.service.ts` |
+| 5 minutes | `SPARK_TOKEN_OPTIMIZATION` | `worker` | `SparkService::optimizeTokenOutputs` | `integration/blockchain/spark/spark.service.ts` |
 | 5 minutes | `SUPPORT_BOT` | `worker` | `SupportEscalationService::checkEscalations` | `subdomains/supporting/support-issue/services/support-escalation.service.ts` |
 | 5 minutes | `TRADING` | `worker` | `TradingJobService::reactivateRules` | `subdomains/core/trading/services/trading-job.service.ts` |
 | 5 minutes | — | `both` | `TransactionHelper::updateCache` | `subdomains/supporting/payment/services/transaction-helper.ts` |

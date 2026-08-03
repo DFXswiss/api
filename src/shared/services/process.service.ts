@@ -122,6 +122,7 @@ export enum Process {
   REF_CLEANUP = 'RefCleanup',
   JWT_REVOCATION_SYNC = 'JwtRevocationSync',
   LATEST_BALANCE_CACHE = 'LatestBalanceCache',
+  SPARK_TOKEN_OPTIMIZATION = 'SparkTokenOptimization',
 }
 
 const safetyProcesses: Process[] = [

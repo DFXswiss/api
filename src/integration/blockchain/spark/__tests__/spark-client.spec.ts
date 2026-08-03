@@ -15,17 +15,9 @@ jest.mock('@buildonspark/spark-sdk', () => ({
   SparkWallet: { initialize: jest.fn() },
 }));
 
-// The process role, set per test. The name has to start with `mock`, otherwise Jest forbids
-// reaching it from the hoisted module factory.
-let mockCronRole = 'worker';
-
 jest.mock('src/config/config', () => ({
-  // The module is replaced entirely so the test does not pull in the whole configuration
-  // chain. CronRole therefore has to come along: the client reads it to bind the optimization
-  // timer to the role.
-  CronRole: { ALL: 'all', API: 'api', WORKER: 'worker' },
+  // The module is replaced entirely so the test does not pull in the whole configuration chain.
   GetConfig: () => ({
-    cronRole: mockCronRole,
     blockchain: {
       spark: {
         sparkWalletSeed: 'test seed phrase',
@@ -72,45 +64,26 @@ describe('SparkClient', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
-    mockCronRole = 'worker';
   });
 
-  // --- TOKEN OPTIMIZATION TIMER --- //
+  // --- TOKEN OPTIMIZATION --- //
 
-  describe('token optimization timer', () => {
-    it('runs the wallet maintenance in the worker process', () => {
-      // The timer is not registered through the scheduler, so the client decides itself: under
-      // the worker role it is created, with the five-minute interval the client sets.
-      const interval = jest.spyOn(global, 'setInterval');
-
-      new SparkClient();
-
-      expect(interval).toHaveBeenCalledTimes(1);
-      expect(interval.mock.calls[0][1]).toBe(5 * 60 * 1000);
-
-      clearInterval(interval.mock.results[0].value as NodeJS.Timeout);
-    });
-
-    it('runs it in the single-process role', () => {
-      // The single-process role must keep the timer: only CronRole.API skips it.
-      mockCronRole = 'all';
-      const interval = jest.spyOn(global, 'setInterval');
-
-      new SparkClient();
-
-      expect(interval).toHaveBeenCalledTimes(1);
-
-      clearInterval(interval.mock.results[0].value as NodeJS.Timeout);
-    });
-
-    it('does not run it in the API process', () => {
-      // The counterpart: under the API role no timer is created at all.
-      mockCronRole = 'api';
+  describe('token optimization', () => {
+    it('starts no timer of its own', () => {
+      // Wallet maintenance is a job of SparkService now, registered through @DfxCron. A timer here
+      // would be invisible to the scheduler and therefore to the scope and the cross-process
+      // lease, which is how two processes came to optimize the same wallet at once.
       const interval = jest.spyOn(global, 'setInterval');
 
       new SparkClient();
 
       expect(interval).not.toHaveBeenCalled();
+    });
+
+    it('optimizes through the reconnecting call path', async () => {
+      await client.optimizeTokenOutputs();
+
+      expect(mockWallet.optimizeTokenOutputs).toHaveBeenCalledTimes(1);
     });
   });
 
