@@ -90,6 +90,23 @@ export class DfxCronService implements OnModuleInit {
    * Deliberately without a `process` flag: a watchdog that can be switched off looks, once it is
    * off, exactly like a process that stopped writing the line — the alert could not tell the two
    * apart. The job holds no state and does nothing but log, so there is nothing to switch off.
+   *
+   * The line is written to be read by a machine, in exactly one of two shapes:
+   *
+   * ```
+   * CronRole <role>: heartbeat, <n> jobs registered, lease ok
+   * CronRole <role>: heartbeat, <n> jobs registered, lease unusable: <reason>
+   * ```
+   *
+   * Three properties make that safe to match on, and all three are load-bearing. One of `lease ok`
+   * or `lease unusable` is ALWAYS present, so a reader sees the current state rather than having
+   * to count occurrences of a line that only appears when something is wrong — a count over a
+   * window cannot tell "healthy" from "not reporting at all". Neither literal is a prefix of the
+   * other, and both sit at a fixed position, immediately after the job count. And the only free
+   * text — the reason — comes last, behind everything that is matched, because a free-text field
+   * BETWEEN matched fields can forge whatever field follows it.
+   *
+   * `__tests__/dfx-cron.service.spec.ts` pins both shapes; changing the wording here fails there.
    */
   // `useDelay: false`: the alert reads this line over a 12-minute window. With the default jitter
   // the gap between two heartbeats can reach 660 s, leaving 60 s of margin — and the jitter is
@@ -101,13 +118,12 @@ export class DfxCronService implements OnModuleInit {
     const line = `CronRole ${Config.cronRole}: heartbeat, ${this.registeredCount} jobs registered`;
     const lease = this.leases.takeFailures();
 
-    if (lease.healthy) return this.logger.info(line);
-
     // A job that cannot take its lease does not run, and nothing else says so — the skip looks
     // exactly like a job with nothing to do. This job is scope `both` and therefore exempt from
     // the lease itself, so it keeps reporting while everything it counts is sitting out: a count
-    // of REGISTERED jobs cannot see that. Same line, because the role alert matches on its shape;
-    // the state is appended and the level raised.
+    // of REGISTERED jobs cannot see that.
+    if (lease.healthy) return this.logger.info(`${line}, lease ok`);
+
     this.logger.error(
       `${line}, lease unusable: ${lease.count} failure(s) since the last heartbeat, last error: ${
         lease.last ?? 'unknown'

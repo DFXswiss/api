@@ -345,7 +345,7 @@ describe('DfxCronService', () => {
 
       // Three worker/both jobs plus reportRole itself. The role is what the alert matches on; the
       // count tells the reader on call whether the process registered a plausible number of jobs.
-      expect(info).toHaveBeenCalledWith('CronRole worker: heartbeat, 4 jobs registered');
+      expect(info).toHaveBeenCalledWith('CronRole worker: heartbeat, 4 jobs registered, lease ok');
     });
 
     it('reports an unusable lease instead of the healthy line', () => {
@@ -382,26 +382,54 @@ describe('DfxCronService', () => {
       // directly to it. Pinned as one expression rather than two `toContain`s: what the alert
       // needs is the ADJACENCY — a state reported somewhere else in the line, or in a line of its
       // own, would leave that alert silent while every looser assertion still passed.
-      expect(line).toMatch(/CronRole (api|worker|all): heartbeat, [0-9]+ jobs registered, lease unusable/);
-      expect(line).toContain('relation "cron_lease" does not exist');
+      expect(line).toMatch(/CronRole (api|worker|all): heartbeat, [0-9]+ jobs registered, lease unusable: /);
+
+      // The reason is free text, so it goes LAST — behind everything that is matched. Between two
+      // matched fields it could forge whichever one follows it.
+      expect(line.endsWith('relation "cron_lease" does not exist')).toBe(true);
     });
 
-    it('produces a line the alert query actually matches', () => {
-      // The alert reads this line with `CronRole (api|worker|all): heartbeat, [0-9]+ jobs
-      // registered`. Pinning the wording here is the only place that couples the two: nothing in
-      // this repository fails if the message drifts, the alert just goes quiet.
-      process.env.CRON_ROLE = 'api';
+    it('carries the lease state in both directions, at a fixed position', () => {
+      // The point of the shape: the state is in EVERY heartbeat, so a reader takes the current
+      // state out of one line. The previous form appended the state only when something was wrong,
+      // which left a reader counting occurrences of a line that does not exist while healthy —
+      // and a count over a window cannot tell "healthy" from "not reporting at all".
+      process.env.CRON_ROLE = 'worker';
       new ConfigService(GetConfig());
 
-      const { service } = buildService(configuredJobs);
-      service.onModuleInit();
+      const lineFor = (lease: { healthy: boolean; count: number; last?: string }): string => {
+        const service = new DfxCronService(
+          createMock<DiscoveryService>({ getProviders: () => [] }),
+          createMock<MetadataScanner>({ getAllMethodNames: () => [] }),
+          createMock<SchedulerRegistry>(),
+          createMock<CronLeaseService>({ takeFailures: () => lease }),
+        );
 
-      const info = jest.spyOn(service['logger'], 'info');
-      service.reportRole();
+        const info = jest.spyOn(service['logger'], 'info');
+        const error = jest.spyOn(service['logger'], 'error');
+        service.reportRole();
 
-      const line = info.mock.calls[0][0] as string;
+        return (info.mock.calls[0]?.[0] ?? error.mock.calls[0]?.[0]) as string;
+      };
 
-      expect(line).toMatch(/CronRole (api|worker|all): heartbeat, [0-9]+ jobs registered/);
+      const healthy = lineFor({ healthy: true, count: 0 });
+      const unusable = lineFor({ healthy: false, count: 1, last: 'lease ok' });
+
+      // Both shapes, in full. `lease ok` is not a prefix of `lease unusable`, so neither selector
+      // can match the other line — including when the free-text reason is itself `lease ok`, which
+      // is what a field order that put the reason first would fall for.
+      expect(healthy).toEqual('CronRole worker: heartbeat, 0 jobs registered, lease ok');
+      expect(unusable).toEqual(
+        'CronRole worker: heartbeat, 0 jobs registered, lease unusable: 1 failure(s) since the last heartbeat, last error: lease ok',
+      );
+
+      const healthySelector = /jobs registered, lease ok$/;
+      const unusableSelector = /jobs registered, lease unusable: /;
+
+      expect(healthySelector.test(healthy)).toBe(true);
+      expect(healthySelector.test(unusable)).toBe(false);
+      expect(unusableSelector.test(unusable)).toBe(true);
+      expect(unusableSelector.test(healthy)).toBe(false);
     });
   });
 });
