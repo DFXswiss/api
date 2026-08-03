@@ -1,4 +1,5 @@
 import { ConfigService } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { UserData } from '../../user-data/user-data.entity';
@@ -109,6 +110,57 @@ describe('AccountMergeService', () => {
       expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
       const [mail] = notificationService.sendMail.mock.calls[0];
       expect((mail.input as { userData: UserData }).userData).toBe(slave);
+    });
+
+    // Only the mail merge exempts a Compliance account from the merge block (see
+    // UserData.checkIfMergePossibleWith). The reason therefore has to reach the check — a hard-coded
+    // false here would lock staff accounts out of their only self-service path to a verified name,
+    // and a hard-coded true would silently extend the exemption to IBAN and ident-document merges.
+    it.each([
+      [MergeReason.MAIL, true],
+      [MergeReason.IBAN, false],
+      [MergeReason.IDENT_DOCUMENT, false],
+    ])('passes the mail-merge flag derived from reason %s to the merge check', async (reason, expectedFlag) => {
+      const master = buildUserData(1, 'master@test.com');
+      const slave = buildUserData(2, 'slave@test.com');
+      accountMergeRepo.findOneBy.mockResolvedValue(null);
+      accountMergeRepo.save.mockResolvedValue(Object.assign(new AccountMerge(), { id: 13, code: 'code-13' }));
+
+      await service.sendMergeRequest(master, slave, reason);
+
+      expect(master.isMergePossibleWith).toHaveBeenCalledWith(slave, expectedFlag);
+    });
+  });
+
+  describe('executeMerge', () => {
+    // The check runs a second time against freshly loaded entities inside mergeUserData, so a mail
+    // merge that passed at request time must not be refused at confirmation time.
+    it.each([
+      [MergeReason.MAIL, true],
+      [MergeReason.IBAN, false],
+    ])('forwards the mail-merge flag for a %s merge to the execution', async (reason, expectedFlag) => {
+      const master = buildUserData(1, 'master@test.com');
+      const slave = buildUserData(2, 'slave@test.com');
+      const request = Object.assign(new AccountMerge(), {
+        id: 20,
+        code: 'code-20',
+        master,
+        slave,
+        reason,
+        // isExpired/isCompleted are getters: drive them through the columns they read.
+        expiration: Util.daysAfter(1),
+        isCompleted: false,
+      });
+      accountMergeRepo.findOne = jest.fn().mockResolvedValue(request);
+      accountMergeRepo.update = jest.fn();
+      const mergeUserData = jest.fn();
+      (service as unknown as { userDataService: { mergeUserData: jest.Mock } }).userDataService = {
+        mergeUserData,
+      };
+
+      await service.executeMerge('code-20');
+
+      expect(mergeUserData).toHaveBeenCalledWith(master.id, slave.id, slave.mail, false, expectedFlag);
     });
   });
 });

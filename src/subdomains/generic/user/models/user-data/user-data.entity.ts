@@ -826,10 +826,22 @@ export class UserData extends IEntity {
     return this.getStepsWith(stepName).some((s) => s.isDone);
   }
 
-  checkIfMergePossibleWith(slave: UserData): void {
+  /**
+   * `isMailMerge` marks the merge the account owner triggers themselves by entering a mail address
+   * (MergeReason.MAIL) and completes by opening a link delivered to the other account's mailbox — so
+   * the same person demonstrably controls both sides. Compliance accounts are exempt from the merge
+   * block in exactly that case, and only there: the block stays absolute for the merges the system
+   * derives on its own (a matching IBAN, an ident document), which is what it was added for.
+   *
+   * Without the exemption a staff account cannot be linked to the identification of the person behind
+   * it at all: since the staff-clearance rule (#4395 → #4572) an account without `verifiedName` loses
+   * every elevated endpoint, and for a Compliance account the mail merge is the only self-service path
+   * to one — a deadlock this exemption resolves.
+   */
+  checkIfMergePossibleWith(slave: UserData, isMailMerge = false): void {
     if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
 
-    if (this.hasRole(UserRole.COMPLIANCE) || slave.hasRole(UserRole.COMPLIANCE))
+    if (!isMailMerge && (this.hasRole(UserRole.COMPLIANCE) || slave.hasRole(UserRole.COMPLIANCE)))
       throw new BadRequestException('Cannot merge compliance accounts');
 
     if (slave.amlListAddedDate && this.amlListAddedDate)
@@ -847,9 +859,9 @@ export class UserData extends IEntity {
       throw new BadRequestException('Account type mismatch');
   }
 
-  isMergePossibleWith(slave: UserData): boolean {
+  isMergePossibleWith(slave: UserData, isMailMerge = false): boolean {
     try {
-      this.checkIfMergePossibleWith(slave);
+      this.checkIfMergePossibleWith(slave, isMailMerge);
       return true;
     } catch {
       return false;

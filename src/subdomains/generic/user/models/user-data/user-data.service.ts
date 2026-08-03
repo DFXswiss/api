@@ -863,8 +863,10 @@ export class UserDataService {
 
     let errorMessage = 'Account already exists';
 
-    // check if merge possible
-    const mergeUser = conflictUsers.find((u) => u.isMergePossibleWith(userData));
+    // check if merge possible — this is the mail path by definition, so a Compliance account may take
+    // part (see checkIfMergePossibleWith); the candidate has to be found with the same flag the
+    // subsequent MergeReason.MAIL request is checked with, or the request below would never be sent.
+    const mergeUser = conflictUsers.find((u) => u.isMergePossibleWith(userData, true));
     if (mergeUser) {
       const mergeRequested = await this.mergeService.sendMergeRequest(mergeUser, userData, MergeReason.MAIL);
       if (mergeRequested) errorMessage += ' - account merge request sent';
@@ -1289,7 +1291,13 @@ export class UserDataService {
   }
 
   // --- MERGING --- //
-  async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
+  async mergeUserData(
+    masterId: number,
+    slaveId: number,
+    mail?: string,
+    notifyUser = false,
+    isMailMerge = false,
+  ): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
     // Atomic boundary: this transaction owns every database mutation that reassigns the two
@@ -1349,7 +1357,7 @@ export class UserDataService {
         const slaveFrickVirtualIbans = await this.virtualIbanService.getFrickVirtualIbansForAccount(slaveId, manager);
         slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId, {}, manager);
 
-        master.checkIfMergePossibleWith(slave);
+        master.checkIfMergePossibleWith(slave, isMailMerge);
 
         if (slave.kycLevel > master.kycLevel)
           throw new BadRequestException('Slave kycLevel can not be higher as master');

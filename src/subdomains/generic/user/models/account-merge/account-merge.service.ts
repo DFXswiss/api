@@ -47,7 +47,7 @@ export class AccountMergeService {
     reason: MergeReason,
     sendToSlave = false,
   ): Promise<boolean> {
-    if (!master.isMergePossibleWith(slave)) return false;
+    if (!master.isMergePossibleWith(slave, reason === MergeReason.MAIL)) return false;
 
     // Dedup at the entry: several code paths request the same logical merge (ident verification +
     // re-check, IBAN conflict, mail change). If an open merge for this pair already exists, the
@@ -132,7 +132,15 @@ export class AccountMergeService {
     await this.accountMergeRepo.update(...request.startProcessing());
 
     try {
-      await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+      // The reason travels to the execution as well: the merge check runs again there against freshly
+      // loaded entities, and a mail merge that passed at request time must not be refused at confirmation.
+      await this.userDataService.mergeUserData(
+        master.id,
+        slave.id,
+        request.slave.mail,
+        false,
+        request.reason === MergeReason.MAIL,
+      );
     } catch (e) {
       // clear the processing marker so a failed merge does not leave the client stuck on a
       // never-ending waiting state (isProcessing would otherwise stay true until expiration)
