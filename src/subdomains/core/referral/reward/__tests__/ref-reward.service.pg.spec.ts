@@ -127,10 +127,9 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     // userDataId 40: only USER_SWITCH -> must not appear
     // userDataId 50: COMPLETE 100 + USER_SWITCH 999 -> totalChf 100, count 1 (USER_SWITCH excluded)
     //
-    // 10 and 30 straddle a rounding boundary (...300.4 down, ...75.6 up) on purpose: every seeded
-    // amount used to be a whole number, so ROUND(..., 0) accidentally regressing to ROUND(..., 1) —
-    // or the sum being truncated instead of rounded — would have left every expected total unchanged
-    // and the test green.
+    // 10 and 30 straddle a rounding boundary (...300.4 down, ...75.6 up) on purpose: if ROUND(..., 0)
+    // regressed to ROUND(..., 1), or the sum were truncated instead of rounded, every expected total
+    // would come out unchanged and the test would stay green.
     //
     // Do not hard-code user ids: clear() does not reset the PrimaryGeneratedColumn sequence, so
     // rewards must link to the entities returned by save().
@@ -239,8 +238,9 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     }
 
     expect(capturedSql).toContain('SUM("r"."amountInChf")::numeric');
-    // Full ORDER BY: primary totalChf DESC, then stable u.userDataId ASC tie-breaker (TypeORM
-    // quotes the entity path via join metadata the same way it quotes "r"."amountInChf" above).
+    // Full ORDER BY: primary totalChf DESC, then stable u.userDataId ASC tie-breaker. u.userDataId
+    // is the same entity path already used above for .select/.groupBy, and it is quoted correctly
+    // here the same way "r"."amountInChf" is quoted above.
     expect(capturedSql).toContain('ORDER BY "totalChf" DESC, "u"."userDataId" ASC');
   });
 

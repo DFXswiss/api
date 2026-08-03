@@ -288,9 +288,10 @@ export class RefRewardService {
       // orderBy is appended verbatim; Postgres folds unquoted identifiers to lowercase, so
       // orderBy('totalChf') looks for totalchf and fails against the quoted "totalChf" column.
       .orderBy('"totalChf"', 'DESC')
-      // Stable tie-breaker: same path as .select/.groupBy, so TypeORM resolves it via join
-      // metadata (unlike a raw SELECT alias string) and emits a deterministic second key when
-      // ROUND(SUM(...)) collides for different groups.
+      // Stable tie-breaker: u.userDataId is the same entity path already used above for
+      // .select/.groupBy, so it is quoted correctly in the generated SQL and emits a deterministic
+      // second key when ROUND(SUM(...)) collides for different groups. A second, mixed-case SELECT
+      // alias would need its own quoting and could reintroduce the bug this branch fixes.
       .addOrderBy('u.userDataId', 'ASC');
 
     if (from) {
