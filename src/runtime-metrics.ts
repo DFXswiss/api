@@ -8,10 +8,10 @@ import { isTelemetryEnabled } from './tracing';
 // waits behind a saturated event loop looks identical to one waiting on a slow query. These
 // metrics close that gap: they measure whether the single JS thread had capacity at all.
 //
-// MonitorEventLoopService logs the same figures for humans, but it runs as a cron job — an
-// HTTP-only instance (CRON_JOBS_ENABLED=false) registers no jobs and would therefore report
-// nothing exactly where saturation matters most. The collection here is driven by the OTel
-// metric reader instead, so it is independent of the scheduler and runs on every instance.
+// MonitorEventLoopService logs the same figures for humans, but only as a log line, and it
+// depends on the scheduler being registered. Collection here is driven by the OTel metric
+// reader instead, so it holds regardless of how the scheduler is configured — and it produces
+// a queryable series rather than text that has to be parsed back out of the logs.
 //
 // Export travels the existing OTLP pipeline (see src/tracing.ts). With
 // OTEL_EXPORTER_OTLP_ENDPOINT unset, no meter is registered and the app boots unchanged.

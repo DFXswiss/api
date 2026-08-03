@@ -539,6 +539,34 @@ runs unconditionally and cannot be switched off without a deploy.
 
 Prefer longer intervals (15min) over aggressive polling (1min). Only use short intervals when truly needed.
 
+#### Global vs. per-instance
+
+The API can run as more than one instance from the same image — one serving HTTP, one running
+the jobs (`CRON_JOBS_ENABLED=false` keeps an instance HTTP-only). **Every new cron job needs a
+decision which of the two it is**, and getting it wrong fails silently:
+
+```typescript
+// GLOBAL (the default): writes to the database, moves money, calls an external system in a
+// way that changes state. Runs on the job instance only.
+@DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT })
+async processPayments(): Promise<void> {}
+
+// PER-INSTANCE: effect confined to this process — refreshing an in-memory copy of global
+// state, expiring a local cache, measuring this process. Runs everywhere, including the
+// HTTP-only instance, because requests on that instance read what it maintains.
+@DfxCron(CronExpression.EVERY_30_SECONDS, { perInstance: true })
+async resyncDeniedJwtAccounts(): Promise<void> {}
+```
+
+Ask: *does an HTTP handler on this instance read state that this job writes?* If yes, it is
+per-instance — otherwise that state freezes at boot wherever the job does not run. The JWT
+denylists are the cautionary example: frozen, they fail open and a blocked account keeps its
+live tokens.
+
+Running a per-instance job twice must be harmless by construction. If it writes to the
+database, sends mail, or calls a paid external API, it is global — mark it as such and, if an
+HTTP path needs its result, route that result through the database rather than process memory.
+
 ### Await Discipline
 
 ```typescript
