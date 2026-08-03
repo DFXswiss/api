@@ -1,20 +1,11 @@
-import {
-  BankProcessingBlock,
-  BankProcessingRule,
-  cutoffFor,
-  toleranceMinutesFor,
-} from './bank-processing.rules';
+import { BankProcessingBlock, BankProcessingRule, cutoffFor, toleranceMinutesFor } from './bank-processing.rules';
 
 export interface RuleSelection {
   selects: string[]; // SQL expression AS alias; aliases: cnt_<idx>, chf_<idx>, ovd_<idx>, ovdchf_<idx>
   params: Record<string, Date>; // cutoff_<idx> -> cutoff date (only for rules with a tolerance)
 }
 
-export function buildRuleSelections(
-  block: BankProcessingBlock,
-  rules: BankProcessingRule[],
-  now: Date,
-): RuleSelection {
+export function buildRuleSelections(block: BankProcessingBlock, rules: BankProcessingRule[], now: Date): RuleSelection {
   const selects: string[] = [];
   const params: Record<string, Date> = {};
 
@@ -27,9 +18,7 @@ export function buildRuleSelections(
 
     if (rule.tolerance != null) {
       const ageCol = `${block.alias}."${rule.toleranceField}"`;
-      selects.push(
-        `SUM(CASE WHEN ${cond} AND ${ageCol} < :cutoff_${i} THEN 1 ELSE 0 END) AS "ovd_${i}"`,
-      );
+      selects.push(`SUM(CASE WHEN ${cond} AND ${ageCol} < :cutoff_${i} THEN 1 ELSE 0 END) AS "ovd_${i}"`);
       selects.push(
         `SUM(CASE WHEN ${cond} AND ${ageCol} < :cutoff_${i} THEN (${block.chfExpr}) ELSE 0 END) AS "ovdchf_${i}"`,
       );

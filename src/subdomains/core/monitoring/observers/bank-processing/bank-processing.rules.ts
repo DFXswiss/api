@@ -31,9 +31,30 @@ export interface BankProcessingBlock {
 // Allowed waiting time per hour of day (Europe/Zurich), index = hour 0-23, value in minutes.
 // Ported from the legacy ops monitoring rules (longer tolerances at night).
 export const HOURLY_TOLERANCE_MINUTES: readonly number[] = [
-  720, 780, 840, 900, 960, 1020, 1080, // 00-06h: 12h..18h (longer at night)
-  120, 120, 120, 120, 120, 120, 120, 120, // 07-14h: 2h
-  180, 240, 300, 360, 420, 480, 540, 600, 660, // 15-23h: 3h..11h
+  720,
+  780,
+  840,
+  900,
+  960,
+  1020,
+  1080, // 00-06h: 12h..18h (longer at night)
+  120,
+  120,
+  120,
+  120,
+  120,
+  120,
+  120,
+  120, // 07-14h: 2h
+  180,
+  240,
+  300,
+  360,
+  420,
+  480,
+  540,
+  600,
+  660, // 15-23h: 3h..11h
 ];
 
 const ZURICH_TZ = 'Europe/Zurich';

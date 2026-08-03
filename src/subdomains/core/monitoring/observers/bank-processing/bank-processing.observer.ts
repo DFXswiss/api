@@ -8,11 +8,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { BankProcessingRuleResult, buildRuleSelections, mapRuleRow } from './bank-processing.query';
-import {
-  BANK_PROCESSING_BLOCKS,
-  BANK_PROCESSING_RULES,
-  BankProcessingBlockKey,
-} from './bank-processing.rules';
+import { BANK_PROCESSING_BLOCKS, BANK_PROCESSING_RULES, BankProcessingBlockKey } from './bank-processing.rules';
 
 export type BankProcessingData = BankProcessingRuleResult[];
 
