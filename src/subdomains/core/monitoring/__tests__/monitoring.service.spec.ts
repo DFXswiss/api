@@ -228,4 +228,67 @@ describe('MonitoringService', () => {
       expect(result.bank.balance.data).toEqual({ chf: 42 });
     });
   });
+
+  describe('an environment whose state row is not id 1', () => {
+    // The write path targets id 1, so the read has to prefer it — reading the highest id would let
+    // a second row make every read miss what is written. But whether a given database HAS that row
+    // is not decidable from here, and reading only id 1 would answer null forever where it does
+    // not: the observers are scoped to the worker, so the API process would never fill the state
+    // itself and the monitoring endpoints would answer 404 indefinitely.
+
+    /** A repository holding one row under a different id. */
+    function withRowAt(id: number): void {
+      repo.findOne.mockImplementation((options: { where?: { id?: number } }) =>
+        Promise.resolve(options?.where?.id === 1 ? null : ({ id, data: JSON.stringify(persisted) } as never)),
+      );
+    }
+
+    it('answers from the row that exists instead of reporting nothing', async () => {
+      withRowAt(7);
+
+      await expect(service.getState(undefined, undefined)).resolves.toEqual(asRead());
+    });
+
+    it('still reports nothing when there is no row at all', async () => {
+      repo.findOne.mockResolvedValue(null as never);
+
+      await expect(service.getState('node', 'health')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('seeds id 1 with what the old row held, not only with what this process changed', async () => {
+      // Writing just the changed metric into a fresh id 1 would strand everything the old row
+      // carried — and the reads, which prefer id 1, would then answer from the partial row.
+      const managerFindOne = jest
+        .fn()
+        .mockImplementation((_entity: unknown, options: { where?: { id?: number } }) =>
+          Promise.resolve(options?.where?.id === 1 ? null : { id: 7, data: JSON.stringify(persisted) }),
+        );
+      Object.defineProperty(repo, 'manager', {
+        value: {
+          transaction: (run: (m: unknown) => Promise<unknown>) =>
+            run({
+              findOne: managerFindOne,
+              save: jest.fn().mockImplementation((_e: unknown, row: { id: number; data: string }) => {
+                written.push(row);
+                return Promise.resolve(row);
+              }),
+            }),
+        },
+        configurable: true,
+      });
+
+      await service['mergeIntoStoredState']([['aml', 'freeze']], {
+        aml: { freeze: metric({ frozen: 0 }, '2030-01-01T00:00:00Z') },
+      });
+
+      expect(written).toHaveLength(1);
+      expect(written[0].id).toEqual(1);
+
+      const saved = JSON.parse(written[0].data);
+
+      expect(saved.aml.freeze.data).toEqual({ frozen: 0 });
+      expect(saved.node.health.data).toEqual({ up: true });
+      expect(saved.bank.balance.data).toEqual({ chf: 42 });
+    });
+  });
 });

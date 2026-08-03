@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { cloneDeep, isEqual } from 'lodash';
+import { FindOneOptions } from 'typeorm';
 import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -184,9 +185,12 @@ export class MonitoringService implements OnModuleInit {
 
   private async mergeIntoStoredState(changed: [string, string][], newState: SystemState): Promise<SystemState> {
     return this.systemStateSnapshotRepo.manager.transaction(async (manager) => {
-      const row = await manager.findOne(SystemStateSnapshot, {
-        where: { id: 1 },
-        lock: { mode: 'pessimistic_write' },
+      // Same lookup as the read path, so a row that lives under a different id is merged into
+      // rather than left behind: writing only what this process changed into a fresh `id: 1`
+      // would strand every metric the old row carried, and the reads would then prefer the new
+      // partial row over the complete one.
+      const row = await this.stateRow((options) => manager.findOne(SystemStateSnapshot, options), {
+        mode: 'pessimistic_write',
       });
 
       const stored: SystemState = row ? JSON.parse(row.data) : {};
@@ -230,16 +234,41 @@ export class MonitoringService implements OnModuleInit {
 
   /** Reads the persisted state without notifying: unlike loadState, this runs on every read. */
   private async readState(): Promise<SystemState | null> {
-    // Reads the row the write path targets. The previous `order: { id: 'DESC' }` took the highest
-    // id instead, so a second row would have made this read one that is never written.
-    const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: { id: 1 } });
+    const row = await this.stateRow((options) => this.systemStateSnapshotRepo.findOne(options));
 
-    if (!latestPersistedState) {
+    if (!row) {
       this.logger.warn('No monitoring state found in the database');
       return null;
     }
 
-    return JSON.parse(latestPersistedState.data);
+    return JSON.parse(row.data);
+  }
+
+  /**
+   * The row holding the system state: `id: 1` where it exists, otherwise the highest id there is.
+   *
+   * The write path targets `id: 1`, and reading by highest id instead would let a second row make
+   * every read miss what is written. But whether an environment has that row is a property of its
+   * database, not of this code — and reading only `id: 1` would answer null forever wherever it
+   * does not, which since the observers are scoped to the worker means the monitoring endpoints
+   * would answer 404 on the API process indefinitely.
+   *
+   * So the read falls back, and the write path uses the same lookup to seed `id: 1` from what it
+   * finds. That converges: after the first write the row exists and the fallback stops being
+   * reached. Taking the highest id rather than the lowest keeps the fallback on the row the code
+   * before this branch wrote to.
+   */
+  private async stateRow(
+    find: (options: FindOneOptions<SystemStateSnapshot>) => Promise<SystemStateSnapshot | null>,
+    lock?: FindOneOptions<SystemStateSnapshot>['lock'],
+  ): Promise<SystemStateSnapshot | undefined> {
+    const canonical = await find({ where: { id: 1 }, lock });
+    if (canonical) return canonical;
+
+    const fallback = await find({ where: {}, order: { id: 'DESC' }, lock });
+    if (fallback) this.logger.warn(`No monitoring state under id 1, using id ${fallback.id} instead`);
+
+    return fallback ?? undefined;
   }
 
   /**
