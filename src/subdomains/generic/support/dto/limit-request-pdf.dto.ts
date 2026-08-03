@@ -62,7 +62,10 @@ export class GenerateLimitRequestPdfDto {
   @IsEnum(FundOrigin)
   fundOrigin?: FundOrigin;
 
-  @ApiPropertyOptional({ enum: InvestmentDate, description: 'Planned investment timing, as recorded on the limit request' })
+  @ApiPropertyOptional({
+    enum: InvestmentDate,
+    description: 'Planned investment timing, as recorded on the limit request',
+  })
   @IsOptional()
   @IsEnum(InvestmentDate)
   investmentDate?: InvestmentDate;
