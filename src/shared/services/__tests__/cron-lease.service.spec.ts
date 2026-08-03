@@ -6,9 +6,11 @@ import { DataSource } from 'typeorm';
 import { CronLeaseService } from '../cron-lease.service';
 
 /**
- * The lease is the only thing that stops a payout from running twice when two processes disagree
- * about who owns a job. Every test here is written from that angle: not "does the method return
- * true", but "can this state let the task run twice, or stop it from running at all".
+ * The lease bounds how long two processes that disagree about who owns a job can both run it. It
+ * does not rule that out — the jobs' own tolerance of a repeat and a deployment that runs one
+ * worker are what carry that, and this is a layer over them. Every test here is written from that
+ * angle: not "does the method return true", but "can this state widen that window, or stop the
+ * task from running at all".
  */
 describe('CronLeaseService', () => {
   const original = process.env.CRON_ROLE;
@@ -204,7 +206,7 @@ describe('CronLeaseService', () => {
     it('does not take the lease away from a job that is still running', async () => {
       // The dangerous direction. Releasing on SIGTERM would let the successor claim the lease and
       // start the same job while this process keeps working on it for the rest of its stop grace
-      // period — the double run the lease exists to prevent.
+      // period — the double run the lease exists to keep short.
       jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
 
       try {

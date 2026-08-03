@@ -164,13 +164,15 @@ export class DfxCronService implements OnModuleInit {
   }
 
   /**
-   * Wraps a job so that at most one process in the deployment runs it at a time.
+   * Wraps a job in the lease, so a second process has to claim it before it can start the job.
    *
    * `lock` above only spans this process. Which process a job belongs to is decided by
    * configuration, and configuration can be wrong — a missed recreate leaves the old role in
    * place, `--scale` creates a second worker, a rollback puts two processes on `all`. In every
-   * one of those the two processes hold separate locks and every payout runs twice. The lease
-   * closes that by construction instead of reporting it a quarter of an hour later.
+   * one of those the two processes hold separate locks and every payout runs twice, for as long as
+   * it takes someone to notice. The lease bounds that to its own expiry instead of reporting it a
+   * quarter of an hour later. It does not rule a double run out — CronLeaseService says under
+   * "What it does not do" exactly where it stops — so the jobs still have to tolerate a repeat.
    *
    * `BOTH` jobs are deliberately exempt. They exist because a request path on THIS process reads
    * the state they maintain, so they have to run in every process — a lease over them would
@@ -180,8 +182,8 @@ export class DfxCronService implements OnModuleInit {
    *
    * `API` jobs are leased as well, and reported when they lose the race. Their scope says their
    * effect is confined to the process running them, which is an argument for every API process
-   * running them; the lease is what keeps one that also writes or calls out from doing either
-   * twice. Where the two pull apart the lease wins, and the process that lost the race is left
+   * running them; the lease is what keeps one that also writes or calls out from
+   * routinely doing either twice. Where the two pull apart the lease wins, and the process that lost the race is left
    * without whatever the job maintains — which is why an `API` job must not be the only thing
    * filling what a request path reads, and why delivering to connections belongs to a `BOTH` job
    * driven from stored state rather than to this scope. Losing the race is reported rather than

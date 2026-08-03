@@ -214,7 +214,7 @@ export class PaymentLinkPaymentService {
    * Both delivery channels of this service are process-local: the map behind this method and the
    * subject behind `getDeviceActivationObservable`. A caller therefore only ever hears from the
    * process holding its connection, while the jobs that move a payment forward run in one process
-   * (`CronScope.WORKER`, held down to a single process by the cron lease).
+   * (`CronScope.WORKER`, which the deployment runs once and the cron lease keeps to one claim).
    *
    * `deliverPaymentUpdates` below bridges the two. It reads the persisted state of the payments
    * THIS process is waiting on and releases them here, so the delivery no longer depends on which

@@ -42,7 +42,13 @@ const SHUTDOWN_GRACE_MS = 10 * 1000;
  * ran as one process; it cannot see a second one. Since the HTTP process and the worker are split
  * apart, "exactly one process runs this job" rests on configuration, a runbook sentence and an
  * alert that *reports* a double run after the fact. For a path that moves money that is the
- * second-best answer, so this makes it structural.
+ * second-best answer, so this adds a bound underneath it.
+ *
+ * A bound, not a guarantee — read "What it does not do" below before relying on this. A job runs
+ * once because the deployment runs one worker and because the job tolerates being run again; what
+ * this contributes is to turn the window in which a wrong configuration can have it running twice
+ * from unbounded — until a human reads the alert — into `LEASE_TTL_SECONDS`. It sits on top of
+ * those two properties and replaces neither.
  *
  * The lease is claimed per job name, and only one owner can hold it. It carries an expiry rather
  * than a lock held on a connection: a connection-bound `pg_advisory_lock` would occupy one pooled
@@ -275,7 +281,7 @@ export class CronLeaseService implements OnModuleInit {
    * over faster, but the job keeps running until the container's stop grace period ends it —
    * `dfx-api-worker` is configured to allow two minutes — and a successor claiming the freed lease
    * inside that window would run the same money-moving job alongside it. That is the outcome this
-   * whole mechanism exists to prevent, so it is not traded for a faster handover.
+   * mechanism exists to keep rare and short, so it is not traded for a faster handover.
    *
    * What is still running after the wait therefore keeps its lease, which lapses within
    * `LEASE_TTL_SECONDS` of the last renewal. The renewal timers deliberately keep going meanwhile:

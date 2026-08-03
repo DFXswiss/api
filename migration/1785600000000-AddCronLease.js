@@ -13,8 +13,11 @@
  * *reports* a double run about fifteen minutes after it starts. For a path that moves money,
  * detection is the second-best answer.
  *
- * This table makes it structural: a job scoped to exactly one process must hold a row here for the
- * duration of its run, and the row is claimable by only one process at a time.
+ * This table bounds it: a job scoped to exactly one process must hold a row here for the duration
+ * of its run, and the row is claimable by one process at a time until it expires. The expiry is
+ * what makes this a bound rather than an exclusion — if the holder can no longer renew, a second
+ * process can claim the row while the first is still working. See CronLeaseService, "What it does
+ * not do".
  *
  * No foreign keys, deliberately: the table is infrastructure, not domain data, and a key into a
  * domain table would tie a coordination row to a schema it has no business depending on.

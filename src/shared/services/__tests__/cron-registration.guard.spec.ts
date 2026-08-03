@@ -21,7 +21,7 @@ const SRC = join(__dirname, '..', '..', '..');
  * ScryptWebSocketConnection.scheduleReconnect and CronLeaseService.keepAlive all re-arm themselves
  * and are invisible here. The lease renewal belongs to the lifetime of a single job run rather
  * than to a schedule, and routing it through @DfxCron would be circular — it is the mechanism that
- * keeps @DfxCron jobs from running in two processes at once. The Scrypt two are deliberately left
+ * bounds how long a @DfxCron job can be running in two processes at once. The Scrypt two are deliberately left
  * alone as well: their state is the process-local cache and socket of the process
  * they run in, and a request path reaches them (ExchangeController injects ExchangeRegistryService
  * and ExchangeTxService), so both processes need their own. Binding them to a role would break the

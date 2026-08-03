@@ -156,8 +156,8 @@ describe('DfxCronService', () => {
 
   describe('cross-process lease', () => {
     // Which process runs a job is decided by configuration, and configuration can be wrong. The
-    // lease is what makes a wrong configuration harmless instead of expensive — these two tests
-    // pin who goes through it, because nothing at the call site shows it.
+    // lease bounds what a wrong configuration costs, rather than making it harmless — these two
+    // tests pin who goes through it, because nothing at the call site shows it.
 
     /** Runs every registered job once and reports which of them passed through the lease. */
     async function leasedJobs(role: string): Promise<string[]> {

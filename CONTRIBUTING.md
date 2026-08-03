@@ -539,9 +539,17 @@ looks, once it is off, exactly like the failure it watches for. Without a flag t
 unconditionally and cannot be switched off without a deploy.
 
 A job scoped `worker` or `api` additionally holds a **lease in the database** for the duration of
-its run (`CronLeaseService`), so it runs in at most one process even if the configuration is
-wrong — a missed recreate, a second worker from `--scale`, two processes on `all` after a
-rollback. The in-process lock cannot see any of those. Jobs scoped `both` are exempt by design:
+its run (`CronLeaseService`). The in-process lock cannot see a second process at all — a missed
+recreate, a second worker from `--scale`, two processes on `all` after a rollback — and the lease
+bounds how long such a configuration can have the job running twice to the lease expiry, instead
+of until someone reads an alert.
+
+It does **not** make a double run impossible, and nothing in this repository should claim it does.
+If the database becomes unreachable mid-run the claim lapses while the job keeps working, and a
+second process can then start it. What a `worker` job actually rests on is the deployment running
+one worker and the job tolerating a repeat; the lease is defence in depth over those two, not a
+substitute for either. `CronLeaseService` states the limit under "What it does not do" — keep any
+wording here consistent with it. Jobs scoped `both` are exempt by design:
 they must run everywhere, which is why running them twice has to be harmless by construction.
 
 [docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval, flag and scope.
