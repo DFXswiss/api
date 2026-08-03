@@ -256,10 +256,12 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     }
   });
 
-  it('filters rewards by from so group 30 drops the pre-from row (count 1, totalChf 26)', async () => {
+  // Stichtag liegt bewusst exakt auf newDate, um die inklusive >=-Grenze scharf zu prüfen —
+  // bei versehentlicher Verschärfung zu > fielen alle newDate-Zeilen heraus und der Test bräche.
+  it('filters rewards by from on newDate so group 30 drops the pre-from row (count 1, totalChf 26)', async () => {
     await seedFixture();
 
-    const result = await service.getRewardRecipients(new Date('2026-01-01T00:00:00.000Z'));
+    const result = await service.getRewardRecipients(newDate);
 
     expect(result).toEqual([
       { userDataId: 10, count: 2, totalChf: 300 },
@@ -272,6 +274,12 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
 
   it('returns an empty list when from is after every reward', async () => {
     await seedFixture();
+
+    // Grundlinie: Fixtur liefert Daten, damit die anschliessende Leere vom from-Filter stammt
+    // und nicht von kaputter Fixtur (fest verdrahtete IDs / ins Leere zeigende Fremdschlüssel).
+    const baseline = await service.getRewardRecipients();
+    expect(baseline).toHaveLength(4);
+    expect(baseline.map((r) => r.userDataId).sort((a, b) => a - b)).toEqual([10, 20, 30, 50]);
 
     const result = await service.getRewardRecipients(new Date('2030-01-01T00:00:00.000Z'));
 
