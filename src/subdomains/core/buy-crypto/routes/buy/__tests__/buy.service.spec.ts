@@ -88,7 +88,7 @@ describe('BuyService', () => {
       houseNumber: '7',
       zip: '8000',
       city: 'Zurich',
-      country: { name: 'CH' },
+      country: { name: 'CH', symbol: 'CH' },
     };
     const userData = {
       id: 7,
@@ -744,6 +744,139 @@ describe('BuyService', () => {
       expect(bankService.getBank).not.toHaveBeenCalled();
       expect(response).toMatchObject({ iban: virtualIban.iban, isPersonalIban: true });
     });
+
+    it('degrades a CUSTOMER-held personal IBAN without address country to the collection account on quote', async () => {
+      const yapealBank = {
+        id: 20,
+        name: IbanBankName.YAPEAL,
+        iban: 'CH9300762011623852957',
+        bic: 'YAPECHZZ',
+        receive: true,
+        sctInst: false,
+      };
+      const yapealVirtualIban = {
+        id: 502,
+        iban: 'CH4400762011623852958',
+        bank: yapealBank,
+        currency: { id: 1, name: 'CHF' },
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+        buy: null,
+      } as VirtualIban;
+      const userDataWithoutCountry = {
+        ...userData,
+        address: { ...address, country: undefined },
+      } as any;
+      const collectionBank = {
+        id: 16,
+        name: IbanBankName.OLKY,
+        iban: 'FR7616798060015010806550926',
+        bic: 'OLKYFRP1',
+        receive: true,
+        sctInst: true,
+      };
+
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(yapealVirtualIban);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank as any);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: userDataWithoutCountry },
+        buy,
+      );
+
+      expect(bankInfo).toMatchObject({
+        name: Config.bank.dfxAddress.name,
+        country: Config.bank.dfxAddress.country,
+        countryCode: Config.bank.dfxAddress.countryCode,
+        iban: collectionBank.iban,
+        isPersonalIban: false,
+        reference: buy.bankUsage,
+      });
+      expect(bankInfo.iban).not.toBe(yapealVirtualIban.iban);
+    });
+
+    it('rejects a stored CUSTOMER-held personal IBAN when the user address has no country', async () => {
+      const yapealBank = {
+        id: 20,
+        name: IbanBankName.YAPEAL,
+        iban: 'CH9300762011623852957',
+        bic: 'YAPECHZZ',
+        receive: true,
+        sctInst: false,
+      };
+      const yapealVirtualIban = {
+        id: 502,
+        iban: 'CH4400762011623852958',
+        bank: yapealBank,
+        currency: { id: 1, name: 'CHF' },
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+        buy: null,
+      } as VirtualIban;
+      const userDataWithoutCountry = {
+        ...userData,
+        address: { ...address, country: undefined },
+      } as any;
+
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(yapealBank as any);
+      jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(yapealVirtualIban);
+
+      await expect(
+        service.getBankInfoForRequest(
+          { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: userDataWithoutCountry },
+          buy,
+          true,
+          20,
+          502,
+        ),
+      ).rejects.toThrow(QuoteError.PERSONAL_IBAN_USER_ADDRESS_INCOMPLETE);
+      await expect(
+        service.getBankInfoForRequest(
+          { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: userDataWithoutCountry },
+          buy,
+          true,
+          20,
+          502,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('keeps a DFX-held personal IBAN usable when the user address has no country', async () => {
+      const userDataWithoutCountry = {
+        ...userData,
+        address: { ...address, country: undefined },
+      } as any;
+
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.DFX);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
+      jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
+
+      const bankInfo = await service.getBankInfoForRequest(
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData: userDataWithoutCountry },
+        buy,
+        true,
+        19,
+        501,
+      );
+
+      expect(bankInfo).toMatchObject({
+        name: Config.bank.dfxAddress.name,
+        street: Config.bank.dfxAddress.street,
+        number: Config.bank.dfxAddress.number,
+        zip: Config.bank.dfxAddress.zip,
+        city: Config.bank.dfxAddress.city,
+        country: Config.bank.dfxAddress.country,
+        countryCode: Config.bank.dfxAddress.countryCode,
+        iban: virtualIban.iban,
+        isPersonalIban: true,
+        reference: buy.bankUsage,
+      });
+    });
   });
 
   describe('implicit personal IBAN resolution', () => {
@@ -752,7 +885,7 @@ describe('BuyService', () => {
       houseNumber: '7',
       zip: '8000',
       city: 'Zurich',
-      country: { name: 'CH' },
+      country: { name: 'CH', symbol: 'CH' },
     };
     const userData = {
       id: 7,

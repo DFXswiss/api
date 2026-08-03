@@ -21,6 +21,7 @@ export enum QuoteError {
   PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED = 'PersonalIbanCurrencyNotSupported',
   PERSONAL_IBAN_ISSUANCE_FAILED = 'PersonalIbanIssuanceFailed',
   PERSONAL_IBAN_PROVIDER_UNSUPPORTED = 'PersonalIbanProviderUnsupported',
+  PERSONAL_IBAN_USER_ADDRESS_INCOMPLETE = 'PersonalIbanUserAddressIncomplete',
   STORED_TRANSACTION_REQUEST_BANK_SELECTION_INCOMPLETE = 'StoredTransactionRequestBankSelectionIncomplete',
   STORED_TRANSACTION_REQUEST_BANK_NO_LONGER_EXISTS = 'StoredTransactionRequestBankNoLongerExists',
   STORED_PERSONAL_IBAN_USER_MISMATCH = 'StoredPersonalIbanUserMismatch',

@@ -77,6 +77,7 @@ import { PhoneCallStatus } from '../user/models/user-data/user-data.enum';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
+import { GenerateLimitRequestPdfDto } from './dto/limit-request-pdf.dto';
 import { ComplianceDecision, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
@@ -241,6 +242,43 @@ export class SupportService {
       true, // isProtected
       undefined, // kycStep
       FileSubType.ONBOARDING_REPORT,
+    );
+
+    return { pdfData, fileName };
+  }
+
+  /**
+   * The file record of a limit-request decision, stored the same way the Google Sheet stored it:
+   * `UserNotes` / `LimitRequestReport`, with the sheet's file name so old and new reports sort
+   * together in the customer's folder. Written for every final decision, acceptance and rejection
+   * alike — a rejection is exactly the case someone asks about later.
+   */
+  async generateAndSaveLimitRequestPdf(
+    userDataId: number,
+    dto: GenerateLimitRequestPdfDto,
+  ): Promise<{ pdfData: string; fileName: string }> {
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData) throw new NotFoundException('User not found');
+
+    const pdfData = await this.supportPdfService.createLimitRequestPdf(userData, dto);
+
+    // {yyyymmdd}-LimitRequest-0-{userDataId}-{hhmmss}, the sheet's scheme. The `0` is a literal there;
+    // it is kept so the two generations of reports carry one name pattern.
+    const now = new Date();
+    const pad = (value: number): string => String(value).padStart(2, '0');
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const fileName = `${stamp}-LimitRequest-0-${userDataId}-${time}.pdf`;
+
+    await this.kycDocumentService.uploadUserFile(
+      userData,
+      FileType.USER_NOTES,
+      fileName,
+      Buffer.from(pdfData, 'base64'),
+      ContentType.PDF,
+      true, // isProtected
+      undefined, // kycStep
+      FileSubType.LIMIT_REQUEST_REPORT,
     );
 
     return { pdfData, fileName };

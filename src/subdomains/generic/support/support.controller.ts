@@ -22,6 +22,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
+import { GenerateLimitRequestPdfDto } from './dto/limit-request-pdf.dto';
 import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { RecommendationGraphNeighborsQuery } from './dto/recommendation-graph-neighbors-query.dto';
 import {
@@ -197,6 +198,17 @@ export class SupportController {
     @Body() dto: GenerateOnboardingPdfDto,
   ): Promise<{ pdfData: string; fileName: string }> {
     return this.supportService.generateAndSaveOnboardingPdf(+id, dto);
+  }
+
+  @Post(':id/limit-request-pdf')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async generateLimitRequestPdf(
+    @Param('id') id: string,
+    @Body() dto: GenerateLimitRequestPdfDto,
+  ): Promise<{ pdfData: string; fileName: string }> {
+    return this.supportService.generateAndSaveLimitRequestPdf(+id, dto);
   }
 
   @Get('note')
