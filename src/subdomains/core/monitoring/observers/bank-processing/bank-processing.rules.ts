@@ -497,14 +497,14 @@ export const BANK_PROCESSING_RULES: readonly BankProcessingRule[] = [
   },
   {
     key: 'fo-approved-untransmitted',
-    label: 'FiatOutput approved, nicht übermittelt',
+    label: 'FiatOutput genehmigt, nicht übermittelt',
     block: 'fiatOutput',
     condition: `fo."isReadyDate" IS NOT NULL AND fo."isApprovedDate" IS NOT NULL AND fo."isTransmittedDate" IS NULL`,
     tolerance: null,
   },
   {
     key: 'fo-banktx-missing',
-    label: 'FiatOutput approved ohne bankTx',
+    label: 'FiatOutput genehmigt ohne bankTx',
     block: 'fiatOutput',
     condition: `fo."isApprovedDate" IS NOT NULL AND fo."bankTxId" IS NULL`,
     tolerance: { type: 'dynamic', offsetMinutes: 0 },
