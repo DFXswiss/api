@@ -71,7 +71,14 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, PhoneCallStatus, ServiceProvider, TradeApprovalReason, UserDataStatus } from './user-data.enum';
+import {
+  KycLevel,
+  KycStatus,
+  PhoneCallStatus,
+  ServiceProvider,
+  TradeApprovalReason,
+  UserDataStatus,
+} from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -341,6 +348,8 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
+    if (dto.kycStatus === KycStatus.CHECK) throw new BadRequestException('Use the audited KYC status Check transition');
+
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: {
@@ -426,6 +435,35 @@ export class UserDataService {
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
+  }
+
+  async setKycStatusCheck(userDataId: number, expectedKycStatus: KycStatus, actorUserDataId: number): Promise<void> {
+    if (expectedKycStatus === KycStatus.CHECK) throw new BadRequestException('KYC status is already Check');
+
+    const updatedUserData = await this.userDataRepo.manager.transaction(async (manager) => {
+      const userData = await manager.findOne(UserData, {
+        where: { id: userDataId },
+      });
+      if (!userData) throw new NotFoundException('User data not found');
+      if (userData.kycStatus !== expectedKycStatus)
+        throw new ConflictException(`KYC status changed from ${expectedKycStatus} to ${userData.kycStatus}`);
+
+      const previousKycStatus = userData.kycStatus;
+      const [id, update] = userData.setKycStatusCheck();
+      await this.kycLogService.createLogInternal(
+        userData,
+        KycLogType.MANUAL,
+        `KycStatus changed from ${previousKycStatus} to ${KycStatus.CHECK} by user data ${actorUserDataId}`,
+        manager,
+      );
+
+      const result = await manager.update(UserData, { id, kycStatus: expectedKycStatus }, update);
+      if (result.affected !== 1) throw new ConflictException('KYC status changed concurrently');
+
+      return userData;
+    });
+
+    await this.kycNotificationService.kycChanged(updatedUserData);
   }
 
   async downloadUserData(userDataIds: number[], checkOnly = false): Promise<Buffer> {

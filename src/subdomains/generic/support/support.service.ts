@@ -3,6 +3,7 @@ import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { ScorechainScreeningDtoMapper } from 'src/integration/scorechain/dto/scorechain-screening-dto.mapper';
 import {
@@ -19,7 +20,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason, NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -47,7 +48,7 @@ import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -631,10 +632,53 @@ export class SupportService {
   }
 
   private toTransactionSupportInfo(tx: Transaction): TransactionSupportInfo {
+    const buyCryptoHasChargeback = !!(
+      tx.buyCrypto?.chargebackOutput ||
+      tx.buyCrypto?.chargebackAllowedDate ||
+      tx.buyCrypto?.chargebackAllowedDateUser ||
+      tx.buyCrypto?.chargebackDate ||
+      tx.buyCrypto?.chargebackCryptoTxId ||
+      tx.buyCrypto?.chargebackBankTx ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUND_PENDING ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.PARTIALLY_REFUNDED ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUNDED ||
+      tx.buyCrypto?.cryptoInput?.action === PayInAction.RETURN ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.TO_RETURN ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURNED ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURN_CONFIRMED ||
+      tx.buyCrypto?.cryptoInput?.returnTxId
+    );
+    const cryptoForwardStarted = !!(
+      tx.buyCrypto?.cryptoInput?.action === PayInAction.FORWARD ||
+      (tx.buyCrypto?.cryptoInput?.status != null &&
+        [
+          PayInStatus.PREPARING,
+          PayInStatus.PREPARED,
+          PayInStatus.SENDING,
+          PayInStatus.SEND_UNCERTAIN,
+          PayInStatus.FORWARDED,
+          PayInStatus.FORWARD_CONFIRMED,
+        ].includes(tx.buyCrypto.cryptoInput.status)) ||
+      tx.buyCrypto?.cryptoInput?.outTxId
+    );
+
     return {
       id: tx.id,
       uid: tx.uid,
       buyCryptoId: tx.buyCrypto?.id,
+      buyCryptoIsComplete: tx.buyCrypto?.isComplete,
+      buyCryptoStatus: tx.buyCrypto?.status,
+      buyCryptoHasBatch: !!tx.buyCrypto?.batch,
+      buyCryptoHasChargeback,
+      buyCryptoReviewResetBlocked: tx.buyCrypto
+        ? !!(
+            tx.buyCrypto.isComplete ||
+            tx.buyCrypto.status === BuyCryptoStatus.STOPPED ||
+            tx.buyCrypto.batch ||
+            buyCryptoHasChargeback ||
+            cryptoForwardStarted
+          )
+        : undefined,
       buyFiatId: tx.buyFiat?.id,
       bankDataId: tx.buyCrypto?.bankData?.id ?? tx.buyFiat?.bankData?.id,
       type: tx.type,

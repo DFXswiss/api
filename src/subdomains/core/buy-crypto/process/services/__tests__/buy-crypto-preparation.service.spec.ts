@@ -6,6 +6,7 @@ import { ScorechainScreeningService } from 'src/integration/scorechain/services/
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -17,12 +18,14 @@ import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/tra
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull } from 'typeorm';
+import { EntityManager, IsNull } from 'typeorm';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
-import { BuyCryptoStatus } from '../../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoPreparationService } from '../buy-crypto-preparation.service';
@@ -97,6 +100,63 @@ describe('BuyCryptoPreparationService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('refreshFee', () => {
+    it('does not recreate fee data when AML was reset after the transaction search', async () => {
+      new ConfigService();
+      const entity = createCustomBuyCrypto({
+        amlCheck: CheckStatus.PASS,
+        batch: null,
+        fee: undefined,
+        status: BuyCryptoStatus.MISSING_LIQUIDITY,
+        version: 5,
+      });
+      const fiat = createCustomFiat({ name: 'EUR' });
+      const fee: InternalFeeDto = {
+        fees: [],
+        min: 0,
+        rate: 0.01,
+        fixed: 0,
+        bank: 0,
+        bankFixed: 0,
+        bankPercent: 0,
+        partner: 0,
+        network: 0,
+        total: 1,
+        payoutRefBonus: false,
+      };
+      const manager = {
+        findOne: jest
+          .fn()
+          .mockResolvedValueOnce({ id: entity.id })
+          .mockResolvedValueOnce({
+            ...entity,
+            amlCheck: null,
+          }),
+        save: jest.fn(),
+        update: jest.fn(),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(fiat);
+      jest.spyOn(pricingService, 'getPrice').mockResolvedValue(Price.create('EUR', 'CHF', 1));
+      jest.spyOn(transactionHelper, 'getTxFeeInfos').mockResolvedValue(fee);
+
+      await service.refreshFee();
+
+      expect(manager.findOne).toHaveBeenCalledTimes(2);
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+    });
+  });
+
   function arrangeAmlCheck(entity: ReturnType<typeof createCustomBuyCrypto>) {
     jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity]);
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue({} as any);
@@ -117,6 +177,49 @@ describe('BuyCryptoPreparationService', () => {
     } as any);
     // bypass the heavy getAmlResult/getAmlErrors internals; we only test the persistence guard
     jest.spyOn(entity, 'amlCheckAndFillUp').mockReturnValue([entity.id, { amlCheck: CheckStatus.PASS }] as any);
+    jest
+      .spyOn(service as any, 'postProcessAmlVerdict')
+      .mockImplementation(async (current: BuyCrypto, last30dVolume: number, isFirstRun: boolean) => {
+        await amlService.postProcessing(current, last30dVolume, isFirstRun);
+        if (current.amlCheck === CheckStatus.PASS) {
+          await buyCryptoRepo.update(current.id, { amlPostProcessed: true });
+          current.amlPostProcessed = true;
+        }
+        return true;
+      });
+    jest
+      .spyOn(service as any, 'persistAmlDecision')
+      .mockImplementation(
+        async (
+          current: BuyCrypto,
+          id: number,
+          update: Partial<BuyCrypto>,
+          versionBefore: number,
+          statusBefore: BuyCryptoStatus,
+          amlCheckBefore: CheckStatus | undefined,
+          amlReasonBefore: BuyCrypto['amlReason'],
+        ) => {
+          const result = await buyCryptoRepo.update(
+            {
+              id,
+              version: versionBefore,
+              status: statusBefore,
+              isComplete: false,
+              amlCheck: amlCheckBefore == null ? IsNull() : amlCheckBefore,
+            },
+            update,
+          );
+          if (!result.affected) return false;
+          await transactionAmlCheckService.createFromEntity(
+            current,
+            'BuyCrypto',
+            AmlSourceType.AML_CHECK_CRON,
+            amlCheckBefore,
+            amlReasonBefore,
+          );
+          return true;
+        },
+      );
   }
 
   describe('screenScorechain (Scorechain AML gate)', () => {
@@ -352,6 +455,23 @@ describe('BuyCryptoPreparationService', () => {
   });
 
   describe('doAmlCheck — concurrent decision guard', () => {
+    it('excludes operator and user refund claims from every AML selection branch', async () => {
+      const findSpy = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([]);
+
+      await service.doAmlCheck();
+
+      const where = findSpy.mock.calls[0][0].where as Array<Record<string, unknown>>;
+      expect(where).toHaveLength(3);
+      for (const branch of where) {
+        expect(branch).toEqual(
+          expect.objectContaining({
+            chargebackAllowedDate: IsNull(),
+            chargebackAllowedDateUser: IsNull(),
+          }),
+        );
+      }
+    });
+
     it('skips post-processing (no overwrite) when the conditional update affects 0 rows', async () => {
       // first-run tx (amlCheck=null) that a reviewer concurrently changed → cron write must not win
       const entity = createCustomBuyCrypto({ id: 1, amlCheck: null, cryptoInput: undefined, bankTx: undefined });
@@ -431,6 +551,40 @@ describe('BuyCryptoPreparationService', () => {
       expect(buyCryptoRepo.update).not.toHaveBeenCalledWith(1, { amlPostProcessed: true });
     });
 
+    it('skips PASS post-processing when the transaction changed before the retry acquired its lock', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 1,
+        version: 5,
+        status: BuyCryptoStatus.MISSING_LIQUIDITY,
+        amlCheck: CheckStatus.PASS,
+        amlPostProcessed: false,
+      });
+      const manager = {
+        findOne: jest.fn().mockResolvedValue(null),
+        update: jest.fn(),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+
+      await expect((service as any).postProcessAmlVerdict(entity, 100, false)).resolves.toBe(false);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        BuyCrypto,
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 1, version: 5, amlCheck: CheckStatus.PASS }),
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      expect(amlService.postProcessing).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
     it('marks amlPostProcessed=true after a first-time PASS is post-processed (normal path)', async () => {
       const entity = createCustomBuyCrypto({ id: 1, amlCheck: null, cryptoInput: undefined, bankTx: undefined });
       arrangeAmlCheck(entity);
@@ -484,5 +638,41 @@ describe('BuyCryptoPreparationService', () => {
 
       expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
     });
+  });
+
+  describe('chargebackTx — user refund claim promotion', () => {
+    it.each([
+      { source: 'Checkout', relation: { checkoutTx: { id: 88 } as any }, method: 'refundCheckoutTx' },
+      { source: 'CryptoInput', relation: { cryptoInput: { id: 89 } as any }, method: 'refundCryptoInput' },
+      {
+        source: 'BankTx',
+        relation: { bankTx: { id: 90 } as any },
+        method: 'refundBankTx',
+        refundData: {
+          chargebackIban: 'CH9300762011623852957',
+          chargebackCreditorData: JSON.stringify({ name: 'Refund Recipient' }),
+        },
+      },
+    ])(
+      'promotes a $source user refund claim without discarding its timestamp',
+      async ({ relation, method, refundData = {} }) => {
+        const chargebackAllowedDateUser = new Date('2026-08-01T12:00:00.000Z');
+        const entity = createCustomBuyCrypto({
+          id: 78,
+          ...relation,
+          ...refundData,
+          chargebackAllowedDate: undefined,
+          chargebackAllowedDateUser,
+          chargebackAmount: 1,
+          isComplete: false,
+        });
+        jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]);
+
+        await service.chargebackTx();
+
+        const refund = buyCryptoService[method as 'refundCheckoutTx' | 'refundCryptoInput' | 'refundBankTx'];
+        expect(refund).toHaveBeenCalledWith(entity, expect.objectContaining({ chargebackAllowedDateUser }));
+      },
+    );
   });
 });

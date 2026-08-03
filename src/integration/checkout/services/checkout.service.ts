@@ -22,8 +22,16 @@ export interface CheckoutBalances {
 
 export interface CheckoutReverse {
   action_id: string;
-  reference: string;
   _links: { payment: { href: string } };
+}
+
+export interface CheckoutPaymentAction {
+  id: string;
+  type: string;
+  amount?: number;
+  reference?: string;
+  approved?: boolean;
+  processed_on?: string;
 }
 
 @Injectable()
@@ -112,7 +120,24 @@ export class CheckoutService {
     return balance.data;
   }
 
-  async refundPayment(paymentId: string): Promise<CheckoutReverse> {
-    return (await this.checkout.payments.refund(paymentId)) as CheckoutReverse;
+  async getPaymentActions(paymentId: string): Promise<CheckoutPaymentAction[]> {
+    return (await this.checkout.payments.getActions(paymentId)) as CheckoutPaymentAction[];
+  }
+
+  async refundBuyCryptoPayment(
+    paymentId: string,
+    buyCryptoId: number,
+    previousFailedActionId?: string,
+  ): Promise<CheckoutReverse> {
+    const attempt = previousFailedActionId ?? 'initial';
+    const reference = CheckoutService.buyCryptoRefundReference(buyCryptoId);
+    const idempotencyKey = previousFailedActionId
+      ? `buy-crypto-refund-${buyCryptoId}-${attempt}`
+      : `buy-crypto-${buyCryptoId}-checkout-refund`;
+    return (await this.checkout.payments.refund(paymentId, { reference }, idempotencyKey)) as CheckoutReverse;
+  }
+
+  static buyCryptoRefundReference(buyCryptoId: number): string {
+    return `bc-${buyCryptoId}-refund`;
   }
 }
