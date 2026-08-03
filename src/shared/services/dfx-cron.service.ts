@@ -131,10 +131,11 @@ export class DfxCronService implements OnModuleInit {
     const line = `CronRole ${Config.cronRole}: heartbeat, ${this.registeredCount} jobs registered`;
     const lease = this.leases.takeFailures();
 
-    // A job that cannot take its lease does not run, and nothing else says so — the skip looks
-    // exactly like a job with nothing to do. This job is scope `both` and therefore exempt from
-    // the lease itself, so it keeps reporting while everything it counts is sitting out: a count
-    // of REGISTERED jobs cannot see that.
+    // What the lease layer costs when it is broken depends on the role, and neither case says so
+    // by itself: under `api`/`worker` the jobs are skipped, and a skip looks exactly like a job
+    // with nothing to do; under `all` they run without a claim, which looks like nothing at all.
+    // This job is scope `both` and therefore exempt from the lease itself, so it keeps reporting
+    // in both cases — a count of REGISTERED jobs sees neither.
     if (lease.healthy) return this.logger.info(`${line}, lease ok`);
 
     this.logger.error(

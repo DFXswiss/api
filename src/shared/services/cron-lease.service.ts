@@ -132,11 +132,15 @@ export class CronLeaseService implements OnModuleInit {
    * Reads the lease table once, so a process that cannot use it says so at start-up.
    *
    * Without the table — a process started before the migration ran, a revoked grant, a database
-   * that is not there yet — every worker- and api-scoped job fails its claim and is skipped. That
-   * is the correct behaviour, and CONTRIBUTING asks for exactly it where the alternative is
-   * proceeding on an unverified assumption. The problem it left behind is a reporting one: the
-   * skip is indistinguishable from a job that had nothing to do, and the role heartbeat is scoped
-   * `both`, so it is exempt from the lease and keeps reporting a healthy process.
+   * that is not there yet — every worker- and api-scoped job fails its claim. Under `api` or
+   * `worker` it is then skipped, which is the correct behaviour and what CONTRIBUTING asks for
+   * where the alternative is proceeding on an unverified assumption. Under `all` it runs anyway,
+   * because that role is one process and stopping would be worse than the setup this replaces.
+   *
+   * Both outcomes have the same reporting problem, which is why this line exists: a skip is
+   * indistinguishable from a job that had nothing to do, a claim-less run from a normal one, and
+   * the role heartbeat is scoped `both` — exempt from the lease, and reporting a healthy process
+   * in either case.
    *
    * This does not take the boot down. A crash loop here would be loud, but it would also be
    * self-inflicted during the very rollout that introduces the table: the migration ships with the
@@ -152,7 +156,11 @@ export class CronLeaseService implements OnModuleInit {
     } catch (e) {
       this.recordFailure(e);
       this.logger.error(
-        'The cron lease table cannot be read: every worker- and api-scoped job will be skipped on every tick',
+        Config.cronRole === CronRole.ALL
+          ? 'The cron lease table cannot be read. CRON_ROLE=all runs one process, so worker- and ' +
+              'api-scoped jobs keep running WITHOUT a claim rather than stopping — the same shape ' +
+              'this deployment had before the lease existed. Fix the table before splitting the roles.'
+          : 'The cron lease table cannot be read: every worker- and api-scoped job will be skipped ' + 'on every tick',
         e,
       );
     }
@@ -213,9 +221,14 @@ export class CronLeaseService implements OnModuleInit {
   /**
    * Runs `task` only if this process can claim the lease, and keeps the claim alive meanwhile.
    *
-   * Failing to reach the database means NOT running: a job that moves money must not proceed on
+   * Failing to reach the database means NOT running — under `api` or `worker`. There the lease is
+   * the only thing keeping the job to one process, and a job that moves money must not proceed on
    * the assumption that it is probably alone. The caller sees the same outcome as a job whose
-   * lease is held elsewhere — it simply does not run this cycle and tries again on the next.
+   * lease is held elsewhere: it does not run this cycle and tries again on the next.
+   *
+   * Under `all` it means running anyway. That role IS one process, the shape this deployment had
+   * before any lease existed, so stopping there would make an unreachable table strictly worse
+   * than its own absence — see the branch in the catch below.
    *
    * `reportContention` marks jobs for which losing the race is not a normal outcome. For a worker
    * job it is: the other worker holds the lease and is doing the work, and the result lands in the
@@ -262,7 +275,13 @@ export class CronLeaseService implements OnModuleInit {
         e,
       );
 
-      return task();
+      // Through `track` rather than as a bare `task()`. The two things the healthy path does
+      // between here and the call are not about the lease at all, and skipping them would make
+      // this run less safe than every other: it would be invisible to `shutdown` — no grace, and
+      // absent from the "still running" warning — and it would start even if shutdown had begun
+      // during the failed claim, which is a longer window than the healthy one because the
+      // attempt runs to the database timeout.
+      return this.track(job, task);
     }
 
     if (!acquired) {
@@ -275,30 +294,51 @@ export class CronLeaseService implements OnModuleInit {
       return;
     }
 
-    // Claiming the lease is a round trip, and shutdown can begin during it. Hand the claim straight
-    // back rather than start under it, so the successor does not sit out the expiry for a job that
-    // never ran.
+    // Claiming the lease is a round trip, and shutdown can begin during it. `track` below checks
+    // for that as its first act and hands the claim straight back rather than starting under it,
+    // so the successor does not sit out the expiry for a job that never ran.
     //
-    // This is best effort, not a guarantee: a job still inside its claim is not in `inFlight` yet,
-    // so `shutdown` does not wait for it, and the process can exit before the release below runs.
+    // This is best effort, not a guarantee: a job still inside its claim is not in `inFlight`
+    // yet, so `shutdown` does not wait for it, and the process can exit before the release runs.
     // What then remains is a claim nobody holds — it lapses within the TTL like any other, which
     // is the bound that always applies. The release only ever shortens that wait.
+    const renewal = this.keepAlive(job);
+
+    return this.track(job, task, () => {
+      renewal.stop();
+
+      return this.release(job).catch((e) => {
+        this.recordFailure(e);
+        this.logger.error(`Could not release the lease for ${job}`, e);
+      });
+    });
+  }
+
+  /**
+   * Runs a task as one this process is known to be running.
+   *
+   * Everything a run needs regardless of whether it holds a claim: the shutdown check that must
+   * happen as late as possible, and the `inFlight` entry that makes the run visible to
+   * `shutdown`. Both were once written out only on the path that holds a lease, which left the
+   * lease-less path — the one taken when the table cannot be reached under `all` — without either.
+   *
+   * `after` is what the claim-holding path adds: stop renewing, hand the claim back. The
+   * lease-less path has nothing to hand back.
+   */
+  private async track(job: string, task: () => Promise<void>, after?: () => Promise<void>): Promise<void> {
+    // As late as possible, because the step before it is a round trip: shutdown can begin while a
+    // claim is being taken, or while a failing attempt runs to its timeout. A run started after
+    // that point is not in the set `shutdown` waits on and would be cut off part-way through.
     if (this.shuttingDown) {
-      await this.release(job).catch(() => undefined);
+      await after?.();
       return;
     }
-
-    const renewal = this.keepAlive(job);
 
     const run = (async () => {
       try {
         await task();
       } finally {
-        renewal.stop();
-        await this.release(job).catch((e) => {
-          this.recordFailure(e);
-          this.logger.error(`Could not release the lease for ${job}`, e);
-        });
+        await after?.();
         this.inFlight.delete(job);
       }
     })();
@@ -361,11 +401,12 @@ export class CronLeaseService implements OnModuleInit {
   /**
    * The state of the lease layer, for the role heartbeat to report.
    *
-   * Read rather than pushed: a lease that cannot reach its table stops every worker- and
-   * api-scoped job, and no other line says so — the jobs simply do not run. `healthy` stays false
-   * until an operation succeeds, so a role whose jobs are all sitting out keeps reporting it
-   * instead of falling quiet after the first window. The counter is per window; the last message
-   * is not, so an unhealthy report always names something.
+   * Read rather than pushed, and it has to be read under BOTH roles because it means different
+   * things: under `api` or `worker` a lease that cannot reach its table stops every worker- and
+   * api-scoped job, and no other line says so; under `all` it stops nothing, but the jobs then run
+   * without a claim, which is the state to fix before the roles are split. `healthy` stays false
+   * until an operation succeeds, so neither case falls quiet after the first window. The counter
+   * is per window; the last message is not, so an unhealthy report always names something.
    */
   takeFailures(): { healthy: boolean; count: number; last?: string } {
     const taken = { healthy: this.healthy, count: this.failures, last: this.lastFailure };

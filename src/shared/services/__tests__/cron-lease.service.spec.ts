@@ -95,6 +95,43 @@ describe('CronLeaseService', () => {
       expect(task).not.toHaveBeenCalled();
     });
 
+    it('waits for a lease-less run at shutdown, like any other', async () => {
+      // The fail-open path once called the task directly and skipped the `inFlight` entry with
+      // it. A payout started that way was invisible to `shutdown`: no grace period, and the
+      // "still running" warning said nothing was.
+      process.env.CRON_ROLE = 'all';
+      new ConfigService(GetConfig());
+
+      const { service } = buildService({ onQuery: unreachable() });
+      let finish: () => void;
+      const task = jest.fn().mockImplementation(() => new Promise<void>((resolve) => (finish = resolve)));
+
+      const run = service.run('SomeService::job', task);
+      await settle();
+
+      expect(service['inFlight'].has('SomeService::job')).toBe(true);
+
+      finish();
+      await run;
+
+      expect(service['inFlight'].has('SomeService::job')).toBe(false);
+    });
+
+    it('does not start a lease-less run once shutdown has begun', async () => {
+      // The claim attempt runs to the database timeout, so this window is WIDER than the healthy
+      // one — and a run started inside it would be cut off part-way through.
+      process.env.CRON_ROLE = 'all';
+      new ConfigService(GetConfig());
+
+      const { service } = buildService({ onQuery: unreachable() });
+      const task = jest.fn().mockResolvedValue(undefined);
+
+      service['shuttingDown'] = true;
+      await service.run('SomeService::job', task);
+
+      expect(task).not.toHaveBeenCalled();
+    });
+
     it('reports the failure in the heartbeat either way', async () => {
       // Running anyway must not look healthy: the reason still has to reach the alert.
       process.env.CRON_ROLE = 'all';
