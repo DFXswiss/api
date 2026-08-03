@@ -370,8 +370,9 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
 
 // Direct unit tests of the local ROUND helper only — no database, no pg-mem. Pins half-away-from-
 // zero so a regression to Math.round(value * factor) / factor fails on the negative half case.
-// Modelled after documented Postgres ROUND(numeric, n) half semantics; does not claim to prove
-// live Postgres behaviour.
+// Intended to mirror the half-away-from-zero rounding described for numeric ROUND(v, s) in the
+// PostgreSQL docs (https://www.postgresql.org/docs/current/functions-math.html, see round); does not
+// claim to prove live Postgres behaviour.
 describe('roundHalfAwayFromZero (local helper)', () => {
   it('rounds half away from zero for positive and negative values', () => {
     expect(roundHalfAwayFromZero(2.5, 0)).toBe(3);
