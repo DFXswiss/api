@@ -492,25 +492,6 @@ describe('LogJobService', () => {
     });
   });
 
-  describe('latest-balance cache write isolation (cache failure must not arm the equity safety mode)', () => {
-    // a healthy, finite book comfortably above the minimum -> the equity path leaves safety mode off
-    function setup() {
-      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
-      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
-      jest
-        .spyOn(service as any, 'getBalancesByFinancialType')
-        .mockReturnValue({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } });
-      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
-      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
-      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
-      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
-      jest
-        .spyOn(logService, 'maxEntity')
-        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 5000 } }) } as any);
-      jest.spyOn(logService, 'create').mockResolvedValue({ created: new Date('2026-07-14T12:00:00Z') } as any);
-    }
-  });
-
   describe('safety mode (fail closed on non-finite total)', () => {
     function setup(buckets: Record<string, unknown>, minTotalBalanceChf: number) {
       jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});

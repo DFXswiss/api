@@ -190,7 +190,7 @@ export class LogJobService {
       const btcAssetPriceChf = btcAsset ? assetLog[btcAsset.id]?.priceChf : undefined;
       const btcPriceChfColumn = btcAssetPriceChf != null && Number.isFinite(btcAssetPriceChf) ? btcAssetPriceChf : null;
 
-      const financialDataLog = await this.logService.create({
+      await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
         severity: LogSeverity.INFO,
