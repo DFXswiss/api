@@ -67,6 +67,7 @@ import {
   BankTxTypeCompleted,
   BankTxTypeUnassigned,
   BankTxUnassignedTypes,
+  INTERNAL_TRANSFER_SETTLEMENT_DAYS,
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
@@ -605,7 +606,13 @@ export class BankTxService implements OnModuleInit {
         CROSS JOIN "trackingCutover" c
         WHERE bt.type = 'Internal'
           AND bt."isInternalTransfer" IS NULL
-          AND bt.created >= c."trackingCutover"
+          AND (
+            bt.created >= c."trackingCutover"
+            OR (
+              bt.updated >= c."trackingCutover"
+              AND bt.created >= c."trackingCutover" - INTERVAL '${INTERNAL_TRANSFER_SETTLEMENT_DAYS} days'
+            )
+          )
         FOR UPDATE OF bt
       ),
       "stamp" AS (

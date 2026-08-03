@@ -279,6 +279,8 @@ describe('BankTxService', () => {
       expect(recoverySql).toContain("l.subsystem = 'InternalBankTransferTrackingBackfill'");
       expect(recoverySql).toContain('bt."isInternalTransfer" IS NULL');
       expect(recoverySql).toContain('bt.created >= c."trackingCutover"');
+      expect(recoverySql).toContain('bt.updated >= c."trackingCutover"');
+      expect(recoverySql).toContain('bt.created >= c."trackingCutover" - INTERVAL \'21 days\'');
       expect(recoverySql).toContain("'InternalBankTransferRollingRecovery'");
       expect(recoverySql).toContain("'previousIsInternalTransfer', NULL");
       expect(recoverySql.indexOf('INSERT INTO "log"')).toBeLessThan(recoverySql.indexOf('UPDATE "bank_tx"'));
