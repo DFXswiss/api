@@ -18,6 +18,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { BankTxRepeatService } from '../../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx-return/bank-tx-return.service';
+import { createCustomBankTx } from '../__mocks__/bank-tx.entity.mock';
 import { BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
@@ -42,6 +43,7 @@ describe('BankTxService', () => {
   let service: BankTxService;
 
   let bankTxRepo: BankTxRepository;
+  let bankService: BankService;
   let pricingService: PricingService;
   let fiatService: FiatService;
 
@@ -67,6 +69,7 @@ describe('BankTxService', () => {
     jest.clearAllMocks();
 
     bankTxRepo = createMock<BankTxRepository>();
+    bankService = createMock<BankService>();
     pricingService = createMock<PricingService>();
     fiatService = createMock<FiatService>();
 
@@ -97,7 +100,7 @@ describe('BankTxService', () => {
       createMock<BankTxReturnService>(),
       createMock<BankTxRepeatService>(),
       createMock<BuyService>(),
-      createMock<BankService>(),
+      bankService,
       createMock<YapealService>(),
       createMock<TransactionService>(),
       createMock<SpecialExternalAccountService>(),
@@ -254,5 +257,22 @@ describe('BankTxService', () => {
     (pricingService.getPrice as jest.Mock).mockRejectedValue(new Error('No valid price'));
 
     await expect(service.getBankTxFee(from)).rejects.toThrow();
+  });
+
+  describe('#getType(...)', () => {
+    it('classifies a transfer between two configured bank IBANs as internal', async () => {
+      const bankTx = createCustomBankTx({ accountIban: 'OLKY-IBAN', iban: 'FRICK-IBAN' });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
+
+      await expect(service.getType(bankTx)).resolves.toBe(BankTxType.INTERNAL);
+      expect(bankService.areKnownBankIbans).toHaveBeenCalledWith('OLKY-IBAN', 'FRICK-IBAN');
+    });
+
+    it('keeps the existing counterparty classification for external transfers', async () => {
+      const bankTx = createCustomBankTx({ accountIban: 'DFX-IBAN', iban: 'EXTERNAL-IBAN', name: 'Payward Trading' });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
+
+      await expect(service.getType(bankTx)).resolves.toBe(BankTxType.KRAKEN);
+    });
   });
 });

@@ -619,7 +619,7 @@ export class FiatOutputJobService {
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
 
       case FiatOutputType.LIQ_MANAGEMENT: {
-        const specificType = this.bankTxService.getType(bankTx);
+        const specificType = await this.bankTxService.getType(bankTx);
         if (specificType) return this.bankTxService.updateInternal(bankTx, { type: specificType });
       }
     }

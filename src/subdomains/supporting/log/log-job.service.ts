@@ -483,7 +483,7 @@ export class LogJobService {
 
     // pending internal balances
     // db requests
-    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, yapealEurBank.iban);
+    const recentInternalBankTx = await this.bankTxService.getRecentInternalTx();
     const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
     const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
       minExchangeTxId,
@@ -657,14 +657,8 @@ export class LogJobService {
         [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(curr.blockchain) && curr.dexName === 'EUR';
       const isScryptEurAsset = (curr.blockchain as string) === ExchangeName.SCRYPT && curr.dexName === 'EUR';
 
-      // Olky to Yapeal //
-      const pendingOlkyYapealAmount = this.getPendingBankAmount(
-        [curr],
-        recentBankTxFromOlky,
-        BankTxType.INTERNAL,
-        olkyBank.iban,
-        yapealEurBank.iban,
-      );
+      // Transfers between DFX-owned bank accounts remain part of plus balance while in transit.
+      const pendingInternalBankAmount = this.getPendingBankAmount([curr], recentInternalBankTx, BankTxType.INTERNAL);
 
       // Kraken to Yapeal //
 
@@ -970,7 +964,7 @@ export class LogJobService {
         cryptoInput +
         exchangeOrder +
         bridgeOrder +
-        pendingOlkyYapealAmount +
+        pendingInternalBankAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken) +
         (useUnfilteredTx ? fromScryptUnfiltered : fromScrypt) +
@@ -984,7 +978,7 @@ export class LogJobService {
           this.logger.verbose(
             `Error in financial log, totalPlusPending < 0 for asset: ${curr.id}, totalPlusPending: ${totalPlusPending}. ` +
               `Components: cryptoInput=${cryptoInput}, exchangeOrder=${exchangeOrder}, bridgeOrder=${bridgeOrder}, ` +
-              `olky=${pendingOlkyYapealAmount}, kraken=${useUnfilteredTx ? fromKrakenUnfiltered : fromKraken}+${useUnfilteredTx ? toKrakenUnfiltered : toKraken}, ` +
+              `internal=${pendingInternalBankAmount}, kraken=${useUnfilteredTx ? fromKrakenUnfiltered : fromKraken}+${useUnfilteredTx ? toKrakenUnfiltered : toKraken}, ` +
               `scrypt=${useUnfilteredTx ? fromScryptUnfiltered : fromScrypt}+${useUnfilteredTx ? toScryptUnfiltered : toScrypt}`,
           );
         }
@@ -1113,7 +1107,7 @@ export class LogJobService {
                 cryptoInput: this.getJsonValue(cryptoInput, amountType(curr)),
                 exchangeOrder: this.getJsonValue(exchangeOrder, amountType(curr)),
                 bridgeOrder: this.getJsonValue(bridgeOrder, amountType(curr)),
-                fromOlky: this.getJsonValue(pendingOlkyYapealAmount, amountType(curr)),
+                internal: this.getJsonValue(pendingInternalBankAmount, amountType(curr)),
                 fromKraken: this.getJsonValue(
                   useUnfilteredTx ? fromKrakenUnfiltered : fromKraken,
                   amountType(curr),

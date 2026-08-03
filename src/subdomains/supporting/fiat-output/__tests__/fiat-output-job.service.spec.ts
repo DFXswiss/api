@@ -38,6 +38,7 @@ import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-ou
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { createCustomBank, olkyEUR, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
@@ -971,6 +972,24 @@ describe('FiatOutputJobService', () => {
           isConfirmedDate: bankTx.created,
         }),
       );
+    });
+
+    it('classifies a matched internal liquidity-management transfer', async () => {
+      const bankTx = createCustomBankTx({ id: 401, created: new Date('2026-07-02'), type: BankTxType.GSHEET });
+      const fiatOutput = createCustomFiatOutput({
+        id: 5,
+        endToEndId: 'E2E-79059',
+        isComplete: false,
+        isReadyDate: new Date('2026-07-01'),
+        type: FiatOutputType.LIQ_MANAGEMENT,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
+      jest.spyOn(bankTxService, 'getType').mockResolvedValue(BankTxType.INTERNAL);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(bankTxService.updateInternal).toHaveBeenCalledWith(bankTx, { type: BankTxType.INTERNAL });
     });
   });
 

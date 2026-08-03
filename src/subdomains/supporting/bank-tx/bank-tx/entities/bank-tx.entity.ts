@@ -391,6 +391,22 @@ export class BankTx extends IEntity {
 
     switch (type) {
       case BankTxType.INTERNAL:
+        if (!sourceIban || !targetIban) {
+          sourceIban =
+            this.creditDebitIndicator === BankTxIndicator.DEBIT
+              ? this.accountIban
+              : this.creditDebitIndicator === BankTxIndicator.CREDIT
+                ? this.iban
+                : undefined;
+          targetIban =
+            this.creditDebitIndicator === BankTxIndicator.DEBIT
+              ? this.iban
+              : this.creditDebitIndicator === BankTxIndicator.CREDIT
+                ? this.accountIban
+                : undefined;
+        }
+
+        if (!sourceIban || !targetIban) return 0;
         if (!BankService.isBankMatching(asset, targetIban)) return 0;
 
         return this.iban === targetIban && this.accountIban === sourceIban

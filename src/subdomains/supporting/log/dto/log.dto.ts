@@ -156,6 +156,8 @@ type AssetLogPlusPending = {
   cryptoInput?: number;
   exchangeOrder?: number;
   bridgeOrder?: number;
+  internal?: number;
+  /** @deprecated Historical FinanceLog field; replaced by `internal`. */
   fromOlky?: number;
   fromKraken?: number;
   toKraken?: number;

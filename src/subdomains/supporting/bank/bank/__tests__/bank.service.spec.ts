@@ -179,6 +179,13 @@ describe('BankService', () => {
     expect(result.bic).toBe(yapealEUR.bic);
   });
 
+  it('identifies IBANs from any configured bank as known', async () => {
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue(createDefaultBanks());
+
+    await expect(service.areKnownBankIbans(` ${olkyEUR.iban.toLowerCase()} `, yapealEUR.iban)).resolves.toBe(true);
+    await expect(service.areKnownBankIbans(olkyEUR.iban, 'UNKNOWN-IBAN')).resolves.toBe(false);
+  });
+
   it('routes BANK EUR deposits to Bank Frick regardless of bank order', async () => {
     const incumbent = createCustomBank({ ...olkyEUR, receive: true });
     const frick = createCustomBank({ ...frickEUR, receive: true });
@@ -394,6 +401,13 @@ describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
 
     expect(BankService.isBankMatching(asset, 'LI75088110105923K000E')).toBe(true);
     expect(BankService.isBankMatching(asset, 'OTHER-IBAN')).toBe(false);
+  });
+
+  it('prefers the related bank IBAN when the asset relation is loaded', () => {
+    const asset = createCustomAsset({ bank: frickEUR });
+
+    expect(BankService.isBankMatching(asset, frickEUR.iban.toLowerCase())).toBe(true);
+    expect(BankService.isBankMatching(asset, olkyEUR.iban)).toBe(false);
   });
 });
 

@@ -76,6 +76,14 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findOneCachedBy(iban, { iban });
   }
 
+  async areKnownBankIbans(...ibans: string[]): Promise<boolean> {
+    if (!ibans.length || ibans.some((iban) => !iban)) return false;
+
+    const knownIbans = new Set((await this.getAllBanks()).map((bank) => BankService.normalizeIban(bank.iban)));
+
+    return ibans.every((iban) => knownIbans.has(BankService.normalizeIban(iban)));
+  }
+
   async getReceiveBanks(): Promise<Bank[]> {
     return this.bankRepo.findCachedBy(`receive`, { receive: true });
   }
@@ -145,11 +153,13 @@ export class BankService implements OnModuleInit {
   }
 
   static isBankMatching(asset: Asset, accountIban: string): boolean {
+    if (asset.bank?.iban) return BankService.normalizeIban(asset.bank.iban) === BankService.normalizeIban(accountIban);
+
     const bankName = this.blockchainToBankName(asset.blockchain);
     if (!bankName) return false;
 
     const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
-    return expectedIban === accountIban;
+    return BankService.normalizeIban(expectedIban) === BankService.normalizeIban(accountIban);
   }
 
   // --- RECEIVE IBAN CHECK --- //

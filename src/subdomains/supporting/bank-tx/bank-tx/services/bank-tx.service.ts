@@ -235,6 +235,12 @@ export class BankTxService implements OnModuleInit {
 
     for (const tx of unassignedBankTx) {
       try {
+        const detectedType = await this.getType(tx);
+        if (detectedType === BankTxType.INTERNAL) {
+          await this.updateInternal(tx, { type: detectedType });
+          continue;
+        }
+
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
           // check for dedicated asset vIBAN
           if (tx.virtualIban) {
@@ -257,7 +263,7 @@ export class BankTxService implements OnModuleInit {
 
         if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
 
-        await this.updateInternal(tx, { type: this.getType(tx) ?? BankTxType.GSHEET });
+        await this.updateInternal(tx, { type: detectedType ?? BankTxType.GSHEET });
       } catch (e) {
         this.logger.error(`Error during bankTx ${tx.id} assign:`, e);
       }
@@ -330,9 +336,12 @@ export class BankTxService implements OnModuleInit {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = this.createTx(bankTx, multiAccounts);
-    entity.type = this.getType(entity);
+    entity.type = await this.getType(entity);
 
-    entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+    entity.transaction = await this.transactionService.create({
+      sourceType: TransactionSourceType.BANK_TX,
+      type: TransactionBankTxTypeMapper[entity.type] ?? undefined,
+    });
 
     return this.bankTxRepo.save(entity);
   }
@@ -521,11 +530,8 @@ export class BankTxService implements OnModuleInit {
     return Util.round(totalFeeChf, Config.defaultVolumeDecimal);
   }
 
-  async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy([
-      { iban: toIban, accountIban: fromIban, id: MoreThan(130100) },
-      { iban: fromIban, accountIban: toIban, id: MoreThan(130100) },
-    ]);
+  async getRecentInternalTx(): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ type: BankTxType.INTERNAL, id: MoreThan(130100) });
   }
 
   async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
@@ -562,17 +568,22 @@ export class BankTxService implements OnModuleInit {
       });
     }
 
-    let newTxs = txList
-      .filter((i) => !duplicates.includes(i.accountServiceRef))
-      .map((tx) => {
-        tx.type = this.getType(tx);
-        tx.batch = batch;
+    let newTxs = await Promise.all(
+      txList
+        .filter((i) => !duplicates.includes(i.accountServiceRef))
+        .map(async (tx) => {
+          tx.type = await this.getType(tx);
+          tx.batch = batch;
 
-        return tx;
-      });
+          return tx;
+        }),
+    );
 
     for (const tx of newTxs) {
-      tx.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+      tx.transaction = await this.transactionService.create({
+        sourceType: TransactionSourceType.BANK_TX,
+        type: TransactionBankTxTypeMapper[tx.type] ?? undefined,
+      });
     }
 
     // store batch and entries in one transaction
@@ -594,7 +605,11 @@ export class BankTxService implements OnModuleInit {
     return batch;
   }
 
-  getType(tx: BankTx): BankTxType | null {
+  async getType(tx: BankTx): Promise<BankTxType | null> {
+    if (await this.bankService.areKnownBankIbans(tx.accountIban, tx.iban)) {
+      return BankTxType.INTERNAL;
+    }
+
     if (tx.name?.includes('Payward Trading')) {
       return BankTxType.KRAKEN;
     }

@@ -1793,7 +1793,7 @@ describe('LogJobService', () => {
     });
 
     // drive the full asset-log assembly (where the fail-closed guard lives) with a single bank asset
-    function setupAssetLog(pendingBuyFiat: BuyFiat[]): Asset {
+    function setupAssetLog(pendingBuyFiat: BuyFiat[], internalBankTx: BankTx[] = []): Asset {
       const asset = yapealChfAsset();
 
       jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
@@ -1812,12 +1812,36 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentInternalTx').mockResolvedValue(internalBankTx);
       jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);
       jest.spyOn(exchangeTxService, 'getRecentExchangeTx').mockResolvedValue([]);
 
       return asset;
     }
+
+    it('keeps an internal Olkypay-to-Bank-Frick transfer in plus balance until arrival', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: frickEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const internalTx = createCustomBankTx({
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedAmount: 280000,
+        instructedCurrency: 'EUR',
+      });
+      setupAssetLog([], [internalTx]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending.internal).toBe(280000);
+      expect(assetLog[asset.id].plusBalance.total).toBe(280000);
+    });
 
     it('does NOT alarm when a transmitted-unsettled liability is correctly counted (fresh, within SLA)', async () => {
       const errorSpy = jest.spyOn(service['logger'], 'error');
@@ -1945,7 +1969,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentInternalTx').mockResolvedValue([]);
 
       // an unmatched (still-pending) debit from Frick's EUR IBAN into Scrypt
       const frickToScryptTx = createCustomBankTx({
@@ -2012,7 +2036,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentInternalTx').mockResolvedValue([]);
       jest
         .spyOn(bankTxService, 'getRecentExchangeTx')
         .mockImplementation(async (_minId, type) => (type === BankTxType.SCRYPT ? scryptBankTx : []));
@@ -2128,7 +2152,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentInternalTx').mockResolvedValue([]);
       jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
       jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
       jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);
