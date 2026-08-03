@@ -433,7 +433,11 @@ export class BankTx extends IEntity {
     // Frick debit entries can include the outgoing bank charge in the booked amount.
     // Only the principal reaches the other DFX account and therefore remains in transit.
     const charge =
-      hasBookedAmount && this.creditDebitIndicator === BankTxIndicator.DEBIT ? (this.chargeAmount ?? 0) : 0;
+      hasBookedAmount &&
+      this.creditDebitIndicator === BankTxIndicator.DEBIT &&
+      (!this.chargeCurrency || this.chargeCurrency === this.currency)
+        ? (this.chargeAmount ?? 0)
+        : 0;
     if (!Number.isFinite(charge)) return undefined;
 
     const principal = amount - charge;

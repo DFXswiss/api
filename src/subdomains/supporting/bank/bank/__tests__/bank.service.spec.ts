@@ -386,7 +386,6 @@ describe('Bank Frick country routing', () => {
 describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
   beforeEach(() => {
     (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
-    (BankService as unknown as { knownIbanCache: Map<string, Set<string>> }).knownIbanCache.clear();
     (BankService as unknown as { unboundIbanCache: Map<string, Set<string>> }).unboundIbanCache.clear();
   });
 
@@ -418,6 +417,10 @@ describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
       unboundIban,
       new Set([`${IbanBankName.FRICK}-EUR`]),
     );
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+      `${IbanBankName.FRICK}-EUR`,
+      frickEUR.iban,
+    );
     const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR', bank: frickEUR });
 
     expect(BankService.isInternalBankMatching(asset, unboundIban)).toBe(true);
@@ -437,13 +440,48 @@ describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
       iban: 'LI75088110105923SECOND',
       asset: { id: 2 },
     });
-    BankService['setKnownIbanCache']([firstBank, secondBank]);
+    BankService['setIbanAttributionCache']([firstBank, secondBank]);
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+      `${IbanBankName.FRICK}-EUR`,
+      firstBank.iban,
+    );
 
     const firstAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR', bank: firstBank });
     const secondAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR', bank: secondBank });
 
     expect(BankService.isInternalBankMatching(firstAsset, secondBank.iban)).toBe(false);
     expect(BankService.isInternalBankMatching(secondAsset, secondBank.iban)).toBe(true);
+  });
+
+  it('attributes an unbound IBAN to only the selected asset when two assets share bank and currency', () => {
+    const unboundBank = Object.assign(new Bank(), {
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'LI75088110105923UNBOUND',
+    });
+    const firstBank = Object.assign(new Bank(), {
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'LI75088110105923FIRST',
+      asset: { id: 1 },
+    });
+    const secondBank = Object.assign(new Bank(), {
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'LI75088110105923SECOND',
+      asset: { id: 2 },
+    });
+    BankService['setIbanAttributionCache']([unboundBank, firstBank, secondBank]);
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+      `${IbanBankName.FRICK}-EUR`,
+      firstBank.iban,
+    );
+
+    const firstAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR', bank: firstBank });
+    const secondAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR', bank: secondBank });
+
+    expect(BankService.isInternalBankMatching(firstAsset, unboundBank.iban)).toBe(true);
+    expect(BankService.isInternalBankMatching(secondAsset, unboundBank.iban)).toBe(false);
   });
 });
 

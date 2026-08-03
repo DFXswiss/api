@@ -24,7 +24,6 @@ export interface BankSelectorInput {
 export class BankService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankService);
   private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
-  private static knownIbanCache: Map<string, Set<string>> = new Map(); // key: normalized iban, value: bankName-currency
   private static unboundIbanCache: Map<string, Set<string>> = new Map(); // only IBANs with no asset-bound bank row
 
   // The VirtualIbanRepository is injected instead of the VirtualIbanService: that service depends on this
@@ -82,7 +81,7 @@ export class BankService implements OnModuleInit {
     if (!ibans.length || ibans.some((iban) => !iban)) return false;
 
     const banks = await this.getAllBanks();
-    BankService.setKnownIbanCache(banks);
+    BankService.setIbanAttributionCache(banks);
     const knownIbans = new Set(banks.map((bank) => BankService.normalizeIban(bank.iban)));
 
     return ibans.every((iban) => knownIbans.has(BankService.normalizeIban(iban)));
@@ -174,7 +173,14 @@ export class BankService implements OnModuleInit {
     const bankName = this.blockchainToBankName(asset.blockchain);
     if (!bankName) return false;
 
-    return BankService.unboundIbanCache.get(normalizedIban)?.has(`${bankName}-${asset.dexName}`) ?? false;
+    const key = `${bankName}-${asset.dexName}`;
+    if (!BankService.unboundIbanCache.get(normalizedIban)?.has(key)) return false;
+
+    const selectedIban = BankService.ibanCache.get(key);
+    return (
+      Boolean(asset.bank?.iban && selectedIban) &&
+      BankService.normalizeIban(asset.bank.iban) === BankService.normalizeIban(selectedIban)
+    );
   }
 
   // --- RECEIVE IBAN CHECK --- //
@@ -245,7 +251,7 @@ export class BankService implements OnModuleInit {
     // Newest-first so that within each (name, currency) group the order handed to
     // selectAttributionBank is deterministic; asset-linked rows still beat newer unbound ones.
     const banks = await this.bankRepo.find({ order: { id: 'DESC' }, relations: { asset: true } });
-    BankService.setKnownIbanCache(banks);
+    BankService.setIbanAttributionCache(banks);
 
     const byKey = Util.groupByAccessor(banks, (b) => `${b.name}-${b.currency}`);
 
@@ -266,8 +272,7 @@ export class BankService implements OnModuleInit {
     }
   }
 
-  private static setKnownIbanCache(banks: Bank[]): void {
-    BankService.knownIbanCache.clear();
+  private static setIbanAttributionCache(banks: Bank[]): void {
     BankService.unboundIbanCache.clear();
 
     const banksByIban = Util.groupByAccessor(banks, (bank) => BankService.normalizeIban(bank.iban));
@@ -276,7 +281,6 @@ export class BankService implements OnModuleInit {
       if (!normalizedIban) continue;
 
       const keys = new Set(ibanBanks.map((bank) => `${bank.name}-${bank.currency}`));
-      BankService.knownIbanCache.set(normalizedIban, keys);
 
       // A loaded asset relation makes the IBAN attributable only to that exact asset.bank IBAN.
       // The name/currency fallback is reserved for bank rows that are genuinely unbound, otherwise

@@ -1361,7 +1361,10 @@ export class LogJobService {
     const availableCredits = new Set(transactions.filter((tx) => tx.creditDebitIndicator === BankTxIndicator.CREDIT));
     const unsettled = new Set(debits);
 
-    const settleUnique = (predicate: (debit: BankTx, credit: BankTx) => boolean): void => {
+    const settleUnique = (
+      predicate: (debit: BankTx, credit: BankTx) => boolean,
+      enforceSettlementWindow = true,
+    ): void => {
       let settledInPass: boolean;
 
       do {
@@ -1369,13 +1372,16 @@ export class LogJobService {
 
         for (const debit of [...unsettled]) {
           const matchingCredits = [...availableCredits].filter(
-            (credit) => this.isInternalTransferCounterEntry(debit, credit) && predicate(debit, credit),
+            (credit) =>
+              this.isInternalTransferCounterEntry(debit, credit, enforceSettlementWindow) && predicate(debit, credit),
           );
           if (matchingCredits.length !== 1) continue;
 
           const [credit] = matchingCredits;
           const matchingDebits = [...unsettled].filter(
-            (candidate) => this.isInternalTransferCounterEntry(candidate, credit) && predicate(candidate, credit),
+            (candidate) =>
+              this.isInternalTransferCounterEntry(candidate, credit, enforceSettlementWindow) &&
+              predicate(candidate, credit),
           );
           if (matchingDebits.length !== 1) continue;
 
@@ -1390,7 +1396,7 @@ export class LogJobService {
     settleUnique((debit, credit) => {
       const debitReference = this.getInternalEndToEndId(debit);
       return Boolean(debitReference) && debitReference === this.getInternalEndToEndId(credit);
-    });
+    }, false);
 
     settleUnique((debit, credit) => {
       const debitReference = this.getInternalRemittanceInfo(debit);
@@ -1419,6 +1425,27 @@ export class LogJobService {
       },
     );
     for (const [credit, debit] of sameCurrencyMatches) {
+      unsettled.delete(debit);
+      availableCredits.delete(credit);
+    }
+
+    // Optional ISO amount details can identify a partial FX arrival without being used for
+    // per-account attribution. Match them to the target account's actually booked amount.
+    const fxAmountMatches = this.getMaximumInternalTransferMatches(
+      [...unsettled],
+      [...availableCredits],
+      (debit, credit) => {
+        if (this.hasConflictingInternalEndToEndIds(debit, credit)) return false;
+        if (!debit.currency || !credit.currency || debit.currency === credit.currency) return false;
+        const creditAmount = credit.internalTransferAmount();
+        if (typeof creditAmount !== 'number' || !Number.isFinite(creditAmount)) return false;
+
+        return this.getInternalTargetAmounts(debit).some(
+          ({ amount, currency }) => currency === credit.currency && Math.abs(amount - creditAmount) < 0.005,
+        );
+      },
+    );
+    for (const [credit, debit] of fxAmountMatches) {
       unsettled.delete(debit);
       availableCredits.delete(credit);
     }
@@ -1516,7 +1543,7 @@ export class LogJobService {
     return matches;
   }
 
-  private isInternalTransferCounterEntry(debit: BankTx, credit: BankTx): boolean {
+  private isInternalTransferCounterEntry(debit: BankTx, credit: BankTx, enforceSettlementWindow = true): boolean {
     const sourceIban = BankService.normalizeIban(debit.accountIban);
     const targetIban = BankService.normalizeIban(debit.iban);
     if (!sourceIban || !targetIban) return false;
@@ -1524,7 +1551,23 @@ export class LogJobService {
     if (targetIban !== BankService.normalizeIban(credit.accountIban)) return false;
 
     const timeDifference = this.getInternalTransferTime(credit) - this.getInternalTransferTime(debit);
-    return timeDifference >= -24 * 60 * 60 * 1000 && timeDifference <= INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS;
+    return (
+      timeDifference >= -24 * 60 * 60 * 1000 &&
+      (!enforceSettlementWindow || timeDifference <= INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS)
+    );
+  }
+
+  private getInternalTargetAmounts(tx: BankTx): { amount: number; currency: string }[] {
+    return [
+      { amount: tx.instructedAmount, currency: tx.instructedCurrency },
+      { amount: tx.txAmount, currency: tx.txCurrency },
+    ].filter(
+      (entry): entry is { amount: number; currency: string } =>
+        typeof entry.amount === 'number' &&
+        Number.isFinite(entry.amount) &&
+        entry.amount > 0 &&
+        Boolean(entry.currency),
+    );
   }
 
   private getInternalEndToEndId(tx: BankTx): string | undefined {

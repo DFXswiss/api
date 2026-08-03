@@ -2104,6 +2104,63 @@ describe('LogJobService', () => {
       expect(service['getUnsettledInternalBankTx'](transactions)).toEqual([]);
     });
 
+    it('uses optional ISO target amounts to identify a partial FX arrival', () => {
+      const createDebit = (id: number, amount: number, targetAmount: number, hour: number): BankTx =>
+        createCustomBankTx({
+          id,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount,
+          currency: 'EUR',
+          instructedAmount: targetAmount,
+          instructedCurrency: 'CHF',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      const firstDebit = createDebit(208765, 100000, 95000, 8);
+      const secondDebit = createDebit(208766, 200000, 190000, 9);
+      const credit = createCustomBankTx({
+        id: 208800,
+        accountIban: frickCHF.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 190000,
+        currency: 'CHF',
+        valueDate: new Date('2026-08-03T10:00:00Z'),
+        created: new Date('2026-08-03T10:00:00Z'),
+      });
+
+      expect(service['getUnsettledInternalBankTx']([firstDebit, secondDebit, credit])).toEqual([firstDebit]);
+    });
+
+    it('settles a late credit when a unique end-to-end ID still proves the pair', () => {
+      const debit = createCustomBankTx({
+        id: 208765,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 100000,
+        currency: 'EUR',
+        endToEndId: 'E2E-LATE',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const credit = createCustomBankTx({
+        id: 208800,
+        accountIban: frickEUR.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 100000,
+        currency: 'EUR',
+        endToEndId: 'E2E-LATE',
+        valueDate: new Date('2026-09-01T08:00:00Z'),
+        created: new Date('2026-09-01T08:00:00Z'),
+      });
+
+      expect(service['getUnsettledInternalBankTx']([debit, credit])).toEqual([]);
+    });
+
     it('does not use weaker matching when both legs have conflicting end-to-end IDs', () => {
       const debit = createCustomBankTx({
         id: 208765,

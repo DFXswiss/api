@@ -1,6 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { createCustomSpecialExternalAccount } from 'src/subdomains/supporting/payment/__mocks__/special-external-account.entity.mock';
 import { createCustomBankTx } from '../__mocks__/bank-tx.entity.mock';
@@ -47,23 +48,20 @@ describe('BankTx', () => {
     const olkyIban = 'LU116060002000005040';
     const frickIban = 'LI75088110105923K000E';
     const frickChfIban = 'LI75088110105923K000C';
-    const olkyAsset = createCustomAsset({ blockchain: Blockchain.OLKYPAY, dexName: 'EUR' });
-    const frickAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
-    const frickChfAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'CHF' });
-
-    beforeEach(() => {
-      const bankService = BankService as unknown as {
-        knownIbanCache: Map<string, Set<string>>;
-        unboundIbanCache: Map<string, Set<string>>;
-      };
-      bankService.knownIbanCache.clear();
-      bankService.unboundIbanCache.clear();
-      bankService.knownIbanCache.set(olkyIban, new Set([`${IbanBankName.OLKY}-EUR`]));
-      bankService.knownIbanCache.set(frickIban, new Set([`${IbanBankName.FRICK}-EUR`]));
-      bankService.knownIbanCache.set(frickChfIban, new Set([`${IbanBankName.FRICK}-CHF`]));
-      bankService.unboundIbanCache.set(olkyIban, new Set([`${IbanBankName.OLKY}-EUR`]));
-      bankService.unboundIbanCache.set(frickIban, new Set([`${IbanBankName.FRICK}-EUR`]));
-      bankService.unboundIbanCache.set(frickChfIban, new Set([`${IbanBankName.FRICK}-CHF`]));
+    const olkyAsset = createCustomAsset({
+      blockchain: Blockchain.OLKYPAY,
+      dexName: 'EUR',
+      bank: Object.assign(new Bank(), { name: IbanBankName.OLKY, currency: 'EUR', iban: olkyIban }),
+    });
+    const frickAsset = createCustomAsset({
+      blockchain: Blockchain.FRICK,
+      dexName: 'EUR',
+      bank: Object.assign(new Bank(), { name: IbanBankName.FRICK, currency: 'EUR', iban: frickIban }),
+    });
+    const frickChfAsset = createCustomAsset({
+      blockchain: Blockchain.FRICK,
+      dexName: 'CHF',
+      bank: Object.assign(new Bank(), { name: IbanBankName.FRICK, currency: 'CHF', iban: frickChfIban }),
     });
 
     it('keeps a debit in the source plus balance while it is in transit', () => {
@@ -118,6 +116,20 @@ describe('BankTx', () => {
       });
 
       expect(entity.pendingBankAmount(olkyAsset, BankTxType.INTERNAL)).toBe(1000);
+    });
+
+    it('does not subtract a bank charge denominated in another currency', () => {
+      const entity = createCustomBankTx({
+        accountIban: olkyIban,
+        iban: frickIban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 1005,
+        currency: 'EUR',
+        chargeAmount: 5,
+        chargeCurrency: 'CHF',
+      });
+
+      expect(entity.pendingBankAmount(olkyAsset, BankTxType.INTERNAL)).toBe(1005);
     });
   });
 
