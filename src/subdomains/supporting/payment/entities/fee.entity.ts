@@ -227,6 +227,10 @@ export class Fee extends IEntity {
   // A flat surcharge adds a fixed amount and nothing else: no percentage, no share of the network
   // fee. The special code is what binds it to a single account - `FeeService.getValidFees` applies
   // an additive fee without one to every user.
+  //
+  // Deliberately wider than what `FeeService` creates or reuses: a restricted fee (asset, bank,
+  // volume, …) is still this account's flat surcharge and has to be replaced along with the rest,
+  // even though the operation would never hand one out.
   get isAccountFlatSurcharge(): boolean {
     return this.type === FeeType.ADDITION && this.fixed > 0 && this.rate === 0 && this.blockchainFactor === 0
       ? Boolean(this.specialCode)
