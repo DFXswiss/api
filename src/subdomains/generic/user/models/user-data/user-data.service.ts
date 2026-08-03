@@ -1567,8 +1567,8 @@ export class UserDataService {
             (k) => (k.type === KycStepType.VIDEO || k.type === KycStepType.SUMSUB_VIDEO) && k.isCompleted,
           )
         ) {
-          master.identificationType = KycIdentificationType.VIDEO_ID;
-          master.bankTransactionVerification = CheckStatus.UNNECESSARY;
+          master.identificationType ??= KycIdentificationType.VIDEO_ID;
+          master.bankTransactionVerification ??= CheckStatus.UNNECESSARY;
         }
         if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
         const changedMailNotificationMaster =

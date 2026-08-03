@@ -725,17 +725,7 @@ describe('UserDataService', () => {
     // COMPLETED video ident steps are not in the cancel list, so update() receives status undefined;
     // that must not wipe status, or the VIDEO_ID / bankTransactionVerification branch never fires.
     describe.each([KycStepType.VIDEO, KycStepType.SUMSUB_VIDEO])('completed %s slave ident step', (identType) => {
-      it('sets master identificationType to VIDEO_ID and bankTransactionVerification to UNNECESSARY', async () => {
-        const master = buildAccount(1000, 50);
-        const slave = buildAccount(2000, 20);
-        const videoStep = Object.assign(new KycStep(), {
-          id: 1,
-          name: KycStepName.IDENT,
-          type: identType,
-          status: ReviewStatus.COMPLETED,
-          sequenceNumber: 0,
-        });
-
+      const prepareVideoMerge = async (master: UserData, slave: UserData, videoStep: KycStep): Promise<void> => {
         userDataRepo.findOne.mockResolvedValueOnce(master).mockResolvedValueOnce(slave);
         transactionService.getAllTransactionsForUserData.mockResolvedValue([]);
         userRepo.find.mockResolvedValue([]);
@@ -747,12 +737,55 @@ describe('UserDataService', () => {
         jest
           .spyOn(service as unknown as { updateBankTxTime: () => Promise<void> }, 'updateBankTxTime')
           .mockResolvedValue(undefined);
+      };
 
+      const buildCompletedVideoStep = (): KycStep =>
+        Object.assign(new KycStep(), {
+          id: 1,
+          name: KycStepName.IDENT,
+          type: identType,
+          status: ReviewStatus.COMPLETED,
+          sequenceNumber: 0,
+        });
+
+      it('sets master identificationType to VIDEO_ID and bankTransactionVerification to UNNECESSARY', async () => {
+        const master = buildAccount(1000, 50);
+        const slave = buildAccount(2000, 20);
+        const videoStep = buildCompletedVideoStep();
+
+        await prepareVideoMerge(master, slave, videoStep);
         await service.mergeUserData(master.id, slave.id);
 
         expect(master.identificationType).toBe(KycIdentificationType.VIDEO_ID);
         expect(master.bankTransactionVerification).toBe(CheckStatus.UNNECESSARY);
         expect(videoStep.status).toBe(ReviewStatus.COMPLETED);
+      });
+
+      it('keeps master identificationType and bankTransactionVerification when both already set', async () => {
+        const master = buildAccount(1000, 50);
+        master.identificationType = KycIdentificationType.ONLINE_ID;
+        master.bankTransactionVerification = CheckStatus.PASS;
+        const slave = buildAccount(2000, 20);
+        const videoStep = buildCompletedVideoStep();
+
+        await prepareVideoMerge(master, slave, videoStep);
+        await service.mergeUserData(master.id, slave.id);
+
+        expect(master.identificationType).toBe(KycIdentificationType.ONLINE_ID);
+        expect(master.bankTransactionVerification).toBe(CheckStatus.PASS);
+      });
+
+      it('keeps master identificationType and sets bankTransactionVerification when only the latter is empty', async () => {
+        const master = buildAccount(1000, 50);
+        master.identificationType = KycIdentificationType.ONLINE_ID;
+        const slave = buildAccount(2000, 20);
+        const videoStep = buildCompletedVideoStep();
+
+        await prepareVideoMerge(master, slave, videoStep);
+        await service.mergeUserData(master.id, slave.id);
+
+        expect(master.identificationType).toBe(KycIdentificationType.ONLINE_ID);
+        expect(master.bankTransactionVerification).toBe(CheckStatus.UNNECESSARY);
       });
     });
   });
