@@ -328,8 +328,16 @@ export class PaymentLinkPaymentService {
     try {
       return await this.paymentWaitMap.wait(payment.id, PAYMENT_WAIT_TIMEOUT_SECONDS * 1000);
     } catch {
-      // The wait elapsed. Answer with the payment as it stands rather than fail: the caller asked
-      // whether anything happened, and "not within this window" is an answer to that.
+      // The wait elapsed. Answer with the payment AS THE CALLER HANDED IT IN rather than fail:
+      // "nothing was observed within this window" is an answer to what it asked, and the caller
+      // polls again.
+      //
+      // Deliberately not re-read here, although that would close a gap of up to one tick: a change
+      // in the last 15 s before the timeout has not been picked up yet, so this can answer
+      // `Pending` for a payment that just completed. Re-reading would cost one query PER TIMING-OUT
+      // CALLER, and they time out together — a shop with many terminals would turn one batched read
+      // every 15 s into a burst of single-row reads. The tick path already answers all of them with
+      // one query, and the next poll is at most a round trip away.
       return payment;
     } finally {
       // The waiter owns its entry. `resolveWaiters` clears it on the delivery path; this clears it
@@ -417,9 +425,15 @@ export class PaymentLinkPaymentService {
   /**
    * Drops what the read can no longer return. An entry is kept while its payment is still asked
    * for, NOT while its device is connected: a device that reconnects finds its record intact and is
-   * not told a second time about what it already heard. That is also what bounds the record —
-   * entries age out on the same cutoff the query uses, and a device whose entries have all gone
-   * leaves with them.
+   * not told a second time about what it already heard. The record therefore holds exactly what
+   * the read can still produce, and a device whose entries have all gone leaves with them.
+   *
+   * That ties the size of this map to the READ, not to a span: `expiryDate` comes from the caller
+   * (`CreatePaymentLinkPaymentDto`, optional and validated only as a date) and falls back to the
+   * link's `paymentTimeout` when it is left out. For the payments the API dates itself that means
+   * roughly the timeout plus an hour; a caller that sets an expiry far ahead keeps its payments in
+   * the read — and here — until then. Nothing in this class caps that, and capping it would be a
+   * change to what a merchant may ask for rather than to this delivery.
    */
   private pruneDeliveries(cutoff: Date): void {
     for (const [deviceId, delivered] of this.deviceDeliveries) {
@@ -433,14 +447,15 @@ export class PaymentLinkPaymentService {
   /**
    * Drops what this process believes it told a device, so the next tick tells it again.
    *
-   * Called by the gateway when a socket reports `'error'` — the one signal that a command may
-   * have failed AFTER the sink answered `true`. `ws` raises a send on a socket that closed
-   * mid-call that way, and nothing else can see it: the state was open when it was read, and the
-   * call did not throw.
+   * Called by the gateway on the two signals that a command may have failed AFTER the sink
+   * answered `true`, both of which are invisible here: `'error'`, which is how `ws` reports a send
+   * on a socket that closed mid-call (the state was open when it was read, and the call did not
+   * throw), and the ping sweep dropping a peer that stopped answering without closing anything —
+   * there a send simply went into a socket nobody was reading.
    *
-   * Deliberately not called on `'close'`. An orderly close is not evidence that anything failed,
-   * and forgetting there would repeat every command on every reconnect — which is what the record
-   * exists to prevent.
+   * Deliberately NOT called on `'close'`. A peer that completes the closing handshake was reading
+   * until it did, so an orderly close is not evidence that anything failed; forgetting there would
+   * repeat every command on every reconnect, which is what the record exists to prevent.
    */
   forgetDeliveries(deviceId: string): void {
     this.deviceDeliveries.delete(deviceId);

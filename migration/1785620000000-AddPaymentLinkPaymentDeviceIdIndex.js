@@ -13,9 +13,10 @@
  * ticks for as long as a device stays connected.
  *
  * A single-column index is enough for the shape of the query. It filters `deviceId IN (…)` on the
- * handful of devices connected to this process and narrows the result further by `expiryDate` and
- * by status — but a device has few payments, so the index gets the row count down to that handful
- * before the remaining conditions are applied.
+ * handful of devices connected to this process; `expiryDate` and the status conditions are applied
+ * to what that yields and are not part of the index. What the index removes is the scan of every
+ * OTHER device's payments, which is the part that grows with the table. What it leaves is one
+ * device's own history — bounded by how much that terminal has taken, not by the query.
  *
  * The name is the deterministic one TypeORM's `DefaultNamingStrategy` derives, since CONTRIBUTING
  * disallows custom index names: `IDX_` followed by the first 26 hex characters of

@@ -97,6 +97,15 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
           // on the next sweep, and on every one after that.
           this.removeClient(device, clientId);
           connection.socket.terminate();
+
+          // And what this process believes it told that device goes with it. This is the third
+          // way a command can be lost after the sink answered `true`, and the only one that
+          // produces neither a throw nor an `'error'`: the peer stopped answering without closing
+          // anything, so a `send` between the last two sweeps went into a socket nobody was
+          // reading. An orderly `'close'` is different and deliberately does NOT do this — there
+          // the peer completed the closing handshake, which means it was still reading, and
+          // forgetting would repeat every command on every reconnect.
+          this.paymentService.forgetDeliveries(device);
           continue;
         }
 
@@ -120,7 +129,8 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     // `error` does one thing more than `close`: it is how `ws` reports a send on a socket that
     // closed between the delivery's state check and the call itself. The delivery has already
     // recorded that command as sent, so the record has to go — see
-    // PaymentLinkPaymentService.forgetDeliveries for why `close` must NOT do the same.
+    // PaymentLinkPaymentService.forgetDeliveries for why `close` must NOT do the same, and
+    // `checkConnections` above for the third case, which reaches neither handler.
     client.on('error', () => {
       this.removeClient(device, clientId);
       this.paymentService.forgetDeliveries(device);
