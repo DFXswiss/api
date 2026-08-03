@@ -219,9 +219,11 @@ describe('SupportService.generateAndSaveLimitRequestPdf', () => {
     const expectedBlobPath = `user/${USER_DATA_ID}/UserNotes/20260310-LimitRequest-0-${USER_DATA_ID}-081530.pdf`;
 
     try {
-      jest.spyOn(kycDocumentService, 'listFilesByPrefix').mockImplementation(async (prefix: string) =>
-        prefix === expectedBlobPath ? [{ path: expectedBlobPath } as never] : [],
-      );
+      jest
+        .spyOn(kycDocumentService, 'listFilesByPrefix')
+        .mockImplementation(async (prefix: string) =>
+          prefix === expectedBlobPath ? [{ path: expectedBlobPath } as never] : [],
+        );
 
       await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, acceptedDto())).rejects.toThrow(
         ConflictException,
