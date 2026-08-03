@@ -109,7 +109,8 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
 
     // userDataId 10: COMPLETE 100 + COMPLETE 200.4 → totalChf 300.4, rounds DOWN to 300, count 2 (highest)
     // userDataId 20: COMPLETE 150 → totalChf 150, count 1
-    // userDataId 30: COMPLETE 50 + COMPLETE 25.6 → totalChf 75.6, rounds UP to 76, count 2 (two rows aggregate)
+    // userDataId 30: COMPLETE 50 (created = oldDate) + COMPLETE 25.6 (created = newDate)
+    //   → totalChf 75.6, rounds UP to 76, count 2 (two rows aggregate)
     // userDataId 40: only USER_SWITCH → must not appear
     // userDataId 50: COMPLETE 100 + USER_SWITCH 999 → totalChf 100, count 1 (USER_SWITCH excluded)
     //
@@ -117,23 +118,26 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     // used to be a whole number, so ROUND(…, 0) accidentally regressing to ROUND(…, 1) — or the sum
     // being truncated instead of rounded — would have left every expected total unchanged and the
     // test green.
-    await userRepo.save([
-      { id: 1, userDataId: 10 },
-      { id: 2, userDataId: 20 },
-      { id: 3, userDataId: 30 },
-      { id: 4, userDataId: 40 },
-      { id: 5, userDataId: 50 },
+    //
+    // Do not hard-code user ids: clear() does not reset the PrimaryGeneratedColumn sequence, so
+    // rewards must link to the entities returned by save().
+    const [user10, user20, user30, user40, user50] = await userRepo.save([
+      { userDataId: 10 },
+      { userDataId: 20 },
+      { userDataId: 30 },
+      { userDataId: 40 },
+      { userDataId: 50 },
     ]);
 
     await rewardRepo.save([
-      { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user: { id: 1 } },
-      { created: newDate, amountInChf: 200.4, status: RewardStatus.COMPLETE, user: { id: 1 } },
-      { created: newDate, amountInChf: 150, status: RewardStatus.COMPLETE, user: { id: 2 } },
-      { created: oldDate, amountInChf: 50, status: RewardStatus.COMPLETE, user: { id: 3 } },
-      { created: newDate, amountInChf: 25.6, status: RewardStatus.COMPLETE, user: { id: 3 } },
-      { created: newDate, amountInChf: 500, status: RewardStatus.USER_SWITCH, user: { id: 4 } },
-      { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user: { id: 5 } },
-      { created: newDate, amountInChf: 999, status: RewardStatus.USER_SWITCH, user: { id: 5 } },
+      { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user: user10 },
+      { created: newDate, amountInChf: 200.4, status: RewardStatus.COMPLETE, user: user10 },
+      { created: newDate, amountInChf: 150, status: RewardStatus.COMPLETE, user: user20 },
+      { created: oldDate, amountInChf: 50, status: RewardStatus.COMPLETE, user: user30 },
+      { created: newDate, amountInChf: 25.6, status: RewardStatus.COMPLETE, user: user30 },
+      { created: newDate, amountInChf: 500, status: RewardStatus.USER_SWITCH, user: user40 },
+      { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user: user50 },
+      { created: newDate, amountInChf: 999, status: RewardStatus.USER_SWITCH, user: user50 },
     ]);
   }
 
@@ -252,11 +256,25 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     }
   });
 
-  // The optional `from` filter is deliberately not covered here: pg-mem does not compare timestamp
-  // columns against JS Date parameters reliably, so such a test would fail for a reason that has
-  // nothing to do with this service. The filter is a plain andWhere on a timestamp column —
-  // `created` is inherited from the shared `IEntity` base (src/shared/models/entity.ts) and carries
-  // no `@Index()`. The case this file exists for — the ORDER BY alias against real Postgres
-  // identifier folding — is covered by the tests above, which fail with `column "totalchf" does not
-  // exist` if the fix is reverted.
+  it('filters rewards by from so group 30 drops the pre-from row (count 1, totalChf 26)', async () => {
+    await seedFixture();
+
+    const result = await service.getRewardRecipients(new Date('2026-01-01T00:00:00.000Z'));
+
+    expect(result).toEqual([
+      { userDataId: 10, count: 2, totalChf: 300 },
+      { userDataId: 20, count: 1, totalChf: 150 },
+      { userDataId: 50, count: 1, totalChf: 100 },
+      { userDataId: 30, count: 1, totalChf: 26 },
+    ]);
+    expect(result.map((r) => r.userDataId)).not.toContain(40);
+  });
+
+  it('returns an empty list when from is after every reward', async () => {
+    await seedFixture();
+
+    const result = await service.getRewardRecipients(new Date('2030-01-01T00:00:00.000Z'));
+
+    expect(result).toEqual([]);
+  });
 });
