@@ -155,6 +155,20 @@ describe('PaymentLinkGateway', () => {
       expect(deviceIds()).toEqual([]);
     });
 
+    it('forgets what the device was told when the sweep drops it', () => {
+      // The third way a command can be lost after the sink answered true, and the only one that
+      // produces neither a throw nor an 'error' event: the peer stopped answering without closing
+      // anything, so a send between the last two sweeps went into a socket nobody was reading.
+      // Together with the error and closing-state tests below, this closes the invariant: no path
+      // that can lose a command leaves its delivery marker standing.
+      connect('pos-1');
+
+      gateway.checkConnections();
+      gateway.checkConnections();
+
+      expect(paymentService.forgetDeliveries).toHaveBeenCalledWith('pos-1');
+    });
+
     it('keeps one that answers the ping', () => {
       // The negative side of the same check. Without it the sweep could pass by dropping every
       // connection it looked at.

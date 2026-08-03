@@ -524,6 +524,25 @@ describe('PaymentLinkPaymentService', () => {
 
       expect(service['deviceDeliveries'].has('pos-1')).toBe(false);
     });
+
+    it('should agree with the read at the exact boundary', () => {
+      // Record and read must decide "still owed?" identically, including AT the cutoff: the read
+      // uses MoreThan, so a payment sitting exactly on it is no longer returned — and its entry
+      // has to go with it. An entry one millisecond inside stays. If the two comparators ever
+      // drift apart, one side re-sends what the other considers settled.
+      const cutoff = new Date();
+      service['deviceDeliveries'].set(
+        'pos-1',
+        new Map([
+          [1, { state: 'x', expiryDate: cutoff }],
+          [2, { state: 'y', expiryDate: new Date(cutoff.getTime() + 1) }],
+        ]),
+      );
+
+      service['pruneDeliveries'](cutoff);
+
+      expect([...service['deviceDeliveries'].get('pos-1').keys()]).toEqual([2]);
+    });
   });
 
   // --- waitForPayment() Tests --- //
