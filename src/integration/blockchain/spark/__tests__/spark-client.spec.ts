@@ -15,8 +15,17 @@ jest.mock('@buildonspark/spark-sdk', () => ({
   SparkWallet: { initialize: jest.fn() },
 }));
 
+// Rolle des Prozesses, veränderbar je Test. Der Name muss mit `mock` beginnen,
+// sonst verbietet Jest den Zugriff aus der gehobenen Modul-Fabrik heraus.
+let mockCronRole = 'worker';
+
 jest.mock('src/config/config', () => ({
+  // Das Modul wird vollständig ersetzt, damit der Test nicht die ganze
+  // Konfigurationskette lädt. CronRole muss deshalb hier mitkommen: der Client
+  // liest es, um den Optimierungs-Timer an die Rolle zu binden.
+  CronRole: { All: 'all', Api: 'api', Worker: 'worker' },
   GetConfig: () => ({
+    cronRole: mockCronRole,
     blockchain: {
       spark: {
         sparkWalletSeed: 'test seed phrase',
@@ -63,6 +72,36 @@ describe('SparkClient', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+    mockCronRole = 'worker';
+  });
+
+  // --- TOKEN OPTIMIZATION TIMER --- //
+
+  describe('token optimization timer', () => {
+    it('runs the wallet maintenance in the worker process', () => {
+      // On-chain wallet maintenance is global work and must run in exactly one
+      // process. The timer predates the scheduler and bypasses it, so it carries
+      // the role check itself.
+      const interval = jest.spyOn(global, 'setInterval');
+
+      new SparkClient();
+
+      expect(interval).toHaveBeenCalledTimes(1);
+      expect(interval.mock.calls[0][1]).toBe(5 * 60 * 1000);
+
+      clearInterval(interval.mock.results[0].value as NodeJS.Timeout);
+    });
+
+    it('does not run it in the API process', () => {
+      // Both processes run the same image against the same seed: without this
+      // check the maintenance would run twice, unsynchronised.
+      mockCronRole = 'api';
+      const interval = jest.spyOn(global, 'setInterval');
+
+      new SparkClient();
+
+      expect(interval).not.toHaveBeenCalled();
+    });
   });
 
   describe('sendTransaction', () => {
