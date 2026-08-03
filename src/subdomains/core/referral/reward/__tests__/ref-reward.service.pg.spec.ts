@@ -127,9 +127,9 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     // userDataId 40: only USER_SWITCH -> must not appear
     // userDataId 50: COMPLETE 100 + USER_SWITCH 999 -> totalChf 100, count 1 (USER_SWITCH excluded)
     //
-    // 10 and 30 straddle a rounding boundary (...300.4 down, ...75.6 up) on purpose: if ROUND(..., 0)
-    // regressed to ROUND(..., 1), or the sum were truncated instead of rounded, every expected total
-    // would come out unchanged and the test would stay green.
+    // 10 and 30 straddle a rounding boundary in opposite directions (...300.4 down to 300,
+    // ...75.6 up to 76) on purpose: if ROUND(..., 0) regressed to ROUND(..., 1), or the sum were
+    // truncated instead of rounded, at least one of these expected totals would change, catching it.
     //
     // Do not hard-code user ids: clear() does not reset the PrimaryGeneratedColumn sequence, so
     // rewards must link to the entities returned by save().
