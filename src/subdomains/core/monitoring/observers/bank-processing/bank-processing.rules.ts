@@ -16,8 +16,10 @@ interface BankProcessingRuleBase {
 }
 
 // Discriminated on tolerance: when set, toleranceField is required; when null, display-only (no overdue).
-export type BankProcessingRule = BankProcessingRuleBase &
-  ({ tolerance: null } | { tolerance: ToleranceValue; toleranceField: 'created' | 'updated' });
+// Distributed as a top-level union — TS cannot narrow `Base & (A | B)` through the discriminant.
+export type BankProcessingRule =
+  | (BankProcessingRuleBase & { tolerance: null })
+  | (BankProcessingRuleBase & { tolerance: ToleranceValue; toleranceField: 'created' | 'updated' });
 
 export interface BankProcessingBlock {
   key: BankProcessingBlockKey;
