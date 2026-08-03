@@ -24,9 +24,11 @@
  * migration idempotent — rerunning it after a rule was already deactivated finds an empty
  * "affected" set, so the audit HAVING clause suppresses the insert and the UPDATE changes nothing.
  *
- * down() is not an exact inverse: a rule that was `Processing` or `Paused` before up() ran comes
- * back as `Active`, not its original status — that is the correct operational default state. The
- * exact prior status of every affected row remains available in the up() audit log line.
+ * down() is a deliberate no-op: a blind restore to 'Active' could reactivate rules that were
+ * already 'Inactive' before up() ran or were deactivated independently afterwards — for trading
+ * rules that is the dangerous direction. Reactivation is an operational decision; the exact prior
+ * status of every row this migration changed remains available in the up() audit log line (same
+ * no-op-rollback rationale as ClearDevUserSignatures).
  *
  * @class
  * @implements {MigrationInterface}
@@ -72,35 +74,16 @@ WHERE r."id" = a."id" AND EXISTS (SELECT 1 FROM "audit");
   }
 
   /**
-   * Reactivates trading rules 2, 7 and 11 by setting their status back to 'Active'. Not a
-   * guaranteed inverse of up(): a rule that was `Processing` or `Paused` before up() ran comes back
-   * as `Active` rather than its original status. See the class doc comment for details; the exact
-   * prior status remains available in the up() audit log line.
-   *
-   * @param {QueryRunner} queryRunner
+   * Deliberately does not reactivate the three rules: a blind restore to 'Active' could reactivate
+   * rules that were already 'Inactive' before up() ran or were deactivated independently
+   * afterwards. Reactivation is an operational decision; the exact prior status of every affected
+   * row remains available in the up() audit log line. Always a no-op in every environment — no env
+   * gate needed.
    */
-  async down(queryRunner) {
-    // Mirror up(): the deactivation only ran on prd, so the rollback is a no-op everywhere else.
-    if (process.env.ENVIRONMENT !== 'prd') return;
-
-    await queryRunner.query(`
-WITH "affected" AS (
-  SELECT "id", "status" FROM "trading_rule"
-  WHERE "id" IN (2, 7, 11) AND "status" = 'Inactive'
-  FOR UPDATE
-),
-"audit" AS (
-  INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
-  SELECT now(), now(), 'Migration', 'DeactivateTradingRules1785797168000', 'Info',
-    json_agg(json_build_object('id', "id", 'before', "status", 'after', 'Active'))::text
-  FROM "affected"
-  HAVING count(*) > 0
-  RETURNING 1
-)
-UPDATE "trading_rule" r
-SET "status" = 'Active', "updated" = now()
-FROM "affected" a
-WHERE r."id" = a."id" AND EXISTS (SELECT 1 FROM "audit");
-`);
+  async down() {
+    // Deliberately no-op: a blind restore to 'Active' could reactivate rules that up() never
+    // changed (already inactive before, or deactivated independently afterwards). The exact prior
+    // status of every affected row is preserved in the up() audit log line; reactivating is an
+    // operational decision, not a mechanical inverse.
   }
 };
