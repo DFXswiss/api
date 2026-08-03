@@ -1,5 +1,6 @@
 import { metrics } from '@opentelemetry/api';
 import { EventLoopUtilization, IntervalHistogram, monitorEventLoopDelay, performance } from 'perf_hooks';
+import { isTelemetryEnabled } from './tracing';
 
 // Node runtime saturation metrics for dfx-api.
 //
@@ -64,11 +65,11 @@ export function toEventLoopSample(histogram: IntervalHistogram, utilization: num
 let started = false;
 
 /**
- * Registers the runtime gauges. Returns false when tracing (and thus the meter provider) is
- * disabled, so callers can tell "off by configuration" from "failed".
+ * Registers the runtime gauges. Returns whether they are active: false means telemetry is
+ * switched off by configuration, in which case there is no meter provider to register with.
  */
 export function startRuntimeMetrics(): boolean {
-  if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT) return false;
+  if (!isTelemetryEnabled()) return false;
   if (started) return true;
 
   const histogram = monitorEventLoopDelay({ resolution: 20 });

@@ -1517,13 +1517,19 @@ export class Configuration {
 /**
  * Reads the CRON_JOBS_ENABLED flag.
  *
- * Unset means "run jobs", which keeps every existing environment working unchanged. Any other
- * value than 'true'/'false' throws instead of being coerced: a typo such as 'fals' would
- * otherwise silently enable the scheduler on an instance meant to be HTTP-only, and duplicate
- * job execution is far more damaging than a failed boot.
+ * Only an entirely unset variable means "run jobs", which keeps every existing environment
+ * working unchanged. Every other value must be exactly 'true' or 'false' and throws otherwise,
+ * rather than being coerced: on an instance meant to be HTTP-only, anything that silently reads
+ * as "enabled" re-registers the scheduler, and jobs without a declared `process` would then run
+ * on two instances at once. Duplicate execution of financial jobs is far more damaging than a
+ * failed boot.
+ *
+ * The empty string throws for that reason too, even though it is the more common accident — an
+ * `CRON_JOBS_ENABLED=` line in an env file, or an unresolved `${VAR}` in a compose file. Neither
+ * should quietly turn a job container back on.
  */
 export function parseCronJobsEnabled(value?: string): boolean {
-  if (value == null || value === '') return true;
+  if (value == null) return true;
   if (value === 'true') return true;
   if (value === 'false') return false;
 

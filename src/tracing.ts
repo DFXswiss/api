@@ -71,9 +71,18 @@ export const METRIC_EXPORT_INTERVAL_MS = 10_000;
 
 let sdk: NodeSDK | undefined;
 
+/**
+ * Whether telemetry export is configured at all. Shared with src/runtime-metrics.ts so both
+ * halves switch on the same condition — the metrics live in the meter provider this module
+ * registers, and a second copy of the check would drift the moment this one changes.
+ */
+export function isTelemetryEnabled(): boolean {
+  return Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+}
+
 export function startTracing(): NodeSDK | undefined {
   // Disabled unless a collector endpoint is configured (e.g. on LOC / in tests).
-  if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT) return undefined;
+  if (!isTelemetryEnabled()) return undefined;
   if (sdk) return sdk;
 
   sdk = new NodeSDK({

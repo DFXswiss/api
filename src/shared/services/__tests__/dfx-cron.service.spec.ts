@@ -5,12 +5,12 @@ jest.mock('cron', () => ({
 }));
 
 import { createMock } from '@golevelup/ts-jest';
-import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { DiscoveryService, MetadataScanner } from '@nestjs/core';
-import { Config, ConfigService, GetConfig } from 'src/config/config';
+import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
+import { ConfigService, GetConfig } from 'src/config/config';
 import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
-import { Process } from '../process.service';
 import { DfxCronService } from '../dfx-cron.service';
+import { Process } from '../process.service';
 
 /** Builds a provider instance carrying @DfxCron metadata, as the decorator would. */
 function providerWithJob(methodName: string, params: DfxCronParams): { instance: object } {
@@ -44,6 +44,8 @@ function buildService(providers: { instance: object }[]): {
 }
 
 describe('DfxCronService', () => {
+  const original = process.env.CRON_JOBS_ENABLED;
+
   const configuredJobs = [
     providerWithJob('withProcess', { expression: CronExpression.EVERY_MINUTE, process: Process.MONITOR_EVENT_LOOP }),
     // A job without `process` — DISABLED_PROCESSES cannot stop this one, only the global switch can.
@@ -52,11 +54,16 @@ describe('DfxCronService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+
+    if (original == null) delete process.env.CRON_JOBS_ENABLED;
+    else process.env.CRON_JOBS_ENABLED = original;
+
     new ConfigService(GetConfig());
   });
 
   it('registers jobs when cron is enabled', () => {
-    new ConfigService({ ...GetConfig(), cronJobsEnabled: true } as typeof Config);
+    process.env.CRON_JOBS_ENABLED = 'true';
+    new ConfigService(GetConfig());
 
     const { service, scheduler } = buildService(configuredJobs);
     service.onModuleInit();
@@ -69,7 +76,8 @@ describe('DfxCronService', () => {
     // The safety property of the HTTP-only instance: were a job without `process` still
     // registered here, it would run on both the HTTP and the job instance simultaneously.
     // Cron locks are per-process, so duplicate execution would go unnoticed.
-    new ConfigService({ ...GetConfig(), cronJobsEnabled: false } as typeof Config);
+    process.env.CRON_JOBS_ENABLED = 'false';
+    new ConfigService(GetConfig());
 
     const { service, scheduler } = buildService(configuredJobs);
     service.onModuleInit();
