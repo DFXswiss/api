@@ -1111,6 +1111,69 @@ describe('BuyService', () => {
       await expect(resolution).rejects.not.toThrow(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
       await expect(resolution).rejects.not.toThrow(QuoteError.KYC_REQUIRED);
     });
+
+    const realuAsset = { name: 'REALU' } as Asset;
+
+    it('resolves the plain bank for a REALU buy below KYC 50 instead of demanding a personal IBAN', async () => {
+      const level30UserData = { ...userData, kycLevel: KycLevel.LEVEL_30 } as UserData;
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: level30UserData },
+        buy,
+        realuAsset,
+      );
+
+      expect(bankInfo).toMatchObject({
+        iban: collectionBank.iban,
+        isPersonalIban: false,
+        reference: buy.bankUsage,
+      });
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
+      expect(virtualIbanService.isUserEligible).not.toHaveBeenCalled();
+    });
+
+    it('does not issue a personal IBAN as a side effect of a REALU buy at KYC 50', async () => {
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData },
+        buy,
+        realuAsset,
+      );
+
+      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
+      expect(bankInfo.isPersonalIban).toBe(false);
+      expect(bankInfo.iban).toBe(collectionBank.iban);
+    });
+
+    it('keeps demanding KYC 50 for a non-REALU asset on the implicit path', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+
+      await expect(
+        service.getBankInfo(
+          { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData },
+          buy,
+          { name: 'BTC' } as Asset,
+        ),
+      ).rejects.toThrow(QuoteError.KYC_REQUIRED);
+    });
+
+    it('fails loud for a REALU buy when no bank resolves', async () => {
+      const level30UserData = { ...userData, kycLevel: KycLevel.LEVEL_30 } as UserData;
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
+
+      await expect(
+        service.getBankInfo(
+          { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: level30UserData },
+          buy,
+          realuAsset,
+        ),
+      ).rejects.toThrow('No Bank for the given amount/currency');
+    });
   });
 
   describe('bankInOverride scope (Frick selector only)', () => {
