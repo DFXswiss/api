@@ -1450,6 +1450,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'partnerRefCredit',
       'partnerRefVolume',
       'primaryUserId',
+      'ref',
       'refAssetId',
       'refCredit',
       'refFeePercent',
