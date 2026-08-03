@@ -31,4 +31,14 @@ describe('KycStep.update', () => {
     expect(step.status).toBe(ReviewStatus.INTERNAL_REVIEW);
     expect(update.status).toBe(ReviewStatus.INTERNAL_REVIEW);
   });
+
+  // 0 is a real production value (getNextSequenceNumber floors at 0); a truthy filter would drop it.
+  it('applies sequenceNumber 0 to the entity and includes it in the returned partial', () => {
+    const step = buildStep({ sequenceNumber: 5 });
+
+    const [, update] = step.update(ReviewStatus.INTERNAL_REVIEW, undefined, undefined, 0);
+
+    expect(step.sequenceNumber).toBe(0);
+    expect(update.sequenceNumber).toBe(0);
+  });
 });
