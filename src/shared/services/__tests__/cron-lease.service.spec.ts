@@ -176,7 +176,7 @@ describe('CronLeaseService', () => {
 
         await settle();
 
-        const shutdown = service.beforeApplicationShutdown();
+        const shutdown = service.shutdown();
         await settle();
 
         // Grace expires with the job still working.
@@ -204,7 +204,7 @@ describe('CronLeaseService', () => {
       await settle();
 
       let over = false;
-      const shutdown = service.beforeApplicationShutdown().then(() => (over = true));
+      const shutdown = service.shutdown().then(() => (over = true));
       await settle();
 
       expect(over).toBe(false);
@@ -218,14 +218,30 @@ describe('CronLeaseService', () => {
       expect(released(onQuery)).toBe(true);
     });
 
-    it('is reached at all, because bootstrap enables the hooks', () => {
-      // Nest calls no shutdown hook unless the application asks for it. Without that one line
-      // everything above is dead code and a deployment kills the process mid-job, which is the
-      // state this change came from. Read from the source because there is nothing to call.
+    it('is reached at all, because bootstrap wires it to the signal', () => {
+      // Nothing calls this on its own. Without the wiring in bootstrap everything above is dead
+      // code and a deployment kills the process mid-job, which is the state this change came
+      // from. Read from the source because there is nothing to call.
       const main = readFileSync(join(__dirname, '..', '..', '..', 'main.ts'), 'utf8');
 
-      expect(main).toMatch(/app\.enableShutdownHooks\(/);
+      expect(main).toContain('releaseCronLeasesOnShutdown(app)');
       expect(main).toContain("'SIGTERM'");
+      expect(main).toMatch(/leases\s*\n?\s*\.shutdown\(\)/);
+    });
+
+    it("is NOT wired through Nest's global shutdown hooks", () => {
+      // `enableShutdownHooks` would also start running nine `onModuleDestroy` hooks that have
+      // never run here, before this one, emptying the strategy registries that PayIn, PayOut and
+      // DEX jobs resolve from — while the wait above deliberately keeps those jobs alive longer.
+      // Pinned because the idiomatic call is exactly what a later reader would reach for. Comment
+      // lines are dropped first: the reason for not calling it is written down right next to the
+      // wiring, and a check that cannot tell the two apart would fail on its own explanation.
+      const main = readFileSync(join(__dirname, '..', '..', '..', 'main.ts'), 'utf8')
+        .split('\n')
+        .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+        .join('\n');
+
+      expect(main).not.toMatch(/app\.enableShutdownHooks\(/);
     });
 
     it('returns immediately when no job is running', async () => {
@@ -233,7 +249,7 @@ describe('CronLeaseService', () => {
       // spend the grace period waiting for it.
       const { service } = buildService({});
 
-      await service.beforeApplicationShutdown();
+      await service.shutdown();
     });
 
     it('stops tracking a run once it is done, so a later shutdown has nothing to wait for', async () => {

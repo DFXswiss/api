@@ -1,4 +1,4 @@
-import { BeforeApplicationShutdown, Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Config } from 'src/config/config';
 import { DataSource } from 'typeorm';
@@ -28,7 +28,7 @@ const LEASE_TTL_SECONDS = 60;
 const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
 
 /**
- * How long shutdown waits for jobs that are still running. See `beforeApplicationShutdown`.
+ * How long shutdown waits for jobs that are still running. See `shutdown`.
  *
  * Short on purpose: it is a handover courtesy, not a completion guarantee. Every process pays it
  * on every deployment, and the container's own stop grace period ends the process regardless.
@@ -59,7 +59,7 @@ const SHUTDOWN_GRACE_MS = 10 * 1000;
  * more.
  */
 @Injectable()
-export class CronLeaseService implements OnModuleInit, BeforeApplicationShutdown {
+export class CronLeaseService implements OnModuleInit {
   private readonly logger = new DfxLogger(CronLeaseService);
 
   private ownerId?: string;
@@ -245,8 +245,14 @@ export class CronLeaseService implements OnModuleInit, BeforeApplicationShutdown
    * Waits for the jobs this process is still running, so their normal release path can hand the
    * lease over to the successor instead of leaving it to expire.
    *
-   * `beforeApplicationShutdown`, not `onApplicationShutdown`: TypeOrmCoreModule closes the
-   * connection in the latter, and releasing a lease needs that connection.
+   * Called from a SIGTERM/SIGINT handler in `main.ts`, deliberately NOT through Nest's
+   * `enableShutdownHooks`. That switch is global: it would also start running nine
+   * `onModuleDestroy` hooks that have never run in this application, because nothing ever asked
+   * for a shutdown hook. Nest runs those BEFORE this one, and they empty the strategy registries
+   * that PayIn, PayOut and DEX jobs resolve from. Combined with the wait below — which is the
+   * whole point here, keeping in-flight jobs alive LONGER into the shutdown — that would let a
+   * running payout fail on an emptied registry instead of simply being cut off. Handing over a
+   * lease is not worth activating that.
    *
    * A lease is NOT taken away from a job that is still working. Releasing on SIGTERM would hand
    * over faster, but the job keeps running until the container's stop grace period ends it —
@@ -257,8 +263,11 @@ export class CronLeaseService implements OnModuleInit, BeforeApplicationShutdown
    * What is still running after the wait therefore keeps its lease, which lapses within
    * `LEASE_TTL_SECONDS` of the last renewal. The renewal timers deliberately keep going meanwhile:
    * they hold the claim for as long as this process is alive to renew it.
+   *
+   * Bounded on every path: the only thing awaited is a race against `SHUTDOWN_GRACE_MS`, so a
+   * database that has stopped answering cannot turn this into a process that never exits.
    */
-  async beforeApplicationShutdown(): Promise<void> {
+  async shutdown(): Promise<void> {
     const running = [...this.inFlight.values()];
     if (!running.length) return;
 
