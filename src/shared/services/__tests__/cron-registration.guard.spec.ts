@@ -17,9 +17,12 @@ const SRC = join(__dirname, '..', '..', '..');
  * needs an AST-based rule rather than a text match. What this covers is the shape the four cases
  * in this repository actually had.
  *
- * The setTimeout gap is not hypothetical. ScryptService.scheduleCatchUpRetry and
- * ScryptWebSocketConnection.scheduleReconnect both re-arm themselves and are invisible here. They
- * are deliberately left alone: their state is the process-local cache and socket of the process
+ * The setTimeout gap is not hypothetical. ScryptService.scheduleCatchUpRetry,
+ * ScryptWebSocketConnection.scheduleReconnect and CronLeaseService.keepAlive all re-arm themselves
+ * and are invisible here. The lease renewal belongs to the lifetime of a single job run rather
+ * than to a schedule, and routing it through @DfxCron would be circular — it is the mechanism that
+ * keeps @DfxCron jobs from running in two processes at once. The Scrypt two are deliberately left
+ * alone as well: their state is the process-local cache and socket of the process
  * they run in, and a request path reaches them (ExchangeController injects ExchangeRegistryService
  * and ExchangeTxService), so both processes need their own. Binding them to a role would break the
  * exchange endpoints on the API process. Anyone extending this check should read that case first —
@@ -44,12 +47,7 @@ const FORBIDDEN: { pattern: RegExp; what: string; instead: string }[] = [
 ];
 
 /** Timers tied to the lifetime of something other than a schedule. */
-const ALLOWED = [
-  // The lease renewal is bound to the lifetime of a single job run, not to a schedule: it starts
-  // when that run takes the lease and is cleared in its `finally`. Routing it through @DfxCron
-  // would be circular — it is the mechanism that keeps @DfxCron jobs from running twice.
-  'shared/services/cron-lease.service.ts',
-];
+const ALLOWED: string[] = [];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
