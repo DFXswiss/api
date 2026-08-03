@@ -109,6 +109,7 @@ export class CallQueueItem {
   ip?: string;
   ipCountry?: string;
   phoneCallStatus?: PhoneCallStatus;
+  phoneCallTimes?: string;
   date: Date;
 }
 
