@@ -1,6 +1,8 @@
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { BatchSpanProcessor, ReadableSpan, SpanProcessor } from '@opentelemetry/sdk-trace-base';
 
@@ -61,6 +63,12 @@ export class ClientErrorSpanProcessor implements SpanProcessor {
   }
 }
 
+/**
+ * Metric export interval. Matches the existing event-loop log cadence, which is short enough to
+ * catch multi-second stalls but long enough to keep series volume modest.
+ */
+export const METRIC_EXPORT_INTERVAL_MS = 10_000;
+
 let sdk: NodeSDK | undefined;
 
 export function startTracing(): NodeSDK | undefined {
@@ -74,6 +82,13 @@ export function startTracing(): NodeSDK | undefined {
     // processor so corrected statuses are what gets exported. The exporter
     // reads OTEL_EXPORTER_OTLP_ENDPOINT from the environment.
     spanProcessors: [new ClientErrorSpanProcessor(), new BatchSpanProcessor(new OTLPTraceExporter())],
+    // Metrics travel the same OTLP route as spans, so runtime saturation (see
+    // src/runtime-metrics.ts) needs no extra endpoint or scrape target. Spans measure how long
+    // work waited; these measure whether the process had CPU to run it at all.
+    metricReader: new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter(),
+      exportIntervalMillis: METRIC_EXPORT_INTERVAL_MS,
+    }),
     instrumentations: [
       getNodeAutoInstrumentations({
         // Filesystem spans are pure noise for an API service.

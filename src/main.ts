@@ -3,6 +3,7 @@
 // the `eventsource` package and ultimately Node's `http`) follows so its
 // internal HTTP usage is auto-instrumented.
 import './tracing';
+import './runtime-metrics'; // event loop saturation gauges; must follow ./tracing (needs its meter provider)
 import './polyfills'; // registers global EventSource for @arkade-os/sdk; see src/polyfills.ts
 import { VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
