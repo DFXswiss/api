@@ -31,7 +31,7 @@ This service loads far more data than it returns. Measured against the real enti
   columns per statement, so a single column added elsewhere (`settlementEventId` on
   `transaction_request`) was enough to push it over.
 - Of the 534 route entries, **432 reach at least one load site that fetches whole rows**; 98 read
-  nothing at all, 2 read only the fields they return, and 2 more project only when the caller
+  nothing at all, 2 read only the fields they need, and 2 more project only when the caller
   supplies a field list. The widest query a fetching endpoint can trigger is 308 columns at the
   median of the recorded maxima, and at least 19 of them exceed 1,000 — the call graph does not
   fully resolve, and an unresolved edge can only widen a query.
@@ -80,7 +80,8 @@ which the statement is unambiguous, which is why both documents exist.
 
 ## What we intend to change
 
-Read paths select the fields they return, via a query builder with an explicit field list. Write
+Read paths select the fields they need — including the ones they read without returning — via a
+query builder with an explicit field list. Write
 paths stay as they are — they need complete entities.
 
 Note that `select` inside `find` options is **not** sufficient: it narrows the root entity but
