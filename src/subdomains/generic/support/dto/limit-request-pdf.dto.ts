@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 /**
  * The decision as it is recorded on the limit request itself, plus the context a reader of the report
@@ -14,11 +14,16 @@ export class GenerateLimitRequestPdfDto {
   @IsString()
   clerk: string;
 
-  @IsInt()
+  // @IsNumber, not @IsInt: this is report content, and `user_data.depositLimit` is a float column, so
+  // an account carrying a non-integer limit must not make the report — and with it the decision — fail.
+  @IsNumber()
   @Type(() => Number)
   requestedLimit: number;
 
-  /** The new annual limit, for a decision that grants one. Absent on a rejection. */
+  /**
+   * The new annual limit, for a decision that grants one. Absent on a rejection. Integer, because this
+   * is the value the caller has just written to `user_data.depositLimit`, whose DTO validates @IsInt.
+   */
   @IsOptional()
   @IsInt()
   @Type(() => Number)
@@ -26,7 +31,7 @@ export class GenerateLimitRequestPdfDto {
 
   /** The annual limit the account had before this decision — what a rejection leaves in force. */
   @IsOptional()
-  @IsInt()
+  @IsNumber()
   @Type(() => Number)
   previousLimit?: number;
 

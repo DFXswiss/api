@@ -133,6 +133,19 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
     expect(content.startsWith('%PDF')).toBe(true);
   });
 
+  // `user_data.depositLimit` is a float column: an account carrying a non-integer limit must still get
+  // its report, or the decision that produced it would fail on the report step.
+  it('renders a non-integer previous limit', async () => {
+    const content = await renderText({
+      decision: 'Rejected',
+      clerk: 'JR',
+      requestedLimit: 500000,
+      previousLimit: 99999.5,
+    });
+
+    expect(content.startsWith('%PDF')).toBe(true);
+  });
+
   it('renders without optional context at all', async () => {
     const content = await renderText({ decision: 'Rejected', clerk: 'JR', requestedLimit: 500000 });
 
