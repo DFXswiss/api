@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsString, Min } from 'class-validator';
 import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { LimitRequestDecision } from '../entities/limit-request.entity';
 
@@ -25,7 +25,7 @@ export class UpdateLimitRequestDto {
    * The customer's new annual deposit limit, written to user_data.depositLimit in the same call — only
    * allowed on a granting decision. Kept off the limit_request row.
    */
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsInt()
   @Min(1)
   grantedDepositLimit?: number;

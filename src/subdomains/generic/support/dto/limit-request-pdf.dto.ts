@@ -1,4 +1,6 @@
+import { Transform } from 'class-transformer';
 import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
 import { LimitRequestDecision } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 
 /**
@@ -11,8 +13,9 @@ export class GenerateLimitRequestPdfDto {
   @IsEnum(LimitRequestDecision)
   decision: LimitRequestDecision;
 
-  @IsString()
   @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
   @MaxLength(100)
   clerk: string;
 

@@ -459,10 +459,7 @@ export class SupportPdfService {
   createLimitRequestPdf(userData: UserData, dto: GenerateLimitRequestPdfDto, generatedAt: Date): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       try {
-        // compress: false — the caller (and this method's own test suite) reads this report's fields
-        // straight out of the stored/returned bytes; pdfkit's default deflates the content stream, which
-        // would hide the very text this method exists to record.
-        const pdf = new PDFDocument({ size: 'A4', margin: 50, compress: false });
+        const pdf = new PDFDocument({ size: 'A4', margin: 50 });
         const chunks: Buffer[] = [];
 
         pdf.on('data', (chunk) => chunks.push(chunk));

@@ -1,6 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -10,10 +8,10 @@ import { WebhookService } from '../../../generic/user/services/webhook/webhook.s
 import { LimitRequestDto } from '../dto/limit-request.dto';
 import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted, LimitRequestFinal } from '../entities/limit-request.entity';
+import { SupportIssue } from '../entities/support-issue.entity';
 import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
-import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportLogService } from './support-log.service';
 
 @Injectable()
@@ -24,9 +22,7 @@ export class LimitRequestService {
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
-    private readonly supportIssueRepo: SupportIssueRepository,
     private readonly supportLogService: SupportLogService,
-    @InjectRepository(UserData) private readonly userDataRepo: Repository<UserData>,
   ) {}
 
   async increaseLimitInternal(dto: LimitRequestDto, userData: UserData): Promise<LimitRequest> {
@@ -61,35 +57,59 @@ export class LimitRequestService {
   }
 
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
-    const entity = await this.limitRequestRepo.findOneBy({ id });
-    if (!entity) throw new NotFoundException('LimitRequest not found');
-    if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request already final');
+    const { grantedDepositLimit, ...update } = dto;
+    let finalEntity!: LimitRequest;
 
     // grantedDepositLimit never reaches the limit_request row or the support log — it belongs to
-    // user_data.depositLimit only, and is written here (fail-closed, in the same call as the finality
-    // check above) so a granting decision can never race a separate, later depositLimit write.
-    const { grantedDepositLimit, ...update } = dto;
+    // user_data.depositLimit only. The finality check and both writes (depositLimit and the decision
+    // itself) now share one transaction with a pessimistic row lock on the limit_request row, so a
+    // granting decision genuinely cannot race a concurrent update on the same request. The separate
+    // storage-side report race (SupportService.generateAndSaveLimitRequestPdf's collision check) is
+    // unrelated and stays tracked in issue #4619.
+    const saved = await this.limitRequestRepo.manager.transaction(async (manager) => {
+      const entity = await manager
+        .createQueryBuilder(LimitRequest, 'lr')
+        .innerJoinAndSelect('lr.supportIssue', 'issue')
+        .innerJoinAndSelect('issue.userData', 'userData')
+        .where('lr.id = :id', { id })
+        .setLock('pessimistic_write', undefined, ['lr'])
+        .getOne();
 
-    if (grantedDepositLimit != null && !LimitRequestAccepted(update.decision))
-      throw new BadRequestException('grantedDepositLimit is only allowed on a granting decision');
+      if (!entity) throw new NotFoundException('LimitRequest not found');
+      if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request already final');
 
-    if (grantedDepositLimit != null && LimitRequestAccepted(update.decision))
-      await this.userDataRepo.update(entity.userData.id, { depositLimit: grantedDepositLimit });
+      if (grantedDepositLimit != null && !LimitRequestAccepted(update.decision))
+        throw new BadRequestException('grantedDepositLimit is only allowed on a granting decision');
 
-    if (update.decision !== entity.decision && LimitRequestFinal(update.decision)) {
-      await this.supportIssueRepo.update(entity.supportIssue.id, {
-        state: SupportIssueInternalState.COMPLETED,
-      });
-      if (LimitRequestAccepted(update.decision)) await this.webhookService.kycChanged(entity.userData);
-    }
+      if (grantedDepositLimit != null && LimitRequestAccepted(update.decision))
+        await manager.update(UserData, entity.userData.id, { depositLimit: grantedDepositLimit });
 
-    await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
+      if (update.decision !== entity.decision && LimitRequestFinal(update.decision)) {
+        await manager.update(SupportIssue, entity.supportIssue.id, { state: SupportIssueInternalState.COMPLETED });
+      }
+
+      finalEntity = entity;
+
+      return manager.save(LimitRequest, { ...entity, ...update });
+    });
+
+    // External effects only after a successful commit — a rollback (NotFound / already-final /
+    // grantedDepositLimit guard above) must never leave a webhook fired or a support log written for a
+    // change that never took effect.
+    if (
+      update.decision !== finalEntity.decision &&
+      LimitRequestFinal(update.decision) &&
+      LimitRequestAccepted(update.decision)
+    )
+      await this.webhookService.kycChanged(finalEntity.userData);
+
+    await this.supportLogService.createSupportLog(finalEntity.supportIssue.userData, {
       type: SupportLogType.LIMIT_REQUEST,
-      limitRequest: entity,
+      limitRequest: finalEntity,
       ...update,
     });
 
-    return this.limitRequestRepo.save({ ...entity, ...update });
+    return saved;
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {

@@ -3,6 +3,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { Test } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { extractPdfText } from 'src/shared/utils/__tests__/pdf-text.util';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { LimitRequestDecision } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { FileSubType, FileType } from '../../kyc/dto/kyc-file.dto';
@@ -214,14 +215,38 @@ describe('SupportService.generateAndSaveLimitRequestPdf', () => {
   // --- Collision guard: never silently overwrite an existing report --- //
 
   it('refuses to upload when a report of the same name already exists', async () => {
-    jest
-      .spyOn(kycDocumentService, 'listFilesByPrefix')
-      .mockImplementation(async (prefix: string) => [{ path: prefix } as never]);
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-10T08:15:30.000Z'));
+    const expectedBlobPath = `user/${USER_DATA_ID}/UserNotes/20260310-LimitRequest-0-${USER_DATA_ID}-081530.pdf`;
 
-    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, acceptedDto())).rejects.toThrow(
-      ConflictException,
-    );
-    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+    try {
+      jest.spyOn(kycDocumentService, 'listFilesByPrefix').mockImplementation(async (prefix: string) =>
+        prefix === expectedBlobPath ? [{ path: expectedBlobPath } as never] : [],
+      );
+
+      await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, acceptedDto())).rejects.toThrow(
+        ConflictException,
+      );
+      expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('uploads when only a near-prefix match exists (not an exact collision)', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-10T08:15:30.000Z'));
+    const expectedBlobPath = `user/${USER_DATA_ID}/UserNotes/20260310-LimitRequest-0-${USER_DATA_ID}-081530.pdf`;
+
+    try {
+      jest
+        .spyOn(kycDocumentService, 'listFilesByPrefix')
+        .mockImplementation(async () => [{ path: `${expectedBlobPath}.backup` } as never]);
+
+      await service.generateAndSaveLimitRequestPdf(USER_DATA_ID, acceptedDto());
+
+      expect(kycDocumentService.uploadUserFile).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 
@@ -238,8 +263,6 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
 
   async function renderText(dto: GenerateLimitRequestPdfDto): Promise<string> {
     const base64 = await pdfService.createLimitRequestPdf(userData, dto, generatedAt);
-    // compress: false in the renderer keeps the content stream literal, so field text survives a plain
-    // latin1 decode of the raw bytes and can be asserted on directly.
     return Buffer.from(base64, 'base64').toString('latin1');
   }
 
@@ -250,8 +273,8 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
     expect(content.trimEnd().endsWith('%%EOF')).toBe(true);
   });
 
-  // A rejection carries no granted limit; the renderer has to fall back to the previous one rather
-  // than print an empty "new limit" that a later reader would have to interpret.
+  // A rejection carries no granted limit; the renderer selects the previous limit for the "new limit"
+  // field instead, rather than print an empty value that a later reader would have to interpret.
   it('renders a rejection without a granted limit', async () => {
     const content = await renderText({
       decision: LimitRequestDecision.REJECTED,
@@ -286,29 +309,39 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
     expect(content.startsWith('%PDF')).toBe(true);
   });
 
-  // "Neues Jahreslimit" shows the previous limit on a rejection — the field a rejection leaves in force
-  // — and the granted limit on an acceptance. Small, distinct, sub-1000 values so the assertion does not
-  // depend on which thousands-separator character `toLocaleString('de-CH')` happens to use on the runner.
   it('shows the previous limit as the new limit on a rejection', async () => {
-    const content = await renderText({
-      decision: LimitRequestDecision.REJECTED,
-      clerk: 'JR',
-      requestedLimit: 500,
-      previousLimit: 42,
-    });
+    const base64 = await pdfService.createLimitRequestPdf(
+      userData,
+      {
+        decision: LimitRequestDecision.REJECTED,
+        clerk: 'JR',
+        requestedLimit: 500,
+        previousLimit: 42,
+      },
+      generatedAt,
+    );
+    const text = extractPdfText(base64);
+    const afterLabel = text.slice(text.indexOf('Neues Jahreslimit'));
 
-    expect(content).toContain('42 CHF');
+    expect(afterLabel).toContain('42 CHF');
   });
 
   it('shows the granted limit as the new limit on an acceptance', async () => {
-    const content = await renderText({
-      decision: LimitRequestDecision.ACCEPTED,
-      clerk: 'JR',
-      requestedLimit: 500,
-      grantedLimit: 77,
-      previousLimit: 42,
-    });
+    const base64 = await pdfService.createLimitRequestPdf(
+      userData,
+      {
+        decision: LimitRequestDecision.ACCEPTED,
+        clerk: 'JR',
+        requestedLimit: 500,
+        grantedLimit: 77,
+        previousLimit: 42,
+      },
+      generatedAt,
+    );
+    const text = extractPdfText(base64);
+    const afterLabel = text.slice(text.indexOf('Neues Jahreslimit'));
 
-    expect(content).toContain('77 CHF');
+    expect(afterLabel).toContain('77 CHF');
+    expect(afterLabel.slice(0, afterLabel.indexOf('Bearbeitet'))).not.toContain('42 CHF');
   });
 });
