@@ -61,7 +61,7 @@ export class JuiceService extends FrankencoinBasedService implements OnModuleIni
     return this.registryService.getClient(Blockchain.CITREA) as EvmClient;
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.JUICE_LOG_INFO })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.JUICE_LOG_INFO })
   async processLogInfo(): Promise<void> {
     if (!Config.blockchain.juice.graphUrl || !Config.blockchain.juice.apiUrl) {
       this.logger.warn('Juice graphUrl/apiUrl not configured - skipping processLogInfo');

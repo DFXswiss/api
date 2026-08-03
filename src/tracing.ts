@@ -96,9 +96,9 @@ export function isTelemetryEnabled(): boolean {
 }
 
 /**
- * The name both processes report to the collector. Without the distinction they would appear as
- * one service, and any panel not restricted to server spans would mix the worker's outgoing calls
- * with the request traffic.
+ * The name both processes report to the collector. Without the distinction they would report as
+ * one service, and a consumer of the traces could not tell the worker's outgoing calls apart from
+ * the calls a request made.
  *
  * Reads the environment directly rather than the configuration: tracing starts before anything
  * else, and importing the configuration here would pull in the instrumented modules before the

@@ -33,7 +33,7 @@ export class NotificationJobService {
     private readonly mailService: MailService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.MAIL_RETRY, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.MAIL_RETRY, timeout: 7200 })
   async resendUncompletedMails(): Promise<void> {
     const uncompletedMails = await this.notificationRepo.find({
       where: { isComplete: false, created: LessThanOrEqual(Util.minutesBefore(1)) },

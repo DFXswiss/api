@@ -40,7 +40,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     const allDeposits = await this.depositService.getUsedDepositsByBlockchain(this.blockchain);
     const allDepositAddresses = allDeposits.map((d) => d.address);

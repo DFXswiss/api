@@ -88,7 +88,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
    * and external cleanup targets exact vIBAN identities, making repeated work fail closed or idempotent.
    */
   @DfxCron(CronExpression.EVERY_HOUR, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.VIRTUAL_IBAN_FRICK_ISSUANCE_RECONCILIATION,
     timeout: 1800,
   })

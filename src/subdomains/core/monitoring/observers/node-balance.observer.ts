@@ -31,7 +31,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
     this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch(): Promise<NodeBalanceData> {
     const data = await this.getNode();
 

@@ -27,7 +27,7 @@ export class TransactionNotificationService {
     private readonly bankTxService: BankTxService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.TX_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.TX_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
     await this.txAssigned();
     if (!DisabledProcess(Process.TX_UNASSIGNED_MAIL)) await this.txUnassigned();

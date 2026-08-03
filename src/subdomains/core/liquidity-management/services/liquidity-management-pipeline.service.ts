@@ -78,7 +78,7 @@ export class LiquidityManagementPipelineService {
   //*** JOBS ***//
 
   @DfxCron(CronExpression.EVERY_10_SECONDS, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LIQUIDITY_MANAGEMENT,
     timeout: 1800,
   })

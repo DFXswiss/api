@@ -171,7 +171,10 @@ export class ExchangeController {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Both, timeout: 1800 })
+  // Api, not Both: `trades` is filled by POST :exchange/trade and read by GET trade/:id, both
+  // request paths of this controller. Nothing outside a request touches it, so in a process
+  // without ingress the map stays empty and the job has nothing to do.
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.API, timeout: 1800 })
   async checkTrades() {
     const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
     for (const trade of openTrades) {

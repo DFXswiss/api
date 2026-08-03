@@ -36,7 +36,7 @@ export class AuthLnUrlService {
     private readonly ipLogService: IpLogService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Both, process: Process.LNURL_AUTH_CACHE })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.BOTH, process: Process.LNURL_AUTH_CACHE })
   processCleanupAccessToken() {
     const before30SecTime = Util.secondsBefore(30).getTime();
 
@@ -47,7 +47,7 @@ export class AuthLnUrlService {
     keysToBeDeleted.forEach((k) => this.authCache.delete(k));
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Both, process: Process.LNURL_AUTH_CACHE })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.BOTH, process: Process.LNURL_AUTH_CACHE })
   processCleanupAuthCache() {
     const before5MinTime = Util.minutesBefore(5).getTime();
 

@@ -40,7 +40,7 @@ export class SanctionService {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_WEEKEND, { scope: CronScope.Worker, process: Process.SANCTION_SYNC })
+  @DfxCron(CronExpression.EVERY_WEEKEND, { scope: CronScope.WORKER, process: Process.SANCTION_SYNC })
   async syncList() {
     const filePath = Config.environment === Environment.LOC ? this.fileName : `/home/${this.fileName}`;
 

@@ -13,12 +13,12 @@ import { CustomCronExpression } from './custom-cron-expression';
  */
 export enum CronScope {
   /** Worker process only. The normal case: anything writing to the database or driving business forward. */
-  Worker = 'worker',
+  WORKER = 'worker',
   /**
    * API process only. Maintains or measures state read exclusively from a request path, or
    * drives work bound to the connections that process holds open.
    */
-  Api = 'api',
+  API = 'api',
   /**
    * Every process. Maintains or measures process-local state that both sides read.
    *
@@ -27,7 +27,7 @@ export enum CronScope {
    * database or driving business forward does not - cron locks are per-process and cannot
    * prevent duplicate execution across processes.
    */
-  Both = 'both',
+  BOTH = 'both',
 }
 
 export interface DfxCronOptParams {

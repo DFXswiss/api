@@ -32,7 +32,7 @@ export class SupportIssueJobService {
     private readonly settingsService: SettingService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.SUPPORT_BOT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.SUPPORT_BOT, timeout: 1800 })
   async autoOnHold() {
     const entities = await this.supportIssueRepo.find({
       where: {
@@ -52,7 +52,7 @@ export class SupportIssueJobService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.SUPPORT_BOT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.SUPPORT_BOT, timeout: 1800 })
   async sendAutoResponses() {
     const disabledTemplates = await this.settingsService
       .get('supportBot')

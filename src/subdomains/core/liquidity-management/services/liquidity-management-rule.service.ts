@@ -106,7 +106,7 @@ export class LiquidityManagementRuleService {
   //*** JOBS ***//
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LIQUIDITY_MANAGEMENT,
     timeout: 1800,
   })

@@ -52,7 +52,7 @@ export class LedgerBookingJobService {
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_BANK_TX,
     timeout: 1800,
   })
@@ -63,7 +63,7 @@ export class LedgerBookingJobService {
 
   // ExchangeTx + ExchangeTrade are ONE @DfxCron method → one flag (Minor R8-1): deposit/withdrawal then trade
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_EXCHANGE_TX,
     timeout: 1800,
   })
@@ -73,7 +73,7 @@ export class LedgerBookingJobService {
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_CRYPTO_INPUT,
     timeout: 1800,
   })
@@ -83,7 +83,7 @@ export class LedgerBookingJobService {
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_PAYOUT,
     timeout: 1800,
   })
@@ -93,7 +93,7 @@ export class LedgerBookingJobService {
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_BUY_CRYPTO,
     timeout: 1800,
   })
@@ -103,7 +103,7 @@ export class LedgerBookingJobService {
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_BUY_FIAT,
     timeout: 1800,
   })
@@ -114,7 +114,7 @@ export class LedgerBookingJobService {
 
   // §4.8 — bridge-only (skips exchange/DfxDex movements booked by their authoritative consumers)
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT,
     timeout: 1800,
   })
@@ -125,7 +125,7 @@ export class LedgerBookingJobService {
 
   // §4.8a — DfxDex purchase/sell on-chain swaps (own flag, Hard Constraint #5)
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_LIQUIDITY_ORDER,
     timeout: 1800,
   })
@@ -136,7 +136,7 @@ export class LedgerBookingJobService {
 
   // §4.9 — arbitrage swaps (own flag, Hard Constraint #5)
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_BOOKING_TRADING_ORDER,
     timeout: 1800,
   })
@@ -150,7 +150,7 @@ export class LedgerBookingJobService {
   // ("CoA bootstrap missing"). bootstrap() is idempotent (findOrCreate, §3), so a recurring re-run is a no-op
   // once complete. Pre-cutover the cutover run owns the bootstrap → gate on isLedgerReady.
   @DfxCron(CronExpression.EVERY_5_MINUTES, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LEDGER_COA_BOOTSTRAP,
     timeout: 1800,
   })

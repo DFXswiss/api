@@ -21,7 +21,7 @@ export class OrganizationService {
     private readonly userDataRepo: UserDataRepository,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.ORGANIZATION_SYNC, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.ORGANIZATION_SYNC, timeout: 1800 })
   async syncOrganization() {
     const entities = await this.userDataRepo.findBy({
       organization: { id: IsNull() },

@@ -14,19 +14,19 @@ export class TradingJobService {
 
   // --- RULES --- //
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.TRADING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.TRADING, timeout: 1800 })
   async processRules() {
     await this.ruleService.processRules();
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.TRADING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.TRADING, timeout: 1800 })
   async reactivateRules(): Promise<void> {
     await this.ruleService.reactivateRules();
   }
 
   // --- ORDERS --- //
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.TRADING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.TRADING, timeout: 1800 })
   async processOrders() {
     await this.orderService.processOrders();
   }

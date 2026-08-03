@@ -27,7 +27,7 @@ export class UserObserver extends MetricObserver<UserData> {
     super(monitoringService, 'user', 'kyc');
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch(): Promise<UserData> {
     const data = await this.getUser();
 

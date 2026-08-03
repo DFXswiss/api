@@ -97,7 +97,7 @@ export class ExchangeTxService implements OnModuleInit {
   //*** JOBS ***//
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.EXCHANGE_TX_SYNC,
     timeout: 1800,
   })

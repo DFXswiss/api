@@ -16,12 +16,12 @@ export class RefRewardJobService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_6AM, { scope: CronScope.Worker, process: Process.REF_PAYOUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_DAY_AT_6AM, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
   async createPendingRefRewards() {
     await this.refRewardService.createPendingRefRewards();
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.REF_PAYOUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
   async processPendingRefRewards() {
     await this.refRewardDexService.secureLiquidity();
     await this.refRewardOutService.checkPaidTransaction();

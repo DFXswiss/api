@@ -28,7 +28,7 @@ export class FiatOutputFrickService {
     private readonly ibanService: IbanService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.FIAT_OUTPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.FIAT_OUTPUT, timeout: 1800 })
   async checkFrickOrderStatus(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_FRICK_STATUS_CHECK)) return;
     if (!this.frickService.isAvailable()) return;

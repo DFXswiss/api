@@ -37,7 +37,7 @@ export abstract class CitreaBaseStrategy extends RegisterStrategy {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     const activeDepositAddresses = await this.transactionRequestService.getActiveDepositAddresses(
       Util.hoursBefore(1),

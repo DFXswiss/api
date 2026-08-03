@@ -19,7 +19,7 @@ export class MonitorConnectionPoolService {
     this.dbConnectionPool = dbDriver.master;
   }
 
-  @DfxCron(CronExpression.EVERY_SECOND, { scope: CronScope.Both, process: Process.MONITOR_CONNECTION_POOL })
+  @DfxCron(CronExpression.EVERY_SECOND, { scope: CronScope.BOTH, process: Process.MONITOR_CONNECTION_POOL })
   monitorConnectionPool() {
     const dbOptions = Config.database as PostgresConnectionOptions;
     const dbMaxPoolConnections = dbOptions.poolSize ?? 10;
@@ -37,7 +37,7 @@ export class MonitorConnectionPoolService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_10_SECONDS, { scope: CronScope.Both, process: Process.MONITOR_CONNECTION_POOL })
+  @DfxCron(CronExpression.EVERY_10_SECONDS, { scope: CronScope.BOTH, process: Process.MONITOR_CONNECTION_POOL })
   monitorConnectionPoolStatic() {
     const total = this.dbConnectionPool.totalCount;
     const idle = this.dbConnectionPool.idleCount;

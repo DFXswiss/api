@@ -229,7 +229,7 @@ export class SparkClient extends BlockchainClient {
     // On-chain wallet maintenance is global work: it must run in exactly one process. This
     // timer predates the scheduler and bypasses it, so without the role check the API process
     // would drive optimizeTokenOutputs against the same seed as the worker.
-    if (GetConfig().cronRole === CronRole.Api) return;
+    if (GetConfig().cronRole === CronRole.API) return;
 
     if (this.tokenOptimizationInterval) clearInterval(this.tokenOptimizationInterval);
 

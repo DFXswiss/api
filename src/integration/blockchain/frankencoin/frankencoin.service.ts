@@ -51,7 +51,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     this.frankencoinClient = new FrankencoinClient(this.getEvmClient());
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.FRANKENCOIN_LOG_INFO })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.FRANKENCOIN_LOG_INFO })
   async processLogInfo() {
     if (!Config.blockchain.frankencoin.contractAddress.xchf) {
       this.logger.warn('Frankencoin xchf contract not configured - skipping processLogInfo');

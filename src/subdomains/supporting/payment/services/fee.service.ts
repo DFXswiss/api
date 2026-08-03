@@ -89,7 +89,7 @@ export class FeeService {
 
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_10_MINUTES, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.BLOCKCHAIN_FEE_UPDATE,
     timeout: 1800,
   })

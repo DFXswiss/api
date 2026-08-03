@@ -36,7 +36,7 @@ export class FiatPayInSyncService {
 
   // --- JOBS --- //
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.FIAT_PAY_IN, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.FIAT_PAY_IN, timeout: 1800 })
   async syncCheckout() {
     if (!this.checkoutService.isAvailable()) {
       if (!this.unavailableWarningLogged) {

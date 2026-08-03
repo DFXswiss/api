@@ -40,7 +40,7 @@ export class ZanoService extends BlockchainService implements OnModuleInit {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.ZANO_ASSET_WHITELIST })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.ZANO_ASSET_WHITELIST })
   async setupAssetWhitelist(): Promise<void> {
     if (await this.isHealthy()) {
       const zanoTokens = await this.assetService.getTokens(Blockchain.ZANO);

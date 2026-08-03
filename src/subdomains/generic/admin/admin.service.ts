@@ -79,7 +79,7 @@ export class AdminService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.PAY_OUT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_OUT, timeout: 3600 })
   async completeLiquidityOrders() {
     for (const context of Object.values(PayoutRequestContext)) {
       const lContext = context as unknown as LiquidityOrderContext;

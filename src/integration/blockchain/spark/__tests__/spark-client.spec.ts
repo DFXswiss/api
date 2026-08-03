@@ -15,15 +15,15 @@ jest.mock('@buildonspark/spark-sdk', () => ({
   SparkWallet: { initialize: jest.fn() },
 }));
 
-// Rolle des Prozesses, veränderbar je Test. Der Name muss mit `mock` beginnen,
-// sonst verbietet Jest den Zugriff aus der gehobenen Modul-Fabrik heraus.
+// The process role, set per test. The name has to start with `mock`, otherwise Jest forbids
+// reaching it from the hoisted module factory.
 let mockCronRole = 'worker';
 
 jest.mock('src/config/config', () => ({
-  // Das Modul wird vollständig ersetzt, damit der Test nicht die ganze
-  // Konfigurationskette lädt. CronRole muss deshalb hier mitkommen: der Client
-  // liest es, um den Optimierungs-Timer an die Rolle zu binden.
-  CronRole: { All: 'all', Api: 'api', Worker: 'worker' },
+  // The module is replaced entirely so the test does not pull in the whole configuration
+  // chain. CronRole therefore has to come along: the client reads it to bind the optimization
+  // timer to the role.
+  CronRole: { ALL: 'all', API: 'api', WORKER: 'worker' },
   GetConfig: () => ({
     cronRole: mockCronRole,
     blockchain: {
@@ -88,6 +88,19 @@ describe('SparkClient', () => {
 
       expect(interval).toHaveBeenCalledTimes(1);
       expect(interval.mock.calls[0][1]).toBe(5 * 60 * 1000);
+
+      clearInterval(interval.mock.results[0].value as NodeJS.Timeout);
+    });
+
+    it('runs it in the single-process role', () => {
+      // The mode every environment without a separate worker runs in, and the one the claim
+      // "behaviour is unchanged" rests on. Only the API role may skip this timer.
+      mockCronRole = 'all';
+      const interval = jest.spyOn(global, 'setInterval');
+
+      new SparkClient();
+
+      expect(interval).toHaveBeenCalledTimes(1);
 
       clearInterval(interval.mock.results[0].value as NodeJS.Timeout);
     });

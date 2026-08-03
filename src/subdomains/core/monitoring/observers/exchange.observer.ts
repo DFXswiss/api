@@ -27,7 +27,7 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
     super(monitoringService, 'exchange', 'volume');
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     if (DisabledProcess(Process.MONITORING)) return;
 

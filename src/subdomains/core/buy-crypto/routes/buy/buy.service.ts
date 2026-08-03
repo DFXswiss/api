@@ -66,12 +66,12 @@ export class BuyService {
   ) {}
 
   // --- VOLUMES --- //
-  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.Worker })
+  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.WORKER })
   async resetAnnualVolumes(): Promise<void> {
     await this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.Worker })
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.WORKER })
   async resetMonthlyVolumes(): Promise<void> {
     await this.buyRepo.update({ monthlyVolume: Not(0) }, { monthlyVolume: 0 });
   }

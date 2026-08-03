@@ -45,7 +45,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     this.emit(data);
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 360 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 360 })
   async fetch(): Promise<NodesState> {
     const previousState = this.data;
 

@@ -36,7 +36,7 @@ export class FaucetRequestService {
     return [Environment.DEV, Environment.LOC].includes(Config.environment) ? Blockchain.SEPOLIA : Blockchain.ETHEREUM;
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.CRYPTO_PAYOUT })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.CRYPTO_PAYOUT })
   async checkFaucetRequests(): Promise<void> {
     const pendingFaucets = await this.faucetRequestRepo.find({ where: { status: FaucetRequestStatus.IN_PROGRESS } });
     for (const faucet of pendingFaucets) {

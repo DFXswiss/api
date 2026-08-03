@@ -24,7 +24,7 @@ export class LogService {
     private readonly settingService: SettingService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_11PM, { scope: CronScope.Worker, process: Process.LOG_CLEANUP })
+  @DfxCron(CronExpression.EVERY_DAY_AT_11PM, { scope: CronScope.WORKER, process: Process.LOG_CLEANUP })
   async cleanup(): Promise<void> {
     const logCleanupSettings = await this.settingService.getObj<LogCleanupSetting[]>('logCleanup', []);
 

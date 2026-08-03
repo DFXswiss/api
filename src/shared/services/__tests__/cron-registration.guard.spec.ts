@@ -6,8 +6,7 @@ const SRC = join(__dirname, '..', '..', '..');
 /**
  * Periodic work registered outside DfxCronService is invisible to the scope mechanism: it runs
  * in every process, which for anything writing to the database or driving business forward means
- * running twice without a shared lock. Two native @Cron decorators and one bare setInterval had
- * grown that way before the mechanism existed, and nothing would have flagged the next one.
+ * running twice without a shared lock.
  *
  * The check is syntactic on purpose. It asks whether a pattern occurs, not whether the code
  * behind it is safe, so its exception list has a natural ceiling and every entry is a deliberate

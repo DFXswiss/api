@@ -541,7 +541,7 @@ export class UserService {
   }
 
   // --- VOLUMES --- //
-  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.Worker })
+  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.WORKER })
   async resetAnnualVolumes(): Promise<void> {
     await this.userRepo.update(
       [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
@@ -549,7 +549,7 @@ export class UserService {
     );
   }
 
-  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.Worker })
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.WORKER })
   async resetMonthlyVolumes(): Promise<void> {
     await this.userRepo.update(
       [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],

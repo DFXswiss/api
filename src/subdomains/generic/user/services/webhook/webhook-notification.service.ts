@@ -23,7 +23,7 @@ export class WebhookNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.WEBHOOK, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.WEBHOOK, timeout: 1800 })
   async sendWebhooks() {
     await this.sendOpenWebhooks();
   }

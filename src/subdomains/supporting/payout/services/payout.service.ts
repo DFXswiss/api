@@ -173,7 +173,7 @@ export class PayoutService {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Worker, process: Process.PAY_OUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.WORKER, process: Process.PAY_OUT, timeout: 1800 })
   async processOrders(): Promise<void> {
     await this.checkExistingOrders();
     await this.prepareNewOrders();

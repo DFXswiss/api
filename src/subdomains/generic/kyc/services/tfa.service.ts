@@ -50,7 +50,7 @@ export class TfaService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Both, process: Process.TFA_CACHE })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.BOTH, process: Process.TFA_CACHE })
   processCleanupSecretCache() {
     const now = new Date();
 

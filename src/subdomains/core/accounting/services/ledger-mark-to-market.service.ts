@@ -45,7 +45,7 @@ export class LedgerMarkToMarketService {
     private readonly ledgerLegRepository: LedgerLegRepository,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.Worker, process: Process.LEDGER_MARK_TO_MARKET })
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.WORKER, process: Process.LEDGER_MARK_TO_MARKET })
   async run(): Promise<void> {
     if (!(await this.jobService.isLedgerReady())) return; // cutover-gate (Blocker R1-6) applies here too
 

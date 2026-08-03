@@ -15,7 +15,7 @@ import { UserDataRepository } from './user-data.repository';
 export class UserDataJobService {
   constructor(private readonly userDataRepo: UserDataRepository) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.USER_DATA, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.USER_DATA, timeout: 1800 })
   async fillUserData() {
     await this.bankTxVerification();
     await this.setAccountOpener();

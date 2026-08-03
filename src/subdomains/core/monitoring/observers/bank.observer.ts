@@ -38,7 +38,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     super(monitoringService, 'bank', 'balance');
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     let data = [];
 

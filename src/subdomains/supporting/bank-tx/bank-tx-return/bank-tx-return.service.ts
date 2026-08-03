@@ -35,7 +35,7 @@ export class BankTxReturnService {
     private readonly fiatService: FiatService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.BANK_TX_RETURN, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.BANK_TX_RETURN, timeout: 1800 })
   async fillBankTxReturn() {
     await this.chargebackTx();
     await this.setFiatAmounts();

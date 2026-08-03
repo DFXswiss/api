@@ -26,7 +26,7 @@ export class MoneroStrategy extends PollingStrategy {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_SECOND, { scope: CronScope.Worker, process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_SECOND, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     return super.checkPayInEntries();
   }

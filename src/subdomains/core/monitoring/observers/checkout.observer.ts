@@ -30,7 +30,7 @@ export class CheckoutObserver extends MetricObserver<CheckoutData[]> {
     super(monitoringService, 'checkout', 'balance');
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     if (!this.checkoutService.isAvailable()) {
       if (!this.unavailableWarningLogged) {

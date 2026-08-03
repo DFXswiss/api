@@ -38,7 +38,7 @@ export class LiquidityManagementService {
   //*** JOBS ***//
 
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LIQUIDITY_MANAGEMENT_CHECK_BALANCES,
     timeout: 1800,
   })

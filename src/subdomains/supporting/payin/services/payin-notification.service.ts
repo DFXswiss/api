@@ -23,7 +23,7 @@ export class PayInNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.PAY_IN_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.PAY_IN_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
     await this.returnedCryptoInput();
   }

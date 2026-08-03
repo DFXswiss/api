@@ -64,7 +64,7 @@ export class FiatOutputJobService {
     private readonly bankService: BankService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.FIAT_OUTPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.FIAT_OUTPUT, timeout: 1800 })
   async fillFiatOutput() {
     await this.assignBankAccount();
     await this.setReadyDate();
@@ -77,7 +77,7 @@ export class FiatOutputJobService {
     await this.notifyScryptDeposits();
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.FIAT_OUTPUT })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.FIAT_OUTPUT })
   async checkOlkypayOrderStatus(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_OLKYPAY_STATUS_CHECK)) return;
     if (!this.olkypayService.isAvailable()) return;
@@ -103,7 +103,7 @@ export class FiatOutputJobService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.FIAT_OUTPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.FIAT_OUTPUT, timeout: 1800 })
   async generateReports() {
     const entities = await this.fiatOutputRepo.find({
       where: { reportCreated: false, isComplete: true },

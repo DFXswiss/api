@@ -12,7 +12,7 @@ export class BuyFiatJobService {
     private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.BUY_FIAT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.BUY_FIAT, timeout: 1800 })
   async checkCryptoPayIn() {
     await this.buyFiatRegistrationService.registerSellPayIn();
     await this.buyFiatRegistrationService.syncReturnTxId();
@@ -26,7 +26,7 @@ export class BuyFiatJobService {
     await this.buyFiatPreparationService.chargebackTx();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.BUY_FIAT, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.BUY_FIAT, timeout: 7200 })
   async addFiatOutputs(): Promise<void> {
     await this.buyFiatPreparationService.addFiatOutputs();
   }

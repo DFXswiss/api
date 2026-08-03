@@ -24,7 +24,7 @@ export class AssetPricesJobService {
     private readonly assetPriceRepo: AssetPriceRepository,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.PRICING, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.PRICING, timeout: 3600 })
   async updatePrices() {
     const assetsToUpdate = await this.assetService.getPricedAssets();
     const updates: UpdateResult<Asset>[] = [];
@@ -59,7 +59,7 @@ export class AssetPricesJobService {
     await this.assetService.updateAssets(updates);
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.PRICING, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.PRICING, timeout: 3600 })
   async updatePaymentPrices() {
     const relevantFiats = await this.fiatService.getActiveFiat();
     const relevantAssets = await this.assetService.getPaymentAssets();

@@ -45,11 +45,11 @@ export enum Environment {
  */
 export enum CronRole {
   /** One process runs everything: local development, tests, and any deployment without a worker. */
-  All = 'all',
+  ALL = 'all',
   /** Serves HTTP; runs only jobs scoped `api` or `both`. */
-  Api = 'api',
+  API = 'api',
   /** Runs the background work; only jobs scoped `worker` or `both`. */
-  Worker = 'worker',
+  WORKER = 'worker',
 }
 
 export type StorageWriteMode = 'azure' | 'dual' | 's3';

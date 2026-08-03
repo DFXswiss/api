@@ -35,7 +35,7 @@ export class BankAccountService {
 
   // --- INTERNAL METHODS --- //
 
-  @DfxCron(CronExpression.EVERY_WEEK, { scope: CronScope.Worker, process: Process.BANK_ACCOUNT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_WEEK, { scope: CronScope.WORKER, process: Process.BANK_ACCOUNT, timeout: 3600 })
   async checkFailedBankAccounts(): Promise<void> {
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
@@ -43,7 +43,7 @@ export class BankAccountService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.BANK_ACCOUNT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.BANK_ACCOUNT, timeout: 3600 })
   async reloadErrorBankAccounts(): Promise<void> {
     const bankAccounts = await this.bankAccountRepo.findBy({ result: Like('Error:%') });
     for (const bankAccount of bankAccounts) {
@@ -51,7 +51,7 @@ export class BankAccountService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.BANK_ACCOUNT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.BANK_ACCOUNT, timeout: 3600 })
   async reloadUncheckedBankAccounts(): Promise<void> {
     const bankAccounts = await this.bankAccountRepo.findBy({ result: IsNull(), iban: Not(IsNull()) });
     for (const bankAccount of bankAccounts) {

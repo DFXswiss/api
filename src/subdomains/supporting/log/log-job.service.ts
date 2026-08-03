@@ -113,7 +113,7 @@ export class LogJobService {
     private readonly paymentBalanceService: PaymentBalanceService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.TRADING_LOG, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {
     try {
       // trading log

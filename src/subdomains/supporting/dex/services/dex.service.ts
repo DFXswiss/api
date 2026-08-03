@@ -324,7 +324,7 @@ export class DexService {
 
   //*** JOBS ***//
   @DfxCron(CronExpression.EVERY_30_SECONDS, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.DEX_PURCHASE_ORDER,
     timeout: 1800,
   })

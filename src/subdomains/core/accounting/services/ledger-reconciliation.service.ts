@@ -97,7 +97,7 @@ export class LedgerReconciliationService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_5AM, { scope: CronScope.Worker, process: Process.LEDGER_RECONCILIATION })
+  @DfxCron(CronExpression.EVERY_DAY_AT_5AM, { scope: CronScope.WORKER, process: Process.LEDGER_RECONCILIATION })
   async run(): Promise<void> {
     if (!(await this.jobService.isLedgerReady())) return; // cutover-gate (Blocker R1-6)
 

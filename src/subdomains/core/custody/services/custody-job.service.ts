@@ -38,14 +38,14 @@ export class CustodyJobService {
     private readonly custodyOrderService: CustodyOrderService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.CUSTODY })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.CUSTODY })
   async handleOrders() {
     await this.executeOrder();
     await this.executeStep();
     await this.checkStep();
   }
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.Worker, process: Process.CUSTODY })
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.WORKER, process: Process.CUSTODY })
   async resetExpiredConfirmedOrders() {
     const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
 

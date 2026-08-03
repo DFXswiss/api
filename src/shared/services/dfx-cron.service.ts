@@ -78,14 +78,14 @@ export class DfxCronService implements OnModuleInit {
    */
   private runsInThisRole(scope: CronScope): boolean {
     switch (Config.cronRole) {
-      case CronRole.All:
+      case CronRole.ALL:
         return true;
 
-      case CronRole.Api:
-        return scope === CronScope.Api || scope === CronScope.Both;
+      case CronRole.API:
+        return scope === CronScope.API || scope === CronScope.BOTH;
 
-      case CronRole.Worker:
-        return scope === CronScope.Worker || scope === CronScope.Both;
+      case CronRole.WORKER:
+        return scope === CronScope.WORKER || scope === CronScope.BOTH;
     }
   }
 

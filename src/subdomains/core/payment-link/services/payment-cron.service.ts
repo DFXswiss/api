@@ -19,11 +19,11 @@ export class PaymentCronService {
   // Api, not Worker: this job and checkTxConfirmations both end up in
   // PaymentLinkPaymentService.doSave(), which resolves the AsyncMap that PaymentLinkController's
   // waitForPayment is waiting on and pushes the device activation into the RxJS subject the
-  // gateway delivers to its connected clients. Both are confined to the process holding those
-  // connections, and the worker holds none. `Both` is no option either: the jobs write to the
-  // database and trigger merchant webhooks, which two processes without a shared lock would do
-  // twice.
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Api, process: Process.PAYMENT_EXPIRATION })
+  // gateway delivers to its connected clients. Both mechanisms only reach clients connected to
+  // the very process the job runs in, which is what CronScope.API expresses. `Both` is no option
+  // either: the jobs write to the database and trigger merchant webhooks, which two processes
+  // without a shared lock would do twice.
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.PAYMENT_EXPIRATION })
   async processExpiredPayments(): Promise<void> {
     await this.paymentLinkPaymentService.processExpiredPayments();
     await this.paymentActivationService.processExpiredActivations();
@@ -31,12 +31,12 @@ export class PaymentCronService {
   }
 
   // Api for the same reason as processExpiredPayments above.
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Api, process: Process.PAYMENT_CONFIRMATIONS })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.PAYMENT_CONFIRMATIONS })
   async checkTxConfirmations(): Promise<void> {
     await this.paymentLinkPaymentService.checkTxConfirmations();
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.PAYMENT_FORWARDING })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.PAYMENT_FORWARDING })
   async forwardDeposits(): Promise<void> {
     await this.paymentBalanceService.forwardDeposits();
   }

@@ -26,7 +26,7 @@ export class KycNotificationService {
     private readonly webhookService: WebhookService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.KYC_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.KYC_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
     await this.autoKycStepReminder();
   }

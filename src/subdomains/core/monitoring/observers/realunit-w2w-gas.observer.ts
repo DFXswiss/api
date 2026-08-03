@@ -40,7 +40,7 @@ export class RealUnitW2wGasObserver extends MetricObserver<RealUnitW2wGasData> {
     super(monitoringService, 'realUnit', 'w2wGasBalance');
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch(): Promise<RealUnitW2wGasData> {
     const data = await this.getData();
 

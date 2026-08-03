@@ -871,7 +871,7 @@ export class UserDataService {
     return this.doUpdateUserMail(userData, cacheEntry.mail);
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Both })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.BOTH })
   processCleanupMailSecretCache(): void {
     const now = new Date();
 
@@ -1229,7 +1229,7 @@ export class UserDataService {
   }
 
   // --- VOLUMES --- //
-  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.Worker })
+  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.WORKER })
   async resetAnnualVolumes(): Promise<void> {
     await this.userDataRepo.update(
       [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
@@ -1237,7 +1237,7 @@ export class UserDataService {
     );
   }
 
-  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.Worker })
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.WORKER })
   async resetMonthlyVolumes(): Promise<void> {
     await this.userDataRepo.update(
       [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],

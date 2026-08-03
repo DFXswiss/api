@@ -134,7 +134,7 @@ export class DashboardFinancialService {
   /**
    * Fills LatestBalanceStore from the most recent FinancialDataLog entry, so that
    * GET /v1/dashboard/financial/latest keeps answering from process memory without touching the
-   * database - the property that turned a 23 ms median with a 1'989 ms p95 into a field read.
+   * database - see getLatestBalance below, which reads the store and nothing else.
    *
    * Scope Api, because the store it fills is process-local and its only reader is that endpoint.
    * The expensive part stays where it was: the financial aggregation writing the log entry runs in
@@ -145,8 +145,13 @@ export class DashboardFinancialService {
    * This is not a fallback taken only when the store is empty: such a path would run once per
    * deployment and would never be exercised. It runs every minute, in normal operation as much as
    * after a failure.
+   *
+   * The trade-off is one extra read per minute compared to the write-through this replaces, which
+   * was handed its inputs by the caller. It applies in the single-process role too, where both
+   * jobs run in the same process - accepted deliberately: sharing state between the two would tie
+   * the endpoint's cache back to the aggregation it was decoupled from.
    */
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Api, process: Process.LATEST_BALANCE_CACHE })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.LATEST_BALANCE_CACHE })
   async refreshLatestBalance(): Promise<void> {
     const latest = await this.logService.getLatestFinancialLog();
     if (!latest) return;

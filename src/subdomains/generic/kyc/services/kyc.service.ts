@@ -134,7 +134,7 @@ export class KycService {
     this.webhookQueue = new QueueHandler();
   }
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.Worker, process: Process.KYC })
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.WORKER, process: Process.KYC })
   async checkIdentSteps(): Promise<void> {
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
@@ -162,7 +162,7 @@ export class KycService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.KYC })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.KYC })
   async reviewKycSteps(): Promise<void> {
     await this.reviewNationalityStep();
     await this.reviewIdentSteps();

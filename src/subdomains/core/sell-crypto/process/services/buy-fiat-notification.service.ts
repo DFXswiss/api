@@ -30,7 +30,7 @@ export class BuyFiatNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.BUY_FIAT_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.BUY_FIAT_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
     await this.paymentCompleted();
     await this.chargebackInitiated();

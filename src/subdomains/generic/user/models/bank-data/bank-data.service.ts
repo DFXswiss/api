@@ -47,7 +47,7 @@ export class BankDataService {
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.BANK_DATA_VERIFICATION,
     timeout: 1800,
   })

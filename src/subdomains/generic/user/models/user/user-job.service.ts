@@ -10,7 +10,7 @@ import { UserRepository } from './user.repository';
 export class UserJobService {
   constructor(private readonly userRepo: UserRepository) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.USER, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.USER, timeout: 1800 })
   async fillUser() {
     await this.approveUser();
   }

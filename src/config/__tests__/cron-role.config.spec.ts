@@ -2,9 +2,9 @@ import { Config, ConfigService, CronRole, GetConfig, parseCronRole } from '../co
 
 describe('parseCronRole', () => {
   it('accepts the three roles', () => {
-    expect(parseCronRole('all')).toBe(CronRole.All);
-    expect(parseCronRole('api')).toBe(CronRole.Api);
-    expect(parseCronRole('worker')).toBe(CronRole.Worker);
+    expect(parseCronRole('all')).toBe(CronRole.ALL);
+    expect(parseCronRole('api')).toBe(CronRole.API);
+    expect(parseCronRole('worker')).toBe(CronRole.WORKER);
   });
 
   it.each([undefined, '', ' ', 'All', 'WORKER', 'api ', 'true', 'none'])(
@@ -39,9 +39,9 @@ describe('Config.cronRole', () => {
   // Covers the wiring env -> parseCronRole -> Config that DfxCronService reads, which
   // unit-testing the parser alone would leave unverified.
   it.each([
-    ['all', CronRole.All],
-    ['api', CronRole.Api],
-    ['worker', CronRole.Worker],
+    ['all', CronRole.ALL],
+    ['api', CronRole.API],
+    ['worker', CronRole.WORKER],
   ])('maps CRON_ROLE=%s to %s', (value, expected) => {
     process.env.CRON_ROLE = value;
 

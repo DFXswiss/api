@@ -137,7 +137,7 @@ export class BankTxService implements OnModuleInit {
   }
 
   // --- TRANSACTION HANDLING --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Worker, timeout: 3600, process: Process.BANK_TX })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.WORKER, timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
     try {
       await this.checkTransactions();
@@ -153,7 +153,7 @@ export class BankTxService implements OnModuleInit {
     await this.fillBankTx();
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.BANK_TX })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.BANK_TX })
   async enrichYapealTransactions(): Promise<void> {
     const transactions = await this.bankTxRepo.find({
       where: { familyCode: 'CCRD' }, // credit card => wrong data

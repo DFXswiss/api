@@ -41,7 +41,7 @@ export class CardanoStrategy extends RegisterStrategy {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     // not configured (no Tatum API key) -> skip, warn once
     if (!this.payInCardanoService.isConfigured) {

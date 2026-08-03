@@ -22,7 +22,7 @@ export class MonitorEventLoopService implements OnModuleDestroy {
     this.histogram.disable();
   }
 
-  @DfxCron(CronExpression.EVERY_10_SECONDS, { scope: CronScope.Both, process: Process.MONITOR_EVENT_LOOP })
+  @DfxCron(CronExpression.EVERY_10_SECONDS, { scope: CronScope.BOTH, process: Process.MONITOR_EVENT_LOOP })
   monitorEventLoop(): void {
     const toMs = (ns: number) => Math.round(ns / 1e6);
 

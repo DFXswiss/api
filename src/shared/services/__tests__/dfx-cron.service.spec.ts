@@ -49,13 +49,13 @@ describe('DfxCronService', () => {
   const configuredJobs = [
     providerWithJob('workerJob', {
       expression: CronExpression.EVERY_MINUTE,
-      scope: CronScope.Worker,
+      scope: CronScope.WORKER,
       process: Process.MONITOR_EVENT_LOOP,
     }),
     // A worker job without `process` — DISABLED_PROCESSES cannot stop this one, only the role can.
-    providerWithJob('workerJobWithoutProcess', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.Worker }),
-    providerWithJob('apiJob', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.Api }),
-    providerWithJob('bothJob', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.Both }),
+    providerWithJob('workerJobWithoutProcess', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.WORKER }),
+    providerWithJob('apiJob', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.API }),
+    providerWithJob('bothJob', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.BOTH }),
   ];
 
   function registeredJobNames(scheduler: SchedulerRegistry): string[] {

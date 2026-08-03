@@ -22,7 +22,7 @@ export class RealUnitJobService {
   // triggered outside the DFX payment flow (e.g. booked manually by the issuer) would otherwise
   // leave the quote in WaitingForPayment and keep showing a pending payment to the customer.
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.REALUNIT_QUOTE_COMPLETION,
     timeout: 1800,
   })
@@ -92,7 +92,7 @@ export class RealUnitJobService {
   // atomic claim and the broadcast/callback in confirmTransfer — see
   // RealUnitService.reconcilePendingTransfers for the actual reconciliation logic.
   @DfxCron(CronExpression.EVERY_5_MINUTES, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.REALUNIT_TRANSFER_RECONCILIATION,
     timeout: 1800,
   })

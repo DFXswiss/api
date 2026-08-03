@@ -105,8 +105,8 @@ describe('tracingServiceName', () => {
   });
 
   it('reports the worker under its own name', () => {
-    // Both processes run the same image and would otherwise report as one service, mixing the
-    // worker's outgoing calls into every panel not restricted to server spans.
+    // Both processes run the same image and would otherwise report as one service, leaving a
+    // consumer of the traces unable to tell them apart.
     process.env.CRON_ROLE = 'worker';
     expect(tracingServiceName()).toBe('dfx-api-worker');
   });

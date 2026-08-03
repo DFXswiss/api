@@ -19,7 +19,7 @@ export class BankTxReturnNotificationService {
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.BANK_TX_RETURN_MAIL,
     timeout: 1800,
   })

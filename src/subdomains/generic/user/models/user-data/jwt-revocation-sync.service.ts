@@ -27,7 +27,7 @@ export class JwtRevocationSyncService {
   // Runs every minute: fast revocation of a blocked or compromised account is a security requirement that
   // warrants the security-revocation exception to the "prefer 15min" cron guideline.
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.JWT_REVOCATION_SYNC,
     timeout: 1800,
   })

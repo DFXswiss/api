@@ -7,7 +7,7 @@ import { LatestBalanceResponseDto } from './dto/financial-log.dto';
  * by GET /v1/dashboard/financial/latest. Exactly one entry, replaced wholesale on every job run:
  * no TTL, no eviction, no size cap.
  *
- * The store is process-local, and so is the job filling it: it carries CronScope.Api, so it runs
+ * The store is process-local, and so is the job filling it: it carries CronScope.API, so it runs
  * in whichever process serves the requests reading it. There is one writer per process and no
  * cross-process state to reconcile - both derive the same value from the same row.
  *

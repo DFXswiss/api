@@ -200,7 +200,7 @@ export class SupportEscalationService {
 
   // --- Escalation detection ---
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.SUPPORT_BOT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.SUPPORT_BOT, timeout: 1800 })
   async checkEscalations(): Promise<void> {
     if (!this.token) return;
 

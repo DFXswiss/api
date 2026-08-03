@@ -20,7 +20,7 @@ export class BuyCryptoJobService {
     private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.BUY_CRYPTO, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.BUY_CRYPTO, timeout: 7200 })
   async process() {
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
     await this.buyCryptoRegistrationService.syncReturnTxId();
@@ -38,7 +38,7 @@ export class BuyCryptoJobService {
   }
 
   @DfxCron(CronExpression.EVERY_HOUR, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.BUY_CRYPTO_AGGREGATION,
     timeout: 7200,
   })

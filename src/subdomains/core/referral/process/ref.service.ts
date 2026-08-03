@@ -16,7 +16,7 @@ export class RefService {
 
   constructor(private readonly repo: RefRepository) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.REF_CLEANUP, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.REF_CLEANUP, timeout: 7200 })
   async checkRefs(): Promise<void> {
     const expirationDate = Util.daysBefore(this.refExpirationDays);
 

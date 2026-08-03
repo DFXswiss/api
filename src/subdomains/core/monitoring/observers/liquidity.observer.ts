@@ -43,7 +43,7 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
     super(monitoringService, 'liquidity', 'trading');
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     const data = await this.getLiquidityData();
 

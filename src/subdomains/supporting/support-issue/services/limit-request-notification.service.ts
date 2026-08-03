@@ -23,7 +23,7 @@ export class LimitRequestNotificationService {
   ) {}
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.LIMIT_REQUEST_MAIL,
     timeout: 1800,
   })

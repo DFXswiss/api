@@ -19,7 +19,7 @@ export class EvmDecimalsService {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.ASSET_DECIMALS, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.ASSET_DECIMALS, timeout: 1800 })
   async setDecimals() {
     const assets = await this.assetService.getEvmAssetsWithoutDecimals(EvmBlockchains);
 

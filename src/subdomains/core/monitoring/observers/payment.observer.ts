@@ -51,7 +51,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     super(monitoringService, 'payment', 'combined');
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     const data = await this.getPayment();
 

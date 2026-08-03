@@ -534,7 +534,7 @@ async processPayments(): Promise<void> {
 Declare a `process` flag unless the job maintains the disabled set itself. Without one the job
 runs unconditionally and cannot be switched off without a deploy.
 
-[docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval and flag.
+[docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval, flag and scope.
 **Adding, removing or re-scheduling a job must be reflected there in the same PR.**
 
 Prefer longer intervals (15min) over aggressive polling (1min). Only use short intervals when truly needed.

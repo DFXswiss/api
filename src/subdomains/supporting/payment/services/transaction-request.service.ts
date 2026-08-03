@@ -53,7 +53,7 @@ export class TransactionRequestService {
   // starts by default, which for a minute-based expression spreads them over up to 30 seconds -
   // moving it here would change when it runs, not just how it is registered.
   @DfxCron(CronExpression.EVERY_MINUTE, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.TX_REQUEST,
     useDelay: false,
     timeout: 7200,
@@ -64,7 +64,7 @@ export class TransactionRequestService {
   }
 
   @DfxCron(CronExpression.EVERY_DAY_AT_3AM, {
-    scope: CronScope.Worker,
+    scope: CronScope.WORKER,
     process: Process.TX_REQUEST_WAITING_EXPIRY,
     timeout: 7200,
   })

@@ -16,7 +16,7 @@ export class FiatPricesService {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.PRICING, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.PRICING, timeout: 3600 })
   async updatePrices() {
     const fiats = await this.fiatService.getActiveFiat();
 
