@@ -174,6 +174,28 @@ describe('PaymentLinkGateway', () => {
       expect(deviceIds()).toEqual(['pos-1']);
     });
 
+    it('drops the entry even when terminating the socket throws', () => {
+      // A socket implementation that throws on terminate used to leave its entry behind, and the
+      // exception left both loops. The same entry then threw first on every following sweep, so
+      // the map it exists to bound never shrank again and no other device was ever checked.
+      const failing = connect('pos-1');
+      failing.terminate = () => {
+        throw new Error('socket already destroyed');
+      };
+      const other = connect('pos-2');
+
+      gateway.checkConnections();
+
+      expect(() => gateway.checkConnections()).toThrow('socket already destroyed');
+      expect(deviceIds()).toEqual(['pos-2']);
+
+      // The sweep gets past it from here on, which is what makes the failure single-shot.
+      gateway.checkConnections();
+
+      expect(other.terminated).toBe(true);
+      expect(deviceIds()).toEqual([]);
+    });
+
     it('runs in every process, because every process holds its own sockets', () => {
       const params: DfxCronParams = Reflect.getMetadata(
         DFX_CRONJOB_PARAMS,

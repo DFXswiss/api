@@ -82,8 +82,12 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     for (const [device, connections] of this.clients) {
       for (const [clientId, connection] of connections) {
         if (!connection.responsive) {
-          connection.socket.terminate();
+          // Dropped from the map BEFORE the socket is terminated. The other way round, a
+          // `terminate` that throws left the entry in place and took the exception out of both
+          // loops, so every device after this one went unchecked — and the same entry threw first
+          // on the next sweep, and on every one after that.
           this.removeClient(device, clientId);
+          connection.socket.terminate();
           continue;
         }
 

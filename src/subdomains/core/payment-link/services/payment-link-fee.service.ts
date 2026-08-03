@@ -42,9 +42,10 @@ export class PaymentLinkFeeService implements OnModuleInit {
    * Scope Api, not Both: the cache it fills is a field of this service, and the only reader is
    * getMinFee below. Following that chain out — createTransferAmount -> createTransferAmounts ->
    * createQuote / createPayRequest, plus the Binance webhook handler — every caller is a request
-   * path or one of the Api-scoped payment crons. The one Worker job in this domain,
-   * PaymentCronService::forwardDeposits, takes its fee rate from BitcoinFeeService and never
-   * reaches this cache.
+   * path or one of the Api-scoped payment crons. None of the Worker jobs in this domain reaches
+   * the cache: PaymentCronService::forwardDeposits takes its fee rate from BitcoinFeeService, and
+   * ::processExpiredPayments and ::checkTxConfirmations price nothing — they move a payment out of
+   * `Pending` and cancel or close what hangs off it.
    *
    * Both would also break the rule this scope mechanism introduced: a job that runs in every
    * process must be harmless twice over, and this one queries gas prices for eight EVM chains

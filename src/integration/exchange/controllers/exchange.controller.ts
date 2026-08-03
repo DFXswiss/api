@@ -174,6 +174,10 @@ export class ExchangeController {
   // Api, not Both: `trades` is filled by POST :exchange/trade and read by GET trade/:id, the
   // request paths of this controller shown below. In a process those requests never reach, the
   // map stays empty and this job has nothing to work on.
+  //
+  // Nothing acts on that choice today. DfxCronService reads the decorator off providers, and this
+  // class is registered under `controllers` in ExchangeModule, so the job is not registered in any
+  // process. The scope says where it would belong if it ever were, not where it runs.
   @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.API, timeout: 1800 })
   async checkTrades() {
     const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
