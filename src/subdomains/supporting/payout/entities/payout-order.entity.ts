@@ -25,6 +25,8 @@ export enum PayoutOrderStatus {
 
 @Entity()
 @Index((p: PayoutOrder) => [p.context, p.correlationId], { unique: true })
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((p: PayoutOrder) => [p.updated, p.id])
 export class PayoutOrder extends IEntity {
   @Column({ length: 256 })
   context: PayoutOrderContext;

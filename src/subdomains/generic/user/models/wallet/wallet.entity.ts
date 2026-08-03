@@ -30,6 +30,7 @@ export class Wallet extends IEntity {
   address?: string;
 
   @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: `"name" = 'Denario'` })
   name?: string;
 
   @Column({ length: 256, nullable: true })

@@ -136,11 +136,40 @@ export class PayInService {
 
         await this.payInRepository.save(payIn);
 
+        // A pay-in without a processable asset is persisted as terminal FAILED with no retry path (see
+        // CryptoInput.create): the funds sit on the deposit address with no further processing and no other
+        // observer surfaces this, so alert on it here. Scoped to the missing-asset cause only — other FAILED
+        // reasons (e.g. a zero amount) are not a stuck-funds condition and stay silent as before.
+        if (!asset && payIn.status === PayInStatus.FAILED) await this.alertUnprocessablePayIn(payIn);
+
         payIns.push(payIn);
       }
     }
 
     return payIns;
+  }
+
+  private async alertUnprocessablePayIn(payIn: CryptoInput): Promise<void> {
+    const errorMessage =
+      `Pay-in has no processable asset and cannot be forwarded: blockchain ${payIn.address.blockchain}, ` +
+      `deposit address ${payIn.address.address}, txId ${payIn.inTxId}, amount ${payIn.amount}`;
+    this.logger.error(errorMessage);
+
+    try {
+      await this.notificationService.sendMail({
+        type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
+        input: {
+          subject: 'Pay-in without processable asset',
+          errors: [errorMessage],
+          isLiqMail: true,
+        },
+        correlationId: `|${payIn.inTxId}|`,
+        options: { suppressRecurring: true },
+      });
+    } catch (e) {
+      this.logger.error(`Failed to send pay-in-without-asset alert for txId ${payIn.inTxId}:`, e);
+    }
   }
 
   async getCryptoInputsByTransactionIds(transactionIds: number[]): Promise<CryptoInput[]> {
@@ -317,7 +346,7 @@ export class PayInService {
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.PAY_IN, timeout: 7200 })
-  async updateFailedPayments() {
+  async updateFailedPayments(): Promise<void> {
     const checkDate = Util.minutesBefore(15);
 
     const recentlyFailedPayments = await this.payInRepository.find({
@@ -325,10 +354,22 @@ export class PayInService {
         created: MoreThan(checkDate),
         txType: PayInType.PAYMENT,
         status: PayInStatus.FAILED,
+        asset: { priceRule: Not(IsNull()) },
       },
+      relations: { asset: { priceRule: true } },
     });
 
     for (const failedPayment of recentlyFailedPayments) {
+      // Unknown or unpriced tokens are intentionally persisted as FAILED by the register flow. They must
+      // never be resurrected by the payment-quote retry, otherwise the minute job processes an input that
+      // cannot be priced. Keep this guard in addition to the SQL filter as a fail-closed service boundary.
+      if (!failedPayment.asset?.priceRule) {
+        // The SQL filter above already requires asset.priceRule IS NOT NULL, so reaching this branch means
+        // the relation drifted from the filter between query and iteration — investigate the pay-in.
+        this.logger.warn(`Pay-in ${failedPayment.id} filtered out despite priceRule filter; skipping retry`);
+        continue;
+      }
+
       try {
         const quote = await this.paymentLinkPaymentService.getPaymentQuoteByFailedCryptoInput(failedPayment);
 

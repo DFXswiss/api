@@ -8,6 +8,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { Util } from 'src/shared/utils/util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
+import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PaymentQuoteRepository } from '../../repositories/payment-quote.repository';
 import { PaymentQuoteService } from '../payment-quote.service';
@@ -98,6 +99,7 @@ describe('PaymentQuoteService - doFiroTxIdPayment', () => {
         { provide: PaymentBalanceService, useValue: paymentBalanceService },
         { provide: TxValidationService, useValue: createMock<TxValidationService>() },
         { provide: InternetComputerService, useValue: createMock<InternetComputerService>() },
+        { provide: SolanaService, useValue: createMock<SolanaService>() },
       ],
     }).compile();
 
