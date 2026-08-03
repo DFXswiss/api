@@ -33,11 +33,29 @@ import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
 
-/** What one process knows about the websocket connections it holds open for a single device. */
-interface DeviceSubscription {
-  /** Open connections for this device on this process. The entry is dropped when the last closes. */
-  connections: number;
-  /** Payments updated at or before this are not delivered: they predate the oldest connection. */
+/**
+ * How long a caller of `waitForPayment` is held before it is answered with the state on hand.
+ *
+ * A server-side long poll without an upper bound leaks by construction: a client that hangs up
+ * says nothing the server can hear, so its entry would sit in the maps below until the process
+ * restarts. The bound is what gives the entry an owner — with it, the waiter itself clears the
+ * entry on the way out, whichever way it leaves.
+ *
+ * The endpoints answering from this do not change shape when it elapses; they answer with the
+ * payment as it stands, which for a caller that is still there means "not yet, ask again".
+ */
+const PAYMENT_WAIT_TIMEOUT_SECONDS = 60;
+
+/** A device this process holds at least one open websocket connection for. */
+export interface ConnectedDevice {
+  id: string;
+  /** When the oldest connection still open for this device was accepted. */
+  since: Date;
+}
+
+/** How far this process has got in delivering to one device. Never a record of who is connected. */
+interface DeliveryCursor {
+  /** Payments updated at or before this have been delivered, or predate the oldest connection. */
   since: Date;
   /** `<payment id>:<wait state>` of the last command delivered, so the same state is sent once. */
   delivered?: string;
@@ -48,7 +66,23 @@ export class PaymentLinkPaymentService {
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
   private readonly waitStates = new Map<number, string>();
   private readonly deviceActivationSubject = new Subject<PaymentDevice>();
-  private readonly deviceSubscriptions = new Map<string, DeviceSubscription>();
+  private readonly deviceCursors = new Map<string, DeliveryCursor>();
+
+  /**
+   * Where the connected devices are READ from — set once by PaymentLinkGateway, which owns the
+   * sockets.
+   *
+   * A device is connected for exactly as long as the gateway holds a socket for it, so the socket
+   * map is the only thing that knows. Reading through to it beats having the gateway report
+   * connects and disconnects into a second map here: a mirrored register can drift from what it
+   * mirrors, and every way it drifted was a defect — an entry left behind when no close event
+   * arrived, a count decremented twice by a close path taken twice, an entry with no counterpart.
+   * A derived register has no second copy to get out of step with.
+   *
+   * Empty until the gateway sets it, which is also the honest answer for a process that accepts no
+   * websocket connections at all.
+   */
+  private connectedDevices: () => ConnectedDevice[] = () => [];
 
   constructor(
     private readonly fiatService: FiatService,
@@ -193,27 +227,26 @@ export class PaymentLinkPaymentService {
     // change from it, not a fixed target state (see PaymentLinkPayment.waitState).
     if (!this.waitStates.has(payment.id)) this.waitStates.set(payment.id, payment.waitState);
 
-    return this.paymentWaitMap.wait(payment.id, 0);
-  }
-
-  /** Called by PaymentLinkGateway for every websocket connection it accepts. */
-  registerDevice(deviceId: string): void {
-    const subscription = this.deviceSubscriptions.get(deviceId);
-
-    if (subscription) {
-      subscription.connections++;
-    } else {
-      this.deviceSubscriptions.set(deviceId, { connections: 1, since: new Date() });
+    try {
+      return await this.paymentWaitMap.wait(payment.id, PAYMENT_WAIT_TIMEOUT_SECONDS * 1000);
+    } catch {
+      // The wait elapsed. Answer with the payment as it stands rather than fail: the caller asked
+      // whether anything happened, and "not within this window" is an answer to that.
+      return payment;
+    } finally {
+      // The waiter owns its entry. `resolveWaiters` clears it on the delivery path; this clears it
+      // on every other one — which is the path that used to have no owner at all. Guarded on the
+      // wait map so a wait registered in the meantime keeps the state it is comparing against.
+      if (!this.paymentWaitMap.has(payment.id)) this.waitStates.delete(payment.id);
     }
   }
 
-  /** Called by PaymentLinkGateway when one of those connections closes. */
-  unregisterDevice(deviceId: string): void {
-    const subscription = this.deviceSubscriptions.get(deviceId);
-    if (!subscription) return;
-
-    subscription.connections--;
-    if (subscription.connections < 1) this.deviceSubscriptions.delete(deviceId);
+  /**
+   * Points the delivery below at the gateway's socket map; see `connectedDevices`. Called once, by
+   * PaymentLinkGateway, which is the only thing that knows what is connected here.
+   */
+  useDeviceSource(source: () => ConnectedDevice[]): void {
+    this.connectedDevices = source;
   }
 
   /**
@@ -245,26 +278,42 @@ export class PaymentLinkPaymentService {
   }
 
   private async deliverToConnectedDevices(): Promise<void> {
-    const subscriptions = Array.from(this.deviceSubscriptions.entries());
-    if (!subscriptions.length) return;
+    const devices = this.connectedDevices();
 
-    const deviceIds = subscriptions.map(([deviceId]) => deviceId);
-    const since = Util.minObj(
-      subscriptions.map(([, subscription]) => subscription),
-      'since',
-    ).since;
+    // A cursor is a delivery detail of this process, so it follows the connections rather than
+    // outliving them. Pruning here rather than on a disconnect notification is the point: nothing
+    // has to be told that a device went away, it simply stops appearing.
+    for (const deviceId of this.deviceCursors.keys()) {
+      if (!devices.some((device) => device.id === deviceId)) this.deviceCursors.delete(deviceId);
+    }
 
-    // The same condition the direct delivery in doSave runs under, expressed over stored columns:
-    // a payment out of `Pending`, or a `MULTIPLE`-mode payment that has counted a completed quote.
-    const payments = await this.paymentLinkPaymentRepo.find({
-      where: [
-        { deviceId: In(deviceIds), updated: MoreThan(since), status: Not(PaymentLinkPaymentStatus.PENDING) },
-        { deviceId: In(deviceIds), updated: MoreThan(since), txCount: MoreThan(0) },
-      ],
-      order: { updated: 'ASC' },
+    if (!devices.length) return;
+
+    // One window PER DEVICE. Taken as a single minimum across all of them, the device connected
+    // longest — or simply the quietest — sets the window for every other one, and every tick then
+    // re-reads what those have already been sent. The condition inside each window is the one the
+    // direct delivery in doSave runs under, expressed over stored columns: a payment out of
+    // `Pending`, or a `MULTIPLE`-mode payment that has counted a completed quote.
+    const where = devices.flatMap((device) => {
+      const { since } = this.cursorFor(device);
+
+      return [
+        { deviceId: device.id, updated: MoreThan(since), status: Not(PaymentLinkPaymentStatus.PENDING) },
+        { deviceId: device.id, updated: MoreThan(since), txCount: MoreThan(0) },
+      ];
     });
 
+    const payments = await this.paymentLinkPaymentRepo.find({ where, order: { updated: 'ASC' } });
+
     for (const payment of payments) this.deliverToDevice(payment);
+  }
+
+  /** The cursor for a connected device, starting at the age of its oldest open connection. */
+  private cursorFor(device: ConnectedDevice): DeliveryCursor {
+    const cursor = this.deviceCursors.get(device.id) ?? { since: device.since };
+    this.deviceCursors.set(device.id, cursor);
+
+    return cursor;
   }
 
   private resolveWaiters(payment: PaymentLinkPayment): void {
@@ -280,15 +329,17 @@ export class PaymentLinkPaymentService {
     const device = payment.device;
     if (!device) return;
 
-    const subscription = this.deviceSubscriptions.get(device.id);
-    if (!subscription) return;
+    const connected = this.connectedDevices().find((d) => d.id === device.id);
+    if (!connected) return;
+
+    const cursor = this.cursorFor(connected);
 
     const state = `${payment.id}:${payment.waitState}`;
-    if (state === subscription.delivered) return;
+    if (state === cursor.delivered) return;
 
-    subscription.delivered = state;
+    cursor.delivered = state;
     // Keeps the window of the query above from growing over the lifetime of a connection.
-    if (payment.updated > subscription.since) subscription.since = payment.updated;
+    if (payment.updated > cursor.since) cursor.since = payment.updated;
 
     this.deviceActivationSubject.next(device);
   }

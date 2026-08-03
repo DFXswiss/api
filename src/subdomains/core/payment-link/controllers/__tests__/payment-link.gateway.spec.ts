@@ -1,0 +1,200 @@
+import { IncomingMessage } from 'http';
+import { Subject } from 'rxjs';
+import { CronScope, DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
+import { PaymentDevice } from '../../entities/payment-link-payment.entity';
+import { PaymentLinkPaymentService } from '../../services/payment-link-payment.service';
+import { PaymentLinkGateway } from '../payment-link.gateway';
+
+/**
+ * The gateway owns the sockets, so it is the only thing that knows which devices this process can
+ * deliver to. Every test here is about that ownership: an entry exists for as long as a socket
+ * does, and for no longer — whichever way the socket ends, and whether or not it ends politely.
+ */
+describe('PaymentLinkGateway', () => {
+  let gateway: PaymentLinkGateway;
+  let paymentService: jest.Mocked<PaymentLinkPaymentService>;
+  let activations: Subject<PaymentDevice>;
+
+  /** A socket that records what was done to it and lets a test fire its events. */
+  function socket() {
+    const listeners = new Map<string, (() => void)[]>();
+
+    return {
+      sent: [] as string[],
+      pings: 0,
+      terminated: false,
+      send(data: string) {
+        this.sent.push(data);
+      },
+      ping() {
+        this.pings++;
+      },
+      terminate() {
+        this.terminated = true;
+      },
+      on(event: string, listener: () => void) {
+        listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+      },
+      fire(event: string) {
+        for (const listener of listeners.get(event) ?? []) listener();
+      },
+    };
+  }
+
+  /** Accepts a connection the way the adapter does, through the public entry point. */
+  function connect(device: string): ReturnType<typeof socket> {
+    const client = socket();
+    gateway.handleConnection(client, { url: `/v1/paymentLink?device=${device}` } as IncomingMessage);
+
+    return client;
+  }
+
+  const deviceIds = () => gateway.connectedDevices().map((d) => d.id);
+
+  beforeEach(() => {
+    activations = new Subject();
+    paymentService = {
+      getDeviceActivationObservable: () => activations.asObservable(),
+      useDeviceSource: jest.fn(),
+    } as unknown as jest.Mocked<PaymentLinkPaymentService>;
+
+    gateway = new PaymentLinkGateway(paymentService);
+  });
+
+  it('rejects a connection that names no device', () => {
+    expect(() => gateway.handleConnection(socket(), { url: '/v1/paymentLink' } as IncomingMessage)).toThrow(
+      'device should not be empty',
+    );
+  });
+
+  describe('what the delivery is allowed to see', () => {
+    it('hands the delivery a live view rather than a snapshot', () => {
+      // The whole point of deriving instead of mirroring: one function, asked twice, gives two
+      // different answers because the sockets changed underneath it. A register the gateway
+      // reported into could only be as current as its last report.
+      gateway.onModuleInit();
+
+      const source = (paymentService.useDeviceSource as jest.Mock).mock.calls[0][0] as () => { id: string }[];
+
+      expect(source()).toEqual([]);
+
+      const client = connect('pos-1');
+      expect(source().map((d) => d.id)).toEqual(['pos-1']);
+
+      client.fire('close');
+      expect(source()).toEqual([]);
+    });
+
+    it('stops reporting a device once its last connection is gone', () => {
+      const client = connect('pos-1');
+      expect(deviceIds()).toEqual(['pos-1']);
+
+      client.fire('close');
+
+      expect(deviceIds()).toEqual([]);
+    });
+
+    it('keeps reporting a device whose other connection is still open', () => {
+      // The failure a reference count had: one close path taken twice pushed the count below the
+      // number of live connections, and the device stopped being delivered to while someone was
+      // still listening. There is no count to push.
+      const first = connect('pos-1');
+      const second = connect('pos-1');
+
+      first.fire('close');
+      first.fire('close');
+
+      expect(deviceIds()).toEqual(['pos-1']);
+
+      second.fire('close');
+
+      expect(deviceIds()).toEqual([]);
+    });
+
+    it('drops a connection that ends with an error instead of a close', () => {
+      // An aborted connection does not necessarily reach the close path, which is how an entry
+      // came to outlive its socket in the first place.
+      const client = connect('pos-1');
+
+      client.fire('error');
+
+      expect(deviceIds()).toEqual([]);
+    });
+
+    it('dates a device by its oldest open connection', () => {
+      // That date is where the delivery starts reading for a device it has not sent anything to
+      // yet, so it has to cover every connection, not just the newest.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        jest.setSystemTime(new Date('2026-01-01T10:00:00Z'));
+        const first = connect('pos-1');
+
+        jest.setSystemTime(new Date('2026-01-01T11:00:00Z'));
+        connect('pos-1');
+
+        expect(gateway.connectedDevices()[0].since).toEqual(new Date('2026-01-01T10:00:00Z'));
+
+        first.fire('close');
+
+        expect(gateway.connectedDevices()[0].since).toEqual(new Date('2026-01-01T11:00:00Z'));
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe('sockets that stopped answering', () => {
+    it('drops one that misses the ping', () => {
+      // Nothing else can see this happen: a peer that vanishes without closing leaves the socket
+      // open here and fires no event at all, so an unanswered ping is the only evidence there is.
+      const client = connect('pos-1');
+
+      gateway.checkConnections();
+
+      expect(client.pings).toEqual(1);
+      expect(deviceIds()).toEqual(['pos-1']);
+
+      gateway.checkConnections();
+
+      expect(client.terminated).toBe(true);
+      expect(deviceIds()).toEqual([]);
+    });
+
+    it('keeps one that answers the ping', () => {
+      // The negative side of the same check. Without it the sweep could pass by dropping every
+      // connection it looked at.
+      const client = connect('pos-1');
+
+      gateway.checkConnections();
+      client.fire('pong');
+      gateway.checkConnections();
+
+      expect(client.terminated).toBe(false);
+      expect(deviceIds()).toEqual(['pos-1']);
+    });
+
+    it('runs in every process, because every process holds its own sockets', () => {
+      const params: DfxCronParams = Reflect.getMetadata(
+        DFX_CRONJOB_PARAMS,
+        PaymentLinkGateway.prototype.checkConnections,
+      );
+
+      expect(params.scope).toEqual(CronScope.BOTH);
+    });
+  });
+
+  it('sends a command to every connection of the addressed device', () => {
+    gateway.onModuleInit();
+
+    const first = connect('pos-1');
+    const second = connect('pos-1');
+    const other = connect('pos-2');
+
+    activations.next({ id: 'pos-1', command: 'show-paid' });
+
+    expect(first.sent).toEqual(['show-paid']);
+    expect(second.sent).toEqual(['show-paid']);
+    expect(other.sent).toEqual([]);
+  });
+});

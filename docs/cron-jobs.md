@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **139 `@DfxCron` declarations** across 97 files and 34 areas.
+Every scheduled job this service runs: **140 `@DfxCron` declarations** across 98 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **139 `@DfxCron` declarations** across 97
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-119 are `worker`, 5 are `api`, 15 are `both`. `CRON_ROLE` decides what a process is
+119 are `worker`, 5 are `api`, 16 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -31,18 +31,19 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-118 of the 139 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
+118 of the 140 jobs carry a `process` flag, 22 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
 
-A job **without** a flag runs unconditionally. That is deliberate for five of them. The four
+A job **without** a flag runs unconditionally. That is deliberate for six of them. The four
 `ProcessService::resync*` jobs maintain the disabled set, the JWT denylists and the staff
 clearance allowlist themselves, so making them switchable would let a configuration change
 disable the mechanism that reads configuration changes. `DfxCronService::reportRole` is the role
-heartbeat the `dfx-api-role-mismatch` alert reads: switched off, it would look exactly like a
-process that stopped reporting, which is the condition the alert exists to catch. For the
-remaining 16 it is simply an omission:
+heartbeat: switched off, it would look exactly like a process that stopped reporting, which is
+the condition it exists to make visible. `PaymentLinkGateway::checkConnections` drops websockets
+that stopped answering, so switching it off would reinstate the unbounded growth it prevents. For
+the remaining 16 it is simply an omission:
 
 | Job | Interval |
 | --- | --- |
@@ -64,7 +65,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | second | 5 |
 | 10 seconds | 3 |
 | 15 seconds | 1 |
-| 30 seconds | 9 |
+| 30 seconds | 10 |
 | minute | 52 |
 | 5 minutes | 18 |
 | 10 minutes | 16 |
@@ -92,7 +93,7 @@ Jobs by area:
 | `shared/services` | 5 | 5 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
 | `subdomains/supporting/payment` | 5 | 1 |
-| `subdomains/core/payment-link` | 5 | — |
+| `subdomains/core/payment-link` | 6 | 1 |
 | `subdomains/generic/kyc` | 4 | — |
 | `subdomains/supporting/bank` | 4 | — |
 | `subdomains/supporting/bank-tx` | 4 | — |
@@ -121,9 +122,9 @@ Jobs by area:
 ## How this list is produced
 
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
-scan, so multi-line declarations are included — a line-based match misses 26 of them. Interval,
+scan, so multi-line declarations are included — a line-based match misses 27 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **139 = 139**, no gap. Class and
+count is asserted against a raw text count of the decorator: **140 = 140**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -147,7 +148,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 139 declarations, 138 have a registration path.
+here rather than fixed in passing. Of the 140 declarations, 139 have a registration path.
 
 ## Jobs
 
@@ -163,6 +164,7 @@ here rather than fixed in passing. Of the 139 declarations, 138 have a registrat
 | 10 seconds | `MONITOR_EVENT_LOOP` | `both` | `MonitorEventLoopService::monitorEventLoop` | `subdomains/core/monitoring/monitor-event-loop.service.ts` |
 | 15 seconds | `PAYMENT_DELIVERY` | `both` | `PaymentCronService::deliverPaymentUpdates` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | 30 seconds | `LNURL_AUTH_CACHE` | `both` | `AuthLnUrlService::processCleanupAccessToken` | `subdomains/generic/user/models/auth/auth-lnurl.service.ts` |
+| 30 seconds | — | `both` | `PaymentLinkGateway::checkConnections` | `subdomains/core/payment-link/controllers/payment-link.gateway.ts` |
 | 30 seconds | `BANK_TX` | `worker` | `BankTxService::checkBankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts` |
 | 30 seconds | `DEX_PURCHASE_ORDER` | `worker` | `DexService::finalizePurchaseOrders` | `subdomains/supporting/dex/services/dex.service.ts` |
 | 30 seconds | — | `api` | `ExchangeController::checkTrades` | `integration/exchange/controllers/exchange.controller.ts` |

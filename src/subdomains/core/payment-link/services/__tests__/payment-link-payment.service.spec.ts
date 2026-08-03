@@ -48,6 +48,17 @@ describe('PaymentLinkPaymentService', () => {
     return seen;
   }
 
+  /**
+   * Stands in for the gateway's socket map. The service reads the connected devices out of it on
+   * every delivery, so a device is connected here for exactly as long as this map says so — there
+   * is no register in the service to register with.
+   */
+  let sockets: Map<string, Date>;
+
+  function connect(deviceId: string, since = new Date('2026-01-01T09:00:00Z')): void {
+    sockets.set(deviceId, since);
+  }
+
   beforeEach(() => {
     paymentLinkPaymentRepo = {
       find: jest.fn().mockResolvedValue([]),
@@ -68,6 +79,9 @@ describe('PaymentLinkPaymentService', () => {
       paymentActivationService,
       {} as unknown as jest.Mocked<BlockchainRegistryService>,
     );
+
+    sockets = new Map();
+    service.useDeviceSource(() => [...sockets].map(([id, since]) => ({ id, since })));
   });
 
   // --- deliverPaymentUpdates() Tests --- //
@@ -122,7 +136,7 @@ describe('PaymentLinkPaymentService', () => {
 
     it('should send the command to a device connected here after another process wrote the payment', async () => {
       const seen = devices();
-      service.registerDevice('pos-1');
+      connect('pos-1');
 
       paymentLinkPaymentRepo.find.mockResolvedValue([
         payment({
@@ -140,7 +154,7 @@ describe('PaymentLinkPaymentService', () => {
 
     it('should send the same payment state to a device once', async () => {
       const seen = devices();
-      service.registerDevice('pos-1');
+      connect('pos-1');
 
       paymentLinkPaymentRepo.find.mockResolvedValue([
         payment({
@@ -157,18 +171,101 @@ describe('PaymentLinkPaymentService', () => {
       expect(seen).toHaveLength(1);
     });
 
-    it('should stop looking for a device whose last connection closed', async () => {
-      service.registerDevice('pos-1');
-      service.registerDevice('pos-1');
-      service.unregisterDevice('pos-1');
+    it('should stop looking for a device the moment the gateway no longer holds it', async () => {
+      // Nothing tells the service the device went away, and nothing has to: it reads the connected
+      // devices on every delivery, so a device that is gone simply stops appearing.
+      connect('pos-1');
 
       await service.deliverPaymentUpdates();
       expect(paymentLinkPaymentRepo.find).toHaveBeenCalledTimes(1);
 
-      service.unregisterDevice('pos-1');
+      sockets.delete('pos-1');
 
       await service.deliverPaymentUpdates();
       expect(paymentLinkPaymentRepo.find).toHaveBeenCalledTimes(1);
+    });
+
+    it('should ask each device for its own window, not for the oldest one of all', async () => {
+      // A single minimum across all devices lets the quietest one set the window for everyone: the
+      // busy device is then re-read from the point the quiet one connected, on every tick.
+      const seen = devices();
+      connect('pos-1', new Date('2026-01-01T09:00:00Z'));
+
+      paymentLinkPaymentRepo.find.mockResolvedValue([
+        payment({
+          id: 7,
+          status: PaymentLinkPaymentStatus.COMPLETED,
+          deviceId: 'pos-1',
+          deviceCommand: 'show-paid',
+          updated: new Date('2026-01-01T11:00:00Z'),
+        }),
+      ]);
+      await service.deliverPaymentUpdates();
+      expect(seen).toHaveLength(1);
+
+      // A second device joins, connected long before anything happened on the first one.
+      connect('pos-2', new Date('2026-01-01T08:00:00Z'));
+      paymentLinkPaymentRepo.find.mockClear();
+      await service.deliverPaymentUpdates();
+
+      const { where } = paymentLinkPaymentRepo.find.mock.calls[0][0];
+      const windows = new Map((where as { deviceId: string; updated: { value: Date } }[]).map((w) => [w.deviceId, w]));
+
+      // The device that was already delivered to has moved on; the newcomer starts at its own
+      // connection time. One shared window could not express both.
+      expect(windows.get('pos-1').updated.value).toEqual(new Date('2026-01-01T11:00:00Z'));
+      expect(windows.get('pos-2').updated.value).toEqual(new Date('2026-01-01T08:00:00Z'));
+    });
+  });
+
+  // --- waitForPayment() Tests --- //
+
+  describe('waitForPayment()', () => {
+    it('should answer with the payment on hand once the wait elapses', async () => {
+      // The endpoints keep their shape: a caller that is still there is told what the payment looks
+      // like now, which for a pending one means "not yet, ask again".
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        const pending = payment({ id: 7 });
+        const waiting = service.waitForPayment(pending);
+
+        jest.advanceTimersByTime(60_000);
+
+        await expect(waiting).resolves.toBe(pending);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('should leave nothing behind when the wait elapses', async () => {
+      // The reason the wait is bounded at all. A client that hangs up says nothing the server can
+      // hear, so an unbounded wait left both entries in place for the lifetime of the process.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        const waiting = service.waitForPayment(payment({ id: 7 }));
+
+        jest.advanceTimersByTime(60_000);
+        await waiting;
+
+        expect(service['waitStates'].size).toEqual(0);
+        expect(service['paymentWaitMap'].get()).toEqual([]);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('should keep the compared state while a wait on the same payment is still registered', async () => {
+      // Two callers share one entry, so the one leaving must not take the state the other is
+      // comparing against with it.
+      const first = service.waitForPayment(payment({ id: 7 }));
+      void service.waitForPayment(payment({ id: 7 }));
+
+      paymentLinkPaymentRepo.find.mockResolvedValue([payment({ id: 7, status: PaymentLinkPaymentStatus.COMPLETED })]);
+      await service.deliverPaymentUpdates();
+
+      await expect(first).resolves.toMatchObject({ status: PaymentLinkPaymentStatus.COMPLETED });
     });
   });
 
@@ -178,7 +275,7 @@ describe('PaymentLinkPaymentService', () => {
     it('should release a caller in the writing process without waiting for the job', async () => {
       const pending = payment({ id: 7, deviceId: 'pos-1', deviceCommand: 'show-paid' });
       const seen = devices();
-      service.registerDevice('pos-1');
+      connect('pos-1');
 
       const waiting = service.waitForPayment(pending);
       await service.expirePayment(pending);
@@ -190,7 +287,7 @@ describe('PaymentLinkPaymentService', () => {
     it('should not repeat a delivery the writing process already made', async () => {
       const pending = payment({ id: 7, deviceId: 'pos-1', deviceCommand: 'show-paid' });
       const seen = devices();
-      service.registerDevice('pos-1');
+      connect('pos-1');
 
       await service.expirePayment(pending);
 
