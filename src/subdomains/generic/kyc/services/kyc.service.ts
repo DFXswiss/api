@@ -645,37 +645,19 @@ export class KycService {
   }
 
   /**
-   * Closes a PERSONAL_DATA step whose data the account already carries, for flows that write personal data
-   * outside the KYC step machinery (RealUnit registration). Without this the step stays IN_PROGRESS forever:
-   * the auto-completion in `initiateStep` is gated on `!preventDirectEvaluation`, which any prior step row sets,
-   * so an account that once abandoned the step can never satisfy it again — and `KycInfoMapper` keeps handing
-   * that stale step back as `currentStep`.
+   * Closes a PERSONAL_DATA step for flows that write personal data outside the KYC step machinery
+   * (RealUnit registration), which otherwise leaves it open forever — `initiateStep` will not
+   * auto-complete a step that has been attempted before.
    *
-   * Only ever closes a step that was abandoned, never one that was RE-OPENED. `isDataComplete` is a non-null
-   * check, not a validity check, so it cannot tell the two apart on its own: when Sumsub reports
-   * PROBLEMATIC_APPLICANT_DATA, `restartStep` FAILS the completed step and opens a fresh IN_PROGRESS one so the
-   * user can correct data that is present but wrong. Auto-completing that retry with the same unchanged data
-   * would skip the correction step and strand the user on IDENT instead. The rejection marker lives on the
-   * failed row, not on the pending one, so the pending lookup alone is no protection.
-   *
-   * The verdict comes from the most recent SETTLED step, not from the whole history: a rejection the user has
-   * since remedied ends in a completed step, and that account must stay eligible.
-   *
-   * CANCELED alone cannot stand for "remedied": `initiateStep` cancels the previous COMPLETED step in its
-   * PERSONAL_DATA branch, but its generic pending-step cancel also fires on a merely IN_PROGRESS one, so both a
-   * remediation and an untouched retry end up CANCELED. `KycStep.hasSettledVerdict` separates them — a
-   * cancellation only counts once the step had completed, which `result` records durably — and
-   * `KycStep.isRejected` reads the verdict itself, so a completion later revoked by a restart still blocks
-   * even after its status has moved past FAILED.
+   * An open step means one of two things and only the history tells them apart: abandoned, or re-opened
+   * by `restartStep` after identification rejected the data so the user can correct it. Closing the
+   * second would mark rejected data as verified and strand the user on IDENT.
    */
   async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
-    // The caller's UserData is loaded for its own flow and need not carry `kycSteps`; reload so the step
-    // lookup never reads an undefined relation (same pattern as checkDfxApproval).
     const user = await this.userDataService.getUserData(userData.id, { kycSteps: true });
 
-    // The account's OWN chain only. A merge seeds the slave's rows 100 below the floor, so merged-in history
-    // is always negative while own rows start at 0 — and merge batches are ordered chronologically only within
-    // a batch, so ranking across them would let an older batch outrank a newer rejection.
+    // Own rows only: a merge seeds inherited steps below 0, and orders them chronologically only within
+    // a batch, so ranking across batches could let older history outrank a newer rejection.
     const steps = user.getStepsWith(KycStepName.PERSONAL_DATA).filter((s) => s.sequenceNumber >= 0);
 
     const lastSettled = Util.maxObj(

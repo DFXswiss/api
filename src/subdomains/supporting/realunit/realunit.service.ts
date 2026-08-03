@@ -1710,15 +1710,8 @@ export class RealUnitService {
     }
   }
 
-  // A completed registration means the account's personal data is on file and verified equal to the signed
-  // envelope (validateRegistrationDto rejects a mismatch with a 400 before we get here), and the level lift
-  // above grants LEVEL_20 — which the KycLevel enum defines as "personal data". An open PERSONAL_DATA step
-  // therefore contradicts a decision the API has already made, and the RealUnit client cannot render that step,
-  // so it dead-ends onboarding. Reconcile the step with the level.
-  //
-  // Separate from ensureRegistrationKycLevel on purpose: that one returns early once the account is at
-  // LEVEL_20, which is exactly the state a stuck account is already in — folding this in would skip it for
-  // every account that needs it. Best-effort like the lift, so a failure here never fails the registration.
+  // Kept separate from ensureRegistrationKycLevel, which returns early at LEVEL_20 — exactly the state a
+  // stuck account is already in, so folding this in would skip every account that needs it.
   private async ensureRegistrationPersonalDataStep(userData: UserData): Promise<void> {
     try {
       await this.kycService.completeSatisfiedPersonalDataStep(userData);
@@ -1729,14 +1722,8 @@ export class RealUnitService {
     }
   }
 
-  // The KYC state a durably COMPLETED registration implies. Called from every point that concludes the
-  // registration is in place, including the idempotent retry paths.
-  //
-  // Scope: this reconciles registrations as they happen, so it prevents the wedge rather than curing it. An
-  // account that is ALREADY wedged does not come back through here on its own — for a wallet with a COMPLETED
-  // registration `getRegistrationInfo` answers AlreadyRegistered, and the client then goes straight to the KYC
-  // step flow without re-posting register/complete. Such an account is only reached if it registers a further
-  // wallet. The pre-existing backlog is handled out of band.
+  // Prevents the wedge, does not cure it: an already-wedged wallet answers AlreadyRegistered and never
+  // re-posts register/complete, so it only comes back through here if it registers a further wallet.
   private async ensureRegistrationKycState(userData: UserData): Promise<void> {
     await this.ensureRegistrationKycLevel(userData);
     await this.ensureRegistrationPersonalDataStep(userData);

@@ -868,7 +868,6 @@ export class UserData extends IEntity {
     return this.requiredKycFields.every((f) => this[f]);
   }
 
-  // The requiredKycFields projection a completed PERSONAL_DATA step stores as its result.
   get kycFieldData(): Record<string, unknown> {
     return this.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: this[curr] }), {});
   }
