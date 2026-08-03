@@ -1,5 +1,4 @@
 import { createMock } from '@golevelup/ts-jest';
-import { MoreThan } from 'typeorm';
 import { ConfigService } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
@@ -20,7 +19,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { BankTxRepeatService } from '../../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx-return/bank-tx-return.service';
 import { createCustomBankTx } from '../__mocks__/bank-tx.entity.mock';
-import { BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
 import { BankTxFrickService } from '../services/bank-tx-frick.service';
@@ -113,8 +112,6 @@ describe('BankTxService', () => {
       fiatService,
     );
   });
-
-  afterEach(() => jest.useRealTimers());
 
   function chainableQb(): any {
     const qb: any = {
@@ -262,30 +259,54 @@ describe('BankTxService', () => {
     await expect(service.getBankTxFee(from)).rejects.toThrow();
   });
 
-  describe('#getRecentInternalTx(...)', () => {
-    it('loads only the settlement window and keeps transfers between configured bank IBANs', async () => {
-      jest.useFakeTimers().setSystemTime(new Date('2026-08-03T12:00:00.000Z'));
-      (bankService.getAllBanks as jest.Mock).mockResolvedValue([{ iban: 'OLKY IBAN' }, { iban: 'FRICK-IBAN' }]);
-      const internal = createCustomBankTx({ accountIban: 'olkyiban', iban: 'frick iban' });
-      const external = createCustomBankTx({ accountIban: 'OLKY IBAN', iban: 'EXTERNAL-IBAN' });
-      (bankTxRepo.findBy as jest.Mock).mockResolvedValue([internal, external]);
+  describe('#getTrackedInternalTransfers(...)', () => {
+    it('loads the immutable tracking set without expiring old pending transfers', async () => {
+      const historical = createCustomBankTx({
+        created: new Date('2024-09-04T09:04:02.150Z'),
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: true,
+      });
+      (bankTxRepo.findBy as jest.Mock).mockResolvedValue([historical]);
 
-      await expect(service.getRecentInternalTx()).resolves.toEqual([internal]);
+      await expect(service.getTrackedInternalTransfers()).resolves.toEqual([historical]);
 
       expect(bankTxRepo.findBy).toHaveBeenCalledWith({
         type: BankTxType.INTERNAL,
-        created: MoreThan(new Date('2026-07-13T12:00:00.000Z')),
+        isInternalTransfer: true,
       });
+      expect(bankService.getAllBanks).not.toHaveBeenCalled();
     });
+  });
 
-    it('fails loud instead of dropping pending transfers when no bank IBAN is configured', async () => {
-      (bankService.getAllBanks as jest.Mock).mockResolvedValue([]);
+  describe('#create(...)', () => {
+    it('persists the ownership marker when both transfer IBANs are configured DFX accounts', async () => {
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
+      (bankTxRepo.findOneBy as jest.Mock).mockResolvedValue(undefined);
+      (bankTxRepo.create as jest.Mock).mockImplementation((values) => Object.assign(new BankTx(), values));
+      (bankTxRepo.save as jest.Mock).mockImplementation(async (values) => values);
 
-      await expect(service.getRecentInternalTx()).rejects.toThrow(
-        'No configured bank IBANs available for internal transfer tracking',
+      await service.create({ accountServiceRef: 'INTERNAL-1', accountIban: 'OLKY-IBAN', iban: 'FRICK-IBAN' }, []);
+
+      expect(bankTxRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ type: BankTxType.INTERNAL, isInternalTransfer: true }),
       );
+    });
+  });
 
-      expect(bankTxRepo.findBy).not.toHaveBeenCalled();
+  describe('#updateInternal(...)', () => {
+    it('never revokes an immutable ownership marker after bank configuration changes', async () => {
+      const bankTx = createCustomBankTx({
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: true,
+        accountIban: 'RETIRED-OLKY-IBAN',
+        iban: 'FRICK-IBAN',
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
+
+      await service.updateInternal(bankTx, { type: BankTxType.INTERNAL });
+
+      expect(bankTx.isInternalTransfer).toBe(true);
+      expect(bankService.areKnownBankIbans).not.toHaveBeenCalled();
     });
   });
 
@@ -418,7 +439,10 @@ describe('BankTxService', () => {
       );
 
       expect(manager.update).toHaveBeenNthCalledWith(1, expect.anything(), 77, { type: 'Internal' });
-      expect(manager.update).toHaveBeenNthCalledWith(2, expect.anything(), 208765, { type: BankTxType.INTERNAL });
+      expect(manager.update).toHaveBeenNthCalledWith(2, expect.anything(), 208765, {
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: true,
+      });
     });
   });
 });

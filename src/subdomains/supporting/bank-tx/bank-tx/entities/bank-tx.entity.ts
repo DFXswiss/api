@@ -53,6 +53,7 @@ export enum BankTxIndicator {
 @Entity()
 // Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
 @Index((b: BankTx) => [b.updated, b.id])
+@Index((b: BankTx) => [b.type, b.isInternalTransfer])
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
   accountServiceRef: string;
@@ -217,6 +218,11 @@ export class BankTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   type?: BankTxType;
+
+  // Immutable ownership fact captured when both transfer IBANs belong to DFX. Do not
+  // recompute it from current bank configuration because accounts can be retired later.
+  @Column({ default: false })
+  isInternalTransfer: boolean;
 
   // ISO 20022 bank transaction codes
   @Column({ length: 256, nullable: true })

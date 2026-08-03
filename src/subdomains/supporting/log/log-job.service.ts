@@ -489,7 +489,9 @@ export class LogJobService {
 
     // pending internal balances
     // db requests
-    const recentInternalBankTx = this.getUnsettledInternalBankTx(await this.bankTxService.getRecentInternalTx());
+    const recentInternalBankTx = this.getUnsettledInternalBankTx(
+      await this.bankTxService.getTrackedInternalTransfers(),
+    );
     const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
     const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
       minExchangeTxId,

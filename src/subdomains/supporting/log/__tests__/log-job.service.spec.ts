@@ -1812,7 +1812,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentInternalTx').mockResolvedValue(internalBankTx);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue(internalBankTx);
       jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);
       jest.spyOn(exchangeTxService, 'getRecentExchangeTx').mockResolvedValue([]);
 
@@ -2388,7 +2388,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentInternalTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue([]);
 
       // an unmatched (still-pending) debit from Frick's EUR IBAN into Scrypt
       const frickToScryptTx = createCustomBankTx({
@@ -2455,7 +2455,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentInternalTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue([]);
       jest
         .spyOn(bankTxService, 'getRecentExchangeTx')
         .mockImplementation(async (_minId, type) => (type === BankTxType.SCRYPT ? scryptBankTx : []));
@@ -2571,7 +2571,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentInternalTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue([]);
       jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
       jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
       jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);

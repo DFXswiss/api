@@ -67,7 +67,6 @@ import {
   BankTxTypeCompleted,
   BankTxTypeUnassigned,
   BankTxUnassignedTypes,
-  INTERNAL_TRANSFER_SETTLEMENT_DAYS,
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
@@ -306,9 +305,18 @@ export class BankTxService implements OnModuleInit {
 
       if (currentTransaction.type !== transactionType)
         await manager.update(Transaction, currentTransaction.id, { type: transactionType });
-      if (currentBankTx.type !== detectedType) await manager.update(BankTx, currentBankTx.id, { type: detectedType });
+      const isInternalTransfer = detectedType === BankTxType.INTERNAL;
+      if (currentBankTx.type !== detectedType || (isInternalTransfer && !currentBankTx.isInternalTransfer)) {
+        const update: Partial<BankTx> = { type: detectedType };
+        if (isInternalTransfer) update.isInternalTransfer = true;
+        await manager.update(BankTx, currentBankTx.id, update);
+      }
 
-      return Object.assign(currentBankTx, { type: detectedType, transaction: currentTransaction });
+      return Object.assign(currentBankTx, {
+        type: detectedType,
+        isInternalTransfer: Boolean(isInternalTransfer || currentBankTx.isInternalTransfer),
+        transaction: currentTransaction,
+      });
     });
   }
 
@@ -379,6 +387,7 @@ export class BankTxService implements OnModuleInit {
 
     entity = this.createTx(bankTx, multiAccounts);
     entity.type = await this.getType(entity);
+    entity.isInternalTransfer = entity.type === BankTxType.INTERNAL;
 
     entity.transaction = await this.transactionService.create({
       sourceType: TransactionSourceType.BANK_TX,
@@ -402,6 +411,13 @@ export class BankTxService implements OnModuleInit {
   }
 
   async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, user?: User): Promise<BankTx> {
+    if (
+      dto.type === BankTxType.INTERNAL &&
+      !bankTx.isInternalTransfer &&
+      (await this.bankService.areKnownBankIbans(bankTx.accountIban, bankTx.iban))
+    )
+      bankTx.isInternalTransfer = true;
+
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
@@ -572,24 +588,8 @@ export class BankTxService implements OnModuleInit {
     return Util.round(totalFeeChf, Config.defaultVolumeDecimal);
   }
 
-  async getRecentInternalTx(): Promise<BankTx[]> {
-    const bankIbans = new Set(
-      (await this.bankService.getAllBanks())
-        .map((bank) => BankService.normalizeIban(bank.iban))
-        .filter((iban): iban is string => iban != null),
-    );
-    if (!bankIbans.size) throw new Error('No configured bank IBANs available for internal transfer tracking');
-
-    const transactions = await this.bankTxRepo.findBy({
-      type: BankTxType.INTERNAL,
-      created: MoreThan(Util.daysBefore(INTERNAL_TRANSFER_SETTLEMENT_DAYS)),
-    });
-
-    return transactions.filter((tx) => {
-      const sourceIban = BankService.normalizeIban(tx.accountIban);
-      const targetIban = BankService.normalizeIban(tx.iban);
-      return Boolean(sourceIban && targetIban && bankIbans.has(sourceIban) && bankIbans.has(targetIban));
-    });
+  async getTrackedInternalTransfers(): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ type: BankTxType.INTERNAL, isInternalTransfer: true });
   }
 
   async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
@@ -631,6 +631,7 @@ export class BankTxService implements OnModuleInit {
         .filter((i) => !duplicates.includes(i.accountServiceRef))
         .map(async (tx) => {
           tx.type = await this.getType(tx);
+          tx.isInternalTransfer = tx.type === BankTxType.INTERNAL;
           tx.batch = batch;
 
           return tx;
