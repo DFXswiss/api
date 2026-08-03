@@ -570,12 +570,15 @@ describePgAnyTz('PartnerStatisticService timeline UTC binding under non-UTC proc
 
   it('bucket keys stay on true UTC day boundaries in a child process running under Asia/Tokyo', () => {
     const scriptPath = path.join(__dirname, 'partner-statistic-tz-check.script.ts');
+    // TZ_SCHEMA is passed as a CLI argument, not an env var: it is never a developer-facing
+    // switch (unlike MIGRATION_TEST_PG, which a person sets to opt into the Postgres suite) —
+    // it only exists so this one-shot child process gets its own isolated schema name.
     const stdout = execFileSync(
       path.join(process.cwd(), 'node_modules', '.bin', 'ts-node'),
-      ['-T', '-r', 'tsconfig-paths/register', scriptPath],
+      ['-T', '-r', 'tsconfig-paths/register', scriptPath, TZ_SCHEMA],
       {
         cwd: process.cwd(),
-        env: { ...process.env, TZ: CHECK_TZ, MIGRATION_TEST_PG: PG_URL, TZ_CHECK_SCHEMA: TZ_SCHEMA },
+        env: { ...process.env, TZ: CHECK_TZ, MIGRATION_TEST_PG: PG_URL },
         encoding: 'utf-8',
       },
     );

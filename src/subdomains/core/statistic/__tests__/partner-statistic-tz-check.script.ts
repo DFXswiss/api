@@ -14,6 +14,7 @@
  * picked up as a test itself — it is a one-shot script invoked by the real test via
  * `child_process.execFileSync`.
  */
+import * as path from 'path';
 import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryColumn, Repository } from 'typeorm';
 // Same fixture default jest-env.setup.ts provides for Jest-run specs — this script runs outside
 // Jest (a plain ts-node child process), so ConfigService's fail-loud boot check needs it too.
@@ -52,8 +53,16 @@ class TzCheckBuyCrypto {
 
 async function main(): Promise<void> {
   const pgUrl = process.env.MIGRATION_TEST_PG;
-  const schema = process.env.TZ_CHECK_SCHEMA;
-  if (!pgUrl || !schema) throw new Error('MIGRATION_TEST_PG and TZ_CHECK_SCHEMA must both be set');
+  // Schema name is a CLI argument, not an env var: it is never a developer-facing switch —
+  // the parent spec invents and passes it purely to give this one-shot child process its own
+  // isolated schema. Documenting it in .env.example would misrepresent it as configuration.
+  const schema = process.argv[2];
+  if (!pgUrl) throw new Error('MIGRATION_TEST_PG must be set');
+  if (!schema) {
+    throw new Error(
+      `Expected the Postgres schema name as the first CLI argument (e.g. "ts-node ${path.basename(__filename)} my_schema"), got none.`,
+    );
+  }
 
   new ConfigService();
 
