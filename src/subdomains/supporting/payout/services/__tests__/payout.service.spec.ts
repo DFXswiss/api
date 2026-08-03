@@ -18,6 +18,28 @@ import { PayoutLogService } from '../payout-log.service';
 import { PayoutService } from '../payout.service';
 
 describe('PayoutService', () => {
+  describe('#logUncertainOrdersSnapshot(...)', () => {
+    it('queries the current PAYOUT_UNCERTAIN set and forwards it to the snapshot logger', async () => {
+      const payoutOrderRepo = mock<PayoutOrderRepository>();
+      const logs = mock<PayoutLogService>();
+      const service = new PayoutService(
+        logs,
+        mock<NotificationService>(),
+        payoutOrderRepo,
+        mock<PayoutOrderFactory>(),
+        mock<PayoutStrategyRegistry>(),
+        mock<PrepareStrategyRegistry>(),
+      );
+      const uncertainOrders = [createCustomPayoutOrder({ id: 114099, status: PayoutOrderStatus.PAYOUT_UNCERTAIN })];
+      jest.spyOn(payoutOrderRepo, 'findBy').mockResolvedValue(uncertainOrders);
+
+      await service.logUncertainOrdersSnapshot();
+
+      expect(payoutOrderRepo.findBy).toHaveBeenCalledWith({ status: PayoutOrderStatus.PAYOUT_UNCERTAIN });
+      expect(logs.logUncertainOrdersSnapshot).toHaveBeenCalledWith(uncertainOrders);
+    });
+  });
+
   describe('#retryUncertainPayout(...)', () => {
     let service: PayoutService;
     let payoutOrderRepo: PayoutOrderRepository;

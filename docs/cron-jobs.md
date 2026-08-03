@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **131 `@DfxCron` declarations** across 92 files and 33 areas.
+Every scheduled job this service runs: **132 `@DfxCron` declarations** across 92 files and 33 areas.
 
 ## Columns
 
@@ -13,7 +13,7 @@ Every scheduled job this service runs: **131 `@DfxCron` declarations** across 92
 
 ## Flags
 
-110 of the 131 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
+111 of the 132 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -45,7 +45,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | second | 5 |
 | 10 seconds | 3 |
 | 30 seconds | 8 |
-| minute | 49 |
+| minute | 50 |
 | 5 minutes | 17 |
 | 10 minutes | 15 |
 | hour | 16 |
@@ -94,13 +94,13 @@ Jobs by area:
 | `subdomains/supporting/dex` | 1 | 1 |
 | `subdomains/supporting/fiat-payin` | 1 | — |
 | `subdomains/supporting/notification` | 1 | — |
-| `subdomains/supporting/payout` | 1 | — |
+| `subdomains/supporting/payout` | 2 | — |
 
 ## How this list is produced
 
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses four of them. The parsed
-count is asserted against a raw text count of the decorator: **131 = 131**, no gap. Class and
+count is asserted against a raw text count of the decorator: **132 = 132**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -171,6 +171,7 @@ the interval while running as an independent timer with its own lock.
 | minute | `PAYMENT_CONFIRMATIONS` | `PaymentCronService::checkTxConfirmations` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `PAYMENT_EXPIRATION` | `PaymentCronService::processExpiredPayments` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `UPDATE_BLOCKCHAIN_FEE` | `PaymentLinkFeeService::updateFees` | `subdomains/core/payment-link/services/payment-link-fee.service.ts` |
+| minute | `MONITORING` | `PayoutService::logUncertainOrdersSnapshot` | `subdomains/supporting/payout/services/payout.service.ts` |
 | minute | `REALUNIT_QUOTE_COMPLETION` | `RealUnitJobService::completeSettledQuotes` | `subdomains/supporting/realunit/realunit-job.service.ts` |
 | minute | `SUPPORT_BOT` | `SupportIssueJobService::sendAutoResponses` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts` |
 | minute | `TFA_CACHE` | `TfaService::processCleanupSecretCache` | `subdomains/generic/kyc/services/tfa.service.ts` |
