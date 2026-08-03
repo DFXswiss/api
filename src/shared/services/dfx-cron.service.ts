@@ -6,9 +6,9 @@ import { Config, CronRole } from 'src/config/config';
 import { DisabledProcess } from 'src/shared/services/process.service';
 import { CronScope, DFX_CRONJOB_PARAMS, DfxCron, DfxCronExpression, DfxCronParams } from 'src/shared/utils/cron';
 import { LockClass } from 'src/shared/utils/lock';
-import { CronLeaseService } from './cron-lease.service';
 import { Util } from 'src/shared/utils/util';
 import { CustomCronExpression } from '../utils/custom-cron-expression';
+import { CronLeaseService } from './cron-lease.service';
 import { DfxLogger } from './dfx-logger';
 
 interface CronJobData {
@@ -76,6 +76,16 @@ export class DfxCronService implements OnModuleInit {
     this.registeredCount = registered.length;
 
     this.logger.info(`CronRole ${Config.cronRole}: registered ${registered.length} of ${total} jobs (${byScope})`);
+
+    // And a heartbeat right away, not only at the next ten-minute mark. The line above is a
+    // DIFFERENT one — the alerts read the heartbeat, and a process that has just started would
+    // otherwise be missing from it for up to ten minutes.
+    //
+    // That is not a theoretical gap: the job fires on fixed marks (`useDelay: false`), so a
+    // process that comes up at :11 and misses :10 writes nothing until :20. Against a
+    // twelve-minute window, an ordinary deploy could then produce the "worker is silent" alarm —
+    // the critical one this whole split rests on.
+    this.reportRole();
   }
 
   /**

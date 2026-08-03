@@ -117,7 +117,14 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     // Bound to the socket, and to every way it can end: an aborted connection reports `error`, and
     // binding to `close` alone left it registered. Removal is idempotent, so both firing is fine.
     client.on('close', () => this.removeClient(device, clientId));
-    client.on('error', () => this.removeClient(device, clientId));
+    // `error` does one thing more than `close`: it is how `ws` reports a send on a socket that
+    // closed between the delivery's state check and the call itself. The delivery has already
+    // recorded that command as sent, so the record has to go — see
+    // PaymentLinkPaymentService.forgetDeliveries for why `close` must NOT do the same.
+    client.on('error', () => {
+      this.removeClient(device, clientId);
+      this.paymentService.forgetDeliveries(device);
+    });
     client.on('pong', () => this.markResponsive(device, clientId));
   }
 
@@ -159,11 +166,14 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
    * One failing socket does not stop the others: a device with two connections is still reachable
    * through the second, and that counts as delivered.
    *
-   * What remains uncovered: a socket that closes BETWEEN the check and the send. That window is
-   * the width of one synchronous call, and the delivery survives it the same way it survives a
-   * process restart — the payment stays inside the read until its own end, so a later tick tries
-   * again as soon as the device reconnects and the record has aged out. What it does not survive
-   * is being told `true` for a socket that was already gone, which is what this closes.
+   * What the state check cannot cover: a socket that closes BETWEEN the check and the send. `ws`
+   * reports that one asynchronously through `'error'`, so this has already answered `true`.
+   *
+   * Waiting for the delivery's record to age out does NOT repair it, and an earlier version of
+   * this comment claimed it did. That record ages on the same cutoff the delivery's query uses,
+   * so "the record is gone" and "the payment is still in the read" exclude each other by
+   * construction — the retry it promised could never happen. The repair is in the `'error'`
+   * handler above, which drops the record so the next tick sends the state again.
    */
   private sendMessage(device: PaymentDevice): boolean {
     const connections = this.clients.get(device.id);

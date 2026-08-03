@@ -38,8 +38,14 @@ module.exports = class AddPaymentLinkPaymentDeviceIdIndex1785620000000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
-    // SET LOCAL is scoped to the whole transaction. Bounds WAIT time to acquire the lock, not how
-    // long the lock is held. Set once: this migration has a single CREATE INDEX statement.
+    // SET LOCAL is scoped to the whole TRANSACTION, and under `migrationsTransactionMode: 'all'`
+    // that transaction is the entire pending batch — so this stays in force for every migration
+    // that runs after it in the same deployment, not only for the statement below. That is
+    // deliberate but worth knowing: a later migration that must wait on a lock inherits the five
+    // seconds and fails the whole release rather than waiting. Whoever adds one sets its own
+    // value.
+    //
+    // It bounds the WAIT for the lock, not how long the lock is held.
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(`CREATE INDEX "IDX_8a9b97a10b3db9c64d45ae4d38" ON "payment_link_payment" ("deviceId")`);
   }
@@ -48,8 +54,14 @@ module.exports = class AddPaymentLinkPaymentDeviceIdIndex1785620000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
-    // SET LOCAL is scoped to the whole transaction. Bounds WAIT time to acquire the lock, not how
-    // long the lock is held. Set once: this migration has a single DROP INDEX statement.
+    // SET LOCAL is scoped to the whole TRANSACTION, and under `migrationsTransactionMode: 'all'`
+    // that transaction is the entire pending batch — so this stays in force for every migration
+    // that runs after it in the same deployment, not only for the statement below. That is
+    // deliberate but worth knowing: a later migration that must wait on a lock inherits the five
+    // seconds and fails the whole release rather than waiting. Whoever adds one sets its own
+    // value.
+    //
+    // It bounds the WAIT for the lock, not how long the lock is held.
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(`DROP INDEX "public"."IDX_8a9b97a10b3db9c64d45ae4d38"`);
   }

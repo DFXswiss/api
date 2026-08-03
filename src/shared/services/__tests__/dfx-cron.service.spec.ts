@@ -315,6 +315,28 @@ describe('DfxCronService', () => {
     // Everything it needs has to be IN the line and the line has to appear in both processes —
     // the three tests below pin exactly that, because none of it is visible at the call site.
 
+    it('writes one at boot, not only at the next ten-minute mark', () => {
+      // The job fires on fixed marks and does not jitter. A process that comes up at :11 and
+      // misses :10 would otherwise write nothing until :20 — against a twelve-minute alert window
+      // that turns an ordinary deploy into the critical "worker is silent" alarm.
+      const { service } = buildService([
+        providerWithJob('someJob', {
+          expression: CronExpression.EVERY_MINUTE,
+          scope: CronScope.WORKER,
+          useDelay: false,
+        }),
+      ]);
+
+      const info = jest.spyOn(service['logger'], 'info');
+
+      service.onModuleInit();
+
+      const lines = info.mock.calls.map(([line]) => line as string);
+
+      expect(lines.some((line) => /CronRole \w+: registered \d+ of \d+ jobs/.test(line))).toBe(true);
+      expect(lines.some((line) => /CronRole \w+: heartbeat, \d+ jobs registered/.test(line))).toBe(true);
+    });
+
     it('runs in every process, so neither one is invisible to the alert', () => {
       // Were this scoped `worker`, the API process would stop reporting and the alert could no
       // longer distinguish "runs the wrong role" from "reports nothing".

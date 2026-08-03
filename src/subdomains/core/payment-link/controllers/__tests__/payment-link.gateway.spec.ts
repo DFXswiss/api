@@ -58,6 +58,7 @@ describe('PaymentLinkGateway', () => {
     paymentService = {
       useDeviceSink: jest.fn().mockImplementation((sink) => (deliver = sink)),
       useDeviceSource: jest.fn(),
+      forgetDeliveries: jest.fn(),
     } as unknown as jest.Mocked<PaymentLinkPaymentService>;
 
     gateway = new PaymentLinkGateway(paymentService);
@@ -219,6 +220,28 @@ describe('PaymentLinkGateway', () => {
     gateway.onModuleInit();
 
     expect(deliver({ id: 'pos-unknown', command: 'show-paid' })).toBe(false);
+  });
+
+  it('forgets what a device was told when its socket reports an error', () => {
+    // The one failure the state check cannot see: `ws` reports a send on a socket that closed
+    // mid-call asynchronously, through `'error'` — the sink has already answered `true` and the
+    // delivery has recorded the command. Letting the record age out does not repair that: it ages
+    // on the same cutoff the query uses, so it never outlives the payment's place in the read.
+    const client = connect('pos-1');
+
+    client.fire('error');
+
+    expect(paymentService.forgetDeliveries).toHaveBeenCalledWith('pos-1');
+  });
+
+  it('keeps what a device was told when its socket closes in order', () => {
+    // The other direction, and the reason the record exists: an orderly close says nothing about
+    // a command that did go out. Forgetting here would repeat every command on every reconnect.
+    const client = connect('pos-1');
+
+    client.fire('close');
+
+    expect(paymentService.forgetDeliveries).not.toHaveBeenCalled();
   });
 
   it('reports nothing delivered when the socket is closing, and drops it', () => {

@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { Config } from 'src/config/config';
+import { Config, CronRole } from 'src/config/config';
 import { DataSource } from 'typeorm';
 import { DfxLogger } from './dfx-logger';
 
@@ -235,8 +235,34 @@ export class CronLeaseService implements OnModuleInit {
       acquired = await this.acquire(job);
     } catch (e) {
       this.recordFailure(e);
-      this.logger.error(`Skipping ${job}: could not reach the lease table`, e);
-      return;
+
+      // Unreachable table, missing grant, database down. What happens next depends on the role,
+      // and the difference matters more than it looks.
+      //
+      // Under `all` the deployment runs ONE process — the same shape the API had before this
+      // branch existed, when no lease was involved at all. Skipping there would make an
+      // unreachable lease table STRICTLY WORSE than not having one: 123 of 139 jobs would stop,
+      // payouts included, and between the rollout of this application version and the rollout of
+      // the alert that reads the heartbeat there is no rule that would say so. So the job runs.
+      // Two processes on `all` would then run it twice — exactly as they would have before, and
+      // the `role-mismatch` rule reports that pair once it exists.
+      //
+      // Under `api` or `worker` the lease is the only thing keeping the job to one process, and
+      // its absence is not recoverable by running anyway. There the skip stands, and the
+      // heartbeat carries the reason out.
+      if (Config.cronRole !== CronRole.ALL) {
+        this.logger.error(`Skipping ${job}: could not reach the lease table`, e);
+        return;
+      }
+
+      this.logger.error(
+        `Running ${job} WITHOUT a lease: could not reach the lease table, and CRON_ROLE=all runs ` +
+          `one process — not running it would be worse than the single-process setup this ` +
+          `replaces`,
+        e,
+      );
+
+      return task();
     }
 
     if (!acquired) {

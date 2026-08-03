@@ -119,12 +119,38 @@ export class PaymentLinkFeeService implements OnModuleInit {
   }
 
   // --- PUBLIC METHODS --- //
+  /**
+   * Loads on demand when the cache has nothing usable, rather than answering `undefined`.
+   *
+   * CONTRIBUTING: "A cache read in a request path must load on demand … A cron job may refresh
+   * it, but must not be the only thing filling it." The job above refreshes; this is the load.
+   *
+   * Before the split that distinction did not bite: one process ran the refresh and served the
+   * requests, so a filled cache and a reading request were the same process. Now the refresh is
+   * `Api`-scoped AND leased, so among several API processes only one wins it per tick — the
+   * others would serve `undefined` for a fee they could have fetched, and `createQuote` would
+   * price without it.
+   *
+   * Only the blockchain that was asked for is loaded, not the whole set: a request pays for what
+   * it needs, and the job stays the thing that keeps the rest warm.
+   */
   async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
     const cacheData = this.feeCache.get(blockchain);
-    if (!cacheData) return;
+    const usable = cacheData && Util.secondsDiff(cacheData.timestamp) <= PaymentLinkFeeService.MINUTES_5;
+    if (usable) return cacheData.fee;
 
-    if (Util.secondsDiff(cacheData.timestamp) > PaymentLinkFeeService.MINUTES_5) return;
+    try {
+      const fee = await this.calculateFee(blockchain);
+      this.feeCache.set(blockchain, { timestamp: new Date(), fee });
 
-    return cacheData.fee;
+      return fee;
+    } catch (e) {
+      // Same shape as the job's own failure handling: a fee source that cannot be reached leaves
+      // the caller without a minimum, which is what it would have had anyway. Logged rather than
+      // thrown, so one unreachable chain does not fail a quote for the others.
+      this.logger.error(`Failed to load fee for blockchain ${blockchain} on demand:`, e);
+
+      return undefined;
+    }
   }
 }

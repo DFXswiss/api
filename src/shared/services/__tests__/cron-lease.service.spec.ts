@@ -55,6 +55,62 @@ describe('CronLeaseService', () => {
     expect(task).toHaveBeenCalledTimes(1);
   });
 
+  describe('when the lease table cannot be reached', () => {
+    /** Every claim attempt fails, as it would with no table, no grant or no database. */
+    const unreachable = () =>
+      jest.fn().mockImplementation((sql: string) => {
+        if (sql.includes('INSERT INTO')) return Promise.reject(new Error('relation "cron_lease" does not exist'));
+        return Promise.resolve([]);
+      });
+
+    it('runs the task anyway under `all`, because one process is what that role means', async () => {
+      // The rollout puts this application version into production SEVERAL STEPS before the alert
+      // that reads the lease heartbeat. In that window an unreachable table would otherwise stop
+      // 123 of 139 jobs — payouts among them — with nothing to report it.
+      //
+      // Under `all` the deployment runs one process, which is the shape the API had before any
+      // lease existed. Skipping there would make the lease STRICTLY WORSE than its own absence.
+      process.env.CRON_ROLE = 'all';
+      new ConfigService(GetConfig());
+
+      const { service } = buildService({ onQuery: unreachable() });
+      const task = jest.fn().mockResolvedValue(undefined);
+
+      await service.run('SomeService::job', task);
+
+      expect(task).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT run it under `worker`, where the lease is the only separation', async () => {
+      // The other direction, and the reason this is a role question rather than a blanket rule:
+      // with two processes, running anyway is the double run the lease exists to prevent.
+      process.env.CRON_ROLE = 'worker';
+      new ConfigService(GetConfig());
+
+      const { service } = buildService({ onQuery: unreachable() });
+      const task = jest.fn().mockResolvedValue(undefined);
+
+      await service.run('SomeService::job', task);
+
+      expect(task).not.toHaveBeenCalled();
+    });
+
+    it('reports the failure in the heartbeat either way', async () => {
+      // Running anyway must not look healthy: the reason still has to reach the alert.
+      process.env.CRON_ROLE = 'all';
+      new ConfigService(GetConfig());
+
+      const { service } = buildService({ onQuery: unreachable() });
+
+      await service.run('SomeService::job', jest.fn().mockResolvedValue(undefined));
+
+      const failures = service.takeFailures();
+
+      expect(failures.healthy).toBe(false);
+      expect(failures.count).toEqual(1);
+    });
+  });
+
   it('does NOT run the task when another process holds the lease', async () => {
     // The claim statement returns no row when an unexpired lease belongs to someone else. This is
     // the case the whole mechanism exists for: the second process must stay out.

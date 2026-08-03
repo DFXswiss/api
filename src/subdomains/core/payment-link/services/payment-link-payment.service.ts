@@ -430,6 +430,22 @@ export class PaymentLinkPaymentService {
     }
   }
 
+  /**
+   * Drops what this process believes it told a device, so the next tick tells it again.
+   *
+   * Called by the gateway when a socket reports `'error'` — the one signal that a command may
+   * have failed AFTER the sink answered `true`. `ws` raises a send on a socket that closed
+   * mid-call that way, and nothing else can see it: the state was open when it was read, and the
+   * call did not throw.
+   *
+   * Deliberately not called on `'close'`. An orderly close is not evidence that anything failed,
+   * and forgetting there would repeat every command on every reconnect — which is what the record
+   * exists to prevent.
+   */
+  forgetDeliveries(deviceId: string): void {
+    this.deviceDeliveries.delete(deviceId);
+  }
+
   /** What has been delivered to a device so far, empty for one nothing has been sent to yet. */
   private deliveriesFor(deviceId: string): DeviceDeliveries {
     const delivered = this.deviceDeliveries.get(deviceId) ?? new Map();
