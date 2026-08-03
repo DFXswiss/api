@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from 'src/config/config';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
@@ -121,6 +122,8 @@ describe('PartnerStatisticService', () => {
   let lastWalletIds: number[];
   let whereClauses: string[];
   let amlFilterClauses: string[];
+  /** Bound `:check` value from every amlCheck clause (M1 — text match alone misses a swapped value). */
+  let amlCheckValues: unknown[];
   /** Bound `{ from, to }` from every where/andWhere that supplies period params. */
   let periodBoundParams: { from: unknown; to: unknown }[];
   let groupByCapture: GroupByCapture;
@@ -273,6 +276,7 @@ describe('PartnerStatisticService', () => {
       capturePeriodParams(params);
       if (clauseStr.includes('amlCheck')) {
         amlFilterClauses.push(clauseStr);
+        amlCheckValues.push(params && typeof params === 'object' ? (params as { check?: unknown }).check : undefined);
       }
       return self();
     });
@@ -421,6 +425,7 @@ describe('PartnerStatisticService', () => {
     lastWalletIds = [];
     whereClauses = [];
     amlFilterClauses = [];
+    amlCheckValues = [];
     periodBoundParams = [];
     fixtures = new Map();
     groupByCapture = { groupBys: [], selectAliases: [] };
@@ -498,6 +503,21 @@ describe('PartnerStatisticService', () => {
 
     it('accepts a period of exactly the max span', () => {
       const from = new Date(TEST_NOW.getTime() - (PARTNER_STATISTIC_MAX_PERIOD_DAYS - 1) * 24 * 3600 * 1000);
+      const to = TEST_NOW;
+      expect(() => service.resolvePeriod(from, to)).not.toThrow();
+    });
+
+    // M3: the two tests above derive their input from the constant they are supposed to pin
+    // (MAX ± N) — they would stay green even if PARTNER_STATISTIC_MAX_PERIOD_DAYS were bumped
+    // to 36600. Pin literal, constant-independent day counts at the exact boundary instead.
+    it('rejects a literal 367-day span regardless of the configured max (M3)', () => {
+      const from = new Date(TEST_NOW.getTime() - 366 * 24 * 3600 * 1000);
+      const to = TEST_NOW;
+      expect(() => service.resolvePeriod(from, to)).toThrow(BadRequestException);
+    });
+
+    it('accepts a literal 366-day span regardless of the configured max (M3)', () => {
+      const from = new Date(TEST_NOW.getTime() - 365 * 24 * 3600 * 1000);
       const to = TEST_NOW;
       expect(() => service.resolvePeriod(from, to)).not.toThrow();
     });
@@ -752,6 +772,9 @@ describe('PartnerStatisticService', () => {
       const AML_EXACT_RE = /^tx\.amlCheck\s*=\s*:check$/;
       expect(amlFilterClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.AML_FILTERS);
       expect(amlFilterClauses.every((c) => AML_EXACT_RE.test(c))).toBe(true);
+      // M1: clause TEXT alone would still match `:check` bound to Pending — pin the bound value too.
+      expect(amlCheckValues).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.AML_FILTERS);
+      expect(amlCheckValues.every((v) => v === CheckStatus.PASS)).toBe(true);
 
       // Filtered pins (20/17/18) miss an extra unscoped WHERE that matches none of the three
       // exact regexes. Total pin + UNION shape (getQuery + from SQL) close that gap.
@@ -918,7 +941,7 @@ describe('PartnerStatisticService', () => {
   // --- mergeNamedRows / breakdown pipeline --- //
 
   describe('mergeNamedRows and breakdown pipeline', () => {
-    it('merges same-name rows across directions and takes Math.max of users', async () => {
+    it('merges same-name rows across directions and sums volume/transactions', async () => {
       fixtures.set(
         1,
         emptyFixture({
@@ -940,23 +963,20 @@ describe('PartnerStatisticService', () => {
       expect(result.breakdown.fiatCurrencies.length + result.breakdown.blockchains.length).toBeGreaterThan(0);
 
       const merged = service.mergeNamedRows([
-        { name: 'BTC', volume: 200, transactions: 10, users: 6 },
-        { name: 'BTC', volume: 100, transactions: 5, users: 4 },
-        { name: 'ETH', volume: 50, transactions: 5, users: 5 },
+        { name: 'BTC', volume: 200, transactions: 10 },
+        { name: 'BTC', volume: 100, transactions: 5 },
+        { name: 'ETH', volume: 50, transactions: 5 },
       ]);
       expect(merged.find((r) => r.name === 'BTC')?.volume).toBe(300);
       expect(merged.find((r) => r.name === 'BTC')?.transactions).toBe(15);
-      // Math.max(6, 4) = 6 — Math.min would yield 4 and fail this
-      expect(merged.find((r) => r.name === 'BTC')?.users).toBe(6);
-      expect(merged.find((r) => r.name === 'BTC')?.users).not.toBe(4);
       expect(merged).toHaveLength(2);
     });
 
     it('drops nameless rows from the breakdown payload', () => {
       const merged = service.mergeNamedRows([
-        { name: null, volume: 999, transactions: 50, users: 20 },
-        { name: '', volume: 100, transactions: 5, users: 3 },
-        { name: 'BTC', volume: 200, transactions: 10, users: 6 },
+        { name: null, volume: 999, transactions: 50 },
+        { name: '', volume: 100, transactions: 5 },
+        { name: 'BTC', volume: 200, transactions: 10 },
       ]);
       expect(merged).toHaveLength(1);
       expect(merged[0].name).toBe('BTC');
@@ -993,7 +1013,7 @@ describe('PartnerStatisticService', () => {
   // --- Timeline collision accumulation (WEEK/MONTH re-bucket of day-truncated SQL rows) --- //
 
   describe('timeline bucket key collision accumulation', () => {
-    it('sums volume/transactions and takes max(users) when two day rows fall into the same week', async () => {
+    it('sums volume/transactions when two day rows fall into the same week', async () => {
       // Monday + Wednesday of ISO week 2024-06-10..16 → same WEEK key after startOfBucket.
       fixtures.set(
         1,
@@ -1017,7 +1037,6 @@ describe('PartnerStatisticService', () => {
       const entry = [...map.values()][0];
       expect(entry.volume).toBe(150);
       expect(entry.transactions).toBe(17);
-      expect(entry.users).toBe(8);
       // Not last-write-wins (would be 7/50/8) and not first-write-wins (10/100/5).
       expect(entry.transactions).not.toBe(7);
       expect(entry.transactions).not.toBe(10);
@@ -1194,6 +1213,10 @@ describe('PartnerStatisticService', () => {
 
       expect(maxConcurrentQueries).toBeGreaterThan(1);
       expect(maxConcurrentQueries).toBeLessThanOrEqual(PARTNER_STATISTIC_QUERY_CONCURRENCY);
+      // M2: the assertion above is tautological against the constant it is supposed to pin
+      // (bumping PARTNER_STATISTIC_QUERY_CONCURRENCY to 20 would still pass it). Pin the
+      // literal budget independently so a change to the constant is itself caught.
+      expect(maxConcurrentQueries).toBeLessThanOrEqual(4);
     });
   });
 
@@ -1265,6 +1288,79 @@ describe('PartnerStatisticService', () => {
       await expect(service.getStatistics(1, PERIOD_FROM, PERIOD_TO)).resolves.toMatchObject({
         currency: 'CHF',
       });
+    });
+  });
+
+  // --- Part 3: unit-level leak guard for the internal `users` field --- //
+
+  /** Recursively collects every own property key across arrays/objects (order/duplicates irrelevant). */
+  function collectKeys(value: unknown, out: Set<string> = new Set()): Set<string> {
+    if (Array.isArray(value)) {
+      for (const item of value) collectKeys(item, out);
+    } else if (value !== null && typeof value === 'object') {
+      for (const [k, v] of Object.entries(value)) {
+        out.add(k);
+        collectKeys(v, out);
+      }
+    }
+    return out;
+  }
+
+  describe('response payload never leaks the internal users field', () => {
+    it('getStatistics response has no "users" key anywhere in its (serialized) shape', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          buy: { volume: 500, transactions: 20, users: 10 },
+          sell: { volume: 300, transactions: 10, users: 8 },
+          swap: { volume: 50, transactions: 5, users: 3 },
+          allTime: { buy: 500, sell: 300, registeredUsers: 20, tradingUsers: 10 },
+          newUsers: 8,
+          activeUserIds: [1, 2, 3, 4, 5, 6, 7, 8],
+          namedRows: [
+            { name: 'BTC', blockchain: 'Bitcoin', volume: 200, transactions: 10, users: 6 },
+            { name: 'BTC', blockchain: 'Bitcoin', volume: 100, transactions: 5, users: 4 },
+            { name: 'ETH', blockchain: 'Ethereum', volume: 50, transactions: 5, users: 5 },
+            { name: 'CHF', volume: 400, transactions: 15, users: 10 },
+          ],
+        }),
+      );
+
+      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+      // Fixture must actually exercise non-empty breakdown rows — otherwise this test would
+      // pass vacuously on an empty payload that never had a `users` key to begin with.
+      expect(
+        result.breakdown.assets.length +
+          result.breakdown.fiatCurrencies.length +
+          result.breakdown.blockchains.length +
+          result.breakdown.paymentMethods.length,
+      ).toBeGreaterThan(0);
+
+      const keys = collectKeys(JSON.parse(JSON.stringify(result)));
+      expect(keys.has('users')).toBe(false);
+    });
+
+    it('getTimeline response has no "users" key anywhere in its (serialized) shape', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          timelineRows: [
+            { bucket: new Date('2024-06-10T00:00:00.000Z'), volume: 100, transactions: 5, users: 3 },
+            { bucket: new Date('2024-06-11T00:00:00.000Z'), volume: 50, transactions: 2, users: 2 },
+          ],
+        }),
+      );
+
+      const result = await service.getTimeline(
+        1,
+        '2024-06-10T00:00:00.000Z',
+        '2024-06-11T23:59:59.000Z',
+        PartnerStatisticGranularity.DAY,
+      );
+      expect(result.buckets.length).toBeGreaterThan(0);
+
+      const keys = collectKeys(JSON.parse(JSON.stringify(result)));
+      expect(keys.has('users')).toBe(false);
     });
   });
 });

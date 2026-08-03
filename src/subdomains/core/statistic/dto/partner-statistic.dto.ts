@@ -78,14 +78,12 @@ export class PartnerTotalsDto {
 
   @ApiProperty({
     type: Number,
-    nullable: true,
     description: 'Distinct users with ≥1 counted transaction in the period',
   })
   activeUsers: number;
 
   @ApiProperty({
     type: Number,
-    nullable: true,
     description: 'Users of this wallet created in the period',
   })
   newUsers: number;
@@ -103,7 +101,6 @@ export class PartnerAllTimeDto {
 
   @ApiProperty({
     type: Number,
-    nullable: true,
     description: 'Users of this wallet with buyVolume > 0 or sellVolume > 0',
   })
   tradingUsers: number;
@@ -228,17 +225,15 @@ export class PartnerTimelineBucketDto {
 
   @ApiProperty({
     type: PartnerTimelineByDirectionDto,
-    nullable: true,
     description: 'Volume in CHF, by trade direction',
   })
-  volume: PartnerTimelineByDirectionDto | null;
+  volume: PartnerTimelineByDirectionDto;
 
   @ApiProperty({
     type: PartnerTimelineByDirectionDto,
-    nullable: true,
     description: 'Transaction counts, by trade direction',
   })
-  transactions: PartnerTimelineByDirectionDto | null;
+  transactions: PartnerTimelineByDirectionDto;
 
   @ApiProperty({
     description:

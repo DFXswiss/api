@@ -28,19 +28,6 @@ export enum PartnerStatisticDirection {
   SWAP = 'Swap',
 }
 
-/**
- * Maps partner-facing direction enums to the camelCase DTO field names used on
- * volume / transactions / users objects (`buy` / `sell` / `swap`). Explicit so enum
- * values (PascalCase API contract) stay decoupled from JSON property names.
- */
-export const PartnerStatisticDirectionField: {
-  readonly [K in PartnerStatisticDirection]: 'buy' | 'sell' | 'swap';
-} = {
-  [PartnerStatisticDirection.BUY]: 'buy',
-  [PartnerStatisticDirection.SELL]: 'sell',
-  [PartnerStatisticDirection.SWAP]: 'swap',
-};
-
 /** Postgres `DATE_TRUNC` unit for each granularity (API values are PascalCase). */
 export const PartnerStatisticDateTruncUnit: {
   readonly [K in PartnerStatisticGranularity]: 'day' | 'week' | 'month';

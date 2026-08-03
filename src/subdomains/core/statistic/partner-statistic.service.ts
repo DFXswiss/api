@@ -33,7 +33,6 @@ type Direction = PartnerStatisticDirection;
 interface AggregateRow {
   volume: string | number | null;
   transactions: string | number | null;
-  users: string | number | null;
 }
 
 interface NamedAggregateRow extends AggregateRow {
@@ -45,13 +44,11 @@ interface TimelineRawRow {
   bucket: Date | string;
   volume: string | number | null;
   transactions: string | number | null;
-  users: string | number | null;
 }
 
 interface DirectionAgg {
   volume: number;
   transactions: number;
-  users: number;
 }
 
 /**
@@ -170,13 +167,11 @@ export class PartnerStatisticService {
           registeredUsers: allTimeRaw.registeredUsers,
           tradingUsers: allTimeRaw.tradingUsers,
         },
-        // The internal `users` count per row stays server-side: it is a distinct-person figure the
-        // partner has no use for, and the DTO does not carry it.
         breakdown: {
-          assets: assetRows.map(({ users: _u, ...row }) => row),
-          fiatCurrencies: fiatRows.map(({ users: _u, ...row }) => row),
-          blockchains: blockchainRows.map(({ users: _u, ...row }) => row),
-          paymentMethods: paymentMethodRows.map(({ users: _u, ...row }) => row),
+          assets: assetRows,
+          fiatCurrencies: fiatRows,
+          blockchains: blockchainRows,
+          paymentMethods: paymentMethodRows,
         },
         referral: { ...referralRaw, currency: 'EUR' },
         meta: {
@@ -225,15 +220,12 @@ export class PartnerStatisticService {
 
       const filled = this.fillTimelineGaps(period.from, period.to, resolvedGranularity, buyRows, sellRows, swapRows);
 
-      // Drop internal users field from the public payload.
-      const publicBuckets: PartnerTimelineBucketDto[] = filled.map(({ users: _u, ...rest }) => rest);
-
       return {
         period,
         currency: 'CHF',
         granularity: resolvedGranularity,
-        buckets: publicBuckets,
-        meta: {},
+        buckets: filled,
+        meta: { generatedAt: new Date() },
       };
     });
   }
@@ -360,15 +352,12 @@ export class PartnerStatisticService {
     direction: Direction,
   ): Promise<DirectionAgg> {
     const qb = this.baseTxQuery(direction, walletId, from, to);
-    qb.select('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
-      .addSelect('COUNT(*)', 'transactions')
-      .addSelect('COUNT(DISTINCT user.id)', 'users');
+    qb.select('COALESCE(SUM(tx.amountInChf), 0)', 'volume').addSelect('COUNT(*)', 'transactions');
 
     const raw = await this.runQuery(() => qb.getRawOne<AggregateRow>());
     return {
       volume: this.toVolume(raw?.volume),
       transactions: this.toCount(raw?.transactions),
-      users: this.toCount(raw?.users),
     };
   }
 
@@ -481,11 +470,7 @@ export class PartnerStatisticService {
     };
   }
 
-  private async aggregateAssets(
-    walletId: number,
-    from: Date,
-    to: Date,
-  ): Promise<(PartnerAssetBreakdownDto & { users: number })[]> {
+  private async aggregateAssets(walletId: number, from: Date, to: Date): Promise<PartnerAssetBreakdownDto[]> {
     const [buy, sell, swap] = await this.runAll([
       () => this.assetQuery(PartnerStatisticDirection.BUY, walletId, from, to),
       () => this.assetQuery(PartnerStatisticDirection.SELL, walletId, from, to),
@@ -500,7 +485,7 @@ export class PartnerStatisticService {
     walletId: number,
     from: Date,
     to: Date,
-  ): Promise<(PartnerAssetBreakdownDto & { users: number })[]> {
+  ): Promise<PartnerAssetBreakdownDto[]> {
     const qb = this.baseTxQuery(direction, walletId, from, to);
 
     if (direction === PartnerStatisticDirection.SELL) {
@@ -511,7 +496,6 @@ export class PartnerStatisticService {
         .addSelect('inputAsset.blockchain', 'blockchain')
         .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
         .addSelect('COUNT(*)', 'transactions')
-        .addSelect('COUNT(DISTINCT user.id)', 'users')
         .groupBy('tx.inputAsset')
         .addGroupBy('inputAsset.blockchain');
     } else {
@@ -520,7 +504,6 @@ export class PartnerStatisticService {
         .addSelect('outputAsset.blockchain', 'blockchain')
         .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
         .addSelect('COUNT(*)', 'transactions')
-        .addSelect('COUNT(DISTINCT user.id)', 'users')
         .groupBy('outputAsset.name')
         .addGroupBy('outputAsset.blockchain');
     }
@@ -534,21 +517,15 @@ export class PartnerStatisticService {
         direction,
         volume: this.toVolume(r.volume),
         transactions: this.toCount(r.transactions),
-        users: this.toCount(r.users),
       }));
   }
 
-  private async aggregateFiatCurrencies(
-    walletId: number,
-    from: Date,
-    to: Date,
-  ): Promise<(PartnerNamedBreakdownDto & { users: number })[]> {
+  private async aggregateFiatCurrencies(walletId: number, from: Date, to: Date): Promise<PartnerNamedBreakdownDto[]> {
     // Buy: inputAsset is the fiat ticker. Sell: outputAsset is Fiat. Swap has no fiat leg.
     const buyQb = this.baseTxQuery(PartnerStatisticDirection.BUY, walletId, from, to)
       .select('tx.inputAsset', 'name')
       .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
       .addSelect('COUNT(*)', 'transactions')
-      .addSelect('COUNT(DISTINCT user.id)', 'users')
       .groupBy('tx.inputAsset');
 
     const sellQb = this.baseTxQuery(PartnerStatisticDirection.SELL, walletId, from, to)
@@ -556,7 +533,6 @@ export class PartnerStatisticService {
       .select('fiat.name', 'name')
       .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
       .addSelect('COUNT(*)', 'transactions')
-      .addSelect('COUNT(DISTINCT user.id)', 'users')
       .groupBy('fiat.name');
 
     const [buyRows, sellRows] = await this.runAll([
@@ -567,11 +543,7 @@ export class PartnerStatisticService {
     return this.mergeNamedRows([...buyRows, ...sellRows]);
   }
 
-  private async aggregateBlockchains(
-    walletId: number,
-    from: Date,
-    to: Date,
-  ): Promise<(PartnerNamedBreakdownDto & { users: number })[]> {
+  private async aggregateBlockchains(walletId: number, from: Date, to: Date): Promise<PartnerNamedBreakdownDto[]> {
     const queries = ([PartnerStatisticDirection.BUY, PartnerStatisticDirection.SWAP] as Direction[]).map(
       (direction) => () =>
         this.runQuery(() =>
@@ -580,7 +552,6 @@ export class PartnerStatisticService {
             .select('outputAsset.blockchain', 'name')
             .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
             .addSelect('COUNT(*)', 'transactions')
-            .addSelect('COUNT(DISTINCT user.id)', 'users')
             .groupBy('outputAsset.blockchain')
             .getRawMany<NamedAggregateRow>(),
         ),
@@ -594,7 +565,6 @@ export class PartnerStatisticService {
           .select('inputAsset.blockchain', 'name')
           .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
           .addSelect('COUNT(*)', 'transactions')
-          .addSelect('COUNT(DISTINCT user.id)', 'users')
           .groupBy('inputAsset.blockchain')
           .getRawMany<NamedAggregateRow>(),
       );
@@ -603,11 +573,7 @@ export class PartnerStatisticService {
     return this.mergeNamedRows(rows);
   }
 
-  private async aggregatePaymentMethods(
-    walletId: number,
-    from: Date,
-    to: Date,
-  ): Promise<(PartnerNamedBreakdownDto & { users: number })[]> {
+  private async aggregatePaymentMethods(walletId: number, from: Date, to: Date): Promise<PartnerNamedBreakdownDto[]> {
     const rows = (
       await this.runAll(
         (
@@ -620,7 +586,6 @@ export class PartnerStatisticService {
                 .select('transaction.sourceType', 'name')
                 .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
                 .addSelect('COUNT(*)', 'transactions')
-                .addSelect('COUNT(DISTINCT user.id)', 'users')
                 .groupBy('transaction.sourceType')
                 .getRawMany<NamedAggregateRow>(),
             ),
@@ -642,7 +607,7 @@ export class PartnerStatisticService {
     to: Date,
     direction: Direction,
     granularity: PartnerStatisticGranularity,
-  ): Promise<Map<string, { volume: number; transactions: number; users: number }>> {
+  ): Promise<Map<string, { volume: number; transactions: number }>> {
     // Truncate on the stored wall clock (UTC values in TIMESTAMP without TZ), then tag the
     // result as UTC so the driver returns an unambiguous absolute instant. Session TimeZone
     // must not shift buckets — DATE_TRUNC on timestamp without tz is field-only; AT TIME ZONE
@@ -653,12 +618,11 @@ export class PartnerStatisticService {
       .select(trunc, 'bucket')
       .addSelect('COALESCE(SUM(tx.amountInChf), 0)', 'volume')
       .addSelect('COUNT(*)', 'transactions')
-      .addSelect('COUNT(DISTINCT user.id)', 'users')
       .groupBy(trunc)
       .orderBy(trunc, 'ASC');
 
     const rows = await this.runQuery(() => qb.getRawMany<TimelineRawRow>());
-    const map = new Map<string, { volume: number; transactions: number; users: number }>();
+    const map = new Map<string, { volume: number; transactions: number }>();
     for (const row of rows) {
       // UTC keys on both sides (SQL buckets + fill loop). Period bounds are UTC-normalized in
       // resolvePeriod; this module deliberately does not follow support-issue.service local
@@ -666,15 +630,12 @@ export class PartnerStatisticService {
       const key = this.bucketKey(this.startOfBucket(new Date(row.bucket), granularity));
       const volume = this.toVolume(row.volume);
       const transactions = this.toCount(row.transactions);
-      const users = this.toCount(row.users);
       const existing = map.get(key);
       if (existing) {
         existing.volume = Util.round(existing.volume + volume, Config.defaultVolumeDecimal);
         existing.transactions += transactions;
-        // users can double-count on key collision; take max as a lower-bound person estimate
-        existing.users = Math.max(existing.users, users);
       } else {
-        map.set(key, { volume, transactions, users });
+        map.set(key, { volume, transactions });
       }
     }
     return map;
@@ -684,20 +645,20 @@ export class PartnerStatisticService {
     from: Date,
     to: Date,
     granularity: PartnerStatisticGranularity,
-    buy: Map<string, { volume: number; transactions: number; users: number }>,
-    sell: Map<string, { volume: number; transactions: number; users: number }>,
-    swap: Map<string, { volume: number; transactions: number; users: number }>,
-  ): (PartnerTimelineBucketDto & { users: { buy: number; sell: number; swap: number } })[] {
-    const buckets: (PartnerTimelineBucketDto & { users: { buy: number; sell: number; swap: number } })[] = [];
+    buy: Map<string, { volume: number; transactions: number }>,
+    sell: Map<string, { volume: number; transactions: number }>,
+    swap: Map<string, { volume: number; transactions: number }>,
+  ): PartnerTimelineBucketDto[] {
+    const buckets: PartnerTimelineBucketDto[] = [];
     let cursor = this.startOfBucket(from, granularity);
     // `to` is exclusive (half-open period).
     const end = to.getTime();
 
     while (cursor.getTime() < end) {
       const key = this.bucketKey(cursor);
-      const b = buy.get(key) ?? { volume: 0, transactions: 0, users: 0 };
-      const s = sell.get(key) ?? { volume: 0, transactions: 0, users: 0 };
-      const w = swap.get(key) ?? { volume: 0, transactions: 0, users: 0 };
+      const b = buy.get(key) ?? { volume: 0, transactions: 0 };
+      const s = sell.get(key) ?? { volume: 0, transactions: 0 };
+      const w = swap.get(key) ?? { volume: 0, transactions: 0 };
       const next = this.addBucket(cursor, granularity);
       // Edge buckets whose natural range extends outside [from, to) are partial.
       const partial = cursor.getTime() < from.getTime() || next.getTime() > to.getTime();
@@ -706,7 +667,6 @@ export class PartnerStatisticService {
         date: new Date(cursor),
         volume: { buy: b.volume, sell: s.volume, swap: w.volume },
         transactions: { buy: b.transactions, sell: s.transactions, swap: w.transactions },
-        users: { buy: b.users, sell: s.users, swap: w.users },
         partial,
       });
 
@@ -800,22 +760,19 @@ export class PartnerStatisticService {
   }
 
   /** Exposed for tests that exercise mergeNamedRows / breakdown mapping without full SQL. */
-  mergeNamedRows(rows: NamedAggregateRow[]): (PartnerNamedBreakdownDto & { users: number })[] {
-    const map = new Map<string, PartnerNamedBreakdownDto & { users: number }>();
+  mergeNamedRows(rows: NamedAggregateRow[]): PartnerNamedBreakdownDto[] {
+    const map = new Map<string, PartnerNamedBreakdownDto>();
 
     for (const row of rows) {
       if (!row.name) continue;
       const existing = map.get(row.name);
       const volume = this.toVolume(row.volume);
       const transactions = this.toCount(row.transactions);
-      const users = this.toCount(row.users);
       if (existing) {
         existing.volume = Util.round(existing.volume + volume, Config.defaultVolumeDecimal);
         existing.transactions += transactions;
-        // Person floor across partial GROUP BY chunks: max, never min (min under-counts).
-        existing.users = Math.max(existing.users, users);
       } else {
-        map.set(row.name, { name: row.name, volume, transactions, users });
+        map.set(row.name, { name: row.name, volume, transactions });
       }
     }
 

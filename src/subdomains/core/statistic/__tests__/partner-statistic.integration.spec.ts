@@ -1,3 +1,5 @@
+import { execFileSync } from 'child_process';
+import * as path from 'path';
 import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryColumn, Repository } from 'typeorm';
 import { ConfigService } from 'src/config/config';
 import { isProcessTimezoneUtcYearRound } from 'src/process-timezone';
@@ -479,5 +481,112 @@ describeDb('PartnerStatisticService SQL path (real Postgres)', () => {
     );
     expect(merged.find((r) => r.name === 'BTC')?.volume).toBe(500);
     expect(typeof merged[0].volume).toBe('number');
+  });
+});
+
+// --- M4: AT TIME ZONE 'UTC' binding must hold even when the process is NOT UTC --- //
+
+/**
+ * `describeDb` above (and its `getTimeline` test) only runs under a UTC process timezone,
+ * which is exactly the condition under which a missing `AT TIME ZONE 'UTC'` binding would be
+ * invisible (process offset 0 makes both SQL forms return the same instant). This block is
+ * gated only on `PG_URL` — not on `isProcessTimezoneUtcYearRound()` — so it must genuinely
+ * exercise a non-UTC offset regardless of the ambient host/CI timezone.
+ *
+ * Verified empirically: mutating `process.env.TZ` inside a `beforeAll`/`it` does NOT change
+ * `Date.prototype.getTimezoneOffset()` for the rest of this Jest worker process (checked with a
+ * minimal repro — even as the very first Date operation in a fresh describe block, the change
+ * has no effect here). Node/V8 resolves the process-default timezone once and does not re-read
+ * `process.env.TZ` afterwards in this repo's Jest setup. A `process.env.TZ` assignment can
+ * therefore not be used to prove this property, and doing so would silently test nothing new
+ * whenever the ambient TZ under which Jest itself was launched happens to already be non-UTC
+ * (it would then "pass" while only ever exercising that ambient zone, never provably switching).
+ *
+ * The only reliable way to exercise a genuinely different process timezone is a fresh child
+ * process started with that `TZ` in its env from the beginning — see
+ * `partner-statistic-tz-check.script.ts`, executed here via `ts-node` so it runs the REAL
+ * `timelineByDirection` production code, not a hand-copied SQL string.
+ */
+const describePgAnyTz = PG_URL ? describe : describe.skip;
+
+describePgAnyTz('PartnerStatisticService timeline UTC binding under non-UTC process TZ (M4)', () => {
+  const TZ_SCHEMA = 'partner_statistic_tz_spec';
+  const tz = (name: string) => `"${TZ_SCHEMA}"."${name}"`;
+  // Asia/Tokyo: fixed +09:00, no DST (deterministic). MUST be a zone AHEAD of UTC — a zone
+  // behind UTC (e.g. America/New_York, -04:00 in June) was tried first and turned out to be a
+  // false negative: misparsing a wall-clock midnight as a few hours *later* in the same UTC
+  // calendar day still collapses back to the same day once startOfBucket() re-truncates to UTC
+  // midnight, so the missing binding stayed invisible. A zone ahead of UTC misparses the same
+  // midnight as being on the *previous* UTC calendar day, which does change the bucket key —
+  // verified by hand against the raw driver output before relying on it here.
+  const CHECK_TZ = 'Asia/Tokyo';
+
+  let dataSource: DataSource;
+
+  beforeAll(async () => {
+    new ConfigService();
+    dataSource = new DataSource({
+      type: 'postgres',
+      url: PG_URL,
+      entities: ENTITIES,
+      synchronize: false,
+      schema: TZ_SCHEMA,
+      extra: { max: 1, options: '-c TimeZone=UTC' },
+    });
+    await dataSource.initialize();
+
+    await dataSource.query(`DROP SCHEMA IF EXISTS "${TZ_SCHEMA}" CASCADE`);
+    await dataSource.query(`CREATE SCHEMA "${TZ_SCHEMA}"`);
+    await dataSource.query(`
+      CREATE TABLE ${tz('user')} ( "id" int PRIMARY KEY, "walletId" int NOT NULL, "created" TIMESTAMP NOT NULL DEFAULT NOW() );
+      CREATE TABLE ${tz('buy')} ( "id" int PRIMARY KEY, "userId" int NOT NULL );
+      CREATE TABLE ${tz('buy_crypto')} (
+        "id" SERIAL PRIMARY KEY,
+        "buyId" int,
+        "amountInChf" numeric DEFAULT 0,
+        "amlCheck" varchar(64),
+        "created" TIMESTAMP NOT NULL
+      );
+    `);
+
+    // Wall-clock values stored as-is (timestamp without time zone) — these are the UTC
+    // instants the production Dockerfile (ENV TZ=UTC) would have written.
+    await dataSource.query(`
+      INSERT INTO ${tz('user')} ("id", "walletId", "created") VALUES (1, 1, '2024-06-01 10:00:00');
+      INSERT INTO ${tz('buy')} ("id", "userId") VALUES (1, 1);
+      INSERT INTO ${tz('buy_crypto')} ("buyId", "amountInChf", "amlCheck", "created")
+      VALUES
+        (1, 100, 'Pass', '2024-06-10 10:00:00'),
+        (1, 100, 'Pass', '2024-06-11 10:00:00');
+    `);
+  });
+
+  afterAll(async () => {
+    if (dataSource?.isInitialized) {
+      await dataSource.query(`DROP SCHEMA IF EXISTS "${TZ_SCHEMA}" CASCADE`);
+      await dataSource.destroy();
+    }
+  });
+
+  it('bucket keys stay on true UTC day boundaries in a child process running under Asia/Tokyo', () => {
+    const scriptPath = path.join(__dirname, 'partner-statistic-tz-check.script.ts');
+    const stdout = execFileSync(
+      path.join(process.cwd(), 'node_modules', '.bin', 'ts-node'),
+      ['-T', '-r', 'tsconfig-paths/register', scriptPath],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, TZ: CHECK_TZ, MIGRATION_TEST_PG: PG_URL, TZ_CHECK_SCHEMA: TZ_SCHEMA },
+        encoding: 'utf-8',
+      },
+    );
+
+    const resultLine = stdout.split('\n').find((line) => line.startsWith('TZ_CHECK_RESULT:'));
+    if (!resultLine) throw new Error(`TZ check script produced no result line. stdout was:\n${stdout}`);
+    const bucketKeys: string[] = JSON.parse(resultLine.slice('TZ_CHECK_RESULT:'.length));
+
+    // Without `AT TIME ZONE 'UTC'`, the driver would parse the DATE_TRUNC'd `timestamp without
+    // time zone` result in process-local wall time (Asia/Tokyo, UTC+9) — midnight Tokyo time is
+    // the previous day in UTC, so the bucket key would land one calendar day too early.
+    expect(bucketKeys).toEqual(['2024-06-10T00:00:00', '2024-06-11T00:00:00']);
   });
 });
