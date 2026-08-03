@@ -24,6 +24,16 @@
  * plus the first 27 characters of sha1('cron_lease_name'). A hand-picked name would not be
  * recognised as its own by a schema comparison, which would offer to drop and recreate it.
  *
+ * Both timestamps carry their time zone. They are compared against `now()` inside the claim and
+ * renewal statements, and a value without a zone on one side of that comparison is resolved
+ * through whatever time zone the session carries — which makes the same row expire an hour late
+ * or an hour early across a daylight saving change, and inconsistently between two sessions that
+ * disagree. An hour late is a job that runs nowhere, an hour early is two processes running it at
+ * once.
+ *
+ * The shape of the table is mirrored by src/shared/models/cron-lease/cron-lease.entity.ts, without
+ * which a generated migration would read the table as one to drop.
+ *
  * @class @implements {MigrationInterface}
  */
 module.exports = class AddCronLease1785600000000 {
@@ -34,7 +44,7 @@ module.exports = class AddCronLease1785600000000 {
    */
   async up(queryRunner) {
     await queryRunner.query(
-      `CREATE TABLE "cron_lease" ("name" character varying(256) NOT NULL, "owner" character varying(256) NOT NULL, "acquired" TIMESTAMP NOT NULL DEFAULT now(), "expires" TIMESTAMP NOT NULL, CONSTRAINT "PK_a12c181c2b26f33be13d55a15af" PRIMARY KEY ("name"))`,
+      `CREATE TABLE "cron_lease" ("name" character varying(256) NOT NULL, "owner" character varying(256) NOT NULL, "acquired" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "expires" TIMESTAMP WITH TIME ZONE NOT NULL, CONSTRAINT "PK_a12c181c2b26f33be13d55a15af" PRIMARY KEY ("name"))`,
     );
   }
 

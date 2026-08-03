@@ -19,6 +19,7 @@ import { CountryController } from './models/country/country.controller';
 import { Country } from './models/country/country.entity';
 import { CountryRepository } from './models/country/country.repository';
 import { CountryService } from './models/country/country.service';
+import { CronLease } from './models/cron-lease/cron-lease.entity';
 import { FiatController } from './models/fiat/fiat.controller';
 import { Fiat } from './models/fiat/fiat.entity';
 import { FiatRepository } from './models/fiat/fiat.repository';
@@ -47,7 +48,10 @@ import { ProcessService } from './services/process.service';
     HttpModule,
     ConfigModule,
     GeoLocationModule,
-    TypeOrmModule.forFeature([Asset, Fiat, Country, Language, Setting, IpLog]),
+    // CronLease has no repository and no service reading it through one — CronLeaseService issues
+    // the claim as a single statement. It is registered so `autoLoadEntities` knows the table
+    // belongs to the model; without that a generated migration would offer to drop it.
+    TypeOrmModule.forFeature([Asset, Fiat, Country, Language, Setting, IpLog, CronLease]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
     I18nModule.forRoot(GetConfig().i18n),
