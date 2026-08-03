@@ -76,8 +76,18 @@ export class CronLeaseService implements OnModuleInit {
   /**
    * Whether the last lease operation reached the table. Sticky until one succeeds, so a role whose
    * jobs all sit out still reports the state rather than only the tick that first hit it.
+   *
+   * Every operation that reaches the table clears it, not just `acquire`: the heartbeat reports
+   * this as a STATE, and a process whose jobs are long-running renews for minutes at a time
+   * without acquiring anything. Healing on `acquire` alone would leave such a process reporting a
+   * failure it has already recovered from until its next claim.
    */
   private healthy = true;
+
+  /**
+   * Set once shutdown has begun, so no further lease is taken. See `shutdown`.
+   */
+  private shuttingDown = false;
 
   /** Lease operations that failed since the role heartbeat last read them; see `takeFailures`. */
   private failures = 0;
@@ -117,6 +127,7 @@ export class CronLeaseService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     try {
       await this.dataSource.query(`SELECT 1 FROM "cron_lease" LIMIT 1`);
+      this.recordSuccess();
     } catch (e) {
       this.recordFailure(e);
       this.logger.error(
@@ -145,7 +156,7 @@ export class CronLeaseService implements OnModuleInit {
       [job, this.owner, `${LEASE_TTL_SECONDS}`],
     );
 
-    this.healthy = true;
+    this.recordSuccess();
 
     return claimed.length > 0;
   }
@@ -163,6 +174,8 @@ export class CronLeaseService implements OnModuleInit {
       [job, this.owner, `${LEASE_TTL_SECONDS}`],
     );
 
+    this.recordSuccess();
+
     return affected > 0;
   }
 
@@ -172,6 +185,8 @@ export class CronLeaseService implements OnModuleInit {
    */
   async release(job: string): Promise<void> {
     await this.dataSource.query(`DELETE FROM "cron_lease" WHERE "name" = $1 AND "owner" = $2`, [job, this.owner]);
+
+    this.recordSuccess();
   }
 
   /**
@@ -188,6 +203,12 @@ export class CronLeaseService implements OnModuleInit {
    * PaymentCronService. Nothing else can tell the two apart, so the caller says which it is.
    */
   async run(job: string, task: () => Promise<void>, reportContention = false): Promise<void> {
+    // Once shutdown has begun, starting a run is worse than skipping it: `shutdown` waits on the
+    // jobs it found when it started, and the process exits when that wait ends. A run started
+    // afterwards is not in that set, so it would be cut off mid-way — before the `finally` below
+    // releases its lease, and, more importantly, part-way through whatever it was doing.
+    if (this.shuttingDown) return;
+
     let acquired: boolean;
     try {
       acquired = await this.acquire(job);
@@ -207,24 +228,20 @@ export class CronLeaseService implements OnModuleInit {
       return;
     }
 
-    // Unref'd: a pending timer must never hold the process open on shutdown.
-    const renewal = setInterval(() => {
-      void this.renew(job)
-        .then((stillOurs) => {
-          if (!stillOurs) this.logger.error(`Lost the lease for ${job} while it was still running`);
-        })
-        .catch((e) => {
-          this.recordFailure(e);
-          this.logger.error(`Could not extend the lease for ${job}`, e);
-        });
-    }, RENEWAL_INTERVAL_MS);
-    renewal.unref();
+    // Claiming the lease is a round trip, and shutdown can begin during it. Hand the claim straight
+    // back rather than start under it: the successor can then take the job over immediately.
+    if (this.shuttingDown) {
+      await this.release(job).catch(() => undefined);
+      return;
+    }
+
+    const renewal = this.keepAlive(job);
 
     const run = (async () => {
       try {
         await task();
       } finally {
-        clearInterval(renewal);
+        renewal.stop();
         await this.release(job).catch((e) => {
           this.recordFailure(e);
           this.logger.error(`Could not release the lease for ${job}`, e);
@@ -268,6 +285,11 @@ export class CronLeaseService implements OnModuleInit {
    * database that has stopped answering cannot turn this into a process that never exits.
    */
   async shutdown(): Promise<void> {
+    // Before the snapshot below, not after: the wait covers the jobs that were running when it was
+    // taken, and the process exits once it ends. A job that started meanwhile would not be waited
+    // for and would be cut off part-way through — see the guard at the top of `run`.
+    this.shuttingDown = true;
+
     const running = [...this.inFlight.values()];
     if (!running.length) return;
 
@@ -298,6 +320,50 @@ export class CronLeaseService implements OnModuleInit {
     this.failures = 0;
 
     return taken;
+  }
+
+  /**
+   * Keeps the claim for `job` alive while it runs, with one renewal outstanding at a time.
+   *
+   * A fixed interval fires whether or not the previous renewal has come back, and a database that
+   * answers slowly is exactly the situation this has to survive: the attempts pile up, each one
+   * occupying a pooled connection, and an older answer can land after a newer one. Re-arming only
+   * once the previous attempt has settled bounds that to a single outstanding statement. The price
+   * is that the renewals drift apart by however long the database takes to answer, which the lease
+   * TTL — three times the interval — is sized to absorb.
+   */
+  private keepAlive(job: string): { stop: () => void } {
+    let stopped = false;
+    let timer: NodeJS.Timeout;
+
+    const schedule = (): void => {
+      // Unref'd: a pending timer must never hold the process open on shutdown.
+      timer = setTimeout(async () => {
+        try {
+          const stillOurs = await this.renew(job);
+          if (!stillOurs) this.logger.error(`Lost the lease for ${job} while it was still running`);
+        } catch (e) {
+          this.recordFailure(e);
+          this.logger.error(`Could not extend the lease for ${job}`, e);
+        }
+
+        if (!stopped) schedule();
+      }, RENEWAL_INTERVAL_MS);
+      timer.unref();
+    };
+
+    schedule();
+
+    return {
+      stop: () => {
+        stopped = true;
+        clearTimeout(timer);
+      },
+    };
+  }
+
+  private recordSuccess(): void {
+    this.healthy = true;
   }
 
   private recordFailure(e: unknown): void {

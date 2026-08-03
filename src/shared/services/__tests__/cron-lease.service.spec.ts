@@ -26,6 +26,9 @@ describe('CronLeaseService', () => {
     return { service: new CronLeaseService(createMock<DataSource>({ query: onQuery })), onQuery };
   }
 
+  /** Lets pending promises settle without advancing any timer. */
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+
   beforeEach(() => {
     process.env.CRON_ROLE = 'worker';
     new ConfigService(GetConfig());
@@ -150,15 +153,50 @@ describe('CronLeaseService', () => {
 
       expect(onQuery.mock.calls[0][1][2]).toEqual('60');
     });
+
+    it('keeps one renewal outstanding at a time', async () => {
+      // A fixed interval fires whether or not the previous renewal came back. A database that
+      // answers slowly is exactly when this matters: the attempts pile up, each holding a pooled
+      // connection, and an older answer can land after a newer one. Here the renewal never comes
+      // back at all, so a fixed interval would have started two more by the time this asserts.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let renewals = 0;
+        const onQuery = jest.fn().mockImplementation((sql: string) => {
+          if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
+          if (sql.includes('UPDATE')) {
+            renewals++;
+            return new Promise(() => undefined);
+          }
+
+          return Promise.resolve([]);
+        });
+
+        const { service } = buildService({ onQuery });
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+
+        await settle();
+
+        // Three renewal intervals (20 s each) with the first one still unanswered.
+        jest.advanceTimersByTime(61_000);
+        await settle();
+
+        expect(renewals).toEqual(1);
+
+        finish();
+        await run;
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   describe('shutdown', () => {
     // A deployment sends SIGTERM in the middle of a run. Whatever happens here decides whether the
     // successor can pick the job up, and whether it can pick it up while this process still works
     // on it.
-
-    /** Lets pending promises settle without advancing any timer. */
-    const settle = () => new Promise((resolve) => setImmediate(resolve));
 
     const released = (onQuery: jest.Mock) =>
       onQuery.mock.calls.some(([sql]) => (sql as string).includes('DELETE FROM'));
@@ -252,6 +290,44 @@ describe('CronLeaseService', () => {
       await service.shutdown();
     });
 
+    it('starts no further job once shutdown has begun', async () => {
+      // The wait above covers the jobs that were running when shutdown took its snapshot, and the
+      // process exits when that wait ends. A job started afterwards is in no snapshot, so it would
+      // be cut off part-way through — with the exit landing before its own `finally`.
+      const { service, onQuery } = buildService({});
+      const task = jest.fn().mockResolvedValue(undefined);
+
+      await service.shutdown();
+      await service.run('SomeService::job', task);
+
+      expect(task).not.toHaveBeenCalled();
+      expect(onQuery.mock.calls.some(([sql]) => (sql as string).includes('INSERT INTO'))).toBe(false);
+    });
+
+    it('hands the claim back when shutdown begins while it is being taken', async () => {
+      // Claiming is a round trip, so the guard above can be passed just before shutdown starts.
+      // The run must not begin under that claim, and must not leave the row behind either: the
+      // successor would then sit out the full expiry before it could take the job over.
+      let answerClaim: (rows: unknown[]) => void;
+      const onQuery = jest.fn().mockImplementation((sql: string) => {
+        if (sql.includes('INSERT INTO')) return new Promise((resolve) => (answerClaim = resolve));
+        return Promise.resolve([]);
+      });
+
+      const { service } = buildService({ onQuery });
+      const task = jest.fn().mockResolvedValue(undefined);
+      const run = service.run('SomeService::job', task);
+
+      await settle();
+      await service.shutdown();
+
+      answerClaim([{ owner: 'worker:1' }]);
+      await run;
+
+      expect(task).not.toHaveBeenCalled();
+      expect(released(onQuery)).toBe(true);
+    });
+
     it('stops tracking a run once it is done, so a later shutdown has nothing to wait for', async () => {
       const { service } = buildService({});
 
@@ -302,6 +378,23 @@ describe('CronLeaseService', () => {
 
       onQuery.mockResolvedValue([{ owner: 'worker:1' }]);
       await service.acquire('SomeService::job');
+
+      expect(service.takeFailures().healthy).toBe(true);
+    });
+
+    it('reports healthy again once a RENEWAL gets through, not only a claim', async () => {
+      // The heartbeat reports this as a state, so every operation that reaches the table has to
+      // clear it. A process running long jobs renews for minutes at a time without claiming
+      // anything new: healing on the claim alone would leave it reporting a failure it has already
+      // recovered from until its next acquire.
+      const onQuery = jest.fn().mockRejectedValueOnce(new Error('connection refused'));
+      const { service } = buildService({ onQuery });
+
+      await service.onModuleInit();
+      expect(service.takeFailures().healthy).toBe(false);
+
+      onQuery.mockResolvedValue([[], 1]);
+      await service.renew('SomeService::job');
 
       expect(service.takeFailures().healthy).toBe(true);
     });
