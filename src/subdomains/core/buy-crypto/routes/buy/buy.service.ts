@@ -511,7 +511,8 @@ export class BuyService {
     // recipient and IBAN with the RealUnit company account and DFX never receives the transfer, so
     // no DFX deposit IBAN is involved. The personal-IBAN policy (bank transfer => personal IBAN =>
     // KYC 50) must not apply here - RealUnit's own gate is KYC level 30 (realunit.service.ts).
-    // Resolve the plain attribution bank and never issue a vIBAN as a side effect of a REALU quote.
+    // On this implicit resolution path, resolve the plain attribution bank without issuing a vIBAN
+    // as a side effect of a REALU quote.
     if (asset?.name === 'REALU') {
       const bank = await this.bankService.getBank(selector);
       if (!bank) throw new BadRequestException('No Bank for the given amount/currency');

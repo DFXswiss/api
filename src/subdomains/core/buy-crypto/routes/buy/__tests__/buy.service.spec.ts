@@ -724,6 +724,8 @@ describe('BuyService', () => {
       language: { symbol: 'DE' },
     } as UserData;
     const lowKycUserData = { ...userData, kycLevel: KycLevel.LEVEL_40 } as UserData;
+    const level30UserData = { ...userData, kycLevel: KycLevel.LEVEL_30 } as UserData;
+    const realuAsset = { name: 'REALU' } as Asset;
     const eur = { id: 2, name: 'EUR', buyable: true } as Fiat;
     const chf = { id: 1, name: 'CHF', buyable: true } as Fiat;
     const buy = { id: 42, active: true, bankUsage: 'ABCD-EFGH-IJKL' } as Buy;
@@ -1112,10 +1114,7 @@ describe('BuyService', () => {
       await expect(resolution).rejects.not.toThrow(QuoteError.KYC_REQUIRED);
     });
 
-    const realuAsset = { name: 'REALU' } as Asset;
-
     it('resolves the plain bank for a REALU buy below KYC 50 instead of demanding a personal IBAN', async () => {
-      const level30UserData = { ...userData, kycLevel: KycLevel.LEVEL_30 } as UserData;
       jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
 
       const bankInfo = await service.getBankInfo(
@@ -1161,7 +1160,6 @@ describe('BuyService', () => {
     });
 
     it('fails loud for a REALU buy when no bank resolves', async () => {
-      const level30UserData = { ...userData, kycLevel: KycLevel.LEVEL_30 } as UserData;
       jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
 
       await expect(
