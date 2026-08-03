@@ -221,8 +221,17 @@ export class FeeService {
   // --- ONBOARDING FEE --- //
 
   // An onboarding fee is an individually agreed amount a customer pays on top of the regular
-  // percentage fee: an `Addition` fee with `rate = 0` and `fixed = <amount in CHF>`. That shape,
-  // not the label, defines the group - labels are free text and carry no guarantee.
+  // percentage fee: an `Addition` fee with `rate = 0` and `fixed = <amount in CHF>`.
+  //
+  // The scope of this operation is that shape, not a label: it manages *the* flat surcharge of an
+  // account and replaces whatever flat surcharge it already carries. Percentage-based additions,
+  // discounts and bank fees have a different shape and are never touched. Labels are free text and
+  // could not carry the distinction.
+  //
+  // `individualFees` is a semicolon-separated string column without row locking, exactly as the
+  // pre-existing `addFee`/`removeFee` paths use it. Concurrent writers therefore overwrite each
+  // other's list - this operation reduces its own footprint to a single write, but it cannot
+  // protect against a foreign path writing the column at the same moment.
   async setOnboardingFee(userData: UserData, amount: number): Promise<void> {
     const maxAmount = await this.settingService
       .get('onboardingFeeMaxAmount', `${DefaultMaxOnboardingFee}`)
