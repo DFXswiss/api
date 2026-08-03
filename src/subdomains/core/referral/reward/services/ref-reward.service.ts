@@ -279,6 +279,8 @@ export class RefRewardService {
       .innerJoin('r.user', 'u')
       .select('u.userDataId', 'userDataId')
       .addSelect('COUNT(*)', 'count')
+      // COUNT(column) skips nulls of that column; used below to detect missing amountInChf values.
+      .addSelect('COUNT(r.amountInChf)', 'amountCount')
       .addSelect('ROUND(SUM(r.amountInChf)::numeric, 0)', 'totalChf')
       .where('r.status != :excluded', { excluded: RewardStatus.USER_SWITCH })
       .groupBy('u.userDataId')
@@ -291,21 +293,26 @@ export class RefRewardService {
       query.andWhere('r.created >= :from', { from });
     }
 
-    // getRawMany() returns the pg driver's raw values verbatim. int8 (COUNT(*)) has a registered
-    // node-postgres parser that yields a string (to avoid silent precision loss above 2^53), and
-    // numeric (the ::numeric cast above, OID 1700) has no registered parser for the text protocol
-    // node-postgres uses here (pg-types only registers a numeric parser for the binary protocol),
-    // so it comes back as a string too. Typing the raw row as a string honestly reflects the
-    // driver output; the conversion to number happens below so the declared return type stays true.
-    const rows = await query.getRawMany<{ userDataId: number; count: string; totalChf: string | null }>();
+    // getRawMany() returns the pg driver's raw values verbatim. int8 (COUNT(*) / COUNT(column)) has a
+    // registered node-postgres parser that yields a string (to avoid silent precision loss above
+    // 2^53), and numeric (the ::numeric cast above, OID 1700) has no registered parser for the text
+    // protocol node-postgres uses here (pg-types only registers a numeric parser for the binary
+    // protocol), so it comes back as a string too. Typing the raw row as a string honestly reflects
+    // the driver output; the conversion to number happens below so the declared return type stays true.
+    const rows = await query.getRawMany<{
+      userDataId: number;
+      count: string;
+      amountCount: string;
+      totalChf: string | null;
+    }>();
 
     return rows.map((row) => {
-      // amountInChf is nullable. SUM(...) is only null if every reward in this userDataId's group has
-      // a null amount — an anomaly, not the normal "no rewards" case (groupBy already excludes empty
-      // groups). Coercing that to 0 would silently understate a real liability, so it fails loudly
-      // instead.
-      if (row.totalChf == null)
-        throw new Error(`getRewardRecipients: totalChf sum is null for userDataId ${row.userDataId}`);
+      // amountInChf is nullable. COUNT(*) counts every row in the group; COUNT(amountInChf) skips
+      // nulls. A mismatch means at least one reward has no amount — all of them (SUM would be null)
+      // or only some (SUM would understate). Not the normal "no rewards" case (groupBy already
+      // excludes empty groups); fail loudly rather than return a too-low total.
+      if (+row.count !== +row.amountCount)
+        throw new Error(`getRewardRecipients: amountInChf missing for some rewards of userDataId ${row.userDataId}`);
 
       return { userDataId: row.userDataId, count: +row.count, totalChf: +row.totalChf };
     });

@@ -107,14 +107,16 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     const userRepo = dataSource.getRepository(UserTable);
     const rewardRepo = dataSource.getRepository(RefRewardTable);
 
-    // userDataId 10: two separate user accounts (user10, user10b) share this userDataId — mirrors
-    // production, where a single userDataId can have over a hundred user accounts. COMPLETE 100
-    // (user10) + COMPLETE 200.4 (user10b) -> totalChf 300.4, rounds DOWN to 300, count 2. A
-    // regression that additionally groups by u.id would split this into two separate rows instead
-    // of one merged row.
+    // userDataId 10: two separate user accounts (user10, user10b) share this userDataId — the
+    // `User.userData` relation is @ManyToOne (user.entity.ts), so more than one user account can
+    // point at the same userDataId. COMPLETE 100 (user10) + COMPLETE 200.4 (user10b) -> totalChf
+    // 300.4, rounds DOWN to 300, count 2. A regression that additionally groups by u.id would
+    // split this into two separate rows instead of one merged row.
     // userDataId 20: COMPLETE 150 + PREPARED 50 -> totalChf 200, count 2. PREPARED is neither
     // COMPLETE nor USER_SWITCH, so it pins that the exclusion filter is "status != USER_SWITCH",
-    // not "status == COMPLETE".
+    // not "status == COMPLETE". Also one row with no status (NULL) and amountInChf 999: the filter
+    // `r.status != :excluded` does not keep it (NULL != 'user_switch' is NULL under three-valued
+    // logic), so count/totalChf for 20 stay 2/200.
     // userDataId 30: COMPLETE 50 (created = oldDate) + COMPLETE 25.6 (created = newDate)
     //   -> totalChf 75.6, rounds UP to 76, count 2 (two rows aggregate)
     // userDataId 40: only USER_SWITCH -> must not appear
@@ -141,12 +143,28 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       { created: newDate, amountInChf: 200.4, status: RewardStatus.COMPLETE, user: user10b },
       { created: newDate, amountInChf: 150, status: RewardStatus.COMPLETE, user: user20 },
       { created: newDate, amountInChf: 50, status: RewardStatus.PREPARED, user: user20 },
+      // no status -> NULL in DB; excluded by three-valued logic of `status != USER_SWITCH`
+      { created: newDate, amountInChf: 999, user: user20 },
       { created: oldDate, amountInChf: 50, status: RewardStatus.COMPLETE, user: user30 },
       { created: newDate, amountInChf: 25.6, status: RewardStatus.COMPLETE, user: user30 },
       { created: newDate, amountInChf: 500, status: RewardStatus.USER_SWITCH, user: user40 },
       { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user: user50 },
       { created: newDate, amountInChf: 999, status: RewardStatus.USER_SWITCH, user: user50 },
     ]);
+  }
+
+  // Isolated seed for the mixed null-amount group only — must not touch seedFixture(), whose four
+  // callers pin exact result arrays and would fail if a throwing group were mixed in.
+  async function seedMixedAmountGroup(): Promise<number> {
+    const userRepo = dataSource.getRepository(UserTable);
+    const rewardRepo = dataSource.getRepository(RefRewardTable);
+
+    const user = await userRepo.save({ userDataId: 60 });
+    await rewardRepo.save([
+      { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user },
+      { created: newDate, status: RewardStatus.COMPLETE, user },
+    ]);
+    return user.userDataId;
   }
 
   it('returns recipients sorted by totalChf DESC, excluding USER_SWITCH from sum/count, pure USER_SWITCH recipients, and merges multiple accounts under one userDataId', async () => {
@@ -209,7 +227,8 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
 
   // pg-mem returns COUNT/SUM as JS numbers already, so it never exercises the node-postgres string
   // parsing path that the service converts with +row.count / +row.totalChf. These two tests feed
-  // driver-shaped raw rows through getRawMany so that conversion (and the null check) stay covered.
+  // driver-shaped raw rows through getRawMany so that conversion (and the count vs. amountCount
+  // mismatch check for the all-null case) stay covered.
   it('coerces driver string values for count and totalChf to numbers', async () => {
     const originalCreateQueryBuilder = repo.createQueryBuilder.bind(repo);
     let getRawManySpy: jest.SpyInstance | undefined;
@@ -219,8 +238,9 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
         const qb = originalCreateQueryBuilder(...args);
         getRawManySpy = jest.spyOn(qb, 'getRawMany').mockImplementation(() =>
           Promise.resolve([
-            { userDataId: 10, count: '2', totalChf: '300' },
-            { userDataId: 20, count: '1', totalChf: '150' },
+            // amountCount matches count: full groups, no missing amounts intended here
+            { userDataId: 10, count: '2', amountCount: '2', totalChf: '300' },
+            { userDataId: 20, count: '1', amountCount: '1', totalChf: '150' },
           ]),
         );
         return qb;
@@ -250,9 +270,12 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       .spyOn(repo, 'createQueryBuilder')
       .mockImplementation((...args: Parameters<typeof repo.createQueryBuilder>) => {
         const qb = originalCreateQueryBuilder(...args);
+        // amountCount 0 with count 1: every amount in the group is null (SUM is null)
         getRawManySpy = jest
           .spyOn(qb, 'getRawMany')
-          .mockImplementation(() => Promise.resolve([{ userDataId: 30, count: '1', totalChf: null }]));
+          .mockImplementation(() =>
+            Promise.resolve([{ userDataId: 30, count: '1', amountCount: '0', totalChf: null }]),
+          );
         return qb;
       });
 
@@ -262,6 +285,14 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       getRawManySpy?.mockRestore();
       createQueryBuilderSpy.mockRestore();
     }
+  });
+
+  it('throws when a group has mixed null and non-null amountInChf, naming the affected userDataId', async () => {
+    // Real SQL path (variant b): COUNT(*) vs COUNT(amountInChf) diverge only when some amounts are
+    // null; a separate seed keeps seedFixture()'s exact result arrays intact for the four callers.
+    const userDataId = await seedMixedAmountGroup();
+
+    await expect(service.getRewardRecipients()).rejects.toThrow(new RegExp(`userDataId ${userDataId}\\b`));
   });
 
   // The cutoff sits exactly on newDate on purpose, to pin the inclusive >= boundary — a
