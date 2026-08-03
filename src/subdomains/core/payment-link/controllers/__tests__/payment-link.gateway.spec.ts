@@ -1,5 +1,4 @@
 import { IncomingMessage } from 'http';
-import { Subject } from 'rxjs';
 import { CronScope, DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
 import { PaymentDevice } from '../../entities/payment-link-payment.entity';
 import { PaymentLinkPaymentService } from '../../services/payment-link-payment.service';
@@ -13,7 +12,6 @@ import { PaymentLinkGateway } from '../payment-link.gateway';
 describe('PaymentLinkGateway', () => {
   let gateway: PaymentLinkGateway;
   let paymentService: jest.Mocked<PaymentLinkPaymentService>;
-  let activations: Subject<PaymentDevice>;
 
   /** A socket that records what was done to it and lets a test fire its events. */
   function socket() {
@@ -51,10 +49,12 @@ describe('PaymentLinkGateway', () => {
 
   const deviceIds = () => gateway.connectedDevices().map((d) => d.id);
 
+  /** The sink the gateway registers on init; calling it is what the delivery does. */
+  let deliver: (device: PaymentDevice) => boolean;
+
   beforeEach(() => {
-    activations = new Subject();
     paymentService = {
-      getDeviceActivationObservable: () => activations.asObservable(),
+      useDeviceSink: jest.fn().mockImplementation((sink) => (deliver = sink)),
       useDeviceSource: jest.fn(),
     } as unknown as jest.Mocked<PaymentLinkPaymentService>;
 
@@ -204,10 +204,46 @@ describe('PaymentLinkGateway', () => {
     const second = connect('pos-1');
     const other = connect('pos-2');
 
-    activations.next({ id: 'pos-1', command: 'show-paid' });
+    expect(deliver({ id: 'pos-1', command: 'show-paid' })).toBe(true);
 
     expect(first.sent).toEqual(['show-paid']);
     expect(second.sent).toEqual(['show-paid']);
     expect(other.sent).toEqual([]);
+  });
+
+  it('reports nothing delivered when the device has no connection here', () => {
+    // `false` is what keeps the delivery from recording a command it never sent — a device
+    // connected to the OTHER process must stay owed.
+    gateway.onModuleInit();
+
+    expect(deliver({ id: 'pos-unknown', command: 'show-paid' })).toBe(false);
+  });
+
+  it('reports nothing delivered when every socket of the device throws, and drops them', () => {
+    gateway.onModuleInit();
+
+    const client = connect('pos-1');
+    client.send = () => {
+      throw new Error('socket closed');
+    };
+
+    expect(deliver({ id: 'pos-1', command: 'show-paid' })).toBe(false);
+    // Dropped, so the device stops being selected for delivery at all.
+    expect(deviceIds()).toEqual([]);
+  });
+
+  it('reports delivered when one socket takes it and another throws', () => {
+    gateway.onModuleInit();
+
+    const broken = connect('pos-1');
+    broken.send = () => {
+      throw new Error('socket closed');
+    };
+    const working = connect('pos-1');
+
+    expect(deliver({ id: 'pos-1', command: 'show-paid' })).toBe(true);
+    expect(working.sent).toEqual(['show-paid']);
+    // The device is still reachable through the one that worked.
+    expect(deviceIds()).toEqual(['pos-1']);
   });
 });

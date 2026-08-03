@@ -1,5 +1,4 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
@@ -99,7 +98,11 @@ type DeviceDeliveries = Map<number, { state: string; expiryDate: Date }>;
 export class PaymentLinkPaymentService {
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
   private readonly waitStates = new Map<number, string>();
-  private readonly deviceActivationSubject = new Subject<PaymentDevice>();
+  /**
+   * Where a device command is HANDED OVER, and what says whether it got there. Empty until the
+   * gateway sets it, which is the honest answer for a process holding no websocket at all.
+   */
+  private deviceSink: (device: PaymentDevice) => boolean = () => false;
   private readonly deviceDeliveries = new Map<string, DeviceDeliveries>();
 
   /**
@@ -127,8 +130,17 @@ export class PaymentLinkPaymentService {
     private readonly blockchainRegistryService: BlockchainRegistryService,
   ) {}
 
-  getDeviceActivationObservable(): Observable<PaymentDevice> {
-    return this.deviceActivationSubject.asObservable();
+  /**
+   * Points the delivery at the gateway's sockets; see `deliverToDevice` for why it returns a
+   * boolean. Called once, by PaymentLinkGateway, which is the only thing that holds them.
+   *
+   * Replaces an RxJS subject the gateway subscribed to. A subject carries a value one way and
+   * swallows what the subscriber does with it — including a `send` that threw — and this delivery
+   * has to know whether the command arrived: the record it keeps is a record of what a device HAS
+   * been told. A subject cannot answer that question, so it was the wrong shape here.
+   */
+  useDeviceSink(sink: (device: PaymentDevice) => boolean): void {
+    this.deviceSink = sink;
   }
 
   // --- JOBS --- //
@@ -298,7 +310,7 @@ export class PaymentLinkPaymentService {
 
   /**
    * Both delivery channels of this service are process-local: the map behind this method and the
-   * subject behind `getDeviceActivationObservable`. A caller therefore only ever hears from the
+   * sink behind `useDeviceSink`. A caller therefore only ever hears from the
    * process holding its connection, while the jobs that move a payment forward run in one process
    * (`CronScope.WORKER`, which the deployment runs once and the cron lease keeps to one claim).
    *
@@ -446,21 +458,21 @@ export class PaymentLinkPaymentService {
     const delivered = this.deliveriesFor(connected.id);
     if (delivered.get(payment.id)?.state === payment.waitState) return;
 
-    // Recorded BEFORE the send, and the two ways that can be wrong are not equal. A send that
-    // fails after this line is not retried, because the record says it went out; a record written
-    // after a successful send would instead repeat every command whenever the send path is slower
-    // than the next tick. The first costs one missed command on a socket that is being torn down —
-    // and the gateway drops such a socket, so the device stops being connected and the command
-    // goes out again on the next tick under a new connection. The second costs a repeat on a
-    // healthy one.
+    // Recorded only once the command is out, and that ordering is the whole point of the sink's
+    // return value. Recording first was wrong in a way the comment here used to paper over: it
+    // claimed a failed send would go out again "on the next tick under a new connection", but the
+    // record is keyed by DEVICE, not by connection, and `pruneDeliveries` keeps it precisely so a
+    // reconnecting device is not told twice. A send that threw would therefore have been recorded
+    // as delivered and never retried — a silent loss on the one path that exists to prevent one.
+    //
+    // The cost of this order is a repeat when the command arrives but the process dies before the
+    // record is written. Repeating is what `waitState` makes harmless; losing is not.
     //
     // What no ordering fixes: this record lives in the process. A restart empties it, and a device
-    // still inside the read gets its current state again. Delivering the same state twice is what
-    // `waitState` makes harmless; the alternative — persisting a delivery log — is a table for a
-    // problem a duplicate command already answers.
-    delivered.set(payment.id, { state: payment.waitState, expiryDate: payment.expiryDate });
+    // still inside the read gets its current state again — the same harmless repeat.
+    if (!this.deviceSink(device)) return;
 
-    this.deviceActivationSubject.next(device);
+    delivered.set(payment.id, { state: payment.waitState, expiryDate: payment.expiryDate });
   }
 
   async handleBinanceWaiting(result: C2BWebhookResult): Promise<void> {

@@ -34,7 +34,9 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
   constructor(private readonly paymentService: PaymentLinkPaymentService) {}
 
   onModuleInit(): void {
-    this.paymentService.getDeviceActivationObservable().subscribe((a) => this.sendMessage(a));
+    // Handed over rather than subscribed to: the delivery has to know whether the command reached
+    // a socket, and that is what `sendMessage` answers. A subscription could not say.
+    this.paymentService.useDeviceSink((device) => this.sendMessage(device));
 
     // The delivery reads what is connected out of the map below instead of being told about it, so
     // there is no second register to keep in step. See PaymentLinkPaymentService.connectedDevices.
@@ -126,26 +128,36 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
   }
 
   /**
-   * Sends to every socket of a device, and drops the ones that cannot take it.
+   * Sends to every socket of a device, drops the ones that cannot take it, and reports whether
+   * any of them took it.
+   *
+   * The return value is what the delivery records against: it only marks a command as delivered
+   * once one actually left. `false` therefore has to mean "nothing got out" — for a device with
+   * no connection here at all, and for one whose every socket threw.
    *
    * A `send` that throws leaves a socket the peer is no longer on. Left in the map it would keep
    * the device in `connectedDevices`, so the delivery would go on selecting payments for a device
-   * it can no longer reach — and would count them as delivered. Removal is idempotent and the
-   * `close`/`error` handlers do the same thing, so a socket that reports both is removed once.
+   * it can no longer reach. Removal is idempotent and the `close`/`error` handlers do the same
+   * thing, so a socket that reports both is removed once.
    *
    * One failing socket does not stop the others: a device with two connections is still reachable
-   * through the second.
+   * through the second, and that counts as delivered.
    */
-  private sendMessage(device: PaymentDevice): void {
+  private sendMessage(device: PaymentDevice): boolean {
     const connections = this.clients.get(device.id);
-    if (!connections) return;
+    if (!connections) return false;
+
+    let delivered = false;
 
     for (const [clientId, { socket }] of [...connections]) {
       try {
         socket.send(device.command);
+        delivered = true;
       } catch {
         this.removeClient(device.id, clientId);
       }
     }
+
+    return delivered;
   }
 }

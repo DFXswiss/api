@@ -31,19 +31,22 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-118 of the 140 jobs carry a `process` flag, 22 do not. A job with a flag can be switched off
+117 of the 140 jobs carry a `process` flag, 23 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
 
-A job **without** a flag runs unconditionally. That is deliberate for six of them. The four
+A job **without** a flag runs unconditionally. That is deliberate for seven of them. The four
 `ProcessService::resync*` jobs maintain the disabled set, the JWT denylists and the staff
 clearance allowlist themselves, so making them switchable would let a configuration change
 disable the mechanism that reads configuration changes. `DfxCronService::reportRole` is the role
 heartbeat: switched off, it would look exactly like a process that stopped reporting, which is
 the condition it exists to make visible. `PaymentLinkGateway::checkConnections` drops websockets
-that stopped answering, so switching it off would reinstate the unbounded growth it prevents. For
-the remaining 16 it is simply an omission:
+that stopped answering, so switching it off would reinstate the unbounded growth it prevents.
+`PaymentCronService::deliverPaymentUpdates` is the bridge between the process that writes a
+payment and the one holding the connection: switched off it changes nothing in a single-process
+setup, because `doSave` delivers directly there, and after the split it silently cuts delivery to
+everything attached to the other container. For the remaining 16 it is simply an omission:
 
 | Job | Interval |
 | --- | --- |
@@ -93,7 +96,7 @@ Jobs by area:
 | `shared/services` | 5 | 5 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
 | `subdomains/supporting/payment` | 5 | 1 |
-| `subdomains/core/payment-link` | 6 | 1 |
+| `subdomains/core/payment-link` | 6 | 2 |
 | `subdomains/generic/kyc` | 4 | — |
 | `subdomains/supporting/bank` | 4 | — |
 | `subdomains/supporting/bank-tx` | 4 | — |

@@ -53,9 +53,17 @@ describe('PaymentLinkPaymentService', () => {
     ]);
   }
 
-  function devices(): PaymentDevice[] {
+  /**
+   * Stands in for the gateway's sockets. Records what was handed over AND answers whether it got
+   * out — the delivery only marks a command as delivered on `true`, so a sink that always said
+   * yes would hide exactly the failure the record has to survive.
+   */
+  function devices(delivers = true): PaymentDevice[] {
     const seen: PaymentDevice[] = [];
-    service.getDeviceActivationObservable().subscribe((device) => seen.push(device));
+    service.useDeviceSink((device) => {
+      seen.push(device);
+      return delivers;
+    });
 
     return seen;
   }
@@ -438,12 +446,64 @@ describe('PaymentLinkPaymentService', () => {
       expect(seen).toHaveLength(2);
     });
 
+    it('should keep owing a command whose send did not get out', async () => {
+      // The loss this closes: the record is keyed by DEVICE and outlives the connection, so a
+      // command marked delivered before a failing send would never be retried — not even when
+      // the device reconnects, because the record still says it heard this state. Recording only
+      // what got out is what keeps the periodic delivery able to repair it.
+      const seen = devices(false);
+      connect('pos-1');
+      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findByCutoff(options));
+
+      rows = [
+        payment({
+          id: 7,
+          status: PaymentLinkPaymentStatus.COMPLETED,
+          deviceId: 'pos-1',
+          deviceCommand: 'show-paid',
+        }),
+      ];
+
+      await service.deliverPaymentUpdates();
+      expect(seen).toHaveLength(1);
+      // Nothing got out, so nothing is recorded.
+      expect(service['deviceDeliveries'].get('pos-1')?.size ?? 0).toEqual(0);
+
+      // The next tick tries again — which is the whole point.
+      await service.deliverPaymentUpdates();
+      expect(seen).toHaveLength(2);
+    });
+
+    it('should stop repeating once a command does get out', async () => {
+      // The other direction: a sink that takes it must end the repetition, or the fix above would
+      // have traded a silent loss for an endless one.
+      const seen = devices();
+      connect('pos-1');
+      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findByCutoff(options));
+
+      rows = [
+        payment({
+          id: 7,
+          status: PaymentLinkPaymentStatus.COMPLETED,
+          deviceId: 'pos-1',
+          deviceCommand: 'show-paid',
+        }),
+      ];
+
+      await service.deliverPaymentUpdates();
+      await service.deliverPaymentUpdates();
+
+      expect(seen).toHaveLength(1);
+    });
+
     it('should forget a payment the read has left behind, and the device with its last one', async () => {
       // What bounds the record is the same cutoff the query uses: a payment the read can no longer
       // return cannot be delivered again, so nothing is kept for it. Without that, a device
       // connected all day would accumulate an entry per payment it ever saw — and a device that
       // never comes back would keep a map of its own for good.
       connect('pos-1');
+      // A sink that takes it: the record is only written for a command that got out.
+      devices();
       paymentLinkPaymentRepo.find.mockImplementation(async (options) => findByCutoff(options));
 
       // Delivered directly by the writing process, which does not consult the cutoff.
