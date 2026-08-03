@@ -1,5 +1,7 @@
+import { ArgumentMetadata } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { DetailedValidationPipe } from 'src/shared/pipes/detailed-validation.pipe';
 import { CreateFiatOutputDto } from '../create-fiat-output.dto';
 import { UpdateFiatOutputDto } from '../update-fiat-output.dto';
 import { FiatOutputType } from '../../fiat-output.entity';
@@ -16,6 +18,9 @@ describe('CreateFiatOutputDto', () => {
     zip: '8000',
     country: 'CH',
   };
+
+  const pipe = new DetailedValidationPipe({ whitelist: true, transformOptions: { exposeUnsetFields: false } });
+  const metadata: ArgumentMetadata = { type: 'body', metatype: CreateFiatOutputDto, data: '' };
 
   const validateDto = async (raw: Record<string, unknown>) => {
     const instance = plainToInstance(CreateFiatOutputDto, raw);
@@ -39,14 +44,12 @@ describe('CreateFiatOutputDto', () => {
   });
 
   it.each([true, false])('accepts isInstant=%s', async (isInstant) => {
-    const errors = await validateDto({ ...baseDto, isInstant });
-    expect(errors).toEqual([]);
+    const dto = await pipe.transform({ ...baseDto, isInstant }, metadata);
+    expect(dto.isInstant).toBe(isInstant);
   });
 
   it('rejects a string value for isInstant', async () => {
-    const errors = await validateDto({ ...baseDto, isInstant: 'true' });
-    expect(errors).toHaveLength(1);
-    expect(errors[0].constraints).toHaveProperty('isBoolean');
+    await expect(pipe.transform({ ...baseDto, isInstant: 'true' }, metadata)).rejects.toThrow();
   });
 });
 
