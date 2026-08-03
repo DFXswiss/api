@@ -19,7 +19,7 @@ export class PaymentCronService {
 
   // The three jobs below split what used to be one decision. Writing and delivering have opposite
   // requirements — a database write, a merchant webhook and a quote cancellation must happen once
-  // in the deployment, while the AsyncMap and the RxJS subject in PaymentLinkPaymentService are
+  // in the deployment, while the AsyncMap and the device sink in PaymentLinkPaymentService are
   // process-local and only reach a caller connected to the process that fires them. A single scope
   // cannot satisfy both: `Worker` or `Api` leaves callers on every other process unreleased,
   // `Both` repeats every write and every webhook.

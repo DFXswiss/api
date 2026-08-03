@@ -21,6 +21,8 @@ describe('PaymentLinkGateway', () => {
       sent: [] as string[],
       pings: 0,
       terminated: false,
+      // `ws.OPEN`. A test that wants a closing socket sets it to 2 (`CLOSING`) or 3 (`CLOSED`).
+      readyState: 1 as 0 | 1 | 2 | 3,
       send(data: string) {
         this.sent.push(data);
       },
@@ -217,6 +219,34 @@ describe('PaymentLinkGateway', () => {
     gateway.onModuleInit();
 
     expect(deliver({ id: 'pos-unknown', command: 'show-paid' })).toBe(false);
+  });
+
+  it('reports nothing delivered when the socket is closing, and drops it', () => {
+    // The path `send` cannot report: on a CLOSING or CLOSED socket `ws` takes the call quietly
+    // and raises the failure through `'error'` later. Without reading the state first the sink
+    // would answer `true`, and the delivery would record a command that never went out — against
+    // a state it will not send again, not even when the device reconnects.
+    gateway.onModuleInit();
+
+    const client = connect('pos-1');
+    client.readyState = 2;
+
+    expect(deliver({ id: 'pos-1', command: 'show-paid' })).toBe(false);
+    expect(client.sent).toEqual([]);
+    expect(deviceIds()).toEqual([]);
+  });
+
+  it('reports delivered when one socket is closing and another is open', () => {
+    gateway.onModuleInit();
+
+    const closing = connect('pos-1');
+    closing.readyState = 3;
+    const open = connect('pos-1');
+
+    expect(deliver({ id: 'pos-1', command: 'show-paid' })).toBe(true);
+    expect(closing.sent).toEqual([]);
+    expect(open.sent).toEqual(['show-paid']);
+    expect(deviceIds()).toEqual(['pos-1']);
   });
 
   it('reports nothing delivered when every socket of the device throws, and drops them', () => {

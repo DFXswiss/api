@@ -1,4 +1,4 @@
-import { DFX_CRONJOB_PARAMS, CronScope, DfxCronParams } from 'src/shared/utils/cron';
+import { CronScope, DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
 import { PaymentCronService } from '../payment-cron.service';
 
 /**

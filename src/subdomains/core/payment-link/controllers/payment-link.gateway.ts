@@ -14,11 +14,21 @@ import { ConnectedDevice, PaymentLinkPaymentService } from '../services/payment-
  * so its behaviour can be exercised without standing up a server.
  */
 interface PaymentSocket {
+  /**
+   * `ws`'s connection state. Read before sending, because `send` is not the place a closing
+   * socket reports itself: it throws only while still `CONNECTING`, and on a socket that is
+   * `CLOSING` or `CLOSED` it returns quietly and raises the failure through `'error'` — long
+   * after the caller decided the command was out. See `sendMessage`.
+   */
+  readonly readyState: 0 | 1 | 2 | 3;
   send(data: string): void;
   ping(): void;
   terminate(): void;
   on(event: 'close' | 'error' | 'pong', listener: () => void): void;
 }
+
+/** `ws.OPEN`. Named rather than imported, so the interface above stays the whole dependency. */
+const SOCKET_OPEN = 1;
 
 /** One open websocket, and what is known about it here. */
 interface Connection {
@@ -133,15 +143,27 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
    *
    * The return value is what the delivery records against: it only marks a command as delivered
    * once one actually left. `false` therefore has to mean "nothing got out" — for a device with
-   * no connection here at all, and for one whose every socket threw.
+   * no connection here at all, and for one whose sockets could not take it.
    *
-   * A `send` that throws leaves a socket the peer is no longer on. Left in the map it would keep
+   * TWO checks, because `send` alone does not tell the difference. It throws while the socket is
+   * still `CONNECTING`, but a socket that is `CLOSING` or `CLOSED` takes the call without a word
+   * and reports the failure asynchronously through `'error'` — by which time the caller has
+   * already been told the command went out, and the delivery has recorded it against a state it
+   * will not send again. So the state is read first, and only an open socket is written to.
+   *
+   * A socket that fails either way is one the peer is no longer on. Left in the map it would keep
    * the device in `connectedDevices`, so the delivery would go on selecting payments for a device
    * it can no longer reach. Removal is idempotent and the `close`/`error` handlers do the same
    * thing, so a socket that reports both is removed once.
    *
    * One failing socket does not stop the others: a device with two connections is still reachable
    * through the second, and that counts as delivered.
+   *
+   * What remains uncovered: a socket that closes BETWEEN the check and the send. That window is
+   * the width of one synchronous call, and the delivery survives it the same way it survives a
+   * process restart — the payment stays inside the read until its own end, so a later tick tries
+   * again as soon as the device reconnects and the record has aged out. What it does not survive
+   * is being told `true` for a socket that was already gone, which is what this closes.
    */
   private sendMessage(device: PaymentDevice): boolean {
     const connections = this.clients.get(device.id);
@@ -150,6 +172,11 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     let delivered = false;
 
     for (const [clientId, { socket }] of [...connections]) {
+      if (socket.readyState !== SOCKET_OPEN) {
+        this.removeClient(device.id, clientId);
+        continue;
+      }
+
       try {
         socket.send(device.command);
         delivered = true;

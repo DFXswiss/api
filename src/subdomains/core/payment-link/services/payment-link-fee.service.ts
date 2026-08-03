@@ -41,8 +41,9 @@ export class PaymentLinkFeeService implements OnModuleInit {
   /**
    * Scope Api, not Both: the cache it fills is a field of this service, and the only reader is
    * getMinFee below. Following that chain out — createTransferAmount -> createTransferAmounts ->
-   * createQuote / createPayRequest, plus the Binance webhook handler — every caller is a request
-   * path or one of the Api-scoped payment crons. None of the Worker jobs in this domain reaches
+   * createQuote / createPayRequest, plus the Binance webhook handler — every one of them is a
+   * request path. This job is the only `Api`-scoped cron in the domain, and it is the writer, not
+   * a reader. None of the Worker jobs in this domain reaches
    * the cache: PaymentCronService::forwardDeposits takes its fee rate from BitcoinFeeService, and
    * ::processExpiredPayments and ::checkTxConfirmations price nothing — they move a payment out of
    * `Pending` and cancel or close what hangs off it.

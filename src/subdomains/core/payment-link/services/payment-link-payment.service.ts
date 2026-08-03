@@ -357,9 +357,10 @@ export class PaymentLinkPaymentService {
    * device connected they touch the database not at all.
    *
    * That it reads on a tick rather than subscribing is the choice this makes against CONTRIBUTING's
-   * "initial fetch + subscription for real-time data": the only subscription available here is the
-   * RxJS subject above, and that reaches no process but this one. A subscription that cannot see
-   * the writes it is meant to relay is not one.
+   * "initial fetch + subscription for real-time data": there is nothing here to subscribe TO. The
+   * writes happen in another process, and no in-process channel — a subject, an emitter, the sink
+   * above — can carry what it never sees. A subscription that cannot see the writes it is meant to
+   * relay is not one.
    */
   async deliverPaymentUpdates(): Promise<void> {
     await this.deliverToWaitingCallers();
