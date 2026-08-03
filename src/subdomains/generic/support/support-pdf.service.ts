@@ -460,7 +460,8 @@ export class SupportPdfService {
     return new Promise<string>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A4', margin: 50 });
-        // Without this, a PDFKit stream error would leave the promise pending forever instead of rejecting it.
+        // Reject the promise on a PDFKit stream error after the synchronous draw block (the try/catch
+        // around it only covers errors thrown before pdf.end()).
         pdf.once('error', reject);
         const chunks: Buffer[] = [];
 

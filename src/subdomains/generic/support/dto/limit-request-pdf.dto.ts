@@ -57,12 +57,12 @@ export class GenerateLimitRequestPdfDto {
   @IsNumber()
   previousLimit?: number;
 
-  @ApiPropertyOptional({ enum: FundOrigin })
+  @ApiPropertyOptional({ enum: FundOrigin, description: 'Origin of the funds, as recorded on the limit request' })
   @IsOptional()
   @IsEnum(FundOrigin)
   fundOrigin?: FundOrigin;
 
-  @ApiPropertyOptional({ enum: InvestmentDate })
+  @ApiPropertyOptional({ enum: InvestmentDate, description: 'Planned investment timing, as recorded on the limit request' })
   @IsOptional()
   @IsEnum(InvestmentDate)
   investmentDate?: InvestmentDate;
