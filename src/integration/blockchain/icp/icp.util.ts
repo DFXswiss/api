@@ -16,6 +16,28 @@ export class InternetComputerUtil {
     return BigInt(Math.round(amount * Math.pow(10, decimals)));
   }
 
+  // Canonicalize an ICP txId to a single form per underlying block, so replay-guard string
+  // equality is not defeated by Number-coerced aliases (`"42"` vs `"042"` vs `"+42"` vs `"4.2e1"`
+  // all resolve to the same native block; `canA:42` vs `canA:042` to the same ICRC-3 block).
+  // Formats:
+  //   - Rosetta 64-hex hash: lowercased.
+  //   - ICRC-3 `canisterId:blockIndex`: block-index re-serialized via Number(...) if numeric.
+  //   - Native block-index: re-serialized via Number(...) if numeric.
+  // Non-numeric / unknown-shape txIds are returned untouched (the downstream lookup will fail).
+  static canonicalizeTxId(txId: string): string {
+    if (/^[a-f0-9]{64}$/i.test(txId)) return txId.toLowerCase();
+
+    const parts = txId.split(':');
+    if (parts.length === 2) {
+      const [canisterId, indexStr] = parts;
+      const index = Number(indexStr);
+      return Number.isFinite(index) ? `${canisterId}:${index}` : txId;
+    }
+
+    const index = Number(txId);
+    return Number.isFinite(index) && txId.trim().length > 0 ? String(index) : txId;
+  }
+
   static accountIdentifier(address: string, subaccount?: Uint8Array): string {
     const principal = Principal.fromText(address);
     const padding = Buffer.from('\x0Aaccount-id');

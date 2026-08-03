@@ -349,6 +349,60 @@ export class InternetComputerClient extends BlockchainClient {
     return tx?.transaction.operations.every((op) => op.status === 'COMPLETED') ?? false;
   }
 
+  // Introspect a single tx by ID, handling all three ICP txId formats (Rosetta hash, ICRC-3
+  // `canisterId:blockIndex`, native block-index). `asset` is required because ICRC-3 needs its
+  // decimals to normalize the amount; the caller always has one (the activation being matched).
+  // Returns undefined if the tx cannot be located. Used by the OCP verification path to bind
+  // recipient/amount/asset instead of only checking finality (BUG-1260 sibling).
+  async getTransferByTxId(txId: string, asset: Asset): Promise<IcpTransfer | undefined> {
+    // Rosetta hash (64 hex): pull the tx and map its debit/credit ops the same way
+    // getNativeTransfersForAddress does — this is a native-ledger transfer either way.
+    if (/^[a-f0-9]{64}$/i.test(txId)) {
+      const response = await this.http.post<RosettaTransactionsResponse>(`${this.rosettaApiUrl}/search/transactions`, {
+        network_identifier: ROSETTA_NETWORK_ID,
+        transaction_identifier: { hash: txId },
+      });
+      const entry = response.transactions[0];
+      if (!entry) return undefined;
+
+      const ops = entry.transaction.operations.filter((op) => op.type === 'TRANSACTION' && op.status === 'COMPLETED');
+      const creditOp = ops.find((op) => op.amount && BigInt(op.amount.value) > 0n);
+      const debitOp = ops.find((op) => op.amount && BigInt(op.amount.value) < 0n);
+      if (!creditOp?.amount || !debitOp?.amount) return undefined;
+
+      return {
+        blockIndex: entry.block_identifier.index,
+        from: debitOp.account.address,
+        to: creditOp.account.address,
+        amount: InternetComputerUtil.fromSmallestUnit(BigInt(creditOp.amount.value)),
+        fee: 0,
+        memo: BigInt(entry.transaction.metadata.memo),
+        timestamp: Math.floor(entry.transaction.metadata.timestamp / 1_000_000_000),
+      };
+    }
+
+    // ICRC-3 `canisterId:blockIndex` — fetch that single block via the length=1 query
+    const parts = txId.split(':');
+    if (parts.length === 2) {
+      const [canisterId, indexStr] = parts;
+      const index = Number(indexStr);
+      const { transfers } = await this.getIcrcTransfers(canisterId, asset.decimals, index, 1);
+      // getIcrcTransfers/getTransfers can skip archived ranges and return a later block; fail-closed
+      // if the returned transfer is not the one the txId names (would otherwise let a foreign block
+      // satisfy an activation via recipient/amount collision).
+      return transfers[0]?.blockIndex === index ? transfers[0] : undefined;
+    }
+
+    // Native ICP: plain block index — fetch that single block via length=1
+    const index = Number(txId);
+    if (Number.isFinite(index)) {
+      const { transfers } = await this.getTransfers(index, 1);
+      return transfers[0]?.blockIndex === index ? transfers[0] : undefined;
+    }
+
+    return undefined;
+  }
+
   // --- Send native coin ---
 
   async sendNativeCoinFromDex(toAddress: string, amount: number): Promise<string> {
