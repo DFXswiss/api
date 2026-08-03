@@ -46,9 +46,10 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,105 load sites in this repository, **116** load less than a whole row:
-108 query builders that name their columns, three that end in `getCount()` or `getExists()` and
-materialise none, and the five raw statements. The other 989 request whole rows — 957 through the
+**No read model.** Of the load sites in this repository — at most 1,105, see
+[load-sites.md](load-sites.md#measurements) — **116** load less than a whole row: 108 query builders
+that name their columns, three that end in `getCount()` or `getExists()` and materialise none, and
+the five raw statements. Those 116 are counted, not estimated. At most 989 request whole rows — 957 through the
 `find` family, and of the 143 query builders, 17 pass the root alias to `.select(...)`, which reads
 like a projection but is not, 14 pass no select at all, and one projects its root but pulls a
 relation in whole. The same entities serve persistence, business logic and pure output paths such
@@ -372,7 +373,9 @@ changing validity through the generic update path.
 That was the whole picture when this document was written. It no longer is: 113 sites now name their
 columns — the 18 with an explicit field list and the 90 that name them one at a time, plus the five
 raw statements — and each of them can drop a field silently. The 17 conversions below carry the four
-levels; the rest do not, which is what their `0/4` records.
+levels. Of the endpoints behind the others, 18 record that they do not, as `0/4`; three stay `n/a`
+because their field list comes from the request rather than the code, so there is no fixed
+projection to test — `POST /gs/db`, `POST /gs/db/custom` and `POST /gs/debug`.
 
 ### How they run
 
