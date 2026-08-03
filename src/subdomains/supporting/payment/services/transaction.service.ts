@@ -11,11 +11,13 @@ import { Util } from 'src/shared/utils/util';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
-import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import {
   Between,
   Brackets,
@@ -150,46 +152,81 @@ export class TransactionService {
   }
 
   async resume(id: number): Promise<void> {
-    const entity = await this.getTransactionById(id, { buyCrypto: { batch: true } });
-    if (!entity) throw new NotFoundException('Transaction not found');
-    if (!entity.buyCrypto) throw new BadRequestException('Only BuyCrypto transactions can be resumed');
-    if (entity.buyCrypto.status !== BuyCryptoStatus.STOPPED)
-      throw new BadRequestException('Transaction is not stopped');
-    if (entity.buyCrypto.amlCheck !== CheckStatus.PASS)
-      throw new BadRequestException('Only transactions with passed AML check can be resumed');
-    if (entity.buyCrypto.batch || entity.buyCrypto.txId)
-      throw new BadRequestException('Only transactions without batch and payout can be resumed');
-    if (
-      entity.buyCrypto.chargebackAllowedDate ||
-      entity.buyCrypto.chargebackAllowedDateUser ||
-      entity.buyCrypto.chargebackDate ||
-      entity.buyCrypto.chargebackCryptoTxId
-    )
-      throw new BadRequestException('Transactions with a chargeback cannot be resumed');
+    await this.buyCryptoRepo.manager.transaction(async (manager) => {
+      const entity = await this.getTransactionById(id, { buyCrypto: true });
+      if (!entity) throw new NotFoundException('Transaction not found');
+      if (!entity.buyCrypto) throw new BadRequestException('Only BuyCrypto transactions can be resumed');
 
-    // Conditional update: every precondition is re-checked atomically in the WHERE clause,
-    // so a concurrent state change between the read above and this write cannot slip through
-    // (same pattern as stop() and BuyCryptoService.refundClaimWhere).
-    const [buyCryptoId, update] = entity.buyCrypto.resume();
-    const result = await this.buyCryptoRepo.update(
-      {
-        id: buyCryptoId,
-        status: BuyCryptoStatus.STOPPED,
-        amlCheck: CheckStatus.PASS,
-        isComplete: false,
-        batch: IsNull(),
-        txId: IsNull(),
-        outputAmount: IsNull(),
-        chargebackOutput: IsNull(),
-        chargebackAllowedDate: IsNull(),
-        chargebackAllowedDateUser: IsNull(),
-        chargebackDate: IsNull(),
-        chargebackCryptoTxId: IsNull(),
-        chargebackBankTx: IsNull(),
-      },
-      update,
-    );
-    if (result.affected !== 1) throw new ConflictException('BuyCrypto status changed concurrently');
+      // Lock the row and its refund-bearing relations for the rest of the transaction, so a refund
+      // that starts while we decide cannot be overtaken (same pattern as resetAmlCheckForReview).
+      await manager.findOne(BuyCrypto, {
+        where: { id: entity.buyCrypto.id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      const buyCrypto = await manager.findOne(BuyCrypto, {
+        where: { id: entity.buyCrypto.id },
+        relations: { batch: true, checkoutTx: true, cryptoInput: true },
+      });
+      if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');
+
+      if (buyCrypto.checkoutTx)
+        await manager.findOne(CheckoutTx, {
+          where: { id: buyCrypto.checkoutTx.id },
+          select: { id: true },
+          loadEagerRelations: false,
+          lock: { mode: 'pessimistic_write' },
+        });
+      if (buyCrypto.cryptoInput)
+        await manager.findOne(CryptoInput, {
+          where: { id: buyCrypto.cryptoInput.id },
+          select: { id: true },
+          loadEagerRelations: false,
+          lock: { mode: 'pessimistic_write' },
+        });
+
+      if (buyCrypto.status !== BuyCryptoStatus.STOPPED) throw new BadRequestException('Transaction is not stopped');
+      if (buyCrypto.amlCheck !== CheckStatus.PASS)
+        throw new BadRequestException('Only transactions with passed AML check can be resumed');
+      if (buyCrypto.batch || buyCrypto.txId)
+        throw new BadRequestException('Only transactions without batch and payout can be resumed');
+      if (
+        buyCrypto.chargebackAllowedDate ||
+        buyCrypto.chargebackAllowedDateUser ||
+        buyCrypto.chargebackDate ||
+        buyCrypto.chargebackCryptoTxId ||
+        buyCrypto.checkoutRefundStarted ||
+        buyCrypto.cryptoReturnStarted ||
+        buyCrypto.cryptoForwardStarted
+      )
+        throw new BadRequestException('Transactions with a refund or forward in progress cannot be resumed');
+
+      // The locks above cover the related rows; the WHERE clause re-checks every buy_crypto invariant
+      // in the same statement, so nothing can change between the checks and the write.
+      const [buyCryptoId, update] = buyCrypto.resume();
+      const result = await manager.update(
+        BuyCrypto,
+        {
+          id: buyCryptoId,
+          status: BuyCryptoStatus.STOPPED,
+          amlCheck: CheckStatus.PASS,
+          isComplete: false,
+          batch: IsNull(),
+          txId: IsNull(),
+          outputAmount: IsNull(),
+          chargebackOutput: IsNull(),
+          chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: IsNull(),
+          chargebackDate: IsNull(),
+          chargebackCryptoTxId: IsNull(),
+          chargebackBankTx: IsNull(),
+        },
+        update,
+      );
+      if (result.affected !== 1) throw new ConflictException('BuyCrypto status changed concurrently');
+    });
   }
 
   async getTransactionById(

@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
@@ -11,7 +12,9 @@ import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/proce
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { IsNull } from 'typeorm';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { CryptoInput, PayInAction } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { EntityManager, IsNull } from 'typeorm';
 import { UpdateTransactionDto } from '../../dto/update-transaction.dto';
 import { Transaction } from '../../entities/transaction.entity';
 import { TransactionRepository } from '../../repositories/transaction.repository';
@@ -128,6 +131,22 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     expect(buyCryptoRepo.save).not.toHaveBeenCalled();
   });
 
+  function mockResumeManager(buyCrypto: BuyCrypto | null, updateResult = { affected: 1, raw: [], generatedMaps: [] }) {
+    const manager = {
+      findOne: jest.fn().mockImplementation(async (entityClass: unknown) => {
+        if (entityClass === BuyCrypto) return buyCrypto;
+        if (entityClass === CheckoutTx) return buyCrypto?.checkoutTx ?? null;
+        if (entityClass === CryptoInput) return buyCrypto?.cryptoInput ?? null;
+        return null;
+      }),
+      update: jest.fn().mockResolvedValue(updateResult),
+    };
+    jest.spyOn(buyCryptoRepo, 'manager', 'get').mockReturnValue({
+      transaction: (cb: (m: typeof manager) => unknown) => cb(manager),
+    } as unknown as EntityManager);
+    return manager;
+  }
+
   it('resume() sets a stopped BuyCrypto back to Created via a targeted update', async () => {
     const buyCrypto = Object.assign(new BuyCrypto(), {
       id: 7,
@@ -136,12 +155,13 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
-    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+    const manager = mockResumeManager(buyCrypto);
 
     await service.resume(99);
 
-    expect(repo.findOne).toHaveBeenCalledWith(expect.objectContaining({ relations: { buyCrypto: { batch: true } } }));
-    expect(buyCryptoRepo.update).toHaveBeenCalledWith(
+    expect(repo.findOne).toHaveBeenCalledWith(expect.objectContaining({ relations: { buyCrypto: true } }));
+    expect(manager.update).toHaveBeenCalledWith(
+      BuyCrypto,
       {
         id: 7,
         status: BuyCryptoStatus.STOPPED,
@@ -169,9 +189,10 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
-    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects a stopped transaction whose amlCheck is not Pass', async () => {
@@ -182,24 +203,27 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
-    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects a transaction without buyCrypto', async () => {
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto: undefined });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(null);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
-    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects an unknown transaction', async () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+    const manager = mockResumeManager(null);
 
     await expect(service.resume(99)).rejects.toThrow(NotFoundException);
-    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects a stopped transaction that is already assigned to a batch', async () => {
@@ -211,9 +235,10 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
-    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects a stopped transaction with an existing payout txId', async () => {
@@ -225,9 +250,10 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
-    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects a stopped transaction with a chargeback in progress', async () => {
@@ -239,9 +265,40 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
-    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() rejects a stopped transaction whose checkout payment was refunded', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      checkoutTx: Object.assign(new CheckoutTx(), { id: 3, status: CheckoutPaymentStatus.REFUNDED }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() rejects a stopped transaction whose crypto input is being returned', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      cryptoInput: Object.assign(new CryptoInput(), { id: 4, action: PayInAction.RETURN }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    expect(manager.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects when a concurrent change invalidates the stopped state', async () => {
@@ -252,7 +309,7 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
-    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+    mockResumeManager(buyCrypto, { affected: 0, raw: [], generatedMaps: [] });
 
     await expect(service.resume(99)).rejects.toThrow(ConflictException);
   });
