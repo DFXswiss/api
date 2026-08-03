@@ -5,7 +5,15 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  DataSource,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  SelectQueryBuilder,
+} from 'typeorm';
 import { RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
 import { RefRewardService } from '../services/ref-reward.service';
@@ -35,8 +43,10 @@ class RefRewardTable {
   @Column({ type: 'float', nullable: true })
   amountInChf?: number;
 
-  @Column({ nullable: true })
-  status?: string;
+  // Explicit varchar: without it TypeORM infers the column type from the TS type, and an enum
+  // reflects as Object, which the postgres driver rejects. The real column is character varying too.
+  @Column({ type: 'varchar', nullable: true })
+  status?: RewardStatus;
 
   // Relation path for `.innerJoin('r.user', ...)`; createForeignKeyConstraints is false so seed
   // order is unconstrained.
@@ -113,11 +123,16 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     const userRepo = dataSource.getRepository(UserTable);
     const rewardRepo = dataSource.getRepository(RefRewardTable);
 
-    // userDataId 10: COMPLETE 100 + 200 → totalChf 300, count 2 (highest)
+    // userDataId 10: COMPLETE 100 + COMPLETE 200.4 → totalChf 300.4, rounds DOWN to 300, count 2 (highest)
     // userDataId 20: COMPLETE 150 → totalChf 150, count 1
-    // userDataId 30: COMPLETE 50 + COMPLETE 25 → totalChf 75, count 2 (two rows aggregate)
+    // userDataId 30: COMPLETE 50 + COMPLETE 25.6 → totalChf 75.6, rounds UP to 76, count 2 (two rows aggregate)
     // userDataId 40: only USER_SWITCH → must not appear
     // userDataId 50: COMPLETE 100 + USER_SWITCH 999 → totalChf 100, count 1 (USER_SWITCH excluded)
+    //
+    // 10 and 30 straddle a rounding boundary (…300.4 down, …75.6 up) on purpose: every seeded amount
+    // used to be a whole number, so ROUND(…, 0) accidentally regressing to ROUND(…, 1) — or the sum
+    // being truncated instead of rounded — would have left every expected total unchanged and the
+    // test green.
     await userRepo.save([
       { id: 1, userDataId: 10 },
       { id: 2, userDataId: 20 },
@@ -128,10 +143,10 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
 
     await rewardRepo.save([
       { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user: { id: 1 } },
-      { created: newDate, amountInChf: 200, status: RewardStatus.COMPLETE, user: { id: 1 } },
+      { created: newDate, amountInChf: 200.4, status: RewardStatus.COMPLETE, user: { id: 1 } },
       { created: newDate, amountInChf: 150, status: RewardStatus.COMPLETE, user: { id: 2 } },
       { created: oldDate, amountInChf: 50, status: RewardStatus.COMPLETE, user: { id: 3 } },
-      { created: newDate, amountInChf: 25, status: RewardStatus.COMPLETE, user: { id: 3 } },
+      { created: newDate, amountInChf: 25.6, status: RewardStatus.COMPLETE, user: { id: 3 } },
       { created: newDate, amountInChf: 500, status: RewardStatus.USER_SWITCH, user: { id: 4 } },
       { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user: { id: 5 } },
       { created: newDate, amountInChf: 999, status: RewardStatus.USER_SWITCH, user: { id: 5 } },
@@ -149,15 +164,52 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       { userDataId: 10, count: 2, totalChf: 300 },
       { userDataId: 20, count: 1, totalChf: 150 },
       { userDataId: 50, count: 1, totalChf: 100 },
-      { userDataId: 30, count: 2, totalChf: 75 },
+      { userDataId: 30, count: 2, totalChf: 76 },
     ]);
     expect(normalized.map((r) => r.userDataId)).not.toContain(40);
     expect(normalized.every((row, i) => i === 0 || normalized[i - 1].totalChf >= row.totalChf)).toBe(true);
   });
 
+  it('casts the summed amount to numeric and quotes the ORDER BY alias in the generated SQL', async () => {
+    // pg-mem maps Postgres' `numeric` onto its own float type (node_modules/pg-mem/index.js:
+    // `'numeric': { type: DataType.float, ignoreConfig: true }`), so the two-argument round()
+    // registered above resolves the query above whether or not the ::numeric cast is present in
+    // the SELECT expression — removing the cast would leave that test green while breaking on real
+    // Postgres (no two-argument round(double precision, integer)), the same way the original bug
+    // did. So this test does not rely on pg-mem rejecting anything; it pins the cast, and the
+    // ORDER BY alias quoting, by inspecting the SQL text itself.
+    //
+    // getRewardRecipients builds and discards its query builder internally without ever returning
+    // or storing it anywhere reachable from outside, and the production code must not be reshaped
+    // just to make the SQL reachable from a test. getRawMany() is the last call the query builder
+    // makes before executing, so spying on it on the shared TypeORM prototype captures this
+    // invocation's builder via `this`, from which `this.getSql()` gives the final SQL — then hands
+    // off to the real implementation so the query still actually runs.
+    const originalGetRawMany = SelectQueryBuilder.prototype.getRawMany;
+    let capturedSql: string | undefined;
+    const getRawManySpy = jest
+      .spyOn(SelectQueryBuilder.prototype, 'getRawMany')
+      .mockImplementation(function (this: SelectQueryBuilder<any>) {
+        capturedSql = this.getSql();
+        return originalGetRawMany.call(this);
+      });
+
+    try {
+      await service.getRewardRecipients();
+    } finally {
+      getRawManySpy.mockRestore();
+    }
+
+    expect(capturedSql).toContain('SUM("r"."amountInChf")::numeric');
+    expect(capturedSql).toContain('ORDER BY "totalChf" DESC');
+  });
+
   // The optional `from` filter is deliberately not covered here: pg-mem does not compare timestamp
   // columns against JS Date parameters reliably, so such a test would fail for a reason that has
-  // nothing to do with this service. The filter is a plain andWhere on an indexed column; the case
-  // this file exists for — the ORDER BY alias against real Postgres identifier folding — is covered
-  // by the test above, which fails with `column "totalchf" does not exist` if the fix is reverted.
+  // nothing to do with this service. The filter is a plain andWhere on a timestamp column —
+  // `created` is inherited from the shared `IEntity` base (src/shared/models/entity.ts) and carries
+  // no `@Index()`; the only indexes on RefReward sit on its relations (userId, outputAssetId,
+  // liquidityPipelineId). The case this file exists for — the ORDER BY alias against real Postgres
+  // identifier folding — is covered by the tests above, which fail with `column "totalchf" does not
+  // exist` if the fix is reverted.
 });
