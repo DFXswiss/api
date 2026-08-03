@@ -148,10 +148,10 @@ describe('FeeService', () => {
   });
 
   describe('onboarding fee', () => {
-    const onboardingFee = (id: number, fixed: number) =>
+    const onboardingFee = (id: number | undefined, fixed: number): Fee =>
       Object.assign(new Fee(), { id, fixed, rate: 0, type: FeeType.ADDITION, active: true, usages: 0 });
 
-    const accountWith = (feeIds: number[]) =>
+    const accountWith = (feeIds: number[]): UserData =>
       Object.assign(new UserData(), {
         id: 7,
         accountType: AccountType.PERSONAL,

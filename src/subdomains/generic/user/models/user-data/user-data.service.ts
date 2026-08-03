@@ -1208,7 +1208,7 @@ export class UserDataService {
     fee?: Fee,
     manager?: EntityManager,
   ): Promise<void> {
-    const describe = (fees: Fee[]) =>
+    const describe = (fees: Fee[]): string =>
       fees.length ? fees.map((f) => `${f.fixed} CHF (fee ${f.id})`).join(', ') : 'none';
 
     return this.kycLogService.createLogInternal(

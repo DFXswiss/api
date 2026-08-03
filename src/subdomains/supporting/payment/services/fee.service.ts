@@ -272,7 +272,9 @@ export class FeeService {
   async setOnboardingFee(userData: UserData, amount: number): Promise<void> {
     // A misconfigured setting must not silently disable the guard: `Number('x')` is NaN, and every
     // comparison against NaN is false.
-    const configuredMax = await this.settingService.get('onboardingFeeMaxAmount').then(Number);
+    const configuredMax = await this.settingService
+      .get('onboardingFeeMaxAmount', `${DefaultMaxOnboardingFee}`)
+      .then(Number);
     const maxAmount = Number.isFinite(configuredMax) ? configuredMax : DefaultMaxOnboardingFee;
     if (amount > maxAmount)
       throw new BadRequestException(`Onboarding fee of ${amount} CHF exceeds the limit of ${maxAmount} CHF`);
@@ -322,7 +324,7 @@ export class FeeService {
   // amount contributes to `combinedExtraFixedFee`, whatever else it is restricted to. Matching only
   // the strict shape here would leave a restricted flat fee assigned next to the new one, and the
   // customer would be charged the sum of both.
-  async getOnboardingFees(userData: UserData): Promise<Fee[]> {
+  private async getOnboardingFees(userData: UserData): Promise<Fee[]> {
     const feeIds = userData.individualFeeList;
     if (!feeIds?.length) return [];
 
