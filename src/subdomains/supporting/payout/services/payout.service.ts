@@ -187,11 +187,11 @@ export class PayoutService {
   // stops the heartbeat, which the missing-heartbeat alert then surfaces.
   // The logger also emits an empty heartbeat, allowing monitoring to alert separately if this
   // query/job/log path disappears instead of treating missing data as "zero uncertain orders".
-  // Scope BOTH, not WORKER: the job reads stored state and writes a log line, which is the
-  // defining example of a both-scoped job (see CronScope.BOTH) — and the alert keeps its
-  // heartbeat even while one of the two processes is down, which is exactly when parked payout
-  // orders must not go dark. The alert side deduplicates repeated lines per order, so two
-  // producers do not double-count.
+  // Scope BOTH, not WORKER: writing a log line is listed in CronScope.BOTH as a qualifying
+  // example, and running this job twice is harmless by construction — every line restates the
+  // CURRENT stored status per order, so a second producer repeats facts instead of advancing
+  // anything. The gain is that the heartbeat survives while one of the two processes is down,
+  // which is exactly when parked payout orders must not go dark.
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.BOTH, process: Process.MONITORING, timeout: 1800 })
   async logUncertainOrdersSnapshot(): Promise<void> {
     const uncertainOrders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.PAYOUT_UNCERTAIN });

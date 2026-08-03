@@ -91,7 +91,7 @@ Jobs by area:
 
 | Area | Jobs | Without flag |
 | ---- | ---: | -----------: |
-| `subdomains/generic/user` | 16 | 7 |
+| `subdomains/generic/user` | 16 | 8 |
 | `subdomains/core/monitoring` | 14 | — |
 | `subdomains/core/accounting` | 13 | — |
 | `subdomains/supporting/payin` | 12 | — |
