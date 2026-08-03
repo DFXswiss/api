@@ -223,7 +223,7 @@ export class BankService implements OnModuleInit {
   // IBAN), but it means only ASCII surroundings are reliably rejected.
   // The parameter is widened past the callers' types on purpose: this sits on the trust boundary between a
   // request body and the comparison, so it answers for anything the type system cannot actually guarantee.
-  private static normalizeIban(iban: string | null | undefined): string | null {
+  static normalizeIban(iban: string | null | undefined): string | null {
     if (typeof iban !== 'string') return null;
 
     return iban.replace(/[^A-Za-z0-9]/g, '').toUpperCase() || null;

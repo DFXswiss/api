@@ -64,15 +64,17 @@ describe('BankTx', () => {
         accountIban: olkyIban,
         iban: frickIban,
         creditDebitIndicator: BankTxIndicator.DEBIT,
-        instructedAmount: 280000,
-        instructedCurrency: 'EUR',
+        amount: 280000,
+        currency: 'EUR',
+        instructedAmount: undefined,
+        instructedCurrency: undefined,
       });
 
       expect(entity.pendingBankAmount(olkyAsset, BankTxType.INTERNAL)).toBe(280000);
       expect(entity.pendingBankAmount(frickAsset, BankTxType.INTERNAL)).toBe(0);
     });
 
-    it('removes the pending amount once the destination bank reports the credit', () => {
+    it('does not count a destination credit as an independent negative plus balance', () => {
       const entity = createCustomBankTx({
         accountIban: frickIban,
         iban: olkyIban,
@@ -81,7 +83,7 @@ describe('BankTx', () => {
         instructedCurrency: 'EUR',
       });
 
-      expect(entity.pendingBankAmount(frickAsset, BankTxType.INTERNAL)).toBe(-280000);
+      expect(entity.pendingBankAmount(frickAsset, BankTxType.INTERNAL)).toBe(0);
     });
 
     it('attributes both legs of a cross-currency transfer to their account currencies', () => {
@@ -89,19 +91,13 @@ describe('BankTx', () => {
         accountIban: olkyIban,
         iban: frickChfIban,
         creditDebitIndicator: BankTxIndicator.DEBIT,
-        instructedAmount: 280000,
-        instructedCurrency: 'EUR',
-      });
-      const credit = createCustomBankTx({
-        accountIban: frickChfIban,
-        iban: olkyIban,
-        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 280000,
+        currency: 'EUR',
         instructedAmount: 268000,
         instructedCurrency: 'CHF',
       });
-
       expect(debit.pendingBankAmount(olkyAsset, BankTxType.INTERNAL)).toBe(280000);
-      expect(credit.pendingBankAmount(frickChfAsset, BankTxType.INTERNAL)).toBe(-268000);
+      expect(debit.pendingBankAmount(frickChfAsset, BankTxType.INTERNAL)).toBe(0);
     });
   });
 

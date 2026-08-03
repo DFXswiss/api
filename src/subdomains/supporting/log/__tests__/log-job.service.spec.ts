@@ -1828,12 +1828,17 @@ describe('LogJobService', () => {
         sellable: true,
       });
       const internalTx = createCustomBankTx({
+        id: 208765,
         type: BankTxType.INTERNAL,
         accountIban: olkyEUR.iban,
         iban: frickEUR.iban,
         creditDebitIndicator: BankTxIndicator.DEBIT,
-        instructedAmount: 280000,
-        instructedCurrency: 'EUR',
+        amount: 280000,
+        currency: 'EUR',
+        instructedAmount: undefined,
+        instructedCurrency: undefined,
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
       });
       setupAssetLog([], [internalTx]);
 
@@ -1841,6 +1846,88 @@ describe('LogJobService', () => {
 
       expect(assetLog[asset.id].plusBalance.pending.internal).toBe(280000);
       expect(assetLog[asset.id].plusBalance.total).toBe(280000);
+    });
+
+    it('retires the source pending amount after the destination credit arrives', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const debit = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 280000,
+        currency: 'EUR',
+        remittanceInfo: 'Internal transfer 208765',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const credit = createCustomBankTx({
+        id: 208800,
+        type: BankTxType.INTERNAL,
+        accountIban: frickEUR.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 280000,
+        currency: 'EUR',
+        remittanceInfo: 'Internal transfer 208765',
+        valueDate: new Date('2026-08-04T08:00:00Z'),
+        created: new Date('2026-08-04T08:00:00Z'),
+      });
+      setupAssetLog([], [debit, credit]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending).toBeUndefined();
+      expect(assetLog[asset.id].plusBalance.total).toBe(0);
+    });
+
+    it('retires a cross-currency transfer using the two booked account legs', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const debit = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 280000,
+        currency: 'EUR',
+        instructedAmount: 268000,
+        instructedCurrency: 'CHF',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const credit = createCustomBankTx({
+        id: 208800,
+        type: BankTxType.INTERNAL,
+        accountIban: frickCHF.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 268000,
+        currency: 'CHF',
+        instructedAmount: undefined,
+        instructedCurrency: undefined,
+        valueDate: new Date('2026-08-04T08:00:00Z'),
+        created: new Date('2026-08-04T08:00:00Z'),
+      });
+      setupAssetLog([], [debit, credit]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending).toBeUndefined();
+      expect(assetLog[asset.id].plusBalance.total).toBe(0);
     });
 
     it('does NOT alarm when a transmitted-unsettled liability is correctly counted (fresh, within SLA)', async () => {

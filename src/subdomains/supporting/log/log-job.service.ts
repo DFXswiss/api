@@ -63,6 +63,7 @@ import { LogService } from './log.service';
 // equity stays correct meanwhile because the liability is still counted.
 const SETTLEMENT_SLA_HOURS = 144;
 const SETTLEMENT_SLA_MS = SETTLEMENT_SLA_HOURS * 60 * 60 * 1000;
+const INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS = 21 * 24 * 60 * 60 * 1000;
 
 // tolerance for comparing summed float balances (avoids false alarms on rounding)
 const BALANCE_TOLERANCE = 0.01;
@@ -483,7 +484,7 @@ export class LogJobService {
 
     // pending internal balances
     // db requests
-    const recentInternalBankTx = await this.bankTxService.getRecentInternalTx();
+    const recentInternalBankTx = this.getUnsettledInternalBankTx(await this.bankTxService.getRecentInternalTx());
     const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
     const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
       minExchangeTxId,
@@ -1351,6 +1352,79 @@ export class LogJobService {
       (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, source, target), 0),
       0,
     );
+  }
+
+  private getUnsettledInternalBankTx(transactions: BankTx[]): BankTx[] {
+    const debits = transactions
+      .filter((tx) => tx.creditDebitIndicator === BankTxIndicator.DEBIT)
+      .sort((a, b) => this.getInternalTransferTime(a) - this.getInternalTransferTime(b) || a.id - b.id);
+    const availableCredits = new Set(transactions.filter((tx) => tx.creditDebitIndicator === BankTxIndicator.CREDIT));
+    const unsettled = new Set(debits);
+
+    const candidatesFor = (debit: BankTx): BankTx[] =>
+      [...availableCredits]
+        .filter((credit) => this.isInternalTransferCounterEntry(debit, credit))
+        .sort(
+          (a, b) =>
+            Math.abs(this.getInternalTransferTime(a) - this.getInternalTransferTime(debit)) -
+              Math.abs(this.getInternalTransferTime(b) - this.getInternalTransferTime(debit)) || a.id - b.id,
+        );
+
+    const settle = (predicate: (debit: BankTx, credit: BankTx) => boolean): void => {
+      for (const debit of [...unsettled]) {
+        const credit = candidatesFor(debit).find((candidate) => predicate(debit, candidate));
+        if (!credit) continue;
+
+        unsettled.delete(debit);
+        availableCredits.delete(credit);
+      }
+    };
+
+    // Strong identifiers win before amount/date fallbacks so a concurrent transfer cannot
+    // consume the credit belonging to a referenced debit.
+    settle((debit, credit) => this.hasSharedInternalTransferReference(debit, credit));
+
+    // Same-currency transfers can then be paired by the booked account amount.
+    settle((debit, credit) => {
+      if (!debit.currency || debit.currency !== credit.currency) return false;
+      if (!Number.isFinite(debit.amount) || !Number.isFinite(credit.amount)) return false;
+
+      const tolerance = Math.max(1, 0.01 * Math.max(Math.abs(debit.amount), Math.abs(credit.amount)));
+      return Math.abs(debit.amount - credit.amount) <= tolerance;
+    });
+
+    // For FX transfers the two booked account amounts/currencies intentionally differ. Once
+    // references and same-currency amounts are exhausted, pair FIFO within the exact IBAN route.
+    settle(() => true);
+
+    return debits.filter((debit) => unsettled.has(debit));
+  }
+
+  private isInternalTransferCounterEntry(debit: BankTx, credit: BankTx): boolean {
+    const sourceIban = BankService.normalizeIban(debit.accountIban);
+    const targetIban = BankService.normalizeIban(debit.iban);
+    if (!sourceIban || !targetIban) return false;
+    if (sourceIban !== BankService.normalizeIban(credit.iban)) return false;
+    if (targetIban !== BankService.normalizeIban(credit.accountIban)) return false;
+
+    const timeDifference = this.getInternalTransferTime(credit) - this.getInternalTransferTime(debit);
+    return timeDifference >= -24 * 60 * 60 * 1000 && timeDifference <= INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS;
+  }
+
+  private hasSharedInternalTransferReference(left: BankTx, right: BankTx): boolean {
+    const leftReferences = this.getInternalTransferReferences(left);
+    return [...this.getInternalTransferReferences(right)].some((reference) => leftReferences.has(reference));
+  }
+
+  private getInternalTransferReferences(tx: BankTx): Set<string> {
+    const references = [tx.endToEndId, tx.remittanceInfo]
+      .map((reference) => reference?.trim().toLowerCase().replace(/\s+/g, ' '))
+      .filter((reference): reference is string => Boolean(reference) && reference !== 'notprovided');
+    return new Set(references);
+  }
+
+  private getInternalTransferTime(tx: BankTx): number {
+    return (tx.valueDate ?? tx.bookingDate ?? tx.created)?.getTime() ?? 0;
   }
 
   public getUnmatchedSenders(

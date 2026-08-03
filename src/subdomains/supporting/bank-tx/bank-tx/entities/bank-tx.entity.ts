@@ -387,34 +387,31 @@ export class BankTx extends IEntity {
   }
 
   pendingBankAmount(asset: Asset, type: BankExchangeType, sourceIban?: string, targetIban?: string): number {
-    if (this.instructedCurrency !== asset.dexName) return 0;
-
     switch (type) {
-      case BankTxType.INTERNAL:
-        if (!sourceIban || !targetIban) {
-          sourceIban =
-            this.creditDebitIndicator === BankTxIndicator.DEBIT
-              ? this.accountIban
-              : this.creditDebitIndicator === BankTxIndicator.CREDIT
-                ? this.iban
-                : undefined;
-          targetIban =
-            this.creditDebitIndicator === BankTxIndicator.DEBIT
-              ? this.iban
-              : this.creditDebitIndicator === BankTxIndicator.CREDIT
-                ? this.accountIban
-                : undefined;
-        }
+      case BankTxType.INTERNAL: {
+        // Only unmatched debit entries are pending. The corresponding credit is used by
+        // FinancialLog to retire the debit before this method is called; counting the credit
+        // as a negative amount on another asset would be lost in the per-asset plus-balance clamp.
+        if (this.creditDebitIndicator !== BankTxIndicator.DEBIT) return 0;
 
+        sourceIban ??= this.accountIban;
+        targetIban ??= this.iban;
         if (!sourceIban || !targetIban) return 0;
         if (!BankService.isInternalBankMatching(asset, this.accountIban)) return 0;
 
-        if (this.iban === targetIban && this.accountIban === sourceIban) return this.instructedAmount;
-        if (this.iban === sourceIban && this.accountIban === targetIban) return -this.instructedAmount;
-        return 0;
+        const accountCurrency = this.currency ?? this.instructedCurrency;
+        const accountAmount = this.amount ?? this.instructedAmount;
+        if (accountCurrency !== asset.dexName || !Number.isFinite(accountAmount)) return 0;
+
+        const isSource =
+          BankService.normalizeIban(this.accountIban) === BankService.normalizeIban(sourceIban) &&
+          BankService.normalizeIban(this.iban) === BankService.normalizeIban(targetIban);
+        return isSource ? accountAmount : 0;
+      }
 
       case BankTxType.KRAKEN:
       case BankTxType.SCRYPT:
+        if (this.instructedCurrency !== asset.dexName) return 0;
         if (
           !BankService.isBankMatching(asset, targetIban ?? this.accountIban) ||
           (targetIban && asset.dexName !== this.instructedCurrency)
