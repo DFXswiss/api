@@ -51,6 +51,11 @@ export class StaffKycClearanceService {
 
   // Every minute, matching JwtRevocationSyncService: revoking elevated access promptly is a security
   // requirement and warrants the same exception to the "prefer 15min" cron guideline.
+  //
+  // And deliberately WITHOUT a `process` flag, also matching that service: switched off, this job
+  // does not empty the clearance list, it stops maintaining it — staff blocked afterwards keep
+  // their elevated access, and nothing reports the state. A switch whose use is silent does not
+  // belong on a revocation path.
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, timeout: 1800 })
   async syncStaffKycClearance(): Promise<void> {
     const staffUsers = await this.userRepo.find({

@@ -42,6 +42,11 @@ import { PaymentWebhookService } from './payment-webhook.service';
  *
  * The endpoints answering from this do not change shape when it elapses; they answer with the
  * payment as it stands, which for a caller that is still there means "not yet, ask again".
+ *
+ * The bound belongs to the ENTRY, not to each caller: AsyncMap hands a second waiter on the same
+ * payment the first one's promise, so it is answered after the REMAINDER of that timer, not after
+ * a fresh 60 s. For a payment watched from two ends — the terminal and the customer's wallet —
+ * that means one of them polls a little more often than the number above suggests.
  */
 const PAYMENT_WAIT_TIMEOUT_SECONDS = 60;
 

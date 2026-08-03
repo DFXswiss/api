@@ -23,11 +23,11 @@ export class SparkService extends Bech32mService {
   /**
    * Wallet maintenance: consolidates the token outputs of the Spark wallet.
    *
-   * The client used to run this from a `setInterval` of its own with a role check in front of it.
-   * A timer outside the scheduler is invisible to the scope AND to the cross-process lease, so the
-   * role check was the only thing standing between two processes and the same wallet — and it
-   * cannot help in the case that matters, where both processes legitimately hold a role that
-   * includes this work. That is every deployment, for as long as the outgoing container is still
+   * The client used to run this from a `setInterval` of its own. A timer outside the scheduler is
+   * invisible to the scope AND to the cross-process lease, so nothing stood between two processes
+   * and the same wallet — and a role check alone could not have closed that, because it cannot
+   * help in the case that matters, where both processes legitimately hold a role that includes
+   * this work. That is every deployment, for as long as the outgoing container is still
    * up. Registered here, it goes through the lease like any other worker job.
    *
    * Errors are left to the wrapper, per CONTRIBUTING ("@DfxCron already handles errors"). Catching

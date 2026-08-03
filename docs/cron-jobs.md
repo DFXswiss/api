@@ -31,12 +31,12 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-117 of the 140 jobs carry a `process` flag, 23 do not. A job with a flag can be switched off
+116 of the 140 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
 
-A job **without** a flag runs unconditionally. That is deliberate for seven of them. The four
+A job **without** a flag runs unconditionally. That is deliberate for nine of them. The four
 `ProcessService::resync*` jobs maintain the disabled set, the JWT denylists and the staff
 clearance allowlist themselves, so making them switchable would let a configuration change
 disable the mechanism that reads configuration changes. `DfxCronService::reportRole` is the role
@@ -46,14 +46,18 @@ that stopped answering, so switching it off would reinstate the unbounded growth
 `PaymentCronService::deliverPaymentUpdates` is the bridge between the process that writes a
 payment and the one holding the connection: switched off it changes nothing in a single-process
 setup, because `doSave` delivers directly there, and after the split it silently cuts delivery to
-everything attached to the other container. For the remaining 16 it is simply an omission:
+everything attached to the other container. `JwtRevocationSyncService::syncDeniedJwtAccounts` and
+`StaffKycClearanceService::syncStaffKycClearance` fill the JWT denylist and the staff clearance
+list from account state: switched off, neither empties its list — it stops writing it, so an
+account blocked afterwards keeps its live access, and nothing reports the state. A switch whose
+use is silent does not belong on a revocation path. For the remaining 15 it is simply an
+omission:
 
 | Job | Interval |
 | --- | --- |
 | `ExchangeController::checkTrades` | 30 seconds |
 | `AuthService::checkLists` | minute |
 | `TransactionController::checkLists` | minute |
-| `StaffKycClearanceService::syncStaffKycClearance` | minute |
 | `UserDataService::processCleanupMailSecretCache` | minute |
 | `TransactionHelper::updateCache` | 5 minutes |
 | `BuyService` / `SellService` / `SwapService` / `UserService` / `UserDataService` `::resetMonthlyVolumes` | 1st of month |
@@ -194,7 +198,7 @@ here rather than fixed in passing. Of the 140 declarations, 139 have a registrat
 | minute | `FIAT_OUTPUT` | `worker` | `FiatOutputJobService::fillFiatOutput` | `subdomains/supporting/fiat-output/fiat-output-job.service.ts` |
 | minute | `FIAT_PAY_IN` | `worker` | `FiatPayInSyncService::syncCheckout` | `subdomains/supporting/fiat-payin/services/fiat-payin-sync.service.ts` |
 | minute | `PAY_IN` | `worker` | `InternetComputerStrategy::checkPayInEntries` | `subdomains/supporting/payin/strategies/register/impl/icp.strategy.ts` |
-| minute | `JWT_REVOCATION_SYNC` | `worker` | `JwtRevocationSyncService::syncDeniedJwtAccounts` | `subdomains/generic/user/models/user-data/jwt-revocation-sync.service.ts` |
+| minute | — | `worker` | `JwtRevocationSyncService::syncDeniedJwtAccounts` | `subdomains/generic/user/models/user-data/jwt-revocation-sync.service.ts` |
 | minute | `KYC` | `worker` | `KycService::reviewKycSteps` | `subdomains/generic/kyc/services/kyc.service.ts` |
 | minute | `LEDGER_BOOKING_BANK_TX` | `worker` | `LedgerBookingJobService::runBankTx` | `subdomains/core/accounting/services/ledger-booking-job.service.ts` |
 | minute | `LEDGER_BOOKING_BUY_CRYPTO` | `worker` | `LedgerBookingJobService::runBuyCrypto` | `subdomains/core/accounting/services/ledger-booking-job.service.ts` |

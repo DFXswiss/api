@@ -18,8 +18,9 @@ const SRC = join(__dirname, '..', '..', '..');
  * in this repository actually had.
  *
  * The setTimeout gap is not hypothetical. ScryptService.scheduleCatchUpRetry,
- * ScryptWebSocketConnection.scheduleReconnect and CronLeaseService.keepAlive all re-arm themselves
- * and are invisible here. The lease renewal belongs to the lifetime of a single job run rather
+ * ScryptWebSocketConnection.scheduleReconnect, SparkClient.reconnectWallet and
+ * CronLeaseService.keepAlive all re-arm themselves and are invisible here — and this list is what
+ * a search found on the day it was written, not a bound on what exists. The lease renewal belongs to the lifetime of a single job run rather
  * than to a schedule, and routing it through @DfxCron would be circular — it is what a @DfxCron
  * job's own claim is held with. The Scrypt two are deliberately left
  * alone as well: their state is the process-local cache and socket of the process
