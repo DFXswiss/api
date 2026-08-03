@@ -281,6 +281,9 @@ describe('BankTxService', () => {
       expect(recoverySql).toContain('bt.created >= c."trackingCutover"');
       expect(recoverySql).toContain('bt.updated >= c."trackingCutover"');
       expect(recoverySql).toContain('bt.created >= c."trackingCutover" - INTERVAL \'21 days\'');
+      expect(recoverySql).toContain('FROM bank source_bank');
+      expect(recoverySql).toContain('FROM bank target_bank');
+      expect(recoverySql.match(/\[\^A-Za-z0-9\]/g)).toHaveLength(4);
       expect(recoverySql).toContain("'InternalBankTransferRollingRecovery'");
       expect(recoverySql).toContain("'previousIsInternalTransfer', NULL");
       expect(recoverySql.indexOf('INSERT INTO "log"')).toBeLessThan(recoverySql.indexOf('UPDATE "bank_tx"'));

@@ -611,6 +611,18 @@ export class BankTxService implements OnModuleInit {
             OR (
               bt.updated >= c."trackingCutover"
               AND bt.created >= c."trackingCutover" - INTERVAL '${INTERNAL_TRANSFER_SETTLEMENT_DAYS} days'
+              AND EXISTS (
+                SELECT 1
+                FROM bank source_bank
+                WHERE upper(regexp_replace(source_bank.iban, '[^A-Za-z0-9]', '', 'g')) =
+                      upper(regexp_replace(bt."accountIban", '[^A-Za-z0-9]', '', 'g'))
+              )
+              AND EXISTS (
+                SELECT 1
+                FROM bank target_bank
+                WHERE upper(regexp_replace(target_bank.iban, '[^A-Za-z0-9]', '', 'g')) =
+                      upper(regexp_replace(bt.iban, '[^A-Za-z0-9]', '', 'g'))
+              )
             )
           )
         FOR UPDATE OF bt
