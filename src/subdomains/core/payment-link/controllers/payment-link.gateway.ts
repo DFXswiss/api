@@ -32,6 +32,10 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     clients.set(clientId, client);
     this.clients.set(device, clients);
 
+    // Tells the service which devices this process can still deliver to, so its catch-up job knows
+    // what to look up and can stay away from the database when nothing is connected here.
+    this.paymentService.registerDevice(device);
+
     client.onclose = () => this.removeClient(device, clientId);
   }
 
@@ -39,6 +43,8 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     const clients = this.clients.get(device);
     clients?.delete(clientId);
     this.clients.set(device, clients);
+
+    this.paymentService.unregisterDevice(device);
   }
 
   private sendMessage(device: PaymentDevice) {

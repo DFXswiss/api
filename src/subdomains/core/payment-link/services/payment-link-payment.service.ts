@@ -10,7 +10,7 @@ import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { IsNull, LessThan } from 'typeorm';
+import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { isSellRoute } from '../../sell-crypto/route/sell.entity';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { PaymentLinkEvmPaymentDto, PaymentLinkHexResultDto, TransferInfo } from '../dto/payment-link.dto';
@@ -33,10 +33,22 @@ import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
 
+/** What one process knows about the websocket connections it holds open for a single device. */
+interface DeviceSubscription {
+  /** Open connections for this device on this process. The entry is dropped when the last closes. */
+  connections: number;
+  /** Payments updated at or before this are not delivered: they predate the oldest connection. */
+  since: Date;
+  /** `<payment id>:<wait state>` of the last command delivered, so the same state is sent once. */
+  delivered?: string;
+}
+
 @Injectable()
 export class PaymentLinkPaymentService {
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
+  private readonly waitStates = new Map<number, string>();
   private readonly deviceActivationSubject = new Subject<PaymentDevice>();
+  private readonly deviceSubscriptions = new Map<string, DeviceSubscription>();
 
   constructor(
     private readonly fiatService: FiatService,
@@ -163,8 +175,122 @@ export class PaymentLinkPaymentService {
   }
 
   // --- HANDLE WAITS --- //
+
+  /**
+   * Both delivery channels of this service are process-local: the map behind this method and the
+   * subject behind `getDeviceActivationObservable`. A caller therefore only ever hears from the
+   * process holding its connection, while the jobs that move a payment forward run in one process
+   * (`CronScope.WORKER`, held down to a single process by the cron lease).
+   *
+   * `deliverPaymentUpdates` below bridges the two. It reads the persisted state of the payments
+   * THIS process is waiting on and releases them here, so the delivery no longer depends on which
+   * process did the writing. `doSave` still delivers directly, which keeps the single-process
+   * case (`CRON_ROLE=all`) as immediate as it is today; the job is the catch-up path for every
+   * other process.
+   */
   async waitForPayment(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
+    // The state to compare against, taken before the wait: what the caller is waiting for is a
+    // change from it, not a fixed target state (see PaymentLinkPayment.waitState).
+    if (!this.waitStates.has(payment.id)) this.waitStates.set(payment.id, payment.waitState);
+
     return this.paymentWaitMap.wait(payment.id, 0);
+  }
+
+  /** Called by PaymentLinkGateway for every websocket connection it accepts. */
+  registerDevice(deviceId: string): void {
+    const subscription = this.deviceSubscriptions.get(deviceId);
+
+    if (subscription) {
+      subscription.connections++;
+    } else {
+      this.deviceSubscriptions.set(deviceId, { connections: 1, since: new Date() });
+    }
+  }
+
+  /** Called by PaymentLinkGateway when one of those connections closes. */
+  unregisterDevice(deviceId: string): void {
+    const subscription = this.deviceSubscriptions.get(deviceId);
+    if (!subscription) return;
+
+    subscription.connections--;
+    if (subscription.connections < 1) this.deviceSubscriptions.delete(deviceId);
+  }
+
+  /**
+   * Delivers what this process is waiting for, from the database rather than from the job that
+   * wrote it. Writes nothing and calls nothing outside the process, so it is safe to run in every
+   * process at once — which is what `CronScope.BOTH` requires and what makes it exempt from the
+   * lease that confines the writing jobs to one process.
+   *
+   * Both halves are bounded by what this process actually holds: with no caller waiting and no
+   * device connected they touch the database not at all.
+   */
+  async deliverPaymentUpdates(): Promise<void> {
+    await this.deliverToWaitingCallers();
+    await this.deliverToConnectedDevices();
+  }
+
+  private async deliverToWaitingCallers(): Promise<void> {
+    const ids = this.paymentWaitMap.get();
+    if (!ids.length) return;
+
+    const payments = await this.paymentLinkPaymentRepo.find({
+      where: { id: In(ids) },
+      relations: { link: true },
+    });
+
+    for (const payment of payments) {
+      if (this.waitStates.get(payment.id) !== payment.waitState) this.resolveWaiters(payment);
+    }
+  }
+
+  private async deliverToConnectedDevices(): Promise<void> {
+    const subscriptions = Array.from(this.deviceSubscriptions.entries());
+    if (!subscriptions.length) return;
+
+    const deviceIds = subscriptions.map(([deviceId]) => deviceId);
+    const since = Util.minObj(
+      subscriptions.map(([, subscription]) => subscription),
+      'since',
+    ).since;
+
+    // The same condition the direct delivery in doSave runs under, expressed over stored columns:
+    // a payment out of `Pending`, or a `MULTIPLE`-mode payment that has counted a completed quote.
+    const payments = await this.paymentLinkPaymentRepo.find({
+      where: [
+        { deviceId: In(deviceIds), updated: MoreThan(since), status: Not(PaymentLinkPaymentStatus.PENDING) },
+        { deviceId: In(deviceIds), updated: MoreThan(since), txCount: MoreThan(0) },
+      ],
+      order: { updated: 'ASC' },
+    });
+
+    for (const payment of payments) this.deliverToDevice(payment);
+  }
+
+  private resolveWaiters(payment: PaymentLinkPayment): void {
+    this.waitStates.delete(payment.id);
+    this.paymentWaitMap.resolve(payment.id, payment);
+  }
+
+  /**
+   * Idempotent by the state it delivers: a device is sent the same command for the same payment
+   * state once, whether this process wrote it or read it back. Both callers go through here.
+   */
+  private deliverToDevice(payment: PaymentLinkPayment): void {
+    const device = payment.device;
+    if (!device) return;
+
+    const subscription = this.deviceSubscriptions.get(device.id);
+    if (!subscription) return;
+
+    const state = `${payment.id}:${payment.waitState}`;
+    if (state === subscription.delivered) return;
+
+    subscription.delivered = state;
+    // Keeps the window of the query above from growing over the lifetime of a connection.
+    if (payment.updated > subscription.since) subscription.since = payment.updated;
+
+    this.deviceActivationSubject.next(device);
   }
 
   async handleBinanceWaiting(result: C2BWebhookResult): Promise<void> {
@@ -437,9 +563,12 @@ export class PaymentLinkPaymentService {
 
     if (savedPayment.link.webhookUrl) await this.sendWebhook(savedPayment);
 
+    // Delivers to this process directly, which is the whole latency budget when the writing job
+    // and the waiting caller share a process. Whoever waits elsewhere is served by
+    // deliverPaymentUpdates, which reads the row this save just wrote.
     if (isPaymentDone) {
-      this.paymentWaitMap.resolve(savedPayment.id, savedPayment);
-      if (payment.device) this.deviceActivationSubject.next(payment.device);
+      this.resolveWaiters(savedPayment);
+      this.deliverToDevice(savedPayment);
     }
 
     return savedPayment;
