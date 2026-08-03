@@ -12,6 +12,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { PriceUnavailableException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-unavailable.exception';
+import { EntityManager, IsNull, Not } from 'typeorm';
 import { BankService } from '../../../bank/bank/bank.service';
 import { PayoutService } from '../../../payout/services/payout.service';
 import { PricingService } from '../../../pricing/services/pricing.service';
@@ -157,9 +158,16 @@ describe('FeeService', () => {
         individualFees: feeIds.join(';'),
       });
 
+    let manager: MockProxy<EntityManager>;
+
     beforeEach(() => {
       jest.clearAllMocks();
       settingService.get.mockResolvedValue('100000');
+
+      // Audit, usage counter and assignment share one transaction; run the callback with a manager
+      // the assertions can inspect.
+      manager = mock<EntityManager>();
+      (feeRepo.manager as any) = { transaction: jest.fn((cb: any) => cb(manager)) };
     });
 
     it('swaps the fee the account already carries in a single write', async () => {
@@ -173,7 +181,7 @@ describe('FeeService', () => {
       // Never remove-then-add: a partial run would leave the account without a fee or with two,
       // and two additive fixed fees are charged as their sum.
       expect(userDataService.replaceFee).toHaveBeenCalledTimes(1);
-      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [60], 70);
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [60], 70, manager);
       expect(userDataService.removeFee).not.toHaveBeenCalled();
       expect(userDataService.addFee).not.toHaveBeenCalled();
     });
@@ -184,7 +192,7 @@ describe('FeeService', () => {
 
       await service.setOnboardingFee(accountWith([]), 800);
 
-      expect(feeRepo.update).toHaveBeenCalledWith(70, expect.objectContaining({ usages: 1 }));
+      expect(manager.update).toHaveBeenCalledWith(Fee, 70, expect.objectContaining({ usages: 1 }));
     });
 
     it('writes the audit entry before touching the assignment', async () => {
@@ -230,7 +238,7 @@ describe('FeeService', () => {
 
       expect(userDataService.createOnboardingFeeLog).not.toHaveBeenCalled();
       expect(userDataService.replaceFee).not.toHaveBeenCalled();
-      expect(feeRepo.update).not.toHaveBeenCalled();
+      expect(feeRepo.manager.transaction).not.toHaveBeenCalled();
     });
 
     it('creates a fee for an unknown amount and drops the cache so it can be assigned right away', async () => {
@@ -247,7 +255,26 @@ describe('FeeService', () => {
         expect.objectContaining({ type: FeeType.ADDITION, rate: 0, fixed: 6200 }),
       );
       expect(feeRepo.invalidateCache).toHaveBeenCalled();
-      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [], 151);
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [], 151, manager);
+    });
+
+    it('never reuses a globally applied fee, and never labels a fee as one-off', async () => {
+      const created = onboardingFee(151, 6200);
+      feeRepo.findOne.mockResolvedValue(null);
+      feeRepo.create.mockReturnValue(onboardingFee(undefined, 6200));
+      feeRepo.save.mockResolvedValue(created);
+      feeRepo.findBy.mockResolvedValue([]);
+
+      await service.setOnboardingFee(accountWith([]), 6200);
+
+      // `getValidFees` applies an Addition fee without a special code to every user, so only a
+      // fee that carries one may be reused or created here.
+      expect(feeRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ specialCode: Not(IsNull()) }) }),
+      );
+      expect(feeRepo.create).toHaveBeenCalledWith(expect.objectContaining({ createSpecialCode: true }));
+      // Nothing enforces a single use, so the label must not claim one.
+      expect(feeRepo.create).toHaveBeenCalledWith(expect.objectContaining({ label: 'Onboarding Fixed 6200' }));
     });
 
     it('only ever matches additive fixed fees, never a percentage or a bank fee', async () => {
@@ -258,7 +285,9 @@ describe('FeeService', () => {
 
       expect(feeRepo.findBy).toHaveBeenCalledWith(expect.objectContaining({ type: FeeType.ADDITION, rate: 0 }));
       expect(feeRepo.findOne).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { type: FeeType.ADDITION, rate: 0, fixed: 800, active: true } }),
+        expect.objectContaining({
+          where: expect.objectContaining({ type: FeeType.ADDITION, rate: 0, fixed: 800, active: true }),
+        }),
       );
     });
 
@@ -284,12 +313,11 @@ describe('FeeService', () => {
 
       await service.removeOnboardingFee(accountWith([60, 70]));
 
-      expect(userDataService.createOnboardingFeeLog).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.any(Array),
-        undefined,
-      );
-      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [60, 70]);
+      const [, loggedFees, replacement, logManager] = userDataService.createOnboardingFeeLog.mock.calls[0];
+      expect(loggedFees.map((f) => f.id)).toEqual([60, 70]);
+      expect(replacement).toBeUndefined();
+      expect(logManager).toBe(manager);
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [60, 70], undefined, manager);
     });
   });
 });

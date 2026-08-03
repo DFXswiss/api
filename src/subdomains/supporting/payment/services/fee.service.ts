@@ -24,7 +24,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { In, MoreThan } from 'typeorm';
+import { In, IsNull, MoreThan, Not } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
@@ -73,6 +73,17 @@ const FeeValidityMinutes = 30;
 // full on the customer's next transaction. Overridable through the `onboardingFeeMaxAmount` setting.
 const DefaultMaxOnboardingFee = 100000; // CHF
 const OnboardingFeeLabel = 'Onboarding Fixed';
+
+// A flat surcharge that is assigned per account. `specialCode` is what makes it per-account:
+// `getValidFees` applies an `Addition` fee WITHOUT a special code to every user, so reusing one of
+// those here would assign a globally active fee to a single account - and removing the assignment
+// would not stop it from applying.
+const OnboardingFeeShape = {
+  type: FeeType.ADDITION,
+  rate: 0,
+  fixed: MoreThan(0),
+  specialCode: Not(IsNull()),
+};
 
 @Injectable()
 export class FeeService {
@@ -245,51 +256,58 @@ export class FeeService {
 
     fee.verifyForUser(userData.accountType, userData.wallet, userData.id);
 
-    // Audit before the mutation: `individualFees` keeps no history of what it replaced. A failing
-    // audit write leaves the assignment untouched.
-    await this.userDataService.createOnboardingFeeLog(userData, assignedFees, fee);
+    // Audit, usage counter and assignment in one transaction: the audit entry is the only record of
+    // what the assignment replaced, so it must not survive a failed assignment - and vice versa.
+    await this.feeRepo.manager.transaction(async (manager) => {
+      await this.userDataService.createOnboardingFeeLog(userData, assignedFees, fee, manager);
 
-    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
+      await manager.update(Fee, ...fee.increaseUsage(userData.accountType));
 
-    // One write, not remove-then-add: a partial run would either leave the account without a fee
-    // or with two, and two additive fixed fees are charged as their sum
-    // (`combinedExtraFixedFee`).
-    await this.userDataService.replaceFee(
-      userData,
-      assignedFees.map((f) => f.id),
-      fee.id,
-    );
+      // One write, not remove-then-add: a partial run would either leave the account without a fee
+      // or with two, and two additive fixed fees are charged as their sum
+      // (`combinedExtraFixedFee`).
+      await this.userDataService.replaceFee(
+        userData,
+        assignedFees.map((f) => f.id),
+        fee.id,
+        manager,
+      );
+    });
   }
 
   async removeOnboardingFee(userData: UserData): Promise<void> {
     const assignedFees = await this.getOnboardingFees(userData);
     if (!assignedFees.length) throw new BadRequestException('Account has no onboarding fee');
 
-    await this.userDataService.createOnboardingFeeLog(userData, assignedFees, undefined);
+    await this.feeRepo.manager.transaction(async (manager) => {
+      await this.userDataService.createOnboardingFeeLog(userData, assignedFees, undefined, manager);
 
-    await this.userDataService.replaceFee(
-      userData,
-      assignedFees.map((f) => f.id),
-    );
+      await this.userDataService.replaceFee(
+        userData,
+        assignedFees.map((f) => f.id),
+        undefined,
+        manager,
+      );
+    });
   }
 
   async getOnboardingFees(userData: UserData): Promise<Fee[]> {
     const feeIds = userData.individualFeeList;
     if (!feeIds?.length) return [];
 
-    return this.feeRepo.findBy({ id: In(feeIds), type: FeeType.ADDITION, rate: 0, fixed: MoreThan(0) });
+    return this.feeRepo.findBy({ ...OnboardingFeeShape, id: In(feeIds) });
   }
 
   private async getOrCreateOnboardingFee(amount: number): Promise<Fee> {
     const existingFee = await this.feeRepo.findOne({
-      where: { type: FeeType.ADDITION, rate: 0, fixed: amount, active: true },
+      where: { ...OnboardingFeeShape, fixed: amount, active: true },
       order: { id: 'ASC' },
     });
     if (existingFee) return existingFee;
 
     const fee = await this.createFee(
       Object.assign(new CreateFeeDto(), {
-        label: `${OnboardingFeeLabel} ${amount} Once`,
+        label: `${OnboardingFeeLabel} ${amount}`,
         type: FeeType.ADDITION,
         rate: 0,
         fixed: amount,

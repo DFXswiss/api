@@ -1191,11 +1191,23 @@ export class UserDataService {
     await this.userDataRepo.update(...userData.removeFee(feeId));
   }
 
-  async replaceFee(userData: UserData, previousFeeIds: number[], feeId?: number): Promise<void> {
-    await this.userDataRepo.update(...userData.replaceFee(previousFeeIds, feeId));
+  async replaceFee(
+    userData: UserData,
+    previousFeeIds: number[],
+    feeId?: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager?.getRepository(UserData) ?? this.userDataRepo;
+
+    await repo.update(...userData.replaceFee(previousFeeIds, feeId));
   }
 
-  async createOnboardingFeeLog(userData: UserData, previousFees: Fee[], fee?: Fee): Promise<void> {
+  async createOnboardingFeeLog(
+    userData: UserData,
+    previousFees: Fee[],
+    fee?: Fee,
+    manager?: EntityManager,
+  ): Promise<void> {
     const describe = (fees: Fee[]) =>
       fees.length ? fees.map((f) => `${f.fixed} CHF (fee ${f.id})`).join(', ') : 'none';
 
@@ -1203,6 +1215,7 @@ export class UserDataService {
       userData,
       KycLogType.MANUAL,
       `Onboarding fee changed from ${describe(previousFees)} to ${describe(fee ? [fee] : [])}`,
+      manager,
     );
   }
 

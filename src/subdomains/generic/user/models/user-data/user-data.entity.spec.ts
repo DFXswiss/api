@@ -160,4 +160,72 @@ describe('UserData', () => {
       expect(update).toEqual({ serviceProviders: 'RealUnit' });
     });
   });
+
+  // individualFees is a semicolon-separated id list. It carries money: every id in it adds its fee
+  // to the customer's next transaction, and two flat fees are charged as their sum.
+  describe('individual fees', () => {
+    const accountWith = (feeIds: number[]): UserData => createCustomUserData({ individualFees: feeIds.join(';') });
+
+    describe('individualFeeList', () => {
+      it('reports no fees for an account whose list was emptied', () => {
+        // An emptied list is stored as '', which naive splitting turns into the fee id 0.
+        expect(accountWith([]).individualFeeList).toBeUndefined();
+      });
+
+      it('reports the assigned fees', () => {
+        expect(accountWith([55, 70]).individualFeeList).toEqual([55, 70]);
+      });
+    });
+
+    describe('replaceFee', () => {
+      it('swaps the named fees for the new one', () => {
+        const userData = accountWith([60]);
+
+        const [, update] = userData.replaceFee([60], 70);
+
+        expect(update.individualFees).toBe('70');
+        expect(userData.individualFeeList).toEqual([70]);
+      });
+
+      it('keeps fees that are not part of the replaced set', () => {
+        const userData = accountWith([55, 60, 92]);
+
+        userData.replaceFee([60], 70);
+
+        // 55 and 92 were assigned by other flows (sign-up fees, discount codes) and must survive.
+        expect(userData.individualFeeList).toEqual([55, 92, 70]);
+      });
+
+      it('drops the named fees when no replacement is given', () => {
+        expect(accountWith([55, 60]).replaceFee([60])[1].individualFees).toBe('55');
+      });
+
+      it('assigns a fee to an account that has none', () => {
+        expect(accountWith([]).replaceFee([], 70)[1].individualFees).toBe('70');
+      });
+
+      it('leaves no fees behind when everything is replaced by nothing', () => {
+        expect(accountWith([60]).replaceFee([60])[1].individualFees).toBe('');
+      });
+
+      // Two operators setting an amount at the same time load their own copy of the account.
+      // Whatever the interleaving, the account must never end up carrying two flat fees.
+      it.each([
+        ['first write wins the read, second overwrites', [0, 1]],
+        ['second write lands first', [1, 0]],
+      ])('never leaves two flat fees behind when writes interleave (%s)', (_name, order) => {
+        const stored = { individualFees: '60' };
+        const copies = [accountWith([60]), accountWith([60])];
+        const writes = [
+          () => (stored.individualFees = copies[0].replaceFee([60], 70)[1].individualFees),
+          () => (stored.individualFees = copies[1].replaceFee([60], 130)[1].individualFees),
+        ];
+
+        order.forEach((i) => writes[i]());
+
+        expect(stored.individualFees.split(';').filter(Boolean)).toHaveLength(1);
+        expect(['70', '130']).toContain(stored.individualFees);
+      });
+    });
+  });
 });
