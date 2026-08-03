@@ -11,6 +11,7 @@ import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/proce
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { IsNull } from 'typeorm';
 import { UpdateTransactionDto } from '../../dto/update-transaction.dto';
 import { Transaction } from '../../entities/transaction.entity';
 import { TransactionRepository } from '../../repositories/transaction.repository';
@@ -141,7 +142,21 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
     expect(repo.findOne).toHaveBeenCalledWith(expect.objectContaining({ relations: { buyCrypto: { batch: true } } }));
     expect(buyCryptoRepo.update).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 7, status: BuyCryptoStatus.STOPPED, amlCheck: CheckStatus.PASS }),
+      {
+        id: 7,
+        status: BuyCryptoStatus.STOPPED,
+        amlCheck: CheckStatus.PASS,
+        isComplete: false,
+        batch: IsNull(),
+        txId: IsNull(),
+        outputAmount: IsNull(),
+        chargebackOutput: IsNull(),
+        chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: IsNull(),
+        chargebackDate: IsNull(),
+        chargebackCryptoTxId: IsNull(),
+        chargebackBankTx: IsNull(),
+      },
       { status: BuyCryptoStatus.CREATED },
     );
   });
