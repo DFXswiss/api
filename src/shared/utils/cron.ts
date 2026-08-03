@@ -15,8 +15,12 @@ export enum CronScope {
   /** Worker process only. The normal case: anything writing to the database or driving business forward. */
   WORKER = 'worker',
   /**
-   * API process only. Maintains or measures state read exclusively from a request path, or
-   * drives work bound to the connections that process holds open.
+   * API process only. Maintains or measures state read exclusively from a request path.
+   *
+   * Not for delivering to the connections a process holds open: such a job is leased like any
+   * other, so it would run in one process while the connections are spread over all of them.
+   * Delivery is driven from stored state and scoped `BOTH` - see
+   * `PaymentLinkPaymentService.deliverPaymentUpdates`.
    */
   API = 'api',
   /**

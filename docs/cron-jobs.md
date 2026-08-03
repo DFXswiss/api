@@ -22,7 +22,8 @@ Every scheduled job this service runs: **139 `@DfxCron` declarations** across 97
 to exactly one process. `both` is for a job maintaining process-local state that a request path
 also reads, so it must run everywhere; running it twice has to be harmless by construction, which
 rules out database writes, mail and paid external calls. `api` is for state read only from a
-request path, or for work bound to the connections that process holds open.
+request path — not for delivering to the connections a process holds open, because an `api` job
+is leased and would run in one process while the connections are spread over all of them.
 
 Getting the scope wrong fails silently: the cache a job maintains simply stays empty in the
 process that reads it. The rule that keeps that harmless is in CONTRIBUTING.md — a cache read in a

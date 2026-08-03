@@ -372,6 +372,13 @@ export class PaymentLinkPaymentService {
     }
 
     // expiry timers
+    //
+    // These stay in the process that served the request, although processExpiredPayments is a
+    // worker job. Moving the job did not give a payment a second timer: a timer is armed once, by
+    // the process that created the payment, and expirePaymentIfPending re-reads the payment with
+    // `status: Pending`, so a payment the job has already expired is left alone here. What the
+    // timers buy is what they bought before — a caller waiting on this process is released at the
+    // timeout rather than at the next tick of a job elsewhere.
     const scanTimeout = paymentLink.configObj.scanTimeout;
     if (scanTimeout) {
       setTimeout(() => this.expirePaymentIfPending(payment.id, true), scanTimeout * 1000);

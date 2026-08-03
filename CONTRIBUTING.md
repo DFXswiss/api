@@ -568,8 +568,9 @@ async processPayments(): Promise<void> {}
 @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.BOTH })
 async resyncDeniedJwtAccounts(): Promise<void> {}
 
-// Api: maintains state read only from a request path, or drives work bound to the connections
-// this process holds open.
+// Api: maintains state read only from a request path. Not for delivering to the connections
+// this process holds open — that job is leased too, so it would run in one process while the
+// connections are spread over all of them. Deliver from stored state under `Both` instead.
 @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.API, process: Process.UPDATE_STATISTIC })
 async doUpdate(): Promise<void> {}
 ```
