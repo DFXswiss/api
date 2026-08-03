@@ -169,11 +169,11 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
    * What the state check cannot cover: a socket that closes BETWEEN the check and the send. `ws`
    * reports that one asynchronously through `'error'`, so this has already answered `true`.
    *
-   * Waiting for the delivery's record to age out does NOT repair it, and an earlier version of
-   * this comment claimed it did. That record ages on the same cutoff the delivery's query uses,
-   * so "the record is gone" and "the payment is still in the read" exclude each other by
-   * construction — the retry it promised could never happen. The repair is in the `'error'`
-   * handler above, which drops the record so the next tick sends the state again.
+   * Waiting for the delivery's record to age out does NOT repair that. The record ages on the
+   * same cutoff the delivery's query uses, so "the record is gone" and "the payment is still in
+   * the read" exclude each other by construction — there is no later tick that would find both.
+   * The repair is in the `'error'` handler above, which drops the record so the next tick sends
+   * the state again.
    */
   private sendMessage(device: PaymentDevice): boolean {
     const connections = this.clients.get(device.id);
