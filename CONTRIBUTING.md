@@ -538,8 +538,8 @@ outside the process infers health from the job still running — a watchdog that
 looks, once it is off, exactly like the failure it watches for. Without a flag the job runs
 unconditionally and cannot be switched off without a deploy.
 
-A job scoped `worker` or `api` additionally holds a **lease in the database** for the duration of
-its run (`CronLeaseService`). The in-process lock cannot see a second process at all — a missed
+A job scoped `worker` or `api` additionally takes a **lease in the database** before it starts
+(`CronLeaseService`). The in-process lock cannot see a second process at all — a missed
 recreate, a second worker from `--scale`, two processes on `all` after a rollback — and the lease
 is what such a second process has to get past before it may start the job.
 

@@ -42,7 +42,7 @@ const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
 const SHUTDOWN_GRACE_MS = 10 * 1000;
 
 /**
- * A lease on a scheduled job, held in the database for as long as the job runs.
+ * A lease on a scheduled job: the claim a process takes in the database before it starts one.
  *
  * `LockClass` keeps its state in a field of a process-local object. That was enough while the API
  * ran as one process; it cannot see a second one. Since the HTTP process and the worker are split
@@ -343,7 +343,7 @@ export class CronLeaseService implements OnModuleInit {
   }
 
   /**
-   * Keeps the claim for `job` alive while it runs, with one renewal outstanding at a time.
+   * Renews the claim for `job` while it runs, with one renewal outstanding at a time.
    *
    * A fixed interval fires whether or not the previous renewal has come back, and a database that
    * answers slowly is exactly the situation this has to survive: the attempts pile up, each one

@@ -14,8 +14,8 @@
  * answer.
  *
  * This table is what a second process has to get past before it may start such a job: a job scoped
- * to exactly one process must hold a row here for the duration of its run, and the row is claimable
- * by one process at a time until it expires. The expiry is why this is not an exclusion — if the
+ * to exactly one process must take a row here before it starts, and the row is claimable by one
+ * process at a time until it expires. The expiry is why this is not an exclusion — if the
  * holder can no longer renew, a second process can claim the row while the first is still working,
  * and how long the two then overlap is not bounded by anything here. See CronLeaseService, "What it
  * does not do".
