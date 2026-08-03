@@ -8,6 +8,7 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
+import { PartnerStatisticRateLimitGuard } from './partner-statistic-rate-limit.guard';
 import { PartnerStatisticController } from './partner-statistic.controller';
 import { PartnerStatisticService } from './partner-statistic.service';
 import { StatisticController } from './statistic.controller';
@@ -19,6 +20,8 @@ import { StatisticService } from './statistic.service';
   providers: [
     StatisticService,
     PartnerStatisticService,
+    // DI for PartnerStatisticService in the rate-limit guard (wallet-scoped tracker).
+    PartnerStatisticRateLimitGuard,
     // BuyCryptoRepository is exported by BuyCryptoModule (already imported) — do not re-provide.
     // BuyFiatRepository is not in SellCryptoModule.exports — provide locally.
     BuyFiatRepository,

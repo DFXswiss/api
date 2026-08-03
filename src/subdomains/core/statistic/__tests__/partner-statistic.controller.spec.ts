@@ -1,9 +1,11 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
+import { ForbiddenException } from '@nestjs/common';
 import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums';
 import { AuthGuard } from '@nestjs/passport';
 import { THROTTLER_LIMIT, THROTTLER_TTL } from '@nestjs/throttler/dist/throttler.constants';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { PartnerStatisticRateLimitGuard } from '../partner-statistic-rate-limit.guard';
 import { PartnerStatisticController } from '../partner-statistic.controller';
@@ -12,50 +14,104 @@ import { PartnerStatisticService } from '../partner-statistic.service';
 
 /**
  * Pins the partner-statistic controller wiring: guard order, throttle budget,
- * walletId from jwt.user, and the Day granularity default on the timeline route.
+ * role-aware wallet resolution, and the Day granularity default on the timeline route.
  * Pattern mirrors ledger.controller + bank.controller metadata specs.
  */
 describe('PartnerStatisticController', () => {
   let controller: PartnerStatisticController;
   let service: DeepMocked<PartnerStatisticService>;
 
-  const jwt = { user: 42, role: UserRole.CLIENT_COMPANY, account: 7 } as JwtPayload;
+  const companyJwt = { user: 42, role: UserRole.CLIENT_COMPANY, account: 7 } as JwtPayload;
 
   beforeEach(() => {
     service = createMock<PartnerStatisticService>();
+    // Default: resolve mirrors CLIENT_COMPANY (jwt.user is wallet id) unless a test overrides.
+    service.resolveWalletId.mockImplementation(async (jwt) => jwt.user as number);
     controller = new PartnerStatisticController(service);
   });
 
-  it('forwards jwt.user as walletId to getStatistics (not account)', async () => {
+  it('CLIENT_COMPANY: resolves wallet from jwt and forwards to getStatistics (not account)', async () => {
     service.getStatistics.mockResolvedValue({ currency: 'CHF' } as any);
+    service.resolveWalletId.mockResolvedValue(42);
 
-    await controller.getPartnerStatistics(jwt, '2024-06-01', '2024-06-15');
+    await controller.getPartnerStatistics(companyJwt, '2024-06-01', '2024-06-15');
 
+    expect(service.resolveWalletId).toHaveBeenCalledWith(companyJwt);
     expect(service.getStatistics).toHaveBeenCalledWith(42, '2024-06-01', '2024-06-15');
     expect(service.getStatistics).not.toHaveBeenCalledWith(7, expect.anything(), expect.anything());
   });
 
-  it('forwards jwt.user and optional granularity to getTimeline', async () => {
+  it('CLIENT_COMPANY: forwards resolved wallet and optional granularity to getTimeline', async () => {
     service.getTimeline.mockResolvedValue({ currency: 'CHF', granularity: PartnerStatisticGranularity.WEEK } as any);
+    service.resolveWalletId.mockResolvedValue(42);
 
-    await controller.getPartnerTimeline(jwt, '2024-06-01', '2024-06-15', PartnerStatisticGranularity.WEEK);
+    await controller.getPartnerTimeline(companyJwt, '2024-06-01', '2024-06-15', PartnerStatisticGranularity.WEEK);
 
+    expect(service.resolveWalletId).toHaveBeenCalledWith(companyJwt);
     expect(service.getTimeline).toHaveBeenCalledWith(42, '2024-06-01', '2024-06-15', PartnerStatisticGranularity.WEEK);
   });
 
   it('forwards undefined granularity to getTimeline when the query omits it', async () => {
     service.getTimeline.mockResolvedValue({ currency: 'CHF', granularity: PartnerStatisticGranularity.DAY } as any);
+    service.resolveWalletId.mockResolvedValue(42);
 
-    await controller.getPartnerTimeline(jwt, undefined, undefined, undefined);
+    await controller.getPartnerTimeline(companyJwt, undefined, undefined, undefined);
 
     expect(service.getTimeline).toHaveBeenCalledWith(42, undefined, undefined, undefined);
+  });
+
+  /**
+   * Tenant isolation (the real failure mode): a PARTNER user whose user id equals a *foreign*
+   * wallet id must still only see their own wallet — never treat jwt.user as walletId.
+   */
+  it('PARTNER: never uses jwt.user as walletId even when user id equals a foreign wallet id', async () => {
+    const foreignWalletId = 99;
+    const ownWalletId = 7;
+    // jwt.user === foreignWalletId is exactly the cross-tenant trap if resolution is skipped.
+    const partnerJwt = {
+      user: foreignWalletId,
+      role: UserRole.PARTNER,
+      account: 1,
+    } as JwtPayload;
+
+    service.resolveWalletId.mockResolvedValue(ownWalletId);
+    service.getStatistics.mockResolvedValue({ currency: 'CHF' } as any);
+    service.getTimeline.mockResolvedValue({ currency: 'CHF', granularity: PartnerStatisticGranularity.DAY } as any);
+
+    await controller.getPartnerStatistics(partnerJwt, '2024-06-01', '2024-06-15');
+    await controller.getPartnerTimeline(partnerJwt, '2024-06-01', '2024-06-15', PartnerStatisticGranularity.DAY);
+
+    expect(service.resolveWalletId).toHaveBeenCalledWith(partnerJwt);
+    expect(service.getStatistics).toHaveBeenCalledWith(ownWalletId, '2024-06-01', '2024-06-15');
+    expect(service.getStatistics).not.toHaveBeenCalledWith(foreignWalletId, expect.anything(), expect.anything());
+    expect(service.getTimeline).toHaveBeenCalledWith(
+      ownWalletId,
+      '2024-06-01',
+      '2024-06-15',
+      PartnerStatisticGranularity.DAY,
+    );
+    expect(service.getTimeline).not.toHaveBeenCalledWith(
+      foreignWalletId,
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('rejects when resolveWalletId rejects (e.g. user has no wallet)', async () => {
+    service.resolveWalletId.mockRejectedValue(new ForbiddenException('User has no wallet'));
+
+    await expect(controller.getPartnerStatistics(companyJwt, undefined, undefined)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(service.getStatistics).not.toHaveBeenCalled();
   });
 });
 
 // Call-path tests above pass JWT in directly and cannot see the decorators that decide
 // whether a request is authenticated, role-checked, or rate-limited. Removing @UseGuards
-// or swapping RoleGuard(CLIENT_COMPANY) for a weaker role would leave them green while
-// every non-partner wallet reached the service.
+// or swapping RoleGuard for a weaker role would leave them green while every non-partner
+// wallet reached the service.
 describe('PartnerStatisticController routing & security metadata', () => {
   const endpoints: Array<{
     handler: 'getPartnerStatistics' | 'getPartnerTimeline';
@@ -76,7 +132,7 @@ describe('PartnerStatisticController routing & security metadata', () => {
   });
 
   it.each(endpoints)(
-    'guards $handler with AuthGuard → RoleGuard(CLIENT_COMPANY) → PartnerStatisticRateLimitGuard',
+    'guards $handler with AuthGuard → RoleGuard(CLIENT_COMPANY|PARTNER) → PartnerStatisticRateLimitGuard',
     ({ handler }) => {
       const fn = PartnerStatisticController.prototype[handler];
       const guards = Reflect.getMetadata(GUARDS_METADATA, fn) as unknown[];
@@ -88,12 +144,12 @@ describe('PartnerStatisticController routing & security metadata', () => {
       // (bank.controller pattern: exact class-token equality, not constructor.name).
       expect(guards[0]).toBe(AuthGuard());
 
-      // RoleGuard is the only instance-based guard; it must carry CLIENT_COMPANY.
+      // RoleGuard is the only instance-based guard; it must admit CLIENT_COMPANY or PARTNER.
       const roleGuard = guards.find((g) => (g as { entryRoles?: UserRole[] }).entryRoles !== undefined) as {
         entryRoles: UserRole[];
       };
       expect(roleGuard).toBeDefined();
-      expect(roleGuard.entryRoles).toEqual([UserRole.CLIENT_COMPANY]);
+      expect(roleGuard.entryRoles).toEqual([UserRole.CLIENT_COMPANY, UserRole.PARTNER]);
       expect((roleGuard as { constructor: { name: string } }).constructor.name).toBe('RoleGuardClass');
 
       expect(guards[1]).toBe(roleGuard);
@@ -107,5 +163,20 @@ describe('PartnerStatisticController routing & security metadata', () => {
     // is registered without options in this app for some routes).
     expect(Reflect.getMetadata(THROTTLER_LIMIT, fn)).toBe(120);
     expect(Reflect.getMetadata(THROTTLER_TTL, fn)).toBe(3600);
+  });
+
+  it('RoleGuard admits CLIENT_COMPANY and PARTNER, rejects plain USER', () => {
+    // Metadata alone does not execute RoleGuard; pin the OR semantics the decorator encodes.
+    const guard = RoleGuard(UserRole.CLIENT_COMPANY, UserRole.PARTNER);
+    const contextFor = (role: UserRole) =>
+      ({
+        switchToHttp: () => ({ getRequest: () => ({ user: { role, account: 1 } }) }),
+      }) as any;
+
+    expect(guard.canActivate(contextFor(UserRole.CLIENT_COMPANY))).toBe(true);
+    expect(guard.canActivate(contextFor(UserRole.PARTNER))).toBe(true);
+    expect(guard.canActivate(contextFor(UserRole.KYC_CLIENT_COMPANY))).toBe(true);
+    expect(guard.canActivate(contextFor(UserRole.USER))).toBe(false);
+    expect(guard.canActivate(contextFor(UserRole.SUPPORT))).toBe(false);
   });
 });

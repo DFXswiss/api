@@ -1,6 +1,9 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { hasRoleAccess } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
@@ -103,6 +106,43 @@ export class PartnerStatisticService {
   ) {}
 
   // --- PUBLIC API --- //
+
+  /**
+   * Resolve the wallet whose statistics the caller may read.
+   *
+   * The JWT field `user` means two different things: for a company token it is the wallet id
+   * (auth.service.ts generateCompanyToken), for a normal token it is the user id
+   * (generateUserToken). Returning it blindly for a normal login would hand out another
+   * wallet's id and cross tenants.
+   */
+  async resolveWalletId(jwt: JwtPayload): Promise<number> {
+    if (hasRoleAccess(UserRole.CLIENT_COMPANY, jwt.role)) {
+      // Role alone is not enough: generateUserToken passes user.role through unchanged and always
+      // sets account; generateCompanyToken never sets account and puts wallet.id in user. A user
+      // record carrying a company role + normal login would otherwise treat the user id as a wallet id.
+      if (jwt.account != null) {
+        throw new ForbiddenException('Company role requires a company token');
+      }
+      if (jwt.user == null) throw new ForbiddenException('Partner wallet required');
+      return jwt.user;
+    }
+
+    if (hasRoleAccess(UserRole.PARTNER, jwt.role)) {
+      if (jwt.user == null) throw new ForbiddenException('Partner wallet required');
+
+      const user = await this.userRepo.findOne({
+        where: { id: jwt.user },
+        relations: { wallet: true },
+      });
+      const walletId = user?.wallet?.id;
+      // 403 not 404: caller is authenticated; without a wallet they are not allowed to see partner stats.
+      // Silent 0 / fallback would either empty-out or (worse) treat the user id as a wallet id.
+      if (walletId == null) throw new ForbiddenException('User has no wallet');
+      return walletId;
+    }
+
+    throw new ForbiddenException('Insufficient permissions');
+  }
 
   async getStatistics(walletId: number, from?: string | Date, to?: string | Date): Promise<PartnerStatisticDto> {
     return this.withQueryGate(async () => {
