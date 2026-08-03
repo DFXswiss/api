@@ -113,8 +113,18 @@ describe('PaymentLinkPaymentService', () => {
 
     managerUpdates.push(update);
 
-    return { update } as unknown as EntityManager;
+    const manager = { update } as unknown as EntityManager;
+    managers.push(manager);
+
+    return manager;
   }
+
+  /**
+   * The managers handed to the transitions, in order. An effect reached through anything else is
+   * a statement of its own: it commits whether the transition does or not, which is the half-state
+   * the transaction exists to rule out — and nothing about the effect itself shows which it was.
+   */
+  let managers: EntityManager[];
 
   /** Every statement any transition ran, in order, as [criteria, values]. */
   function transitions(): [Partial<PaymentLinkPayment>, Partial<PaymentLinkPayment>][] {
@@ -129,6 +139,7 @@ describe('PaymentLinkPaymentService', () => {
     row = payment({ id: 7 });
     rows = [];
     managerUpdates = [];
+    managers = [];
 
     paymentLinkPaymentRepo = {
       find: jest.fn().mockResolvedValue([]),
@@ -452,6 +463,17 @@ describe('PaymentLinkPaymentService', () => {
       ]);
     });
 
+    it('should run the effects of an expiry on the manager of its transition', async () => {
+      // The effects are what the transition carries with it. Reached through the repository's own
+      // manager instead, they would be statements outside it: committed while the status update
+      // rolls back, or committed after it and lost when the caller stops in between.
+      await service.expirePayment(payment({ id: 7 }));
+
+      expect(managers).toHaveLength(1);
+      expect(paymentQuoteService.cancelAllForPayment).toHaveBeenCalledWith(7, managers[0]);
+      expect(paymentActivationService.closeAllForPayment).toHaveBeenCalledWith(7, managers[0]);
+    });
+
     it('should not expire a second time when another process took the transition', async () => {
       row.status = PaymentLinkPaymentStatus.EXPIRED;
 
@@ -469,7 +491,9 @@ describe('PaymentLinkPaymentService', () => {
       expect(transitions()).toEqual([
         [{ id: 7, status: PaymentLinkPaymentStatus.PENDING }, { status: PaymentLinkPaymentStatus.CANCELLED }],
       ]);
-      expect(paymentQuoteService.cancelAllForPayment).toHaveBeenCalledTimes(1);
+      expect(managers).toHaveLength(1);
+      expect(paymentQuoteService.cancelAllForPayment).toHaveBeenCalledWith(7, managers[0]);
+      expect(paymentActivationService.closeAllForPayment).toHaveBeenCalledWith(7, managers[0]);
     });
 
     it('should not cancel a payment the worker expired in between', async () => {
@@ -566,6 +590,10 @@ describe('PaymentLinkPaymentService', () => {
           [{ id: 7, status: PaymentLinkPaymentStatus.PENDING }, { status: PaymentLinkPaymentStatus.COMPLETED }],
           [7, { txCount: 1 }],
         ]);
+        // Both statements on the one manager the transition was given: a count written through a
+        // second transaction would commit on its own, which is what carrying it here rules out.
+        expect(managers).toHaveLength(1);
+        expect(managers[0].update).toHaveBeenCalledTimes(2);
         expect(paymentLinkPaymentRepo.save).toHaveBeenCalledTimes(1);
       });
 
