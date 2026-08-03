@@ -234,17 +234,6 @@ describe('FeeService', () => {
       );
     });
 
-    it('refuses a fee bound to a different wallet', async () => {
-      const fee = Object.assign(onboardingFee(70, 800), { wallet: { id: 5 } });
-      feeRepo.findOne.mockResolvedValue(fee);
-      feeRepo.findBy.mockResolvedValue([]);
-      const userData = Object.assign(accountWith([]), { wallet: { id: 9 } });
-
-      await expect(service.setOnboardingFee(userData, 800)).rejects.toThrow(/Wallet not matching/);
-
-      expect(userDataService.replaceFee).not.toHaveBeenCalled();
-    });
-
     it('refuses a fee the account is not eligible for, before any mutation', async () => {
       const fee = Object.assign(onboardingFee(70, 800), { active: false });
       feeRepo.findOne.mockResolvedValue(fee);

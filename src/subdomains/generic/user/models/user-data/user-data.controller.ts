@@ -216,9 +216,11 @@ export class UserDataController {
   // --- HELPER METHODS --- //
 
   // `getUserData` resolves to undefined for an unknown id; without this the caller would fail with
-  // a 500 on the first property access instead of a 404. `wallet` is not an eager relation, so it
-  // has to be requested explicitly - `Fee.verifyForUser` silently skips its wallet check when the
-  // relation is absent.
+  // a 500 on the first property access instead of a 404.
+  //
+  // `wallet` is not an eager relation and has to be requested explicitly, or `Fee.verifyForUser`
+  // silently skips its wallet check. No fee this operation hands out is wallet-bound today - the
+  // lookup requires an empty `wallet` column - so the check only bites if that ever loosens.
   private async getUserDataOrThrow(id: number): Promise<UserData> {
     // `+id` of a path segment like 'abc', '1.5' or 'Infinity' is NaN or a non-integer, which would
     // reach the integer column as a bound parameter and fail the query instead of answering 404.

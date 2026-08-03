@@ -350,9 +350,11 @@ export class FeeService {
     if (!feeIds?.length) return { own: [], foreign: [] };
 
     const fixedFees = await this.feeRepo.findBy({ type: FeeType.ADDITION, fixed: MoreThan(0), id: In(feeIds) });
-    const isOwn = (fee: Fee): boolean => fee.rate === 0 && fee.blockchainFactor === 0 && Boolean(fee.specialCode);
 
-    return { own: fixedFees.filter(isOwn), foreign: fixedFees.filter((f) => !isOwn(f)) };
+    return {
+      own: fixedFees.filter((f) => f.isAccountFlatSurcharge),
+      foreign: fixedFees.filter((f) => !f.isAccountFlatSurcharge),
+    };
   }
 
   private assertNoForeignFixedFee(foreignFees: Fee[]): void {
