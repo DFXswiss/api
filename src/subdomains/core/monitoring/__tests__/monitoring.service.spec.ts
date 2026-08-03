@@ -151,6 +151,51 @@ describe('MonitoringService', () => {
       expect(written).toHaveLength(1);
     });
 
+    it('does not put an older measurement back over a newer one', async () => {
+      // This process may have waited on the lock while another wrote a later measurement of the
+      // same metric. Writing regardless would restore the older value, and it would stay until
+      // the metric changes here again.
+      const prev: SystemState = { bank: { balance: metric({ chf: 1 }, '2020-01-01T00:00:00Z') } };
+      const stale: SystemState = { bank: { balance: metric({ chf: 2 }, '2020-01-01T00:05:00Z') } };
+
+      await service['persist'](prev, stale);
+
+      const result = JSON.parse(written[0].data) as SystemState;
+
+      expect(result.bank.balance.data).toEqual({ chf: 42 });
+    });
+
+    it('retries when the row cannot be locked because it does not exist yet', async () => {
+      // An absent row cannot be locked, so two writers can reach the insert together and one
+      // loses on the primary key. Without the retry that process's change is dropped until the
+      // metric happens to change again.
+      let attempts = 0;
+      Object.defineProperty(repo, 'manager', {
+        value: {
+          transaction: (run: (m: unknown) => Promise<unknown>) => {
+            attempts++;
+            if (attempts === 1) return Promise.reject(new Error('duplicate key value violates unique constraint'));
+            return run({
+              findOne: jest.fn().mockResolvedValue(snapshot(persisted)),
+              save: jest.fn().mockImplementation((_e: unknown, row: { id: number; data: string }) => {
+                written.push(row);
+                return Promise.resolve(row);
+              }),
+            });
+          },
+        },
+        configurable: true,
+      });
+
+      const next: SystemState = { ledger: { open: metric({ count: 1 }, '2020-01-01T00:20:00Z') } };
+
+      await service['persist']({}, next);
+
+      expect(attempts).toBe(2);
+      expect(JSON.parse(written[0].data).ledger.open.data).toEqual({ count: 1 });
+      expect(notificationService.sendMail).not.toHaveBeenCalled();
+    });
+
     it('writes a metric that did not exist before', async () => {
       const next: SystemState = { ledger: { open: metric({ count: 3 }, '2020-01-01T00:20:00Z') } };
 

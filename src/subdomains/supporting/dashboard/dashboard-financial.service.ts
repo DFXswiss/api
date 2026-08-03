@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Config, CronRole } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -22,7 +23,7 @@ import {
 import { LatestBalanceStore } from './latest-balance.store';
 
 @Injectable()
-export class DashboardFinancialService {
+export class DashboardFinancialService implements OnModuleInit {
   private readonly logger = new DfxLogger(DashboardFinancialService);
 
   constructor(
@@ -31,6 +32,14 @@ export class DashboardFinancialService {
     private readonly refRewardService: RefRewardService,
     private readonly latestBalanceStore: LatestBalanceStore,
   ) {}
+
+  onModuleInit() {
+    // Fills the store once at start-up instead of leaving it empty until the first scheduled run.
+    // The endpoint answers from the store alone, so without this the window after a restart is a
+    // full cron interval wide - and it does not shrink by waiting, because the job that used to
+    // fill the store on the spot is gone.
+    if (Config.cronRole !== CronRole.WORKER) void this.refreshLatestBalance().catch(() => undefined);
+  }
 
   async getFinancialLog(from?: Date, dailySample?: boolean, includeByType?: boolean): Promise<FinancialLogResponseDto> {
     // BTC price is projected in SQL and needs btcAssetId as a parameter, so resolve getBtcCoin first.
@@ -136,20 +145,13 @@ export class DashboardFinancialService {
    * GET /v1/dashboard/financial/latest keeps answering from process memory without touching the
    * database - see getLatestBalance below, which reads the store and nothing else.
    *
-   * Scope Api, because the store it fills is process-local and its only reader is that endpoint.
-   * The expensive part stays where it was: the financial aggregation writing the log entry runs in
-   * the worker, and this job only reads what that one produced. Parse and aggregation happen once
-   * a minute outside any request instead of on every call, which is the same work the endpoint did
-   * before the store existed.
+   * Scope Api, because the store it fills is a field of this service and its reader is the
+   * endpoint above. It only reads: LogJobService writes the entry, this parses it and aggregates
+   * - once a minute, outside any request.
    *
-   * This is not a fallback taken only when the store is empty: such a path would run once per
-   * deployment and would never be exercised. It runs every minute, in normal operation as much as
-   * after a failure.
-   *
-   * The trade-off is one extra read per minute compared to the write-through this replaces, which
-   * was handed its inputs by the caller. It applies in the single-process role too, where both
-   * jobs run in the same process - accepted deliberately: sharing state between the two would tie
-   * the endpoint's cache back to the aggregation it was decoupled from.
+   * Not a fallback for an empty store: it runs on every tick regardless of the store's contents,
+   * so the path is the normal one rather than one reached only after a failure. The cost is one
+   * read per tick, in every role that registers it.
    */
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.LATEST_BALANCE_CACHE })
   async refreshLatestBalance(): Promise<void> {

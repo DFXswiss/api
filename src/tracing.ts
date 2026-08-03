@@ -96,13 +96,12 @@ export function isTelemetryEnabled(): boolean {
 }
 
 /**
- * The name both processes report to the collector. Without the distinction they would report as
- * one service, and a consumer of the traces could not tell the worker's outgoing calls apart from
- * the calls a request made.
+ * Maps CRON_ROLE to the service name reported with every span, so spans from the worker role are
+ * distinguishable from the rest instead of arriving under one name.
  *
- * Reads the environment directly rather than the configuration: tracing starts before anything
- * else, and importing the configuration here would pull in the instrumented modules before the
- * SDK has had a chance to patch them. The value is validated where the configuration is built.
+ * Reads the environment directly rather than the configuration: startTracing runs before the
+ * application is created, and importing the configuration here would load the instrumented
+ * modules before the SDK patches them. The value itself is validated in config.ts.
  */
 export function tracingServiceName(): string {
   return process.env.CRON_ROLE === 'worker' ? 'dfx-api-worker' : 'dfx-api';

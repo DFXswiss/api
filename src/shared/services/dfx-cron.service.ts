@@ -60,9 +60,10 @@ export class DfxCronService implements OnModuleInit {
           });
       });
 
-    // The effective split is read from this line, not inferred from a table: a job registered
-    // through a dynamically resolved provider or an abstract base class is counted here and
-    // nowhere else. It stays on `info` so it is findable without changing the log level.
+    // Counts what this process actually registered, including jobs reaching the scheduler
+    // through a dynamically resolved provider or an abstract base class - the discovery above
+    // sees those, a list of decorators would not. Stays on `info` so the split is readable
+    // without changing the log level.
     const total = registered.length + skipped;
     const byScope = Object.values(CronScope)
       .map((scope) => `${scope}: ${registered.filter((s) => s === scope).length}`)

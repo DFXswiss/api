@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { cloneDeep, isEqual } from 'lodash';
 import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MetricObserver } from './metric.observer';
@@ -133,11 +134,10 @@ export class MonitoringService implements OnModuleInit {
   /**
    * Writes only the metrics this process changed, merged into the stored state.
    *
-   * The whole system state lives in a single row, and every process subscribing to its own
-   * updates writes it. Replacing the row with this process's view would drop whatever another
-   * process wrote in the meantime - the API process would overwrite the observers' work with its
-   * boot state, and the webhook path the other way round. Merging the changed metrics into the
-   * stored row makes it irrelevant which process writes.
+   * The whole system state lives in a single row (`id: 1`), and `initState` above subscribes
+   * this writer in whichever process the service is instantiated in. Replacing the row with this
+   * instance's view would drop metrics another writer put there; merging only the changed ones
+   * keeps both.
    *
    * Read, merge and write happen inside one transaction that locks the row. Without the lock the
    * merge only narrows the race instead of closing it: two writers that read before either wrote
@@ -150,23 +150,11 @@ export class MonitoringService implements OnModuleInit {
       const changed = this.changedMetrics(prevState, newState);
       if (!changed.length) return;
 
-      const merged = await this.systemStateSnapshotRepo.manager.transaction(async (manager) => {
-        const row = await manager.findOne(SystemStateSnapshot, {
-          where: { id: 1 },
-          lock: { mode: 'pessimistic_write' },
-        });
-
-        const stored: SystemState = row ? JSON.parse(row.data) : {};
-        const state = cloneDeep(stored);
-
-        for (const [subsystem, metric] of changed) {
-          state[subsystem] = { ...(state[subsystem] ?? {}), [metric]: newState[subsystem][metric] };
-        }
-
-        await manager.save(SystemStateSnapshot, { id: 1, data: JSON.stringify(state) });
-
-        return state;
-      });
+      // A second attempt covers the case where the row does not exist yet: it cannot be locked,
+      // so two writers can reach the insert together and one loses on the primary key. Retrying
+      // finds the row the other one created and merges into it, instead of dropping this
+      // process's change until the metric happens to change again.
+      const merged = await Util.retry(() => this.mergeIntoStoredState(changed, newState), 2);
 
       this.#storedState = { state: merged, loaded: Date.now() };
     } catch (e) {
@@ -178,6 +166,34 @@ export class MonitoringService implements OnModuleInit {
         input: { subject: 'Monitoring Error. Error persisting the state.', errors: [e] },
       });
     }
+  }
+
+  private async mergeIntoStoredState(changed: [string, string][], newState: SystemState): Promise<SystemState> {
+    return this.systemStateSnapshotRepo.manager.transaction(async (manager) => {
+      const row = await manager.findOne(SystemStateSnapshot, {
+        where: { id: 1 },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      const stored: SystemState = row ? JSON.parse(row.data) : {};
+      const state = cloneDeep(stored);
+
+      for (const [subsystem, metric] of changed) {
+        const candidate = newState[subsystem][metric];
+
+        // The value this process holds is not automatically the newer one: it may have waited on
+        // the lock while another process wrote a later measurement of the same metric. Writing it
+        // anyway would put the older value back, and it would stay there until the metric changes
+        // again in this process.
+        if (this.updatedAt(candidate) < this.updatedAt(state[subsystem]?.[metric])) continue;
+
+        state[subsystem] = { ...(state[subsystem] ?? {}), [metric]: candidate };
+      }
+
+      await manager.save(SystemStateSnapshot, { id: 1, data: JSON.stringify(state) });
+
+      return state;
+    });
   }
 
   /** The metrics whose data differs between the two states, as [subsystem, metric] pairs. */
@@ -192,7 +208,7 @@ export class MonitoringService implements OnModuleInit {
     );
   }
 
-  /** Reads the persisted state without notifying: this runs on every read, not once at start. */
+  /** Reads the persisted state without notifying: unlike loadState, this runs on every read. */
   private async readState(): Promise<SystemState | null> {
     const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: {}, order: { id: 'DESC' } });
 
@@ -223,8 +239,8 @@ export class MonitoringService implements OnModuleInit {
     // Concurrent requests share one read rather than each issuing their own.
     if (!this.#pendingLoad) {
       const load = this.readState().catch((e) => {
-        // Deliberately no mail: unlike the load at start-up, this path runs on every request, so
-        // a database problem would answer itself with a flood of mails.
+        // No mail here, unlike loadState: this path is reached from getState, so a failing read
+        // would notify once per request instead of once per start-up.
         this.logger.error('Failed to read the persisted system state:', e);
         return null;
       });

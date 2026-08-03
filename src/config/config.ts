@@ -1540,8 +1540,8 @@ export class Configuration {
  * worker do nothing at all. Neither produces an error, and duplicate execution of financial
  * jobs is far more damaging than a failed boot.
  *
- * The empty string is rejected for the same reason, even though it is the more likely accident
- * — a `CRON_ROLE=` line in an env file, or an unresolved `${VAR}`.
+ * The empty string is rejected for the same reason: a `CRON_ROLE=` line in an env file or an
+ * unresolved `${VAR}` both arrive here as one.
  *
  * `all` is not a convenience value but the single-process mode: one process runs every job,
  * which is what local development, the test suite and any environment without a separate worker

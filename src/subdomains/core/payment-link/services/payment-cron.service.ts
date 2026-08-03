@@ -18,11 +18,11 @@ export class PaymentCronService {
 
   // Api, not Worker: this job and checkTxConfirmations both end up in
   // PaymentLinkPaymentService.doSave(), which resolves the AsyncMap that PaymentLinkController's
-  // waitForPayment is waiting on and pushes the device activation into the RxJS subject the
-  // gateway delivers to its connected clients. Both mechanisms only reach clients connected to
-  // the very process the job runs in, which is what CronScope.API expresses. `Both` is no option
-  // either: the jobs write to the database and trigger merchant webhooks, which two processes
-  // without a shared lock would do twice.
+  // waitForPayment awaits and pushes the device activation into the RxJS subject PaymentLinkGateway
+  // subscribes to. Both hold their state in the instance, so they only reach a caller of this same
+  // process. `Both` is no option either: the jobs write to the database and trigger merchant
+  // webhooks, which a second registration would repeat - the lock in DfxCronService is per
+  // process.
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.PAYMENT_EXPIRATION })
   async processExpiredPayments(): Promise<void> {
     await this.paymentLinkPaymentService.processExpiredPayments();

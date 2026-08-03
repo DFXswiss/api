@@ -10,6 +10,7 @@ import { FinancialLogSummary } from '../../log/log.repository';
 import { LogService } from '../../log/log.service';
 import { DashboardFinancialService } from '../dashboard-financial.service';
 import { LatestBalanceResponseDto } from '../dto/financial-log.dto';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { LatestBalanceStore } from '../latest-balance.store';
 
 describe('DashboardFinancialService', () => {
@@ -30,16 +31,14 @@ describe('DashboardFinancialService', () => {
         { provide: AssetService, useValue: assetService },
         { provide: RefRewardService, useValue: createMock<RefRewardService>() },
         { provide: LatestBalanceStore, useValue: latestBalanceStore },
+        TestUtil.provideConfig(),
       ],
     }).compile();
 
     service = module.get<DashboardFinancialService>(DashboardFinancialService);
   });
 
-  /**
-   * Drives the job the way it runs in production: it reads the most recent FinancialDataLog and
-   * resolves the assets itself, where the removed write-through was handed both in memory.
-   */
+  /** Mocks the log entry and the assets the job resolves, then runs it. */
   async function refreshFrom(
     timestamp: Date,
     assetLog: AssetLog,
@@ -501,6 +500,21 @@ describe('DashboardFinancialService', () => {
       await refreshFrom(timestamp, assetLog, balancesByFinancialType, assets);
 
       expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
+    });
+
+    it('fills the store at start-up instead of waiting for the first scheduled run', async () => {
+      // The endpoint answers from the store alone. Without this the window after a restart is a
+      // full cron interval wide, and it does not shrink by waiting.
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue({
+        id: 1,
+        created: new Date('2026-07-14T12:00:00Z'),
+        message: JSON.stringify({ assets: {}, balancesByFinancialType: {} }),
+      } as Log);
+
+      service.onModuleInit();
+      await new Promise(process.nextTick);
+
+      expect(latestBalanceStore.set).toHaveBeenCalled();
     });
 
     it('leaves the store untouched when there is no log entry yet', async () => {

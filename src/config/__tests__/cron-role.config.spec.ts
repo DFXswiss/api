@@ -10,11 +10,9 @@ describe('parseCronRole', () => {
   it.each([undefined, '', ' ', 'All', 'WORKER', 'api ', 'true', 'none'])(
     'throws on %p instead of picking a role',
     (value) => {
-      // Every possible default is silent in one direction: 'worker' would make a misconfigured
-      // API process run all background work a second time, 'api' would make a misconfigured
-      // worker do nothing at all. Neither raises an error, and duplicate execution of financial
-      // jobs is worse than a failed boot. The empty string is included deliberately — a
-      // `CRON_ROLE=` line or an unresolved `${VAR}` is the likeliest accident of all.
+      // Verifies that a missing, empty or unknown value is rejected rather than mapped to a
+      // default: `parseCronRole` has no fallback branch, and the empty string takes the same path
+      // as any other invalid value.
       expect(() => parseCronRole(value)).toThrow(/expected one of all, api, worker/);
     },
   );

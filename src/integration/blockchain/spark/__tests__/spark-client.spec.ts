@@ -79,9 +79,8 @@ describe('SparkClient', () => {
 
   describe('token optimization timer', () => {
     it('runs the wallet maintenance in the worker process', () => {
-      // On-chain wallet maintenance is global work and must run in exactly one
-      // process. The timer predates the scheduler and bypasses it, so it carries
-      // the role check itself.
+      // The timer is not registered through the scheduler, so the client decides itself: under
+      // the worker role it is created, with the five-minute interval the client sets.
       const interval = jest.spyOn(global, 'setInterval');
 
       new SparkClient();
@@ -93,8 +92,7 @@ describe('SparkClient', () => {
     });
 
     it('runs it in the single-process role', () => {
-      // The mode every environment without a separate worker runs in, and the one the claim
-      // "behaviour is unchanged" rests on. Only the API role may skip this timer.
+      // The single-process role must keep the timer: only CronRole.API skips it.
       mockCronRole = 'all';
       const interval = jest.spyOn(global, 'setInterval');
 
@@ -106,8 +104,7 @@ describe('SparkClient', () => {
     });
 
     it('does not run it in the API process', () => {
-      // Both processes run the same image against the same seed: without this
-      // check the maintenance would run twice, unsynchronised.
+      // The counterpart: under the API role no timer is created at all.
       mockCronRole = 'api';
       const interval = jest.spyOn(global, 'setInterval');
 

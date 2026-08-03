@@ -117,7 +117,7 @@ export class TransactionController {
 
   // --- JOBS --- //
   // Api, not Both: `refundList` is filled and read by the refund request paths of this
-  // controller only, so it stays empty in a process without ingress.
+  // controller, so it stays empty in a process those requests never reach.
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API })
   checkLists() {
     for (const [key, refundData] of this.refundList.entries()) {

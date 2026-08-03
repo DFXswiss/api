@@ -171,9 +171,9 @@ export class ExchangeController {
   }
 
   // --- JOBS --- //
-  // Api, not Both: `trades` is filled by POST :exchange/trade and read by GET trade/:id, both
-  // request paths of this controller. Nothing outside a request touches it, so in a process
-  // without ingress the map stays empty and the job has nothing to do.
+  // Api, not Both: `trades` is filled by POST :exchange/trade and read by GET trade/:id, the
+  // request paths of this controller shown below. In a process those requests never reach, the
+  // map stays empty and this job has nothing to work on.
   @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.API, timeout: 1800 })
   async checkTrades() {
     const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
