@@ -8,7 +8,7 @@ This is the level at which the statement is unambiguous. An endpoint reaches sev
 
 | Mechanism | Sites | Eager relations | Columns selected |
 | --------- | ----: | --------------- | ---------------- |
-| `find` family | 971 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
+| `find` family | 971 | **applied** — expanded recursively | all root columns by default; a `select` in the find options narrows the root, but the eager relations stay |
 | `createQueryBuilder` | 129 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
 | raw SQL | 5 | not applied | whatever the statement lists |
 
@@ -769,7 +769,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:214` | `LogRepository.getFinancialLogs` |
 | 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:244` | `LogRepository.getFinancialLogs` |
 | 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
-| 11 | 0 | query-builder (field list) | `Log` | `subdomains/supporting/log/log.repository.ts:699` | `LogRepository.getFinancialLogValidityChangeSet` |
+| 2 | 0 | query-builder (field list) | `Log` | `subdomains/supporting/log/log.repository.ts:699` | `LogRepository.getFinancialLogValidityChangeSet` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:51` | `LogService.update` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:131` | `LogService.getLog` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:135` | `LogService.maxEntity` |

@@ -5,7 +5,7 @@ tested.
 
 ## The goal
 
-**Every read path in this service selects the fields it returns, and nothing more.** That is the
+**Every read path in this service selects the fields it needs to produce and validate the response, and nothing more.** That is narrower than "the fields it returns": a field the handler reads to decide what to answer, or to refuse, belongs in the projection even though it never appears in the response. That is the
 target state, not an aspiration for the parts that happen to be convenient — the endpoint inventory
 in [endpoints.md](endpoints.md) is the work list, and its `Tests` column is the record of how far
 we have got.
@@ -30,9 +30,11 @@ This service loads far more data than it returns. Measured against the real enti
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, so a single column added elsewhere (`settlementEventId` on
   `transaction_request`) was enough to push it over.
-- Of the 534 endpoints, **432 reach at least one load site that fetches whole rows**; 98 read
-  nothing at all, and **2 read only the fields they return**. The widest query a fetching endpoint
-  can trigger is 308 columns at the median, and 19 of them exceed 1,000.
+- Of the 534 route entries, **432 reach at least one load site that fetches whole rows**; 98 read
+  nothing at all, 2 read only the fields they return, and 2 more project only when the caller
+  supplies a field list. The widest query a fetching endpoint can trigger is 308 columns at the
+  median of the recorded maxima, and at least 19 of them exceed 1,000 — the call graph does not
+  fully resolve, and an unresolved edge can only widen a query.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
 equally wasteful under a limit of 4,096 — it simply would not have failed yet.
@@ -61,7 +63,7 @@ fields, not objects.
 | **Overfetching** | Loading or transferring more data than the result needs. The umbrella term for this whole topic. |
 | **Eager loading** | Automatically loading related entities, recursively. The opposite is lazy loading. |
 | **Projection** | Selecting only the columns the result needs. The countermeasure. |
-| **Read path** | An endpoint that only reads and renders data, and writes nothing back. |
+| **Read path** | A load site whose result is only read and rendered, never persisted. Stated per load site, not per endpoint: an endpoint may write one entity and read another, and the criteria below are applied to each of its load sites separately. |
 | **Write path** | An endpoint that persists a loaded entity — it needs the complete object. |
 | **Read model** | A separate model optimised for reading. Introducing projections for read paths is a small step towards one. |
 
@@ -95,8 +97,11 @@ All of the following must hold:
    entities; the criterion applies per load site.
    The hazard is saving a partially loaded row back, where the unselected columns are undefined and
    would be written as null. A column-scoped `update(id, …)` cannot do that — it sends only the
-   columns named in the call — so it does not disqualify a read path, **unless a value it writes is
-   derived from what was read**. That case is real and stays excluded.
+   columns named in the call — so it does not disqualify a read path. **A value the write derives
+   from what was read is the case to watch**: `PUT /paymentLink/:id/pos` merges into the existing
+   configuration, so a `config` the query failed to load would be a configuration silently reset.
+   That does not exclude the endpoint; it obliges the projection to carry every field the written
+   value derives from, and the specs to assert them directly.
 2. **The entity is not handed to code whose use of it is unknown** — an event handler, a generic
    service, a queue.
 3. **All result-relevant fields are statically determinable.** Ruled out by dynamic field access
@@ -129,8 +134,8 @@ load returns `true`. The invoice is refused with "user data is not complete" alt
 complete. No error, no log entry.
 
 This service carries **234 such getters across 50 of its 112 entities**. In an application moving
-money, a silent wrong value is worse than a crash: a 500 is found within hours — the outage
-described above proves it — a wrong value can run for weeks.
+money, a silent wrong value is worse than a crash: a statement that exceeds the column limit fails
+loudly and is found at once, while a wrong value can run for weeks.
 
 ## Test definition
 
@@ -165,8 +170,10 @@ repository spec calls 31 times.
 **Column list asserted.** Where a query runs, `query` is spied and the generated SQL inspected —
 an `expect(sql).toContain(...)` per projected column, and for the chart-only path an assertion
 that `message` never appears in the statement at all. Drop a column from those statements and the suite turns red.
-That is level 3 of the definition below, reached for three sites. For the three that never run,
-removing a column changes nothing: the mock supplies the value regardless.
+Dropping a column from those statements turns the suite red, which is the shape of level 3 below
+without being level 3: that level requires level 1 to fail, and level 1 is satisfied at none of
+these sites. For the three that never run, removing a column changes nothing at all — the mock
+supplies the value regardless.
 
 **Real database.** None of the six. Every spec stubs the boundary — `createQueryBuilder` as a
 chainable mock in the repository spec, `createMock<DataSource>()` in the service spec. A mock cannot

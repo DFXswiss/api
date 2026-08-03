@@ -1,12 +1,12 @@
 # HTTP endpoints
 
-Every HTTP endpoint this service exposes: **534 handlers** across 94 controller files. 296 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **534 decorated route entries** across 94 controller files, of which **533 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 296 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
 ## Columns
 
 | Column | Meaning |
 | ------ | ------- |
-| **Ver** | API version in the URL. `1` is the default and needs no decorator; `2` comes from `@Controller({ version: [...] })`; `neutral` marks `@Version(VERSION_NEUTRAL)`, which is served without a version prefix. Six paths exist twice under different versions — an older, deprecated handler and its replacement — so the version is what makes a row unique. |
+| **Ver** | API version in the URL. `1` is the default and needs no decorator; `2` comes from `@Controller({ version: [...] })`; `neutral` marks `@Version(VERSION_NEUTRAL)`, which is served without a version prefix. Six method/path pairs exist under more than one version, so the version is what makes a row unique. Deprecation is recorded separately and does not follow the version: `GET /user/ref` is marked on neither, `GET /kyc/countries` on both. |
 | **Dep** | `yes` when the handler carries `@ApiOperation({ deprecated: true })` |
 | **Swagger** | `public` — in the Swagger schema; `hidden` — carries `@ApiExcludeEndpoint` |
 | **Data access** | What the endpoint reads, taken over **all** load sites it can reach — a permission check, a lookup and the actual query all count. `whole rows` — at least one of them fetches every column of an entity; `projected` — every read names the fields it needs; `caller-defined` — the field list comes from the request, and without one every column is loaded; `none` — no read at all (external services, in-memory caches, files, pure write paths). |
@@ -16,7 +16,7 @@ Every HTTP endpoint this service exposes: **534 handlers** across 94 controller 
 
 ## The target state
 
-Every read path in this service is to select the fields it returns, and nothing more. This document is the work list for getting there and the record of where we stand.
+Every read path in this service is to select the fields it needs to produce and validate the response, and nothing more — including a field read only to decide what to answer. This document is the work list for getting there and the record of where we stand.
 
 Two rules follow from that, and both are binding:
 
@@ -50,7 +50,7 @@ Among the 432 that fetch whole rows, the widest query they can trigger is **308 
 
 Stated exactly, so the numbers can be checked rather than believed:
 
-- **436 of 534 endpoints rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 432 is a lower bound.
+- **436 of the 534 route entries rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 432 is a lower bound.
 - All 98 endpoints marked `none` are the opposite case: their graph resolved completely, or the remaining target was read in the source (27 of them, listed below). None of them rests on an unresolved edge.
 - The 2 `projected` and 2 `caller-defined` endpoints do each carry an unresolved edge — a call through the entity manager inside a transaction callback. Their reads were read in the source, but the classification is not proven exhaustive the way the `none` group is.
 - 3 endpoints in the `whole rows` group have no measured column count and show `—`: `POST /payIn/retry`, `GET /support/issue/:id/message/:messageId/file`, `PUT /userData/:id/volumes`. Those three are also the ones most exposed to the upper bound described in [load-sites.md](load-sites.md#measurements): with no measured query behind them, nothing here shows that they reach a whole-row read at all.
@@ -367,7 +367,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/log` | hidden | whole rows | 11 | not yet |  | `LogController.create` | `subdomains/supporting/log/log.controller.ts` |
 | PUT | 1 |  | `/log/:id` | hidden | whole rows | 11 | not yet |  | `LogController.update` | `subdomains/supporting/log/log.controller.ts` |
 | POST | 1 |  | `/log/clientError` | public | none | — | n/a | yes | `ClientErrorController.logError` | `subdomains/supporting/log/client-error.controller.ts` |
-| PUT | 1 |  | `/log/financial/validity` | hidden | projected | 11 | 0/4 |  | `LogController.setFinancialLogValidity` | `subdomains/supporting/log/log.controller.ts` |
+| PUT | 1 |  | `/log/financial/validity` | hidden | projected | 2 | 0/4 |  | `LogController.setFinancialLogValidity` | `subdomains/supporting/log/log.controller.ts` |
 | GET | 1 |  | `/monitoring/data` | hidden | none | — | n/a |  | `MonitoringController.getSystemState` | `subdomains/core/monitoring/monitoring.controller.ts` |
 | POST | 1 |  | `/monitoring/data` | hidden | none | — | n/a |  | `MonitoringController.onWebhook` | `subdomains/core/monitoring/monitoring.controller.ts` |
 | GET | 1 |  | `/mros` | hidden | whole rows | 243 | not yet |  | `MrosController.getAll` | `subdomains/supporting/mros/mros.controller.ts` |
