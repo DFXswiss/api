@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
@@ -54,7 +61,10 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
-import { LimitRequestAccepted, LimitRequestFinal } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
+import {
+  LimitRequestAccepted,
+  LimitRequestFinal,
+} from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { FileSubType, FileType } from '../kyc/dto/kyc-file.dto';
@@ -266,8 +276,7 @@ export class SupportService {
       throw new BadRequestException('Limit request report requires a final decision');
 
     if (LimitRequestAccepted(dto.decision)) {
-      if (dto.grantedLimit == null)
-        throw new BadRequestException('grantedLimit is required for a granting decision');
+      if (dto.grantedLimit == null) throw new BadRequestException('grantedLimit is required for a granting decision');
     } else {
       if (dto.grantedLimit != null)
         throw new BadRequestException('grantedLimit must not be set for a non-granting decision');

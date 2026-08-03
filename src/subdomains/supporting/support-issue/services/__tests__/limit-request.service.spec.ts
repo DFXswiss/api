@@ -79,7 +79,7 @@ describe('LimitRequestService.updateLimitRequest', () => {
     const savedArg = limitRequestRepo.save.mock.calls[0][0] as Record<string, unknown>;
     expect(savedArg).not.toHaveProperty('grantedDepositLimit');
 
-    const logArg = supportLogService.createSupportLog.mock.calls[0][1] as Record<string, unknown>;
+    const logArg = supportLogService.createSupportLog.mock.calls[0][1];
     expect(logArg).not.toHaveProperty('grantedDepositLimit');
   });
 
