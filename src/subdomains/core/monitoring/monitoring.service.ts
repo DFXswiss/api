@@ -12,10 +12,14 @@ type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
 @Injectable()
 export class MonitoringService implements OnModuleInit {
+  private static readonly stateCacheMs = 30 * 1000;
+
   private readonly logger = new DfxLogger(MonitoringService);
 
   #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
   #observers: Map<SubsystemName, SubsystemObservers> = new Map();
+  #storedState?: { state: SystemState; loaded: number };
+  #pendingLoad?: Promise<SystemState | null>;
 
   constructor(
     private systemStateSnapshotRepo: SystemStateSnapshotRepository,
@@ -29,29 +33,28 @@ export class MonitoringService implements OnModuleInit {
   // *** PUBLIC API *** //
 
   async getState(subsystem: string, metric: string): Promise<SystemState | SubsystemState | Metric> {
+    // Reading the in-memory state alone would only be correct in the process running the
+    // observers. The state is already persisted in full, so every read path takes it from there,
+    // with a short process cache in front. The refresh happens before the branching, not inside
+    // one of the branches: a filtered query is the same read and would otherwise stay stale.
+    const state = await this.currentState();
+
     if (!subsystem && !metric) {
-      return this.#$state.value;
+      return state;
     }
 
     if (subsystem && !metric) {
-      return this.getSubsystemState(subsystem);
+      return this.getSubsystemState(state, subsystem);
     }
 
     if (subsystem && metric) {
-      return this.getMetric(subsystem, metric);
+      return this.getMetric(state, subsystem, metric);
     }
   }
 
   async loadState(): Promise<SystemState | null> {
     try {
-      const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: {}, order: { id: 'DESC' } });
-
-      if (!latestPersistedState) {
-        this.logger.warn('No monitoring state found in the database');
-        return null;
-      }
-
-      return JSON.parse(latestPersistedState.data);
+      return await this.readState();
     } catch (e) {
       this.logger.error('Failed to parse loaded system state, defaulting to empty state:', e);
 
@@ -120,11 +123,30 @@ export class MonitoringService implements OnModuleInit {
       .subscribe(([prevState, newState]) => this.persist(prevState, newState));
   }
 
+  /**
+   * Writes only the metrics this process changed, merged into the stored state.
+   *
+   * The whole system state lives in a single row, and every process subscribing to its own
+   * updates writes it. Replacing the row with this process's view would drop whatever another
+   * process wrote in the meantime - the API process would overwrite the observers' work with its
+   * boot state, and the webhook path the other way round. Merging the changed metrics into the
+   * stored row makes it irrelevant which process writes.
+   */
   private async persist(prevState: SystemState, newState: SystemState) {
     try {
-      if (this.hasStateChanged(prevState, newState)) {
-        await this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
+      const changed = this.changedMetrics(prevState, newState);
+      if (!changed.length) return;
+
+      const stored = (await this.readState()) ?? {};
+      const merged = cloneDeep(stored);
+
+      for (const [subsystem, metric] of changed) {
+        merged[subsystem] = { ...(merged[subsystem] ?? {}), [metric]: newState[subsystem][metric] };
       }
+
+      await this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(merged) });
+
+      this.#storedState = { state: merged, loaded: Date.now() };
     } catch (e) {
       this.logger.error('Error persisting the state:', e);
 
@@ -136,22 +158,89 @@ export class MonitoringService implements OnModuleInit {
     }
   }
 
-  private hasStateChanged(prevState: SystemState, newState: SystemState): boolean {
-    if (!prevState && newState) return true;
-
-    return Object.entries(newState).some(([subsystemName, subsystemState]) =>
-      Object.entries(subsystemState).some(([metricName, newMetricState]) => {
-        const prevMetricState = prevState[subsystemName] && prevState[subsystemName][metricName];
-
-        if (!prevMetricState && newMetricState) return true;
-
-        return !isEqual(prevMetricState.data, newMetricState.data);
-      }),
+  /** The metrics whose data differs between the two states, as [subsystem, metric] pairs. */
+  private changedMetrics(prevState: SystemState, newState: SystemState): [string, string][] {
+    return Object.entries(newState ?? {}).flatMap(([subsystemName, subsystemState]) =>
+      Object.entries(subsystemState)
+        .filter(
+          ([metricName, newMetricState]) =>
+            !isEqual(prevState?.[subsystemName]?.[metricName]?.data, newMetricState.data),
+        )
+        .map(([metricName]) => [subsystemName, metricName] as [string, string]),
     );
   }
 
-  private getSubsystemState(subsystem: string): SubsystemState {
-    const _subsystem = this.#$state.value[subsystem];
+  /** Reads the persisted state without notifying: this runs on every read, not once at start. */
+  private async readState(): Promise<SystemState | null> {
+    const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: {}, order: { id: 'DESC' } });
+
+    if (!latestPersistedState) {
+      this.logger.warn('No monitoring state found in the database');
+      return null;
+    }
+
+    return JSON.parse(latestPersistedState.data);
+  }
+
+  /**
+   * The persisted state overlaid with anything this process holds more recently. Both matter: in
+   * a single-process setup the in-memory state is always the newer one, and a value arriving
+   * through the webhook is visible before the next persist.
+   */
+  private async currentState(): Promise<SystemState> {
+    const stored = await this.storedState();
+
+    return stored ? this.mergeNewer(stored, this.#$state.value) : this.#$state.value;
+  }
+
+  private async storedState(): Promise<SystemState | null> {
+    if (this.#storedState && Date.now() - this.#storedState.loaded < MonitoringService.stateCacheMs) {
+      return this.#storedState.state;
+    }
+
+    // Concurrent requests share one read rather than each issuing their own.
+    if (!this.#pendingLoad) {
+      const load = this.readState().catch((e) => {
+        // Deliberately no mail: unlike the load at start-up, this path runs on every request, so
+        // a database problem would answer itself with a flood of mails.
+        this.logger.error('Failed to read the persisted system state:', e);
+        return null;
+      });
+
+      this.#pendingLoad = load;
+      void load.finally(() => {
+        if (this.#pendingLoad === load) this.#pendingLoad = undefined;
+      });
+    }
+
+    const state = await this.#pendingLoad;
+    if (state) this.#storedState = { state, loaded: Date.now() };
+
+    return state;
+  }
+
+  /** Per metric, whichever of the two carries the later `updated` timestamp. */
+  private mergeNewer(base: SystemState, overlay: SystemState): SystemState {
+    const merged = cloneDeep(base);
+
+    for (const [subsystem, metrics] of Object.entries(overlay ?? {})) {
+      for (const [metric, state] of Object.entries(metrics)) {
+        if (this.updatedAt(state) >= this.updatedAt(merged[subsystem]?.[metric])) {
+          merged[subsystem] = { ...(merged[subsystem] ?? {}), [metric]: state };
+        }
+      }
+    }
+
+    return merged;
+  }
+
+  /** Parsed JSON carries `updated` as a string, the in-memory state as a Date. */
+  private updatedAt(metric?: Metric): number {
+    return metric?.updated ? new Date(metric.updated).getTime() : 0;
+  }
+
+  private getSubsystemState(state: SystemState, subsystem: string): SubsystemState {
+    const _subsystem = state[subsystem];
 
     if (!_subsystem) {
       throw new NotFoundException(`Subsystem not found, name: ${subsystem}`);
@@ -159,8 +248,8 @@ export class MonitoringService implements OnModuleInit {
     return _subsystem;
   }
 
-  private getMetric(subsystem: string, metric: string): Metric {
-    const _subsystem = this.getSubsystemState(subsystem);
+  private getMetric(state: SystemState, subsystem: string, metric: string): Metric {
+    const _subsystem = this.getSubsystemState(state, subsystem);
     const _metric = _subsystem[metric];
 
     if (!_metric) {
