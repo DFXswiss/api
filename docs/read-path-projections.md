@@ -57,8 +57,8 @@ as invoices, receipts, history and exports — which need fields, not objects.
 
 Read the first number carefully. The 90
 query builders that name columns one at a time are almost entirely counts, maxima and id lookups —
-`.select('userData.id', 'id')`, `.select('COUNT(*)', 'count')` and the like — and they select **one
-column at the median**. They are projections. The classification recognised only the array form
+`.select('userData.id', 'id')`, `.select('COUNT(*)', 'count')` and the like — and they select **1.5
+columns at the median**, half of them exactly one. They are projections. The classification recognised only the array form
 `.select([...])` and read every string argument as the bare root alias, which is what put them in
 the `whole rows` group. The rule that holds: a bare identifier is the root alias and loads
 everything; anything else — a column or an expression — narrows the query. Correcting that does not
