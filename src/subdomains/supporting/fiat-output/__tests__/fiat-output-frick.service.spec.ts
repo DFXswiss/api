@@ -135,7 +135,7 @@ describe('FiatOutputFrickService', () => {
         id: 42,
         amount: 10,
         currency: 'EUR',
-        isInstant: false,
+        isInstant: true,
         accountIban: 'SYNTHETIC-DEBTOR',
         name: 'Synthetic Recipient',
         iban: 'SYNTHETIC-CREDITOR',
@@ -147,7 +147,11 @@ describe('FiatOutputFrickService', () => {
     await service.transmitPayments();
 
     expect(frickService.createPaymentOrder).toHaveBeenCalledWith(
-      expect.objectContaining({ customId: 'DFX-FO-42', reference: 'DFX-FO-42 Synthetic payout' }),
+      expect.objectContaining({
+        customId: 'DFX-FO-42',
+        reference: 'DFX-FO-42 Synthetic payout',
+        instant: true,
+      }),
     );
     // Reserved atomically, before the Bank Frick call itself. frickReference is folded into this same
     // write (not deferred to the post-createPaymentOrder update below) so it can never be stranded by a
