@@ -67,6 +67,7 @@ import {
   BankTxTypeCompleted,
   BankTxTypeUnassigned,
   BankTxUnassignedTypes,
+  INTERNAL_TRANSFER_SETTLEMENT_DAYS,
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
@@ -305,9 +306,18 @@ export class BankTxService implements OnModuleInit {
 
       if (currentTransaction.type !== transactionType)
         await manager.update(Transaction, currentTransaction.id, { type: transactionType });
-      if (currentBankTx.type !== detectedType) await manager.update(BankTx, currentBankTx.id, { type: detectedType });
+      const isInternalTransfer = detectedType === BankTxType.INTERNAL;
+      if (currentBankTx.type !== detectedType || (isInternalTransfer && !currentBankTx.isInternalTransfer)) {
+        const update: Partial<BankTx> = { type: detectedType };
+        if (isInternalTransfer) update.isInternalTransfer = true;
+        await manager.update(BankTx, currentBankTx.id, update);
+      }
 
-      return Object.assign(currentBankTx, { type: detectedType, transaction: currentTransaction });
+      return Object.assign(currentBankTx, {
+        type: detectedType,
+        isInternalTransfer: Boolean(isInternalTransfer || currentBankTx.isInternalTransfer),
+        transaction: currentTransaction,
+      });
     });
   }
 
@@ -378,6 +388,7 @@ export class BankTxService implements OnModuleInit {
 
     entity = this.createTx(bankTx, multiAccounts);
     entity.type = await this.getType(entity);
+    entity.isInternalTransfer = entity.type === BankTxType.INTERNAL;
 
     entity.transaction = await this.transactionService.create({
       sourceType: TransactionSourceType.BANK_TX,
@@ -401,6 +412,12 @@ export class BankTxService implements OnModuleInit {
   }
 
   async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, user?: User): Promise<BankTx> {
+    if (
+      dto.type === BankTxType.INTERNAL &&
+      (bankTx.isInternalTransfer === null || bankTx.isInternalTransfer === undefined)
+    )
+      bankTx.isInternalTransfer = await this.bankService.areKnownBankIbans(bankTx.accountIban, bankTx.iban);
+
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
@@ -571,8 +588,71 @@ export class BankTxService implements OnModuleInit {
     return Util.round(totalFeeChf, Config.defaultVolumeDecimal);
   }
 
-  async getRecentInternalTx(): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy({ type: BankTxType.INTERNAL, id: MoreThan(130100) });
+  async getTrackedInternalTransfers(): Promise<BankTx[]> {
+    await this.recoverRollingInternalTransfers();
+    return this.bankTxRepo.findBy({ type: BankTxType.INTERNAL, isInternalTransfer: true });
+  }
+
+  private async recoverRollingInternalTransfers(): Promise<void> {
+    await this.bankTxRepo.manager.query(`
+      WITH "trackingCutover" AS (
+        SELECT MIN((l.message::jsonb->>'trackingCutover')::timestamptz) AS "trackingCutover"
+        FROM "log" l
+        WHERE l.subsystem = 'InternalBankTransferTrackingBackfill'
+      ),
+      "affected" AS (
+        SELECT bt.id AS "bankTxId"
+        FROM "bank_tx" bt
+        CROSS JOIN "trackingCutover" c
+        WHERE bt.type = 'Internal'
+          AND bt."isInternalTransfer" IS NULL
+          AND (
+            bt.created >= c."trackingCutover"
+            OR (
+              bt.updated >= c."trackingCutover"
+              AND bt.created >= c."trackingCutover" - INTERVAL '${INTERNAL_TRANSFER_SETTLEMENT_DAYS} days'
+              AND EXISTS (
+                SELECT 1
+                FROM bank source_bank
+                WHERE upper(regexp_replace(source_bank.iban, '[^A-Za-z0-9]', '', 'g')) =
+                      upper(regexp_replace(bt."accountIban", '[^A-Za-z0-9]', '', 'g'))
+              )
+              AND EXISTS (
+                SELECT 1
+                FROM bank target_bank
+                WHERE upper(regexp_replace(target_bank.iban, '[^A-Za-z0-9]', '', 'g')) =
+                      upper(regexp_replace(bt.iban, '[^A-Za-z0-9]', '', 'g'))
+              )
+            )
+          )
+        FOR UPDATE OF bt
+      ),
+      "stamp" AS (
+        SELECT now() AS "changedAt"
+      ),
+      "audit" AS (
+        INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
+        SELECT s."changedAt", s."changedAt", 'BankTx', 'InternalBankTransferRollingRecovery', 'Info',
+               json_build_object(
+                 'changes', json_agg(json_build_object(
+                   'bankTxId', a."bankTxId",
+                   'previousIsInternalTransfer', NULL,
+                   'nextIsInternalTransfer', true,
+                   'changedAt', s."changedAt"
+                 ) ORDER BY a."bankTxId")
+               )::text
+        FROM "affected" a
+        CROSS JOIN "stamp" s
+        GROUP BY s."changedAt"
+        HAVING count(*) > 0
+        RETURNING 1
+      )
+      UPDATE "bank_tx" bt
+      SET "isInternalTransfer" = true
+      FROM "affected" a
+      WHERE bt.id = a."bankTxId"
+        AND EXISTS (SELECT 1 FROM "audit")
+    `);
   }
 
   async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
@@ -614,6 +694,7 @@ export class BankTxService implements OnModuleInit {
         .filter((i) => !duplicates.includes(i.accountServiceRef))
         .map(async (tx) => {
           tx.type = await this.getType(tx);
+          tx.isInternalTransfer = tx.type === BankTxType.INTERNAL;
           tx.batch = batch;
 
           return tx;
