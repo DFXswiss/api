@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { rolesSatisfying } from 'src/shared/auth/role.guard';
 import { KycGatedRoles } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { In, Raw } from 'typeorm';
 import { UserRepository } from './user.repository';
 
@@ -51,7 +51,7 @@ export class StaffKycClearanceService {
 
   // Every minute, matching JwtRevocationSyncService: revoking elevated access promptly is a security
   // requirement and warrants the same exception to the "prefer 15min" cron guideline.
-  @DfxCron(CronExpression.EVERY_MINUTE, { timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, timeout: 1800 })
   async syncStaffKycClearance(): Promise<void> {
     const staffUsers = await this.userRepo.find({
       select: { id: true, userData: { id: true } },

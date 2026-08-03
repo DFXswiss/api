@@ -34,11 +34,17 @@ export class DashboardFinancialService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    // Fills the store once at start-up instead of leaving it empty until the first scheduled run.
-    // The endpoint answers from the store alone, so without this the window after a restart is a
-    // full cron interval wide - and it does not shrink by waiting, because the job that used to
-    // fill the store on the spot is gone.
-    if (Config.cronRole !== CronRole.WORKER) void this.refreshLatestBalance().catch(() => undefined);
+    // Fills the store once at start-up instead of leaving it empty until the first scheduled run:
+    // getLatestBalance answers from the store and nothing else, so until the first fill the
+    // endpoint has no value to return.
+    if (Config.cronRole === CronRole.WORKER) return;
+
+    void this.refreshLatestBalance().catch((e) =>
+      // Not rethrown: a failed first fill leaves the store empty, which the endpoint already
+      // handles, and the scheduled run retries a minute later. Swallowing it silently would hide
+      // why the endpoint is empty in the meantime.
+      this.logger.error('Failed to fill the latest balance store at start-up:', e),
+    );
   }
 
   async getFinancialLog(from?: Date, dailySample?: boolean, includeByType?: boolean): Promise<FinancialLogResponseDto> {

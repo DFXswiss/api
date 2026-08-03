@@ -10,6 +10,7 @@ import { FinancialLogSummary } from '../../log/log.repository';
 import { LogService } from '../../log/log.service';
 import { DashboardFinancialService } from '../dashboard-financial.service';
 import { LatestBalanceResponseDto } from '../dto/financial-log.dto';
+import { Config, CronRole } from 'src/config/config';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { LatestBalanceStore } from '../latest-balance.store';
 
@@ -18,6 +19,14 @@ describe('DashboardFinancialService', () => {
   let logService: LogService;
   let assetService: AssetService;
   let latestBalanceStore: LatestBalanceStore;
+
+  // Config is only populated once TestUtil.provideConfig has built it, so the original role is
+  // captured after the module is compiled, not while the suite is being defined.
+  let originalRole: CronRole;
+
+  afterEach(() => {
+    if (originalRole !== undefined) Config.cronRole = originalRole;
+  });
 
   beforeEach(async () => {
     logService = createMock<LogService>();
@@ -36,7 +45,16 @@ describe('DashboardFinancialService', () => {
     }).compile();
 
     service = module.get<DashboardFinancialService>(DashboardFinancialService);
+    originalRole ??= Config.cronRole;
   });
+
+  function logEntry(): Log {
+    return {
+      id: 1,
+      created: new Date('2026-07-14T12:00:00Z'),
+      message: JSON.stringify({ assets: {}, balancesByFinancialType: {} }),
+    } as Log;
+  }
 
   /** Mocks the log entry and the assets the job resolves, then runs it. */
   async function refreshFrom(
@@ -502,19 +520,40 @@ describe('DashboardFinancialService', () => {
       expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
     });
 
-    it('fills the store at start-up instead of waiting for the first scheduled run', async () => {
-      // The endpoint answers from the store alone. Without this the window after a restart is a
-      // full cron interval wide, and it does not shrink by waiting.
-      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue({
-        id: 1,
-        created: new Date('2026-07-14T12:00:00Z'),
-        message: JSON.stringify({ assets: {}, balancesByFinancialType: {} }),
-      } as Log);
+    it.each([CronRole.ALL, CronRole.API])('fills the store at start-up in the %s role', async (role) => {
+      // getLatestBalance answers from the store and nothing else, so until the first fill the
+      // endpoint has no value to return.
+      Config.cronRole = role;
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(logEntry());
 
       service.onModuleInit();
       await new Promise(process.nextTick);
 
       expect(latestBalanceStore.set).toHaveBeenCalled();
+    });
+
+    it('does not fill it in the worker role, where nothing reads the store', async () => {
+      Config.cronRole = CronRole.WORKER;
+      const getLatestFinancialLogSpy = jest.spyOn(logService, 'getLatestFinancialLog');
+
+      service.onModuleInit();
+      await new Promise(process.nextTick);
+
+      expect(getLatestFinancialLogSpy).not.toHaveBeenCalled();
+      expect(latestBalanceStore.set).not.toHaveBeenCalled();
+    });
+
+    it('logs the failure of the start-up fill instead of swallowing it', async () => {
+      // The scheduled run retries a minute later, so this must not throw - but a silent failure
+      // would leave the endpoint empty with no trace of why.
+      Config.cronRole = CronRole.API;
+      jest.spyOn(logService, 'getLatestFinancialLog').mockRejectedValue(new Error('database unavailable'));
+      const errorSpy = jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+      service.onModuleInit();
+      await new Promise(process.nextTick);
+
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('start-up'), expect.any(Error));
     });
 
     it('leaves the store untouched when there is no log entry yet', async () => {

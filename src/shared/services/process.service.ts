@@ -207,7 +207,10 @@ export class ProcessService implements OnModuleInit {
   }
 
   // Primes the fail-closed staff clearance allowlist — see `staff-kyc-clearance.ts` for the semantics.
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  // Both, like the sibling resync jobs above: the allowlist it fills is module-global state that a
+  // guard reads on the request path, so it has to be refreshed in the process serving those
+  // requests. Frozen at boot it fails closed, locking out staff whose clearance arrives later.
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, scope: CronScope.BOTH })
   async resyncStaffKycClearance(): Promise<void> {
     const list = await this.settingService.getStaffKycClearance();
     SetStaffKycClearance(list);

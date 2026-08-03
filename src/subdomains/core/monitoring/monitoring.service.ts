@@ -22,6 +22,9 @@ type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 export class MonitoringService implements OnModuleInit {
   private static readonly stateCacheMs = 30 * 1000;
 
+  /** Postgres: unique violation, deadlock, serialization failure - all resolvable by trying again. */
+  private static readonly retryableWriteCodes = ['23505', '40P01', '40001'];
+
   private readonly logger = new DfxLogger(MonitoringService);
 
   #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
@@ -153,8 +156,16 @@ export class MonitoringService implements OnModuleInit {
       // A second attempt covers the case where the row does not exist yet: it cannot be locked,
       // so two writers can reach the insert together and one loses on the primary key. Retrying
       // finds the row the other one created and merges into it, instead of dropping this
-      // process's change until the metric happens to change again.
-      const merged = await Util.retry(() => this.mergeIntoStoredState(changed, newState), 2);
+      // process's change until the metric happens to change again. Restricted to the errors that
+      // a retry can actually resolve - a unique violation, a deadlock or a serialization failure.
+      // Anything else fails once and is reported.
+      const merged = await Util.retry(
+        () => this.mergeIntoStoredState(changed, newState),
+        2,
+        0,
+        undefined,
+        (e) => MonitoringService.retryableWriteCodes.includes((e as { code?: string })?.code),
+      );
 
       this.#storedState = { state: merged, loaded: Date.now() };
     } catch (e) {
@@ -272,9 +283,14 @@ export class MonitoringService implements OnModuleInit {
     return merged;
   }
 
-  /** Parsed JSON carries `updated` as a string, the in-memory state as a Date. */
+  /**
+   * Parsed JSON carries `updated` as a string, the in-memory state as a Date. A missing or
+   * unparsable value counts as the oldest possible, so a metric carrying one never wins a
+   * comparison against a readable timestamp - and never blocks one either.
+   */
   private updatedAt(metric?: Metric): number {
-    return metric?.updated ? new Date(metric.updated).getTime() : 0;
+    const time = metric?.updated ? new Date(metric.updated).getTime() : 0;
+    return Number.isFinite(time) ? time : 0;
   }
 
   private getSubsystemState(state: SystemState, subsystem: string): SubsystemState {

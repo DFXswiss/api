@@ -115,6 +115,31 @@ describe('MonitoringService', () => {
     });
   });
 
+  /** Lets the first transaction fail with the given database error, then behaves normally. */
+  function failFirstWith(error: { code: string; message: string }): () => number {
+    let attempts = 0;
+
+    Object.defineProperty(repo, 'manager', {
+      value: {
+        transaction: (run: (m: unknown) => Promise<unknown>) => {
+          attempts++;
+          if (attempts === 1) return Promise.reject(Object.assign(new Error(error.message), { code: error.code }));
+
+          return run({
+            findOne: jest.fn().mockResolvedValue(snapshot(persisted)),
+            save: jest.fn().mockImplementation((_e: unknown, row: { id: number; data: string }) => {
+              written.push(row);
+              return Promise.resolve(row);
+            }),
+          });
+        },
+      },
+      configurable: true,
+    });
+
+    return () => attempts;
+  }
+
   describe('persisting the state', () => {
     it('keeps metrics another process wrote', async () => {
       // Every process subscribes to its own updates and writes the same single row. Replacing it
@@ -169,31 +194,27 @@ describe('MonitoringService', () => {
       // An absent row cannot be locked, so two writers can reach the insert together and one
       // loses on the primary key. Without the retry that process's change is dropped until the
       // metric happens to change again.
-      let attempts = 0;
-      Object.defineProperty(repo, 'manager', {
-        value: {
-          transaction: (run: (m: unknown) => Promise<unknown>) => {
-            attempts++;
-            if (attempts === 1) return Promise.reject(new Error('duplicate key value violates unique constraint'));
-            return run({
-              findOne: jest.fn().mockResolvedValue(snapshot(persisted)),
-              save: jest.fn().mockImplementation((_e: unknown, row: { id: number; data: string }) => {
-                written.push(row);
-                return Promise.resolve(row);
-              }),
-            });
-          },
-        },
-        configurable: true,
-      });
+      const attempts = failFirstWith({ code: '23505', message: 'duplicate key value' });
 
       const next: SystemState = { ledger: { open: metric({ count: 1 }, '2020-01-01T00:20:00Z') } };
 
       await service['persist']({}, next);
 
-      expect(attempts).toBe(2);
+      expect(attempts()).toBe(2);
       expect(JSON.parse(written[0].data).ledger.open.data).toEqual({ count: 1 });
       expect(notificationService.sendMail).not.toHaveBeenCalled();
+    });
+
+    it('does not retry an error a second attempt cannot resolve', async () => {
+      // The retry exists for the insert conflict and for deadlocks. Repeating a malformed row or
+      // a permission error would only put the same failing statement on the database twice.
+      const attempts = failFirstWith({ code: '42501', message: 'permission denied' });
+
+      await service['persist']({}, { ledger: { open: metric({ count: 1 }, '2020-01-01T00:20:00Z') } });
+
+      expect(attempts()).toBe(1);
+      expect(written).toEqual([]);
+      expect(notificationService.sendMail).toHaveBeenCalled();
     });
 
     it('writes a metric that did not exist before', async () => {

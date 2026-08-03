@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **134 `@DfxCron` declarations** across 94 files and 34 areas.
+Every scheduled job this service runs: **136 `@DfxCron` declarations** across 95 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **134 `@DfxCron` declarations** across 94
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-115 are `worker`, 6 are `api`, 13 are `both`. `CRON_ROLE` decides what a process is
+116 are `worker`, 6 are `api`, 14 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -30,21 +30,23 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-116 of the 134 jobs carry a `process` flag, 18 do not. A job with a flag can be switched off
+116 of the 136 jobs carry a `process` flag, 20 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
 
-A job **without** a flag runs unconditionally. That is deliberate for three of them — the
-`ProcessService::resync*` jobs maintain the disabled set and the JWT denylists themselves, so
-making them switchable would let a configuration change disable the mechanism that reads
-configuration changes. For the remaining 15 it is simply an omission:
+A job **without** a flag runs unconditionally. That is deliberate for four of them — the
+`ProcessService::resync*` jobs maintain the disabled set, the JWT denylists and the staff
+clearance allowlist themselves, so making them switchable would let a configuration change
+disable the mechanism that reads configuration changes. For the remaining 16 it is simply an
+omission:
 
 | Job | Interval |
 | --- | --- |
 | `ExchangeController::checkTrades` | 30 seconds |
 | `AuthService::checkLists` | minute |
 | `TransactionController::checkLists` | minute |
+| `StaffKycClearanceService::syncStaffKycClearance` | minute |
 | `UserDataService::processCleanupMailSecretCache` | minute |
 | `TransactionHelper::updateCache` | 5 minutes |
 | `BuyService` / `SellService` / `SwapService` / `UserService` / `UserDataService` `::resetMonthlyVolumes` | 1st of month |
@@ -58,8 +60,8 @@ New jobs should declare a flag unless there is a reason like the one above.
 | -------- | ---: |
 | second | 5 |
 | 10 seconds | 3 |
-| 30 seconds | 8 |
-| minute | 51 |
+| 30 seconds | 9 |
+| minute | 52 |
 | 5 minutes | 17 |
 | 10 minutes | 15 |
 | hour | 16 |
@@ -77,7 +79,7 @@ Jobs by area:
 
 | Area | Jobs | Without flag |
 | ---- | ---: | -----------: |
-| `subdomains/generic/user` | 15 | 6 |
+| `subdomains/generic/user` | 16 | 7 |
 | `subdomains/core/monitoring` | 14 | — |
 | `subdomains/core/accounting` | 13 | — |
 | `subdomains/supporting/payin` | 12 | — |
@@ -85,13 +87,13 @@ Jobs by area:
 | `subdomains/core/buy-crypto` | 6 | 4 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
 | `subdomains/supporting/payment` | 5 | 1 |
+| `shared/services` | 4 | 4 |
 | `subdomains/core/payment-link` | 4 | — |
 | `subdomains/generic/kyc` | 4 | — |
-| `subdomains/supporting/bank-tx` | 4 | — |
 | `subdomains/supporting/bank` | 4 | — |
+| `subdomains/supporting/bank-tx` | 4 | — |
 | `subdomains/supporting/fiat-output` | 4 | — |
 | `subdomains/supporting/support-issue` | 4 | — |
-| `shared` | 3 | 3 |
 | `subdomains/core/liquidity-management` | 3 | — |
 | `subdomains/core/referral` | 3 | — |
 | `subdomains/core/trading` | 3 | — |
@@ -117,7 +119,7 @@ Jobs by area:
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses 26 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **134 = 134**, no gap. Class and
+count is asserted against a raw text count of the decorator: **136 = 136**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -149,6 +151,7 @@ the interval while running as an independent timer with its own lock.
 | 30 seconds | — | `both` | `ProcessService::resyncDeniedJwtAccounts` | `shared/services/process.service.ts` |
 | 30 seconds | — | `both` | `ProcessService::resyncDeniedJwtAddresses` | `shared/services/process.service.ts` |
 | 30 seconds | — | `both` | `ProcessService::resyncDisabledProcesses` | `shared/services/process.service.ts` |
+| 30 seconds | — | `both` | `ProcessService::resyncStaffKycClearance` | `shared/services/process.service.ts` |
 | minute | `PAY_OUT` | `worker` | `AdminService::completeLiquidityOrders` | `subdomains/generic/admin/admin.service.ts` |
 | minute | `MONITORING` | `worker` | `AmlObserver::fetch` | `subdomains/core/monitoring/observers/aml.observer.ts` |
 | minute | — | `both` | `AuthService::checkLists` | `subdomains/generic/user/models/auth/auth.service.ts` |
@@ -190,6 +193,7 @@ the interval while running as an independent timer with its own lock.
 | minute | `PAYMENT_EXPIRATION` | `api` | `PaymentCronService::processExpiredPayments` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `UPDATE_BLOCKCHAIN_FEE` | `both` | `PaymentLinkFeeService::updateFees` | `subdomains/core/payment-link/services/payment-link-fee.service.ts` |
 | minute | `REALUNIT_QUOTE_COMPLETION` | `worker` | `RealUnitJobService::completeSettledQuotes` | `subdomains/supporting/realunit/realunit-job.service.ts` |
+| minute | — | `worker` | `StaffKycClearanceService::syncStaffKycClearance` | `subdomains/generic/user/models/user/staff-kyc-clearance.service.ts` |
 | minute | `SUPPORT_BOT` | `worker` | `SupportIssueJobService::sendAutoResponses` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts` |
 | minute | `TFA_CACHE` | `both` | `TfaService::processCleanupSecretCache` | `subdomains/generic/kyc/services/tfa.service.ts` |
 | minute | `TRADING` | `worker` | `TradingJobService::processOrders` | `subdomains/core/trading/services/trading-job.service.ts` |

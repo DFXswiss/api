@@ -549,18 +549,18 @@ compiler enforces it: `scope` is a mandatory parameter of `@DfxCron`.
 ```typescript
 // Worker: writes to the database, moves money, or calls an external system in a way that
 // changes state. The normal case.
-@DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.PAYMENT })
+@DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAYMENT })
 async processPayments(): Promise<void> {}
 
 // Both: the effect is confined to the process it runs in — refreshing an in-memory copy of
 // global state, expiring a local cache, measuring this process. It runs everywhere, because
 // requests on the API process read what it maintains.
-@DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Both })
+@DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.BOTH })
 async resyncDeniedJwtAccounts(): Promise<void> {}
 
 // Api: maintains state read only from a request path, or drives work bound to the connections
 // this process holds open.
-@DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Api, process: Process.UPDATE_STATISTIC })
+@DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.API, process: Process.UPDATE_STATISTIC })
 async doUpdate(): Promise<void> {}
 ```
 
