@@ -701,6 +701,41 @@ describe('PaymentLinkPaymentService', () => {
         expect(paymentLinkPaymentRepo.save).toHaveBeenCalledTimes(1);
       });
 
+      it('should close the activations inside the transition, not before it', async () => {
+        // The half-state nothing can repair: activations closed while the payment is still
+        // `Pending`. The quote is already final, so checkTxConfirmations does not come back to
+        // it, and processExpiredPayments only ever asks for `Pending` — it would expire a payment
+        // whose activations have been closed for good. Running the close on the transition's own
+        // manager is what ties the two together.
+        await service['handleQuoteChange'](completing(), quote);
+
+        expect(paymentActivationService.closeAllForPayment).toHaveBeenCalledWith(7, managers[0]);
+      });
+
+      it('should leave the activations open when the transition is lost', async () => {
+        // Another process took the payment out of `Pending` first. Then this caller performs no
+        // effect at all — closing activations for a transition it did not win would be the same
+        // half-state seen from the other side.
+        row.status = PaymentLinkPaymentStatus.COMPLETED;
+
+        await service['handleQuoteChange'](completing(), quote);
+
+        expect(paymentActivationService.closeAllForPayment).not.toHaveBeenCalled();
+        expect(paymentLinkPaymentRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('should still close the activations on the paths that take no transition', async () => {
+        // A payment that is no longer `Pending` has nothing to transition, but its final quote's
+        // activations still have to be closed — that path predates the transaction and stays.
+        const payment = completing();
+        payment.status = PaymentLinkPaymentStatus.EXPIRED;
+
+        await service['handleQuoteChange'](payment, quote);
+
+        expect(paymentActivationService.closeAllForPayment).toHaveBeenCalledWith(7, undefined);
+        expect(transitions()).toEqual([]);
+      });
+
       it('should carry the counted quotes into the transition, not only into the save after it', async () => {
         // A completed payment is looked at by no job, so a count left behind by a caller that
         // stopped after the transition would stay wrong for good.

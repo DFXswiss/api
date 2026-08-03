@@ -249,7 +249,13 @@ export class CronLeaseService implements OnModuleInit {
     }
 
     // Claiming the lease is a round trip, and shutdown can begin during it. Hand the claim straight
-    // back rather than start under it: the successor can then take the job over immediately.
+    // back rather than start under it, so the successor does not sit out the expiry for a job that
+    // never ran.
+    //
+    // This is best effort, not a guarantee: a job still inside its claim is not in `inFlight` yet,
+    // so `shutdown` does not wait for it, and the process can exit before the release below runs.
+    // What then remains is a claim nobody holds — it lapses within the TTL like any other, which
+    // is the bound that always applies. The release only ever shortens that wait.
     if (this.shuttingDown) {
       await this.release(job).catch(() => undefined);
       return;

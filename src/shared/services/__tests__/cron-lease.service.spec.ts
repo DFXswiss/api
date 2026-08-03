@@ -352,8 +352,12 @@ describe('CronLeaseService', () => {
 
     it('hands the claim back when shutdown begins while it is being taken', async () => {
       // Claiming is a round trip, so the guard above can be passed just before shutdown starts.
-      // The run must not begin under that claim, and must not leave the row behind either: the
-      // successor would then sit out the full expiry before it could take the job over.
+      // The run must not begin under that claim, and should not leave the row behind either — the
+      // successor would then sit out the full expiry for a job that never ran.
+      //
+      // Pinned here is the path where the process lives long enough to do it. It is not a promise
+      // that it always does: the claim is not in `inFlight`, so `shutdown` does not wait for it,
+      // and an exit in between leaves the row to lapse on its TTL.
       let answerClaim: (rows: unknown[]) => void;
       const onQuery = jest.fn().mockImplementation((sql: string) => {
         if (sql.includes('INSERT INTO')) return new Promise((resolve) => (answerClaim = resolve));

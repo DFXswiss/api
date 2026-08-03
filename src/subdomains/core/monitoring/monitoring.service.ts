@@ -266,9 +266,25 @@ export class MonitoringService implements OnModuleInit {
     if (canonical) return canonical;
 
     const fallback = await find({ where: {}, order: { id: 'DESC' }, lock });
-    if (fallback) this.logger.warn(`No monitoring state under id 1, using id ${fallback.id} instead`);
+    if (!fallback) return undefined;
 
-    return fallback ?? undefined;
+    // Asked a second time, because the answer can have changed while this call waited. With a
+    // lock, the wait is on the fallback row itself: two writers both miss `id: 1`, both queue for
+    // the old row, and the one that gets there second wakes up in a world where the first has
+    // already created `id: 1` and committed. Merging from the old row then writes `id: 1` from a
+    // state that predates it, and the first writer's metric is gone — not stale, gone, because
+    // this path only writes what changed and nothing brings the rest back.
+    //
+    // Without a lock there is nothing to wait on and this is one extra read on a path that stops
+    // being taken as soon as the canonical row exists.
+    if (fallback.id !== 1) {
+      const converged = await find({ where: { id: 1 }, lock });
+      if (converged) return converged;
+    }
+
+    this.logger.warn(`No monitoring state under id 1, using id ${fallback.id} instead`);
+
+    return fallback;
   }
 
   /**

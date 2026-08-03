@@ -65,17 +65,27 @@ export interface ConnectedDevice {
  * whole difference. Any predicate over a column a later write can move is able to carry a row OUT
  * of the read before the read has seen it, and two rounds of review found the same failure twice
  * that way: a mark advanced past a row that had not committed, and then a span against the present
- * that a transaction outliving it walks a row straight past. A late commit against an immutable
- * column can only make a row appear LATER, never make it skip — the row's place in the read was
- * fixed at insert, before anything could be late.
+ * that a transaction outliving it walks a row straight past.
+ *
+ * What the immutable column buys, precisely: no WRITE can move a row out of the read. A late
+ * commit makes it appear later, never skip, because its place was fixed at insert. What it does
+ * NOT buy: the read still ends somewhere, so a transition that happens after that end is missed
+ * like any other. The two are different failures — the first was a property of the predicate and
+ * is gone; the second is a question of how far the span reaches, and is answered below.
  *
  * So this is not a window a payment has to be delivered within. It is how far past a payment's own
  * end the read keeps asking, and it is measured from `expiryDate` rather than from now:
  * `processExpiredPayments` expires a payment at `expiryDate` plus `Config.payment.timeoutDelay`, so
  * the span has to outlast that delay for the expiry transition itself to still be read — which is
  * why the cutoff below ADDS the configured delay instead of assuming it away.
+ *
+ * The hour is chosen against the thing that actually delays the transition: the worker being gone.
+ * `processExpiredPayments` runs there, so a worker that is down does not expire anything, and the
+ * transitions arrive in a burst when it returns. Ten minutes covered a deploy; it did not cover an
+ * outage, and the alert on a silent worker only fires after seventeen. An hour outlasts both, and
+ * costs a longer read of a handful of rows per connected device.
  */
-const DEVICE_DELIVERY_GRACE_SECONDS = 600;
+const DEVICE_DELIVERY_GRACE_SECONDS = 3600;
 
 /**
  * What this process has delivered to one device: per payment, the wait state last sent for it and
@@ -694,46 +704,58 @@ export class PaymentLinkPaymentService {
   }
 
   private async handleQuoteChange(payment: PaymentLinkPayment, quote: PaymentQuote): Promise<void> {
-    // close activations
-    if (PaymentQuoteFinalStates.includes(quote.status))
+    // Closing the activations of a final quote happens on every path through here, but on ONE of
+    // them it has to travel with the transition rather than run before it — hence the closure.
+    // Given a manager it runs inside that transaction; without one it stands alone, as before.
+    const closeActivations = async (manager?: EntityManager): Promise<void> => {
+      if (!PaymentQuoteFinalStates.includes(quote.status)) return;
+
       if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
-        await this.paymentActivationService.closeAllForPayment(payment.id);
+        await this.paymentActivationService.closeAllForPayment(payment.id, manager);
       } else {
         await this.paymentActivationService.closeAllForQuote(quote.id);
       }
+    };
 
-    if (payment.status !== PaymentLinkPaymentStatus.PENDING) return;
+    if (payment.status !== PaymentLinkPaymentStatus.PENDING) return closeActivations();
 
     // update payment status
     const { minCompletionStatus } = payment.link.configObj;
 
     const isPaymentComplete =
       PaymentQuoteTxStates.indexOf(quote.status) >= PaymentQuoteTxStates.indexOf(minCompletionStatus);
-    if (isPaymentComplete) {
-      const txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
-      payment.txCount = txCount;
+    if (!isPaymentComplete) return closeActivations();
 
-      // The status read above is the same read-then-write as in expirePayment, and this one is
-      // reached from request paths as well as from checkTxConfirmations. A `MULTIPLE` payment
-      // stays `Pending` and has no transition to take: it only counts a quote.
-      if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
-        const taken = await this.takePendingTransition(
-          payment,
-          PaymentLinkPaymentStatus.COMPLETED,
-          // The count belongs to the transition: `doSave` below is the only other thing that
-          // writes it, and no job looks at a completed payment again, so a count left behind by a
-          // caller that stopped between the two would stay wrong.
-          async (manager) => {
-            await manager.update(PaymentLinkPayment, payment.id, { txCount });
-          },
-        );
-        if (!taken) return;
+    const txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
+    payment.txCount = txCount;
 
-        payment.complete();
-      }
+    // The status read above is the same read-then-write as in expirePayment, and this one is
+    // reached from request paths as well as from checkTxConfirmations. A `MULTIPLE` payment
+    // stays `Pending` and has no transition to take: it only counts a quote.
+    if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
+      const taken = await this.takePendingTransition(
+        payment,
+        PaymentLinkPaymentStatus.COMPLETED,
+        // Both effects belong to the transition. The count, because `doSave` below is the only
+        // other thing that writes it and no job looks at a completed payment again — a count left
+        // behind by a caller that stopped between the two would stay wrong. The activations,
+        // because closing them BEFORE the status moves is the half-state nothing can repair: the
+        // quote is already final, so `checkTxConfirmations` does not come back to it, while
+        // `processExpiredPayments` only ever asks for `Pending` and would expire a payment whose
+        // activations are long closed.
+        async (manager) => {
+          await manager.update(PaymentLinkPayment, payment.id, { txCount });
+          await closeActivations(manager);
+        },
+      );
+      if (!taken) return;
 
-      await this.doSave(payment, true);
+      payment.complete();
+    } else {
+      await closeActivations();
     }
+
+    await this.doSave(payment, true);
   }
 
   private async doSave(payment: PaymentLinkPayment, isPaymentDone: boolean): Promise<PaymentLinkPayment> {

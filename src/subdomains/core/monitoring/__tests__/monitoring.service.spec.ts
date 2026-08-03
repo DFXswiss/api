@@ -290,5 +290,56 @@ describe('MonitoringService', () => {
       expect(saved.node.health.data).toEqual({ up: true });
       expect(saved.bank.balance.data).toEqual({ chf: 42 });
     });
+
+    it('merges into id 1 when another writer created it while this one waited for the lock', async () => {
+      // Two writers, one old row and no id 1: both miss id 1, both queue for the old row. The one
+      // that gets there second wakes up after the first has created id 1 and committed. Merging
+      // from the OLD row then writes id 1 from a state that predates it — and this path only
+      // writes what changed, so the first writer's metric does not come back. Asking a second
+      // time after the wait is what closes that.
+      const seededById1: SystemState = {
+        ...persisted,
+        node: { health: metric({ up: true }, '2020-01-01T00:10:00Z') },
+        // What the OTHER writer put there while this one waited.
+        ledger: { drift: metric({ off: 3 }, '2029-01-01T00:00:00Z') },
+      };
+
+      let idOneExists = false;
+      const managerFindOne = jest
+        .fn()
+        .mockImplementation((_entity: unknown, options: { where?: { id?: number } }) => {
+          if (options?.where?.id === 1) {
+            // Missing on the first ask; present once the wait on the old row is over.
+            return Promise.resolve(idOneExists ? { id: 1, data: JSON.stringify(seededById1) } : null);
+          }
+          // The lock on the old row is granted only after the other writer committed.
+          idOneExists = true;
+          return Promise.resolve({ id: 7, data: JSON.stringify(persisted) });
+        });
+
+      Object.defineProperty(repo, 'manager', {
+        value: {
+          transaction: (run: (m: unknown) => Promise<unknown>) =>
+            run({
+              findOne: managerFindOne,
+              save: jest.fn().mockImplementation((_e: unknown, row: { id: number; data: string }) => {
+                written.push(row);
+                return Promise.resolve(row);
+              }),
+            }),
+        },
+        configurable: true,
+      });
+
+      await service['mergeIntoStoredState']([['aml', 'freeze']], {
+        aml: { freeze: metric({ frozen: 0 }, '2030-01-01T00:00:00Z') },
+      });
+
+      const saved = JSON.parse(written[0].data);
+
+      expect(saved.aml.freeze.data).toEqual({ frozen: 0 });
+      // The other writer's metric survived — that is the whole point.
+      expect(saved.ledger.drift.data).toEqual({ off: 3 });
+    });
   });
 });
