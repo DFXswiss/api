@@ -5,7 +5,11 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { extractPdfText } from 'src/shared/utils/__tests__/pdf-text.util';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { LimitRequestDecision } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
+import {
+  FundOrigin,
+  InvestmentDate,
+  LimitRequestDecision,
+} from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { FileSubType, FileType } from '../../kyc/dto/kyc-file.dto';
 import { ContentType } from '../../kyc/enums/content-type.enum';
 import { KycDocumentService } from '../../kyc/services/integration/kyc-document.service';
@@ -24,8 +28,8 @@ function acceptedDto(): GenerateLimitRequestPdfDto {
     requestedLimit: 500000,
     grantedLimit: 500000,
     previousLimit: 100000,
-    fundOrigin: 'Savings',
-    investmentDate: 'Now',
+    fundOrigin: FundOrigin.SAVINGS,
+    investmentDate: InvestmentDate.NOW,
     note: 'Kaufvertrag geprüft',
   };
 }
@@ -48,6 +52,11 @@ describe('GenerateLimitRequestPdfDto validation', () => {
   it('rejects an unknown decision string', async () => {
     const errors = await validateDto({ ...validRaw(), decision: 'NotARealDecision' });
     expect(errors.find((e) => e.property === 'decision')).toBeDefined();
+  });
+
+  it('rejects an unknown fundOrigin string', async () => {
+    const errors = await validateDto({ ...validRaw(), fundOrigin: 'NotARealOrigin' });
+    expect(errors.find((e) => e.property === 'fundOrigin')).toBeDefined();
   });
 
   it('rejects an empty clerk', async () => {
