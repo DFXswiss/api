@@ -4,6 +4,7 @@ import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -322,7 +323,11 @@ export class DexService {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Worker, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, {
+    scope: CronScope.Worker,
+    process: Process.DEX_PURCHASE_ORDER,
+    timeout: 1800,
+  })
   async finalizePurchaseOrders(): Promise<void> {
     await this.alertStrandedPurchaseOrders();
 

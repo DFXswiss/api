@@ -118,6 +118,9 @@ export enum Process {
   LEDGER_MARK_TO_MARKET = 'LedgerMarkToMarket',
   LEDGER_CUTOVER = 'LedgerCutover',
   LEDGER_COA_BOOTSTRAP = 'LedgerCoaBootstrap',
+  DEX_PURCHASE_ORDER = 'DexPurchaseOrder',
+  REF_CLEANUP = 'RefCleanup',
+  JWT_REVOCATION_SYNC = 'JwtRevocationSync',
 }
 
 const safetyProcesses: Process[] = [

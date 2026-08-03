@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { IsNull, LessThan } from 'typeorm';
@@ -15,7 +16,7 @@ export class RefService {
 
   constructor(private readonly repo: RefRepository) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.REF_CLEANUP, timeout: 7200 })
   async checkRefs(): Promise<void> {
     const expirationDate = Util.daysBefore(this.refExpirationDays);
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { In } from 'typeorm';
 import { RiskStatus, UserDataStatus } from './user-data.enum';
@@ -25,7 +26,11 @@ export class JwtRevocationSyncService {
 
   // Runs every minute: fast revocation of a blocked or compromised account is a security requirement that
   // warrants the security-revocation exception to the "prefer 15min" cron guideline.
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.Worker,
+    process: Process.JWT_REVOCATION_SYNC,
+    timeout: 1800,
+  })
   async syncDeniedJwtAccounts(): Promise<void> {
     const blockedAccounts = await this.userDataRepo.find({
       select: { id: true },
