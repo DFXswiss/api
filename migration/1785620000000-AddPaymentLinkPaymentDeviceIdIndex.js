@@ -13,8 +13,8 @@
  * ticks for as long as a device stays connected.
  *
  * A single-column index is enough for the shape of the query. It filters `deviceId IN (…)` on the
- * handful of devices connected to this process and narrows the result further by `updated` and by
- * status — but a device has few payments, so the index gets the row count down to that handful
+ * handful of devices connected to this process and narrows the result further by `expiryDate` and
+ * by status — but a device has few payments, so the index gets the row count down to that handful
  * before the remaining conditions are applied.
  *
  * The name is the deterministic one TypeORM's `DefaultNamingStrategy` derives, since CONTRIBUTING

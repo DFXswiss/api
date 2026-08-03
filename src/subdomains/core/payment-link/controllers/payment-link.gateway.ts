@@ -23,8 +23,6 @@ interface PaymentSocket {
 /** One open websocket, and what is known about it here. */
 interface Connection {
   socket: PaymentSocket;
-  /** When this connection was accepted. */
-  since: Date;
   /** Cleared before each ping and set again by the pong; one missed round means it is gone. */
   responsive: boolean;
 }
@@ -53,15 +51,12 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
   /**
    * The devices this process can deliver to right now, derived from the sockets it holds open.
    *
-   * A device appears here for exactly as long as at least one of its connections is in the map,
-   * and its `since` is the age of the oldest of those — the point from which a newly connected
-   * device has not been sent anything yet.
+   * A device appears here for exactly as long as at least one of its connections is in the map.
+   * When it connected is deliberately not part of it: the delivery selects payments by their own
+   * lifetime, so a device that reconnects is owed the same thing it was owed before.
    */
   connectedDevices(): ConnectedDevice[] {
-    return [...this.clients].map(([id, connections]) => ({
-      id,
-      since: Util.minObj([...connections.values()], 'since').since,
-    }));
+    return [...this.clients.keys()].map((id) => ({ id }));
   }
 
   /**
@@ -102,7 +97,7 @@ export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
     const clientId = Util.createUniqueId('client');
 
     const connections = this.clients.get(device) ?? new Map<string, Connection>();
-    connections.set(clientId, { socket: client, since: new Date(), responsive: true });
+    connections.set(clientId, { socket: client, responsive: true });
     this.clients.set(device, connections);
 
     // Bound to the socket, and to every way it can end: an aborted connection reports `error`, and

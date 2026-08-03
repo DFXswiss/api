@@ -121,26 +121,17 @@ describe('PaymentLinkGateway', () => {
       expect(deviceIds()).toEqual([]);
     });
 
-    it('dates a device by its oldest open connection', () => {
-      // That date is where the delivery starts reading for a device it has not sent anything to
-      // yet, so it has to cover every connection, not just the newest.
-      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    it('names a device once however many connections it holds, and until the last one goes', () => {
+      // The delivery asks for identities, not for dates: what a device is owed follows from the
+      // payments themselves. So a second connection adds nothing to say, and closing one of two
+      // takes nothing away — the device is still reachable through the other.
+      const first = connect('pos-1');
+      connect('pos-1');
 
-      try {
-        jest.setSystemTime(new Date('2026-01-01T10:00:00Z'));
-        const first = connect('pos-1');
+      expect(gateway.connectedDevices()).toEqual([{ id: 'pos-1' }]);
 
-        jest.setSystemTime(new Date('2026-01-01T11:00:00Z'));
-        connect('pos-1');
-
-        expect(gateway.connectedDevices()[0].since).toEqual(new Date('2026-01-01T10:00:00Z'));
-
-        first.fire('close');
-
-        expect(gateway.connectedDevices()[0].since).toEqual(new Date('2026-01-01T11:00:00Z'));
-      } finally {
-        jest.useRealTimers();
-      }
+      first.fire('close');
+      expect(gateway.connectedDevices()).toEqual([{ id: 'pos-1' }]);
     });
   });
 

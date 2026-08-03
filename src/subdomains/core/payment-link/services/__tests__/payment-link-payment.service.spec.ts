@@ -25,8 +25,12 @@ describe('PaymentLinkPaymentService', () => {
   let paymentActivationService: jest.Mocked<PaymentActivationService>;
 
   /**
-   * Times are relative to now because the delivery read is: it asks for a span before the present,
-   * so a payment stamped at a fixed calendar date would sit outside every window these tests set up.
+   * Times are relative to now because the delivery read is: it asks for payments whose own end has
+   * not passed by more than the grace, so a payment dated at a fixed calendar point would sit
+   * outside every read these tests set up.
+   *
+   * `expiryDate` is what the read selects on — deliberately a column no later write moves. The
+   * default puts a payment inside the read; a test that wants one outside says so.
    */
   function payment(values: Partial<PaymentLinkPayment>): PaymentLinkPayment {
     return Object.assign(new PaymentLinkPayment(), {
@@ -35,6 +39,7 @@ describe('PaymentLinkPaymentService', () => {
       mode: PaymentLinkPaymentMode.SINGLE,
       txCount: 0,
       updated: Util.secondsBefore(1),
+      expiryDate: Util.minutesAfter(5),
       link: {},
       ...values,
     });
@@ -60,25 +65,41 @@ describe('PaymentLinkPaymentService', () => {
    * every delivery, so a device is connected here for exactly as long as this map says so — there
    * is no register in the service to register with.
    */
-  let sockets: Map<string, Date>;
+  let sockets: Set<string>;
 
-  function connect(deviceId: string, since = Util.minutesBefore(5)): void {
-    sockets.set(deviceId, since);
+  function connect(deviceId: string): void {
+    sockets.add(deviceId);
   }
 
   /** The rows the database holds for the delivery read below. */
   let rows: PaymentLinkPayment[];
 
   /**
-   * Answers the delivery read out of `rows`, honouring the window each clause carries. Which rows a
-   * window admits is the whole subject of the tests that use this, so a mock that returned a fixed
-   * list whatever it was asked for would prove nothing about them.
+   * Answers the delivery read out of `rows`, honouring EVERY condition each clause carries — the
+   * devices asked for, the cutoff, and the state that makes a payment worth delivering. Which rows
+   * the read admits is the whole subject of the tests that use this, so a mock that returned a
+   * fixed list whatever it was asked for would prove nothing about them.
    */
-  function findInWindow(options: unknown): PaymentLinkPayment[] {
-    const windows = (options as { where: { deviceId: string; updated: { value: Date } }[] }).where;
+  function findByCutoff(options: unknown): PaymentLinkPayment[] {
+    const clauses = (
+      options as {
+        where: {
+          deviceId: { value: string[] };
+          expiryDate: { value: Date };
+          status?: { value: PaymentLinkPaymentStatus };
+          txCount?: { value: number };
+        }[];
+      }
+    ).where;
 
     return rows.filter((row) =>
-      windows.some((window) => row.deviceId === window.deviceId && row.updated > window.updated.value),
+      clauses.some(
+        (clause) =>
+          clause.deviceId.value.includes(row.deviceId) &&
+          row.expiryDate > clause.expiryDate.value &&
+          (clause.status == null || row.status !== clause.status.value) &&
+          (clause.txCount == null || row.txCount > clause.txCount.value),
+      ),
     );
   }
 
@@ -136,6 +157,10 @@ describe('PaymentLinkPaymentService', () => {
   let managerUpdates: jest.Mock[];
 
   beforeEach(() => {
+    // The delivery reads `Config.payment.timeoutDelay` on every tick, deliberately: the span it
+    // reaches back over follows the configured delay rather than a copy taken at construction.
+    new ConfigService(GetConfig());
+
     row = payment({ id: 7 });
     rows = [];
     managerUpdates = [];
@@ -162,8 +187,13 @@ describe('PaymentLinkPaymentService', () => {
       {} as unknown as jest.Mocked<BlockchainRegistryService>,
     );
 
-    sockets = new Map();
-    service.useDeviceSource(() => [...sockets].map(([id, since]) => ({ id, since })));
+    sockets = new Set();
+    service.useDeviceSource(() => [...sockets].map((id) => ({ id })));
+  });
+
+  afterEach(() => {
+    // Set by the test that raises it; left behind it would silently widen every later read.
+    delete process.env.PAYMENT_TIMEOUT_DELAY;
   });
 
   // --- deliverPaymentUpdates() Tests --- //
@@ -284,25 +314,97 @@ describe('PaymentLinkPaymentService', () => {
       expect(paymentLinkPaymentRepo.find).toHaveBeenCalledTimes(1);
     });
 
-    it('should ask each device for its own window, not for the oldest one of all', async () => {
-      // A single minimum across all devices lets the oldest connection set the window for everyone:
-      // a device that connected moments ago is then read from an hour before it existed, on every
-      // tick. The window is also what bounds the read, so it has to hold for the long connection
-      // too — it may not reach back to the day that one was accepted.
-      const justConnected = new Date();
-      connect('pos-1', Util.minutesBefore(90));
-      connect('pos-2', justConnected);
+    it('should ask for every connected device in one read, on one cutoff', async () => {
+      // The cutoff is a property of the payments, not of the connections, so there is nothing left
+      // for a per-device clause to express — and one clause per device is what made the read grow
+      // with the number of connections.
+      connect('pos-1');
+      connect('pos-2');
 
       await service.deliverPaymentUpdates();
 
       const { where } = paymentLinkPaymentRepo.find.mock.calls[0][0];
-      const windows = new Map((where as { deviceId: string; updated: { value: Date } }[]).map((w) => [w.deviceId, w]));
+      const clauses = where as { deviceId: { value: string[] }; expiryDate: { value: Date } }[];
 
-      // The long connection is read from the span, not from the day it was accepted; the newcomer
-      // from its own connection time, because nothing before it is this process's to deliver. One
-      // shared window could not express both.
-      expect(windows.get('pos-1').updated.value.getTime()).toBeGreaterThan(Util.minutesBefore(2).getTime());
-      expect(windows.get('pos-2').updated.value).toEqual(justConnected);
+      expect(clauses).toHaveLength(2);
+      for (const clause of clauses) {
+        expect(clause.deviceId.value).toEqual(['pos-1', 'pos-2']);
+        expect(clause.expiryDate.value).toEqual(clauses[0].expiryDate.value);
+      }
+    });
+
+    it('should reach back past the delay before an expiry is even acted on', async () => {
+      // processExpiredPayments expires a payment at its expiryDate PLUS this delay, so a cutoff
+      // measured from the expiryDate alone would drop the payment out of the read before the
+      // transition it is waiting for has happened. Reading the configured value rather than
+      // assuming it is what keeps that true when the value changes.
+      process.env.PAYMENT_TIMEOUT_DELAY = '3600';
+      new ConfigService(GetConfig());
+      connect('pos-1');
+
+      await service.deliverPaymentUpdates();
+
+      const { where } = paymentLinkPaymentRepo.find.mock.calls[0][0];
+      const [clause] = where as { expiryDate: { value: Date } }[];
+
+      expect(clause.expiryDate.value.getTime()).toBeLessThan(Util.minutesBefore(60).getTime());
+    });
+
+    it('should still deliver a payment whose write was outlived by the read beside it', async () => {
+      // The failure this replaces: a read bounded by `updated` asks for a span before the present,
+      // and a transaction that stays open longer than that span commits a row whose stamp is
+      // already past the far end — it is never read again. Selecting on a column no later write
+      // moves cannot do that: a late commit makes the row appear later, never skip.
+      const seen = devices();
+      connect('pos-1');
+      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findByCutoff(options));
+
+      rows = [
+        payment({
+          id: 7,
+          status: PaymentLinkPaymentStatus.COMPLETED,
+          deviceId: 'pos-1',
+          deviceCommand: 'show-paid',
+          // Stamped by a transaction that then took an hour to commit.
+          updated: Util.minutesBefore(60),
+          expiryDate: Util.minutesAfter(5),
+        }),
+      ];
+      await service.deliverPaymentUpdates();
+
+      expect(seen).toEqual([{ id: 'pos-1', command: 'show-paid' }]);
+    });
+
+    it('should owe a reconnecting device exactly what it was owed before', async () => {
+      // A record tied to the connection is lost with it, and the read then starts at the new
+      // connection time: what completed just before the reconnect falls between the two and is
+      // never delivered, while everything before it is delivered again.
+      const seen = devices();
+      connect('pos-1');
+      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findByCutoff(options));
+
+      const paid = (id: number) =>
+        payment({
+          id,
+          status: PaymentLinkPaymentStatus.COMPLETED,
+          deviceId: 'pos-1',
+          deviceCommand: 'show-paid',
+        });
+
+      rows = [paid(7)];
+      await service.deliverPaymentUpdates();
+      expect(seen).toHaveLength(1);
+
+      sockets.delete('pos-1');
+      // Completes while nothing is connected for it.
+      rows = [paid(7), paid(8)];
+      await service.deliverPaymentUpdates();
+
+      connect('pos-1');
+      await service.deliverPaymentUpdates();
+
+      // The one it missed, and only that one: the payment of the first tick is not repeated.
+      expect(seen).toHaveLength(2);
     });
 
     it('should still deliver a payment that becomes visible after one stamped alike', async () => {
@@ -312,7 +414,7 @@ describe('PaymentLinkPaymentService', () => {
       // that row at all.
       const seen = devices();
       connect('pos-1');
-      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findInWindow(options));
+      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findByCutoff(options));
 
       const updated = Util.secondsBefore(1);
       const paid = (id: number) =>
@@ -336,14 +438,15 @@ describe('PaymentLinkPaymentService', () => {
       expect(seen).toHaveLength(2);
     });
 
-    it('should forget a payment the window has left behind', async () => {
-      // What bounds the record of delivered payments is the window: a payment past its far end
-      // cannot come back from the read, so nothing is kept for it. Without that, a device connected
-      // all day would accumulate an entry per payment it ever saw.
+    it('should forget a payment the read has left behind, and the device with its last one', async () => {
+      // What bounds the record is the same cutoff the query uses: a payment the read can no longer
+      // return cannot be delivered again, so nothing is kept for it. Without that, a device
+      // connected all day would accumulate an entry per payment it ever saw — and a device that
+      // never comes back would keep a map of its own for good.
       connect('pos-1');
-      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findInWindow(options));
+      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findByCutoff(options));
 
-      // Delivered directly by the writing process, which does not consult the window.
+      // Delivered directly by the writing process, which does not consult the cutoff.
       rows = [];
       service['deliverToDevice'](
         payment({
@@ -351,14 +454,15 @@ describe('PaymentLinkPaymentService', () => {
           status: PaymentLinkPaymentStatus.COMPLETED,
           deviceId: 'pos-1',
           deviceCommand: 'show-paid',
-          updated: Util.minutesBefore(2),
+          // Its own end is long past, and past the grace that follows it.
+          expiryDate: Util.hoursBefore(2),
         }),
       );
       expect(service['deviceDeliveries'].get('pos-1').size).toEqual(1);
 
       await service.deliverPaymentUpdates();
 
-      expect(service['deviceDeliveries'].get('pos-1').size).toEqual(0);
+      expect(service['deviceDeliveries'].has('pos-1')).toBe(false);
     });
   });
 

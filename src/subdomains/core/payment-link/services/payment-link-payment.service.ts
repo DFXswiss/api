@@ -46,34 +46,43 @@ import { PaymentWebhookService } from './payment-webhook.service';
  */
 const PAYMENT_WAIT_TIMEOUT_SECONDS = 60;
 
-/** A device this process holds at least one open websocket connection for. */
+/**
+ * A device this process holds at least one open websocket connection for.
+ *
+ * Only the identity: what a device is owed follows from the payments themselves, not from when it
+ * happened to connect. A device that reconnects is the same device, and the delivery record below
+ * outlives the connection precisely so that it is treated as one.
+ */
 export interface ConnectedDevice {
   id: string;
-  /** When the oldest connection still open for this device was accepted. */
-  since: Date;
 }
 
 /**
- * How far back the delivery read below looks, per device.
+ * How long after a payment can no longer expire the delivery read below still asks for it.
  *
- * What it replaces is a mark that advanced to the newest `updated` it had read. A row carries the
- * stamp the writing statement gave it and becomes readable only when that write commits, so a mark
- * moved past the stamp of a row that had not committed yet asks for `updated > since` and never
- * sees that row again — the notification is not late, it is gone. Two rows stamped alike are the
- * plainest case of it, but any write outlived by the read that ran beside it does the same.
+ * The read selects on `expiryDate`, and the reason is which writes can move a column. `updated` is
+ * stamped by every write; `expiryDate` is given at insert and never mutated afterwards. That is the
+ * whole difference. Any predicate over a column a later write can move is able to carry a row OUT
+ * of the read before the read has seen it, and two rounds of review found the same failure twice
+ * that way: a mark advanced past a row that had not committed, and then a span against the present
+ * that a transaction outliving it walks a row straight past. A late commit against an immutable
+ * column can only make a row appear LATER, never make it skip — the row's place in the read was
+ * fixed at insert, before anything could be late.
  *
- * A span measured against the present cannot skip a row that way: it only has to outlast the gap
- * between a payment's stamp and its commit, which for the transitions in this service is one
- * statement plus the effects that travel with it. It is also what bounds the read — see
- * `windowStart`.
+ * So this is not a window a payment has to be delivered within. It is how far past a payment's own
+ * end the read keeps asking, and it is measured from `expiryDate` rather than from now:
+ * `processExpiredPayments` expires a payment at `expiryDate` plus `Config.payment.timeoutDelay`, so
+ * the span has to outlast that delay for the expiry transition itself to still be read — which is
+ * why the cutoff below ADDS the configured delay instead of assuming it away.
  */
-const DEVICE_DELIVERY_WINDOW_SECONDS = 60;
+const DEVICE_DELIVERY_GRACE_SECONDS = 600;
 
 /**
  * What this process has delivered to one device: per payment, the wait state last sent for it and
- * the `updated` that state was read at. Never a record of who is connected — see `connectedDevices`.
+ * the `expiryDate` that decides how long the entry is kept. Never a record of who is connected —
+ * see `connectedDevices`.
  */
-type DeviceDeliveries = Map<number, { state: string; updated: Date }>;
+type DeviceDeliveries = Map<number, { state: string; expiryDate: Date }>;
 
 @Injectable()
 export class PaymentLinkPaymentService {
@@ -350,55 +359,51 @@ export class PaymentLinkPaymentService {
 
   private async deliverToConnectedDevices(): Promise<void> {
     const devices = this.connectedDevices();
+    const cutoff = this.deliveryCutoff();
 
-    // A delivery record is a detail of this process, so it follows the connections rather than
-    // outliving them. Pruning here rather than on a disconnect notification is the point: nothing
-    // has to be told that a device went away, it simply stops appearing.
-    for (const deviceId of this.deviceDeliveries.keys()) {
-      if (!devices.some((device) => device.id === deviceId)) this.deviceDeliveries.delete(deviceId);
-    }
+    this.pruneDeliveries(cutoff);
 
     if (!devices.length) return;
 
-    // One window PER DEVICE. Taken as a single minimum across all of them, a device that connected
-    // moments ago would be read from the point the oldest connection was accepted. The condition
-    // inside each window is the one the direct delivery in doSave runs under, expressed over stored
-    // columns: a payment out of `Pending`, or a `MULTIPLE`-mode payment that has counted a
-    // completed quote.
-    const where = devices.flatMap((device) => {
-      const since = this.windowStart(device);
+    // One cutoff for all of them, because it no longer depends on the connection: a payment is read
+    // until its own end has passed, whoever is listening and since when. The condition is the one
+    // the direct delivery in doSave runs under, expressed over stored columns: a payment out of
+    // `Pending`, or a `MULTIPLE`-mode payment that has counted a completed quote.
+    const deviceIds = devices.map((device) => device.id);
+    const where = [
+      { deviceId: In(deviceIds), expiryDate: MoreThan(cutoff), status: Not(PaymentLinkPaymentStatus.PENDING) },
+      { deviceId: In(deviceIds), expiryDate: MoreThan(cutoff), txCount: MoreThan(0) },
+    ];
 
-      return [
-        { deviceId: device.id, updated: MoreThan(since), status: Not(PaymentLinkPaymentStatus.PENDING) },
-        { deviceId: device.id, updated: MoreThan(since), txCount: MoreThan(0) },
-      ];
-    });
-
-    const payments = await this.paymentLinkPaymentRepo.find({ where, order: { updated: 'ASC' } });
+    const payments = await this.paymentLinkPaymentRepo.find({ where, order: { expiryDate: 'ASC' } });
 
     for (const payment of payments) this.deliverToDevice(payment);
   }
 
   /**
-   * Where the read for one device starts: a fixed span before now, and never before its oldest open
-   * connection was accepted — nothing older than that connection is this process's to deliver.
-   *
-   * The span is the same on every tick, so the read stays the same size however long the connection
-   * lives, whether or not anything happens on it. What the window admits twice, the record below
-   * answers for; what it lets past its far end can no longer come back from the read, so the record
-   * of it goes too. That is what bounds the record: not a cap on its size, but the same window that
-   * bounds the query.
+   * The oldest `expiryDate` the read still asks for: a payment's own end, plus the delay before
+   * `processExpiredPayments` acts on it, plus the grace above. The delay is READ rather than
+   * assumed — raising `PAYMENT_TIMEOUT_DELAY` past a hard-coded span would otherwise drop the
+   * expiry transition out of the read without changing a line here.
    */
-  private windowStart(device: ConnectedDevice): Date {
-    const windowStart = Util.secondsBefore(DEVICE_DELIVERY_WINDOW_SECONDS);
-    const since = device.since > windowStart ? device.since : windowStart;
+  private deliveryCutoff(): Date {
+    return Util.secondsBefore(Config.payment.timeoutDelay + DEVICE_DELIVERY_GRACE_SECONDS);
+  }
 
-    const delivered = this.deliveriesFor(device.id);
-    for (const [paymentId, entry] of delivered) {
-      if (!(entry.updated > since)) delivered.delete(paymentId);
+  /**
+   * Drops what the read can no longer return. An entry is kept while its payment is still asked
+   * for, NOT while its device is connected: a device that reconnects finds its record intact and is
+   * not told a second time about what it already heard. That is also what bounds the record —
+   * entries age out on the same cutoff the query uses, and a device whose entries have all gone
+   * leaves with them.
+   */
+  private pruneDeliveries(cutoff: Date): void {
+    for (const [deviceId, delivered] of this.deviceDeliveries) {
+      for (const [paymentId, entry] of delivered) {
+        if (!(entry.expiryDate > cutoff)) delivered.delete(paymentId);
+      }
+      if (!delivered.size) this.deviceDeliveries.delete(deviceId);
     }
-
-    return since;
   }
 
   /** What has been delivered to a device so far, empty for one nothing has been sent to yet. */
@@ -425,12 +430,12 @@ export class PaymentLinkPaymentService {
     const connected = this.connectedDevices().find((d) => d.id === device.id);
     if (!connected) return;
 
-    // Per payment rather than one slot per device: the window above holds several payments of the
+    // Per payment rather than one slot per device: the read above holds several payments of the
     // same device at once, and a single slot would let two of them take turns evicting each other.
     const delivered = this.deliveriesFor(connected.id);
     if (delivered.get(payment.id)?.state === payment.waitState) return;
 
-    delivered.set(payment.id, { state: payment.waitState, updated: payment.updated });
+    delivered.set(payment.id, { state: payment.waitState, expiryDate: payment.expiryDate });
 
     this.deviceActivationSubject.next(device);
   }
