@@ -150,16 +150,17 @@ export class TransactionService {
   }
 
   async resume(id: number): Promise<void> {
-    const entity = await this.getTransactionById(id, { buyCrypto: true });
+    const entity = await this.getTransactionById(id, { buyCrypto: { batch: true } });
     if (!entity) throw new NotFoundException('Transaction not found');
     if (!entity.buyCrypto) throw new BadRequestException('Only BuyCrypto transactions can be resumed');
     if (entity.buyCrypto.status !== BuyCryptoStatus.STOPPED)
       throw new BadRequestException('Transaction is not stopped');
     if (entity.buyCrypto.amlCheck !== CheckStatus.PASS)
       throw new BadRequestException('Only transactions with passed AML check can be resumed');
+    if (entity.buyCrypto.batch || entity.buyCrypto.txId)
+      throw new BadRequestException('Only transactions without batch and payout can be resumed');
 
-    entity.buyCrypto.resume();
-    await this.buyCryptoRepo.save(entity.buyCrypto);
+    await this.buyCryptoRepo.update(...entity.buyCrypto.resume());
   }
 
   async getTransactionById(
