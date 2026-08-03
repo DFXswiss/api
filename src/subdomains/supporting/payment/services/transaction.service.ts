@@ -205,8 +205,8 @@ export class TransactionService {
       )
         throw new BadRequestException('Transactions with a refund or forward in progress cannot be resumed');
 
-      // The locks above cover the related rows; the WHERE clause re-checks every buy_crypto invariant
-      // in the same statement, so nothing can change between the checks and the write.
+      // Two separate mechanisms: the row locks above hold the related checkout / pay-in rows until this
+      // transaction commits, and the WHERE clause re-checks every buy_crypto invariant in the write itself.
       const [buyCryptoId, update] = buyCrypto.resume();
       const result = await manager.update(
         BuyCrypto,
