@@ -214,6 +214,12 @@ export class CustodyOrderService {
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
       }
+
+      // An equity order is derived from a swap above rather than requested under its own type; the
+      // remaining types reach no case at all. Both would leave paymentInfo unset and fail on the
+      // dereference below.
+      default:
+        throw new BadRequestException(`Custody order type ${dto.type} cannot be requested`);
     }
 
     const order = await this.createOrderInternal({ ...orderDto, transactionRequestId: paymentInfo.id });
