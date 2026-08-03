@@ -162,35 +162,52 @@ describe('FeeService', () => {
       settingService.get.mockResolvedValue('100000');
     });
 
-    it('replaces the fee the account already carries instead of adding to it', async () => {
+    it('swaps the fee the account already carries in a single write', async () => {
       const previous = onboardingFee(60, 400);
       const next = onboardingFee(70, 800);
       feeRepo.findOne.mockResolvedValue(next);
       feeRepo.findBy.mockResolvedValue([previous]);
-      feeRepo.findCached.mockResolvedValue([next]);
 
       await service.setOnboardingFee(accountWith([60]), 800);
 
-      expect(userDataService.removeFee).toHaveBeenCalledWith(expect.anything(), 60);
-      expect(userDataService.addFee).toHaveBeenCalledWith(expect.anything(), 70);
-      // Removal has to happen first: two assigned fees would be charged as the sum of their
-      // fixed amounts.
-      expect(userDataService.removeFee.mock.invocationCallOrder[0]).toBeLessThan(
-        userDataService.addFee.mock.invocationCallOrder[0],
-      );
+      // Never remove-then-add: a partial run would leave the account without a fee or with two,
+      // and two additive fixed fees are charged as their sum.
+      expect(userDataService.replaceFee).toHaveBeenCalledTimes(1);
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [60], 70);
+      expect(userDataService.removeFee).not.toHaveBeenCalled();
+      expect(userDataService.addFee).not.toHaveBeenCalled();
+    });
+
+    it('counts the assignment on the fee', async () => {
+      feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
+      feeRepo.findBy.mockResolvedValue([]);
+
+      await service.setOnboardingFee(accountWith([]), 800);
+
+      expect(feeRepo.update).toHaveBeenCalledWith(70, expect.objectContaining({ usages: 1 }));
     });
 
     it('writes the audit entry before touching the assignment', async () => {
       feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
       feeRepo.findBy.mockResolvedValue([onboardingFee(60, 400)]);
-      feeRepo.findCached.mockResolvedValue([onboardingFee(70, 800)]);
 
       await service.setOnboardingFee(accountWith([60]), 800);
 
       expect(userDataService.createOnboardingFeeLog).toHaveBeenCalled();
       expect(userDataService.createOnboardingFeeLog.mock.invocationCallOrder[0]).toBeLessThan(
-        userDataService.removeFee.mock.invocationCallOrder[0],
+        userDataService.replaceFee.mock.invocationCallOrder[0],
       );
+    });
+
+    it('refuses a fee the account is not eligible for, before any mutation', async () => {
+      const fee = Object.assign(onboardingFee(70, 800), { active: false });
+      feeRepo.findOne.mockResolvedValue(fee);
+      feeRepo.findBy.mockResolvedValue([]);
+
+      await expect(service.setOnboardingFee(accountWith([]), 800)).rejects.toThrow(/not active/);
+
+      expect(userDataService.createOnboardingFeeLog).not.toHaveBeenCalled();
+      expect(userDataService.replaceFee).not.toHaveBeenCalled();
     });
 
     it('does nothing when the account already carries exactly that fee', async () => {
@@ -201,8 +218,8 @@ describe('FeeService', () => {
       await service.setOnboardingFee(accountWith([70]), 800);
 
       expect(userDataService.createOnboardingFeeLog).not.toHaveBeenCalled();
-      expect(userDataService.removeFee).not.toHaveBeenCalled();
-      expect(userDataService.addFee).not.toHaveBeenCalled();
+      expect(userDataService.replaceFee).not.toHaveBeenCalled();
+      expect(feeRepo.update).not.toHaveBeenCalled();
     });
 
     it('creates a fee for an unknown amount and drops the cache so it can be assigned right away', async () => {
@@ -219,16 +236,12 @@ describe('FeeService', () => {
         expect.objectContaining({ type: FeeType.ADDITION, rate: 0, fixed: 6200 }),
       );
       expect(feeRepo.invalidateCache).toHaveBeenCalled();
-      expect(feeRepo.invalidateCache.mock.invocationCallOrder[0]).toBeLessThan(
-        feeRepo.findCached.mock.invocationCallOrder[0],
-      );
-      expect(userDataService.addFee).toHaveBeenCalledWith(expect.anything(), 151);
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [], 151);
     });
 
     it('only ever matches additive fixed fees, never a percentage or a bank fee', async () => {
       feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
       feeRepo.findBy.mockResolvedValue([]);
-      feeRepo.findCached.mockResolvedValue([onboardingFee(70, 800)]);
 
       await service.setOnboardingFee(accountWith([60, 115]), 800);
 
@@ -244,7 +257,7 @@ describe('FeeService', () => {
       await expect(service.setOnboardingFee(accountWith([]), 178000)).rejects.toThrow(/exceeds the limit/);
 
       expect(feeRepo.save).not.toHaveBeenCalled();
-      expect(userDataService.addFee).not.toHaveBeenCalled();
+      expect(userDataService.replaceFee).not.toHaveBeenCalled();
     });
 
     it('refuses to remove an onboarding fee from an account that has none', async () => {
@@ -252,7 +265,7 @@ describe('FeeService', () => {
 
       await expect(service.removeOnboardingFee(accountWith([]))).rejects.toThrow(/no onboarding fee/);
 
-      expect(userDataService.removeFee).not.toHaveBeenCalled();
+      expect(userDataService.replaceFee).not.toHaveBeenCalled();
     });
 
     it('removes every assigned onboarding fee and records it', async () => {
@@ -265,7 +278,7 @@ describe('FeeService', () => {
         expect.any(Array),
         undefined,
       );
-      expect(userDataService.removeFee).toHaveBeenCalledTimes(2);
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [60, 70]);
     });
   });
 });

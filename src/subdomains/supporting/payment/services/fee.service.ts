@@ -234,15 +234,22 @@ export class FeeService {
     const assignedFees = await this.getOnboardingFees(userData);
     if (assignedFees.length === 1 && assignedFees[0].id === fee.id) return;
 
-    // Audit before the mutation: `individualFees` keeps no history of what it replaced.
+    fee.verifyForUser(userData.accountType, userData.wallet, userData.id);
+
+    // Audit before the mutation: `individualFees` keeps no history of what it replaced. A failing
+    // audit write leaves the assignment untouched.
     await this.userDataService.createOnboardingFeeLog(userData, assignedFees, fee);
 
-    // Remove before assigning. An interrupted run then leaves the account without an onboarding
-    // fee - visible and harmless - while the opposite order would leave two fees whose fixed
-    // amounts are summed into one absolute charge (`combinedExtraFixedFee`).
-    for (const assignedFee of assignedFees) await this.userDataService.removeFee(userData, assignedFee.id);
+    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
 
-    await this.addFeeInternal(userData, fee.id);
+    // One write, not remove-then-add: a partial run would either leave the account without a fee
+    // or with two, and two additive fixed fees are charged as their sum
+    // (`combinedExtraFixedFee`).
+    await this.userDataService.replaceFee(
+      userData,
+      assignedFees.map((f) => f.id),
+      fee.id,
+    );
   }
 
   async removeOnboardingFee(userData: UserData): Promise<void> {
@@ -251,7 +258,10 @@ export class FeeService {
 
     await this.userDataService.createOnboardingFeeLog(userData, assignedFees, undefined);
 
-    for (const assignedFee of assignedFees) await this.userDataService.removeFee(userData, assignedFee.id);
+    await this.userDataService.replaceFee(
+      userData,
+      assignedFees.map((f) => f.id),
+    );
   }
 
   async getOnboardingFees(userData: UserData): Promise<Fee[]> {

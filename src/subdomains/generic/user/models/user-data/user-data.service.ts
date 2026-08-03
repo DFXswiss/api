@@ -1191,6 +1191,10 @@ export class UserDataService {
     await this.userDataRepo.update(...userData.removeFee(feeId));
   }
 
+  async replaceFee(userData: UserData, previousFeeIds: number[], feeId?: number): Promise<void> {
+    await this.userDataRepo.update(...userData.replaceFee(previousFeeIds, feeId));
+  }
+
   async createOnboardingFeeLog(userData: UserData, previousFees: Fee[], fee?: Fee): Promise<void> {
     const describe = (fees: Fee[]) =>
       fees.length ? fees.map((f) => `${f.fixed} CHF (fee ${f.id})`).join(', ') : 'none';
