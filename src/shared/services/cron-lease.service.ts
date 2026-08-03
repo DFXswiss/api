@@ -25,10 +25,18 @@ const LEASE_TTL_SECONDS = 60;
  * Renew at a third of the lease.
  *
  * The timer below re-arms only once the previous attempt has settled, so the attempts fall at 20 s
- * and then 20 s after each answer — never earlier, and later whenever the database is slow. One
- * failed renewal therefore still leaves a further attempt with roughly 20 s to spare; two do not,
- * because the third attempt starts at 60 s at the earliest, which is the moment the claim lapses.
- * The margin this buys is one lost renewal, not two.
+ * and then 20 s after each answer — never earlier, and later whenever the database is slow.
+ *
+ * What that buys is one QUICK failure, not one failure. An attempt that fails at once at 20 s puts
+ * the next at 40 s, still 20 s inside the lease. An attempt that fails SLOWLY spends the margin
+ * before it reports: one that comes back at 45 s puts the next at 65 s, five seconds after the
+ * claim has already lapsed. The interval bounds when the next attempt starts relative to the last
+ * ANSWER, and nothing here bounds when that answer arrives — there is no statement timeout on
+ * these queries.
+ *
+ * That is the honest shape of the margin, and it is why the expiry is not read as a guarantee
+ * anywhere: a slow database is precisely the case where two processes can end up running the same
+ * job, and the section "What it does not do" below says so.
  */
 const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
 
@@ -86,13 +94,18 @@ export class CronLeaseService implements OnModuleInit {
   private ownerId?: string;
 
   /**
-   * The runs this process currently holds a lease for, by job name.
+   * The runs this process has started and not yet finished, by the run's own owner string.
    *
    * Kept so shutdown knows what is still outstanding. The stored promise has its rejection already
    * absorbed: the job's own error belongs to its caller, and a second consumer of the same
    * rejection here would surface as an unhandled one.
+   *
+   * Keyed by RUN, not by job name, for the same reason the owner is: two runs of one job can
+   * overlap in this process once `LockClass` has given up on the first. Under a shared key the
+   * second would replace the first here, and whichever finished first would then delete the
+   * entry of the other — leaving a run that `shutdown` neither waits for nor names.
    */
-  private readonly inFlight = new Map<string, Promise<void>>();
+  private readonly inFlight = new Map<string, { job: string; run: Promise<void> }>();
 
   /**
    * Whether the last lease operation reached the table. Sticky until one succeeds, so a role whose
@@ -122,8 +135,27 @@ export class CronLeaseService implements OnModuleInit {
    * Resolved on first use rather than in a field initializer: `Config` does not exist until
    * `ConfigService` has been constructed, and a provider built before it would take down the boot.
    */
-  private get owner(): string {
+  private get process(): string {
     return (this.ownerId ??= `${Config.cronRole}:${randomUUID()}`);
+  }
+
+  /**
+   * Identifies ONE RUN. The owner written to the table is per run, not per process.
+   *
+   * Per process it would have been one identity for two runs that can overlap inside it. That
+   * overlap is reachable: `LockClass` gives up on a job that outlives its declared timeout, so the
+   * next tick starts a second run of the same job HERE while the first is still working. It cannot
+   * take the claim while the first keeps renewing — but it can once a failed renewal has let the
+   * claim lapse, and then both runs match `name + owner`. The first one to finish would delete the
+   * row the second is holding, and a third process could start the job alongside it. Renewal has
+   * the mirror problem: the old run would keep extending a claim it no longer has, and its
+   * `stillOurs` check would come back true because it is comparing against itself.
+   *
+   * With one identity per run, both statements name the run that took the claim. The old run's
+   * renewal returns false and says so, and its release matches nothing.
+   */
+  private newOwner(): string {
+    return `${this.process}:${randomUUID()}`;
   }
 
   constructor(private readonly dataSource: DataSource) {}
@@ -174,7 +206,7 @@ export class CronLeaseService implements OnModuleInit {
    * them sees a returned row. Read the `WHERE` as "only if nobody is currently holding it" — an
    * unexpired row belonging to another process leaves the update out and returns nothing.
    */
-  async acquire(job: string): Promise<boolean> {
+  async acquire(job: string, owner: string): Promise<boolean> {
     const claimed = await this.dataSource.query(
       `INSERT INTO "cron_lease" ("name", "owner", "acquired", "expires")
        VALUES ($1, $2, now(), now() + ($3 || ' seconds')::interval)
@@ -182,7 +214,7 @@ export class CronLeaseService implements OnModuleInit {
          SET "owner" = EXCLUDED."owner", "acquired" = EXCLUDED."acquired", "expires" = EXCLUDED."expires"
          WHERE "cron_lease"."expires" <= now()
        RETURNING "owner"`,
-      [job, this.owner, `${LEASE_TTL_SECONDS}`],
+      [job, owner, `${LEASE_TTL_SECONDS}`],
     );
 
     this.recordSuccess();
@@ -191,16 +223,16 @@ export class CronLeaseService implements OnModuleInit {
   }
 
   /**
-   * Pushes the expiry out while the job is still running. Returns false when this process is no
-   * longer the owner — which means another process has taken the job over and this run should be
-   * treated as having lost its claim.
+   * Pushes the expiry out while the job is still running. Returns false when this RUN is no longer
+   * the owner — which means the claim has lapsed and someone else has taken the job over, and this
+   * run should be treated as having lost it.
    */
-  async renew(job: string): Promise<boolean> {
+  async renew(job: string, owner: string): Promise<boolean> {
     const [, affected] = await this.dataSource.query(
       `UPDATE "cron_lease"
        SET "expires" = now() + ($3 || ' seconds')::interval
        WHERE "name" = $1 AND "owner" = $2`,
-      [job, this.owner, `${LEASE_TTL_SECONDS}`],
+      [job, owner, `${LEASE_TTL_SECONDS}`],
     );
 
     this.recordSuccess();
@@ -209,11 +241,11 @@ export class CronLeaseService implements OnModuleInit {
   }
 
   /**
-   * Releases the lease. Scoped to this owner so a run that already lost the lease cannot delete
-   * the row a different process is now holding.
+   * Releases the lease. Scoped to the owner that took it, so a run which already lost the lease
+   * cannot delete the row another run is now holding — in another process or in this one.
    */
-  async release(job: string): Promise<void> {
-    await this.dataSource.query(`DELETE FROM "cron_lease" WHERE "name" = $1 AND "owner" = $2`, [job, this.owner]);
+  async release(job: string, owner: string): Promise<void> {
+    await this.dataSource.query(`DELETE FROM "cron_lease" WHERE "name" = $1 AND "owner" = $2`, [job, owner]);
 
     this.recordSuccess();
   }
@@ -243,9 +275,11 @@ export class CronLeaseService implements OnModuleInit {
     // releases its lease, and, more importantly, part-way through whatever it was doing.
     if (this.shuttingDown) return;
 
+    const owner = this.newOwner();
+
     let acquired: boolean;
     try {
-      acquired = await this.acquire(job);
+      acquired = await this.acquire(job, owner);
     } catch (e) {
       this.recordFailure(e);
 
@@ -281,7 +315,7 @@ export class CronLeaseService implements OnModuleInit {
       // absent from the "still running" warning — and it would start even if shutdown had begun
       // during the failed claim, which is a longer window than the healthy one because the
       // attempt runs to the database timeout.
-      return this.track(job, task);
+      return this.track(job, owner, task);
     }
 
     if (!acquired) {
@@ -302,12 +336,12 @@ export class CronLeaseService implements OnModuleInit {
     // yet, so `shutdown` does not wait for it, and the process can exit before the release runs.
     // What then remains is a claim nobody holds — it lapses within the TTL like any other, which
     // is the bound that always applies. The release only ever shortens that wait.
-    const renewal = this.keepAlive(job);
+    const renewal = this.keepAlive(job, owner);
 
-    return this.track(job, task, () => {
+    return this.track(job, owner, task, () => {
       renewal.stop();
 
-      return this.release(job).catch((e) => {
+      return this.release(job, owner).catch((e) => {
         this.recordFailure(e);
         this.logger.error(`Could not release the lease for ${job}`, e);
       });
@@ -325,7 +359,12 @@ export class CronLeaseService implements OnModuleInit {
    * `after` is what the claim-holding path adds: stop renewing, hand the claim back. The
    * lease-less path has nothing to hand back.
    */
-  private async track(job: string, task: () => Promise<void>, after?: () => Promise<void>): Promise<void> {
+  private async track(
+    job: string,
+    owner: string,
+    task: () => Promise<void>,
+    after?: () => Promise<void>,
+  ): Promise<void> {
     // As late as possible, because the step before it is a round trip: shutdown can begin while a
     // claim is being taken, or while a failing attempt runs to its timeout. A run started after
     // that point is not in the set `shutdown` waits on and would be cut off part-way through.
@@ -339,14 +378,11 @@ export class CronLeaseService implements OnModuleInit {
         await task();
       } finally {
         await after?.();
-        this.inFlight.delete(job);
+        this.inFlight.delete(owner);
       }
     })();
 
-    this.inFlight.set(
-      job,
-      run.catch(() => undefined),
-    );
+    this.inFlight.set(owner, { job, run: run.catch(() => undefined) });
 
     return run;
   }
@@ -383,14 +419,14 @@ export class CronLeaseService implements OnModuleInit {
     // for and would be cut off part-way through — see the guard at the top of `run`.
     this.shuttingDown = true;
 
-    const running = [...this.inFlight.values()];
+    const running = [...this.inFlight.values()].map((entry) => entry.run);
     if (!running.length) return;
 
     this.logger.info(`Shutting down: waiting up to ${SHUTDOWN_GRACE_MS / 1000}s for ${running.length} running job(s)`);
 
     await Promise.race([Promise.all(running), this.shutdownGrace()]);
 
-    const stranded = [...this.inFlight.keys()];
+    const stranded = [...this.inFlight.values()].map((entry) => entry.job);
     if (stranded.length)
       this.logger.warn(
         `Shutting down with ${stranded.length} job(s) still running (${stranded.join(', ')}); ` +
@@ -430,7 +466,7 @@ export class CronLeaseService implements OnModuleInit {
    * Losing the claim does not stop the run. There is nothing here that could stop it, and the
    * timer deliberately keeps going: this process holds the claim for as long as it can renew it.
    */
-  private keepAlive(job: string): { stop: () => void } {
+  private keepAlive(job: string, owner: string): { stop: () => void } {
     let stopped = false;
     let timer: NodeJS.Timeout;
 
@@ -438,7 +474,7 @@ export class CronLeaseService implements OnModuleInit {
       // Unref'd: a pending timer must never hold the process open on shutdown.
       timer = setTimeout(async () => {
         try {
-          const stillOurs = await this.renew(job);
+          const stillOurs = await this.renew(job, owner);
           if (!stillOurs) this.logger.error(`Lost the lease for ${job} while it was still running`);
         } catch (e) {
           this.recordFailure(e);

@@ -208,22 +208,37 @@ export class DfxCronService implements OnModuleInit {
   private guardAcrossProcesses(cronJobName: string, data: CronJobData): () => Promise<void> {
     const task = this.wrapFunction(data);
 
-    if (data.params.scope === CronScope.BOTH) return task;
+    const leased =
+      data.params.scope === CronScope.BOTH
+        ? task
+        : () => this.leases.run(cronJobName, task, data.params.scope === CronScope.API);
 
-    return () => this.leases.run(cronJobName, task, data.params.scope === CronScope.API);
+    // OUTSIDE the lease, and that order is the point: a job that is switched off must not claim
+    // anything. Inside, every tick of a disabled job still cost one INSERT and one DELETE on
+    // `cron_lease` — for the jobs that tick every second, two statements a second each, and under
+    // `DISABLED_PROCESSES='*'` for all of them at once. That is dead tuples on a table whose whole
+    // purpose is to be read quickly, produced by jobs that are doing nothing.
+    return this.skipWhenDisabled(leased, data);
   }
 
-  private wrapFunction(data: CronJobData) {
+  private skipWhenDisabled(task: () => Promise<void>, data: CronJobData): () => Promise<void> {
+    const { process } = data.params;
+    if (!process) return task;
+
     const context = { target: data.instance.constructor.name, method: data.methodName };
 
-    return async (...args: any) => {
-      if (data.params.process && DisabledProcess(data.params.process)) {
-        this.logger.verbose(
-          `Skipping ${context.target}::${context.method} - process ${data.params.process} is disabled`,
-        );
+    return async () => {
+      if (DisabledProcess(process)) {
+        this.logger.verbose(`Skipping ${context.target}::${context.method} - process ${process} is disabled`);
         return;
       }
 
+      return task();
+    };
+  }
+
+  private wrapFunction(data: CronJobData) {
+    return async (...args: any) => {
       if (data.params.useDelay ?? true) await this.cronJobDelay(data.params.expression);
 
       await data.methodRef.apply(data.instance, args);

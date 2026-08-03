@@ -109,12 +109,16 @@ describe('CronLeaseService', () => {
       const run = service.run('SomeService::job', task);
       await settle();
 
-      expect(service['inFlight'].has('SomeService::job')).toBe(true);
+      // Read by job rather than by key: the map is keyed per RUN, so two runs of one job stay
+      // apart in it.
+      const tracked = () => [...service['inFlight'].values()].map((entry) => entry.job);
+
+      expect(tracked()).toEqual(['SomeService::job']);
 
       finish();
       await run;
 
-      expect(service['inFlight'].has('SomeService::job')).toBe(false);
+      expect(tracked()).toEqual([]);
     });
 
     it('does not start a lease-less run once shutdown has begun', async () => {
@@ -188,7 +192,7 @@ describe('CronLeaseService', () => {
     // would happily take turns owning the same job.
     const { service, onQuery } = buildService({});
 
-    await service.acquire('SomeService::job');
+    await service.acquire('SomeService::job', 'worker:p:r');
 
     const sql = (onQuery.mock.calls[0][0] as string).replace(/\s+/g, ' ');
 
@@ -197,13 +201,13 @@ describe('CronLeaseService', () => {
     expect(sql).toContain('RETURNING "owner"');
   });
 
-  it('scopes renewal and release to this process', async () => {
-    // A run that already lost its lease must not be able to extend or delete the row a different
-    // process now owns.
+  it('scopes renewal and release to the run that took the claim', async () => {
+    // A run that already lost its lease must not be able to extend or delete the row another run
+    // now owns — in another process or, after LockClass gives up on a long one, in this one.
     const { service, onQuery } = buildService({});
 
-    await service.renew('SomeService::job');
-    await service.release('SomeService::job');
+    await service.renew('SomeService::job', 'worker:p:r');
+    await service.release('SomeService::job', 'worker:p:r');
 
     const [renewSql] = onQuery.mock.calls[0];
     const [releaseSql] = onQuery.mock.calls[1];
@@ -212,14 +216,82 @@ describe('CronLeaseService', () => {
     expect((releaseSql as string).replace(/\s+/g, ' ')).toContain('WHERE "name" = $1 AND "owner" = $2');
   });
 
+  it('gives two RUNS of the same job different owners, so one cannot release the claim of the other', async () => {
+    // Reachable in one process: `LockClass` gives up on a job that outlives its declared timeout,
+    // so the next tick starts a second run of the same job here while the first still works. It
+    // can take the claim once a failed renewal has let the first one lapse — and then, under a
+    // per-PROCESS owner, both runs would match `name + owner`. Whichever finished first would
+    // delete the row the other is holding, and a third process could start the job alongside it.
+    const { service, onQuery } = buildService({});
+
+    let release: (() => void) | undefined;
+    const first = service.run('SomeService::job', () => new Promise<void>((resolve) => (release = resolve)));
+    await settle();
+
+    await service.run('SomeService::job', async () => undefined);
+    release?.();
+    await first;
+
+    const owners = onQuery.mock.calls
+      .filter(([sql]) => (sql as string).includes('INSERT INTO'))
+      .map(([, params]) => params[1] as string);
+
+    expect(owners).toHaveLength(2);
+    expect(owners[0]).not.toEqual(owners[1]);
+    // Same process, so the process part is shared and only the run part differs — an operator
+    // still reads which container the row belongs to.
+    expect(owners[0].split(':').slice(0, 2)).toEqual(owners[1].split(':').slice(0, 2));
+
+    const deleted = onQuery.mock.calls
+      .filter(([sql]) => (sql as string).includes('DELETE FROM'))
+      .map(([, params]) => params[1] as string);
+
+    expect(deleted).toEqual(expect.arrayContaining([owners[0], owners[1]]));
+  });
+
+  it('waits for BOTH runs of a job on shutdown, not just the last one to start', async () => {
+    // The in-flight record is keyed by run for the same reason. Keyed by job name the second run
+    // would replace the first, and whichever finished first would delete the entry of the other —
+    // leaving a run that shutdown neither waits for nor names.
+    const { service } = buildService({});
+
+    const done: string[] = [];
+    let releaseFirst: (() => void) | undefined;
+    let releaseSecond: (() => void) | undefined;
+
+    const first = service
+      .run('SomeService::job', () => new Promise<void>((resolve) => (releaseFirst = resolve)))
+      .then(() => done.push('first'));
+    await settle();
+    const second = service
+      .run('SomeService::job', () => new Promise<void>((resolve) => (releaseSecond = resolve)))
+      .then(() => done.push('second'));
+    await settle();
+
+    const shutdown = service.shutdown().then(() => done.push('shutdown'));
+
+    // Only the SECOND run finishes. Whether shutdown is still waiting is the whole question: keyed
+    // by job name the first run's entry is already gone, so it would consider itself done here and
+    // `main.ts` would exit on top of a payout that is still running.
+    releaseSecond?.();
+    await settle();
+
+    expect(done).toEqual(['second']);
+
+    releaseFirst?.();
+    await Promise.all([first, second, shutdown]);
+
+    expect(done).toEqual(['second', 'first', 'shutdown']);
+  });
+
   it('gives two processes of the same role different owners', async () => {
     // The role alone would let a restarted container renew the lease its predecessor took. The
     // random part is what makes the owner identify a process rather than a kind of process.
     const { service: first, onQuery: firstQuery } = buildService({});
     const { service: second, onQuery: secondQuery } = buildService({});
 
-    await first.acquire('SomeService::job');
-    await second.acquire('SomeService::job');
+    await first.run('SomeService::job', async () => undefined);
+    await second.run('SomeService::job', async () => undefined);
 
     const firstOwner = firstQuery.mock.calls[0][1][1] as string;
     const secondOwner = secondQuery.mock.calls[0][1][1] as string;
@@ -237,7 +309,7 @@ describe('CronLeaseService', () => {
     it('claims for a minute, whatever the job it guards is allowed to take', async () => {
       const { service, onQuery } = buildService({});
 
-      await service.acquire('SomeService::job');
+      await service.acquire('SomeService::job', 'worker:p:r');
 
       expect(onQuery.mock.calls[0][1][2]).toEqual('60');
     });
@@ -245,7 +317,7 @@ describe('CronLeaseService', () => {
     it('renews for the same short span', async () => {
       const { service, onQuery } = buildService({});
 
-      await service.renew('SomeService::job');
+      await service.renew('SomeService::job', 'worker:p:r');
 
       expect(onQuery.mock.calls[0][1][2]).toEqual('60');
     });
@@ -406,6 +478,26 @@ describe('CronLeaseService', () => {
       expect(main).toMatch(/leases\s*\n?\s*\.shutdown\(\)/);
     });
 
+    it('stops taking new requests before it waits', () => {
+      // The wait keeps this process alive for up to the grace period. Without closing the listener
+      // it goes on accepting requests for that whole span and then cuts them off at `process.exit`
+      // — a window that did not exist while the signal ended the process at once. Comment lines
+      // are dropped first, as in the test below: the reason sits next to the call.
+      const main = readFileSync(join(__dirname, '..', '..', '..', 'main.ts'), 'utf8')
+        .split('\n')
+        .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+        .join('\n');
+
+      const handler = main.slice(main.indexOf('function releaseCronLeasesOnShutdown'));
+      const close = handler.indexOf('app.getHttpServer().close()');
+      const wait = handler.indexOf('.shutdown()');
+
+      expect(close).toBeGreaterThan(-1);
+      expect(close).toBeLessThan(wait);
+      // And the listener only: `app.close()` runs the module-destroy hooks the test below is about.
+      expect(handler).not.toMatch(/\bapp\.close\(/);
+    });
+
     it("is NOT wired through Nest's global shutdown hooks", () => {
       // `enableShutdownHooks` would also start running nine `onModuleDestroy` hooks that have
       // never run here, before this one, emptying the strategy registries that PayIn, PayOut and
@@ -520,7 +612,7 @@ describe('CronLeaseService', () => {
       expect(service.takeFailures().healthy).toBe(false);
 
       onQuery.mockResolvedValue([{ owner: 'worker:1' }]);
-      await service.acquire('SomeService::job');
+      await service.acquire('SomeService::job', 'worker:p:r');
 
       expect(service.takeFailures().healthy).toBe(true);
     });
@@ -537,7 +629,7 @@ describe('CronLeaseService', () => {
       expect(service.takeFailures().healthy).toBe(false);
 
       onQuery.mockResolvedValue([[], 1]);
-      await service.renew('SomeService::job');
+      await service.renew('SomeService::job', 'worker:p:r');
 
       expect(service.takeFailures().healthy).toBe(true);
     });

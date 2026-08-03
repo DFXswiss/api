@@ -13,6 +13,7 @@ import { CronJob } from 'cron';
 import { DataSource } from 'typeorm';
 import { CronLeaseService } from '../cron-lease.service';
 import { DfxCronService } from '../dfx-cron.service';
+import * as ProcessService from '../process.service';
 import { Process } from '../process.service';
 
 /** Builds a provider instance carrying @DfxCron metadata, as the decorator would. */
@@ -225,6 +226,54 @@ describe('DfxCronService', () => {
       const leased = await leasedJobs('worker');
 
       expect(leased).not.toContain('Object::bothJob');
+    });
+
+    it('does not claim the lease for a job that is switched off', async () => {
+      // A job that is off must not touch the table. Inside the lease the disabled check still cost
+      // one INSERT and one DELETE per tick — for the jobs that tick every second, two statements a
+      // second each, and under DISABLED_PROCESSES='*' for every flagged job at once.
+      process.env.CRON_ROLE = 'worker';
+      new ConfigService(GetConfig());
+
+      const disabled = jest.spyOn(ProcessService, 'DisabledProcess').mockReturnValue(true);
+
+      const seen: string[] = [];
+      const body = jest.fn();
+      const instance = { flaggedJob: body };
+      Reflect.defineMetadata(
+        DFX_CRONJOB_PARAMS,
+        {
+          expression: CronExpression.EVERY_MINUTE,
+          scope: CronScope.WORKER,
+          process: Process.MONITOR_EVENT_LOOP,
+          useDelay: false,
+        } as DfxCronParams,
+        instance.flaggedJob,
+      );
+
+      const discovery = createMock<DiscoveryService>({
+        getProviders: () =>
+          [{ instance, isDependencyTreeStatic: () => true }] as ReturnType<DiscoveryService['getProviders']>,
+      });
+      const metadataScanner = createMock<MetadataScanner>({ getAllMethodNames: (i: object) => Object.keys(i) });
+      const leaseSpy = createMock<CronLeaseService>({
+        run: (job: string, task: () => Promise<void>) => {
+          seen.push(job);
+          return task();
+        },
+        takeFailures: () => ({ healthy: true, count: 0 }),
+      });
+
+      new DfxCronService(discovery, metadataScanner, createMock<SchedulerRegistry>(), leaseSpy).onModuleInit();
+
+      const scheduled = (CronJob as unknown as jest.Mock).mock.calls.map(([, fn]) => fn as () => unknown);
+      for (const fire of scheduled) await fire();
+
+      expect(disabled).toHaveBeenCalled();
+      expect(seen).toEqual([]);
+      expect(body).not.toHaveBeenCalled();
+
+      disabled.mockRestore();
     });
 
     it('does not turn a long job timeout into a long lease', async () => {
