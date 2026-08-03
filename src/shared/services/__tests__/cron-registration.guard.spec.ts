@@ -11,12 +11,22 @@ const SRC = join(__dirname, '..', '..', '..');
  * The check is syntactic on purpose. It asks whether a pattern occurs, not whether the code
  * behind it is safe, so its exception list has a natural ceiling and every entry is a deliberate
  * decision rather than a special case.
+ *
+ * Its reach ends there, and that is worth stating: a timer built from a repeating setTimeout, an
+ * aliased import or a scheduler reached through an object property passes unseen. Catching those
+ * needs an AST-based rule rather than a text match. What this covers is the shape the four cases
+ * in this repository actually had.
  */
 const FORBIDDEN: { pattern: RegExp; what: string; instead: string }[] = [
   {
     pattern: /@Cron\(/,
     what: 'the native @Cron decorator',
     instead: 'use @DfxCron, which applies the scope, the process flag and the lock',
+  },
+  {
+    pattern: /@Interval\(|@Timeout\(/,
+    what: 'the @Interval or @Timeout decorator',
+    instead: 'use @DfxCron - these register with the same scheduler and are equally invisible to the scope',
   },
   {
     pattern: /\bsetInterval\(/,

@@ -60,10 +60,10 @@ export class DfxCronService implements OnModuleInit {
           });
       });
 
-    // Counts what this process actually registered, including jobs reaching the scheduler
-    // through a dynamically resolved provider or an abstract base class - the discovery above
-    // sees those, a list of decorators would not. Stays on `info` so the split is readable
-    // without changing the log level.
+    // Counts what this process actually registered, which is not the same as counting decorators
+    // in the source: a job declared on an abstract base class is registered once per concrete
+    // provider, and the filter above skips providers whose dependency tree is not static. Stays
+    // on `info` so the split is readable without changing the log level.
     const total = registered.length + skipped;
     const byScope = Object.values(CronScope)
       .map((scope) => `${scope}: ${registered.filter((s) => s === scope).length}`)

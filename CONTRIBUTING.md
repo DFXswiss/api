@@ -1281,7 +1281,7 @@ single DTO with two fields (PR #3772, 91 LOC, ~50% reduction).
 | Loading all then filtering in JS           | SQL WHERE clause                                  |
 | `any` type                                 | Proper typed interface/class                      |
 | `string` for enum values                   | Typed enum                                        |
-| `@Interval(60000)`                         | `@DfxCron(..., { scope })` — see Cron Jobs        |
+| `@Interval(60000)`                         | `@DfxCron(EVERY_MINUTE, { scope: CronScope.WORKER })` |
 | `eager: true` everywhere                   | Explicit relation loading                         |
 | Providing service in multiple modules      | Single module, import from there                  |
 | `JSON.stringify(JSON.parse(...))`          | Unnecessary — remove                              |
