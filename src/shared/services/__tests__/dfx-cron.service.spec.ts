@@ -10,6 +10,7 @@ import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { ConfigService, GetConfig } from 'src/config/config';
 import { CronScope, DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
 import { CronJob } from 'cron';
+import { DataSource } from 'typeorm';
 import { CronLeaseService } from '../cron-lease.service';
 import { DfxCronService } from '../dfx-cron.service';
 import { Process } from '../process.service';
@@ -60,7 +61,7 @@ function buildService(providers: { instance: object }[]): {
   // Runs the task straight through: these tests are about which jobs get registered, not
   // about the lease. What the lease itself does has its own suite.
   const leases = createMock<CronLeaseService>({
-    run: (_job: string, _ttl: number, task: () => Promise<void>) => task(),
+    run: (_job: string, task: () => Promise<void>) => task(),
   });
 
   return { service: new DfxCronService(discovery, metadataScanner, scheduler, leases), scheduler };
@@ -190,7 +191,7 @@ describe('DfxCronService', () => {
       });
       const metadataScanner = createMock<MetadataScanner>({ getAllMethodNames: (i: object) => Object.keys(i) });
       const leaseSpy = createMock<CronLeaseService>({
-        run: (job: string, _ttl: number, task: () => Promise<void>) => {
+        run: (job: string, task: () => Promise<void>) => {
           seen.push(job);
           return task();
         },
@@ -221,6 +222,48 @@ describe('DfxCronService', () => {
       const leased = await leasedJobs('worker');
 
       expect(leased).not.toContain('Object::bothJob');
+    });
+
+    it('does not turn a long job timeout into a long lease', async () => {
+      // The lease used to expire when the job's own timeout did. Sixteen jobs declare 7200 —
+      // seconds, per LockClass — so a process killed mid-run left the row behind for two hours
+      // and its successor sat the job out for that long, silently. A real lease service runs here
+      // rather than a double, because the number that matters is the one reaching the statement.
+      process.env.CRON_ROLE = 'worker';
+      new ConfigService(GetConfig());
+
+      const query = jest.fn().mockImplementation((sql: string) => {
+        if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
+        if (sql.includes('UPDATE')) return Promise.resolve([[], 1]);
+        return Promise.resolve([]);
+      });
+      const leaseService = new CronLeaseService(createMock<DataSource>({ query }));
+
+      const jobs = [
+        providerWithJob('longRunningJob', {
+          expression: CronExpression.EVERY_HOUR,
+          scope: CronScope.WORKER,
+          useDelay: false,
+          timeout: 7200,
+        }),
+      ];
+      const discovery = createMock<DiscoveryService>({
+        getProviders: () =>
+          jobs.map((p) => ({ ...p, isDependencyTreeStatic: () => true })) as ReturnType<
+            DiscoveryService['getProviders']
+          >,
+      });
+      const metadataScanner = createMock<MetadataScanner>({ getAllMethodNames: (i: object) => Object.keys(i) });
+
+      new DfxCronService(discovery, metadataScanner, createMock<SchedulerRegistry>(), leaseService).onModuleInit();
+
+      const scheduled = (CronJob as unknown as jest.Mock).mock.calls.map(([, fn]) => fn as () => unknown);
+      for (const fire of scheduled) await fire();
+
+      const claim = query.mock.calls.find(([sql]) => (sql as string).includes('INSERT INTO'));
+
+      expect(claim).toBeDefined();
+      expect(claim[1][2]).toEqual('60');
     });
   });
 

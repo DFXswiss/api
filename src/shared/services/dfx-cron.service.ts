@@ -11,9 +11,6 @@ import { Util } from 'src/shared/utils/util';
 import { CustomCronExpression } from '../utils/custom-cron-expression';
 import { DfxLogger } from './dfx-logger';
 
-/** Lease length for a job that declares no timeout of its own. */
-const DEFAULT_LEASE_SECONDS = 300;
-
 interface CronJobData {
   instance: object;
   methodRef: any;
@@ -156,12 +153,7 @@ export class DfxCronService implements OnModuleInit {
 
     if (data.params.scope === CronScope.BOTH) return task;
 
-    // The lease has to outlive a single run, so it follows the job’s own timeout where there is
-    // one. Where there is none the job carries no expectation of its duration either, and five
-    // minutes is long enough that the renewal (every third of it) keeps a healthy run alive.
-    const ttlSeconds = Number.isFinite(data.params.timeout) ? data.params.timeout : DEFAULT_LEASE_SECONDS;
-
-    return () => this.leases.run(cronJobName, ttlSeconds, task);
+    return () => this.leases.run(cronJobName, task);
   }
 
   private wrapFunction(data: CronJobData) {

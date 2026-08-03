@@ -81,6 +81,12 @@ async function bootstrap() {
     app.use(apiTraceMiddleware());
   }
 
+  // Without this, Nest never runs a shutdown hook and a deployment kills the process mid-job. The
+  // cron lease depends on it: see CronLeaseService.beforeApplicationShutdown. Restricted to the
+  // two signals a deployment actually sends, rather than the full default set — the others are
+  // crash signals whose default handling should stay untouched.
+  app.enableShutdownHooks(['SIGTERM', 'SIGINT']);
+
   app.useWebSocketAdapter(new WsAdapter(app));
 
   app.enableVersioning({

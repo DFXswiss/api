@@ -1,4 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ConfigService, GetConfig } from 'src/config/config';
 import { DataSource } from 'typeorm';
 import { CronLeaseService } from '../cron-lease.service';
@@ -42,7 +44,7 @@ describe('CronLeaseService', () => {
     const { service } = buildService({ acquire: [{ owner: 'worker:1' }] });
     const task = jest.fn().mockResolvedValue(undefined);
 
-    await service.run('SomeService::job', 60, task);
+    await service.run('SomeService::job', task);
 
     expect(task).toHaveBeenCalledTimes(1);
   });
@@ -53,7 +55,7 @@ describe('CronLeaseService', () => {
     const { service } = buildService({ acquire: [] });
     const task = jest.fn().mockResolvedValue(undefined);
 
-    await service.run('SomeService::job', 60, task);
+    await service.run('SomeService::job', task);
 
     expect(task).not.toHaveBeenCalled();
   });
@@ -65,7 +67,7 @@ describe('CronLeaseService', () => {
     const { service } = buildService({ onQuery });
     const task = jest.fn().mockResolvedValue(undefined);
 
-    await service.run('SomeService::job', 60, task);
+    await service.run('SomeService::job', task);
 
     expect(task).not.toHaveBeenCalled();
   });
@@ -76,7 +78,7 @@ describe('CronLeaseService', () => {
     const { service, onQuery } = buildService({});
     const task = jest.fn().mockRejectedValue(new Error('job blew up'));
 
-    await expect(service.run('SomeService::job', 60, task)).rejects.toThrow('job blew up');
+    await expect(service.run('SomeService::job', task)).rejects.toThrow('job blew up');
 
     expect(onQuery.mock.calls.some(([sql]) => (sql as string).includes('DELETE FROM'))).toBe(true);
   });
@@ -87,7 +89,7 @@ describe('CronLeaseService', () => {
     // would happily take turns owning the same job.
     const { service, onQuery } = buildService({});
 
-    await service.acquire('SomeService::job', 60);
+    await service.acquire('SomeService::job');
 
     const sql = (onQuery.mock.calls[0][0] as string).replace(/\s+/g, ' ');
 
@@ -101,7 +103,7 @@ describe('CronLeaseService', () => {
     // process now owns.
     const { service, onQuery } = buildService({});
 
-    await service.renew('SomeService::job', 60);
+    await service.renew('SomeService::job');
     await service.release('SomeService::job');
 
     const [renewSql] = onQuery.mock.calls[0];
@@ -117,8 +119,8 @@ describe('CronLeaseService', () => {
     const { service: first, onQuery: firstQuery } = buildService({});
     const { service: second, onQuery: secondQuery } = buildService({});
 
-    await first.acquire('SomeService::job', 60);
-    await second.acquire('SomeService::job', 60);
+    await first.acquire('SomeService::job');
+    await second.acquire('SomeService::job');
 
     const firstOwner = firstQuery.mock.calls[0][1][1] as string;
     const secondOwner = secondQuery.mock.calls[0][1][1] as string;
@@ -126,5 +128,120 @@ describe('CronLeaseService', () => {
     expect(firstOwner.startsWith('worker:')).toBe(true);
     expect(secondOwner.startsWith('worker:')).toBe(true);
     expect(firstOwner).not.toEqual(secondOwner);
+  });
+
+  describe('lease duration', () => {
+    // The expiry decides how long a job stays blocked after a process dies without releasing.
+    // Reading it off the job's own timeout made that window as long as the job was allowed to
+    // take — up to two hours for the jobs declaring the longest timeouts.
+
+    it('claims for a minute, whatever the job it guards is allowed to take', async () => {
+      const { service, onQuery } = buildService({});
+
+      await service.acquire('SomeService::job');
+
+      expect(onQuery.mock.calls[0][1][2]).toEqual('60');
+    });
+
+    it('renews for the same short span', async () => {
+      const { service, onQuery } = buildService({});
+
+      await service.renew('SomeService::job');
+
+      expect(onQuery.mock.calls[0][1][2]).toEqual('60');
+    });
+  });
+
+  describe('shutdown', () => {
+    // A deployment sends SIGTERM in the middle of a run. Whatever happens here decides whether the
+    // successor can pick the job up, and whether it can pick it up while this process still works
+    // on it.
+
+    /** Lets pending promises settle without advancing any timer. */
+    const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+    const released = (onQuery: jest.Mock) =>
+      onQuery.mock.calls.some(([sql]) => (sql as string).includes('DELETE FROM'));
+
+    it('does not take the lease away from a job that is still running', async () => {
+      // The dangerous direction. Releasing on SIGTERM would let the successor claim the lease and
+      // start the same job while this process keeps working on it for the rest of its stop grace
+      // period — the double run the lease exists to prevent.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        const { service, onQuery } = buildService({});
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+
+        await settle();
+
+        const shutdown = service.beforeApplicationShutdown();
+        await settle();
+
+        // Grace expires with the job still working.
+        jest.advanceTimersByTime(10_000);
+        await shutdown;
+
+        expect(released(onQuery)).toBe(false);
+
+        finish();
+        await run;
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('waits for the running job instead of letting the process leave under it', async () => {
+      // The reason for waiting at all: the run gets to reach its own release, so the successor
+      // finds no row and starts the job on its next tick instead of sitting out the expiry.
+      // Without the hook the shutdown would be over before the job is, which is what the pending
+      // assertion below pins — the release alone proves nothing, it happens either way.
+      const { service, onQuery } = buildService({});
+      let finish: () => void;
+      const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+
+      await settle();
+
+      let over = false;
+      const shutdown = service.beforeApplicationShutdown().then(() => (over = true));
+      await settle();
+
+      expect(over).toBe(false);
+      expect(released(onQuery)).toBe(false);
+
+      finish();
+      await run;
+      await shutdown;
+
+      expect(over).toBe(true);
+      expect(released(onQuery)).toBe(true);
+    });
+
+    it('is reached at all, because bootstrap enables the hooks', () => {
+      // Nest calls no shutdown hook unless the application asks for it. Without that one line
+      // everything above is dead code and a deployment kills the process mid-job, which is the
+      // state this change came from. Read from the source because there is nothing to call.
+      const main = readFileSync(join(__dirname, '..', '..', '..', 'main.ts'), 'utf8');
+
+      expect(main).toMatch(/app\.enableShutdownHooks\(/);
+      expect(main).toContain("'SIGTERM'");
+    });
+
+    it('returns immediately when no job is running', async () => {
+      // The overwhelmingly common case on a deployment: nothing outstanding, so shutdown must not
+      // spend the grace period waiting for it.
+      const { service } = buildService({});
+
+      await service.beforeApplicationShutdown();
+    });
+
+    it('stops tracking a run once it is done, so a later shutdown has nothing to wait for', async () => {
+      const { service } = buildService({});
+
+      await service.run('SomeService::job', jest.fn().mockResolvedValue(undefined));
+
+      expect([...(service['inFlight'] as Map<string, unknown>).keys()]).toEqual([]);
+    });
   });
 });

@@ -1,8 +1,39 @@
-import { Injectable } from '@nestjs/common';
+import { BeforeApplicationShutdown, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Config } from 'src/config/config';
 import { DataSource } from 'typeorm';
 import { DfxLogger } from './dfx-logger';
+
+/**
+ * How long a claim stays valid without being renewed.
+ *
+ * Deliberately short, and deliberately unrelated to how long the job it guards may run. A lease
+ * expiry is not a job timeout: its only purpose is to bound how long a claim outlives a process
+ * that can no longer speak for itself — SIGKILL, an OOM kill, a lost machine. In each of those the
+ * row stays behind until it expires, and for that window the job runs nowhere.
+ *
+ * Deriving the expiry from the job's own timeout got that backwards. A timeout answers "how long
+ * may this run take", which says nothing about how long a stale claim should survive its owner,
+ * and it made the outage longest for exactly the jobs that declare the longest timeouts. One
+ * minute is long enough for the renewal below to carry a healthy run across a slow query or a
+ * brief connection hiccup, and short enough that the worst case is a minute of one job not
+ * running.
+ */
+const LEASE_TTL_SECONDS = 60;
+
+/**
+ * Renew at a third of the lease, so two consecutive failed renewals still leave a full attempt
+ * before the claim lapses.
+ */
+const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
+
+/**
+ * How long shutdown waits for jobs that are still running. See `beforeApplicationShutdown`.
+ *
+ * Short on purpose: it is a handover courtesy, not a completion guarantee. Every process pays it
+ * on every deployment, and the container's own stop grace period ends the process regardless.
+ */
+const SHUTDOWN_GRACE_MS = 10 * 1000;
 
 /**
  * A lease on a scheduled job, held in the database for as long as the job runs.
@@ -23,15 +54,24 @@ import { DfxLogger } from './dfx-logger';
  * be extended and eventually expires — a second process may then start the same job while the
  * first is still working. Preventing that outright would require every write inside every job to
  * carry the lease token, which this does not attempt. What it does is turn an unbounded window
- * ("until a human reads the alert") into a bounded one (the lease duration). A lost lease is
+ * ("until a human reads the alert") into a bounded one (`LEASE_TTL_SECONDS`). A lost lease is
  * logged at error level, because it means the run that is still going has no claim to the job any
  * more.
  */
 @Injectable()
-export class CronLeaseService {
+export class CronLeaseService implements BeforeApplicationShutdown {
   private readonly logger = new DfxLogger(CronLeaseService);
 
   private ownerId?: string;
+
+  /**
+   * The runs this process currently holds a lease for, by job name.
+   *
+   * Kept so shutdown knows what is still outstanding. The stored promise has its rejection already
+   * absorbed: the job's own error belongs to its caller, and a second consumer of the same
+   * rejection here would surface as an unhandled one.
+   */
+  private readonly inFlight = new Map<string, Promise<void>>();
 
   /**
    * Identifies THIS process for the lifetime of the process. The role makes a stray row readable
@@ -55,7 +95,7 @@ export class CronLeaseService {
    * them sees a returned row. Read the `WHERE` as "only if nobody is currently holding it" — an
    * unexpired row belonging to another process leaves the update out and returns nothing.
    */
-  async acquire(job: string, ttlSeconds: number): Promise<boolean> {
+  async acquire(job: string): Promise<boolean> {
     const claimed = await this.dataSource.query(
       `INSERT INTO "cron_lease" ("name", "owner", "acquired", "expires")
        VALUES ($1, $2, now(), now() + ($3 || ' seconds')::interval)
@@ -63,7 +103,7 @@ export class CronLeaseService {
          SET "owner" = EXCLUDED."owner", "acquired" = EXCLUDED."acquired", "expires" = EXCLUDED."expires"
          WHERE "cron_lease"."expires" <= now()
        RETURNING "owner"`,
-      [job, this.owner, `${ttlSeconds}`],
+      [job, this.owner, `${LEASE_TTL_SECONDS}`],
     );
 
     return claimed.length > 0;
@@ -74,12 +114,12 @@ export class CronLeaseService {
    * longer the owner — which means another process has taken the job over and this run should be
    * treated as having lost its claim.
    */
-  async renew(job: string, ttlSeconds: number): Promise<boolean> {
+  async renew(job: string): Promise<boolean> {
     const [, affected] = await this.dataSource.query(
       `UPDATE "cron_lease"
        SET "expires" = now() + ($3 || ' seconds')::interval
        WHERE "name" = $1 AND "owner" = $2`,
-      [job, this.owner, `${ttlSeconds}`],
+      [job, this.owner, `${LEASE_TTL_SECONDS}`],
     );
 
     return affected > 0;
@@ -100,10 +140,10 @@ export class CronLeaseService {
    * the assumption that it is probably alone. The caller sees the same outcome as a job whose
    * lease is held elsewhere — it simply does not run this cycle and tries again on the next.
    */
-  async run(job: string, ttlSeconds: number, task: () => Promise<void>): Promise<void> {
+  async run(job: string, task: () => Promise<void>): Promise<void> {
     let acquired: boolean;
     try {
-      acquired = await this.acquire(job, ttlSeconds);
+      acquired = await this.acquire(job);
     } catch (e) {
       this.logger.error(`Skipping ${job}: could not reach the lease table`, e);
       return;
@@ -111,25 +151,69 @@ export class CronLeaseService {
 
     if (!acquired) return;
 
-    // Renew at a third of the lease so two consecutive failures still leave a full attempt before
-    // the lease lapses. Unref'd: a pending timer must never hold the process open on shutdown.
-    const renewal = setInterval(
-      () => {
-        void this.renew(job, ttlSeconds)
-          .then((stillOurs) => {
-            if (!stillOurs) this.logger.error(`Lost the lease for ${job} while it was still running`);
-          })
-          .catch((e) => this.logger.error(`Could not extend the lease for ${job}`, e));
-      },
-      (ttlSeconds / 3) * 1000,
-    );
+    // Unref'd: a pending timer must never hold the process open on shutdown.
+    const renewal = setInterval(() => {
+      void this.renew(job)
+        .then((stillOurs) => {
+          if (!stillOurs) this.logger.error(`Lost the lease for ${job} while it was still running`);
+        })
+        .catch((e) => this.logger.error(`Could not extend the lease for ${job}`, e));
+    }, RENEWAL_INTERVAL_MS);
     renewal.unref();
 
-    try {
-      await task();
-    } finally {
-      clearInterval(renewal);
-      await this.release(job).catch((e) => this.logger.error(`Could not release the lease for ${job}`, e));
-    }
+    const run = (async () => {
+      try {
+        await task();
+      } finally {
+        clearInterval(renewal);
+        await this.release(job).catch((e) => this.logger.error(`Could not release the lease for ${job}`, e));
+        this.inFlight.delete(job);
+      }
+    })();
+
+    this.inFlight.set(
+      job,
+      run.catch(() => undefined),
+    );
+
+    return run;
+  }
+
+  /**
+   * Waits for the jobs this process is still running, so their normal release path can hand the
+   * lease over to the successor instead of leaving it to expire.
+   *
+   * `beforeApplicationShutdown`, not `onApplicationShutdown`: TypeOrmCoreModule closes the
+   * connection in the latter, and releasing a lease needs that connection.
+   *
+   * A lease is NOT taken away from a job that is still working. Releasing on SIGTERM would hand
+   * over faster, but the job keeps running until the container's stop grace period ends it —
+   * `dfx-api-worker` is configured to allow two minutes — and a successor claiming the freed lease
+   * inside that window would run the same money-moving job alongside it. That is the outcome this
+   * whole mechanism exists to prevent, so it is not traded for a faster handover.
+   *
+   * What is still running after the wait therefore keeps its lease, which lapses within
+   * `LEASE_TTL_SECONDS` of the last renewal. The renewal timers deliberately keep going meanwhile:
+   * they hold the claim for as long as this process is alive to renew it.
+   */
+  async beforeApplicationShutdown(): Promise<void> {
+    const running = [...this.inFlight.values()];
+    if (!running.length) return;
+
+    this.logger.info(`Shutting down: waiting up to ${SHUTDOWN_GRACE_MS / 1000}s for ${running.length} running job(s)`);
+
+    await Promise.race([Promise.all(running), this.shutdownGrace()]);
+
+    const stranded = [...this.inFlight.keys()];
+    if (stranded.length)
+      this.logger.warn(
+        `Shutting down with ${stranded.length} job(s) still running (${stranded.join(', ')}); ` +
+          `their leases stay held and lapse within ${LEASE_TTL_SECONDS}s`,
+      );
+  }
+
+  private shutdownGrace(): Promise<void> {
+    // Unref'd so winning the race above does not keep the process alive for the rest of the grace.
+    return new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_GRACE_MS).unref());
   }
 }
