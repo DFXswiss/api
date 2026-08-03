@@ -15,7 +15,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -137,7 +137,7 @@ export class BankTxService implements OnModuleInit {
   }
 
   // --- TRANSACTION HANDLING --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Worker, timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
     try {
       await this.checkTransactions();
@@ -153,7 +153,7 @@ export class BankTxService implements OnModuleInit {
     await this.fillBankTx();
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.BANK_TX })
   async enrichYapealTransactions(): Promise<void> {
     const transactions = await this.bankTxRepo.find({
       where: { familyCode: 'CCRD' }, // credit card => wrong data

@@ -20,7 +20,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -134,7 +134,7 @@ export class KycService {
     this.webhookQueue = new QueueHandler();
   }
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { process: Process.KYC })
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.Worker, process: Process.KYC })
   async checkIdentSteps(): Promise<void> {
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
@@ -162,7 +162,7 @@ export class KycService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.KYC })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.KYC })
   async reviewKycSteps(): Promise<void> {
     await this.reviewNationalityStep();
     await this.reviewIdentSteps();

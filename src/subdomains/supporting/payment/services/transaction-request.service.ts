@@ -7,7 +7,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
@@ -49,13 +49,17 @@ export class TransactionRequestService {
     private readonly swapService: SwapService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TX_REQUEST, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.TX_REQUEST, timeout: 7200 })
   async txRequestStatusSync() {
     await this.syncStatus();
     await this.deleteOldTxRequests();
   }
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_3AM, { process: Process.TX_REQUEST_WAITING_EXPIRY, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_DAY_AT_3AM, {
+    scope: CronScope.Worker,
+    process: Process.TX_REQUEST_WAITING_EXPIRY,
+    timeout: 7200,
+  })
   async txRequestWaitingExpiryCheck() {
     const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
     const entities = await this.transactionRequestRepo.findBy({

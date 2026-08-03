@@ -6,7 +6,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -105,7 +105,11 @@ export class LiquidityManagementRuleService {
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, {
+    scope: CronScope.Worker,
+    process: Process.LIQUIDITY_MANAGEMENT,
+    timeout: 1800,
+  })
   async reactivateRules(): Promise<void> {
     const rules = await this.ruleRepo.findBy({
       status: LiquidityManagementRuleStatus.PAUSED,

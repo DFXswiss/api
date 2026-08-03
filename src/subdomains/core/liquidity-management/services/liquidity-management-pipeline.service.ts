@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
@@ -77,7 +77,11 @@ export class LiquidityManagementPipelineService {
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_SECONDS, {
+    scope: CronScope.Worker,
+    process: Process.LIQUIDITY_MANAGEMENT,
+    timeout: 1800,
+  })
   async processPipelines(): Promise<void> {
     let hasChanges = true;
     while (hasChanges) {

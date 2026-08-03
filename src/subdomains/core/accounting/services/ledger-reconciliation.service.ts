@@ -6,7 +6,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
@@ -97,7 +97,7 @@ export class LedgerReconciliationService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_5AM, { process: Process.LEDGER_RECONCILIATION })
+  @DfxCron(CronExpression.EVERY_DAY_AT_5AM, { scope: CronScope.Worker, process: Process.LEDGER_RECONCILIATION })
   async run(): Promise<void> {
     if (!(await this.jobService.isLedgerReady())) return; // cutover-gate (Blocker R1-6)
 

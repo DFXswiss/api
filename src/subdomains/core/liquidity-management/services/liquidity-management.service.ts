@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import {
   PriceCurrency,
@@ -37,7 +37,11 @@ export class LiquidityManagementService {
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT_CHECK_BALANCES, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.Worker,
+    process: Process.LIQUIDITY_MANAGEMENT_CHECK_BALANCES,
+    timeout: 1800,
+  })
   async checkLiquidityBalances() {
     const rules = await this.ruleRepo.findBy({ status: Not(LiquidityManagementRuleStatus.DISABLED) });
     const balances = await this.balanceService.refreshBalances(rules);

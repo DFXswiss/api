@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { IsNull, Not } from 'typeorm';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
@@ -18,7 +18,11 @@ export class BankTxReturnNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BANK_TX_RETURN_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.Worker,
+    process: Process.BANK_TX_RETURN_MAIL,
+    timeout: 1800,
+  })
   async sendBankTxReturnMail() {
     await this.chargebackInitiated();
   }

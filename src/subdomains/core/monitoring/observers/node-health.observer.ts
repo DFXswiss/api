@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
@@ -45,7 +45,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     this.emit(data);
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 360 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 360 })
   async fetch(): Promise<NodesState> {
     const previousState = this.data;
 

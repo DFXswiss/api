@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -23,7 +23,7 @@ export class PayInNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PAY_IN_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.PAY_IN_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
     await this.returnedCryptoInput();
   }

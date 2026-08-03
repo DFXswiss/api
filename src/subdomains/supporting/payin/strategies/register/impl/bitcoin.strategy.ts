@@ -6,7 +6,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { PayInType } from '../../../entities/crypto-input.entity';
@@ -31,7 +31,7 @@ export class BitcoinStrategy extends PollingStrategy {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_SECOND, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_SECOND, { scope: CronScope.Worker, process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     if (!this.payInBitcoinService.isAvailable()) {
       if (!this.unavailableWarningLogged) {

@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { In, IsNull } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -21,7 +21,7 @@ export class OrganizationService {
     private readonly userDataRepo: UserDataRepository,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.ORGANIZATION_SYNC, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.ORGANIZATION_SYNC, timeout: 1800 })
   async syncOrganization() {
     const entities = await this.userDataRepo.findBy({
       organization: { id: IsNull() },

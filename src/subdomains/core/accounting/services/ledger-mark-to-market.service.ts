@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
@@ -45,7 +45,7 @@ export class LedgerMarkToMarketService {
     private readonly ledgerLegRepository: LedgerLegRepository,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { process: Process.LEDGER_MARK_TO_MARKET })
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.Worker, process: Process.LEDGER_MARK_TO_MARKET })
   async run(): Promise<void> {
     if (!(await this.jobService.isLedgerReady())) return; // cutover-gate (Blocker R1-6) applies here too
 

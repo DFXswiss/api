@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { CreateLogDto, LogCleanupSetting, UpdateLogDto } from './dto/create-log.dto';
 import { SetFinancialLogValidityDto } from './dto/set-financial-log-validity.dto';
 import {
@@ -24,7 +24,7 @@ export class LogService {
     private readonly settingService: SettingService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_11PM, { process: Process.LOG_CLEANUP })
+  @DfxCron(CronExpression.EVERY_DAY_AT_11PM, { scope: CronScope.Worker, process: Process.LOG_CLEANUP })
   async cleanup(): Promise<void> {
     const logCleanupSettings = await this.settingService.getObj<LogCleanupSetting[]>('logCleanup', []);
 

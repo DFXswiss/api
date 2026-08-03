@@ -8,7 +8,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
@@ -28,7 +28,7 @@ export class ZanoStrategy extends PollingStrategy {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_SECOND, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_SECOND, { scope: CronScope.Worker, process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     return super.checkPayInEntries();
   }

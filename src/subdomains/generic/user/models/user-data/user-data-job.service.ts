@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -15,7 +15,7 @@ import { UserDataRepository } from './user-data.repository';
 export class UserDataJobService {
   constructor(private readonly userDataRepo: UserDataRepository) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.USER_DATA, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.USER_DATA, timeout: 1800 })
   async fillUserData() {
     await this.bankTxVerification();
     await this.setAccountOpener();

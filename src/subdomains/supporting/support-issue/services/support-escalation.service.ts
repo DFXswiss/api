@@ -5,7 +5,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { SupportIssueReasonLabelMap, SupportIssueTypeLabelMap } from '../dto/support-issue-label';
@@ -200,7 +200,7 @@ export class SupportEscalationService {
 
   // --- Escalation detection ---
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.SUPPORT_BOT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.SUPPORT_BOT, timeout: 1800 })
   async checkEscalations(): Promise<void> {
     if (!this.token) return;
 

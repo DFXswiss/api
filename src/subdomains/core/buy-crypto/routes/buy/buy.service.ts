@@ -15,7 +15,7 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
@@ -66,12 +66,12 @@ export class BuyService {
   ) {}
 
   // --- VOLUMES --- //
-  @DfxCron(CronExpression.EVERY_YEAR)
+  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.Worker })
   async resetAnnualVolumes(): Promise<void> {
     await this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.Worker })
   async resetMonthlyVolumes(): Promise<void> {
     await this.buyRepo.update({ monthlyVolume: Not(0) }, { monthlyVolume: 0 });
   }

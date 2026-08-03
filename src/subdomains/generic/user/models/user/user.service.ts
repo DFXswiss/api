@@ -20,7 +20,7 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -541,7 +541,7 @@ export class UserService {
   }
 
   // --- VOLUMES --- //
-  @DfxCron(CronExpression.EVERY_YEAR)
+  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.Worker })
   async resetAnnualVolumes(): Promise<void> {
     await this.userRepo.update(
       [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
@@ -549,7 +549,7 @@ export class UserService {
     );
   }
 
-  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.Worker })
   async resetMonthlyVolumes(): Promise<void> {
     await this.userRepo.update(
       [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],

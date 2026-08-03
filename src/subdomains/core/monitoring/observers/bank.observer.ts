@@ -7,7 +7,7 @@ import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
@@ -38,7 +38,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     super(monitoringService, 'bank', 'balance');
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     let data = [];
 

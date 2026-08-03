@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { IsNull } from 'typeorm';
@@ -31,7 +31,7 @@ export class AmlObserver extends MetricObserver<AmlData> {
     super(monitoringService, 'payment', 'aml');
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     const data = await this.getAmlData();
 

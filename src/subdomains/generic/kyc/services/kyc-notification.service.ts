@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -26,7 +26,7 @@ export class KycNotificationService {
     private readonly webhookService: WebhookService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.KYC_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.KYC_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
     await this.autoKycStepReminder();
   }

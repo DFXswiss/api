@@ -4,7 +4,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
 import { Config } from 'src/config/config';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
@@ -51,7 +51,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     this.frankencoinClient = new FrankencoinClient(this.getEvmClient());
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.FRANKENCOIN_LOG_INFO })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.FRANKENCOIN_LOG_INFO })
   async processLogInfo() {
     if (!Config.blockchain.frankencoin.contractAddress.xchf) {
       this.logger.warn('Frankencoin xchf contract not configured - skipping processLogInfo');

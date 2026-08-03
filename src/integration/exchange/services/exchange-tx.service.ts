@@ -5,7 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import {
   PriceCurrency,
@@ -96,7 +96,11 @@ export class ExchangeTxService implements OnModuleInit {
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.EXCHANGE_TX_SYNC, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, {
+    scope: CronScope.Worker,
+    process: Process.EXCHANGE_TX_SYNC,
+    timeout: 1800,
+  })
   async syncExchangeJob() {
     await this.syncExchanges();
   }

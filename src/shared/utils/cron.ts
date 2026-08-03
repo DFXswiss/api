@@ -34,26 +34,35 @@ export interface DfxCronOptParams {
   process?: Process;
   useDelay?: boolean;
   timeout?: number;
-  /**
-   * Which process runs this job. A job without a scope runs in every process, which is what
-   * every job did before the scope existed.
-   */
-  scope?: CronScope;
+}
+
+/**
+ * Parameters of a cron job. `scope` is mandatory and has no default.
+ *
+ * A wrong classification fails silently - a job wrongly scoped `worker` leaves the cache it
+ * maintains empty in the process that reads it, with no error anywhere. A default plus a list
+ * of exceptions moves that decision into a hand-maintained list the compiler never sees, and
+ * such a list grows and goes stale; pinning it in a test proves the state of the list, not the
+ * property it stands for. Requiring the field puts the question in front of whoever adds a job,
+ * which is the only check that stays complete as jobs are added.
+ */
+export interface DfxCronRequiredParams extends DfxCronOptParams {
+  scope: CronScope;
 }
 
 export type DfxCronExpression = CronExpression | CustomCronExpression;
 
-export interface DfxCronParams extends DfxCronOptParams {
+export interface DfxCronParams extends DfxCronRequiredParams {
   expression: DfxCronExpression;
 }
 
 export const DFX_CRONJOB_PARAMS = 'DFXCronjobParams';
 
-export function DfxCron(expression: DfxCronExpression, optional?: DfxCronOptParams) {
+export function DfxCron(expression: DfxCronExpression, required: DfxCronRequiredParams) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const methodRef = target[propertyKey];
 
-    const params: DfxCronParams = { expression, ...optional };
+    const params: DfxCronParams = { expression, ...required };
 
     Reflect.defineMetadata(DFX_CRONJOB_PARAMS, params, methodRef);
 

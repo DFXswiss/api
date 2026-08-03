@@ -6,7 +6,7 @@ import { SepoliaService } from 'src/integration/blockchain/sepolia/sepolia.servi
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -40,7 +40,7 @@ export class RealUnitW2wGasObserver extends MetricObserver<RealUnitW2wGasData> {
     super(monitoringService, 'realUnit', 'w2wGasBalance');
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
   async fetch(): Promise<RealUnitW2wGasData> {
     const data = await this.getData();
 

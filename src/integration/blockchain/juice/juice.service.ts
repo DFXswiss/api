@@ -5,7 +5,7 @@ import { Contract } from 'ethers';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
@@ -61,7 +61,7 @@ export class JuiceService extends FrankencoinBasedService implements OnModuleIni
     return this.registryService.getClient(Blockchain.CITREA) as EvmClient;
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.JUICE_LOG_INFO })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.JUICE_LOG_INFO })
   async processLogInfo(): Promise<void> {
     if (!Config.blockchain.juice.graphUrl || !Config.blockchain.juice.apiUrl) {
       this.logger.warn('Juice graphUrl/apiUrl not configured - skipping processLogInfo');

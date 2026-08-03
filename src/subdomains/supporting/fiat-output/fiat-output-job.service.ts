@@ -15,7 +15,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
@@ -64,7 +64,7 @@ export class FiatOutputJobService {
     private readonly bankService: BankService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.FIAT_OUTPUT, timeout: 1800 })
   async fillFiatOutput() {
     await this.assignBankAccount();
     await this.setReadyDate();
@@ -77,7 +77,7 @@ export class FiatOutputJobService {
     await this.notifyScryptDeposits();
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.FIAT_OUTPUT })
   async checkOlkypayOrderStatus(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_OLKYPAY_STATUS_CHECK)) return;
     if (!this.olkypayService.isAvailable()) return;
@@ -103,7 +103,7 @@ export class FiatOutputJobService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.FIAT_OUTPUT, timeout: 1800 })
   async generateReports() {
     const entities = await this.fiatOutputRepo.find({
       where: { reportCreated: false, isComplete: true },

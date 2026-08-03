@@ -5,7 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { BlockchainRegistryService } from '../services/blockchain-registry.service';
 import { EvmBlockchains } from '../util/blockchain.util';
 
@@ -19,7 +19,7 @@ export class EvmDecimalsService {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.ASSET_DECIMALS, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.ASSET_DECIMALS, timeout: 1800 })
   async setDecimals() {
     const assets = await this.assetService.getEvmAssetsWithoutDecimals(EvmBlockchains);
 

@@ -4,7 +4,7 @@ import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-c
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 
@@ -31,7 +31,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
     this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
   async fetch(): Promise<NodeBalanceData> {
     const data = await this.getNode();
 

@@ -50,14 +50,12 @@ export class DfxCronService implements OnModuleInit {
           })
           .filter((data) => data.params)
           .forEach((data) => {
-            const scope = data.params.scope ?? CronScope.Both;
-
-            if (!this.runsInThisRole(scope)) {
+            if (!this.runsInThisRole(data.params.scope)) {
               skipped++;
               return;
             }
 
-            registered.push(scope);
+            registered.push(data.params.scope);
             this.addCronJob(data);
           });
       });
@@ -101,7 +99,7 @@ export class DfxCronService implements OnModuleInit {
     this.schedulerRegisty.addCronJob(cronJobName, cronJob);
     cronJob.start();
 
-    this.logger.verbose(`Registered ${cronJobName} (${data.params.scope ?? CronScope.Both})`);
+    this.logger.verbose(`Registered ${cronJobName} (${data.params.scope})`);
   }
 
   private wrapFunction(data: CronJobData) {

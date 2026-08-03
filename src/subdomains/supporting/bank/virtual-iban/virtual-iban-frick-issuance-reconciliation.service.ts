@@ -4,7 +4,7 @@ import { FrickVirtualIban, FrickVirtualIbanState } from 'src/integration/bank/dt
 import { FrickVirtualIbansFetchResult } from 'src/integration/bank/services/frick.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FrickVibanProvider } from 'src/subdomains/supporting/bank/virtual-iban/providers/frick-viban.provider';
 import { VirtualIbanIssuanceEvent } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-event.entity';
@@ -88,6 +88,7 @@ export class VirtualIbanFrickIssuanceReconciliationService {
    * and external cleanup targets exact vIBAN identities, making repeated work fail closed or idempotent.
    */
   @DfxCron(CronExpression.EVERY_HOUR, {
+    scope: CronScope.Worker,
     process: Process.VIRTUAL_IBAN_FRICK_ISSUANCE_RECONCILIATION,
     timeout: 1800,
   })

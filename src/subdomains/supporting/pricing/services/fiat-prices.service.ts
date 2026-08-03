@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { PriceCurrency, PriceValidity, PricingService } from './pricing.service';
 
 @Injectable()
@@ -16,7 +16,7 @@ export class FiatPricesService {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.PRICING, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Worker, process: Process.PRICING, timeout: 3600 })
   async updatePrices() {
     const fiats = await this.fiatService.getActiveFiat();
 

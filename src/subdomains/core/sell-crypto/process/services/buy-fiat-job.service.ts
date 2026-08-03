@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { BuyFiatPreparationService } from './buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
 
@@ -12,7 +12,7 @@ export class BuyFiatJobService {
     private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BUY_FIAT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.BUY_FIAT, timeout: 1800 })
   async checkCryptoPayIn() {
     await this.buyFiatRegistrationService.registerSellPayIn();
     await this.buyFiatRegistrationService.syncReturnTxId();
@@ -26,7 +26,7 @@ export class BuyFiatJobService {
     await this.buyFiatPreparationService.chargebackTx();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BUY_FIAT, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.BUY_FIAT, timeout: 7200 })
   async addFiatOutputs(): Promise<void> {
     await this.buyFiatPreparationService.addFiatOutputs();
   }

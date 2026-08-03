@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { CheckoutBalances, CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
@@ -30,7 +30,7 @@ export class CheckoutObserver extends MetricObserver<CheckoutData[]> {
     super(monitoringService, 'checkout', 'balance');
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     if (!this.checkoutService.isAvailable()) {
       if (!this.unavailableWarningLogged) {

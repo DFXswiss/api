@@ -7,7 +7,7 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { TestBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 
 @Injectable()
 export class BlockchainConfigCheckService {
@@ -20,7 +20,7 @@ export class BlockchainConfigCheckService {
   // reports what a client can actually tell us today: a missing Tatum API key (Cardano, Solana, Tron) and a
   // missing node URL (Bitcoin, Firo). Clients that build unconditionally report configured, so silence here
   // is not a full-coverage statement
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BLOCKCHAIN_CONFIG_CHECK })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Worker, process: Process.BLOCKCHAIN_CONFIG_CHECK })
   logUnconfiguredClients(): void {
     if (Config.environment !== Environment.PRD) return;
 
