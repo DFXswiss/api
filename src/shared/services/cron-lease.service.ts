@@ -47,8 +47,8 @@ const SHUTDOWN_GRACE_MS = 10 * 1000;
  * The lease is claimed per job name, and only one owner can hold it. It carries an expiry rather
  * than a lock held on a connection: a connection-bound `pg_advisory_lock` would occupy one pooled
  * connection for the whole runtime of the job, and 67 of the jobs declare a timeout measured in
- * minutes. Against `SQL_POOL_MAX=40` that is a real risk to the connection budget. An expiring row
- * costs one short query to take, one to extend, one to release.
+ * minutes. That is a real risk to a connection pool sized by `SQL_POOL_MAX`. An expiring row costs
+ * one short query to take, one to extend, one to release.
  *
  * **What it does not do.** If the database becomes unreachable while a job runs, the lease cannot
  * be extended and eventually expires — a second process may then start the same job while the

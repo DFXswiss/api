@@ -309,7 +309,7 @@ describe('DfxCronService', () => {
   });
 
   describe('role heartbeat', () => {
-    // The alert dfx-api-role-mismatch decides from this line which role each process is running.
+    // A watchdog outside this repository decides from this line which role each process is running.
     // Everything it needs has to be IN the line and the line has to appear in both processes —
     // the three tests below pin exactly that, because none of it is visible at the call site.
 

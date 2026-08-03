@@ -16,8 +16,8 @@
  * This table makes it structural: a job scoped to exactly one process must hold a row here for the
  * duration of its run, and the row is claimable by only one process at a time.
  *
- * No foreign keys, deliberately. The table is infrastructure, not domain data, and PRD carries
- * tables without a primary key from the MSSQL cutover — a FK into one of them would fail at boot.
+ * No foreign keys, deliberately: the table is infrastructure, not domain data, and a key into a
+ * domain table would tie a coordination row to a schema it has no business depending on.
  * `name` is the primary key, so the claim is a single atomic upsert with no index to keep in sync.
  *
  * The primary key carries the name TypeORM derives for it, per the rule in CONTRIBUTING.md: `PK_`
