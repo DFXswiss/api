@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import {
   createCustomBank,
+  frickCHF,
   frickEUR,
   olkyEUR,
   yapealEUR,
@@ -14,7 +15,7 @@ import { createCustomVirtualIban } from '../../bank/virtual-iban/__mocks__/virtu
 import { createCustomFiatOutput } from '../__mocks__/fiat-output.entity.mock';
 import { CreateFiatOutputDto } from '../dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from '../dto/update-fiat-output.dto';
-import { FiatOutputType } from '../fiat-output.entity';
+import { FiatOutput, FiatOutputType } from '../fiat-output.entity';
 import { FiatOutputService } from '../fiat-output.service';
 
 type FiatOutputServiceConstructor = ConstructorParameters<typeof FiatOutputService>;
@@ -152,12 +153,74 @@ describe('FiatOutputService', () => {
       accountIban: 'LI75088110103524',
     };
 
+    const mockCreateFromObject = () => {
+      fiatOutputRepo.create.mockImplementation((data) => createCustomFiatOutput(data as Partial<FiatOutput>));
+    };
+
     it('fails loud when accountIban has no matching bank', async () => {
       fiatOutputRepo.create.mockReturnValue(createCustomFiatOutput({ ...baseDto }));
       bankService.getBankByIban.mockResolvedValue(undefined);
 
       await expect(service.create(baseDto)).rejects.toThrow(BadRequestException);
       expect(bankService.getBankByIban).toHaveBeenCalledWith(baseDto.accountIban);
+    });
+
+    it('normalizes null isInstant to false before save', async () => {
+      const dto = { ...baseDto, isInstant: null } as CreateFiatOutputDto;
+      mockCreateFromObject();
+      bankService.getBankByIban.mockResolvedValue(frickEUR);
+      fiatOutputRepo.save.mockImplementation(async (entity) => entity as never);
+
+      await service.create(dto);
+
+      expect(fiatOutputRepo.create).toHaveBeenCalledWith(expect.objectContaining({ isInstant: false }));
+      expect(fiatOutputRepo.save).toHaveBeenCalledWith(expect.objectContaining({ isInstant: false }));
+    });
+
+    it('accepts isInstant true for explicit frickEUR and saves it', async () => {
+      const dto: CreateFiatOutputDto = { ...baseDto, isInstant: true, accountIban: frickEUR.iban };
+      mockCreateFromObject();
+      bankService.getBankByIban.mockResolvedValue(frickEUR);
+      fiatOutputRepo.save.mockImplementation(async (entity) => entity as never);
+
+      await service.create(dto);
+
+      expect(fiatOutputRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ isInstant: true, bank: frickEUR }),
+      );
+    });
+
+    it('rejects isInstant true for frickCHF', async () => {
+      const dto: CreateFiatOutputDto = {
+        ...baseDto,
+        isInstant: true,
+        currency: 'CHF',
+        accountIban: frickCHF.iban,
+      };
+      mockCreateFromObject();
+      bankService.getBankByIban.mockResolvedValue(frickCHF);
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      expect(fiatOutputRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects isInstant true for olkyEUR', async () => {
+      const dto: CreateFiatOutputDto = { ...baseDto, isInstant: true, accountIban: olkyEUR.iban };
+      mockCreateFromObject();
+      bankService.getBankByIban.mockResolvedValue(olkyEUR);
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      expect(fiatOutputRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects isInstant true without accountIban / resolved bank', async () => {
+      const { accountIban: _accountIban, ...dtoWithoutIban } = baseDto;
+      const dto: CreateFiatOutputDto = { ...dtoWithoutIban, isInstant: true };
+      mockCreateFromObject();
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      expect(fiatOutputRepo.save).not.toHaveBeenCalled();
+      expect(bankService.getBankByIban).not.toHaveBeenCalled();
     });
   });
 

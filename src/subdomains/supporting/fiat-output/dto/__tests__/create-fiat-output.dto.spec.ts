@@ -1,4 +1,4 @@
-import { ArgumentMetadata } from '@nestjs/common';
+import { ArgumentMetadata, BadRequestException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { DetailedValidationPipe } from 'src/shared/pipes/detailed-validation.pipe';
@@ -48,8 +48,15 @@ describe('CreateFiatOutputDto', () => {
     expect(dto.isInstant).toBe(isInstant);
   });
 
+  it('allows isInstant null through the production DetailedValidationPipe', async () => {
+    const dto = await pipe.transform({ ...baseDto, isInstant: null }, metadata);
+    expect(dto.isInstant).toBeNull();
+  });
+
   it('rejects a string value for isInstant', async () => {
-    await expect(pipe.transform({ ...baseDto, isInstant: 'true' }, metadata)).rejects.toThrow();
+    await expect(pipe.transform({ ...baseDto, isInstant: 'true' }, metadata)).rejects.toThrow(
+      BadRequestException,
+    );
   });
 });
 

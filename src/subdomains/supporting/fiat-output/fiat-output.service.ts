@@ -91,7 +91,7 @@ export class FiatOutputService {
       if (existing) throw new BadRequestException('FiatOutput already exists');
     }
 
-    const entity = this.fiatOutputRepo.create(dto);
+    const entity = this.fiatOutputRepo.create({ ...dto, isInstant: dto.isInstant ?? false });
     if (entity.amount != null) entity.amount = Util.roundReadable(entity.amount, AmountType.FIAT);
 
     if (dto.buyFiatId) {
@@ -123,6 +123,10 @@ export class FiatOutputService {
       const bank = await this.bankService.getBankByIban(entity.accountIban);
       if (!bank) throw new BadRequestException('No bank found for account IBAN');
       entity.bank = bank;
+    }
+
+    if (entity.isInstant && (entity.currency !== 'EUR' || entity.bank?.name !== IbanBankName.FRICK)) {
+      throw new BadRequestException('Instant requires an explicitly assigned Bank Frick EUR output');
     }
 
     return this.fiatOutputRepo.save(entity);
