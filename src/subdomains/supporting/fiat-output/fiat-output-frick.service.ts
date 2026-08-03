@@ -12,7 +12,7 @@ import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { IbanService } from 'src/integration/bank/services/iban.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { FiatOutput, TransactionCharge } from './fiat-output.entity';
@@ -28,7 +28,7 @@ export class FiatOutputFrickService {
     private readonly ibanService: IbanService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.FIAT_OUTPUT, timeout: 1800 })
   async checkFrickOrderStatus(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_FRICK_STATUS_CHECK)) return;
     if (!this.frickService.isAvailable()) return;

@@ -5,7 +5,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
@@ -225,7 +225,7 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     }
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BINANCE_PAY_CERTIFICATES_UPDATE })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.BINANCE_PAY_CERTIFICATES_UPDATE })
   async updateCertificates(): Promise<void> {
     try {
       const headers = this.getHeaders({});

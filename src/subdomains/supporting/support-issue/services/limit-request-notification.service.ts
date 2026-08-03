@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -22,7 +22,11 @@ export class LimitRequestNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LIMIT_REQUEST_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, {
+    scope: CronScope.WORKER,
+    process: Process.LIMIT_REQUEST_MAIL,
+    timeout: 1800,
+  })
   async sendNotificationMails(): Promise<void> {
     await this.limitRequestAcceptedManual();
   }

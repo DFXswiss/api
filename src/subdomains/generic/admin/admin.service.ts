@@ -10,7 +10,7 @@ import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchai
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -79,7 +79,7 @@ export class AdminService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_OUT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_OUT, timeout: 3600 })
   async completeLiquidityOrders() {
     for (const context of Object.values(PayoutRequestContext)) {
       const lContext = context as unknown as LiquidityOrderContext;

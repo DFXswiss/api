@@ -36,6 +36,22 @@ export enum Environment {
   PRD = 'prd',
 }
 
+/**
+ * Operating mode of this process, read from CRON_ROLE.
+ *
+ * `scope` on a job describes a property of the job, this describes the process running it.
+ * Keeping the two apart is what allows the same image to run as an HTTP process and as a
+ * background worker without either knowing about the other.
+ */
+export enum CronRole {
+  /** One process runs everything: local development, tests, and any deployment without a worker. */
+  ALL = 'all',
+  /** Serves HTTP; runs only jobs scoped `api` or `both`. */
+  API = 'api',
+  /** Runs the background work; only jobs scoped `worker` or `both`. */
+  WORKER = 'worker',
+}
+
 export type StorageWriteMode = 'azure' | 'dual' | 's3';
 export type StorageReadSource = 'azure' | 's3';
 
@@ -1498,11 +1514,43 @@ export class Configuration {
     return splitWithdrawKeys(process.env.EVM_WALLETS);
   }
 
+  // Background jobs and HTTP requests share a single Node event loop, so a busy scheduler
+  // delays every incoming request on the same process. The role decides which jobs this
+  // process registers, which is what allows running the same image twice: once serving HTTP,
+  // once running the background work.
+  //
+  // Note this is deliberately independent of DISABLED_PROCESSES, which only skips jobs that
+  // declare a `process` — jobs without one would keep running and, in a second process,
+  // run twice. Cron locks are per-process and do not guard across processes.
+  cronRole = parseCronRole(process.env.CRON_ROLE);
+
   // --- HELPERS --- //
   disabledProcesses = () =>
     process.env.DISABLED_PROCESSES === '*'
       ? Object.values(Process)
       : ((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]);
+}
+
+/**
+ * Reads CRON_ROLE, the operating mode of this process.
+ *
+ * There is no default, and a missing or unknown value aborts the boot. Every possible default
+ * lets a misconfiguration run silently: defaulting to `worker` would make a misconfigured API
+ * process run all background work a second time, defaulting to `api` would make a misconfigured
+ * worker do nothing at all. Neither produces an error, and duplicate execution of financial
+ * jobs is far more damaging than a failed boot.
+ *
+ * The empty string is rejected for the same reason: a `CRON_ROLE=` line in an env file or an
+ * unresolved `${VAR}` both arrive here as one.
+ *
+ * `all` is not a convenience value but the single-process mode: one process runs every job,
+ * which is what local development, the test suite and any environment without a separate worker
+ * need.
+ */
+export function parseCronRole(value?: string): CronRole {
+  if (value != null && (Object.values(CronRole) as string[]).includes(value)) return value as CronRole;
+
+  throw new Error(`Invalid CRON_ROLE value '${value ?? ''}': expected one of ${Object.values(CronRole).join(', ')}`);
 }
 
 function readCert(): string | undefined {

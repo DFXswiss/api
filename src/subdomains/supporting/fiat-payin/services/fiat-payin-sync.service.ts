@@ -6,7 +6,7 @@ import { ChargebackReason, ChargebackState, TransactionStatus } from 'src/integr
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -36,7 +36,7 @@ export class FiatPayInSyncService {
 
   // --- JOBS --- //
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_PAY_IN, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.FIAT_PAY_IN, timeout: 1800 })
   async syncCheckout() {
     if (!this.checkoutService.isAvailable()) {
       if (!this.unavailableWarningLogged) {

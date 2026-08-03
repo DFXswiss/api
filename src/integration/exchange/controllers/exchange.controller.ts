@@ -20,7 +20,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { TradeOrder } from '../dto/trade-order.dto';
@@ -171,7 +171,14 @@ export class ExchangeController {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  // Api, not Both: `trades` is filled by POST :exchange/trade and read by GET trade/:id, the
+  // request paths of this controller shown below. In a process those requests never reach, the
+  // map stays empty and this job has nothing to work on.
+  //
+  // Nothing acts on that choice today. DfxCronService reads the decorator off providers, and this
+  // class is registered under `controllers` in ExchangeModule, so the job is not registered in any
+  // process. The scope says where it would belong if it ever were, not where it runs.
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.API, timeout: 1800 })
   async checkTrades() {
     const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
     for (const trade of openTrades) {

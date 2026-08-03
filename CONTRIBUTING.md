@@ -517,12 +517,14 @@ Use `@DfxCron` (custom wrapper with built-in locking, process control, and error
 
 ```typescript
 // GOOD: @DfxCron handles everything
-@DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT, timeout: 1800 })
+@DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAYMENT, timeout: 1800 })
 async processPayments(): Promise<void> {
   // no @Lock, no DisabledProcess check needed
 }
 
-// ONLY with bare @Cron: manual @Lock + DisabledProcess required
+// What the wrapper takes off your hands — NOT an alternative you may pick.
+// A bare @Cron carries no scope, so it registers in every process; a guard test
+// rejects it (see "Register periodic work through @DfxCron" below).
 @Cron(CronExpression.EVERY_MINUTE)
 @Lock(1800)
 async processPayments(): Promise<void> {
@@ -531,13 +533,86 @@ async processPayments(): Promise<void> {
 }
 ```
 
-Declare a `process` flag unless the job maintains the disabled set itself. Without one the job
-runs unconditionally and cannot be switched off without a deploy.
+Declare a `process` flag unless the job maintains the disabled set itself, or unless something
+outside the process infers health from the job still running — a watchdog that can be switched off
+looks, once it is off, exactly like the failure it watches for. Without a flag the job runs
+unconditionally and cannot be switched off without a deploy.
 
-[docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval and flag.
+A job scoped `worker` or `api` additionally takes a **lease in the database** before it starts
+(`CronLeaseService`). The in-process lock cannot see a second process at all — a missed
+recreate, a second worker from `--scale`, two processes on `all` after a rollback — and the lease
+is what such a second process has to get past before it may start the job.
+
+It does **not** make a double run impossible, and it does **not** bound how long one lasts;
+nothing in this repository should claim either. If the holder stops renewing while it is still
+working — an unreachable database, a blocked event loop — the claim lapses and a second process
+can start the job, while the first runs on to its own end, which for the longest-running jobs is
+hours. What the lease does bound is the waiting: a claim left behind by a process that was killed
+blocks the job for the lease expiry rather than until someone intervenes. What a `worker` job
+actually rests on is the deployment running one worker and the job tolerating a repeat; the lease
+is defence in depth over those two, not a substitute for either. `CronLeaseService` states the
+limit under "What it does not do" — keep any wording here consistent with it. Jobs scoped `both`
+are exempt by design: they must run everywhere, which is why running them twice has to be harmless
+by construction.
+
+[docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval, flag and scope.
 **Adding, removing or re-scheduling a job must be reflected there in the same PR.**
 
 Prefer longer intervals (15min) over aggressive polling (1min). Only use short intervals when truly needed.
+
+#### Which process a job belongs to
+
+The API can run as more than one process from the same image — one serving HTTP, one running the
+background work — and `CRON_ROLE` decides which of them a process is (`api`, `worker`, or `all`
+for a single-process setup). **Every cron job must declare which process it belongs to**, and the
+compiler enforces it: `scope` is a mandatory parameter of `@DfxCron`.
+
+```typescript
+// Worker: writes to the database, moves money, or calls an external system in a way that
+// changes state. The normal case.
+@DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAYMENT })
+async processPayments(): Promise<void> {}
+
+// Both: the effect is confined to the process it runs in — refreshing an in-memory copy of
+// global state, expiring a local cache, measuring this process. It runs everywhere, because
+// requests on the API process read what it maintains.
+@DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.BOTH })
+async resyncDeniedJwtAccounts(): Promise<void> {}
+
+// Api: maintains state read only from a request path. Not for delivering to the connections
+// this process holds open — that job is leased too, so it would run in one process while the
+// connections are spread over all of them. Deliver from stored state under `Both` instead.
+@DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.API, process: Process.UPDATE_STATISTIC })
+async doUpdate(): Promise<void> {}
+```
+
+Ask: *does a request handler read state this job writes?* If both a request path and a job read
+it, the answer is `Both`; if only a request path does, `Api`; otherwise `Worker`. Getting it
+wrong fails silently — the state simply freezes at boot wherever the job does not run. The JWT
+denylists are the cautionary example: frozen, they fail open and a blocked account keeps its live
+tokens.
+
+A job scoped `Both` runs in every process without a shared lock, so running it twice must be
+harmless by construction. If it writes to the database, sends mail, or calls a paid external API,
+it is `Worker` — and if a request path needs its result, that result belongs in the database, not
+in process memory.
+
+#### A cache read by a request path loads itself
+
+**A cache read in a request path must load on demand** — through `AsyncCache`, `CachedRepository`
+or a lazy load of its own. A cron job may refresh it, but must not be the only thing filling it.
+
+This is the rule that makes a wrong scope harmless: a cache that loads itself is correct in every
+process, whichever scope its refresh job carries. `AsyncCache` and `CachedRepository` already work
+this way; the jobs scoped `Both` are precisely those that do not.
+
+#### Register periodic work through @DfxCron
+
+`scope` only reaches jobs going through `@DfxCron`. A native `@Cron` or a bare `setInterval` is
+invisible to it and therefore runs in every process — for anything writing to the database, that
+means twice, without a shared lock. A test enforces this, and it carries no exceptions: everything
+it matches on is gone from the repository. What it does not match on — a repeating `setTimeout` —
+its own comment names one by one, with the reason each is left alone.
 
 ### Await Discipline
 
@@ -818,13 +893,13 @@ const isValid = await this.validateIban(iban).catch(() => false);
 
 ```typescript
 // BAD: @DfxCron already handles errors
-@DfxCron(CronExpression.EVERY_HOUR)
+@DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER })
 async process(): Promise<void> {
   try { ... } catch (e) { this.logger.error(e); }  // redundant
 }
 
 // GOOD
-@DfxCron(CronExpression.EVERY_HOUR)
+@DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER })
 async process(): Promise<void> {
   // just do the work
 }
@@ -983,8 +1058,8 @@ Endpoints that block by design:
 
 | Path                                 | Blocks until                                                                                                                                                                      | `wait` segment |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `GET /v1/lnurlp/wait/:id`            | the payment resolves: completed, canceled, expired — or, for `MULTIPLE`-mode links, when a quote reaches the configured completion threshold (the payment itself may stay `Pending`) | yes            |
-| `GET /v1/paymentLink/payment/wait`   | the same, for the authenticated payment-link flow                                                                                                                                 | yes            |
+| `GET /v1/lnurlp/wait/:id`            | the payment resolves: completed, canceled, expired — or, for `MULTIPLE`-mode links, when a quote reaches the configured completion threshold (the payment itself may stay `Pending`); bounded at 60 s, after which it answers with the payment as it stands | yes            |
+| `GET /v1/paymentLink/payment/wait`   | the same, and under the same bound, for the authenticated payment-link flow                                                                                                       | yes            |
 | `GET /v1/lnurlp/:id`                 | a pending payment appears; bounded by `timeout` (default 10 s, caller-controllable)                                                                                               | no — exempt    |
 | `GET /v1/lnurlp/tx/:id`              | the payer's own broadcast reaches one confirmation (`tx` branch); 15 polls at 1 s. The `hex` branch broadcasts without awaiting confirmation, except on ICP, where it first waits for the payer's allowance (up to 3 attempts, 2 s apart) | no — exempt    |
 | `GET /v1/node/:node/tx/:txId`        | the transaction reaches one confirmation; bounded at 600 s                                                                                                                        | no — exempt    |
@@ -1228,7 +1303,7 @@ single DTO with two fields (PR #3772, 91 LOC, ~50% reduction).
 | Loading all then filtering in JS           | SQL WHERE clause                                  |
 | `any` type                                 | Proper typed interface/class                      |
 | `string` for enum values                   | Typed enum                                        |
-| `@Interval(60000)`                         | `@DfxCron(CronExpression.EVERY_MINUTE)`           |
+| `@Interval(60000)`                         | `@DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER })` |
 | `eager: true` everywhere                   | Explicit relation loading                         |
 | Providing service in multiple modules      | Single module, import from there                  |
 | `JSON.stringify(JSON.parse(...))`          | Unnecessary — remove                              |

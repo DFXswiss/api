@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { BankTxConsumer } from './consumers/bank-tx.consumer';
 import { BuyCryptoConsumer } from './consumers/buy-crypto.consumer';
 import { BuyFiatConsumer } from './consumers/buy-fiat.consumer';
@@ -51,59 +51,95 @@ export class LedgerBookingJobService {
     return (await this.settingService.get(CUTOVER_LOG_ID_KEY)) != null;
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_BANK_TX, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_BANK_TX,
+    timeout: 1800,
+  })
   async runBankTx(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.bankTxConsumer.process();
   }
 
   // ExchangeTx + ExchangeTrade are ONE @DfxCron method → one flag (Minor R8-1): deposit/withdrawal then trade
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_EXCHANGE_TX, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_EXCHANGE_TX,
+    timeout: 1800,
+  })
   async runExchangeTx(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.exchangeTxConsumer.process();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_CRYPTO_INPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_CRYPTO_INPUT,
+    timeout: 1800,
+  })
   async runCryptoInput(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.cryptoInputConsumer.process();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_PAYOUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_PAYOUT,
+    timeout: 1800,
+  })
   async runPayoutOrder(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.payoutOrderConsumer.process();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_BUY_CRYPTO, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_BUY_CRYPTO,
+    timeout: 1800,
+  })
   async runBuyCrypto(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.buyCryptoConsumer.process();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_BUY_FIAT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_BUY_FIAT,
+    timeout: 1800,
+  })
   async runBuyFiat(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.buyFiatConsumer.process();
   }
 
   // §4.8 — bridge-only (skips exchange/DfxDex movements booked by their authoritative consumers)
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT,
+    timeout: 1800,
+  })
   async runLiquidityMgmt(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.liquidityMgmtConsumer.process();
   }
 
   // §4.8a — DfxDex purchase/sell on-chain swaps (own flag, Hard Constraint #5)
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_LIQUIDITY_ORDER, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_LIQUIDITY_ORDER,
+    timeout: 1800,
+  })
   async runLiquidityOrderDex(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.liquidityOrderDexConsumer.process();
   }
 
   // §4.9 — arbitrage swaps (own flag, Hard Constraint #5)
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_TRADING_ORDER, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_BOOKING_TRADING_ORDER,
+    timeout: 1800,
+  })
   async runTradingOrder(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.tradingOrderConsumer.process();
@@ -113,7 +149,11 @@ export class LedgerBookingJobService {
   // Frick #4252) never get an ASSET account from the cutover-only bootstrap and wedge their consumer fail-loud
   // ("CoA bootstrap missing"). bootstrap() is idempotent (findOrCreate, §3), so a recurring re-run is a no-op
   // once complete. Pre-cutover the cutover run owns the bootstrap → gate on isLedgerReady.
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LEDGER_COA_BOOTSTRAP, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, {
+    scope: CronScope.WORKER,
+    process: Process.LEDGER_COA_BOOTSTRAP,
+    timeout: 1800,
+  })
   async runCoaBootstrap(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.bootstrapService.bootstrap();

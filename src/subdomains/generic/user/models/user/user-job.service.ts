@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { IsNull, Like, MoreThan } from 'typeorm';
 import { UserRepository } from './user.repository';
@@ -10,7 +10,7 @@ import { UserRepository } from './user.repository';
 export class UserJobService {
   constructor(private readonly userRepo: UserRepository) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.USER, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.USER, timeout: 1800 })
   async fillUser() {
     await this.approveUser();
   }

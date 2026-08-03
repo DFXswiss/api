@@ -1,21 +1,40 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { cloneDeep, isEqual } from 'lodash';
+import { FindOneOptions } from 'typeorm';
 import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MetricObserver } from './metric.observer';
-import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
+import {
+  Metric,
+  MetricName,
+  SubsystemName,
+  SubsystemState,
+  SystemState,
+  SystemStateSnapshot,
+} from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
 
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
 @Injectable()
 export class MonitoringService implements OnModuleInit {
+  private static readonly stateCacheMs = 30 * 1000;
+
+  /**
+   * Postgres: unique violation, deadlock, serialization failure - all resolvable by trying again.
+   * Read from `code` on the error, the same way LedgerAccountService reads a unique violation.
+   */
+  private static readonly retryableWriteCodes = ['23505', '40P01', '40001'];
+
   private readonly logger = new DfxLogger(MonitoringService);
 
   #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
   #observers: Map<SubsystemName, SubsystemObservers> = new Map();
+  #storedState?: { state: SystemState; loaded: number };
+  #pendingLoad?: Promise<SystemState | null>;
 
   constructor(
     private systemStateSnapshotRepo: SystemStateSnapshotRepository,
@@ -29,29 +48,28 @@ export class MonitoringService implements OnModuleInit {
   // *** PUBLIC API *** //
 
   async getState(subsystem: string, metric: string): Promise<SystemState | SubsystemState | Metric> {
+    // Reading the in-memory state alone would only be correct in the process running the
+    // observers. The state is already persisted in full, so every read path takes it from there,
+    // with a short process cache in front. The refresh happens before the branching, not inside
+    // one of the branches: a filtered query is the same read and would otherwise stay stale.
+    const state = await this.currentState();
+
     if (!subsystem && !metric) {
-      return this.#$state.value;
+      return state;
     }
 
     if (subsystem && !metric) {
-      return this.getSubsystemState(subsystem);
+      return this.getSubsystemState(state, subsystem);
     }
 
     if (subsystem && metric) {
-      return this.getMetric(subsystem, metric);
+      return this.getMetric(state, subsystem, metric);
     }
   }
 
   async loadState(): Promise<SystemState | null> {
     try {
-      const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: {}, order: { id: 'DESC' } });
-
-      if (!latestPersistedState) {
-        this.logger.warn('No monitoring state found in the database');
-        return null;
-      }
-
-      return JSON.parse(latestPersistedState.data);
+      return await this.readState();
     } catch (e) {
       this.logger.error('Failed to parse loaded system state, defaulting to empty state:', e);
 
@@ -120,11 +138,40 @@ export class MonitoringService implements OnModuleInit {
       .subscribe(([prevState, newState]) => this.persist(prevState, newState));
   }
 
+  /**
+   * Writes only the metrics this process changed, merged into the stored state.
+   *
+   * The whole system state lives in a single row (`id: 1`), and `initState` above subscribes
+   * this writer in whichever process the service is instantiated in. Replacing the row with this
+   * instance's view would drop metrics another writer put there; merging only the changed ones
+   * keeps both.
+   *
+   * Read, merge and write happen inside one transaction that locks the row. Without the lock the
+   * merge only narrows the race instead of closing it: two writers that read before either wrote
+   * still overwrite each other, and the lost value does not come back on its own - the next run
+   * compares against this process's own previous state, finds the metric unchanged, and writes
+   * nothing. A value that rarely changes would stay wrong in the row until it does.
+   */
   private async persist(prevState: SystemState, newState: SystemState) {
     try {
-      if (this.hasStateChanged(prevState, newState)) {
-        await this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
-      }
+      const changed = this.changedMetrics(prevState, newState);
+      if (!changed.length) return;
+
+      // A second attempt covers the case where the row does not exist yet: it cannot be locked,
+      // so two writers can reach the insert together and one loses on the primary key. Retrying
+      // finds the row the other one created and merges into it, instead of dropping this
+      // process's change until the metric happens to change again. Restricted to the errors that
+      // a retry can actually resolve - a unique violation, a deadlock or a serialization failure.
+      // Anything else fails once and is reported.
+      const merged = await Util.retry(
+        () => this.mergeIntoStoredState(changed, newState),
+        2,
+        0,
+        undefined,
+        (e) => MonitoringService.retryableWriteCodes.includes((e as { code?: string })?.code),
+      );
+
+      this.#storedState = { state: merged, loaded: Date.now() };
     } catch (e) {
       this.logger.error('Error persisting the state:', e);
 
@@ -136,22 +183,174 @@ export class MonitoringService implements OnModuleInit {
     }
   }
 
-  private hasStateChanged(prevState: SystemState, newState: SystemState): boolean {
-    if (!prevState && newState) return true;
+  private async mergeIntoStoredState(changed: [string, string][], newState: SystemState): Promise<SystemState> {
+    return this.systemStateSnapshotRepo.manager.transaction(async (manager) => {
+      // Same lookup as the read path, so a row that lives under a different id is merged into
+      // rather than left behind: writing only what this process changed into a fresh `id: 1`
+      // would strand every metric the old row carried, and the reads would then prefer the new
+      // partial row over the complete one.
+      const row = await this.stateRow((options) => manager.findOne(SystemStateSnapshot, options), {
+        mode: 'pessimistic_write',
+      });
 
-    return Object.entries(newState).some(([subsystemName, subsystemState]) =>
-      Object.entries(subsystemState).some(([metricName, newMetricState]) => {
-        const prevMetricState = prevState[subsystemName] && prevState[subsystemName][metricName];
+      const stored: SystemState = row ? JSON.parse(row.data) : {};
+      const state = cloneDeep(stored);
 
-        if (!prevMetricState && newMetricState) return true;
+      for (const [subsystem, metric] of changed) {
+        const candidate = newState[subsystem][metric];
 
-        return !isEqual(prevMetricState.data, newMetricState.data);
-      }),
+        // The value this process holds is not automatically the newer one: it may have waited on
+        // the lock while another process wrote a later measurement of the same metric. Writing it
+        // anyway would put the older value back, and it would stay there until the metric changes
+        // again in this process.
+        if (this.updatedAt(candidate) < this.updatedAt(state[subsystem]?.[metric])) {
+          // Logged rather than dropped silently: the comment above says this value does not come
+          // back on its own, so a run of these lines is the signal that two writers are competing
+          // for one metric — which today should not happen, every metric has exactly one writer.
+          this.logger.info(`Discarding older ${subsystem}/${metric} state while merging the snapshot`);
+          continue;
+        }
+
+        state[subsystem] = { ...(state[subsystem] ?? {}), [metric]: candidate };
+      }
+
+      await manager.save(SystemStateSnapshot, { id: 1, data: JSON.stringify(state) });
+
+      return state;
+    });
+  }
+
+  /** The metrics whose data differs between the two states, as [subsystem, metric] pairs. */
+  private changedMetrics(prevState: SystemState, newState: SystemState): [string, string][] {
+    return Object.entries(newState ?? {}).flatMap(([subsystemName, subsystemState]) =>
+      Object.entries(subsystemState)
+        .filter(
+          ([metricName, newMetricState]) =>
+            !isEqual(prevState?.[subsystemName]?.[metricName]?.data, newMetricState.data),
+        )
+        .map(([metricName]) => [subsystemName, metricName] as [string, string]),
     );
   }
 
-  private getSubsystemState(subsystem: string): SubsystemState {
-    const _subsystem = this.#$state.value[subsystem];
+  /** Reads the persisted state without notifying: unlike loadState, this runs on every read. */
+  private async readState(): Promise<SystemState | null> {
+    const row = await this.stateRow((options) => this.systemStateSnapshotRepo.findOne(options));
+
+    if (!row) {
+      this.logger.warn('No monitoring state found in the database');
+      return null;
+    }
+
+    return JSON.parse(row.data);
+  }
+
+  /**
+   * The row holding the system state: `id: 1` where it exists, otherwise the highest id there is.
+   *
+   * The write path targets `id: 1`, and reading by highest id instead would let a second row make
+   * every read miss what is written. But whether an environment has that row is a property of its
+   * database, not of this code — and reading only `id: 1` would answer null forever wherever it
+   * does not, which since the observers are scoped to the worker means the monitoring endpoints
+   * would answer 404 on the API process indefinitely.
+   *
+   * So the read falls back, and the write path uses the same lookup to seed `id: 1` from what it
+   * finds. That converges: after the first write the row exists and the fallback stops being
+   * reached. Taking the highest id rather than the lowest keeps the fallback on the row the code
+   * before this branch wrote to.
+   */
+  private async stateRow(
+    find: (options: FindOneOptions<SystemStateSnapshot>) => Promise<SystemStateSnapshot | null>,
+    lock?: FindOneOptions<SystemStateSnapshot>['lock'],
+  ): Promise<SystemStateSnapshot | undefined> {
+    const canonical = await find({ where: { id: 1 }, lock });
+    if (canonical) return canonical;
+
+    const fallback = await find({ where: {}, order: { id: 'DESC' }, lock });
+    if (!fallback) return undefined;
+
+    // Asked a second time, because the answer can have changed while this call waited. With a
+    // lock, the wait is on the fallback row itself: two writers both miss `id: 1`, both queue for
+    // the old row, and the one that gets there second wakes up in a world where the first has
+    // already created `id: 1` and committed. Merging from the old row then writes `id: 1` from a
+    // state that predates it, and the first writer's metric is gone — not stale, gone, because
+    // this path only writes what changed and nothing brings the rest back.
+    //
+    // Without a lock there is nothing to wait on and this is one extra read on a path that stops
+    // being taken as soon as the canonical row exists.
+    if (fallback.id !== 1) {
+      const converged = await find({ where: { id: 1 }, lock });
+      if (converged) return converged;
+    }
+
+    this.logger.warn(`No monitoring state under id 1, using id ${fallback.id} instead`);
+
+    return fallback;
+  }
+
+  /**
+   * The persisted state overlaid with anything this process holds more recently. Both matter: in
+   * a single-process setup the in-memory state is always the newer one, and a value arriving
+   * through the webhook is visible before the next persist.
+   */
+  private async currentState(): Promise<SystemState> {
+    const stored = await this.storedState();
+
+    return stored ? this.mergeNewer(stored, this.#$state.value) : this.#$state.value;
+  }
+
+  private async storedState(): Promise<SystemState | null> {
+    if (this.#storedState && Date.now() - this.#storedState.loaded < MonitoringService.stateCacheMs) {
+      return this.#storedState.state;
+    }
+
+    // Concurrent requests share one read rather than each issuing their own.
+    if (!this.#pendingLoad) {
+      const load = this.readState().catch((e) => {
+        // No mail here, unlike loadState: this path is reached from getState, so a failing read
+        // would notify once per request instead of once per start-up.
+        this.logger.error('Failed to read the persisted system state:', e);
+        return null;
+      });
+
+      this.#pendingLoad = load;
+      void load.finally(() => {
+        if (this.#pendingLoad === load) this.#pendingLoad = undefined;
+      });
+    }
+
+    const state = await this.#pendingLoad;
+    if (state) this.#storedState = { state, loaded: Date.now() };
+
+    return state;
+  }
+
+  /** Per metric, whichever of the two carries the later `updated` timestamp. */
+  private mergeNewer(base: SystemState, overlay: SystemState): SystemState {
+    const merged = cloneDeep(base);
+
+    for (const [subsystem, metrics] of Object.entries(overlay ?? {})) {
+      for (const [metric, state] of Object.entries(metrics)) {
+        if (this.updatedAt(state) >= this.updatedAt(merged[subsystem]?.[metric])) {
+          merged[subsystem] = { ...(merged[subsystem] ?? {}), [metric]: state };
+        }
+      }
+    }
+
+    return merged;
+  }
+
+  /**
+   * Parsed JSON carries `updated` as a string, the in-memory state as a Date. A missing or
+   * unparsable value counts as the oldest possible, so a metric carrying one never wins a
+   * comparison against a readable timestamp - and never blocks one either.
+   */
+  private updatedAt(metric?: Metric): number {
+    const time = metric?.updated ? new Date(metric.updated).getTime() : 0;
+    return Number.isFinite(time) ? time : 0;
+  }
+
+  private getSubsystemState(state: SystemState, subsystem: string): SubsystemState {
+    const _subsystem = state[subsystem];
 
     if (!_subsystem) {
       throw new NotFoundException(`Subsystem not found, name: ${subsystem}`);
@@ -159,8 +358,8 @@ export class MonitoringService implements OnModuleInit {
     return _subsystem;
   }
 
-  private getMetric(subsystem: string, metric: string): Metric {
-    const _subsystem = this.getSubsystemState(subsystem);
+  private getMetric(state: SystemState, subsystem: string, metric: string): Metric {
+    const _subsystem = this.getSubsystemState(state, subsystem);
     const _metric = _subsystem[metric];
 
     if (!_metric) {

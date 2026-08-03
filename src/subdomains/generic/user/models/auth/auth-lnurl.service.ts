@@ -6,7 +6,7 @@ import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import {
@@ -36,7 +36,7 @@ export class AuthLnUrlService {
     private readonly ipLogService: IpLogService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.LNURL_AUTH_CACHE })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.BOTH, process: Process.LNURL_AUTH_CACHE })
   processCleanupAccessToken() {
     const before30SecTime = Util.secondsBefore(30).getTime();
 
@@ -47,7 +47,7 @@ export class AuthLnUrlService {
     keysToBeDeleted.forEach((k) => this.authCache.delete(k));
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LNURL_AUTH_CACHE })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.BOTH, process: Process.LNURL_AUTH_CACHE })
   processCleanupAuthCache() {
     const before5MinTime = Util.minutesBefore(5).getTime();
 

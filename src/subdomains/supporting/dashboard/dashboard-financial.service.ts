@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Process } from 'src/shared/services/process.service';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
-import { AssetLog, BalancesByFinancialType } from '../log/dto/log.dto';
+import { AssetLog, BalancesByFinancialType, FinanceLog } from '../log/dto/log.dto';
 import { Log } from '../log/log.entity';
 import { FinancialLogSummary } from '../log/log.repository';
 import { LogService } from '../log/log.service';
@@ -121,32 +124,58 @@ export class DashboardFinancialService {
     }
   }
 
+  /**
+   * Answers from LatestBalanceStore, which loads through `loadLatestBalance` when it has no entry
+   * or the one it holds has aged out. The load is what makes this correct in a process that never
+   * runs the refresh below - see the store for why there is such a process.
+   */
   async getLatestBalance(): Promise<LatestBalanceResponseDto | undefined> {
-    return this.latestBalanceStore.get();
+    return this.latestBalanceStore.get(() => this.loadLatestBalance());
   }
 
   /**
-   * Called once a minute by LogJobService, immediately after it writes the FinancialDataLog entry
-   * these values are derived from. Builds the same response GET /v1/dashboard/financial/latest used
-   * to compute per-request (see buildLatestBalance below) and puts it in LatestBalanceStore, so the
-   * endpoint never touches the database again. Synchronous and DB-free by construction: assetLog,
-   * balancesByFinancialType and assets are exactly what the caller already holds in memory from the
-   * same run. A failure in here must never propagate into the caller's equity/safety-mode path —
-   * that isolation is the caller's responsibility (its own try/catch around this call), not this
-   * method's.
+   * Keeps the entry in LatestBalanceStore warm, so that GET /v1/dashboard/financial/latest finds a
+   * current value in this process instead of loading one itself.
+   *
+   * Scope Api, because the store it fills is a field of this service and its reader is the endpoint
+   * above. It only reads: LogJobService writes the entry, this parses it and aggregates - once a
+   * minute, outside any request. Refresh only, never the sole filler: the job is leased, so in a
+   * deployment with several API processes it runs in one of them per tick, and the request path is
+   * what fills the rest.
+   *
+   * Every minute rather than the 15 minutes CONTRIBUTING prefers, because that is the interval
+   * LogJobService already writes the underlying entry at (TRADING_LOG, EVERY_MINUTE). A longer
+   * one here would not save a write, it would only serve a staler value than the data allows.
    */
-  setLatestBalance(
-    timestamp: Date,
-    assetLog: AssetLog,
-    balancesByFinancialType: BalancesByFinancialType,
-    assets: Asset[],
-  ): void {
-    this.latestBalanceStore.set(this.buildLatestBalance(timestamp, assetLog, balancesByFinancialType, assets));
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.LATEST_BALANCE_CACHE })
+  async refreshLatestBalance(): Promise<void> {
+    await this.latestBalanceStore.refresh(() => this.loadLatestBalance());
   }
 
-  // Unchanged aggregation that used to run inline in getLatestBalance against a freshly parsed
-  // FinancialDataLog message and a database asset lookup: identical logic, moved here verbatim: only
-  // its inputs changed (passed in directly instead of JSON.parse(latest.message) / assetService.getAssetsById).
+  /**
+   * Builds the response from the most recent FinancialDataLog entry. `undefined` when there is no
+   * entry at all, which is the honest answer for a database that has never had one.
+   */
+  private async loadLatestBalance(): Promise<LatestBalanceResponseDto | undefined> {
+    const latest = await this.logService.getLatestFinancialLog();
+    if (!latest) return undefined;
+
+    let financeLog: FinanceLog;
+    try {
+      financeLog = JSON.parse(latest.message);
+    } catch (e) {
+      // Raised rather than returned as `undefined`: the store keeps the aggregate it has, so one
+      // malformed entry does not replace a good value with nothing. The refresh job reports it.
+      throw new Error(`Failed to parse the latest financial log (id ${latest.id})`, { cause: e });
+    }
+
+    const assets = financeLog.assets
+      ? await this.assetService.getAssetsById(Object.keys(financeLog.assets).map(Number))
+      : [];
+
+    return this.buildLatestBalance(latest.created, financeLog.assets, financeLog.balancesByFinancialType, assets);
+  }
+
   private buildLatestBalance(
     timestamp: Date,
     assetLog: AssetLog,

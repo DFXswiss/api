@@ -35,7 +35,6 @@ import { Bank } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
 import { frickCHF, frickEUR, olkyEUR, yapealCHF, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
-import { DashboardFinancialService } from '../../dashboard/dashboard-financial.service';
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { createCustomCryptoInput } from '../../payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
@@ -66,7 +65,6 @@ describe('LogJobService', () => {
   let payoutService: PayoutService;
   let processService: ProcessService;
   let paymentBalanceService: PaymentBalanceService;
-  let dashboardFinancialService: DashboardFinancialService;
 
   beforeEach(async () => {
     tradingRuleService = createMock<TradingRuleService>();
@@ -89,7 +87,6 @@ describe('LogJobService', () => {
     payoutService = createMock<PayoutService>();
     processService = createMock<ProcessService>();
     paymentBalanceService = createMock<PaymentBalanceService>();
-    dashboardFinancialService = createMock<DashboardFinancialService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -115,7 +112,6 @@ describe('LogJobService', () => {
         { provide: PayoutService, useValue: payoutService },
         { provide: ProcessService, useValue: processService },
         { provide: PaymentBalanceService, useValue: paymentBalanceService },
-        { provide: DashboardFinancialService, useValue: dashboardFinancialService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -493,46 +489,6 @@ describe('LogJobService', () => {
       await service.saveTradingLog();
 
       expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('fxPnlChf');
-    });
-  });
-
-  describe('latest-balance cache write isolation (cache failure must not arm the equity safety mode)', () => {
-    // a healthy, finite book comfortably above the minimum -> the equity path leaves safety mode off
-    function setup() {
-      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
-      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
-      jest
-        .spyOn(service as any, 'getBalancesByFinancialType')
-        .mockReturnValue({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } });
-      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
-      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
-      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
-      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
-      jest
-        .spyOn(logService, 'maxEntity')
-        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 5000 } }) } as any);
-      // created is read as financialDataLog.created for the write-through cache call
-      jest.spyOn(logService, 'create').mockResolvedValue({ created: new Date('2026-07-14T12:00:00Z') } as any);
-    }
-
-    it('keeps safety mode off, logs loudly and still resolves when setLatestBalance throws', async () => {
-      const errorSpy = jest.spyOn(service['logger'], 'error');
-      setup();
-      jest.spyOn(dashboardFinancialService, 'setLatestBalance').mockImplementation(() => {
-        throw new Error('cache write failed');
-      });
-
-      await expect(service.saveTradingLog()).resolves.toBeUndefined();
-
-      // equity path already set safety mode correctly for the healthy book; the cache catch must not
-      // rethrow into the outer catch that would arm safety mode
-      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(false);
-      expect(processService.setSafetyModeActive).not.toHaveBeenCalledWith(true);
-
-      expect(errorSpy).toHaveBeenCalledWith(
-        'Failed to update the latest-balance cache for the dashboard',
-        expect.any(Error),
-      );
     });
   });
 

@@ -9,10 +9,16 @@ jest.mock('@opentelemetry/auto-instrumentations-node', () => ({
 jest.mock('@opentelemetry/exporter-trace-otlp-http', () => ({
   OTLPTraceExporter: jest.fn(),
 }));
+jest.mock('@opentelemetry/exporter-metrics-otlp-http', () => ({
+  OTLPMetricExporter: jest.fn(),
+}));
+jest.mock('@opentelemetry/sdk-metrics', () => ({
+  PeriodicExportingMetricReader: jest.fn(),
+}));
 
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base';
-import { ClientErrorSpanProcessor, isClientError, startTracing } from '../tracing';
+import { ClientErrorSpanProcessor, isClientError, startTracing, tracingServiceName } from '../tracing';
 
 function fakeSpan(kind: SpanKind, statusCode: SpanStatusCode, httpStatus?: number): ReadableSpan {
   return {
@@ -87,5 +93,28 @@ describe('startTracing', () => {
     const sdk = startTracing();
     expect(sdk).toBeDefined();
     expect(mockStart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('tracingServiceName', () => {
+  const original = process.env.CRON_ROLE;
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.CRON_ROLE;
+    else process.env.CRON_ROLE = original;
+  });
+
+  it('reports the worker under its own name', () => {
+    // Both processes run the same image and would otherwise report as one service, leaving a
+    // consumer of the traces unable to tell them apart.
+    process.env.CRON_ROLE = 'worker';
+    expect(tracingServiceName()).toBe('dfx-api-worker');
+  });
+
+  it.each(['api', 'all', undefined])('reports %p as the API service', (role) => {
+    if (role === undefined) delete process.env.CRON_ROLE;
+    else process.env.CRON_ROLE = role;
+
+    expect(tracingServiceName()).toBe('dfx-api');
   });
 });
