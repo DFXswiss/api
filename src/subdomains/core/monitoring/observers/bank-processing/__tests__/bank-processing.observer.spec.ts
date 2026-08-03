@@ -23,7 +23,7 @@ function emptyRowFor(rules: BankProcessingRule[]): Record<string, unknown> {
   return raw;
 }
 
-function createChainableQuery(getRawOne: jest.Mock) {
+function createChainableQuery(getRawOne: jest.Mock): Record<string, jest.Mock> {
   const chainableQuery: Record<string, jest.Mock> = {
     select: jest.fn(),
     addSelect: jest.fn(),

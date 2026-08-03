@@ -70,7 +70,7 @@ describe('bank-processing.query', () => {
         chf_0: '12.345',
         ovd_0: '1',
         ovdchf_0: '4.5',
-        cnt_1: null, // SUM bei 0 Treffern
+        cnt_1: null, // SUM yields NULL for 0 matches
         chf_1: null,
       };
 
@@ -100,6 +100,31 @@ describe('bank-processing.query', () => {
       ]);
     });
 
+    it('rounds CHF half-cases with the repo-wide Util.round semantics', () => {
+      // Util.round(x,2) divides as an IEEE-754 float BEFORE Math.round: 1.005/0.01 = 100.4999… → 100,
+      // so 1.005 rounds DOWN to 1 (and -1.005 up to -1). This matches how every other CHF amount in
+      // the repo is rounded; a half-cent deviation on a monitoring aggregate is accepted for parity.
+      const rawPos: Record<string, unknown> = {
+        cnt_0: 1,
+        chf_0: 1.005,
+        ovd_0: 0,
+        ovdchf_0: 0,
+        cnt_1: 0,
+        chf_1: 0,
+      };
+      expect(mapRuleRow(rawPos, rulesWithAndWithoutTolerance, now)[0].chfSum).toBe(1);
+
+      const rawNeg: Record<string, unknown> = {
+        cnt_0: 1,
+        chf_0: -1.005,
+        ovd_0: 0,
+        ovdchf_0: 0,
+        cnt_1: 0,
+        chf_1: 0,
+      };
+      expect(mapRuleRow(rawNeg, rulesWithAndWithoutTolerance, now)[0].chfSum).toBe(-1);
+    });
+
     it('throws when an expected cnt key is missing', () => {
       const raw: Record<string, unknown> = {
         chf_0: '1',
@@ -109,6 +134,36 @@ describe('bank-processing.query', () => {
 
       expect(() => mapRuleRow(raw, rulesWithAndWithoutTolerance, now)).toThrow(
         /Missing expected aggregation key "cnt_0"/,
+      );
+    });
+
+    it('throws on non-finite raw values (NaN string)', () => {
+      const raw: Record<string, unknown> = {
+        cnt_0: 'NaN',
+        chf_0: '0',
+        ovd_0: '0',
+        ovdchf_0: '0',
+        cnt_1: '0',
+        chf_1: '0',
+      };
+
+      expect(() => mapRuleRow(raw, rulesWithAndWithoutTolerance, now)).toThrow(
+        /Non-finite aggregation value for rule "with-tol" field "cnt_0"/,
+      );
+    });
+
+    it('throws on non-finite raw values (Infinity)', () => {
+      const raw: Record<string, unknown> = {
+        cnt_0: 1,
+        chf_0: Infinity,
+        ovd_0: 0,
+        ovdchf_0: 0,
+        cnt_1: 0,
+        chf_1: 0,
+      };
+
+      expect(() => mapRuleRow(raw, rulesWithAndWithoutTolerance, now)).toThrow(
+        /Non-finite aggregation value for rule "with-tol" field "chf_0"/,
       );
     });
   });

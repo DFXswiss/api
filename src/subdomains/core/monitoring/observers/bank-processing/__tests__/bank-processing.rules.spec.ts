@@ -14,6 +14,7 @@ describe('bank-processing.rules', () => {
   });
 
   it('requires toleranceField whenever tolerance is set', () => {
+    // enforced by the type system as well; kept as a data sanity check
     for (const rule of BANK_PROCESSING_RULES) {
       if (rule.tolerance != null) {
         expect(rule.toleranceField).toBeDefined();

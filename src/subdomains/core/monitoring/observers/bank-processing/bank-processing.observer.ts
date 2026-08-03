@@ -5,8 +5,13 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { BankTxReturnRepository } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.repository';
+import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/repositories/bank-tx.repository';
+import { FiatOutputRepository } from 'src/subdomains/supporting/fiat-output/fiat-output.repository';
 import { BankProcessingRuleResult, buildRuleSelections, mapRuleRow } from './bank-processing.query';
 import { BANK_PROCESSING_BLOCKS, BANK_PROCESSING_RULES, BankProcessingBlockKey } from './bank-processing.rules';
 
@@ -26,11 +31,17 @@ export class BankProcessingObserver extends MetricObserver<BankProcessingData> {
   // Own process gate (BankProcessingMonitoring). Deliberately emits an empty/healthy snapshot every
   // 5 minutes — absence of the heartbeat is the "monitoring dead" signal; missing data must never
   // be read as "all ok".
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_PROCESSING_MONITORING, timeout: 600 })
+  // The finite lock timeout is mandatory (an infinite lock would let one hung run block the job
+  // silently forever); 1800s matches the sibling observers and keeps overlap unlikely at a 5-minute cadence.
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_PROCESSING_MONITORING, timeout: 1800 })
   async fetch(): Promise<BankProcessingData> {
     const now = new Date();
     const results: BankProcessingRuleResult[] = [];
 
+    // The six block queries run as separate statements, so the combined result is not one database
+    // snapshot; a row moving between tables mid-run can appear in two rules for one cycle. Accepted:
+    // rule tolerances are minutes to days, a single 5-minute cycle of skew cannot create a lasting
+    // false overdue state.
     for (const block of Object.values(BANK_PROCESSING_BLOCKS)) {
       const rules = BANK_PROCESSING_RULES.filter((r) => r.block === block.key);
       const repo = this.repoFor(block.key);
@@ -51,7 +62,8 @@ export class BankProcessingObserver extends MetricObserver<BankProcessingData> {
         }
       }
 
-      const raw = await qb.where(block.where).setParameters(params).getRawOne();
+      const raw = await qb.where(block.where).setParameters(params).getRawOne<Record<string, unknown>>();
+      if (!raw) throw new Error(`Empty aggregation row for block ${block.key}`);
       results.push(...mapRuleRow(raw, rules, now));
     }
 
@@ -68,7 +80,9 @@ export class BankProcessingObserver extends MetricObserver<BankProcessingData> {
     return results;
   }
 
-  private repoFor(key: BankProcessingBlockKey) {
+  private repoFor(
+    key: BankProcessingBlockKey,
+  ): BankTxRepository | BuyCryptoRepository | BuyFiatRepository | FiatOutputRepository | BankTxReturnRepository {
     switch (key) {
       case 'bankTx':
         return this.repos.bankTx;

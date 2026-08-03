@@ -1,4 +1,11 @@
-import { BankProcessingBlock, BankProcessingRule, cutoffFor, toleranceMinutesFor } from './bank-processing.rules';
+import { Util } from 'src/shared/utils/util';
+import {
+  BankProcessingBlock,
+  BankProcessingBlockKey,
+  BankProcessingRule,
+  cutoffFor,
+  toleranceMinutesFor,
+} from './bank-processing.rules';
 
 export interface RuleSelection {
   selects: string[]; // SQL expression AS alias; aliases: cnt_<idx>, chf_<idx>, ovd_<idx>, ovdchf_<idx>
@@ -16,7 +23,7 @@ export function buildRuleSelections(block: BankProcessingBlock, rules: BankProce
     selects.push(`SUM(CASE WHEN ${cond} THEN 1 ELSE 0 END) AS "cnt_${i}"`);
     selects.push(`SUM(CASE WHEN ${cond} THEN (${block.chfExpr}) ELSE 0 END) AS "chf_${i}"`);
 
-    if (rule.tolerance != null) {
+    if (rule.tolerance !== null) {
       const ageCol = `${block.alias}."${rule.toleranceField}"`;
       selects.push(`SUM(CASE WHEN ${cond} AND ${ageCol} < :cutoff_${i} THEN 1 ELSE 0 END) AS "ovd_${i}"`);
       selects.push(
@@ -31,7 +38,7 @@ export function buildRuleSelections(block: BankProcessingBlock, rules: BankProce
 
 export interface BankProcessingRuleResult {
   key: string;
-  block: string;
+  block: BankProcessingBlockKey;
   label: string;
   count: number;
   chfSum: number; // rounded to 2 decimal places
@@ -40,8 +47,11 @@ export interface BankProcessingRuleResult {
   toleranceMinutes: number | null;
 }
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+function requireFinite(value: number, ruleKey: string, field: string): number {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Non-finite aggregation value for rule "${ruleKey}" field "${field}"`);
+  }
+  return value;
 }
 
 export function mapRuleRow(
@@ -57,14 +67,14 @@ export function mapRuleRow(
     }
 
     // SUM yields NULL for 0 matches (Postgres) — a legitimate empty value, not an error case
-    const count = Number(raw[cntKey] ?? 0);
-    const chfSum = round2(Number(raw[`chf_${i}`] ?? 0));
+    const count = requireFinite(Number(raw[cntKey] ?? 0), rule.key, cntKey);
+    const chfSum = Util.round(requireFinite(Number(raw[`chf_${i}`] ?? 0), rule.key, `chf_${i}`), 2);
 
     let overdueCount: number | null = null;
     let overdueChf: number | null = null;
-    if (rule.tolerance != null) {
-      overdueCount = Number(raw[`ovd_${i}`] ?? 0);
-      overdueChf = round2(Number(raw[`ovdchf_${i}`] ?? 0));
+    if (rule.tolerance !== null) {
+      overdueCount = requireFinite(Number(raw[`ovd_${i}`] ?? 0), rule.key, `ovd_${i}`);
+      overdueChf = Util.round(requireFinite(Number(raw[`ovdchf_${i}`] ?? 0), rule.key, `ovdchf_${i}`), 2);
     }
 
     return {

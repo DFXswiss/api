@@ -6,19 +6,20 @@ export type BankProcessingBlockKey =
   | 'fiatOutput'
   | 'bankTxReturn';
 
-export type ToleranceSpec =
+export type ToleranceValue =
   | { type: 'fixed'; minutes: number }
-  | { type: 'dynamic'; offsetMinutes: number } // dynamicToleranceMinutes(now) + offsetMinutes
-  | null; // display-only: no overdue tracking
+  | { type: 'dynamic'; offsetMinutes: number }; // dynamicToleranceMinutes(now) + offsetMinutes
 
-export interface BankProcessingRule {
+interface BankProcessingRuleBase {
   key: string; // stable, kebab-case — monitoring interface, never rename
   label: string; // short description (German, shown on the ops dashboard)
   block: BankProcessingBlockKey;
   condition: string; // SQL fragment (Postgres) on the block aliases; camelCase columns MUST be double-quoted
-  tolerance: ToleranceSpec;
-  toleranceField?: 'created' | 'updated'; // required when tolerance != null
 }
+
+// Discriminated on tolerance: when set, toleranceField is required; when null, display-only (no overdue).
+export type BankProcessingRule = BankProcessingRuleBase &
+  ({ tolerance: null } | { tolerance: ToleranceValue; toleranceField: 'created' | 'updated' });
 
 export interface BankProcessingBlock {
   key: BankProcessingBlockKey;
