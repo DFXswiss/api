@@ -181,6 +181,18 @@ export class PayoutService {
     await this.processFailedOrders();
   }
 
+  // Current-state source for the PayoutUncertain alert. Deliberately flagged MONITORING rather
+  // than PAY_OUT: disabling payouts must not hide orders which were already parked for
+  // investigation, while the flag keeps the job switchable without a deploy — switching it off
+  // stops the heartbeat, which the missing-heartbeat alert then surfaces.
+  // The logger also emits an empty heartbeat, allowing monitoring to alert separately if this
+  // query/job/log path disappears instead of treating missing data as "zero uncertain orders".
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })
+  async logUncertainOrdersSnapshot(): Promise<void> {
+    const uncertainOrders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.PAYOUT_UNCERTAIN });
+    this.logs.logUncertainOrdersSnapshot(uncertainOrders);
+  }
+
   //*** HELPER METHODS ***//
 
   private async waitForStableInput(): Promise<boolean> {
