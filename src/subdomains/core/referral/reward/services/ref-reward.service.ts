@@ -282,7 +282,10 @@ export class RefRewardService {
       .addSelect('ROUND(SUM(r.amountInChf)::numeric, 0)', 'totalChf')
       .where('r.status != :excluded', { excluded: RewardStatus.USER_SWITCH })
       .groupBy('u.userDataId')
-      .orderBy('totalChf', 'DESC');
+      // TypeORM already emits the SELECT alias as AS "totalChf" (quoted). A plain string handed to
+      // orderBy is appended verbatim; Postgres folds unquoted identifiers to lowercase, so
+      // orderBy('totalChf') looks for totalchf and fails against the quoted "totalChf" column.
+      .orderBy('"totalChf"', 'DESC');
 
     if (from) {
       query.andWhere('r.created >= :from', { from });
