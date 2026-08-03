@@ -315,7 +315,9 @@ describe('PaymentLinkPaymentService', () => {
    */
   describe('leaving Pending', () => {
     function transitions(): { status: PaymentLinkPaymentStatus }[] {
-      return paymentLinkPaymentRepo.update.mock.calls.map(([, values]) => values as { status: PaymentLinkPaymentStatus });
+      return paymentLinkPaymentRepo.update.mock.calls.map(
+        ([, values]) => values as { status: PaymentLinkPaymentStatus },
+      );
     }
 
     it('should expire through a conditional update rather than a status read', async () => {

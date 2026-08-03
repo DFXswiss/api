@@ -138,10 +138,7 @@ export class PaymentLinkPaymentService {
    * for any number of processes and for every path into the transition, which is why it sits here
    * rather than at the call sites.
    */
-  private async takePendingTransition(
-    payment: PaymentLinkPayment,
-    status: PaymentLinkPaymentStatus,
-  ): Promise<boolean> {
+  private async takePendingTransition(payment: PaymentLinkPayment, status: PaymentLinkPaymentStatus): Promise<boolean> {
     const { affected } = await this.paymentLinkPaymentRepo.update(
       { id: payment.id, status: PaymentLinkPaymentStatus.PENDING },
       { status },

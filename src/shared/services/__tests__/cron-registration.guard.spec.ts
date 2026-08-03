@@ -83,7 +83,9 @@ describe('cron registration', () => {
     // pattern that matches nothing at all looks like. This runs the same filter over a file that
     // does contain each pattern, so a check that can no longer find anything fails here.
     for (const { pattern } of FORBIDDEN) {
-      const planted = [{ path: 'planted.ts', content: `class X { @Cron() @Interval() @Timeout() f() { setInterval(); } }` }];
+      const planted = [
+        { path: 'planted.ts', content: `class X { @Cron() @Interval() @Timeout() f() { setInterval(); } }` },
+      ];
 
       expect(planted.filter((f) => pattern.test(f.content)).map((f) => f.path)).toEqual(['planted.ts']);
     }
