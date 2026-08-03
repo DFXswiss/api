@@ -2,21 +2,24 @@
 // spy and no real S3/Azure/mock storage is touched.
 const uploadWormBlobMock = jest.fn();
 const copyBlobsMock = jest.fn();
+const listKeysMock = jest.fn();
 jest.mock('src/integration/infrastructure/storage/storage.factory', () => ({
   createStorageService: jest.fn(() => ({
     uploadWormBlob: (...args: any[]) => uploadWormBlobMock(...args),
     copyBlobs: (...args: any[]) => copyBlobsMock(...args),
+    listKeys: (...args: any[]) => listKeysMock(...args),
+    blobUrl: (name: string) => `https://storage/${name}`,
   })),
 }));
 
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { FileType } from '../../../dto/kyc-file.dto';
+import { FileSubType, FileType } from '../../../dto/kyc-file.dto';
 import { KycFile } from '../../../entities/kyc-file.entity';
 import { ContentType } from '../../../enums/content-type.enum';
 import { KycFileService } from '../../kyc-file.service';
-import { KycDocumentService } from '../kyc-document.service';
+import { GENERATION_KEY_INDEX, KycDocumentService } from '../kyc-document.service';
 
 describe('KycDocumentService - storage', () => {
   let service: KycDocumentService;
@@ -63,6 +66,103 @@ describe('KycDocumentService - storage', () => {
     ).rejects.toThrow('Supported file types');
 
     expect(uploadWormBlobMock).not.toHaveBeenCalled();
+  });
+
+  describe('ensureGeneratedUserFile', () => {
+    it('stores an invalid row and marks it valid only after the WORM upload succeeds', async () => {
+      const generated = Object.assign(new KycFile(), { id: 17, name: 'generated.pdf', valid: false });
+      (kycFileService.getByGenerationKey as jest.Mock).mockResolvedValue(null);
+      (kycFileService.createKycFile as jest.Mock).mockResolvedValue(generated);
+
+      await service.ensureGeneratedUserFile(
+        'dfx-approval:11:RiskProfile:v1',
+        userData,
+        FileType.USER_NOTES,
+        FileSubType.RISK_PROFILE,
+        generated.name,
+        Buffer.from('pdf'),
+      );
+
+      expect(kycFileService.createKycFile).toHaveBeenCalledWith(
+        expect.objectContaining({ generationKey: 'dfx-approval:11:RiskProfile:v1', valid: false }),
+      );
+      expect(uploadWormBlobMock).toHaveBeenCalled();
+      expect(kycFileService.markValid).toHaveBeenCalledWith(generated);
+    });
+
+    it('verifies and reuses an already valid generated document', async () => {
+      const generated = Object.assign(new KycFile(), { id: 17, name: 'generated.pdf', valid: true });
+      (kycFileService.getByGenerationKey as jest.Mock).mockResolvedValue(generated);
+      listKeysMock.mockImplementation((prefix: string) => Promise.resolve([prefix]));
+
+      await service.ensureGeneratedUserFile(
+        'dfx-approval:11:RiskProfile:v1',
+        userData,
+        FileType.USER_NOTES,
+        FileSubType.RISK_PROFILE,
+        generated.name,
+        Buffer.from('pdf'),
+      );
+
+      expect(listKeysMock).toHaveBeenCalled();
+      expect(uploadWormBlobMock).not.toHaveBeenCalled();
+      expect(kycFileService.markValid).not.toHaveBeenCalled();
+    });
+
+    it('continues with the winning row when two workers create the same generation key', async () => {
+      const generated = Object.assign(new KycFile(), { id: 18, name: 'generated.pdf', valid: false });
+      (kycFileService.getByGenerationKey as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce(generated);
+      (kycFileService.createKycFile as jest.Mock).mockRejectedValue({
+        driverError: { code: '23505', constraint: GENERATION_KEY_INDEX },
+      });
+
+      await service.ensureGeneratedUserFile(
+        'dfx-approval:11:RiskProfile:v1',
+        userData,
+        FileType.USER_NOTES,
+        FileSubType.RISK_PROFILE,
+        generated.name,
+        Buffer.from('pdf'),
+      );
+
+      expect(kycFileService.getByGenerationKey).toHaveBeenCalledTimes(2);
+      expect(uploadWormBlobMock).toHaveBeenCalled();
+      expect(kycFileService.markValid).toHaveBeenCalledWith(generated);
+    });
+
+    it('fails loudly when a document marked valid is gone from storage', async () => {
+      const generated = Object.assign(new KycFile(), { id: 17, name: 'generated.pdf', valid: true });
+      (kycFileService.getByGenerationKey as jest.Mock).mockResolvedValue(generated);
+      listKeysMock.mockResolvedValue([]);
+
+      await expect(
+        service.ensureGeneratedUserFile(
+          'dfx-approval:11:RiskProfile:v1',
+          userData,
+          FileType.USER_NOTES,
+          FileSubType.RISK_PROFILE,
+          generated.name,
+          Buffer.from('pdf'),
+        ),
+      ).rejects.toThrow('missing in storage');
+    });
+
+    it('does not hide unrelated database errors', async () => {
+      const error = { driverError: { code: '23505', constraint: 'some_other_constraint' } };
+      (kycFileService.getByGenerationKey as jest.Mock).mockResolvedValue(null);
+      (kycFileService.createKycFile as jest.Mock).mockRejectedValue(error);
+
+      await expect(
+        service.ensureGeneratedUserFile(
+          'dfx-approval:11:RiskProfile:v1',
+          userData,
+          FileType.USER_NOTES,
+          FileSubType.RISK_PROFILE,
+          'generated.pdf',
+          Buffer.from('pdf'),
+        ),
+      ).rejects.toBe(error);
+    });
   });
 
   describe('copyFiles', () => {

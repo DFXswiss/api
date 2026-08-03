@@ -26,6 +26,10 @@ import { KycStepRepository } from './repositories/kyc-step.repository';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
 import { StepLogRepository } from './repositories/step-log.repository';
 import { TfaLogRepository } from './repositories/tfa-log.repository';
+import { DfxApprovalCheckService } from './services/dfx-approval-check.service';
+import { DfxApprovalDocumentService } from './services/dfx-approval-document.service';
+import { DfxApprovalPdfService } from './services/dfx-approval-pdf.service';
+import { DfxApprovalWorkflowService } from './services/dfx-approval-workflow.service';
 import { DilisenseService } from './services/integration/dilisense.service';
 import { FinancialService } from './services/integration/financial.service';
 import { KycDocumentService } from './services/integration/kyc-document.service';
@@ -74,6 +78,10 @@ import { TfaService } from './services/tfa.service';
     StepLogRepository,
     TfaLogRepository,
     DilisenseService,
+    DfxApprovalCheckService,
+    DfxApprovalDocumentService,
+    DfxApprovalPdfService,
+    DfxApprovalWorkflowService,
     FinancialService,
     KycFileService,
     KycLogRepository,

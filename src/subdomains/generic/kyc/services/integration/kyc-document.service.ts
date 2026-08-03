@@ -13,6 +13,10 @@ import { KycFileService } from '../kyc-file.service';
 
 const KYC_CONTAINER = 'kyc';
 
+// TypeORM's generated name for the unique index on `kyc_file.generationKey`; the repository does not
+// use custom index names.
+export const GENERATION_KEY_INDEX = 'IDX_840d5653c5f3bc7c76de2d156d';
+
 @Injectable()
 export class KycDocumentService {
   private readonly storageService: StorageService;
@@ -118,6 +122,57 @@ export class KycDocumentService {
     return { file, url };
   }
 
+  async ensureGeneratedUserFile(
+    generationKey: string,
+    userData: UserData,
+    type: FileType,
+    subType: FileSubType,
+    name: string,
+    data: Buffer,
+    metadata?: Record<string, string>,
+  ): Promise<{ file: KycFile; url: string }> {
+    let file = await this.kycFileService.getByGenerationKey(generationKey);
+    if (file?.valid) {
+      const blobName = this.toFileId(FileCategory.USER, userData.id, type, file.name);
+      // Existence check only - listing the key avoids transferring the whole document.
+      const storedKeys = await this.storageService.listKeys(blobName);
+      if (!storedKeys.includes(blobName))
+        throw new Error(`Generated document ${generationKey} is marked valid but missing in storage`);
+
+      return { file, url: this.storageService.blobUrl(blobName) };
+    }
+
+    if (!file) {
+      try {
+        file = await this.kycFileService.createKycFile({
+          generationKey,
+          name,
+          type,
+          subType,
+          protected: true,
+          valid: false,
+          userData,
+        });
+      } catch (error) {
+        if (!this.isGenerationKeyConflict(error)) throw error;
+        file = await this.kycFileService.getByGenerationKey(generationKey);
+        if (!file) throw error;
+      }
+    }
+
+    const blobName = this.toFileId(FileCategory.USER, userData.id, type, file.name);
+    const url = await this.storageService.uploadWormBlob(blobName, data, ContentType.PDF, metadata);
+    await this.kycFileService.markValid(file);
+
+    return { file, url };
+  }
+
+  // Lets a caller reuse the name of a document that was already registered, so a retry after a
+  // failed upload keeps the document number that is printed into the PDF.
+  async findGeneratedUserFile(generationKey: string): Promise<KycFile | null> {
+    return this.kycFileService.getByGenerationKey(generationKey);
+  }
+
   async downloadFile(category: FileCategory, userDataId: number, type: FileType, name: string): Promise<BlobContent> {
     return this.storageService.getBlob(this.toFileId(category, userDataId, type, name));
   }
@@ -143,5 +198,12 @@ export class KycDocumentService {
 
   private isPermittedFileType(fileType: ContentType): boolean {
     return [ContentType.PNG, ContentType.JPEG, ContentType.JPG, ContentType.PDF].includes(fileType);
+  }
+
+  private isGenerationKeyConflict(error: unknown): boolean {
+    const candidate = error as { code?: string; driverError?: { code?: string; constraint?: string } };
+    const code = candidate.driverError?.code ?? candidate.code;
+    const constraint = candidate.driverError?.constraint;
+    return code === '23505' && (!constraint || constraint === GENERATION_KEY_INDEX);
   }
 }

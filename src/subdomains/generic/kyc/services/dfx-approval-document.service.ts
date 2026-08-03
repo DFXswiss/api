@@ -1,0 +1,76 @@
+import { Injectable } from '@nestjs/common';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { FileSubType, FileType } from '../dto/kyc-file.dto';
+import { KycFile } from '../entities/kyc-file.entity';
+import { KycStep } from '../entities/kyc-step.entity';
+import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
+import { DfxApprovalPdfService } from './dfx-approval-pdf.service';
+import { KycDocumentService } from './integration/kyc-document.service';
+
+export const DFX_APPROVAL_GENERATED_DOCUMENTS = [
+  FileSubType.GWG_FILE_COVER,
+  FileSubType.IDENTIFICATION_FORM,
+  FileSubType.CUSTOMER_PROFILE,
+  FileSubType.RISK_PROFILE,
+  FileSubType.FORM_A,
+  FileSubType.DFX_NAME_CHECK,
+] as const;
+
+@Injectable()
+export class DfxApprovalDocumentService {
+  constructor(
+    private readonly nameCheckLogRepo: NameCheckLogRepository,
+    private readonly pdfService: DfxApprovalPdfService,
+    private readonly documentService: KycDocumentService,
+  ) {}
+
+  // `step` is optional: RiskProfile and FormA follow the account, not a KYC step, and the productive
+  // Sheet selects them from user data alone. It is only recorded in the document metadata.
+  async generateMissingPersonalDocuments(
+    userData: UserData,
+    step: KycStep | undefined,
+    files: KycFile[],
+    requestedDocuments: readonly FileSubType[] = DFX_APPROVAL_GENERATED_DOCUMENTS,
+  ): Promise<void> {
+    const missing = requestedDocuments.filter(
+      (subType) => !files.some((file) => file.subType === subType && file.valid),
+    );
+    if (!missing.length) return;
+
+    const nameCheck = await this.nameCheckLogRepo.findOne({
+      where: { userData: { id: userData.id } },
+      order: { created: 'DESC' },
+    });
+
+    const generatedAt = new Date();
+    const failures: string[] = [];
+    for (const subType of missing) {
+      try {
+        // Only the NameCheck document depends on this evidence; failing it here keeps every other
+        // document of the same case unblocked.
+        if (subType === FileSubType.DFX_NAME_CHECK && !nameCheck)
+          throw new Error(`NameCheck evidence is missing for userData ${userData.id}`);
+
+        const version = 'v1';
+        const generationKey = `dfx-approval:${userData.id}:${subType}:${version}`;
+        // A retry keeps the name of the first attempt; the same string is printed into the document
+        // as its document number, so name and content must not drift apart.
+        const registered = await this.documentService.findGeneratedUserFile(generationKey);
+        const context = { userData, steps: userData.kycSteps, nameCheck, generatedAt, documentName: registered?.name };
+        const data = await this.pdfService.generate(subType, context);
+        await this.documentService.ensureGeneratedUserFile(
+          generationKey,
+          userData,
+          FileType.USER_NOTES,
+          subType,
+          registered?.name ?? this.pdfService.fileName(subType, context),
+          data,
+          { workflow: 'DfxApproval', version, ...(step ? { stepId: String(step.id) } : {}) },
+        );
+      } catch (error) {
+        failures.push(`${subType}: ${(error as Error).message}`);
+      }
+    }
+    if (failures.length) throw new Error(`DfxApproval document generation failed (${failures.join('; ')})`);
+  }
+}
