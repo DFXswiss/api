@@ -522,7 +522,9 @@ async processPayments(): Promise<void> {
   // no @Lock, no DisabledProcess check needed
 }
 
-// ONLY with bare @Cron: manual @Lock + DisabledProcess required
+// What the wrapper takes off your hands — NOT an alternative you may pick.
+// A bare @Cron carries no scope, so it registers in every process; a guard test
+// rejects it (see "Register periodic work through @DfxCron" below).
 @Cron(CronExpression.EVERY_MINUTE)
 @Lock(1800)
 async processPayments(): Promise<void> {

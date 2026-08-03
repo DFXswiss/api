@@ -158,6 +158,10 @@ export class DashboardFinancialService implements OnModuleInit {
    * Not a fallback for an empty store: it runs on every tick regardless of the store's contents,
    * so the path is the normal one rather than one reached only after a failure. The cost is one
    * read per tick, in every role that registers it.
+   *
+   * Every minute rather than the 15 minutes CONTRIBUTING prefers, because that is the interval
+   * LogJobService already writes the underlying entry at (TRADING_LOG, EVERY_MINUTE). A longer
+   * one here would not save a write, it would only serve a staler value than the data allows.
    */
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.LATEST_BALANCE_CACHE })
   async refreshLatestBalance(): Promise<void> {
