@@ -533,8 +533,10 @@ async processPayments(): Promise<void> {
 }
 ```
 
-Declare a `process` flag unless the job maintains the disabled set itself. Without one the job
-runs unconditionally and cannot be switched off without a deploy.
+Declare a `process` flag unless the job maintains the disabled set itself, or unless something
+outside the process infers health from the job still running — a watchdog that can be switched off
+looks, once it is off, exactly like the failure it watches for. Without a flag the job runs
+unconditionally and cannot be switched off without a deploy.
 
 [docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval, flag and scope.
 **Adding, removing or re-scheduling a job must be reflected there in the same PR.**

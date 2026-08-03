@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **136 `@DfxCron` declarations** across 95 files and 34 areas.
+Every scheduled job this service runs: **137 `@DfxCron` declarations** across 96 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **136 `@DfxCron` declarations** across 95
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-116 are `worker`, 7 are `api`, 13 are `both`. `CRON_ROLE` decides what a process is
+116 are `worker`, 7 are `api`, 14 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -30,16 +30,18 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-116 of the 136 jobs carry a `process` flag, 20 do not. A job with a flag can be switched off
+116 of the 137 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
 
-A job **without** a flag runs unconditionally. That is deliberate for four of them — the
+A job **without** a flag runs unconditionally. That is deliberate for five of them. The four
 `ProcessService::resync*` jobs maintain the disabled set, the JWT denylists and the staff
 clearance allowlist themselves, so making them switchable would let a configuration change
-disable the mechanism that reads configuration changes. For the remaining 16 it is simply an
-omission:
+disable the mechanism that reads configuration changes. `DfxCronService::reportRole` is the role
+heartbeat the `dfx-api-role-mismatch` alert reads: switched off, it would look exactly like a
+process that stopped reporting, which is the condition the alert exists to catch. For the
+remaining 16 it is simply an omission:
 
 | Job | Interval |
 | --- | --- |
@@ -63,7 +65,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | 30 seconds | 9 |
 | minute | 52 |
 | 5 minutes | 17 |
-| 10 minutes | 15 |
+| 10 minutes | 16 |
 | hour | 16 |
 | day at 3am | 1 |
 | day at 4am | 3 |
@@ -85,9 +87,9 @@ Jobs by area:
 | `subdomains/supporting/payin` | 12 | — |
 | `integration/blockchain` | 6 | — |
 | `subdomains/core/buy-crypto` | 6 | 4 |
+| `shared/services` | 5 | 5 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
 | `subdomains/supporting/payment` | 5 | 1 |
-| `shared/services` | 4 | 4 |
 | `subdomains/core/payment-link` | 4 | — |
 | `subdomains/generic/kyc` | 4 | — |
 | `subdomains/supporting/bank` | 4 | — |
@@ -119,17 +121,31 @@ Jobs by area:
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses 26 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **136 = 136**, no gap. Class and
+count is asserted against a raw text count of the decorator: **137 = 137**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
-## Known discrepancy
+## Known discrepancies
+
+Both come from the same place: this list counts **declarations**, while `DfxCronService` registers
+what `DiscoveryService.getProviders()` hands it. The two are not the same set.
 
 `CitreaBaseStrategy::checkPayInEntries` is declared on an **abstract** class. NestJS discovers
 providers rather than classes, so such a job is registered once per concrete subclass, not once per
 declaration. There is currently one subclass, so the runtime count equals the declaration count —
 but a second subclass would silently add another registration of the same job, sharing the flag and
 the interval while running as an independent timer with its own lock.
+
+`ExchangeController::checkTrades` is **never registered**. Its class is listed under `controllers:`
+in `ExchangeModule` and nowhere under `providers:`, and `getProviders()` does not return
+controllers — so the scan never sees the decorator. This predates the process split and is
+unchanged by it; the job has never run. `TransactionController::checkLists` looks like the same
+case but is not: `HistoryModule` lists that class under both `controllers:` and `providers:`, so
+the job is registered — on the provider instance, which is a different object from the controller
+instance the request handlers use.
+
+Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
+here rather than fixed in passing. Of the 137 declarations, 136 have a registration path.
 
 ## Jobs
 
@@ -223,6 +239,7 @@ the interval while running as an independent timer with its own lock.
 | 5 minutes | `WEBHOOK` | `worker` | `WebhookNotificationService::sendWebhooks` | `subdomains/generic/user/services/webhook/webhook-notification.service.ts` |
 | 10 minutes | `BANK_ACCOUNT` | `worker` | `BankAccountService::reloadUncheckedBankAccounts` | `subdomains/supporting/bank/bank-account/bank-account.service.ts` |
 | 10 minutes | `DEURO_LOG_INFO` | `worker` | `DEuroService::processLogInfo` | `integration/blockchain/deuro/deuro.service.ts` |
+| 10 minutes | — | `both` | `DfxCronService::reportRole` | `shared/services/dfx-cron.service.ts` |
 | 10 minutes | `MONITORING` | `worker` | `ExchangeObserver::fetch` | `subdomains/core/monitoring/observers/exchange.observer.ts` |
 | 10 minutes | `MONITORING` | `worker` | `ExternalServicesObserver::fetch` | `subdomains/core/monitoring/observers/external-services.observer.ts` |
 | 10 minutes | `BLOCKCHAIN_FEE_UPDATE` | `worker` | `FeeService::updateBlockchainFees` | `subdomains/supporting/payment/services/fee.service.ts` |

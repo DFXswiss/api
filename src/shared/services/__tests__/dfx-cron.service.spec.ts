@@ -128,4 +128,41 @@ describe('DfxCronService', () => {
       jest.clearAllMocks();
     }
   });
+
+  describe('role heartbeat', () => {
+    // The alert dfx-api-role-mismatch decides from this line which role each process is running.
+    // Everything it needs has to be IN the line and the line has to appear in both processes —
+    // the three tests below pin exactly that, because none of it is visible at the call site.
+
+    it('runs in every process, so neither one is invisible to the alert', () => {
+      // Were this scoped `worker`, the API process would stop reporting and the alert could no
+      // longer distinguish "runs the wrong role" from "reports nothing".
+      const params: DfxCronParams = Reflect.getMetadata(DFX_CRONJOB_PARAMS, DfxCronService.prototype.reportRole);
+
+      expect(params.scope).toEqual(CronScope.BOTH);
+    });
+
+    it('cannot be switched off, so a missing line always means a sick process', () => {
+      // With a `process` flag, a disabled watchdog would look exactly like a process that stopped
+      // writing the line.
+      const params: DfxCronParams = Reflect.getMetadata(DFX_CRONJOB_PARAMS, DfxCronService.prototype.reportRole);
+
+      expect(params.process).toBeUndefined();
+    });
+
+    it('names the role this process is actually running', () => {
+      process.env.CRON_ROLE = 'worker';
+      new ConfigService(GetConfig());
+
+      const { service } = buildService(configuredJobs);
+      service.onModuleInit();
+
+      const info = jest.spyOn(service['logger'], 'info');
+      service.reportRole();
+
+      // The role is what the alert matches on; the count tells the reader on call whether the
+      // process registered a plausible number of jobs or nearly none.
+      expect(info).toHaveBeenCalledWith('CronRole worker: heartbeat, 3 jobs registered');
+    });
+  });
 });

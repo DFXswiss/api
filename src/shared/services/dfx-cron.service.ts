@@ -4,7 +4,7 @@ import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { Config, CronRole } from 'src/config/config';
 import { DisabledProcess } from 'src/shared/services/process.service';
-import { CronScope, DFX_CRONJOB_PARAMS, DfxCronExpression, DfxCronParams } from 'src/shared/utils/cron';
+import { CronScope, DFX_CRONJOB_PARAMS, DfxCron, DfxCronExpression, DfxCronParams } from 'src/shared/utils/cron';
 import { LockClass } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CustomCronExpression } from '../utils/custom-cron-expression';
@@ -20,6 +20,8 @@ interface CronJobData {
 @Injectable()
 export class DfxCronService implements OnModuleInit {
   private readonly logger = new DfxLogger(DfxCronService);
+
+  private registeredCount = 0;
 
   constructor(
     private readonly discovery: DiscoveryService,
@@ -69,7 +71,27 @@ export class DfxCronService implements OnModuleInit {
       .map((scope) => `${scope}: ${registered.filter((s) => s === scope).length}`)
       .join(', ');
 
+    this.registeredCount = registered.length;
+
     this.logger.info(`CronRole ${Config.cronRole}: registered ${registered.length} of ${total} jobs (${byScope})`);
+  }
+
+  /**
+   * The line above says which role this process STARTED with. It cannot answer whether the two
+   * processes are running the right roles right now: it is written once, so an alert built on a
+   * counting window over it either reports nothing after the window passes, or reports permanently.
+   * This line answers the same question continuously, and the alert reads it.
+   *
+   * Deliberately `both`: it has to appear in EVERY process, and it carries the role, so a swapped
+   * assignment shows up as a wrong role rather than only as a missing line.
+   *
+   * Deliberately without a `process` flag: a watchdog that can be switched off looks, once it is
+   * off, exactly like a process that stopped writing the line — the alert could not tell the two
+   * apart. The job holds no state and does nothing but log, so there is nothing to switch off.
+   */
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.BOTH })
+  reportRole(): void {
+    this.logger.info(`CronRole ${Config.cronRole}: heartbeat, ${this.registeredCount} jobs registered`);
   }
 
   /**
