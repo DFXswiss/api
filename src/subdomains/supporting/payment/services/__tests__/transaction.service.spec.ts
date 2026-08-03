@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -124,6 +124,55 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
     await expect(service.stop(70)).rejects.toThrow(ConflictException);
     expect(buyCryptoRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('resume() sets a stopped BuyCrypto back to Created and saves it', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(buyCryptoRepo, 'save').mockImplementation(async (e) => e as BuyCrypto);
+
+    await service.resume(99);
+
+    expect(buyCryptoRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 7, status: BuyCryptoStatus.CREATED }),
+    );
+  });
+
+  it('resume() rejects a transaction that is not stopped', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.COMPLETE,
+      amlCheck: CheckStatus.PASS,
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+
+    await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+  });
+
+  it('resume() rejects a stopped transaction whose amlCheck is not Pass', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.FAIL,
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+
+    await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    expect(buyCryptoRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('resume() rejects a transaction without buyCrypto', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto: undefined });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+
+    await expect(service.resume(99)).rejects.toThrow(BadRequestException);
   });
 });
 

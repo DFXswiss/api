@@ -9,6 +9,7 @@ import {
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
@@ -146,6 +147,19 @@ export class TransactionService {
     const [buyCryptoId, update] = entity.buyCrypto.stop();
     const result = await this.buyCryptoRepo.update({ id: buyCryptoId, status: previousStatus }, update);
     if (result.affected !== 1) throw new ConflictException('BuyCrypto status changed concurrently');
+  }
+
+  async resume(id: number): Promise<void> {
+    const entity = await this.getTransactionById(id, { buyCrypto: true });
+    if (!entity) throw new NotFoundException('Transaction not found');
+    if (!entity.buyCrypto) throw new BadRequestException('Only BuyCrypto transactions can be resumed');
+    if (entity.buyCrypto.status !== BuyCryptoStatus.STOPPED)
+      throw new BadRequestException('Transaction is not stopped');
+    if (entity.buyCrypto.amlCheck !== CheckStatus.PASS)
+      throw new BadRequestException('Only transactions with passed AML check can be resumed');
+
+    entity.buyCrypto.resume();
+    await this.buyCryptoRepo.save(entity.buyCrypto);
   }
 
   async getTransactionById(

@@ -572,6 +572,16 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  resume(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.CREATED,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   complete(payoutFee: number, outputAmountBaseUnits?: bigint | null): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       outputDate: new Date(),
