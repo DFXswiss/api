@@ -11,8 +11,8 @@ export enum UserRole {
   CUSTODY = 'Custody',
   REALUNIT = 'RealUnit',
   MARKETING = 'Marketing',
-  // Partner-wallet employees: normal login token (jwt.user = user id), not company-token (jwt.user = wallet id).
-  PARTNER = 'Partner',
+  // NonCustodialWalletPartner employees: normal login token (jwt.user = user id), not company-token (jwt.user = wallet id).
+  NON_CUSTODIAL_WALLET_PARTNER = 'NonCustodialWalletPartner',
   DEBUG = 'Debug',
 
   // service roles

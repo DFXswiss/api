@@ -5,7 +5,7 @@ import { PartnerStatisticService } from '../partner-statistic.service';
 
 /**
  * Unit tests for role-aware wallet resolution — the tenant boundary between
- * company tokens (jwt.user = wallet id) and PARTNER tokens (jwt.user = user id).
+ * company tokens (jwt.user = wallet id) and NON_CUSTODIAL_WALLET_PARTNER tokens (jwt.user = user id).
  */
 describe('PartnerStatisticService.resolveWalletId', () => {
   const findOne = jest.fn();
@@ -36,7 +36,7 @@ describe('PartnerStatisticService.resolveWalletId', () => {
 
     await expect(service.resolveWalletId(jwt)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(service.resolveWalletId(jwt)).rejects.toThrow(/company token/i);
-    // Must not fall through to PARTNER lookup, and must not return 99 as wallet id.
+    // Must not fall through to NON_CUSTODIAL_WALLET_PARTNER lookup, and must not return 99 as wallet id.
     expect(findOne).not.toHaveBeenCalled();
   });
 
@@ -47,9 +47,9 @@ describe('PartnerStatisticService.resolveWalletId', () => {
     expect(findOne).not.toHaveBeenCalled();
   });
 
-  it('PARTNER: loads user and returns their wallet id — not jwt.user', async () => {
+  it('NON_CUSTODIAL_WALLET_PARTNER: loads user and returns their wallet id — not jwt.user', async () => {
     // Critical tenant case: user id 99 equals foreign wallet 99; own wallet is 7.
-    const jwt = { user: 99, role: UserRole.PARTNER } as JwtPayload;
+    const jwt = { user: 99, role: UserRole.NON_CUSTODIAL_WALLET_PARTNER } as JwtPayload;
     findOne.mockResolvedValue({ id: 99, wallet: { id: 7 } });
 
     await expect(service.resolveWalletId(jwt)).resolves.toBe(7);
@@ -58,16 +58,16 @@ describe('PartnerStatisticService.resolveWalletId', () => {
     await expect(service.resolveWalletId(jwt)).resolves.not.toBe(99);
   });
 
-  it('PARTNER: rejects when user has no wallet (Forbidden, not silent 0)', async () => {
-    const jwt = { user: 5, role: UserRole.PARTNER } as JwtPayload;
+  it('NON_CUSTODIAL_WALLET_PARTNER: rejects when user has no wallet (Forbidden, not silent 0)', async () => {
+    const jwt = { user: 5, role: UserRole.NON_CUSTODIAL_WALLET_PARTNER } as JwtPayload;
     findOne.mockResolvedValue({ id: 5, wallet: null });
 
     await expect(service.resolveWalletId(jwt)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(service.resolveWalletId(jwt)).rejects.toThrow(/no wallet/i);
   });
 
-  it('PARTNER: rejects when user is missing', async () => {
-    const jwt = { user: 5, role: UserRole.PARTNER } as JwtPayload;
+  it('NON_CUSTODIAL_WALLET_PARTNER: rejects when user is missing', async () => {
+    const jwt = { user: 5, role: UserRole.NON_CUSTODIAL_WALLET_PARTNER } as JwtPayload;
     findOne.mockResolvedValue(null);
 
     await expect(service.resolveWalletId(jwt)).rejects.toBeInstanceOf(ForbiddenException);

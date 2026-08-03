@@ -61,16 +61,16 @@ describe('PartnerStatisticController', () => {
   });
 
   /**
-   * Tenant isolation (the real failure mode): a PARTNER user whose user id equals a *foreign*
+   * Tenant isolation (the real failure mode): a NON_CUSTODIAL_WALLET_PARTNER user whose user id equals a *foreign*
    * wallet id must still only see their own wallet — never treat jwt.user as walletId.
    */
-  it('PARTNER: never uses jwt.user as walletId even when user id equals a foreign wallet id', async () => {
+  it('NON_CUSTODIAL_WALLET_PARTNER: never uses jwt.user as walletId even when user id equals a foreign wallet id', async () => {
     const foreignWalletId = 99;
     const ownWalletId = 7;
     // jwt.user === foreignWalletId is exactly the cross-tenant trap if resolution is skipped.
     const partnerJwt = {
       user: foreignWalletId,
-      role: UserRole.PARTNER,
+      role: UserRole.NON_CUSTODIAL_WALLET_PARTNER,
       account: 1,
     } as JwtPayload;
 
@@ -132,7 +132,7 @@ describe('PartnerStatisticController routing & security metadata', () => {
   });
 
   it.each(endpoints)(
-    'guards $handler with AuthGuard → RoleGuard(CLIENT_COMPANY|PARTNER) → PartnerStatisticRateLimitGuard',
+    'guards $handler with AuthGuard → RoleGuard(CLIENT_COMPANY|NON_CUSTODIAL_WALLET_PARTNER) → PartnerStatisticRateLimitGuard',
     ({ handler }) => {
       const fn = PartnerStatisticController.prototype[handler];
       const guards = Reflect.getMetadata(GUARDS_METADATA, fn) as unknown[];
@@ -144,12 +144,12 @@ describe('PartnerStatisticController routing & security metadata', () => {
       // (bank.controller pattern: exact class-token equality, not constructor.name).
       expect(guards[0]).toBe(AuthGuard());
 
-      // RoleGuard is the only instance-based guard; it must admit CLIENT_COMPANY or PARTNER.
+      // RoleGuard is the only instance-based guard; it must admit CLIENT_COMPANY or NON_CUSTODIAL_WALLET_PARTNER.
       const roleGuard = guards.find((g) => (g as { entryRoles?: UserRole[] }).entryRoles !== undefined) as {
         entryRoles: UserRole[];
       };
       expect(roleGuard).toBeDefined();
-      expect(roleGuard.entryRoles).toEqual([UserRole.CLIENT_COMPANY, UserRole.PARTNER]);
+      expect(roleGuard.entryRoles).toEqual([UserRole.CLIENT_COMPANY, UserRole.NON_CUSTODIAL_WALLET_PARTNER]);
       expect((roleGuard as { constructor: { name: string } }).constructor.name).toBe('RoleGuardClass');
 
       expect(guards[1]).toBe(roleGuard);
@@ -165,16 +165,16 @@ describe('PartnerStatisticController routing & security metadata', () => {
     expect(Reflect.getMetadata(THROTTLER_TTL, fn)).toBe(3600);
   });
 
-  it('RoleGuard admits CLIENT_COMPANY and PARTNER, rejects plain USER', () => {
+  it('RoleGuard admits CLIENT_COMPANY and NON_CUSTODIAL_WALLET_PARTNER, rejects plain USER', () => {
     // Metadata alone does not execute RoleGuard; pin the OR semantics the decorator encodes.
-    const guard = RoleGuard(UserRole.CLIENT_COMPANY, UserRole.PARTNER);
+    const guard = RoleGuard(UserRole.CLIENT_COMPANY, UserRole.NON_CUSTODIAL_WALLET_PARTNER);
     const contextFor = (role: UserRole) =>
       ({
         switchToHttp: () => ({ getRequest: () => ({ user: { role, account: 1 } }) }),
       }) as any;
 
     expect(guard.canActivate(contextFor(UserRole.CLIENT_COMPANY))).toBe(true);
-    expect(guard.canActivate(contextFor(UserRole.PARTNER))).toBe(true);
+    expect(guard.canActivate(contextFor(UserRole.NON_CUSTODIAL_WALLET_PARTNER))).toBe(true);
     expect(guard.canActivate(contextFor(UserRole.KYC_CLIENT_COMPANY))).toBe(true);
     expect(guard.canActivate(contextFor(UserRole.USER))).toBe(false);
     expect(guard.canActivate(contextFor(UserRole.SUPPORT))).toBe(false);

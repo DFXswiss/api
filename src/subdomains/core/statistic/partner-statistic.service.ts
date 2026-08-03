@@ -127,7 +127,7 @@ export class PartnerStatisticService {
       return jwt.user;
     }
 
-    if (hasRoleAccess(UserRole.PARTNER, jwt.role)) {
+    if (hasRoleAccess(UserRole.NON_CUSTODIAL_WALLET_PARTNER, jwt.role)) {
       if (jwt.user == null) throw new ForbiddenException('Partner wallet required');
 
       const user = await this.userRepo.findOne({

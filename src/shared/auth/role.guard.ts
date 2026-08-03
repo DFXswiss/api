@@ -18,7 +18,7 @@ const additionalRoles: Partial<Record<UserRole, UserRole[]>> = {
     UserRole.SUPPORT,
     UserRole.COMPLIANCE,
     UserRole.MARKETING,
-    UserRole.PARTNER,
+    UserRole.NON_CUSTODIAL_WALLET_PARTNER,
     UserRole.REALUNIT,
   ],
   [UserRole.USER]: [
@@ -30,15 +30,15 @@ const additionalRoles: Partial<Record<UserRole, UserRole[]>> = {
     UserRole.SUPPORT,
     UserRole.COMPLIANCE,
     UserRole.MARKETING,
-    UserRole.PARTNER,
+    UserRole.NON_CUSTODIAL_WALLET_PARTNER,
     UserRole.REALUNIT,
   ],
   [UserRole.VIP]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
   [UserRole.BETA]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
   [UserRole.SUPPORT]: [UserRole.COMPLIANCE, UserRole.ADMIN, UserRole.SUPER_ADMIN],
   [UserRole.MARKETING]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
-  // Partner is a normal-login role (not staff): keep hierarchy like MARKETING, not StaffRoles/KycGatedRoles.
-  [UserRole.PARTNER]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
+  // NonCustodialWalletPartner is a normal-login role (not staff): keep hierarchy like MARKETING, not StaffRoles/KycGatedRoles.
+  [UserRole.NON_CUSTODIAL_WALLET_PARTNER]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
   [UserRole.COMPLIANCE]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
   [UserRole.BANKING_BOT]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
   [UserRole.REALUNIT]: [UserRole.COMPLIANCE, UserRole.ADMIN, UserRole.SUPER_ADMIN],

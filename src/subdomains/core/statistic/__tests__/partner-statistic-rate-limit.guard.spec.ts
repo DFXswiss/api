@@ -31,12 +31,12 @@ describe('PartnerStatisticRateLimitGuard', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('does not key by jwt.user alone (PARTNER user id must not be the tracker)', () => {
+  it('does not key by jwt.user alone (NON_CUSTODIAL_WALLET_PARTNER user id must not be the tracker)', () => {
     // Without partnerStatWalletId, even if jwt.user is set, fail closed — otherwise two
     // employees of the same wallet would get separate budgets keyed by user id.
-    expect(() => getTracker({ user: { user: 42, role: UserRole.PARTNER }, realIp: '1.2.3.4' })).toThrow(
-      /authenticated wallet/,
-    );
+    expect(() =>
+      getTracker({ user: { user: 42, role: UserRole.NON_CUSTODIAL_WALLET_PARTNER }, realIp: '1.2.3.4' }),
+    ).toThrow(/authenticated wallet/);
   });
 
   it('throws plain Error when partnerStatWalletId is missing (fail-closed, no IP fallback)', () => {
@@ -70,7 +70,7 @@ describe('PartnerStatisticRateLimitGuard', () => {
       Config.request.limitCheck = true;
       resolveWalletId.mockResolvedValue(7);
       const req: Record<string, any> = {
-        user: { user: 99, role: UserRole.PARTNER },
+        user: { user: 99, role: UserRole.NON_CUSTODIAL_WALLET_PARTNER },
       };
       // handleRequest is protected on ThrottlerGuard — cast for the spy.
       const superSpy = jest
@@ -81,7 +81,7 @@ describe('PartnerStatisticRateLimitGuard', () => {
         const result = await guard.handleRequest(ctx, 120, 3600);
         expect(resolveWalletId).toHaveBeenCalledWith(req.user);
         expect(req.partnerStatWalletId).toBe(7);
-        // Two PARTNER employees of wallet 7 share the same tracker key.
+        // Two NON_CUSTODIAL_WALLET_PARTNER employees of wallet 7 share the same tracker key.
         expect(getTracker(req)).toBe('partner-stat:wallet:7');
         expect(getTracker(req)).not.toBe('partner-stat:wallet:99');
         expect(superSpy).toHaveBeenCalledWith(ctx, 120, 3600);

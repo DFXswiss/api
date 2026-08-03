@@ -18,7 +18,11 @@ export class PartnerStatisticController {
 
   @Get('partner')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.CLIENT_COMPANY, UserRole.PARTNER), PartnerStatisticRateLimitGuard)
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.CLIENT_COMPANY, UserRole.NON_CUSTODIAL_WALLET_PARTNER),
+    PartnerStatisticRateLimitGuard,
+  )
   // 120 req/h per wallet: dashboard auto-refresh (~1/min) for summary + headroom
   @Throttle(120, 3600)
   @ApiOkResponse({ type: PartnerStatisticDto })
@@ -44,7 +48,11 @@ export class PartnerStatisticController {
 
   @Get('partner/timeline')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.CLIENT_COMPANY, UserRole.PARTNER), PartnerStatisticRateLimitGuard)
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.CLIENT_COMPANY, UserRole.NON_CUSTODIAL_WALLET_PARTNER),
+    PartnerStatisticRateLimitGuard,
+  )
   // 120 req/h per wallet: same budget as summary so a dual-widget dashboard can refresh without 429s
   @Throttle(120, 3600)
   @ApiOkResponse({ type: PartnerTimelineDto })
