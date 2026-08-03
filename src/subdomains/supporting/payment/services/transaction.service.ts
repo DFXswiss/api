@@ -172,20 +172,22 @@ export class TransactionService {
       });
       if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');
 
+      // Re-read the refund-bearing relations UNDER the lock and keep the locked rows: the read above
+      // may predate a refund that committed in between, and the getters below must see the current state.
       if (buyCrypto.checkoutTx)
-        await manager.findOne(CheckoutTx, {
-          where: { id: buyCrypto.checkoutTx.id },
-          select: { id: true },
-          loadEagerRelations: false,
-          lock: { mode: 'pessimistic_write' },
-        });
+        buyCrypto.checkoutTx =
+          (await manager.findOne(CheckoutTx, {
+            where: { id: buyCrypto.checkoutTx.id },
+            loadEagerRelations: false,
+            lock: { mode: 'pessimistic_write' },
+          })) ?? undefined;
       if (buyCrypto.cryptoInput)
-        await manager.findOne(CryptoInput, {
-          where: { id: buyCrypto.cryptoInput.id },
-          select: { id: true },
-          loadEagerRelations: false,
-          lock: { mode: 'pessimistic_write' },
-        });
+        buyCrypto.cryptoInput =
+          (await manager.findOne(CryptoInput, {
+            where: { id: buyCrypto.cryptoInput.id },
+            loadEagerRelations: false,
+            lock: { mode: 'pessimistic_write' },
+          })) ?? undefined;
 
       if (buyCrypto.status !== BuyCryptoStatus.STOPPED) throw new BadRequestException('Transaction is not stopped');
       if (buyCrypto.amlCheck !== CheckStatus.PASS)
