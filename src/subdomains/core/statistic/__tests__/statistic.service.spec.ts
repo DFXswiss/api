@@ -56,6 +56,80 @@ describe('StatisticService', () => {
   });
 
   /**
+   * `doUpdate` is scoped `api` AND leased, so it runs in ONE api process per tick. Everything the
+   * request path reads therefore has to be fillable from the request path — CONTRIBUTING: "A cron
+   * job may refresh it, but must not be the only thing filling it."
+   */
+  describe('getAll', () => {
+    it('fills the statistic when there is none, instead of answering with nothing', async () => {
+      const update = jest.spyOn(service, 'doUpdate').mockResolvedValue(undefined);
+
+      await service.getAll();
+
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+
+    it('serves what is on hand without asking again', async () => {
+      service['statistic'] = { at: new Date(), data: { totalVolume: { buy: 1, sell: 2 } } as never };
+      const update = jest.spyOn(service, 'doUpdate').mockResolvedValue(undefined);
+
+      await expect(service.getAll()).resolves.toEqual({ totalVolume: { buy: 1, sell: 2 } });
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('refreshes what has aged past the job it complements', async () => {
+      // A second api process — a blue-green window, a `--scale` — loses the lease on every tick
+      // and would otherwise serve what it read at boot for the rest of its life.
+      service['statistic'] = { at: new Date(Date.now() - 61 * 60 * 1000), data: {} as never };
+      const update = jest.spyOn(service, 'doUpdate').mockResolvedValue(undefined);
+
+      await service.getAll();
+
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+
+    it('starts ONE refresh for concurrent readers', async () => {
+      // The field is written when a refresh resolves, so without the in-flight promise every
+      // request arriving until then starts its own — and one refresh is four aggregations over
+      // the whole volume history.
+      let finish: () => void;
+      const update = jest
+        .spyOn(service, 'doUpdate')
+        .mockImplementation(() => new Promise<void>((resolve) => (finish = resolve)));
+
+      const calls = [service.getAll(), service.getAll(), service.getAll()];
+      await new Promise((resolve) => setImmediate(resolve));
+      finish();
+      await Promise.all(calls);
+
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+
+    it('answers with what it has when the refresh fails', async () => {
+      // The endpoint is public and read-only: an aggregation that cannot run right now says
+      // nothing about the numbers already here.
+      service['statistic'] = { at: new Date(Date.now() - 61 * 60 * 1000), data: { old: true } as never };
+      jest.spyOn(service, 'doUpdate').mockRejectedValue(new Error('aggregation failed'));
+      jest.spyOn(service['logger'], 'error').mockImplementation();
+
+      await expect(service.getAll()).resolves.toEqual({ old: true });
+    });
+
+    it('lets the next reader retry after a failed refresh', async () => {
+      const update = jest
+        .spyOn(service, 'doUpdate')
+        .mockRejectedValueOnce(new Error('aggregation failed'))
+        .mockResolvedValue(undefined);
+      jest.spyOn(service['logger'], 'error').mockImplementation();
+
+      await service.getAll();
+      await service.getAll();
+
+      expect(update).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  /**
    * The start-up fill runs outside the scheduler, so none of the conditions the scheduler applies
    * to `doUpdate` reached it: not the scope, not the process flag, not any error handling. Each
    * test below is one of those.

@@ -15,7 +15,19 @@ import { SettingStatus, StatisticDto } from './dto/statistic.dto';
 export class StatisticService implements OnModuleInit {
   private readonly logger = new DfxLogger(StatisticService);
 
-  private statistic: StatisticDto;
+  /** How long a filled statistic is served before a reader refreshes it; matches the job's own hour. */
+  private static readonly MAX_AGE_SECONDS = 60 * 60;
+
+  private statistic?: { at: Date; data: StatisticDto };
+
+  /**
+   * The refresh currently in flight, so concurrent readers of a cold or stale statistic share one.
+   *
+   * The field is only written when a refresh RESOLVES, so without this every request arriving
+   * until then would start its own — and one refresh is four aggregations over the whole volume
+   * history, a job that declares `timeout: 7200` for a reason.
+   */
+  private refreshing?: Promise<void>;
 
   constructor(
     private readonly buyService: BuyService,
@@ -49,7 +61,7 @@ export class StatisticService implements OnModuleInit {
 
   @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.API, process: Process.UPDATE_STATISTIC, timeout: 7200 })
   async doUpdate(): Promise<void> {
-    this.statistic = {
+    const data: StatisticDto = {
       totalVolume: {
         buy: Util.round(await this.buyService.getTotalVolume(), Config.defaultVolumeDecimal),
         sell: Util.round(await this.sellService.getTotalVolume(), Config.defaultVolumeDecimal),
@@ -60,6 +72,10 @@ export class StatisticService implements OnModuleInit {
       },
       status: await this.getStatus(),
     };
+
+    // Assigned as a whole, once every field is in. Written field by field, a reader arriving
+    // mid-refresh would see a statistic whose volumes and status come from different moments.
+    this.statistic = { at: new Date(), data };
   }
 
   async getStatus(): Promise<SettingStatus> {
@@ -67,7 +83,30 @@ export class StatisticService implements OnModuleInit {
     return settings.reduce((prev, curr) => ({ ...prev, [curr.key.replace('Status', '')]: curr.value }), {});
   }
 
-  getAll(): StatisticDto {
-    return this.statistic;
+  /**
+   * Serves the statistic, refreshing it here when what is on hand is missing or older than the
+   * job's own interval.
+   *
+   * CONTRIBUTING: "A cron job may refresh it, but must not be the only thing filling it." The job
+   * above refreshes; this is the load, and it is what the lease made necessary. Scoped `api` AND
+   * leased, the job runs in ONE api process per tick — a second one (a blue-green window, a
+   * `--scale`) would otherwise serve whatever it read at boot for the rest of its life, with no
+   * later tick ever reaching it. The `DisabledProcess` switch has the same effect on the process
+   * that holds the lease.
+   */
+  async getAll(): Promise<StatisticDto> {
+    const fresh = this.statistic && Util.secondsDiff(this.statistic.at) <= StatisticService.MAX_AGE_SECONDS;
+
+    if (!fresh) {
+      try {
+        await (this.refreshing ??= this.doUpdate().finally(() => (this.refreshing = undefined)));
+      } catch (e) {
+        // What is on hand beats failing the request: this endpoint is public and read-only, and
+        // an aggregation that cannot run right now says nothing about the numbers already here.
+        this.logger.error('Failed to refresh the statistic on demand:', e);
+      }
+    }
+
+    return this.statistic?.data;
   }
 }

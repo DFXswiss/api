@@ -150,6 +150,10 @@ async function bootstrap() {
  * Registering a handler means Node no longer terminates on the signal by itself, so this has to
  * exit. `CronLeaseService.shutdown` is bounded by its own grace period, and a second signal takes
  * the impatient path — otherwise a stuck shutdown would hold the container until SIGKILL.
+ *
+ * It also means the process outlives the signal, which is new. Everything that was true only
+ * because the process ended immediately has to be re-established explicitly — starting with not
+ * accepting further requests; see the listener close below.
  */
 function releaseCronLeasesOnShutdown(app: INestApplication): void {
   const logger = new DfxLogger('Shutdown');
@@ -166,6 +170,18 @@ function releaseCronLeasesOnShutdown(app: INestApplication): void {
 
       started = true;
       logger.info(`${signal} received, releasing the cron leases`);
+
+      // Stop taking NEW connections first. Waiting for the running jobs keeps this process alive
+      // for up to the grace period, and without this it would go on accepting requests for that
+      // whole span and then cut them off mid-flight at the `process.exit` below — a window that
+      // did not exist while the signal ended the process at once.
+      //
+      // The listener only, NOT `app.close()`: that is the call which runs the nine
+      // `onModuleDestroy` hooks described above, and it would empty the strategy registries out
+      // from under the jobs this wait exists to protect. Not awaited either — a keep-alive
+      // connection can hold the callback back indefinitely, and the bound here is the grace
+      // period, not the client.
+      app.getHttpServer().close();
 
       void leases
         .shutdown()

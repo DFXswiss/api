@@ -120,7 +120,6 @@ export enum Process {
   LEDGER_COA_BOOTSTRAP = 'LedgerCoaBootstrap',
   DEX_PURCHASE_ORDER = 'DexPurchaseOrder',
   REF_CLEANUP = 'RefCleanup',
-  JWT_REVOCATION_SYNC = 'JwtRevocationSync',
   LATEST_BALANCE_CACHE = 'LatestBalanceCache',
   SPARK_TOKEN_OPTIMIZATION = 'SparkTokenOptimization',
 }
