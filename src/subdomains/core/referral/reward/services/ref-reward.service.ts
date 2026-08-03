@@ -291,6 +291,22 @@ export class RefRewardService {
       query.andWhere('r.created >= :from', { from });
     }
 
-    return query.getRawMany();
+    // getRawMany() returns the pg driver's raw values verbatim. int8 (COUNT(*)) has a registered
+    // node-postgres parser that yields a string (to avoid silent precision loss above 2^53), and
+    // numeric (the ::numeric cast above, OID 1700) has no registered parser at all, so it comes back
+    // as a string too. Typing the raw row as a string honestly reflects the driver output; the
+    // conversion to number happens below so the declared return type stays true.
+    const rows = await query.getRawMany<{ userDataId: number; count: string; totalChf: string | null }>();
+
+    return rows.map((row) => {
+      // amountInChf is nullable. SUM(...) is only null if every reward in this userDataId's group has
+      // a null amount — an anomaly, not the normal "no rewards" case (groupBy already excludes empty
+      // groups). Coercing that to 0 would silently understate a real liability, so it fails loudly
+      // instead.
+      if (row.totalChf == null)
+        throw new Error(`getRewardRecipients: totalChf sum is null for userDataId ${row.userDataId}`);
+
+      return { userDataId: row.userDataId, count: +row.count, totalChf: +row.totalChf };
+    });
   }
 }

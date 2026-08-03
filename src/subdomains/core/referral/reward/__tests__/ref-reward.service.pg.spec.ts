@@ -5,7 +5,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, SelectQueryBuilder } from 'typeorm';
+import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
 import { RefRewardService } from '../services/ref-reward.service';
@@ -47,21 +47,12 @@ class RefRewardTable {
   user: UserTable;
 }
 
-function normalizeRecipients(
-  rows: { userDataId: number; count: number; totalChf: number }[],
-): { userDataId: number; count: number; totalChf: number }[] {
-  return rows.map((row) => ({
-    userDataId: Number(row.userDataId),
-    count: Number(row.count),
-    totalChf: Number(row.totalChf),
-  }));
-}
-
 // runs getRewardRecipients against a Postgres-semantics engine (pg-mem) to verify the ORDER BY
 // alias quoting and aggregation semantics, because a mocked query builder never executes SQL and
 // an unquoted orderBy('totalChf') would otherwise go unnoticed (column "totalchf" does not exist)
 describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
   let dataSource: DataSource;
+  let repo: RefRewardRepository;
   let service: RefRewardService;
 
   const oldDate = new Date('2025-01-15T00:00:00.000Z');
@@ -101,8 +92,9 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     await dataSource.getRepository(RefRewardTable).clear();
     await dataSource.getRepository(UserTable).clear();
 
+    repo = dataSource.getRepository(RefRewardTable) as unknown as RefRewardRepository;
     service = new RefRewardService(
-      dataSource.getRepository(RefRewardTable) as unknown as RefRewardRepository,
+      repo,
       createMock<UserService>(),
       createMock<PricingService>(),
       createMock<AssetService>(),
@@ -150,16 +142,17 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
 
     // must not throw (the prod bug: QueryFailedError: column "totalchf" does not exist)
     const result = await service.getRewardRecipients();
-    const normalized = normalizeRecipients(result);
 
-    expect(normalized).toEqual([
+    // no normalization here on purpose: getRewardRecipients() itself must hand back real numbers
+    // (see the driver-string conversion in the service), so this asserts the method's actual output.
+    expect(result).toEqual([
       { userDataId: 10, count: 2, totalChf: 300 },
       { userDataId: 20, count: 1, totalChf: 150 },
       { userDataId: 50, count: 1, totalChf: 100 },
       { userDataId: 30, count: 2, totalChf: 76 },
     ]);
-    expect(normalized.map((r) => r.userDataId)).not.toContain(40);
-    expect(normalized.every((row, i) => i === 0 || normalized[i - 1].totalChf >= row.totalChf)).toBe(true);
+    expect(result.map((r) => r.userDataId)).not.toContain(40);
+    expect(result.every((row, i) => i === 0 || result[i - 1].totalChf >= row.totalChf)).toBe(true);
   });
 
   it('casts the summed amount to numeric and quotes the ORDER BY alias in the generated SQL', async () => {
@@ -173,35 +166,97 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     //
     // getRewardRecipients builds and discards its query builder internally without ever returning
     // or storing it anywhere reachable from outside, and the production code must not be reshaped
-    // just to make the SQL reachable from a test. getRawMany() is the last call the query builder
-    // makes before executing, so spying on it on the shared TypeORM prototype captures this
-    // invocation's builder via `this`, from which `this.getSql()` gives the final SQL — then hands
-    // off to the real implementation so the query still actually runs.
-    const originalGetRawMany = SelectQueryBuilder.prototype.getRawMany;
+    // just to make the SQL reachable from a test. Spying on createQueryBuilder on the injected `repo`
+    // INSTANCE (not the shared TypeORM prototype) captures the exact builder this call creates;
+    // getRawMany is then spied on that one builder instance — again the instance, not the prototype —
+    // to read `getSql()` right before handing off to the real implementation, so the query still
+    // actually runs.
+    const originalCreateQueryBuilder = repo.createQueryBuilder.bind(repo);
     let capturedSql: string | undefined;
-    const getRawManySpy = jest.spyOn(SelectQueryBuilder.prototype, 'getRawMany').mockImplementation(function (
-      this: SelectQueryBuilder<any>,
-    ) {
-      capturedSql = this.getSql();
-      return originalGetRawMany.call(this);
-    });
+    const createQueryBuilderSpy = jest
+      .spyOn(repo, 'createQueryBuilder')
+      .mockImplementation((...args: Parameters<typeof repo.createQueryBuilder>) => {
+        const qb = originalCreateQueryBuilder(...args);
+        const originalGetRawMany = qb.getRawMany.bind(qb);
+        jest.spyOn(qb, 'getRawMany').mockImplementation(() => {
+          capturedSql = qb.getSql();
+          return originalGetRawMany();
+        });
+        return qb;
+      });
 
     try {
       await service.getRewardRecipients();
     } finally {
-      getRawManySpy.mockRestore();
+      createQueryBuilderSpy.mockRestore();
     }
 
     expect(capturedSql).toContain('SUM("r"."amountInChf")::numeric');
     expect(capturedSql).toContain('ORDER BY "totalChf" DESC');
   });
 
+  // pg-mem returns COUNT/SUM as JS numbers already, so it never exercises the node-postgres string
+  // parsing path that the service converts with +row.count / +row.totalChf. These two tests feed
+  // driver-shaped raw rows through getRawMany so that conversion (and the null check) stay covered.
+  it('coerces driver string values for count and totalChf to numbers', async () => {
+    const originalCreateQueryBuilder = repo.createQueryBuilder.bind(repo);
+    let getRawManySpy: jest.SpyInstance | undefined;
+    const createQueryBuilderSpy = jest
+      .spyOn(repo, 'createQueryBuilder')
+      .mockImplementation((...args: Parameters<typeof repo.createQueryBuilder>) => {
+        const qb = originalCreateQueryBuilder(...args);
+        getRawManySpy = jest.spyOn(qb, 'getRawMany').mockImplementation(() =>
+          Promise.resolve([
+            { userDataId: 10, count: '2', totalChf: '300' },
+            { userDataId: 20, count: '1', totalChf: '150' },
+          ]),
+        );
+        return qb;
+      });
+
+    try {
+      const result = await service.getRewardRecipients();
+
+      expect(result).toStrictEqual([
+        { userDataId: 10, count: 2, totalChf: 300 },
+        { userDataId: 20, count: 1, totalChf: 150 },
+      ]);
+      expect(typeof result[0].count).toBe('number');
+      expect(typeof result[0].totalChf).toBe('number');
+      expect(typeof result[1].count).toBe('number');
+      expect(typeof result[1].totalChf).toBe('number');
+    } finally {
+      getRawManySpy?.mockRestore();
+      createQueryBuilderSpy.mockRestore();
+    }
+  });
+
+  it('throws when totalChf sum is null, naming the affected userDataId', async () => {
+    const originalCreateQueryBuilder = repo.createQueryBuilder.bind(repo);
+    let getRawManySpy: jest.SpyInstance | undefined;
+    const createQueryBuilderSpy = jest
+      .spyOn(repo, 'createQueryBuilder')
+      .mockImplementation((...args: Parameters<typeof repo.createQueryBuilder>) => {
+        const qb = originalCreateQueryBuilder(...args);
+        getRawManySpy = jest
+          .spyOn(qb, 'getRawMany')
+          .mockImplementation(() => Promise.resolve([{ userDataId: 30, count: '1', totalChf: null }]));
+        return qb;
+      });
+
+    try {
+      await expect(service.getRewardRecipients()).rejects.toThrow(/userDataId 30\b/);
+    } finally {
+      getRawManySpy?.mockRestore();
+      createQueryBuilderSpy.mockRestore();
+    }
+  });
+
   // The optional `from` filter is deliberately not covered here: pg-mem does not compare timestamp
   // columns against JS Date parameters reliably, so such a test would fail for a reason that has
   // nothing to do with this service. The filter is a plain andWhere on a timestamp column —
   // `created` is inherited from the shared `IEntity` base (src/shared/models/entity.ts) and carries
-  // no `@Index()`; the only indexes on RefReward sit on its relations (userId, outputAssetId,
-  // liquidityPipelineId). The case this file exists for — the ORDER BY alias against real Postgres
+  // no `@Index()`. The case this file exists for — the ORDER BY alias against real Postgres
   // identifier folding — is covered by the tests above, which fail with `column "totalchf" does not
   // exist` if the fix is reverted.
 });
