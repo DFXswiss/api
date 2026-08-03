@@ -32,6 +32,8 @@ describe('ClassifyInternalBankTransfers migration', () => {
     const sql = query.mock.calls[0][0] as string;
     expect(sql.match(/\[\^A-Za-z0-9\]/g)).toHaveLength(4);
     expect(sql).not.toContain("'\\s'");
+    expect(sql.match(/upper\(regexp_replace\([^\n]+, '\[\^A-Za-z0-9\]', '', 'g'\)\)/g)).toHaveLength(4);
+    expect(sql).not.toMatch(/regexp_replace\(upper\(/);
   });
 
   it('does not destructively reverse audited classifications', async () => {

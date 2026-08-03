@@ -17,14 +17,14 @@ module.exports = class ClassifyInternalBankTransfers1785738105000 {
           AND EXISTS (
             SELECT 1
             FROM bank source_bank
-            WHERE regexp_replace(upper(source_bank.iban), '[^A-Za-z0-9]', '', 'g') =
-                  regexp_replace(upper(bt."accountIban"), '[^A-Za-z0-9]', '', 'g')
+            WHERE upper(regexp_replace(source_bank.iban, '[^A-Za-z0-9]', '', 'g')) =
+                  upper(regexp_replace(bt."accountIban", '[^A-Za-z0-9]', '', 'g'))
           )
           AND EXISTS (
             SELECT 1
             FROM bank target_bank
-            WHERE regexp_replace(upper(target_bank.iban), '[^A-Za-z0-9]', '', 'g') =
-                  regexp_replace(upper(bt.iban), '[^A-Za-z0-9]', '', 'g')
+            WHERE upper(regexp_replace(target_bank.iban, '[^A-Za-z0-9]', '', 'g')) =
+                  upper(regexp_replace(bt.iban, '[^A-Za-z0-9]', '', 'g'))
           )
         FOR UPDATE OF bt
       ),

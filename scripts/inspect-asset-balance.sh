@@ -106,7 +106,7 @@ echo "$ROWS" | jq -r --arg asset_id "$ASSET_ID" '
       (if $asset.plusBalance.pending.cryptoInput then "  - cryptoInput: \($asset.plusBalance.pending.cryptoInput)" else empty end),
       (if $asset.plusBalance.pending.exchangeOrder then "  - exchangeOrder: \($asset.plusBalance.pending.exchangeOrder)" else empty end),
       (if $asset.plusBalance.pending.bridgeOrder then "  - bridgeOrder: \($asset.plusBalance.pending.bridgeOrder)" else empty end),
-      (if $asset.plusBalance.pending.fromOlky then "  - fromOlky: \($asset.plusBalance.pending.fromOlky)" else empty end),
+      (if $asset.plusBalance.pending.internal then "  - internal: \($asset.plusBalance.pending.internal)" else empty end),
       (if $asset.plusBalance.pending.fromKraken then "  - fromKraken: \($asset.plusBalance.pending.fromKraken)" else empty end),
       (if $asset.plusBalance.pending.toKraken then "  - toKraken: \($asset.plusBalance.pending.toKraken)" else empty end),
       (if $asset.plusBalance.pending.fromScrypt then "  - fromScrypt: \($asset.plusBalance.pending.fromScrypt)" else empty end),
