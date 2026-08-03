@@ -541,16 +541,19 @@ unconditionally and cannot be switched off without a deploy.
 A job scoped `worker` or `api` additionally holds a **lease in the database** for the duration of
 its run (`CronLeaseService`). The in-process lock cannot see a second process at all — a missed
 recreate, a second worker from `--scale`, two processes on `all` after a rollback — and the lease
-bounds how long such a configuration can have the job running twice to the lease expiry, instead
-of until someone reads an alert.
+is what such a second process has to get past before it may start the job.
 
-It does **not** make a double run impossible, and nothing in this repository should claim it does.
-If the database becomes unreachable mid-run the claim lapses while the job keeps working, and a
-second process can then start it. What a `worker` job actually rests on is the deployment running
-one worker and the job tolerating a repeat; the lease is defence in depth over those two, not a
-substitute for either. `CronLeaseService` states the limit under "What it does not do" — keep any
-wording here consistent with it. Jobs scoped `both` are exempt by design:
-they must run everywhere, which is why running them twice has to be harmless by construction.
+It does **not** make a double run impossible, and it does **not** bound how long one lasts;
+nothing in this repository should claim either. If the holder stops renewing while it is still
+working — an unreachable database, a blocked event loop — the claim lapses and a second process
+can start the job, while the first runs on to its own end, which for the longest-running jobs is
+hours. What the lease does bound is the waiting: a claim left behind by a process that was killed
+blocks the job for the lease expiry rather than until someone intervenes. What a `worker` job
+actually rests on is the deployment running one worker and the job tolerating a repeat; the lease
+is defence in depth over those two, not a substitute for either. `CronLeaseService` states the
+limit under "What it does not do" — keep any wording here consistent with it. Jobs scoped `both`
+are exempt by design: they must run everywhere, which is why running them twice has to be harmless
+by construction.
 
 [docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval, flag and scope.
 **Adding, removing or re-scheduling a job must be reflected there in the same PR.**
@@ -607,9 +610,9 @@ this way; the jobs scoped `Both` are precisely those that do not.
 
 `scope` only reaches jobs going through `@DfxCron`. A native `@Cron` or a bare `setInterval` is
 invisible to it and therefore runs in every process — for anything writing to the database, that
-means twice, without a shared lock. A test enforces this; its one exception is a timer tied to
-the lifetime of a client object rather than to a schedule, and it is bound to `Config.cronRole`
-directly.
+means twice, without a shared lock. A test enforces this, and it carries no exceptions: everything
+it matches on is gone from the repository. What it does not match on — a repeating `setTimeout` —
+its own comment names one by one, with the reason each is left alone.
 
 ### Await Discipline
 

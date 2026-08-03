@@ -6,11 +6,12 @@ import { DataSource } from 'typeorm';
 import { CronLeaseService } from '../cron-lease.service';
 
 /**
- * The lease bounds how long two processes that disagree about who owns a job can both run it. It
- * does not rule that out — the jobs' own tolerance of a repeat and a deployment that runs one
- * worker are what carry that, and this is a layer over them. Every test here is written from that
- * angle: not "does the method return true", but "can this state widen that window, or stop the
- * task from running at all".
+ * The lease is what a second process has to get past before it may START a job it should not be
+ * running. It does not rule a double run out, and it does not bound how long one lasts — the
+ * jobs' own tolerance of a repeat and a deployment that runs one worker are what carry that, and
+ * this is a layer over them. Every test here is written from that angle: not "does the method
+ * return true", but "can this state let a second process in, or stop the task from running at
+ * all".
  */
 describe('CronLeaseService', () => {
   const original = process.env.CRON_ROLE;
@@ -186,6 +187,48 @@ describe('CronLeaseService', () => {
         await settle();
 
         expect(renewals).toEqual(1);
+
+        finish();
+        await run;
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('renews AGAIN after a renewal that came back', async () => {
+      // The renewal re-arms itself once the previous one has settled. Without that, every run
+      // longer than one interval would renew exactly once and then let its claim lapse at 60 s
+      // while it is still working. The test above cannot see this: its renewal never answers, so
+      // there is nothing to re-arm from and one renewal is the correct count there.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let renewals = 0;
+        const onQuery = jest.fn().mockImplementation((sql: string) => {
+          if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
+          if (sql.includes('UPDATE')) {
+            renewals++;
+            return Promise.resolve([[], 1]);
+          }
+
+          return Promise.resolve([]);
+        });
+
+        const { service } = buildService({ onQuery });
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+
+        await settle();
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+
+        expect(renewals).toEqual(1);
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+
+        expect(renewals).toEqual(2);
 
         finish();
         await run;
@@ -419,11 +462,11 @@ describe('CronLeaseService', () => {
       const error = jest.spyOn(service['logger'], 'error').mockImplementation();
       const task = jest.fn();
 
-      await service.run('PaymentCronService::processExpiredPayments', task, true);
+      await service.run('StatisticService::doUpdate', task, true);
 
       expect(task).not.toHaveBeenCalled();
       expect(error).toHaveBeenCalledTimes(1);
-      expect(error.mock.calls[0][0]).toContain('PaymentCronService::processExpiredPayments');
+      expect(error.mock.calls[0][0]).toContain('StatisticService::doUpdate');
     });
 
     it('stays quiet for a job whose result lands in the database', async () => {

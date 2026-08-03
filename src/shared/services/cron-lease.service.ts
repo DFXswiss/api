@@ -22,8 +22,13 @@ import { DfxLogger } from './dfx-logger';
 const LEASE_TTL_SECONDS = 60;
 
 /**
- * Renew at a third of the lease, so two consecutive failed renewals still leave a full attempt
- * before the claim lapses.
+ * Renew at a third of the lease.
+ *
+ * The timer below re-arms only once the previous attempt has settled, so the attempts fall at 20 s
+ * and then 20 s after each answer — never earlier, and later whenever the database is slow. One
+ * failed renewal therefore still leaves a further attempt with roughly 20 s to spare; two do not,
+ * because the third attempt starts at 60 s at the earliest, which is the moment the claim lapses.
+ * The margin this buys is one lost renewal, not two.
  */
 const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
 
@@ -31,7 +36,8 @@ const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
  * How long shutdown waits for jobs that are still running. See `shutdown`.
  *
  * Short on purpose: it is a handover courtesy, not a completion guarantee. Every process pays it
- * on every deployment, and the container's own stop grace period ends the process regardless.
+ * on every deployment, and `main.ts` exits as soon as the wait ends, whether or not the jobs it
+ * waited for are done.
  */
 const SHUTDOWN_GRACE_MS = 10 * 1000;
 
@@ -42,13 +48,13 @@ const SHUTDOWN_GRACE_MS = 10 * 1000;
  * ran as one process; it cannot see a second one. Since the HTTP process and the worker are split
  * apart, "exactly one process runs this job" rests on configuration, a runbook sentence and an
  * alert that *reports* a double run after the fact. For a path that moves money that is the
- * second-best answer, so this adds a bound underneath it.
+ * second-best answer, so this adds a layer underneath it.
  *
- * A bound, not a guarantee — read "What it does not do" below before relying on this. A job runs
+ * A layer, not a guarantee — read "What it does not do" below before relying on this. A job runs
  * once because the deployment runs one worker and because the job tolerates being run again; what
- * this contributes is to turn the window in which a wrong configuration can have it running twice
- * from unbounded — until a human reads the alert — into `LEASE_TTL_SECONDS`. It sits on top of
- * those two properties and replaces neither.
+ * this contributes is that a second process has to take the claim before it may START the job, so
+ * for as long as the holder keeps renewing, a wrongly configured second process does not start it
+ * at all. It sits on top of those two properties and replaces neither.
  *
  * The lease is claimed per job name, and only one owner can hold it. It carries an expiry rather
  * than a lock held on a connection: a connection-bound `pg_advisory_lock` would occupy one pooled
@@ -56,13 +62,21 @@ const SHUTDOWN_GRACE_MS = 10 * 1000;
  * minutes. That is a real risk to a connection pool sized by `SQL_POOL_MAX`. An expiring row costs
  * one short query to take, one to extend, one to release.
  *
- * **What it does not do.** If the database becomes unreachable while a job runs, the lease cannot
- * be extended and eventually expires — a second process may then start the same job while the
- * first is still working. Preventing that outright would require every write inside every job to
- * carry the lease token, which this does not attempt. What it does is turn an unbounded window
- * ("until a human reads the alert") into a bounded one (`LEASE_TTL_SECONDS`). A lost lease is
- * logged at error level, because it means the run that is still going has no claim to the job any
- * more.
+ * **What it does not do.** It does not bound how long two processes can run the same job at once.
+ * If the holder stops renewing while it is still working — an unreachable database, an event loop
+ * blocked past the expiry — the claim lapses and a second process may start the same job. The run
+ * that lost the claim is neither stopped nor paused: `keepAlive` logs the loss at error level and
+ * goes on renewing, and the run continues to its own end, which for a job declaring `timeout:
+ * 7200` is up to two hours. Nothing here can shorten that. A running function cannot be aborted
+ * from the outside in JavaScript, and a cooperative check would have to sit at every write inside
+ * every job — the same work as carrying the claim into every write, which is the fencing this
+ * does not attempt.
+ *
+ * What it does bound is the waiting, which is what it was built for. A claim left behind by a
+ * process that can no longer speak for itself — SIGKILL, an OOM kill, a lost machine — keeps the
+ * job from running anywhere for at most `LEASE_TTL_SECONDS` past its last renewal instead of
+ * until someone intervenes, and that same span is the longest a second process has to wait before
+ * it may take the job over.
  */
 @Injectable()
 export class CronLeaseService implements OnModuleInit {
@@ -205,8 +219,8 @@ export class CronLeaseService implements OnModuleInit {
    * `reportContention` marks jobs for which losing the race is not a normal outcome. For a worker
    * job it is: the other worker holds the lease and is doing the work, and the result lands in the
    * database where everyone can see it. For a job whose effect is confined to the process that
-   * runs it, losing the race means that effect did not happen where it was needed — see
-   * PaymentCronService. Nothing else can tell the two apart, so the caller says which it is.
+   * runs it, losing the race means that effect did not happen where it was needed — which is what
+   * `CronScope.API` describes. Nothing else can tell the two apart, so the caller says which it is.
    */
   async run(job: string, task: () => Promise<void>, reportContention = false): Promise<void> {
     // Once shutdown has begun, starting a run is worse than skipping it: `shutdown` waits on the
@@ -278,10 +292,10 @@ export class CronLeaseService implements OnModuleInit {
    * lease is not worth activating that.
    *
    * A lease is NOT taken away from a job that is still working. Releasing on SIGTERM would hand
-   * over faster, but the job keeps running until the container's stop grace period ends it —
-   * `dfx-api-worker` is configured to allow two minutes — and a successor claiming the freed lease
-   * inside that window would run the same money-moving job alongside it. That is the outcome this
-   * mechanism exists to keep rare and short, so it is not traded for a faster handover.
+   * over faster, but the job keeps running until this process exits, which `main.ts` does once the
+   * wait below ends — so up to `SHUTDOWN_GRACE_MS` after the signal. A successor claiming the
+   * freed lease inside that window would run the same money-moving job alongside it, which is the
+   * outcome this mechanism exists to make rare, so it is not traded for a faster handover.
    *
    * What is still running after the wait therefore keeps its lease, which lapses within
    * `LEASE_TTL_SECONDS` of the last renewal. The renewal timers deliberately keep going meanwhile:

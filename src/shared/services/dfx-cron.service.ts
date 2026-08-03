@@ -102,9 +102,12 @@ export class DfxCronService implements OnModuleInit {
    * or `lease unusable` is ALWAYS present, so a reader sees the current state rather than having
    * to count occurrences of a line that only appears when something is wrong — a count over a
    * window cannot tell "healthy" from "not reporting at all". Neither literal is a prefix of the
-   * other, and both sit at a fixed position, immediately after the job count. And the only free
-   * text — the reason — comes last, behind everything that is matched, because a free-text field
-   * BETWEEN matched fields can forge whatever field follows it.
+   * other. And the only free text — the reason — comes last, so every matched field sits at a
+   * fixed distance from the START of the line and no input can push one of them there.
+   *
+   * That last property is what a matcher has to be written to use: anchor at the start of the
+   * line, not at its end. The end of an unhealthy line is caller-supplied text, so a selector
+   * anchored there is deciding on a value the failure itself gets to choose.
    *
    * `__tests__/dfx-cron.service.spec.ts` pins both shapes; changing the wording here fails there.
    */
@@ -170,9 +173,10 @@ export class DfxCronService implements OnModuleInit {
    * configuration, and configuration can be wrong — a missed recreate leaves the old role in
    * place, `--scale` creates a second worker, a rollback puts two processes on `all`. In every
    * one of those the two processes hold separate locks and every payout runs twice, for as long as
-   * it takes someone to notice. The lease bounds that to its own expiry instead of reporting it a
-   * quarter of an hour later. It does not rule a double run out — CronLeaseService says under
-   * "What it does not do" exactly where it stops — so the jobs still have to tolerate a repeat.
+   * it takes someone to notice. With the lease, the second process has to take the claim before it
+   * may start the job, and while the holder keeps renewing it never gets one. It does not rule a
+   * double run out, and it does not bound how long one lasts — CronLeaseService says under "What
+   * it does not do" exactly where it stops — so the jobs still have to tolerate a repeat.
    *
    * `BOTH` jobs are deliberately exempt. They exist because a request path on THIS process reads
    * the state they maintain, so they have to run in every process — a lease over them would

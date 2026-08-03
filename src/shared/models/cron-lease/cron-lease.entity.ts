@@ -11,7 +11,7 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
  * that absence as an instruction: it would carry a `DROP TABLE "cron_lease"`, and the lock would be
  * gone without anyone deciding it should be.
  *
- * The timestamps are `timestamptz`, the only ones in this schema that are. They are compared
+ * The timestamps are `timestamptz`. They are compared
  * against `now()` in raw SQL rather than mapped through a Date on the way in and out, and a
  * `timestamp` on one side of that comparison is resolved through whatever time zone the session
  * happens to carry — the same row then expires an hour late or an hour early across a daylight

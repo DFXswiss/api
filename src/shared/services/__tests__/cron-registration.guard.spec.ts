@@ -20,13 +20,17 @@ const SRC = join(__dirname, '..', '..', '..');
  * The setTimeout gap is not hypothetical. ScryptService.scheduleCatchUpRetry,
  * ScryptWebSocketConnection.scheduleReconnect and CronLeaseService.keepAlive all re-arm themselves
  * and are invisible here. The lease renewal belongs to the lifetime of a single job run rather
- * than to a schedule, and routing it through @DfxCron would be circular — it is the mechanism that
- * bounds how long a @DfxCron job can be running in two processes at once. The Scrypt two are deliberately left
+ * than to a schedule, and routing it through @DfxCron would be circular — it is what a @DfxCron
+ * job's own claim is held with. The Scrypt two are deliberately left
  * alone as well: their state is the process-local cache and socket of the process
  * they run in, and a request path reaches them (ExchangeController injects ExchangeRegistryService
  * and ExchangeTxService), so both processes need their own. Binding them to a role would break the
  * exchange endpoints on the API process. Anyone extending this check should read that case first —
  * "the check does not see it" and "it must not be scoped" are two different statements.
+ *
+ * The check itself carries no exception list. Nothing in the repository matches a forbidden
+ * pattern, so an exception would be a place to put a future one — and a list that is allowed to
+ * stand empty is a list nothing keeps honest.
  */
 const FORBIDDEN: { pattern: RegExp; what: string; instead: string }[] = [
   {
@@ -45,9 +49,6 @@ const FORBIDDEN: { pattern: RegExp; what: string; instead: string }[] = [
     instead: 'use @DfxCron, or bind the timer to Config.cronRole where a scheduler cannot reach it',
   },
 ];
-
-/** Timers tied to the lifetime of something other than a schedule. */
-const ALLOWED: string[] = [];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -72,19 +73,19 @@ describe('cron registration', () => {
   });
 
   it.each(FORBIDDEN)('registers no periodic work through $what — $instead', ({ pattern }) => {
-    const offenders = files.filter((f) => !ALLOWED.includes(f.path) && pattern.test(f.content)).map((f) => f.path);
+    const offenders = files.filter((f) => pattern.test(f.content)).map((f) => f.path);
 
     expect(offenders).toEqual([]);
   });
 
-  it('keeps the exception list honest', () => {
-    // An exception that no longer matches anything is a leftover, and the next reader would take
-    // it for a rule that still applies.
-    for (const allowed of ALLOWED) {
-      const file = files.find((f) => f.path === allowed);
+  it('would report an offender rather than pass on an empty sweep', () => {
+    // The assertion above passes when nothing matches, which is also what a broken traversal or a
+    // pattern that matches nothing at all looks like. This runs the same filter over a file that
+    // does contain each pattern, so a check that can no longer find anything fails here.
+    for (const { pattern } of FORBIDDEN) {
+      const planted = [{ path: 'planted.ts', content: `class X { @Cron() @Interval() @Timeout() f() { setInterval(); } }` }];
 
-      expect(file).toBeDefined();
-      expect(FORBIDDEN.some((f) => f.pattern.test(file.content))).toBe(true);
+      expect(planted.filter((f) => pattern.test(f.content)).map((f) => f.path)).toEqual(['planted.ts']);
     }
   });
 });

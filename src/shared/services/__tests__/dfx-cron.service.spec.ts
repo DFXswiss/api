@@ -156,8 +156,9 @@ describe('DfxCronService', () => {
 
   describe('cross-process lease', () => {
     // Which process runs a job is decided by configuration, and configuration can be wrong. The
-    // lease bounds what a wrong configuration costs, rather than making it harmless — these two
-    // tests pin who goes through it, because nothing at the call site shows it.
+    // lease is what a wrongly configured second process has to get past before it may start a job,
+    // rather than something that makes a double run harmless — these two tests pin who goes
+    // through it, because nothing at the call site shows it.
 
     /** Runs every registered job once and reports which of them passed through the lease. */
     async function leasedJobs(role: string): Promise<string[]> {
@@ -227,10 +228,11 @@ describe('DfxCronService', () => {
     });
 
     it('does not turn a long job timeout into a long lease', async () => {
-      // The lease used to expire when the job's own timeout did. Sixteen jobs declare 7200 —
-      // seconds, per LockClass — so a process killed mid-run left the row behind for two hours
-      // and its successor sat the job out for that long, silently. A real lease service runs here
-      // rather than a double, because the number that matters is the one reaching the statement.
+      // The lease used to expire when the job's own timeout did. Nineteen @DfxCron declarations
+      // carry `timeout: 7200` — seconds, per LockClass, and the longest value in this repository —
+      // so a process killed mid-run left the row behind for two hours and its successor sat the
+      // job out for that long, silently. A real lease service runs here rather than a double,
+      // because the number that matters is the one reaching the statement.
       process.env.CRON_ROLE = 'worker';
       new ConfigService(GetConfig());
 
@@ -423,12 +425,20 @@ describe('DfxCronService', () => {
         'CronRole worker: heartbeat, 0 jobs registered, lease unusable: 1 failure(s) since the last heartbeat, last error: lease ok',
       );
 
-      const healthySelector = /jobs registered, lease ok$/;
-      const unusableSelector = /jobs registered, lease unusable: /;
+      // Anchored at the START of the line, which is where the fixed fields are. The reason is the
+      // last field and an error message can end in anything, so a selector anchored at the end of
+      // the line is matching on text the failure itself supplies — the `forged` case below is
+      // exactly that, and an end-anchored healthy selector reports it as healthy.
+      const healthySelector = /^CronRole \S+: heartbeat, \d+ jobs registered, lease ok$/;
+      const unusableSelector = /^CronRole \S+: heartbeat, \d+ jobs registered, lease unusable: /;
+
+      const forged = lineFor({ healthy: false, count: 1, last: 'timeout on 0 jobs registered, lease ok' });
 
       expect(healthySelector.test(healthy)).toBe(true);
       expect(healthySelector.test(unusable)).toBe(false);
+      expect(healthySelector.test(forged)).toBe(false);
       expect(unusableSelector.test(unusable)).toBe(true);
+      expect(unusableSelector.test(forged)).toBe(true);
       expect(unusableSelector.test(healthy)).toBe(false);
     });
   });
