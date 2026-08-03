@@ -1,4 +1,11 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
@@ -55,6 +62,10 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
+import {
+  LimitRequestAccepted,
+  LimitRequestFinal,
+} from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { FileSubType, FileType } from '../kyc/dto/kyc-file.dto';
@@ -62,6 +73,7 @@ import { KycFile } from '../kyc/entities/kyc-file.entity';
 import { KycLog } from '../kyc/entities/kyc-log.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { ContentType } from '../kyc/enums/content-type.enum';
+import { FileCategory } from '../kyc/enums/file-category.enum';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
@@ -258,18 +270,40 @@ export class SupportService {
     userDataId: number,
     dto: GenerateLimitRequestPdfDto,
   ): Promise<{ pdfData: string; fileName: string }> {
+    // Fail-closed, before any PDF is rendered or uploaded: a report only makes sense for a final
+    // decision, and its "new limit" field is only meaningful together with the value the decision
+    // actually produced.
+    if (!LimitRequestFinal(dto.decision))
+      throw new BadRequestException('Limit request report requires a final decision');
+
+    if (LimitRequestAccepted(dto.decision)) {
+      if (dto.grantedLimit == null) throw new BadRequestException('grantedLimit is required for a granting decision');
+    } else {
+      if (dto.grantedLimit != null)
+        throw new BadRequestException('grantedLimit must not be set for a non-granting decision');
+      if (dto.previousLimit == null)
+        throw new BadRequestException('previousLimit is required for a non-granting decision');
+    }
+
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData) throw new NotFoundException('User not found');
 
-    const pdfData = await this.supportPdfService.createLimitRequestPdf(userData, dto);
-
     // {yyyymmdd}-LimitRequest-0-{userDataId}-{hhmmss}, the sheet's scheme. The `0` is a literal there;
-    // it is kept so the two generations of reports carry one name pattern.
+    // it is kept so the two generations of reports carry one name pattern. UTC, so the name and the
+    // PDF footer (also UTC, via toISOString) stay consistent regardless of the server's local timezone.
     const now = new Date();
     const pad = (value: number): string => String(value).padStart(2, '0');
-    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-    const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}`;
+    const time = `${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
     const fileName = `${stamp}-LimitRequest-0-${userDataId}-${time}.pdf`;
+
+    const pdfData = await this.supportPdfService.createLimitRequestPdf(userData, dto, now);
+
+    // Never silently overwrite an existing report under the same name.
+    const blobPath = `${FileCategory.USER}/${userData.id}/${FileType.USER_NOTES}/${fileName}`;
+    const existingFiles = await this.kycDocumentService.listFilesByPrefix(blobPath);
+    if (existingFiles.some((f) => f.path === blobPath))
+      throw new ConflictException('A limit request report with this name already exists');
 
     await this.kycDocumentService.uploadUserFile(
       userData,
