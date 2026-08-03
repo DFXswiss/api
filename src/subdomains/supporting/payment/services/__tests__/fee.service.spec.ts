@@ -13,7 +13,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { PriceUnavailableException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-unavailable.exception';
-import { EntityManager, IsNull, MoreThan, Not } from 'typeorm';
+import { And, Equal, EntityManager, IsNull, MoreThan, Not } from 'typeorm';
 import { BankService } from '../../../bank/bank/bank.service';
 import { PayoutService } from '../../../payout/services/payout.service';
 import { PricingService } from '../../../pricing/services/pricing.service';
@@ -286,7 +286,9 @@ describe('FeeService', () => {
       // `getValidFees` applies an Addition fee without a special code to every user, so only a
       // fee that carries one may be reused or created here.
       expect(feeRepo.findOne).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ specialCode: Not(IsNull()) }) }),
+        expect.objectContaining({
+          where: expect.objectContaining({ specialCode: And(Not(IsNull()), Not(Equal(''))) }),
+        }),
       );
       expect(feeRepo.create).toHaveBeenCalledWith(expect.objectContaining({ createSpecialCode: true }));
       // The column defaults to 1, and the blockchain factors of all additive fees are summed into
@@ -416,12 +418,14 @@ describe('FeeService', () => {
       expect(userDataService.replaceFee).not.toHaveBeenCalled();
     });
 
-    it('refuses to remove anything while a foreign fixed fee is assigned', async () => {
-      feeRepo.findBy.mockResolvedValue([Object.assign(onboardingFee(92, 5000), { rate: 0.5 })]);
+    it('removes only what it owns and leaves a foreign fixed fee alone', async () => {
+      feeRepo.findBy.mockResolvedValue([onboardingFee(70, 800), Object.assign(onboardingFee(92, 5000), { rate: 0.5 })]);
 
-      await expect(service.removeOnboardingFee(accountWith([92]))).rejects.toThrow(ConflictException);
+      // Removal takes nothing away that this operation does not own, so the foreign fee is no
+      // reason to refuse - unlike setting a surcharge next to it.
+      await service.removeOnboardingFee(accountWith([70, 92]));
 
-      expect(userDataService.replaceFee).not.toHaveBeenCalled();
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [70], undefined, manager);
     });
 
     it('refuses to remove an onboarding fee from an account that has none', async () => {

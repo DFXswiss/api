@@ -25,7 +25,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { In, IsNull, MoreThan, Not } from 'typeorm';
+import { And, Equal, In, IsNull, MoreThan, Not } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
@@ -92,7 +92,10 @@ const OnboardingFeeShape = {
   // The blockchain factors of all additive fees are summed into the network fee. A surcharge that
   // is meant to be a flat CHF amount must not move it, and the column defaults to 1.
   blockchainFactor: 0,
-  specialCode: Not(IsNull()),
+  // Not just `Not(IsNull())`: that still matches an empty string, which every other check reads as
+  // "no code" - and a fee without a code applies to every user, so it must never be handed out to a
+  // single account.
+  specialCode: And(Not(IsNull()), Not(Equal(''))),
   accountType: IsNull(),
   wallet: IsNull(),
   bank: IsNull(),
@@ -282,11 +285,15 @@ export class FeeService {
 
     // Read the account first: creating a fee for an amount and only then finding out that the
     // account cannot be touched would leave an unused fee behind.
-    const assignedFees = await this.getOnboardingFees(userData);
+    const { own: assignedFees, foreign } = await this.getFixedFees(userData);
+    // Setting a surcharge next to one this operation does not own would charge the sum of both.
+    this.assertNoForeignFixedFee(foreign);
 
     const fee = await this.getOrCreateOnboardingFee(amount);
     const isAlreadyAssigned = assignedFees.some((f) => f.id === fee.id);
-    if (assignedFees.length === 1 && isAlreadyAssigned) return;
+    // A duplicate entry in the stored list is not the state we promise, so let it be rewritten.
+    const isStoredOnce = (userData.individualFeeList ?? []).filter((id) => id === fee.id).length === 1;
+    if (assignedFees.length === 1 && isAlreadyAssigned && isStoredOnce) return;
 
     fee.verifyForUser(userData.accountType, userData.wallet, userData.id);
 
@@ -311,7 +318,9 @@ export class FeeService {
   }
 
   async removeOnboardingFee(userData: UserData): Promise<void> {
-    const assignedFees = await this.getOnboardingFees(userData);
+    // Removal takes nothing away that this operation does not own, so a foreign fixed fee is no
+    // reason to refuse here - it stays where it is.
+    const { own: assignedFees } = await this.getFixedFees(userData);
     if (!assignedFees.length) throw new BadRequestException('Account has no onboarding fee');
 
     await this.feeRepo.manager.transaction(async (manager) => {
@@ -326,30 +335,33 @@ export class FeeService {
     });
   }
 
+  // Splits the fixed fees an account carries into the ones this operation owns and the rest.
+  //
   // Every additive fee with a fixed amount contributes to `combinedExtraFixedFee`, so leaving one
   // in place next to a new one charges the customer the sum of both. Replacing it blindly is just
   // as wrong: a fee that also carries a rate or a blockchain factor does more than the flat
   // surcharge this operation owns, and a fee without a special code applies to every user anyway,
   // so dropping it from this account changes nothing while reporting success.
   //
-  // Hence: what is purely flat and account-bound gets replaced, and anything else that contributes
-  // a fixed amount is reported instead of being touched. Restrictions (asset, bank, volume, …) do
-  // not matter here - a restricted flat fee is still a flat fee on this account.
-  private async getOnboardingFees(userData: UserData): Promise<Fee[]> {
+  // Restrictions (asset, bank, volume, …) do not matter here - a restricted flat fee is still this
+  // account's flat fee.
+  private async getFixedFees(userData: UserData): Promise<{ own: Fee[]; foreign: Fee[] }> {
     const feeIds = userData.individualFeeList;
-    if (!feeIds?.length) return [];
+    if (!feeIds?.length) return { own: [], foreign: [] };
 
     const fixedFees = await this.feeRepo.findBy({ type: FeeType.ADDITION, fixed: MoreThan(0), id: In(feeIds) });
+    const isOwn = (fee: Fee): boolean => fee.rate === 0 && fee.blockchainFactor === 0 && Boolean(fee.specialCode);
 
-    const foreignFees = fixedFees.filter((f) => f.rate !== 0 || f.blockchainFactor !== 0 || !f.specialCode);
+    return { own: fixedFees.filter(isOwn), foreign: fixedFees.filter((f) => !isOwn(f)) };
+  }
+
+  private assertNoForeignFixedFee(foreignFees: Fee[]): void {
     if (foreignFees.length)
       throw new ConflictException(
         `Account carries a fixed fee that is not a plain flat surcharge (fee ${foreignFees
           .map((f) => f.id)
           .join(', ')}) - resolve it first`,
       );
-
-    return fixedFees;
   }
 
   private async getOrCreateOnboardingFee(amount: number): Promise<Fee> {
