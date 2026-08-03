@@ -116,7 +116,7 @@ export class TransactionController {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_MINUTE)
+  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true })
   checkLists() {
     for (const [key, refundData] of this.refundList.entries()) {
       if (!this.isRefundDataValid(refundData)) this.refundList.delete(key);

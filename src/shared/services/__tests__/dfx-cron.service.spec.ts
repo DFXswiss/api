@@ -50,7 +50,14 @@ describe('DfxCronService', () => {
     providerWithJob('withProcess', { expression: CronExpression.EVERY_MINUTE, process: Process.MONITOR_EVENT_LOOP }),
     // A job without `process` — DISABLED_PROCESSES cannot stop this one, only the global switch can.
     providerWithJob('withoutProcess', { expression: CronExpression.EVERY_MINUTE }),
+    // Per-instance housekeeping: must survive the switch, because it refreshes state that
+    // requests on this very instance read.
+    providerWithJob('perInstanceJob', { expression: CronExpression.EVERY_MINUTE, perInstance: true }),
   ];
+
+  function registeredJobNames(scheduler: SchedulerRegistry): string[] {
+    return (scheduler.addCronJob as jest.Mock).mock.calls.map(([name]) => name as string);
+  }
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -61,18 +68,18 @@ describe('DfxCronService', () => {
     new ConfigService(GetConfig());
   });
 
-  it('registers jobs when cron is enabled', () => {
+  it('registers every job when cron is enabled', () => {
     process.env.CRON_JOBS_ENABLED = 'true';
     new ConfigService(GetConfig());
 
     const { service, scheduler } = buildService(configuredJobs);
     service.onModuleInit();
 
-    expect(scheduler.addCronJob).toHaveBeenCalledTimes(2);
-    expect(mockStart).toHaveBeenCalledTimes(2);
+    expect(scheduler.addCronJob).toHaveBeenCalledTimes(3);
+    expect(mockStart).toHaveBeenCalledTimes(3);
   });
 
-  it('registers no job at all when cron is disabled, including jobs without a process', () => {
+  it('drops global jobs when cron is disabled, including those without a process', () => {
     // The safety property of the HTTP-only instance: were a job without `process` still
     // registered here, it would run on both the HTTP and the job instance simultaneously.
     // Cron locks are per-process, so duplicate execution would go unnoticed.
@@ -82,7 +89,22 @@ describe('DfxCronService', () => {
     const { service, scheduler } = buildService(configuredJobs);
     service.onModuleInit();
 
-    expect(scheduler.addCronJob).not.toHaveBeenCalled();
-    expect(mockStart).not.toHaveBeenCalled();
+    expect(registeredJobNames(scheduler)).not.toContain('Object::withProcess');
+    expect(registeredJobNames(scheduler)).not.toContain('Object::withoutProcess');
+  });
+
+  it('keeps per-instance housekeeping when cron is disabled', () => {
+    // The counterpart safety property: jobs marked perInstance refresh process-local state
+    // (JWT denylists, the disabled-process map, local caches) that requests on THIS instance
+    // read. Dropping them here would freeze that state at boot — a revoked token would keep
+    // working on the HTTP instance until the next restart.
+    process.env.CRON_JOBS_ENABLED = 'false';
+    new ConfigService(GetConfig());
+
+    const { service, scheduler } = buildService(configuredJobs);
+    service.onModuleInit();
+
+    expect(registeredJobNames(scheduler)).toEqual(['Object::perInstanceJob']);
+    expect(mockStart).toHaveBeenCalledTimes(1);
   });
 });

@@ -6,6 +6,19 @@ export interface DfxCronOptParams {
   process?: Process;
   useDelay?: boolean;
   timeout?: number;
+  /**
+   * Marks a job as per-instance housekeeping that must run in every process, even where the
+   * scheduler is otherwise switched off (CRON_JOBS_ENABLED=false).
+   *
+   * Use it only for work whose effect is confined to the current process: refreshing an
+   * in-memory copy of global state, or expiring a local cache. Running it twice must be
+   * harmless by construction, because it will run on every instance.
+   *
+   * Anything that writes to the database or drives business forward is NOT per-instance — such
+   * a job would then execute once per instance, and cron locks are per-process and cannot
+   * prevent that.
+   */
+  perInstance?: boolean;
 }
 
 export type DfxCronExpression = CronExpression | CustomCronExpression;

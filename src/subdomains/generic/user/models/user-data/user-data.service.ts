@@ -871,7 +871,7 @@ export class UserDataService {
     return this.doUpdateUserMail(userData, cacheEntry.mail);
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE)
+  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true })
   processCleanupMailSecretCache(): void {
     const now = new Date();
 

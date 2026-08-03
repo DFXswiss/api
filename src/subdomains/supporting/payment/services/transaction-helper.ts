@@ -87,7 +87,7 @@ export class TransactionHelper implements OnModuleInit {
     void this.updateCache();
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES)
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { perInstance: true })
   async updateCache() {
     this.transactionSpecifications = await this.specRepo.find();
   }

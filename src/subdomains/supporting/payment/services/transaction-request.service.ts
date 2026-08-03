@@ -1,13 +1,13 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
@@ -49,20 +49,14 @@ export class TransactionRequestService {
     private readonly swapService: SwapService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TX_REQUEST, timeout: 7200 })
   async txRequestStatusSync() {
-    if (DisabledProcess(Process.TX_REQUEST)) return;
-
     await this.syncStatus();
     await this.deleteOldTxRequests();
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_DAY_AT_3AM, { process: Process.TX_REQUEST_WAITING_EXPIRY, timeout: 7200 })
   async txRequestWaitingExpiryCheck() {
-    if (DisabledProcess(Process.TX_REQUEST_WAITING_EXPIRY)) return;
-
     const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
     const entities = await this.transactionRequestRepo.findBy({
       status: TransactionRequestStatus.WAITING_FOR_PAYMENT,

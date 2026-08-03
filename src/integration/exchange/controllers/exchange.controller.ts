@@ -171,7 +171,7 @@ export class ExchangeController {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { perInstance: true, timeout: 1800 })
   async checkTrades() {
     const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
     for (const trade of openTrades) {

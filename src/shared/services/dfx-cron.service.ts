@@ -28,13 +28,7 @@ export class DfxCronService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    // HTTP-only instances register nothing at all. Returning here (rather than skipping jobs
-    // individually) also covers jobs that declare no `process` and would otherwise stay active
-    // despite DISABLED_PROCESSES — on a second instance they would run twice.
-    if (!Config.cronJobsEnabled) {
-      this.logger.info('Cron jobs disabled on this instance (CRON_JOBS_ENABLED=false), registering none');
-      return;
-    }
+    let skipped = 0;
 
     this.discovery
       .getProviders()
@@ -54,8 +48,25 @@ export class DfxCronService implements OnModuleInit {
             };
           })
           .filter((data) => data.params)
-          .forEach((data) => this.addCronJob(data));
+          .forEach((data) => {
+            // On an HTTP-only instance the global jobs belong to the job instance, but
+            // per-instance housekeeping must still run here: it refreshes process-local state
+            // such as the JWT denylists and the disabled-process map, which HTTP requests read
+            // on this very instance. Skipping those would freeze them at boot.
+            if (!Config.cronJobsEnabled && !data.params.perInstance) {
+              skipped++;
+              return;
+            }
+
+            this.addCronJob(data);
+          });
       });
+
+    if (skipped) {
+      this.logger.info(
+        `Cron jobs disabled on this instance (CRON_JOBS_ENABLED=false), skipped ${skipped} global job(s)`,
+      );
+    }
   }
 
   private addCronJob(data: CronJobData) {

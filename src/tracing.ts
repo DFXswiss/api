@@ -64,10 +64,25 @@ export class ClientErrorSpanProcessor implements SpanProcessor {
 }
 
 /**
- * Metric export interval. Matches the existing event-loop log cadence, which is short enough to
- * catch multi-second stalls but long enough to keep series volume modest.
+ * Metric export interval in milliseconds.
+ *
+ * Deliberately left to OTEL_METRIC_EXPORT_INTERVAL (the SDK's own variable, default 60s) rather
+ * than pinned in code. An explicit reader takes precedence over the SDK's env handling, so a
+ * hardcoded value would silently disable that knob — and a shorter interval costs a full
+ * collect-and-export of *every* instrument, including the auto-instrumentation histograms, on
+ * the very event loop this is meant to keep free.
  */
-export const METRIC_EXPORT_INTERVAL_MS = 10_000;
+export function metricExportIntervalMs(): number | undefined {
+  const raw = process.env.OTEL_METRIC_EXPORT_INTERVAL;
+  if (raw == null || raw === '') return undefined;
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid OTEL_METRIC_EXPORT_INTERVAL value '${raw}': expected a positive number of milliseconds`);
+  }
+
+  return parsed;
+}
 
 let sdk: NodeSDK | undefined;
 
@@ -85,6 +100,8 @@ export function startTracing(): NodeSDK | undefined {
   if (!isTelemetryEnabled()) return undefined;
   if (sdk) return sdk;
 
+  const intervalMs = metricExportIntervalMs();
+
   sdk = new NodeSDK({
     serviceName: 'dfx-api',
     // The 4xx-not-a-failure processor runs before the exporting batch
@@ -94,9 +111,13 @@ export function startTracing(): NodeSDK | undefined {
     // Metrics travel the same OTLP route as spans, so runtime saturation (see
     // src/runtime-metrics.ts) needs no extra endpoint or scrape target. Spans measure how long
     // work waited; these measure whether the process had CPU to run it at all.
+    //
+    // The reader is declared explicitly because the gauges need a meter provider that is
+    // guaranteed to exist; the interval stays env-driven so this does not quietly change the
+    // export cadence the SDK would otherwise use.
     metricReader: new PeriodicExportingMetricReader({
       exporter: new OTLPMetricExporter(),
-      exportIntervalMillis: METRIC_EXPORT_INTERVAL_MS,
+      ...(intervalMs == null ? {} : { exportIntervalMillis: intervalMs }),
     }),
     instrumentations: [
       getNodeAutoInstrumentations({

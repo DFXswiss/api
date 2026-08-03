@@ -98,7 +98,7 @@ export class AuthService {
     @Inject(forwardRef(() => KycService)) private readonly kycService: KycService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE)
+  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true })
   checkLists() {
     for (const [key, challenge] of this.challengeList.entries()) {
       if (!this.isChallengeValid(challenge)) {
