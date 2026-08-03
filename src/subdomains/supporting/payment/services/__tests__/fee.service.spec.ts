@@ -333,14 +333,17 @@ describe('FeeService', () => {
       expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [70, 92], 70, manager);
     });
 
-    it('names the blocking fee when a deactivated one occupies the label', async () => {
+    it.each([
+      ['deactivated', { active: false }, /fee 88, deactivated/],
+      ['restricted', { assets: '1;2' }, /fee 88, differs from a plain flat surcharge/],
+    ])('names the fee that blocks the label (%s)', async (_name, overrides, expected) => {
       feeRepo.findOne.mockResolvedValue(null);
-      feeRepo.findOneBy.mockResolvedValue(Object.assign(onboardingFee(88, 800), { active: false }));
+      feeRepo.findOneBy.mockResolvedValue(Object.assign(onboardingFee(88, 800), overrides));
       feeRepo.findBy.mockResolvedValue([]);
 
       // `createFee` would reject the duplicate label with a generic message and no way forward.
       await expect(service.setOnboardingFee(accountWith([]), 800)).rejects.toThrow(ConflictException);
-      await expect(service.setOnboardingFee(accountWith([]), 800)).rejects.toThrow(/deactivated \(fee 88\)/);
+      await expect(service.setOnboardingFee(accountWith([]), 800)).rejects.toThrow(expected);
 
       expect(feeRepo.save).not.toHaveBeenCalled();
     });
@@ -410,6 +413,14 @@ describe('FeeService', () => {
       await expect(service.setOnboardingFee(accountWith([]), 178000)).rejects.toThrow(/exceeds the limit/);
 
       expect(feeRepo.save).not.toHaveBeenCalled();
+      expect(userDataService.replaceFee).not.toHaveBeenCalled();
+    });
+
+    it('refuses to remove anything while a foreign fixed fee is assigned', async () => {
+      feeRepo.findBy.mockResolvedValue([Object.assign(onboardingFee(92, 5000), { rate: 0.5 })]);
+
+      await expect(service.removeOnboardingFee(accountWith([92]))).rejects.toThrow(ConflictException);
+
       expect(userDataService.replaceFee).not.toHaveBeenCalled();
     });
 

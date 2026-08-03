@@ -280,8 +280,11 @@ export class FeeService {
     if (amount > maxAmount)
       throw new BadRequestException(`Onboarding fee of ${amount} CHF exceeds the limit of ${maxAmount} CHF`);
 
-    const fee = await this.getOrCreateOnboardingFee(amount);
+    // Read the account first: creating a fee for an amount and only then finding out that the
+    // account cannot be touched would leave an unused fee behind.
     const assignedFees = await this.getOnboardingFees(userData);
+
+    const fee = await this.getOrCreateOnboardingFee(amount);
     const isAlreadyAssigned = assignedFees.some((f) => f.id === fee.id);
     if (assignedFees.length === 1 && isAlreadyAssigned) return;
 
@@ -343,7 +346,7 @@ export class FeeService {
       throw new ConflictException(
         `Account carries a fixed fee that is not a plain flat surcharge (fee ${foreignFees
           .map((f) => f.id)
-          .join(', ')}) - resolve it before setting an onboarding fee`,
+          .join(', ')}) - resolve it first`,
       );
 
     return fixedFees;
@@ -358,12 +361,16 @@ export class FeeService {
     });
     if (existingFee) return existingFee;
 
-    // `createFee` rejects a duplicate label regardless of its state, and the label is derived from
-    // the amount - so a deactivated fee would block this amount for good behind a generic error.
-    const deactivatedFee = await this.feeRepo.findOneBy({ label, active: false });
-    if (deactivatedFee)
+    // The label is derived from the amount and `createFee` rejects a duplicate one whatever state
+    // it is in. Anything holding this label that the lookup above did not accept - deactivated, or
+    // carrying a rate, a factor or a restriction - would otherwise block the amount for good behind
+    // `createFee`'s generic error.
+    const blockingFee = await this.feeRepo.findOneBy({ label });
+    if (blockingFee)
       throw new ConflictException(
-        `Onboarding fee of ${amount} CHF exists but is deactivated (fee ${deactivatedFee.id})`,
+        `Onboarding fee of ${amount} CHF exists but cannot be used (fee ${blockingFee.id}, ${
+          blockingFee.active ? 'differs from a plain flat surcharge' : 'deactivated'
+        })`,
       );
 
     const fee = await this.createFee(
