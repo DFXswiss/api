@@ -47,6 +47,14 @@ class RefRewardTable {
   user: UserTable;
 }
 
+// pg-mem substitute for ROUND(numeric, n): half away from zero (not Math.round, which rounds
+// half toward +∞ — Math.round(-2.5) === -2, while half-away-from-zero yields -3).
+function roundHalfAwayFromZero(value: number, digits: number): number {
+  const factor = 10 ** digits;
+  const scaled = value * factor;
+  return (Math.sign(scaled) * Math.round(Math.abs(scaled))) / factor;
+}
+
 // runs getRewardRecipients against a Postgres-semantics engine (pg-mem) to verify the ORDER BY
 // alias quoting and aggregation semantics, because a mocked query builder never executes SQL and
 // an unquoted orderBy('totalChf') would otherwise go unnoticed (column "totalchf" does not exist)
@@ -70,10 +78,7 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       name: 'round',
       args: [DataType.float, DataType.integer],
       returns: DataType.float,
-      implementation: (value: number, digits: number) => {
-        const factor = 10 ** digits;
-        return Math.round(value * factor) / factor;
-      },
+      implementation: roundHalfAwayFromZero,
     });
 
     dataSource = (await db.adapters.createTypeormDataSource({
@@ -195,8 +200,6 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       { userDataId: 50, count: 1, totalChf: 100 },
       { userDataId: 30, count: 2, totalChf: 76 },
     ]);
-    expect(result.map((r) => r.userDataId)).not.toContain(40);
-    expect(result.every((row, i) => i === 0 || result[i - 1].totalChf >= row.totalChf)).toBe(true);
   });
 
   it('casts the summed amount to numeric and quotes the ORDER BY alias in the generated SQL', async () => {
@@ -279,10 +282,6 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
         { userDataId: 10, count: 2, totalChf: 300 },
         { userDataId: 20, count: 1, totalChf: 150 },
       ]);
-      expect(typeof result[0].count).toBe('number');
-      expect(typeof result[0].totalChf).toBe('number');
-      expect(typeof result[1].count).toBe('number');
-      expect(typeof result[1].totalChf).toBe('number');
     } finally {
       getRawManySpy?.mockRestore();
       createQueryBuilderSpy.mockRestore();
@@ -334,7 +333,6 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       { userDataId: 50, count: 1, totalChf: 100 },
       { userDataId: 30, count: 1, totalChf: 26 },
     ]);
-    expect(result.map((r) => r.userDataId)).not.toContain(40);
   });
 
   it('includes rewards on a from date strictly between oldDate and newDate, proving >= is not narrowed to =', async () => {
@@ -351,7 +349,6 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       { userDataId: 50, count: 1, totalChf: 100 },
       { userDataId: 30, count: 1, totalChf: 26 },
     ]);
-    expect(result.map((r) => r.userDataId)).not.toContain(40);
   });
 
   it('returns an empty list when from is after every reward', async () => {
@@ -361,11 +358,25 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     // from the from filter — not from a broken fixture (hard-coded ids / dangling foreign
     // keys).
     const baseline = await service.getRewardRecipients();
-    expect(baseline).toHaveLength(4);
+    // The exact-IDs check below also pins the length (4 elements), so it alone carries the
+    // "baseline is non-empty" guarantee this block documents — keep it if trimming further.
     expect(baseline.map((r) => r.userDataId).sort((a, b) => a - b)).toEqual([10, 20, 30, 50]);
 
     const result = await service.getRewardRecipients(new Date('2030-01-01T00:00:00.000Z'));
 
     expect(result).toEqual([]);
+  });
+});
+
+// Direct unit tests of the local ROUND helper only — no database, no pg-mem. Pins half-away-from-
+// zero so a regression to Math.round(value * factor) / factor fails on the negative half case.
+// Modelled after documented Postgres ROUND(numeric, n) half semantics; does not claim to prove
+// live Postgres behaviour.
+describe('roundHalfAwayFromZero (local helper)', () => {
+  it('rounds half away from zero for positive and negative values', () => {
+    expect(roundHalfAwayFromZero(2.5, 0)).toBe(3);
+    expect(roundHalfAwayFromZero(-2.5, 0)).toBe(-3);
+    expect(roundHalfAwayFromZero(300.4, 0)).toBe(300);
+    expect(roundHalfAwayFromZero(75.6, 0)).toBe(76);
   });
 });
