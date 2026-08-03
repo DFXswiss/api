@@ -62,6 +62,7 @@ export enum Process {
   SCORECHAIN = 'Scorechain',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
+  PAYMENT_DELIVERY = 'PaymentDelivery',
   PAYMENT_FORWARDING = 'PaymentForwarding',
   FIAT_OUTPUT = 'FiatOutput',
   FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT = 'FiatOutputAssignBankAccount',

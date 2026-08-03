@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **138 `@DfxCron` declarations** across 97 files and 34 areas.
+Every scheduled job this service runs: **139 `@DfxCron` declarations** across 97 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **138 `@DfxCron` declarations** across 97
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-117 are `worker`, 7 are `api`, 14 are `both`. `CRON_ROLE` decides what a process is
+119 are `worker`, 5 are `api`, 15 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -30,7 +30,7 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-117 of the 138 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
+118 of the 139 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -62,6 +62,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | -------- | ---: |
 | second | 5 |
 | 10 seconds | 3 |
+| 15 seconds | 1 |
 | 30 seconds | 9 |
 | minute | 52 |
 | 5 minutes | 18 |
@@ -90,7 +91,7 @@ Jobs by area:
 | `shared/services` | 5 | 5 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
 | `subdomains/supporting/payment` | 5 | 1 |
-| `subdomains/core/payment-link` | 4 | — |
+| `subdomains/core/payment-link` | 5 | — |
 | `subdomains/generic/kyc` | 4 | — |
 | `subdomains/supporting/bank` | 4 | — |
 | `subdomains/supporting/bank-tx` | 4 | — |
@@ -121,7 +122,7 @@ Jobs by area:
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses 26 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **138 = 138**, no gap. Class and
+count is asserted against a raw text count of the decorator: **139 = 139**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -145,7 +146,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 138 declarations, 137 have a registration path.
+here rather than fixed in passing. Of the 139 declarations, 138 have a registration path.
 
 ## Jobs
 
@@ -159,6 +160,7 @@ here rather than fixed in passing. Of the 138 declarations, 137 have a registrat
 | 10 seconds | `LIQUIDITY_MANAGEMENT` | `worker` | `LiquidityManagementPipelineService::processPipelines` | `subdomains/core/liquidity-management/services/liquidity-management-pipeline.service.ts` |
 | 10 seconds | `MONITOR_CONNECTION_POOL` | `both` | `MonitorConnectionPoolService::monitorConnectionPoolStatic` | `subdomains/core/monitoring/monitor-connection-pool.service.ts` |
 | 10 seconds | `MONITOR_EVENT_LOOP` | `both` | `MonitorEventLoopService::monitorEventLoop` | `subdomains/core/monitoring/monitor-event-loop.service.ts` |
+| 15 seconds | `PAYMENT_DELIVERY` | `both` | `PaymentCronService::deliverPaymentUpdates` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | 30 seconds | `LNURL_AUTH_CACHE` | `both` | `AuthLnUrlService::processCleanupAccessToken` | `subdomains/generic/user/models/auth/auth-lnurl.service.ts` |
 | 30 seconds | `BANK_TX` | `worker` | `BankTxService::checkBankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts` |
 | 30 seconds | `DEX_PURCHASE_ORDER` | `worker` | `DexService::finalizePurchaseOrders` | `subdomains/supporting/dex/services/dex.service.ts` |
@@ -205,8 +207,8 @@ here rather than fixed in passing. Of the 138 declarations, 137 have a registrat
 | minute | `PAY_IN` | `worker` | `PayInService::checkConfirmations` | `subdomains/supporting/payin/services/payin.service.ts` |
 | minute | `PAY_IN` | `worker` | `PayInService::forwardPayInEntries` | `subdomains/supporting/payin/services/payin.service.ts` |
 | minute | `PAY_IN` | `worker` | `PayInService::returnPayInEntries` | `subdomains/supporting/payin/services/payin.service.ts` |
-| minute | `PAYMENT_CONFIRMATIONS` | `api` | `PaymentCronService::checkTxConfirmations` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
-| minute | `PAYMENT_EXPIRATION` | `api` | `PaymentCronService::processExpiredPayments` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
+| minute | `PAYMENT_CONFIRMATIONS` | `worker` | `PaymentCronService::checkTxConfirmations` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
+| minute | `PAYMENT_EXPIRATION` | `worker` | `PaymentCronService::processExpiredPayments` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `UPDATE_BLOCKCHAIN_FEE` | `api` | `PaymentLinkFeeService::updateFees` | `subdomains/core/payment-link/services/payment-link-fee.service.ts` |
 | minute | `REALUNIT_QUOTE_COMPLETION` | `worker` | `RealUnitJobService::completeSettledQuotes` | `subdomains/supporting/realunit/realunit-job.service.ts` |
 | minute | — | `worker` | `StaffKycClearanceService::syncStaffKycClearance` | `subdomains/generic/user/models/user/staff-kyc-clearance.service.ts` |

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
+import { CustomCronExpression } from 'src/shared/utils/custom-cron-expression';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentBalanceService } from './payment-balance.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
@@ -16,35 +17,47 @@ export class PaymentCronService {
     private readonly paymentBalanceService: PaymentBalanceService,
   ) {}
 
-  // Api, not Worker: this job and checkTxConfirmations both end up in
-  // PaymentLinkPaymentService.doSave(), which resolves the AsyncMap that PaymentLinkController's
-  // waitForPayment awaits and pushes the device activation into the RxJS subject PaymentLinkGateway
-  // subscribes to. Both hold their state in the instance, so they only reach a caller of this same
-  // process. `Both` is no option either: the jobs write to the database and trigger merchant
-  // webhooks, which a second registration would repeat.
+  // The three jobs below split what used to be one decision. Writing and delivering have opposite
+  // requirements — a database write, a merchant webhook and a quote cancellation must happen once
+  // in the deployment, while the AsyncMap and the RxJS subject in PaymentLinkPaymentService are
+  // process-local and only reach a caller connected to the process that fires them. A single scope
+  // cannot satisfy both: `Worker` or `Api` leaves callers on every other process unreleased,
+  // `Both` repeats every write and every webhook.
   //
-  // Those two properties pull against each other, and the scope alone cannot settle it. "Only
-  // reaches a caller of this process" argues for running in every API process; "writes and calls
-  // out" argues for running in exactly one. DfxCronService leases these jobs, so it is the second:
-  // with more than one API process, the one that loses the lease does not release the callers
-  // waiting on it, and they wait until their own timeout. That is the recoverable side — a
-  // duplicated payout or merchant webhook is not. The lease reports the lost race at error level
-  // for exactly this reason; see DfxCronService.guardAcrossProcesses.
-  //
-  // Resolving it properly means driving the local delivery from persisted state rather than from
-  // the job that does the writing, so any process can release its own waiters. That is a change to
-  // PaymentLinkPaymentService, not to this scope.
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.PAYMENT_EXPIRATION })
+  // So the writing runs under the lease (`Worker`), and deliverPaymentUpdates delivers from the
+  // persisted state those writes leave behind, in every process, without a lease. It writes
+  // nothing and calls nothing outside its process, which is what allows it to run everywhere.
+
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAYMENT_EXPIRATION })
   async processExpiredPayments(): Promise<void> {
     await this.paymentLinkPaymentService.processExpiredPayments();
     await this.paymentActivationService.processExpiredActivations();
     await this.paymentQuoteService.processExpiredQuotes();
   }
 
-  // Api for the same reason as processExpiredPayments above.
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.PAYMENT_CONFIRMATIONS })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAYMENT_CONFIRMATIONS })
   async checkTxConfirmations(): Promise<void> {
     await this.paymentLinkPaymentService.checkTxConfirmations();
+  }
+
+  // Runs at 15 seconds rather than the minute the two jobs above run at, because it is the second
+  // hop of a chain: the writing job already costs up to a minute to notice, and this must not add
+  // another one to it. It stays cheap at that rate by looking only at what its own process holds —
+  // with no caller waiting and no device connected it issues no query at all.
+  //
+  // `useDelay: false` for the same reason: the jitter exists to spread jobs that do real work per
+  // run, and up to five seconds of it would be a third of this interval.
+  //
+  // Switching the flag off does not stop payments from being processed, but callers of
+  // `GET /v1/paymentLink/payment/wait` and `GET /v1/lnurlp/wait/:id` on a process that is not the
+  // one writing then stay connected until they give up.
+  @DfxCron(CustomCronExpression.EVERY_15_SECONDS, {
+    scope: CronScope.BOTH,
+    process: Process.PAYMENT_DELIVERY,
+    useDelay: false,
+  })
+  async deliverPaymentUpdates(): Promise<void> {
+    await this.paymentLinkPaymentService.deliverPaymentUpdates();
   }
 
   @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.PAYMENT_FORWARDING })
