@@ -48,7 +48,11 @@ import {
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
-import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
+import {
+  Transaction,
+  TransactionSourceType,
+  TransactionTypeInternal,
+} from '../../../payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
 import { TransactionService } from '../../../payment/services/transaction.service';
 import { BankTxRepeatService } from '../../bank-tx-repeat/bank-tx-repeat.service';
@@ -237,7 +241,7 @@ export class BankTxService implements OnModuleInit {
       try {
         const detectedType = await this.getType(tx);
         if (detectedType === BankTxType.INTERNAL) {
-          await this.updateInternal(tx, { type: detectedType });
+          await this.assignInternalIfUnassigned(tx);
           continue;
         }
 
@@ -268,6 +272,30 @@ export class BankTxService implements OnModuleInit {
         this.logger.error(`Error during bankTx ${tx.id} assign:`, e);
       }
     }
+  }
+
+  private async assignInternalIfUnassigned(bankTx: BankTx): Promise<void> {
+    await this.bankTxRepo.manager.transaction(async (manager) => {
+      const currentBankTx = await manager.findOne(BankTx, {
+        where: { id: bankTx.id },
+        relations: { transaction: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!currentBankTx || currentBankTx.type != null || !currentBankTx.transaction?.id) return;
+
+      const currentTransaction = await manager.findOne(Transaction, {
+        where: { id: currentBankTx.transaction.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        !currentTransaction ||
+        (currentTransaction.type != null && currentTransaction.type !== TransactionTypeInternal.INTERNAL)
+      )
+        return;
+
+      await manager.update(Transaction, currentTransaction.id, { type: TransactionTypeInternal.INTERNAL });
+      await manager.update(BankTx, currentBankTx.id, { type: BankTxType.INTERNAL });
+    });
   }
 
   private async fillBankTx(): Promise<void> {

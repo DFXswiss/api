@@ -275,4 +275,30 @@ describe('BankTxService', () => {
       await expect(service.getType(bankTx)).resolves.toBe(BankTxType.KRAKEN);
     });
   });
+
+  describe('#assignInternalIfUnassigned(...)', () => {
+    it('does not overwrite a type assigned after the initial unassigned read', async () => {
+      const staleBankTx = createCustomBankTx({ id: 208765, type: null, transaction: { id: 77 } as never });
+      const currentBankTx = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.BUY_FIAT,
+        transaction: { id: 77 } as never,
+      });
+      const manager = { findOne: jest.fn().mockResolvedValue(currentBankTx), update: jest.fn() };
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<void>) => callback(manager)),
+        },
+      });
+
+      await service['assignInternalIfUnassigned'](staleBankTx);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ where: { id: 208765 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+  });
 });
