@@ -59,6 +59,16 @@ describe('GenerateLimitRequestPdfDto validation', () => {
     expect(errors.find((e) => e.property === 'fundOrigin')).toBeDefined();
   });
 
+  it('rejects an unknown investmentDate string', async () => {
+    const errors = await validateDto({ ...validRaw(), investmentDate: 'NotARealDate' });
+    expect(errors.find((e) => e.property === 'investmentDate')).toBeDefined();
+  });
+
+  it('trims the note like the clerk', async () => {
+    const dto = plainToInstance(GenerateLimitRequestPdfDto, { ...validRaw(), note: '  Aktennotiz  ' });
+    expect(dto.note).toBe('Aktennotiz');
+  });
+
   it('rejects an empty clerk', async () => {
     const errors = await validateDto({ ...validRaw(), clerk: '' });
     expect(errors.find((e) => e.property === 'clerk')).toBeDefined();
