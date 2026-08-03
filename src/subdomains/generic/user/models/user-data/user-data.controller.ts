@@ -219,6 +219,9 @@ export class UserDataController {
   // has to be requested explicitly - `Fee.verifyForUser` silently skips its wallet check when the
   // relation is absent.
   private async getUserDataOrThrow(id: number): Promise<UserData> {
+    // `+id` of a non-numeric path segment is NaN, which would reach the query as a bound parameter.
+    if (!id) throw new NotFoundException('User data not found');
+
     const userData = await this.userDataService.getUserData(id, { wallet: true });
     if (!userData) throw new NotFoundException('User data not found');
 

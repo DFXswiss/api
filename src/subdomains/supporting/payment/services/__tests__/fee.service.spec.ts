@@ -277,6 +277,47 @@ describe('FeeService', () => {
       expect(feeRepo.create).toHaveBeenCalledWith(expect.objectContaining({ label: 'Onboarding Fixed 6200' }));
     });
 
+    it('only reuses a fee that carries no filter and no limit at all', async () => {
+      feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
+      feeRepo.findBy.mockResolvedValue([]);
+
+      await service.setOnboardingFee(accountWith([]), 800);
+
+      // A restricted fee would pass `verifyForUser` on assignment and then be dropped by
+      // `verifyForTx` at transaction time - the surcharge would silently never apply.
+      const restrictedColumns = [
+        'accountType',
+        'wallet',
+        'bank',
+        'assets',
+        'excludedAssets',
+        'fiats',
+        'excludedUserDatas',
+        'financialTypes',
+        'paymentMethodsIn',
+        'paymentMethodsOut',
+        'expiryDate',
+        'minTxVolume',
+        'maxTxVolume',
+        'maxAnnualUserTxVolume',
+        'maxUsages',
+        'maxTxUsages',
+        'maxUserTxUsages',
+      ];
+      const where = feeRepo.findOne.mock.calls[0][0].where as Record<string, unknown>;
+      for (const column of restrictedColumns) expect(where[column]).toEqual(IsNull());
+    });
+
+    it('falls back to the built-in limit when the setting is not a number', async () => {
+      settingService.get.mockResolvedValue('unlimited');
+      feeRepo.findBy.mockResolvedValue([]);
+
+      // NaN would make every comparison false and let any amount through.
+      await expect(service.setOnboardingFee(accountWith([]), 178000)).rejects.toThrow(/exceeds the limit of 100000/);
+
+      expect(userDataService.replaceFee).not.toHaveBeenCalled();
+    });
+
     it('only ever matches additive fixed fees, never a percentage or a bank fee', async () => {
       feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
       feeRepo.findBy.mockResolvedValue([]);

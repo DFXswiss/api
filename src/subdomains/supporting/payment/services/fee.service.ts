@@ -74,15 +74,38 @@ const FeeValidityMinutes = 30;
 const DefaultMaxOnboardingFee = 100000; // CHF
 const OnboardingFeeLabel = 'Onboarding Fixed';
 
-// A flat surcharge that is assigned per account. `specialCode` is what makes it per-account:
-// `getValidFees` applies an `Addition` fee WITHOUT a special code to every user, so reusing one of
-// those here would assign a globally active fee to a single account - and removing the assignment
-// would not stop it from applying.
+// An unconditional flat surcharge that is assigned per account.
+//
+// `specialCode` is what makes it per-account: `getValidFees` applies an `Addition` fee WITHOUT a
+// special code to every user, so reusing one of those here would assign a globally active fee to a
+// single account - and removing the assignment would not stop it from applying.
+//
+// Every filter and limit column must be empty. A fee that is restricted to an asset, a bank, a
+// payment method, a volume band or a usage count would pass `verifyForUser` on assignment and then
+// be dropped by `verifyForTx` when the customer actually transacts - the operation would report
+// success for a surcharge that never applies. The same holds for an expiry date.
 const OnboardingFeeShape = {
   type: FeeType.ADDITION,
   rate: 0,
   fixed: MoreThan(0),
   specialCode: Not(IsNull()),
+  accountType: IsNull(),
+  wallet: IsNull(),
+  bank: IsNull(),
+  assets: IsNull(),
+  excludedAssets: IsNull(),
+  fiats: IsNull(),
+  excludedUserDatas: IsNull(),
+  financialTypes: IsNull(),
+  paymentMethodsIn: IsNull(),
+  paymentMethodsOut: IsNull(),
+  expiryDate: IsNull(),
+  minTxVolume: IsNull(),
+  maxTxVolume: IsNull(),
+  maxAnnualUserTxVolume: IsNull(),
+  maxUsages: IsNull(),
+  maxTxUsages: IsNull(),
+  maxUserTxUsages: IsNull(),
 };
 
 @Injectable()
@@ -244,9 +267,10 @@ export class FeeService {
   // other's list - this operation reduces its own footprint to a single write, but it cannot
   // protect against a foreign path writing the column at the same moment.
   async setOnboardingFee(userData: UserData, amount: number): Promise<void> {
-    const maxAmount = await this.settingService
-      .get('onboardingFeeMaxAmount', `${DefaultMaxOnboardingFee}`)
-      .then(Number);
+    // A misconfigured setting must not silently disable the guard: `Number('x')` is NaN, and every
+    // comparison against NaN is false.
+    const configuredMax = await this.settingService.get('onboardingFeeMaxAmount').then(Number);
+    const maxAmount = Number.isFinite(configuredMax) ? configuredMax : DefaultMaxOnboardingFee;
     if (amount > maxAmount)
       throw new BadRequestException(`Onboarding fee of ${amount} CHF exceeds the limit of ${maxAmount} CHF`);
 
