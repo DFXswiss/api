@@ -4,7 +4,7 @@ import { Config, CronRole } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
 import { AssetLog, BalancesByFinancialType, FinanceLog } from '../log/dto/log.dto';
@@ -36,8 +36,16 @@ export class DashboardFinancialService implements OnModuleInit {
   onModuleInit() {
     // Fills the store once at start-up instead of leaving it empty until the first scheduled run:
     // getLatestBalance answers from the store and nothing else, so until the first fill the
-    // endpoint has no value to return.
+    // endpoint has no value to return. The two conditions below are the ones the scheduler applies
+    // to the job itself, and this call bypasses the scheduler entirely.
+    //
+    // The role first: the job is scoped `api` because a request path is the only reader of the
+    // store. In the worker the aggregation would be spent on a value no request there can read.
     if (Config.cronRole === CronRole.WORKER) return;
+
+    // Then the flag: a job switched off through DISABLED_PROCESSES has to stay off, including at
+    // start-up. Otherwise switching it off still leaves one run per deployment.
+    if (DisabledProcess(Process.LATEST_BALANCE_CACHE)) return;
 
     void this.refreshLatestBalance().catch((e) =>
       // Not rethrown: a failed first fill leaves the store empty, which the endpoint already

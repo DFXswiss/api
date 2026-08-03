@@ -10,6 +10,7 @@ import { FinancialLogSummary } from '../../log/log.repository';
 import { LogService } from '../../log/log.service';
 import { DashboardFinancialService } from '../dashboard-financial.service';
 import { LatestBalanceResponseDto } from '../dto/financial-log.dto';
+import * as ProcessService from 'src/shared/services/process.service';
 import { Config, CronRole } from 'src/config/config';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { LatestBalanceStore } from '../latest-balance.store';
@@ -26,6 +27,8 @@ describe('DashboardFinancialService', () => {
 
   afterEach(() => {
     if (originalRole !== undefined) Config.cronRole = originalRole;
+
+    jest.restoreAllMocks();
   });
 
   beforeEach(async () => {
@@ -46,6 +49,10 @@ describe('DashboardFinancialService', () => {
 
     service = module.get<DashboardFinancialService>(DashboardFinancialService);
     originalRole ??= Config.cronRole;
+
+    // DisabledProcess fails closed when the process flags were never loaded, which is the state of
+    // a bare testing module. The tests that care about the flag set it themselves.
+    jest.spyOn(ProcessService, 'DisabledProcess').mockReturnValue(false);
   });
 
   function logEntry(): Log {
@@ -534,6 +541,20 @@ describe('DashboardFinancialService', () => {
 
     it('does not fill it in the worker role, where nothing reads the store', async () => {
       Config.cronRole = CronRole.WORKER;
+      const getLatestFinancialLogSpy = jest.spyOn(logService, 'getLatestFinancialLog');
+
+      service.onModuleInit();
+      await new Promise(process.nextTick);
+
+      expect(getLatestFinancialLogSpy).not.toHaveBeenCalled();
+      expect(latestBalanceStore.set).not.toHaveBeenCalled();
+    });
+
+    it('stays off at start-up when the process flag is off', async () => {
+      // The job carries Process.LATEST_BALANCE_CACHE, and this call bypasses the scheduler that
+      // applies it. Without the check, switching the job off still leaves one run per deployment.
+      Config.cronRole = CronRole.API;
+      jest.spyOn(ProcessService, 'DisabledProcess').mockReturnValue(true);
       const getLatestFinancialLogSpy = jest.spyOn(logService, 'getLatestFinancialLog');
 
       service.onModuleInit();
