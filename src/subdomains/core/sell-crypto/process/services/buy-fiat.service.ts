@@ -599,6 +599,7 @@ export class BuyFiatService implements OnModuleInit {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
     excludedId?: number,
+    judgedBy?: Date,
   ): Promise<number> {
     const request = this.buyFiatRepo
       .createQueryBuilder('buyFiat')
@@ -612,6 +613,10 @@ export class BuyFiatService implements OnModuleInit {
     if (excludedId) {
       request.andWhere('buyFiat.id != :excludedId', { excludedId });
     }
+
+    // Historical replay only — see the matching block in BuyCryptoService.getUserVolumeForType for
+    // why this gates on existence rather than on the verdict, and which residuals remain.
+    if (judgedBy) request.andWhere('buyFiat.created <= :judgedBy', { judgedBy });
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }

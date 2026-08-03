@@ -452,4 +452,43 @@ describe('BuyCryptoService', () => {
       expect(result.inputAmount).toBe(0.1);
     });
   });
+
+  describe('getUserVolume judgedBy', () => {
+    // The historical-replay gate for KycFileIdBackfillService. It lives entirely in a WHERE clause,
+    // which the backfill's own specs cannot observe — they mock getVolumeSince wholesale. Getting it
+    // wrong is silent and irreversible: too broad invents compliance file numbers, too narrow drops
+    // the siblings the live sum counted and the repair is missed or misdated.
+    const capture = () => {
+      const predicates: string[] = [];
+      const qb: any = {
+        select: () => qb,
+        innerJoin: () => qb,
+        where: () => qb,
+        andWhere: (c: any) => (predicates.push(String(c)), qb),
+        getRawOne: async () => ({ volume: 0 }),
+      };
+      jest.spyOn(buyCryptoRepo, 'createQueryBuilder').mockReturnValue(qb);
+
+      return predicates;
+    };
+
+    it('omits the gate entirely when judgedBy is not given', async () => {
+      const predicates = capture();
+
+      await service.getUserVolume([1], new Date(0), new Date(), undefined, 'bankTx');
+
+      expect(predicates).not.toContain('buyCrypto.created <= :judgedBy');
+    });
+
+    it('gates on existence at judgedBy', async () => {
+      const predicates = capture();
+
+      await service.getUserVolume([1], new Date(0), new Date(), undefined, 'bankTx', new Date('2026-06-10'));
+
+      expect(predicates).toContain('buyCrypto.created <= :judgedBy');
+      // Not on the verdict: priceDefinitionAllowedDate is written only on PASS, so gating on it
+      // drops every Pending/GSheet sibling — which the live sum counts.
+      expect(predicates.join(' ')).not.toContain('priceDefinitionAllowedDate');
+    });
+  });
 });

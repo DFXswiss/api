@@ -861,13 +861,14 @@ export class BuyCryptoService implements OnModuleInit {
     dateTo: Date = new Date(),
     excludedId?: number,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    judgedBy?: Date,
   ): Promise<number> {
-    if (type) return this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, type);
+    if (type) return this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, type, judgedBy);
 
     const volumes = await Promise.all([
-      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'cryptoInput'),
-      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'checkoutTx'),
-      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'bankTx'),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'cryptoInput', judgedBy),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'checkoutTx', judgedBy),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'bankTx', judgedBy),
     ]);
 
     return Util.sum(volumes);
@@ -879,6 +880,7 @@ export class BuyCryptoService implements OnModuleInit {
     dateTo: Date = new Date(),
     excludedId: number | undefined,
     type: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    judgedBy?: Date,
   ): Promise<number> {
     const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(buyCrypto.amountInChf)', 'volume');
 
@@ -910,6 +912,22 @@ export class BuyCryptoService implements OnModuleInit {
       .andWhere('route.userId IN (:...userIds)', { userIds });
 
     if (excludedId) request.andWhere('buyCrypto.id != :excludedId', { excludedId });
+
+    // Historical replay only (see KycFileIdBackfillService): drop rows that did not yet exist at
+    // `judgedBy`, which would otherwise be counted in a sum that never saw them.
+    //
+    // Existence, deliberately, and not the verdict. `priceDefinitionAllowedDate` is written only on
+    // PASS, so gating on it drops every Pending / GSheet sibling — which the live sum counts. Gating
+    // on it *or* on current non-PASS status is worse still: a sibling that was Pending then and has
+    // since passed matches neither, and those cluster exactly where this is looking, since crossing
+    // the threshold is itself what holds a transaction at Pending (aml-helper.service.ts).
+    //
+    // Two residuals remain, both irreducible without a verdict history that is not recorded for the
+    // routine path. A row that existed but was unjudged at `judgedBy` is counted here and was not
+    // counted live — bounded by one cron tick. A row that was Pending then and has since expired to
+    // FAIL is dropped by the outer filter above, which reads current status — unbounded, but in the
+    // safe direction: it under-counts, so it can only miss a repair, never invent one.
+    if (judgedBy) request.andWhere('buyCrypto.created <= :judgedBy', { judgedBy });
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }

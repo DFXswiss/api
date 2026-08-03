@@ -19,6 +19,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
@@ -28,7 +29,9 @@ import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
+import { BackfillStartResult, isDryRun, KycFileIdBackfillQuery } from './dto/kyc-file-id-backfill.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { KycFileIdBackfillService } from './kyc-file-id-backfill.service';
 import { UserData, UserDataComplianceUpdateCols, UserDataSupportUpdateCols } from './user-data.entity';
 import { UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
@@ -44,6 +47,7 @@ export class UserDataController {
     private readonly feeService: FeeService,
     private readonly documentService: KycDocumentService,
     private readonly kycLogService: KycLogService,
+    private readonly kycFileIdBackfillService: KycFileIdBackfillService,
   ) {}
 
   @Get()
@@ -188,5 +192,16 @@ export class UserDataController {
     });
 
     return new StreamableFile(zipContent);
+  }
+
+  // Runs in the background; the report is written to the log. Dry-runs unless ?dryRun=false.
+  @Post('backfillKycFileIds')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPER_ADMIN), UserActiveGuard())
+  backfillKycFileIds(@Query() query: KycFileIdBackfillQuery): BackfillStartResult {
+    if (DisabledProcess(Process.KYC_FILE_ID_BACKFILL)) throw new ForbiddenException('Endpoint disabled');
+
+    return this.kycFileIdBackfillService.start({ dryRun: isDryRun(query) });
   }
 }
