@@ -8,6 +8,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
+import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -67,6 +68,7 @@ export class PaymentQuoteService {
     private readonly paymentBalanceService: PaymentBalanceService,
     private readonly txValidationService: TxValidationService,
     private readonly internetComputerService: InternetComputerService,
+    private readonly solanaService: SolanaService,
   ) {}
 
   // --- JOBS --- //
@@ -143,6 +145,23 @@ export class PaymentQuoteService {
     return this.paymentQuoteRepo.findOne({
       where: { txBlockchain: Equal(txBlockchain), txId: Equal(txId), status: In(status) },
       relations: { payment: true },
+    });
+  }
+
+  // Replay guard for txId reuse across quotes (BUG-1260 secondary). Includes TX_FAILED because
+  // txFailed() does NOT clear txId (see PaymentQuote entity), so a failed quote still lays claim
+  // to its tx; excluding it would let a foreign quote replay the same tx as if it were fresh.
+  // ORDER BY id ASC so the earliest claimant is returned deterministically — required because the
+  // caller (executeHexPayment) saves the current quote with TX_RECEIVED + txId BEFORE reaching the
+  // per-chain handler, so both the earlier owner and the current quote satisfy the filter.
+  async getEarliestQuoteClaimingTx(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
+    return this.paymentQuoteRepo.findOne({
+      where: {
+        txBlockchain: Equal(txBlockchain),
+        txId: Equal(txId),
+        status: In([...PaymentQuoteTxStates, PaymentQuoteStatus.TX_FAILED]),
+      },
+      order: { id: 'ASC' },
     });
   }
 
@@ -401,7 +420,7 @@ export class PaymentQuoteService {
           break;
 
         case Blockchain.SOLANA:
-          await this.doVerifiedTxIdPayment(Blockchain.SOLANA, transferInfo, quote);
+          await this.doSolanaTxIdPayment(transferInfo, quote);
           break;
 
         case Blockchain.INTERNET_COMPUTER:
@@ -683,6 +702,60 @@ export class PaymentQuoteService {
       quote.txFailed(
         e.message === 'not confirmed'
           ? `Transaction ${transferInfo.tx} not confirmed in blockchain ${method}`
+          : e.message,
+      );
+    }
+  }
+
+  // Fixes BUG-1260 (Solana anon payment completion): previously only checked finality via
+  // isTxComplete — recipient/amount/asset were never validated, so any finalized Solana tx
+  // accepted. Mirrors the EVM/Firo model: fetch the parsed tx, match a destination against the
+  // expected recipient + asset + amount. `SolanaTransactionDto.destinations[].to` is the wallet
+  // owner for both native and SPL (SolanaClient resolves each SPL transfer's destination ATA to
+  // its owner via postTokenBalances), so the owner address is compared for both paths; the mint
+  // disambiguates the asset.
+  private async doSolanaTxIdPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    try {
+      if (!transferInfo.tx) {
+        quote.txFailed('Transaction Id not found');
+        return;
+      }
+
+      // Guard against replay of a legitimate DFX-bound tx satisfying an unrelated future quote —
+      // PaymentQuote.txId has no unique index, so this rejects re-use across quotes.
+      const earliestClaim = await this.getEarliestQuoteClaimingTx(Blockchain.SOLANA, transferInfo.tx);
+      if (earliestClaim && earliestClaim.uniqueId !== quote.uniqueId) {
+        quote.txFailed(`Transaction ${transferInfo.tx} already assigned to another quote`);
+        return;
+      }
+
+      await this.waitForTxConfirmation(Blockchain.SOLANA, transferInfo.tx);
+
+      const tx = await this.solanaService.getTransaction(transferInfo.tx);
+      const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.SOLANA);
+      const methodActivations = quote.activations?.filter((a) => a.method === Blockchain.SOLANA) ?? [];
+
+      for (const activation of methodActivations) {
+        if (activation.asset.type !== AssetType.COIN && !activation.asset.chainId) continue;
+
+        const result = this.txValidationService.validateSolanaTransaction(
+          tx,
+          paymentAddress,
+          activation.amount,
+          activation.asset,
+        );
+
+        if (result.isValid) {
+          quote.txInBlockchain(transferInfo.tx);
+          return;
+        }
+      }
+
+      quote.txFailed(`Transaction ${transferInfo.tx} does not pay any matching activation`);
+    } catch (e) {
+      quote.txFailed(
+        e.message === 'not confirmed'
+          ? `Transaction ${transferInfo.tx} not confirmed in blockchain ${Blockchain.SOLANA}`
           : e.message,
       );
     }
