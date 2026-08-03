@@ -85,6 +85,10 @@ describe('Ledger crypto_input-funded cutover double-book (§10.2, MAJOR — G-a 
     );
   });
 
+  afterEach(() => {
+    Config.ledger.enabled = false;
+  });
+
   // --- FIXTURES --- //
 
   function snapshotLog(): Log {

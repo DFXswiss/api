@@ -41,17 +41,12 @@ describe('BitcoinFeeService', () => {
     });
 
     it('should throw when fee estimation fails and no cache available', async () => {
-      // The AsyncCache with fallbackToCache=true will try to use cached value first
-      // On first call with null, it should throw if there's no cached value
+      // fallbackToCache=true only substitutes a cached value when one exists. On the first call
+      // nothing is cached, so the error has to surface rather than being swallowed into undefined.
       mockClient.estimateSmartFee.mockResolvedValueOnce(null);
 
-      // Since AsyncCache catches the error and may return undefined when fallbackToCache fails,
-      // we test that null estimation is handled
-      await service.getRecommendedFeeRate();
+      await expect(service.getRecommendedFeeRate()).rejects.toThrow('Failed to estimate fee rate from node');
 
-      // With fallbackToCache=true and no cache, it may return undefined or throw
-      // The actual behavior depends on AsyncCache implementation
-      // For this test, we just verify the estimateSmartFee was called
       expect(mockClient.estimateSmartFee).toHaveBeenCalledWith(1);
     });
 

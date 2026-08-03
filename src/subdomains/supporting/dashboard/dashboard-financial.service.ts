@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
 import { AssetLog, BalancesByFinancialType } from '../log/dto/log.dto';
 import { Log } from '../log/log.entity';
@@ -19,6 +20,8 @@ import { LatestBalanceStore } from './latest-balance.store';
 
 @Injectable()
 export class DashboardFinancialService {
+  private readonly logger = new DfxLogger(DashboardFinancialService);
+
   constructor(
     private readonly logService: LogService,
     private readonly assetService: AssetService,
@@ -176,6 +179,22 @@ export class DashboardFinancialService {
         const asset = assetMap.get(Number(idStr));
         const blockchain = asset?.blockchain ?? 'Unknown';
         const assetName = asset?.name ?? 'Unknown';
+
+        // Report a broken price loudly, once per asset entry (before the Scrypt/else split, which
+        // multiplies priceChf in either branch), but do NOT repair it: this aggregation used to read a
+        // JSON.parse'd message, where JSON.stringify had already collapsed NaN/Infinity/-Infinity to
+        // null on the way in; without that round-trip such a value now reaches the arithmetic below and
+        // poisons the entire blockchain total via NaN propagation. Substituting 0 or null here would
+        // book a broken price as "no balance" and hide exactly the defect that needs fixing upstream,
+        // so the arithmetic stays untouched and only the log is added. `null` is deliberately NOT
+        // reported: asset.approxPriceChf is nullable and null-priced assets are the known, harmless
+        // normal case (`total * null === 0`, same as before the round-trip was removed) — logging them
+        // would drown the real signal. The comparison is strictly `!== null` on purpose: `undefined`
+        // must NOT fall under that exemption, because `total * undefined === NaN`.
+        if (assetData.priceChf !== null && !Number.isFinite(assetData.priceChf))
+          this.logger.error(
+            `Non-finite priceChf (${assetData.priceChf}) for asset ${idStr} (${assetName}) in latest balance aggregation; value left uncorrected, ${blockchain} totals are corrupted`,
+          );
 
         if ((blockchain as string) === 'Scrypt') {
           const spotTotal =

@@ -478,7 +478,148 @@ describe('DashboardFinancialService', () => {
         ],
       };
 
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+
       service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+
+      expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
+      // priceChf: null is the known, harmless normal case (144 of 430 production assets), not a defect:
+      // it must stay out of the log, otherwise the non-finite-price error line below is drowned out.
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it('reports a NaN priceChf exactly once and leaves the poisoned aggregate uncorrected (no silent 0 normalisation)', () => {
+      // Before the JSON round-trip was removed, JSON.stringify collapsed NaN to null on the way into
+      // this aggregation; now it reaches the arithmetic directly and NaN-propagates through the whole
+      // blockchain total. The fix is to say so loudly, NOT to invent a value -- booking a broken price
+      // as 0 would silently understate the book. This test therefore asserts the UNTOUCHED arithmetic:
+      //
+      //   BROKEN (NaN): 5 * NaN = NaN   -> Ethereum plus = NaN (poisons the whole group)
+      //   GOOD:         2 * 4000 = 8000 -> survives as its own asset key (8000 >= 5000 THRESHOLD)
+      //
+      //   Ethereum rounded = Math.round(NaN) = NaN: `rounded <= 0` is false and `rounded < THRESHOLD`
+      //   is false (every comparison with NaN is false), so the group is kept with plusBalanceChf NaN.
+      //   BROKEN's own NaN entry falls into the local assetOther sum, which stays NaN and therefore
+      //   never passes `assetOther > 0` -- so no synthetic 'Other' key is added.
+      //
+      // A later "fix" that normalises the price to 0 or null would turn plusBalanceChf into 8000 and
+      // break this test on purpose.
+      const timestamp = new Date('2026-07-14T12:00:00Z');
+      const balancesByFinancialType: BalancesByFinancialType = {};
+      const assetLog: AssetLog = {
+        '201': { priceChf: NaN, plusBalance: { total: 5 }, minusBalance: { total: 0 } },
+        '202': { priceChf: 4000, plusBalance: { total: 2 }, minusBalance: { total: 0 } },
+      };
+      const assets = [
+        { id: 201, name: 'BROKEN', blockchain: Blockchain.ETHEREUM },
+        { id: 202, name: 'GOOD', blockchain: Blockchain.ETHEREUM },
+      ] as Asset[];
+
+      const expected: LatestBalanceResponseDto = {
+        timestamp,
+        byType: [],
+        byBlockchain: [
+          {
+            name: 'Ethereum',
+            plusBalanceChf: NaN,
+            minusBalanceChf: 0,
+            netBalanceChf: NaN,
+            assets: { GOOD: 8000 },
+          },
+        ],
+      };
+
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+
+      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+
+      // one line per affected asset entry, emitted before the Scrypt/else split, carrying asset id,
+      // name and the actual value so the broken asset can be found from the log alone
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('201'));
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('BROKEN'));
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('NaN'));
+
+      expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
+      // explicit: the value was reported, not repaired
+      const written = (latestBalanceStore.set as jest.Mock).mock.calls[0][0] as LatestBalanceResponseDto;
+      expect(Number.isNaN(written.byBlockchain[0].plusBalanceChf)).toBe(true);
+      expect(Number.isNaN(written.byBlockchain[0].netBalanceChf)).toBe(true);
+    });
+
+    it('reports an Infinity priceChf exactly once and keeps the resulting Infinity totals uncorrected', () => {
+      // Infinity survives Math.round and every threshold comparison (Infinity >= 5000), so unlike NaN it
+      // stays visible as its own asset key -- still a corrupt number that must be reported, not replaced.
+      const timestamp = new Date('2026-07-14T12:00:00Z');
+      const balancesByFinancialType: BalancesByFinancialType = {};
+      const assetLog: AssetLog = {
+        '301': { priceChf: Infinity, plusBalance: { total: 5 }, minusBalance: { total: 0 } },
+      };
+      const assets = [{ id: 301, name: 'BROKEN_INF', blockchain: Blockchain.BITCOIN }] as Asset[];
+
+      const expected: LatestBalanceResponseDto = {
+        timestamp,
+        byType: [],
+        byBlockchain: [
+          {
+            name: 'Bitcoin',
+            plusBalanceChf: Infinity,
+            minusBalanceChf: 0,
+            netBalanceChf: Infinity,
+            assets: { BROKEN_INF: Infinity },
+          },
+        ],
+      };
+
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+
+      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('301'));
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Infinity'));
+
+      expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
+      const written = (latestBalanceStore.set as jest.Mock).mock.calls[0][0] as LatestBalanceResponseDto;
+      expect(written.byBlockchain[0].plusBalanceChf).toBe(Infinity);
+    });
+
+    it('reports an undefined priceChf too (it produces NaN, so it must not share the null exemption)', () => {
+      // Guard for the strict `!== null` comparison: a loose `!= null` would also cover undefined and
+      // silently swallow this case, even though `total * undefined === NaN` corrupts the aggregate
+      // exactly like NaN does (5 * undefined = NaN -> Polygon plus = NaN, asset breakdown empty because
+      // neither the NaN asset value nor the NaN assetOther sum passes its comparison).
+      const timestamp = new Date('2026-07-14T12:00:00Z');
+      const balancesByFinancialType: BalancesByFinancialType = {};
+      const assetLog: AssetLog = {
+        '401': {
+          priceChf: undefined as unknown as number,
+          plusBalance: { total: 5 },
+          minusBalance: { total: 0 },
+        },
+      };
+      const assets = [{ id: 401, name: 'GHOST_UNDEF', blockchain: Blockchain.POLYGON }] as Asset[];
+
+      const expected: LatestBalanceResponseDto = {
+        timestamp,
+        byType: [],
+        byBlockchain: [
+          {
+            name: 'Polygon',
+            plusBalanceChf: NaN,
+            minusBalanceChf: 0,
+            netBalanceChf: NaN,
+            assets: {},
+          },
+        ],
+      };
+
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+
+      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('undefined'));
 
       expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
     });
