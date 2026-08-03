@@ -166,5 +166,35 @@ describe('bank-processing.query', () => {
         /Non-finite aggregation value for rule "with-tol" field "chf_0"/,
       );
     });
+
+    it('throws on a non-finite overdue count', () => {
+      const raw: Record<string, unknown> = {
+        cnt_0: 1,
+        chf_0: 0,
+        ovd_0: 'NaN',
+        ovdchf_0: 0,
+        cnt_1: 0,
+        chf_1: 0,
+      };
+
+      expect(() => mapRuleRow(raw, rulesWithAndWithoutTolerance, now)).toThrow(
+        /Non-finite aggregation value for rule "with-tol" field "ovd_0"/,
+      );
+    });
+
+    it('throws on a non-finite overdue CHF sum', () => {
+      const raw: Record<string, unknown> = {
+        cnt_0: 1,
+        chf_0: 0,
+        ovd_0: 0,
+        ovdchf_0: Infinity,
+        cnt_1: 0,
+        chf_1: 0,
+      };
+
+      expect(() => mapRuleRow(raw, rulesWithAndWithoutTolerance, now)).toThrow(
+        /Non-finite aggregation value for rule "with-tol" field "ovdchf_0"/,
+      );
+    });
   });
 });
