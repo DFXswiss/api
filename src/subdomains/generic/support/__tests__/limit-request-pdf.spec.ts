@@ -6,7 +6,7 @@ import {
   FundOrigin,
   InvestmentDate,
   LimitRequestDecision,
-} from '../../../supporting/support-issue/entities/limit-request.entity';
+} from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { FileSubType, FileType } from '../../kyc/dto/kyc-file.dto';
 import { ContentType } from '../../kyc/enums/content-type.enum';
 import { KycDocumentService } from '../../kyc/services/integration/kyc-document.service';

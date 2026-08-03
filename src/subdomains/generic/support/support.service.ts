@@ -266,7 +266,7 @@ export class SupportService {
     // decision) is rejected outright rather than rendered and filed.
     const grants = LimitRequestAccepted(dto.decision);
     if (grants !== (dto.grantedLimit != null))
-      throw new BadRequestException('grantedLimit must be provided for a granting decision and omitted otherwise');
+      throw new BadRequestException('Granted limit must be provided for a granting decision and omitted otherwise');
 
     const pdfData = await this.supportPdfService.createLimitRequestPdf(userData, dto);
 
