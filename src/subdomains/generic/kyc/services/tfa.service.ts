@@ -12,7 +12,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-log.repository';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -50,7 +50,7 @@ export class TfaService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true, process: Process.TFA_CACHE })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Both, process: Process.TFA_CACHE })
   processCleanupSecretCache() {
     const now = new Date();
 

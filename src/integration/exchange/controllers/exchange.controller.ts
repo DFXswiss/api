@@ -20,7 +20,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { TradeOrder } from '../dto/trade-order.dto';
@@ -171,7 +171,7 @@ export class ExchangeController {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { perInstance: true, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Both, timeout: 1800 })
   async checkTrades() {
     const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
     for (const trade of openTrades) {

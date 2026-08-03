@@ -23,7 +23,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
@@ -871,7 +871,7 @@ export class UserDataService {
     return this.doUpdateUserMail(userData, cacheEntry.mail);
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Both })
   processCleanupMailSecretCache(): void {
     const now = new Date();
 

@@ -31,7 +31,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { isFiatDto } from 'src/shared/models/active';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -116,7 +116,7 @@ export class TransactionController {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Both })
   checkLists() {
     for (const [key, refundData] of this.refundList.entries()) {
       if (!this.isRefundDataValid(refundData)) this.refundList.delete(key);

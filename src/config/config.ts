@@ -36,6 +36,22 @@ export enum Environment {
   PRD = 'prd',
 }
 
+/**
+ * Operating mode of this process, read from CRON_ROLE.
+ *
+ * `scope` on a job describes a property of the job, this describes the process running it.
+ * Keeping the two apart is what allows the same image to run as an HTTP process and as a
+ * background worker without either knowing about the other.
+ */
+export enum CronRole {
+  /** One process runs everything: local development, tests, and any deployment without a worker. */
+  All = 'all',
+  /** Serves HTTP; runs only jobs scoped `api` or `both`. */
+  Api = 'api',
+  /** Runs the background work; only jobs scoped `worker` or `both`. */
+  Worker = 'worker',
+}
+
 export type StorageWriteMode = 'azure' | 'dual' | 's3';
 export type StorageReadSource = 'azure' | 's3';
 
@@ -1499,13 +1515,14 @@ export class Configuration {
   }
 
   // Background jobs and HTTP requests share a single Node event loop, so a busy scheduler
-  // delays every incoming request on the same instance. Setting this to false keeps an
-  // instance HTTP-only: DfxCronService then registers no job at all.
+  // delays every incoming request on the same process. The role decides which jobs this
+  // process registers, which is what allows running the same image twice: once serving HTTP,
+  // once running the background work.
   //
   // Note this is deliberately independent of DISABLED_PROCESSES, which only skips jobs that
-  // declare a `process` — jobs without one would keep running and, on a second instance,
-  // run twice. Cron locks are per-process and do not guard across instances.
-  cronJobsEnabled = parseCronJobsEnabled(process.env.CRON_JOBS_ENABLED);
+  // declare a `process` — jobs without one would keep running and, in a second process,
+  // run twice. Cron locks are per-process and do not guard across processes.
+  cronRole = parseCronRole(process.env.CRON_ROLE);
 
   // --- HELPERS --- //
   disabledProcesses = () =>
@@ -1515,25 +1532,25 @@ export class Configuration {
 }
 
 /**
- * Reads the CRON_JOBS_ENABLED flag.
+ * Reads CRON_ROLE, the operating mode of this process.
  *
- * Only an entirely unset variable means "run jobs", which keeps every existing environment
- * working unchanged. Every other value must be exactly 'true' or 'false' and throws otherwise,
- * rather than being coerced: on an instance meant to be HTTP-only, anything that silently reads
- * as "enabled" re-registers the scheduler, and jobs without a declared `process` would then run
- * on two instances at once. Duplicate execution of financial jobs is far more damaging than a
- * failed boot.
+ * There is no default, and a missing or unknown value aborts the boot. Every possible default
+ * lets a misconfiguration run silently: defaulting to `worker` would make a misconfigured API
+ * process run all background work a second time, defaulting to `api` would make a misconfigured
+ * worker do nothing at all. Neither produces an error, and duplicate execution of financial
+ * jobs is far more damaging than a failed boot.
  *
- * The empty string throws for that reason too, even though it is the more common accident — an
- * `CRON_JOBS_ENABLED=` line in an env file, or an unresolved `${VAR}` in a compose file. Neither
- * should quietly turn a job container back on.
+ * The empty string is rejected for the same reason, even though it is the more likely accident
+ * — a `CRON_ROLE=` line in an env file, or an unresolved `${VAR}`.
+ *
+ * `all` is not a convenience value but the single-process mode: one process runs every job,
+ * which is what local development, the test suite and any environment without a separate worker
+ * need.
  */
-export function parseCronJobsEnabled(value?: string): boolean {
-  if (value == null) return true;
-  if (value === 'true') return true;
-  if (value === 'false') return false;
+export function parseCronRole(value?: string): CronRole {
+  if (value != null && (Object.values(CronRole) as string[]).includes(value)) return value as CronRole;
 
-  throw new Error(`Invalid CRON_JOBS_ENABLED value '${value}': expected 'true' or 'false'`);
+  throw new Error(`Invalid CRON_ROLE value '${value ?? ''}': expected one of ${Object.values(CronRole).join(', ')}`);
 }
 
 function readCert(): string | undefined {

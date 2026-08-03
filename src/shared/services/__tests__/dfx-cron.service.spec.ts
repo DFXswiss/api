@@ -8,7 +8,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { DiscoveryService, MetadataScanner } from '@nestjs/core';
 import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { ConfigService, GetConfig } from 'src/config/config';
-import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
+import { CronScope, DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
 import { DfxCronService } from '../dfx-cron.service';
 import { Process } from '../process.service';
 
@@ -44,67 +44,88 @@ function buildService(providers: { instance: object }[]): {
 }
 
 describe('DfxCronService', () => {
-  const original = process.env.CRON_JOBS_ENABLED;
+  const original = process.env.CRON_ROLE;
 
   const configuredJobs = [
-    providerWithJob('withProcess', { expression: CronExpression.EVERY_MINUTE, process: Process.MONITOR_EVENT_LOOP }),
-    // A job without `process` — DISABLED_PROCESSES cannot stop this one, only the global switch can.
-    providerWithJob('withoutProcess', { expression: CronExpression.EVERY_MINUTE }),
-    // Per-instance housekeeping: must survive the switch, because it refreshes state that
-    // requests on this very instance read.
-    providerWithJob('perInstanceJob', { expression: CronExpression.EVERY_MINUTE, perInstance: true }),
+    providerWithJob('workerJob', {
+      expression: CronExpression.EVERY_MINUTE,
+      scope: CronScope.Worker,
+      process: Process.MONITOR_EVENT_LOOP,
+    }),
+    // A worker job without `process` — DISABLED_PROCESSES cannot stop this one, only the role can.
+    providerWithJob('workerJobWithoutProcess', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.Worker }),
+    providerWithJob('apiJob', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.Api }),
+    providerWithJob('bothJob', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.Both }),
   ];
 
   function registeredJobNames(scheduler: SchedulerRegistry): string[] {
     return (scheduler.addCronJob as jest.Mock).mock.calls.map(([name]) => name as string);
   }
 
+  function runWithRole(role: string): SchedulerRegistry {
+    process.env.CRON_ROLE = role;
+    new ConfigService(GetConfig());
+
+    const { service, scheduler } = buildService(configuredJobs);
+    service.onModuleInit();
+
+    return scheduler;
+  }
+
   afterEach(() => {
     jest.clearAllMocks();
 
-    if (original == null) delete process.env.CRON_JOBS_ENABLED;
-    else process.env.CRON_JOBS_ENABLED = original;
+    if (original == null) delete process.env.CRON_ROLE;
+    else process.env.CRON_ROLE = original;
 
     new ConfigService(GetConfig());
   });
 
-  it('registers every job when cron is enabled', () => {
-    process.env.CRON_JOBS_ENABLED = 'true';
-    new ConfigService(GetConfig());
+  it('registers every job in the single-process role', () => {
+    // The mode of local development, the test suite and any deployment without a worker: no job
+    // may be dropped, otherwise `all` would not reproduce today's behaviour.
+    const scheduler = runWithRole('all');
 
-    const { service, scheduler } = buildService(configuredJobs);
-    service.onModuleInit();
-
-    expect(scheduler.addCronJob).toHaveBeenCalledTimes(3);
-    expect(mockStart).toHaveBeenCalledTimes(3);
+    expect(registeredJobNames(scheduler)).toEqual([
+      'Object::workerJob',
+      'Object::workerJobWithoutProcess',
+      'Object::apiJob',
+      'Object::bothJob',
+    ]);
+    expect(mockStart).toHaveBeenCalledTimes(4);
   });
 
-  it('drops global jobs when cron is disabled, including those without a process', () => {
-    // The safety property of the HTTP-only instance: were a job without `process` still
-    // registered here, it would run on both the HTTP and the job instance simultaneously.
-    // Cron locks are per-process, so duplicate execution would go unnoticed.
-    process.env.CRON_JOBS_ENABLED = 'false';
-    new ConfigService(GetConfig());
+  it('drops worker jobs in the API role, including those without a process', () => {
+    // The safety property of the API process: were a worker job still registered here, it would
+    // run in both processes simultaneously. Cron locks are per-process, so duplicate execution
+    // would go unnoticed — and DISABLED_PROCESSES cannot catch a job without a `process`.
+    const scheduler = runWithRole('api');
 
-    const { service, scheduler } = buildService(configuredJobs);
-    service.onModuleInit();
-
-    expect(registeredJobNames(scheduler)).not.toContain('Object::withProcess');
-    expect(registeredJobNames(scheduler)).not.toContain('Object::withoutProcess');
+    expect(registeredJobNames(scheduler)).toEqual(['Object::apiJob', 'Object::bothJob']);
   });
 
-  it('keeps per-instance housekeeping when cron is disabled', () => {
-    // The counterpart safety property: jobs marked perInstance refresh process-local state
-    // (JWT denylists, the disabled-process map, local caches) that requests on THIS instance
-    // read. Dropping them here would freeze that state at boot — a revoked token would keep
-    // working on the HTTP instance until the next restart.
-    process.env.CRON_JOBS_ENABLED = 'false';
-    new ConfigService(GetConfig());
+  it('drops API jobs in the worker role', () => {
+    // The counterpart: an api-scoped job drives work bound to the process holding the open
+    // connections, so running it in the worker would do the work where nobody can see it.
+    const scheduler = runWithRole('worker');
 
-    const { service, scheduler } = buildService(configuredJobs);
-    service.onModuleInit();
+    expect(registeredJobNames(scheduler)).toEqual([
+      'Object::workerJob',
+      'Object::workerJobWithoutProcess',
+      'Object::bothJob',
+    ]);
+  });
 
-    expect(registeredJobNames(scheduler)).toEqual(['Object::perInstanceJob']);
-    expect(mockStart).toHaveBeenCalledTimes(1);
+  it('keeps jobs scoped both in every role', () => {
+    // Jobs scoped `both` refresh process-local state (the JWT denylists, the disabled-process
+    // map, local caches) that requests on THIS process read. Dropping them in either role would
+    // freeze that state at boot — a revoked token would keep working until the next restart.
+    for (const role of ['all', 'api', 'worker']) {
+      const scheduler = runWithRole(role);
+
+      expect(registeredJobNames(scheduler)).toContain('Object::bothJob');
+
+      jest.clearAllMocks();
+    }
   });
 });

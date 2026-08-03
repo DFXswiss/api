@@ -2,9 +2,9 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner } from '@nestjs/core';
 import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
-import { Config } from 'src/config/config';
+import { Config, CronRole } from 'src/config/config';
 import { DisabledProcess } from 'src/shared/services/process.service';
-import { DFX_CRONJOB_PARAMS, DfxCronExpression, DfxCronParams } from 'src/shared/utils/cron';
+import { CronScope, DFX_CRONJOB_PARAMS, DfxCronExpression, DfxCronParams } from 'src/shared/utils/cron';
 import { LockClass } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CustomCronExpression } from '../utils/custom-cron-expression';
@@ -28,6 +28,7 @@ export class DfxCronService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    const registered: CronScope[] = [];
     let skipped = 0;
 
     this.discovery
@@ -49,23 +50,44 @@ export class DfxCronService implements OnModuleInit {
           })
           .filter((data) => data.params)
           .forEach((data) => {
-            // On an HTTP-only instance the global jobs belong to the job instance, but
-            // per-instance housekeeping must still run here: it refreshes process-local state
-            // such as the JWT denylists and the disabled-process map, which HTTP requests read
-            // on this very instance. Skipping those would freeze them at boot.
-            if (!Config.cronJobsEnabled && !data.params.perInstance) {
+            const scope = data.params.scope ?? CronScope.Both;
+
+            if (!this.runsInThisRole(scope)) {
               skipped++;
               return;
             }
 
+            registered.push(scope);
             this.addCronJob(data);
           });
       });
 
-    if (skipped) {
-      this.logger.info(
-        `Cron jobs disabled on this instance (CRON_JOBS_ENABLED=false), skipped ${skipped} global job(s)`,
-      );
+    // The effective split is read from this line, not inferred from a table: a job registered
+    // through a dynamically resolved provider or an abstract base class is counted here and
+    // nowhere else. It stays on `info` so it is findable without changing the log level.
+    const total = registered.length + skipped;
+    const byScope = Object.values(CronScope)
+      .map((scope) => `${scope}: ${registered.filter((s) => s === scope).length}`)
+      .join(', ');
+
+    this.logger.info(`CronRole ${Config.cronRole}: registered ${registered.length} of ${total} jobs (${byScope})`);
+  }
+
+  /**
+   * `all` runs everything, which is the single-process mode. The other two roles each run their
+   * own scope plus `both`, so a job maintaining process-local state that requests read is
+   * registered in every process.
+   */
+  private runsInThisRole(scope: CronScope): boolean {
+    switch (Config.cronRole) {
+      case CronRole.All:
+        return true;
+
+      case CronRole.Api:
+        return scope === CronScope.Api || scope === CronScope.Both;
+
+      case CronRole.Worker:
+        return scope === CronScope.Worker || scope === CronScope.Both;
     }
   }
 
@@ -78,6 +100,8 @@ export class DfxCronService implements OnModuleInit {
 
     this.schedulerRegisty.addCronJob(cronJobName, cronJob);
     cronJob.start();
+
+    this.logger.verbose(`Registered ${cronJobName} (${data.params.scope ?? CronScope.Both})`);
   }
 
   private wrapFunction(data: CronJobData) {

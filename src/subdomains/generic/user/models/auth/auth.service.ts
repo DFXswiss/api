@@ -22,7 +22,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -98,7 +98,7 @@ export class AuthService {
     @Inject(forwardRef(() => KycService)) private readonly kycService: KycService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Both })
   checkLists() {
     for (const [key, challenge] of this.challengeList.entries()) {
       if (!this.isChallengeValid(challenge)) {

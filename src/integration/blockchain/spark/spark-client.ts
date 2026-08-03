@@ -1,6 +1,6 @@
 import { SparkWallet } from '@buildonspark/spark-sdk';
 import { Currency } from '@uniswap/sdk-core';
-import { GetConfig } from 'src/config/config';
+import { CronRole, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncField } from 'src/shared/utils/async-field';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
@@ -226,10 +226,10 @@ export class SparkClient extends BlockchainClient {
   }
 
   private startTokenOptimization(): void {
-    // On-chain wallet maintenance is global work: it must run on exactly one instance.
-    // This timer predates the scheduler and bypasses it, so an HTTP-only instance would
-    // otherwise drive optimizeTokenOutputs against the same seed as the job instance.
-    if (!GetConfig().cronJobsEnabled) return;
+    // On-chain wallet maintenance is global work: it must run in exactly one process. This
+    // timer predates the scheduler and bypasses it, so without the role check the API process
+    // would drive optimizeTokenOutputs against the same seed as the worker.
+    if (GetConfig().cronRole === CronRole.Api) return;
 
     if (this.tokenOptimizationInterval) clearInterval(this.tokenOptimizationInterval);
 

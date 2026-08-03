@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { SettingService } from '../models/setting/setting.service';
-import { DfxCron } from '../utils/cron';
+import { CronScope, DfxCron } from '../utils/cron';
 
 export enum Process {
   PAY_OUT = 'PayOut',
@@ -180,7 +180,7 @@ export class ProcessService implements OnModuleInit {
     await this.resyncStaffKycClearance();
   }
 
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, perInstance: true })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, scope: CronScope.Both })
   async resyncDisabledProcesses(): Promise<void> {
     const allDisabledProcesses = [
       ...(await this.settingService.getDisabledProcesses()),
@@ -190,13 +190,13 @@ export class ProcessService implements OnModuleInit {
     DisabledProcesses = this.listToMap(allDisabledProcesses);
   }
 
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, perInstance: true })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, scope: CronScope.Both })
   async resyncDeniedJwtAddresses(): Promise<void> {
     const list = await this.settingService.getDeniedJwtAddresses();
     DeniedJwtAddresses = new Set(list.map((a) => a.toLowerCase()));
   }
 
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, perInstance: true })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, scope: CronScope.Both })
   async resyncDeniedJwtAccounts(): Promise<void> {
     const list = await this.settingService.getDeniedJwtAccounts();
     DeniedJwtAccounts = new Set(list);

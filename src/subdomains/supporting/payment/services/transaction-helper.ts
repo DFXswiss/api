@@ -17,7 +17,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
@@ -87,7 +87,7 @@ export class TransactionHelper implements OnModuleInit {
     void this.updateCache();
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { perInstance: true })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.Both })
   async updateCache() {
     this.transactionSpecifications = await this.specRepo.find();
   }

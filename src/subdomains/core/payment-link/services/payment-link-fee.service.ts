@@ -6,7 +6,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
 import { PayoutFiroService } from 'src/subdomains/supporting/payout/services/payout-firo.service';
@@ -38,7 +38,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true, process: Process.UPDATE_BLOCKCHAIN_FEE })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Both, process: Process.UPDATE_BLOCKCHAIN_FEE })
   async updateFees(): Promise<void> {
     if (GetConfig().environment === Environment.LOC) return;
 

@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -25,7 +25,7 @@ export class StatisticService implements OnModuleInit {
     void this.doUpdate();
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { perInstance: true, process: Process.UPDATE_STATISTIC, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Api, process: Process.UPDATE_STATISTIC, timeout: 7200 })
   async doUpdate(): Promise<void> {
     this.statistic = {
       totalVolume: {
