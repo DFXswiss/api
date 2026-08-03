@@ -47,14 +47,12 @@ import {
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanIssuanceIntentStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent-status.enum';
 import { VirtualIbanIssuanceIntent } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent.entity';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { UserData } from '../user-data.entity';
-import { KycIdentificationType } from '../kyc-identification-type.enum';
 import { KycStatus, KycType, UserDataStatus } from '../user-data.enum';
 import { UserDataRepository } from '../user-data.repository';
 import {
@@ -723,7 +721,7 @@ describe('UserDataService', () => {
     });
 
     // COMPLETED video ident steps are not in the cancel list, so update() receives status undefined;
-    // that must not wipe status, or the VIDEO_ID / bankTransactionVerification branch never fires.
+    // that must not wipe status — a cleared status would be silent data loss on the merge path.
     describe.each([KycStepType.VIDEO, KycStepType.SUMSUB_VIDEO])('completed %s slave ident step', (identType) => {
       const prepareVideoMerge = async (master: UserData, slave: UserData, videoStep: KycStep): Promise<void> => {
         userDataRepo.findOne.mockResolvedValueOnce(master).mockResolvedValueOnce(slave);
@@ -748,7 +746,7 @@ describe('UserDataService', () => {
           sequenceNumber: 0,
         });
 
-      it('sets master identificationType to VIDEO_ID and bankTransactionVerification to UNNECESSARY', async () => {
+      it('keeps the completed video ident step status through the merge', async () => {
         const master = buildAccount(1000, 50);
         const slave = buildAccount(2000, 20);
         const videoStep = buildCompletedVideoStep();
@@ -756,36 +754,19 @@ describe('UserDataService', () => {
         await prepareVideoMerge(master, slave, videoStep);
         await service.mergeUserData(master.id, slave.id);
 
-        expect(master.identificationType).toBe(KycIdentificationType.VIDEO_ID);
-        expect(master.bankTransactionVerification).toBe(CheckStatus.UNNECESSARY);
         expect(videoStep.status).toBe(ReviewStatus.COMPLETED);
       });
 
-      it('keeps master identificationType and bankTransactionVerification when both already set', async () => {
+      it('does not derive identificationType or bankTransactionVerification from a completed video ident step', async () => {
         const master = buildAccount(1000, 50);
-        master.identificationType = KycIdentificationType.ONLINE_ID;
-        master.bankTransactionVerification = CheckStatus.PASS;
         const slave = buildAccount(2000, 20);
         const videoStep = buildCompletedVideoStep();
 
         await prepareVideoMerge(master, slave, videoStep);
         await service.mergeUserData(master.id, slave.id);
 
-        expect(master.identificationType).toBe(KycIdentificationType.ONLINE_ID);
-        expect(master.bankTransactionVerification).toBe(CheckStatus.PASS);
-      });
-
-      it('keeps master identificationType and sets bankTransactionVerification when only the latter is empty', async () => {
-        const master = buildAccount(1000, 50);
-        master.identificationType = KycIdentificationType.ONLINE_ID;
-        const slave = buildAccount(2000, 20);
-        const videoStep = buildCompletedVideoStep();
-
-        await prepareVideoMerge(master, slave, videoStep);
-        await service.mergeUserData(master.id, slave.id);
-
-        expect(master.identificationType).toBe(KycIdentificationType.ONLINE_ID);
-        expect(master.bankTransactionVerification).toBe(CheckStatus.UNNECESSARY);
+        expect(master.identificationType).toBeUndefined();
+        expect(master.bankTransactionVerification).toBeUndefined();
       });
     });
   });

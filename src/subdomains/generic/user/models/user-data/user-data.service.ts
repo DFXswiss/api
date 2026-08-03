@@ -68,7 +68,6 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
 import {
@@ -1561,14 +1560,6 @@ export class UserDataService {
           master.amlListExpiredDate = slave.amlListExpiredDate;
           master.amlListReactivatedDate = slave.amlListReactivatedDate;
           master.kycFileId = slave.kycFileId;
-        }
-        if (
-          slave.kycSteps.some(
-            (k) => (k.type === KycStepType.VIDEO || k.type === KycStepType.SUMSUB_VIDEO) && k.isCompleted,
-          )
-        ) {
-          master.identificationType ??= KycIdentificationType.VIDEO_ID;
-          master.bankTransactionVerification ??= CheckStatus.UNNECESSARY;
         }
         if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
         const changedMailNotificationMaster =
