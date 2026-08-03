@@ -11,19 +11,19 @@ Every HTTP endpoint this service exposes: **534 decorated route entries** across
 | **Swagger** | `public` — in the Swagger schema; `hidden` — carries `@ApiExcludeEndpoint` |
 | **Data access** | What the endpoint reads, taken over **all** load sites it can reach — a permission check, a lookup and the actual query all count. `whole rows` — at least one of them fetches every column of an entity; `projected` — every read names the fields it needs; `caller-defined` — the field list comes from the request, and without one every column is loaded; `none` — no read at all (external services, in-memory caches, files, pure write paths). |
 | **Max cols** | Widest single query the endpoint can trigger, measured against the real entity metadata; a lower bound where the call graph did not fully resolve. `—` means no measurable site, not zero. |
-| **Tests** | State against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). `n/a` — the definition does not apply (the endpoint reads nothing, or its field list comes from the caller); `not yet` — the endpoint has not been converted, so nothing can be missing from it yet; `0/4` to `4/4` — levels satisfied. **A converted endpoint counts as done only at `4/4`.** |
+| **Tests** | State against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). `n/a` — the definition does not apply (the endpoint reads nothing, or its field list comes from the caller); `not yet` — the endpoint has not been converted, so nothing can be missing from it yet; `0/4` to `4/4` — levels satisfied. An endpoint reaches more than one load site, so it earns a level only when **every** projected load site it reaches satisfies that level; the weakest site decides the row. **A converted endpoint counts as done only at `4/4`.** |
 | **Spec** | `yes` when some spec file names this controller and calls this handler. A weak signal and a lower bound — it says a test touches the endpoint, not that it covers it, and it misses specs that drive a route over HTTP without naming the handler. |
 
 ## The target state
 
-Every read path in this service is to select the fields it needs to produce and validate the response, and nothing more — including a field read only to decide what to answer. This document is the work list for getting there and the record of where we stand.
+Every read path in this service is to select the fields it needs, and nothing more — "needs" including the fields a guard, a branch or a column-scoped write reads without returning them. This document is the work list for getting there and the record of where we stand.
 
 Two rules follow from that, and both are binding:
 
 1. **An endpoint counts as converted only when its tests reach `4/4`** against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). A projection without them is worse than no projection: a forgotten field does not crash, it returns a wrong value with a 200, and in a service moving money that can run for weeks unnoticed. Anything short of `4/4` is unfinished work, not a partial success.
 2. **The state of every endpoint is recorded here**, in the `Tests` column, and kept in sync with the code in the same pull request that changes it. An undocumented conversion is indistinguishable from one that was never tested.
 
-Today 2 endpoints read only what they return and 432 do not, so the column reads `not yet` almost everywhere. Two further endpoints project only when the caller supplies a field list and load the whole table otherwise, which is why they are counted separately rather than as converted. That is the point of recording it: the number is the distance to the target.
+Today 2 endpoints read only what they need and 432 do not, so the column reads `not yet` almost everywhere. Two further endpoints project only when the caller supplies a field list and load the whole table otherwise, which is why they are counted separately rather than as converted. That is the point of recording it: the number is the distance to the target.
 
 ## What the numbers say
 
@@ -34,9 +34,9 @@ Today 2 endpoints read only what they return and 432 do not, so the column reads
 | `projected` | 2 | 0 % |
 | `caller-defined` | 2 | 0 % |
 
-Two endpoints read only what they return: `PUT /log/financial/validity`, whose query names `log.id` and `log.valid`, and `POST /gs/debug`, which assembles its select list from the request. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise. How far the test suite actually covers those reads is recorded per site in [read-path-projections.md](read-path-projections.md#which-endpoints-these-apply-to); the short answer is that the projection behind `PUT /log/financial/validity` is never executed in a test.
+Two endpoints are classified as reading only what they need, on the strength of reads resolved in the source rather than an exhaustive proof: `PUT /log/financial/validity`, whose query names `log.id` and `log.valid`, and `POST /gs/debug`, which assembles its select list from the request. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise. How far the test suite actually covers those reads is recorded per site in [read-path-projections.md](read-path-projections.md#which-endpoints-these-apply-to); the short answer is that the projection behind `PUT /log/financial/validity` is never executed in a test.
 
-Among the 432 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 320 exceed 100, 90 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns, so the widest of these leave no headroom for a column added elsewhere.
+Among the 432 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 320 exceed 100, 90 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns; the widest measured query sits at 1453, so a little over two hundred columns separate it from a statement the database rejects.
 
 ### How to read this column, and how not to
 
@@ -44,13 +44,13 @@ Among the 432 that fetch whole rows, the widest query they can trigger is **308 
 
 ### Deprecation
 
-24 handlers carry `@ApiOperation({ deprecated: true })`: 21 of them fetch whole rows, 3 read nothing. They are what the duplicated paths are about — an older handler and its replacement served side by side under different versions. Note that deprecation does not follow the version: `GET /kyc/countries` is marked on **both** the v1 and the v2 handler.
+24 handlers carry `@ApiOperation({ deprecated: true })`: 21 of them fetch whole rows, 3 read nothing. Deprecation does not follow the version, and the duplicated paths are not simply an old handler beside its replacement: `GET /kyc/countries` is marked on **both** its v1 and its v2 handler, and `GET /user/ref` on neither.
 
 ### Limits of this classification
 
 Stated exactly, so the numbers can be checked rather than believed:
 
-- **436 of the 534 route entries rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 432 is a lower bound.
+- **436 of the 534 route entries rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 432 is a lower bound in that direction. In the other direction 429 of them are backed by at least one measured query; the remaining three are the entries discussed below.
 - All 98 endpoints marked `none` are the opposite case: their graph resolved completely, or the remaining target was read in the source (27 of them, listed below). None of them rests on an unresolved edge.
 - The 2 `projected` and 2 `caller-defined` endpoints do each carry an unresolved edge — a call through the entity manager inside a transaction callback. Their reads were read in the source, but the classification is not proven exhaustive the way the `none` group is.
 - 3 endpoints in the `whole rows` group have no measured column count and show `—`: `POST /payIn/retry`, `GET /support/issue/:id/message/:messageId/file`, `PUT /userData/:id/volumes`. Those three are also the ones most exposed to the upper bound described in [load-sites.md](load-sites.md#measurements): with no measured query behind them, nothing here shows that they reach a whole-row read at all.
@@ -97,7 +97,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 
 ## How the values are produced
 
-- **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Decorators between the route and the method are skipped by counting parentheses, so a multi-line `@UseGuards(` cannot be mistaken for the handler. Cross-checked in both directions against the routes the framework registers at startup: all 526 distinct method/path pairs match, with no entry left over on either side.
+- **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Decorators between the route and the method are skipped by counting parentheses, so a multi-line `@UseGuards(` cannot be mistaken for the handler. Cross-checked in both directions against the routes the framework registers at startup: all 527 distinct method/path pairs match, with no entry left over on either side. The 533 registered rows exceed that by the six pairs served under two versions.
 - **Ver** — from `@Version` on the handler, otherwise from the `@Controller` scope, otherwise the configured default. Note that the version follows the class, not the folder: the controllers under `generic/kyc/` are not uniformly v2 — `KycAdminController` carries no version decorator and is therefore served under the default.
 - **Data access** — the union over the call graph, following injected fields, locally constructed repositories and multi-line call chains. `find*` pulls in eager relations, `createQueryBuilder` does not, a bare identifier passed to `.select(...)` is the root alias and loads every column, while anything else — an array, a qualified column such as `.select('userData.id', 'id')`, or an expression such as `COUNT(*)` — narrows it, and `.update()/.delete()/.insert()` are writes that load nothing.
 - **Max cols** — the query is built from the real entity metadata and its SELECT list counted, so the number is measured rather than estimated. It is still a lower bound wherever the load site takes its `relations` tree as a parameter, or the call graph did not resolve: both can only add sites and widen queries, never the reverse.

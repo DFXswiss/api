@@ -5,7 +5,7 @@ tested.
 
 ## The goal
 
-**Every read path in this service selects the fields it needs to produce and validate the response, and nothing more.** That is narrower than "the fields it returns": a field the handler reads to decide what to answer, or to refuse, belongs in the projection even though it never appears in the response. That is the
+**Every read path in this service selects the fields it needs, and nothing more.** "Needs" is wider than "returns" and the difference is where projections go wrong: a field read to decide what to answer or whether to refuse, a field a branch depends on, and a field a column-scoped write derives its value from all belong in the projection, though none of them appears in the response. That is the
 target state, not an aspiration for the parts that happen to be convenient — the endpoint inventory
 in [endpoints.md](endpoints.md) is the work list, and its `Tests` column is the record of how far
 we have got.
@@ -169,7 +169,7 @@ repository spec calls 31 times.
 
 **Column list asserted.** Where a query runs, `query` is spied and the generated SQL inspected —
 an `expect(sql).toContain(...)` per projected column, and for the chart-only path an assertion
-that `message` never appears in the statement at all. Drop a column from those statements and the suite turns red.
+that `message` never appears in the statement at all.
 Dropping a column from those statements turns the suite red, which is the shape of level 3 below
 without being level 3: that level requires level 1 to fail, and level 1 is satisfied at none of
 these sites. For the three that never run, removing a column changes nothing at all — the mock

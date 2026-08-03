@@ -34,11 +34,11 @@ Columns were measured against the real entity metadata by building the query and
 
 **That last group is also why the total is an upper bound.** The collection matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolved, the distinction is settled; where it did not, the group holds both. A sample of 30 of those rows, read in the source, came out at 21 array operations to 9 genuine repository reads — so on the order of 200 rows here are not database reads at all, and the true count is nearer 900.
 
-What that does and does not affect: the median and the counts above are computed only over the 782 rows that carry a measured width, and an array operation never has one, so those figures stand. Nor does it move the conclusion this table exists for — six load sites naming their columns is the same verdict against 900 as against 1105. It does reach the per-endpoint summary in [endpoints.md](endpoints.md): an endpoint could be listed as fetching whole rows on the strength of such a row alone. The three with no measured width at all are the exposed cases and are named there. For the rest a measured query stands behind the entry, which limits the effect without excluding it — establishing that would need the collection to separate the two kinds of `find`, which is the fix this note stands in for.
+What that does and does not affect: the median and the counts above are computed only over the 782 rows that carry a measured width, and an array operation never has one, so those figures stand. Nor does it move the conclusion this table exists for: the sites that name their columns are a small fraction either way, and the verdict reads the same against 900 as against 1105. It does reach the per-endpoint summary in [endpoints.md](endpoints.md): an endpoint could be listed as fetching whole rows on the strength of such a row alone. The three with no measured width at all are the exposed cases and are named there. For the rest a measured query stands behind the entry, which limits the effect without excluding it — establishing that would need the collection to separate the two kinds of `find`, which is the fix this note stands in for.
 
 Median across measured sites: **120.5 columns**. At least 14 sites exceed 1000, 77 exceed 500 and 409 exceed 100 — "at least", because 434 of these measurements are lower bounds, and a resolved relation tree can only widen a query, never narrow it.
 
-Postgres refuses a statement with more than 1664 columns, which is why the widest sites in this table have no headroom left for a column added elsewhere.
+Postgres refuses a statement with more than 1664 columns. The widest measured site here sits at 1453, so a little over two hundred columns separate it from a rejected statement — and 434 of these measurements are lower bounds, so the real margin can be smaller.
 
 ## Load sites
 
@@ -769,7 +769,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:214` | `LogRepository.getFinancialLogs` |
 | 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:244` | `LogRepository.getFinancialLogs` |
 | 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
-| 2 | 0 | query-builder (field list) | `Log` | `subdomains/supporting/log/log.repository.ts:699` | `LogRepository.getFinancialLogValidityChangeSet` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:51` | `LogService.update` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:131` | `LogService.getLog` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:135` | `LogService.maxEntity` |
@@ -828,6 +827,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 5 | 0 | find | `Setting` | `shared/models/setting/setting.service.ts:210` | `SettingService.setObj` |
 | 5 | 0 | find | `Sanction` | `subdomains/core/aml/services/sanction.service.ts:54` | `SanctionService.syncList` |
 | 4 | 0 | find | `SystemStateSnapshot` | `subdomains/core/monitoring/monitoring.service.ts:47` | `MonitoringService.loadState` |
+| 2 | 0 | query-builder (field list) | `Log` | `subdomains/supporting/log/log.repository.ts:699` | `LogRepository.getFinancialLogValidityChangeSet` |
 | — | — | find | `—` | `config/config.ts:1344` | `Configuration.isDomesticIban` |
 | — | — | find | `—` | `integration/binance-pay/services/binance-pay.service.ts:271` | `BinancePayService.verifySignature` |
 | — | — | find | `—` | `integration/blockchain/api/services/blockchain-balance.service.ts:52` | `BlockchainBalanceService.getSolanaBalances` |
