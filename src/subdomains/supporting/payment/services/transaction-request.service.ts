@@ -49,7 +49,15 @@ export class TransactionRequestService {
     private readonly swapService: SwapService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.TX_REQUEST, timeout: 7200 })
+  // useDelay: false keeps the schedule this job had as a native @Cron. DfxCron staggers job
+  // starts by default, which for a minute-based expression spreads them over up to 30 seconds -
+  // moving it here would change when it runs, not just how it is registered.
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.Worker,
+    process: Process.TX_REQUEST,
+    useDelay: false,
+    timeout: 7200,
+  })
   async txRequestStatusSync() {
     await this.syncStatus();
     await this.deleteOldTxRequests();
