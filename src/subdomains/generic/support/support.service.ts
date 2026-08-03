@@ -54,6 +54,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
+import { LimitRequestAccepted } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { FileSubType, FileType } from '../kyc/dto/kyc-file.dto';
@@ -259,6 +260,13 @@ export class SupportService {
   ): Promise<{ pdfData: string; fileName: string }> {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData) throw new NotFoundException('User not found');
+
+    // The report is an unerasable customer-file record. A decision/grantedLimit combination that
+    // does not make sense together (a grant without a new limit, or a limit on a non-granting
+    // decision) is rejected outright rather than rendered and filed.
+    const grants = LimitRequestAccepted(dto.decision);
+    if (grants !== (dto.grantedLimit != null))
+      throw new BadRequestException('grantedLimit must be provided for a granting decision and omitted otherwise');
 
     const pdfData = await this.supportPdfService.createLimitRequestPdf(userData, dto);
 

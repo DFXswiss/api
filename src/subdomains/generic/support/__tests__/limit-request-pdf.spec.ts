@@ -1,27 +1,32 @@
 import { createMock } from '@golevelup/ts-jest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TestUtil } from 'src/shared/utils/test.util';
+import {
+  FundOrigin,
+  InvestmentDate,
+  LimitRequestDecision,
+} from '../../../supporting/support-issue/entities/limit-request.entity';
 import { FileSubType, FileType } from '../../kyc/dto/kyc-file.dto';
 import { ContentType } from '../../kyc/enums/content-type.enum';
 import { KycDocumentService } from '../../kyc/services/integration/kyc-document.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { GenerateLimitRequestPdfDto } from '../dto/limit-request-pdf.dto';
-import { SupportPdfService } from '../support-pdf.service';
+import { SupportPdfService, effectiveNewLimit } from '../support-pdf.service';
 import { SupportService } from '../support.service';
 
 const USER_DATA_ID = 397328;
 
 function acceptedDto(): GenerateLimitRequestPdfDto {
   return {
-    decision: 'Accepted',
+    decision: LimitRequestDecision.ACCEPTED,
     clerk: 'JR',
     requestedLimit: 500000,
     grantedLimit: 500000,
     previousLimit: 100000,
-    fundOrigin: 'Savings',
-    investmentDate: 'Now',
+    fundOrigin: FundOrigin.SAVINGS,
+    investmentDate: InvestmentDate.NOW,
     note: 'Kaufvertrag geprüft',
   };
 }
@@ -94,6 +99,46 @@ describe('SupportService.generateAndSaveLimitRequestPdf', () => {
     );
     expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
   });
+
+  it('rejects a granting decision without grantedLimit before writing anything', async () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.ACCEPTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      previousLimit: 100000,
+      fundOrigin: FundOrigin.SAVINGS,
+      investmentDate: InvestmentDate.NOW,
+      note: 'Kaufvertrag geprüft',
+    };
+
+    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, dto)).rejects.toThrow(BadRequestException);
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-granting decision that carries a grantedLimit', async () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      grantedLimit: 500000,
+      previousLimit: 100000,
+    };
+
+    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, dto)).rejects.toThrow(BadRequestException);
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('accepts a partially accepted decision with a grantedLimit', async () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.PARTIALLY_ACCEPTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      grantedLimit: 300000,
+      previousLimit: 100000,
+    };
+
+    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, dto)).resolves.toBeDefined();
+  });
 });
 
 describe('SupportPdfService.createLimitRequestPdf', () => {
@@ -124,7 +169,7 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
   // than print an empty "new limit" that a later reader would have to interpret.
   it('renders a rejection without a granted limit', async () => {
     const content = await renderText({
-      decision: 'Rejected',
+      decision: LimitRequestDecision.REJECTED,
       clerk: 'JR',
       requestedLimit: 500000,
       previousLimit: 100000,
@@ -137,7 +182,7 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
   // its report, or the decision that produced it would fail on the report step.
   it('renders a non-integer previous limit', async () => {
     const content = await renderText({
-      decision: 'Rejected',
+      decision: LimitRequestDecision.REJECTED,
       clerk: 'JR',
       requestedLimit: 500000,
       previousLimit: 99999.5,
@@ -147,8 +192,59 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
   });
 
   it('renders without optional context at all', async () => {
-    const content = await renderText({ decision: 'Rejected', clerk: 'JR', requestedLimit: 500000 });
+    const content = await renderText({
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+    });
 
     expect(content.startsWith('%PDF')).toBe(true);
+  });
+});
+
+describe('effectiveNewLimit', () => {
+  it('returns the granted limit for an acceptance', () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.ACCEPTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      grantedLimit: 500000,
+      previousLimit: 100000,
+    };
+
+    expect(effectiveNewLimit(dto)).toBe(500000);
+  });
+
+  it('returns the granted limit for a partial acceptance', () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.PARTIALLY_ACCEPTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      grantedLimit: 300000,
+      previousLimit: 100000,
+    };
+
+    expect(effectiveNewLimit(dto)).toBe(300000);
+  });
+
+  it('returns the previous limit for a rejection', () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      previousLimit: 100000,
+    };
+
+    expect(effectiveNewLimit(dto)).toBe(100000);
+  });
+
+  it('returns undefined when a rejection has no previous limit', () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+    };
+
+    expect(effectiveNewLimit(dto)).toBeUndefined();
   });
 });

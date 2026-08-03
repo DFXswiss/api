@@ -4,6 +4,7 @@ import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { LimitRequestAccepted } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { KycFile } from '../kyc/entities/kyc-file.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
@@ -12,6 +13,13 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { GenerateLimitRequestPdfDto } from './dto/limit-request-pdf.dto';
 import { ComplianceDecision, GenerateOnboardingPdfDto, OnboardingDocSubTypes } from './dto/onboarding-pdf.dto';
 import { TransactionSupportInfo } from './dto/user-data-support.dto';
+
+// The renderer's "new annual limit" follows the decision, not field presence: a granting decision
+// prints the granted limit, everything else (rejection, and any other non-granting state) prints
+// the limit that remains in force.
+export function effectiveNewLimit(dto: GenerateLimitRequestPdfDto): number | undefined {
+  return LimitRequestAccepted(dto.decision) ? dto.grantedLimit : dto.previousLimit;
+}
 
 @Injectable()
 export class SupportPdfService {
@@ -459,6 +467,8 @@ export class SupportPdfService {
     return new Promise<string>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A4', margin: 50 });
+        // Without this, a PDFKit stream error would leave the promise pending forever.
+        pdf.once('error', reject);
         const chunks: Buffer[] = [];
 
         pdf.on('data', (chunk) => chunks.push(chunk));
@@ -498,9 +508,9 @@ export class SupportPdfService {
         this.drawOnboardingField(
           pdf,
           'Neues Jahreslimit',
-          // A rejection leaves the previous limit in force; saying so explicitly keeps the report
-          // readable without the reader having to know what an empty field would mean.
-          formatLimit(dto.grantedLimit ?? dto.previousLimit),
+          // Follows the decision (not field presence): a rejection still prints the previous limit
+          // as the one in force, but derived from the decision rather than a missing grantedLimit.
+          formatLimit(effectiveNewLimit(dto)),
           marginX,
           width,
         );
