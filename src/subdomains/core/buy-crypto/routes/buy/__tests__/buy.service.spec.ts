@@ -778,9 +778,7 @@ describe('BuyService', () => {
       };
 
       jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
-      jest
-        .spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency')
-        .mockResolvedValue(yapealVirtualIban);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(yapealVirtualIban);
       jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
       jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank as any);
 
