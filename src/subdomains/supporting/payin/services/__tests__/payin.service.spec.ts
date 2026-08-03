@@ -1,6 +1,9 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { mock } from 'jest-mock-extended';
 import { ConfigService } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Util } from 'src/shared/utils/util';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -9,6 +12,7 @@ import { In, IsNull, LessThan, Not } from 'typeorm';
 import { RetryPayInSendDto } from '../../dto/retry-payin-send.dto';
 import { createCustomCryptoInput } from '../../entities/__mocks__/crypto-input.entity.mock';
 import { PayInAction, PayInStatus, PayInType } from '../../entities/crypto-input.entity';
+import { PayInEntry } from '../../interfaces';
 import { PayInRepository } from '../../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../../strategies/register/impl/base/register.strategy-registry';
 import { SendStrategyRegistry } from '../../strategies/send/impl/base/send.strategy-registry';
@@ -176,6 +180,82 @@ describe('PayInService designate-before-broadcast safeguards', () => {
         isConfirmed: true,
       },
       relations: { buyCrypto: true, buyFiat: true },
+    });
+  });
+
+  describe('#createPayIns(...)', () => {
+    function buildEntry(overrides: Partial<PayInEntry> = {}): PayInEntry {
+      return {
+        senderAddresses: '0xSENDER',
+        receiverAddress: BlockchainAddress.create('0xDEPOSIT', Blockchain.ETHEREUM),
+        txId: 'TX_UNPRICED',
+        txType: PayInType.DEPOSIT,
+        txSequence: undefined,
+        blockHeight: 100,
+        amount: 5,
+        asset: null,
+        ...overrides,
+      };
+    }
+
+    beforeEach(() => {
+      jest.spyOn(payInRepository, 'exists').mockResolvedValue(false);
+      jest.spyOn(payInRepository, 'save').mockImplementation(async (payIn) => payIn as any);
+      jest.spyOn(service['transactionService'], 'create').mockResolvedValue({} as any);
+    });
+
+    it('alerts monitoring when a newly created pay-in has no processable asset', async () => {
+      const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
+      const errorSpy = jest.spyOn(service['logger'], 'error').mockImplementation();
+
+      const [payIn] = await service.createPayIns([buildEntry({ asset: null })]);
+
+      expect(payIn.status).toBe(PayInStatus.FAILED);
+      expect(sendMailSpy).toHaveBeenCalledTimes(1);
+      expect(sendMailSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            subject: 'Pay-in without processable asset',
+            isLiqMail: true,
+          }),
+          correlationId: '|TX_UNPRICED|',
+          options: { suppressRecurring: true },
+        }),
+      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('TX_UNPRICED'));
+    });
+
+    it('does not alert when the pay-in registers normally with a processable asset', async () => {
+      const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
+
+      const asset = { id: 7 } as Asset;
+      const [payIn] = await service.createPayIns([buildEntry({ asset, txId: 'TX_PRICED' })]);
+
+      expect(payIn.status).not.toBe(PayInStatus.FAILED);
+      expect(sendMailSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not alert on a FAILED pay-in whose asset is present but amount is zero', async () => {
+      const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
+
+      const asset = { id: 7 } as Asset;
+      const [payIn] = await service.createPayIns([buildEntry({ asset, amount: 0, txId: 'TX_ZERO_AMOUNT' })]);
+
+      expect(payIn.status).toBe(PayInStatus.FAILED);
+      expect(sendMailSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not let a monitoring mail failure interrupt pay-in registration', async () => {
+      jest.spyOn(notificationService, 'sendMail').mockRejectedValue(new Error('smtp down'));
+      const errorSpy = jest.spyOn(service['logger'], 'error').mockImplementation();
+
+      const result = await service.createPayIns([buildEntry({ asset: null })]);
+
+      expect(result).toHaveLength(1);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to send pay-in-without-asset alert'),
+        new Error('smtp down'),
+      );
     });
   });
 
