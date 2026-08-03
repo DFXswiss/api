@@ -25,6 +25,7 @@ export class BankService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankService);
   private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
   private static knownIbanCache: Map<string, Set<string>> = new Map(); // key: normalized iban, value: bankName-currency
+  private static unboundIbanCache: Map<string, Set<string>> = new Map(); // only IBANs with no asset-bound bank row
 
   // The VirtualIbanRepository is injected instead of the VirtualIbanService: that service depends on this
   // one, and both live in BankModule, so the service-level dependency would close a provider cycle.
@@ -38,7 +39,7 @@ export class BankService implements OnModuleInit {
   }
 
   async getAllBanks(): Promise<Bank[]> {
-    return this.bankRepo.findCached(`all`);
+    return this.bankRepo.findCached(`all`, { relations: { asset: true } });
   }
 
   async getBanksWithAsset(): Promise<Bank[]> {
@@ -173,7 +174,7 @@ export class BankService implements OnModuleInit {
     const bankName = this.blockchainToBankName(asset.blockchain);
     if (!bankName) return false;
 
-    return BankService.knownIbanCache.get(normalizedIban)?.has(`${bankName}-${asset.dexName}`) ?? false;
+    return BankService.unboundIbanCache.get(normalizedIban)?.has(`${bankName}-${asset.dexName}`) ?? false;
   }
 
   // --- RECEIVE IBAN CHECK --- //
@@ -267,14 +268,20 @@ export class BankService implements OnModuleInit {
 
   private static setKnownIbanCache(banks: Bank[]): void {
     BankService.knownIbanCache.clear();
+    BankService.unboundIbanCache.clear();
 
-    for (const bank of banks) {
-      const normalizedIban = BankService.normalizeIban(bank.iban);
+    const banksByIban = Util.groupByAccessor(banks, (bank) => BankService.normalizeIban(bank.iban));
+
+    for (const [normalizedIban, ibanBanks] of banksByIban) {
       if (!normalizedIban) continue;
 
-      const keys = BankService.knownIbanCache.get(normalizedIban) ?? new Set<string>();
-      keys.add(`${bank.name}-${bank.currency}`);
+      const keys = new Set(ibanBanks.map((bank) => `${bank.name}-${bank.currency}`));
       BankService.knownIbanCache.set(normalizedIban, keys);
+
+      // A loaded asset relation makes the IBAN attributable only to that exact asset.bank IBAN.
+      // The name/currency fallback is reserved for bank rows that are genuinely unbound, otherwise
+      // two asset-bound accounts of the same bank/currency would both count the same transfer.
+      if (ibanBanks.every((bank) => bank.asset == null)) BankService.unboundIbanCache.set(normalizedIban, keys);
     }
   }
 

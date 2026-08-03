@@ -2027,6 +2027,112 @@ describe('LogJobService', () => {
       expect(assetLog[asset.id].plusBalance.total).toBe(100000);
     });
 
+    it('reduces repeated identical same-currency debits by the number of arrived credits', () => {
+      const createLeg = (
+        id: number,
+        indicator: BankTxIndicator,
+        accountIban: string,
+        iban: string,
+        hour: number,
+      ): BankTx =>
+        createCustomBankTx({
+          id,
+          type: BankTxType.INTERNAL,
+          accountIban,
+          iban,
+          creditDebitIndicator: indicator,
+          amount: 100000,
+          currency: 'EUR',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      const pending = service['getUnsettledInternalBankTx']([
+        createLeg(208765, BankTxIndicator.DEBIT, olkyEUR.iban, frickEUR.iban, 8),
+        createLeg(208766, BankTxIndicator.DEBIT, olkyEUR.iban, frickEUR.iban, 9),
+        createLeg(208800, BankTxIndicator.CREDIT, frickEUR.iban, olkyEUR.iban, 10),
+      ]);
+
+      expect(pending).toHaveLength(1);
+      expect(pending[0].internalTransferAmount()).toBe(100000);
+    });
+
+    it('retires a fully arrived repeated FX group without references', () => {
+      const date = (hour: number): Date => new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`);
+      const transactions = [
+        createCustomBankTx({
+          id: 208765,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount: 100000,
+          currency: 'EUR',
+          valueDate: date(8),
+          created: date(8),
+        }),
+        createCustomBankTx({
+          id: 208766,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount: 200000,
+          currency: 'EUR',
+          valueDate: date(9),
+          created: date(9),
+        }),
+        createCustomBankTx({
+          id: 208800,
+          accountIban: frickCHF.iban,
+          iban: olkyEUR.iban,
+          creditDebitIndicator: BankTxIndicator.CREDIT,
+          amount: 95000,
+          currency: 'CHF',
+          valueDate: date(10),
+          created: date(10),
+        }),
+        createCustomBankTx({
+          id: 208801,
+          accountIban: frickCHF.iban,
+          iban: olkyEUR.iban,
+          creditDebitIndicator: BankTxIndicator.CREDIT,
+          amount: 190000,
+          currency: 'CHF',
+          valueDate: date(11),
+          created: date(11),
+        }),
+      ];
+
+      expect(service['getUnsettledInternalBankTx'](transactions)).toEqual([]);
+    });
+
+    it('does not use weaker matching when both legs have conflicting end-to-end IDs', () => {
+      const debit = createCustomBankTx({
+        id: 208765,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 100000,
+        currency: 'EUR',
+        endToEndId: 'E2E-A',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const credit = createCustomBankTx({
+        id: 208800,
+        accountIban: frickEUR.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 100000,
+        currency: 'EUR',
+        endToEndId: 'E2E-B',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-03T10:00:00Z'),
+        created: new Date('2026-08-03T10:00:00Z'),
+      });
+
+      expect(service['getUnsettledInternalBankTx']([debit, credit])).toEqual([debit]);
+    });
+
     it('keeps concurrent FX debits pending when one credit is not uniquely attributable', async () => {
       const asset = createCustomAsset({
         id: 5001,

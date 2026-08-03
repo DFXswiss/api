@@ -387,6 +387,7 @@ describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
   beforeEach(() => {
     (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
     (BankService as unknown as { knownIbanCache: Map<string, Set<string>> }).knownIbanCache.clear();
+    (BankService as unknown as { unboundIbanCache: Map<string, Set<string>> }).unboundIbanCache.clear();
   });
 
   it('maps Blockchain.FRICK to IbanBankName.FRICK', () => {
@@ -413,7 +414,7 @@ describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
 
   it('matches a configured unbound IBAN to the corresponding bank asset for internal transfers', () => {
     const unboundIban = 'LI75088110105923UNBOUND';
-    (BankService as unknown as { knownIbanCache: Map<string, Set<string>> }).knownIbanCache.set(
+    (BankService as unknown as { unboundIbanCache: Map<string, Set<string>> }).unboundIbanCache.set(
       unboundIban,
       new Set([`${IbanBankName.FRICK}-EUR`]),
     );
@@ -421,6 +422,28 @@ describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
 
     expect(BankService.isInternalBankMatching(asset, unboundIban)).toBe(true);
     expect(BankService.isBankMatching(asset, unboundIban)).toBe(false);
+  });
+
+  it('does not attribute one asset-bound IBAN to another asset of the same bank and currency', () => {
+    const firstBank = Object.assign(new Bank(), {
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'LI75088110105923FIRST',
+      asset: { id: 1 },
+    });
+    const secondBank = Object.assign(new Bank(), {
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'LI75088110105923SECOND',
+      asset: { id: 2 },
+    });
+    BankService['setKnownIbanCache']([firstBank, secondBank]);
+
+    const firstAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR', bank: firstBank });
+    const secondAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR', bank: secondBank });
+
+    expect(BankService.isInternalBankMatching(firstAsset, secondBank.iban)).toBe(false);
+    expect(BankService.isInternalBankMatching(secondAsset, secondBank.iban)).toBe(true);
   });
 });
 

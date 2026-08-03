@@ -52,11 +52,18 @@ describe('BankTx', () => {
     const frickChfAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'CHF' });
 
     beforeEach(() => {
-      const bankService = BankService as unknown as { knownIbanCache: Map<string, Set<string>> };
+      const bankService = BankService as unknown as {
+        knownIbanCache: Map<string, Set<string>>;
+        unboundIbanCache: Map<string, Set<string>>;
+      };
       bankService.knownIbanCache.clear();
+      bankService.unboundIbanCache.clear();
       bankService.knownIbanCache.set(olkyIban, new Set([`${IbanBankName.OLKY}-EUR`]));
       bankService.knownIbanCache.set(frickIban, new Set([`${IbanBankName.FRICK}-EUR`]));
       bankService.knownIbanCache.set(frickChfIban, new Set([`${IbanBankName.FRICK}-CHF`]));
+      bankService.unboundIbanCache.set(olkyIban, new Set([`${IbanBankName.OLKY}-EUR`]));
+      bankService.unboundIbanCache.set(frickIban, new Set([`${IbanBankName.FRICK}-EUR`]));
+      bankService.unboundIbanCache.set(frickChfIban, new Set([`${IbanBankName.FRICK}-CHF`]));
     });
 
     it('keeps a debit in the source plus balance while it is in transit', () => {

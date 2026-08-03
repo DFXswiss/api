@@ -1386,8 +1386,7 @@ export class LogJobService {
       } while (settledInPass);
     };
 
-    // Stable end-to-end IDs are stronger than free-text remittance information and are
-    // consumed first. Every pass requires a unique match in both directions.
+    // Stable end-to-end IDs are stronger than free-text remittance information.
     settleUnique((debit, credit) => {
       const debitReference = this.getInternalEndToEndId(debit);
       return Boolean(debitReference) && debitReference === this.getInternalEndToEndId(credit);
@@ -1395,25 +1394,126 @@ export class LogJobService {
 
     settleUnique((debit, credit) => {
       const debitReference = this.getInternalRemittanceInfo(debit);
-      return Boolean(debitReference) && debitReference === this.getInternalRemittanceInfo(credit);
-    });
-
-    // Same-currency entries must agree to half a cent after removing a debit-side bank charge.
-    settleUnique((debit, credit) => {
-      if (!debit.currency || debit.currency !== credit.currency) return false;
-      const debitAmount = debit.internalTransferAmount();
-      const creditAmount = credit.internalTransferAmount();
-      if (typeof debitAmount !== 'number' || typeof creditAmount !== 'number') return false;
       return (
-        Number.isFinite(debitAmount) && Number.isFinite(creditAmount) && Math.abs(debitAmount - creditAmount) < 0.005
+        !this.hasConflictingInternalEndToEndIds(debit, credit) &&
+        Boolean(debitReference) &&
+        debitReference === this.getInternalRemittanceInfo(credit)
       );
     });
 
-    // FX amounts are intentionally incomparable. Without a stable reference, settle only
-    // when the route and time window leave exactly one debit and one credit candidate.
-    settleUnique((debit, credit) => Boolean(debit.currency && credit.currency && debit.currency !== credit.currency));
+    // Same-currency entries are interchangeable for the aggregate plus balance when their
+    // fee-adjusted principals agree to half a cent. A maximum matching safely handles repeated
+    // equal transfers and partial arrival without guessing a different remaining amount.
+    const sameCurrencyMatches = this.getMaximumInternalTransferMatches(
+      [...unsettled],
+      [...availableCredits],
+      (debit, credit) => {
+        if (this.hasConflictingInternalEndToEndIds(debit, credit)) return false;
+        if (!debit.currency || debit.currency !== credit.currency) return false;
+        const debitAmount = debit.internalTransferAmount();
+        const creditAmount = credit.internalTransferAmount();
+        if (typeof debitAmount !== 'number' || typeof creditAmount !== 'number') return false;
+        return (
+          Number.isFinite(debitAmount) && Number.isFinite(creditAmount) && Math.abs(debitAmount - creditAmount) < 0.005
+        );
+      },
+    );
+    for (const [credit, debit] of sameCurrencyMatches) {
+      unsettled.delete(debit);
+      availableCredits.delete(credit);
+    }
+
+    // FX amounts are incomparable. Settle a connected candidate group only when every debit is
+    // covered, or when every debit principal is equal and the remaining aggregate is independent
+    // of which individual transfer arrived.
+    const fxPredicate = (debit: BankTx, credit: BankTx): boolean =>
+      !this.hasConflictingInternalEndToEndIds(debit, credit) &&
+      Boolean(debit.currency && credit.currency && debit.currency !== credit.currency);
+    const visitedDebits = new Set<BankTx>();
+    const visitedCredits = new Set<BankTx>();
+
+    for (const startDebit of [...unsettled]) {
+      if (visitedDebits.has(startDebit)) continue;
+
+      const componentDebits = new Set<BankTx>();
+      const componentCredits = new Set<BankTx>();
+      const debitQueue = [startDebit];
+
+      while (debitQueue.length) {
+        const debit = debitQueue.shift();
+        if (!debit || visitedDebits.has(debit)) continue;
+        visitedDebits.add(debit);
+        componentDebits.add(debit);
+
+        for (const credit of availableCredits) {
+          if (!this.isInternalTransferCounterEntry(debit, credit) || !fxPredicate(debit, credit)) continue;
+          componentCredits.add(credit);
+          if (visitedCredits.has(credit)) continue;
+          visitedCredits.add(credit);
+
+          for (const candidateDebit of unsettled) {
+            if (
+              !visitedDebits.has(candidateDebit) &&
+              this.isInternalTransferCounterEntry(candidateDebit, credit) &&
+              fxPredicate(candidateDebit, credit)
+            )
+              debitQueue.push(candidateDebit);
+          }
+        }
+      }
+
+      if (!componentCredits.size) continue;
+
+      const matches = this.getMaximumInternalTransferMatches([...componentDebits], [...componentCredits], fxPredicate);
+      const principals = [...componentDebits].map((debit) => debit.internalTransferAmount());
+      const firstPrincipal = principals[0];
+      const equalPrincipals =
+        typeof firstPrincipal === 'number' &&
+        principals.every((principal) => typeof principal === 'number' && Math.abs(principal - firstPrincipal) < 0.005);
+
+      if (new Set(matches.values()).size !== componentDebits.size && !equalPrincipals) continue;
+
+      for (const [credit, debit] of matches) {
+        unsettled.delete(debit);
+        availableCredits.delete(credit);
+      }
+    }
 
     return debits.filter((debit) => unsettled.has(debit));
+  }
+
+  private getMaximumInternalTransferMatches(
+    debits: BankTx[],
+    credits: BankTx[],
+    predicate: (debit: BankTx, credit: BankTx) => boolean,
+  ): Map<BankTx, BankTx> {
+    const matches = new Map<BankTx, BankTx>();
+
+    const assign = (debit: BankTx, visited: Set<BankTx>): boolean => {
+      const candidates = credits
+        .filter((credit) => this.isInternalTransferCounterEntry(debit, credit) && predicate(debit, credit))
+        .sort(
+          (a, b) =>
+            Math.abs(this.getInternalTransferTime(a) - this.getInternalTransferTime(debit)) -
+              Math.abs(this.getInternalTransferTime(b) - this.getInternalTransferTime(debit)) || a.id - b.id,
+        );
+
+      for (const credit of candidates) {
+        if (visited.has(credit)) continue;
+        visited.add(credit);
+
+        const currentDebit = matches.get(credit);
+        if (!currentDebit || assign(currentDebit, visited)) {
+          matches.set(credit, debit);
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    for (const debit of debits) assign(debit, new Set());
+    return matches;
   }
 
   private isInternalTransferCounterEntry(debit: BankTx, credit: BankTx): boolean {
@@ -1433,6 +1533,12 @@ export class LogJobService {
 
   private getInternalRemittanceInfo(tx: BankTx): string | undefined {
     return this.normalizeInternalTransferReference(tx.remittanceInfo);
+  }
+
+  private hasConflictingInternalEndToEndIds(debit: BankTx, credit: BankTx): boolean {
+    const debitReference = this.getInternalEndToEndId(debit);
+    const creditReference = this.getInternalEndToEndId(credit);
+    return Boolean(debitReference && creditReference && debitReference !== creditReference);
   }
 
   private normalizeInternalTransferReference(reference: string | null | undefined): string | undefined {
