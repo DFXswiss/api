@@ -9,6 +9,8 @@ import { DiscoveryService, MetadataScanner } from '@nestjs/core';
 import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { ConfigService, GetConfig } from 'src/config/config';
 import { CronScope, DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
+import { CronJob } from 'cron';
+import { CronLeaseService } from '../cron-lease.service';
 import { DfxCronService } from '../dfx-cron.service';
 import { Process } from '../process.service';
 
@@ -55,8 +57,13 @@ function buildService(providers: { instance: object }[]): {
     },
   });
   const scheduler = createMock<SchedulerRegistry>();
+  // Runs the task straight through: these tests are about which jobs get registered, not
+  // about the lease. What the lease itself does has its own suite.
+  const leases = createMock<CronLeaseService>({
+    run: (_job: string, _ttl: number, task: () => Promise<void>) => task(),
+  });
 
-  return { service: new DfxCronService(discovery, metadataScanner, scheduler), scheduler };
+  return { service: new DfxCronService(discovery, metadataScanner, scheduler, leases), scheduler };
 }
 
 describe('DfxCronService', () => {
@@ -143,6 +150,78 @@ describe('DfxCronService', () => {
 
       jest.clearAllMocks();
     }
+  });
+
+  describe('cross-process lease', () => {
+    // Which process runs a job is decided by configuration, and configuration can be wrong. The
+    // lease is what makes a wrong configuration harmless instead of expensive — these two tests
+    // pin who goes through it, because nothing at the call site shows it.
+
+    /** Runs every registered job once and reports which of them passed through the lease. */
+    async function leasedJobs(role: string): Promise<string[]> {
+      process.env.CRON_ROLE = role;
+      new ConfigService(GetConfig());
+
+      const seen: string[] = [];
+      // Own job set: no `process` flag (a disabled one would be skipped before the lease is even
+      // reached) and `useDelay: false` (the real delay is up to a minute).
+      const jobs = [
+        providerWithJob('workerJob', {
+          expression: CronExpression.EVERY_MINUTE,
+          scope: CronScope.WORKER,
+          useDelay: false,
+        }),
+        providerWithJob('workerJobWithoutProcess', {
+          expression: CronExpression.EVERY_MINUTE,
+          scope: CronScope.WORKER,
+          useDelay: false,
+        }),
+        providerWithJob('bothJob', {
+          expression: CronExpression.EVERY_MINUTE,
+          scope: CronScope.BOTH,
+          useDelay: false,
+        }),
+      ];
+      const discovery = createMock<DiscoveryService>({
+        getProviders: () =>
+          jobs.map((p) => ({ ...p, isDependencyTreeStatic: () => true })) as ReturnType<
+            DiscoveryService['getProviders']
+          >,
+      });
+      const metadataScanner = createMock<MetadataScanner>({ getAllMethodNames: (i: object) => Object.keys(i) });
+      const leaseSpy = createMock<CronLeaseService>({
+        run: (job: string, _ttl: number, task: () => Promise<void>) => {
+          seen.push(job);
+          return task();
+        },
+      });
+      const registry = createMock<SchedulerRegistry>();
+
+      new DfxCronService(discovery, metadataScanner, registry, leaseSpy).onModuleInit();
+
+      // The CronJob constructor is mocked, so the scheduled function is the second argument.
+      const scheduled = (CronJob as unknown as jest.Mock).mock.calls.map(([, fn]) => fn as () => unknown);
+      for (const fire of scheduled) await fire();
+
+      return seen;
+    }
+
+    it('sends single-process jobs through the lease', async () => {
+      // Without this a second worker — from `--scale`, a missed recreate, a rollback — would run
+      // every one of these a second time, and the in-process lock cannot see it.
+      const leased = await leasedJobs('worker');
+
+      expect(leased).toContain('Object::workerJob');
+      expect(leased).toContain('Object::workerJobWithoutProcess');
+    });
+
+    it('lets jobs scoped both run WITHOUT a lease', async () => {
+      // These maintain state a request path on THIS process reads, so they must run everywhere. A
+      // lease over them would starve whichever process lost the race and freeze that state.
+      const leased = await leasedJobs('worker');
+
+      expect(leased).not.toContain('Object::bothJob');
+    });
   });
 
   describe('role heartbeat', () => {

@@ -538,6 +538,12 @@ outside the process infers health from the job still running — a watchdog that
 looks, once it is off, exactly like the failure it watches for. Without a flag the job runs
 unconditionally and cannot be switched off without a deploy.
 
+A job scoped `worker` or `api` additionally holds a **lease in the database** for the duration of
+its run (`CronLeaseService`), so it runs in at most one process even if the configuration is
+wrong — a missed recreate, a second worker from `--scale`, two processes on `all` after a
+rollback. The in-process lock cannot see any of those. Jobs scoped `both` are exempt by design:
+they must run everywhere, which is why running them twice has to be harmless by construction.
+
 [docs/cron-jobs.md](docs/cron-jobs.md) lists every scheduled job with its interval, flag and scope.
 **Adding, removing or re-scheduling a job must be reflected there in the same PR.**
 

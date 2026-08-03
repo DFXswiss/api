@@ -6,9 +6,13 @@ import { Config, CronRole } from 'src/config/config';
 import { DisabledProcess } from 'src/shared/services/process.service';
 import { CronScope, DFX_CRONJOB_PARAMS, DfxCron, DfxCronExpression, DfxCronParams } from 'src/shared/utils/cron';
 import { LockClass } from 'src/shared/utils/lock';
+import { CronLeaseService } from './cron-lease.service';
 import { Util } from 'src/shared/utils/util';
 import { CustomCronExpression } from '../utils/custom-cron-expression';
 import { DfxLogger } from './dfx-logger';
+
+/** Lease length for a job that declares no timeout of its own. */
+const DEFAULT_LEASE_SECONDS = 300;
 
 interface CronJobData {
   instance: object;
@@ -27,6 +31,7 @@ export class DfxCronService implements OnModuleInit {
     private readonly discovery: DiscoveryService,
     private readonly metadataScanner: MetadataScanner,
     private readonly schedulerRegisty: SchedulerRegistry,
+    private readonly leases: CronLeaseService,
   ) {}
 
   onModuleInit() {
@@ -89,7 +94,12 @@ export class DfxCronService implements OnModuleInit {
    * off, exactly like a process that stopped writing the line — the alert could not tell the two
    * apart. The job holds no state and does nothing but log, so there is nothing to switch off.
    */
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.BOTH })
+  // `useDelay: false`: the alert reads this line over a 12-minute window. With the default jitter
+  // the gap between two heartbeats can reach 660 s, leaving 60 s of margin — and the jitter is
+  // configurable through CRON_JOB_DELAY, so someone could close that margin from the outside
+  // without ever seeing this code. A watchdog must not have its own timing tuned by a knob meant
+  // for spreading load.
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.BOTH, useDelay: false })
   reportRole(): void {
     this.logger.info(`CronRole ${Config.cronRole}: heartbeat, ${this.registeredCount} jobs registered`);
   }
@@ -116,13 +126,42 @@ export class DfxCronService implements OnModuleInit {
     const lock = LockClass.create(data.params.timeout ?? Infinity);
 
     const context = { target: data.instance.constructor.name, method: data.methodName };
-    const cronJob = new CronJob(data.params.expression, () => lock(this.wrapFunction(data), context));
     const cronJobName = `${context.target}::${context.method}`;
+    const run = this.guardAcrossProcesses(cronJobName, data);
+    const cronJob = new CronJob(data.params.expression, () => lock(run, context));
 
     this.schedulerRegisty.addCronJob(cronJobName, cronJob);
     cronJob.start();
 
     this.logger.verbose(`Registered ${cronJobName} (${data.params.scope})`);
+  }
+
+  /**
+   * Wraps a job so that at most one process in the deployment runs it at a time.
+   *
+   * `lock` above only spans this process. Which process a job belongs to is decided by
+   * configuration, and configuration can be wrong — a missed recreate leaves the old role in
+   * place, `--scale` creates a second worker, a rollback puts two processes on `all`. In every
+   * one of those the two processes hold separate locks and every payout runs twice. The lease
+   * closes that by construction instead of reporting it a quarter of an hour later.
+   *
+   * `BOTH` jobs are deliberately exempt. They exist because a request path on THIS process reads
+   * the state they maintain, so they have to run in every process — a lease over them would
+   * starve whichever process lost the race, and the job would silently stop maintaining that
+   * state. Their safety comes from a different property: running twice must be harmless by
+   * construction, which is what CONTRIBUTING requires of them.
+   */
+  private guardAcrossProcesses(cronJobName: string, data: CronJobData): () => Promise<void> {
+    const task = this.wrapFunction(data);
+
+    if (data.params.scope === CronScope.BOTH) return task;
+
+    // The lease has to outlive a single run, so it follows the job’s own timeout where there is
+    // one. Where there is none the job carries no expectation of its duration either, and five
+    // minutes is long enough that the renewal (every third of it) keeps a healthy run alive.
+    const ttlSeconds = Number.isFinite(data.params.timeout) ? data.params.timeout : DEFAULT_LEASE_SECONDS;
+
+    return () => this.leases.run(cronJobName, ttlSeconds, task);
   }
 
   private wrapFunction(data: CronJobData) {

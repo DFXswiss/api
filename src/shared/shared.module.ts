@@ -35,6 +35,7 @@ import { Setting } from './models/setting/setting.entity';
 import { SettingRepository } from './models/setting/setting.repository';
 import { SettingService } from './models/setting/setting.service';
 import { RepositoryFactory } from './repositories/repository.factory';
+import { CronLeaseService } from './services/cron-lease.service';
 import { DfxCronService } from './services/dfx-cron.service';
 import { HttpService } from './services/http.service';
 import { PaymentInfoService } from './services/payment-info.service';
@@ -72,6 +73,7 @@ import { ProcessService } from './services/process.service';
     PaymentInfoService,
     IpLogService,
     ProcessService,
+    CronLeaseService,
     DfxCronService,
   ],
   exports: [

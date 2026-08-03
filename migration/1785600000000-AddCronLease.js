@@ -1,0 +1,43 @@
+/**
+ * @typedef {import('typeorm').MigrationInterface} MigrationInterface
+ * @typedef {import('typeorm').QueryRunner} QueryRunner
+ */
+
+/**
+ * Cross-process lease for scheduled jobs.
+ *
+ * Until now the only thing stopping a job from running twice was `LockClass`, and its state is a
+ * field in process memory — it cannot see a second process. That was acceptable while the API ran
+ * as a single process. With the HTTP process and the worker split apart, "exactly one process runs
+ * this job" became an assumption held up by configuration, a runbook sentence and an alert that
+ * *reports* a double run about fifteen minutes after it starts. For a path that moves money,
+ * detection is the second-best answer.
+ *
+ * This table makes it structural: a job scoped to exactly one process must hold a row here for the
+ * duration of its run, and the row is claimable by only one process at a time.
+ *
+ * No foreign keys, deliberately. The table is infrastructure, not domain data, and PRD carries
+ * tables without a primary key from the MSSQL cutover — a FK into one of them would fail at boot.
+ * `name` is the primary key, so the claim is a single atomic upsert with no index to keep in sync.
+ *
+ * @class @implements {MigrationInterface}
+ */
+module.exports = class AddCronLease1785600000000 {
+  name = 'AddCronLease1785600000000';
+
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async up(queryRunner) {
+    await queryRunner.query(
+      `CREATE TABLE "cron_lease" ("name" character varying(256) NOT NULL, "owner" character varying(256) NOT NULL, "acquired" TIMESTAMP NOT NULL DEFAULT now(), "expires" TIMESTAMP NOT NULL, CONSTRAINT "PK_cron_lease_name" PRIMARY KEY ("name"))`,
+    );
+  }
+
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async down(queryRunner) {
+    await queryRunner.query(`DROP TABLE "cron_lease"`);
+  }
+};
