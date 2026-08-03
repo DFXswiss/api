@@ -4,6 +4,7 @@ import {
   BankProcessingBlockKey,
   BankProcessingRule,
   cutoffFor,
+  hasTolerance,
   toleranceMinutesFor,
 } from './bank-processing.rules';
 
@@ -23,7 +24,7 @@ export function buildRuleSelections(block: BankProcessingBlock, rules: BankProce
     selects.push(`SUM(CASE WHEN ${cond} THEN 1 ELSE 0 END) AS "cnt_${i}"`);
     selects.push(`SUM(CASE WHEN ${cond} THEN (${block.chfExpr}) ELSE 0 END) AS "chf_${i}"`);
 
-    if (rule.tolerance !== null) {
+    if (hasTolerance(rule)) {
       const ageCol = `${block.alias}."${rule.toleranceField}"`;
       selects.push(`SUM(CASE WHEN ${cond} AND ${ageCol} < :cutoff_${i} THEN 1 ELSE 0 END) AS "ovd_${i}"`);
       selects.push(
