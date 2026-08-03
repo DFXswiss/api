@@ -698,6 +698,7 @@ export class BuyService {
             zip: address.zip,
             city: address.city,
             country: address.country?.name,
+            countryCode: address.country?.symbol,
           }
         : { ...Config.bank.dfxAddress };
 

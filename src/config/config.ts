@@ -1210,6 +1210,7 @@ export class Configuration {
         zip: process.env.REALUNIT_ADDRESS_ZIP ?? '6340',
         city: process.env.REALUNIT_ADDRESS_CITY ?? 'Baar',
         country: process.env.REALUNIT_ADDRESS_COUNTRY ?? 'Switzerland',
+        countryCode: process.env.REALUNIT_ADDRESS_COUNTRY_CODE ?? 'CH',
       },
       // Official yearly wealth-tax values (CHF) for the RealUnit share (REALU), as published by the
       // issuer. Extend when a new tax year's value is published.
@@ -1294,6 +1295,7 @@ export class Configuration {
       zip: '6300',
       city: 'Zug',
       country: 'Schweiz',
+      countryCode: 'CH',
     },
     olkypay: {
       credentials: {

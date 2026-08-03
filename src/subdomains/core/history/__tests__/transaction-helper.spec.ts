@@ -364,6 +364,7 @@ describe('TransactionHelper', () => {
       bic: 'BFRILI22XXX',
       city: 'Balzers',
       country: 'LI',
+      countryCode: 'LI',
       iban: 'LI21088100002324013AA',
       isPersonalIban: true,
       name: 'Test User',
