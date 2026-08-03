@@ -22,7 +22,10 @@ type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 export class MonitoringService implements OnModuleInit {
   private static readonly stateCacheMs = 30 * 1000;
 
-  /** Postgres: unique violation, deadlock, serialization failure - all resolvable by trying again. */
+  /**
+   * Postgres: unique violation, deadlock, serialization failure - all resolvable by trying again.
+   * Read from `code` on the error, the same way LedgerAccountService reads a unique violation.
+   */
   private static readonly retryableWriteCodes = ['23505', '40P01', '40001'];
 
   private readonly logger = new DfxLogger(MonitoringService);

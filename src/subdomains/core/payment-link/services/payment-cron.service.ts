@@ -21,9 +21,8 @@ export class PaymentCronService {
   // waitForPayment awaits and pushes the device activation into the RxJS subject PaymentLinkGateway
   // subscribes to. Both hold their state in the instance, so they only reach a caller of this same
   // process. `Both` is no option either: the jobs write to the database and trigger merchant
-  // webhooks, which a second registration would repeat - the lock in DfxCronService is per
-  // process. That holds for exactly one process per role: the lock cannot span processes, so a
-  // second instance of the same role would double these writes just as `Both` would.
+  // webhooks, which a second registration would repeat - the lock DfxCronService creates lives in
+  // the process, so it cannot prevent a second process from running the same job.
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.PAYMENT_EXPIRATION })
   async processExpiredPayments(): Promise<void> {
     await this.paymentLinkPaymentService.processExpiredPayments();

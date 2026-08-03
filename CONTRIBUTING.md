@@ -517,7 +517,7 @@ Use `@DfxCron` (custom wrapper with built-in locking, process control, and error
 
 ```typescript
 // GOOD: @DfxCron handles everything
-@DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT, timeout: 1800 })
+@DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAYMENT, timeout: 1800 })
 async processPayments(): Promise<void> {
   // no @Lock, no DisabledProcess check needed
 }
@@ -871,13 +871,13 @@ const isValid = await this.validateIban(iban).catch(() => false);
 
 ```typescript
 // BAD: @DfxCron already handles errors
-@DfxCron(CronExpression.EVERY_HOUR)
+@DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER })
 async process(): Promise<void> {
   try { ... } catch (e) { this.logger.error(e); }  // redundant
 }
 
 // GOOD
-@DfxCron(CronExpression.EVERY_HOUR)
+@DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER })
 async process(): Promise<void> {
   // just do the work
 }
@@ -1281,7 +1281,7 @@ single DTO with two fields (PR #3772, 91 LOC, ~50% reduction).
 | Loading all then filtering in JS           | SQL WHERE clause                                  |
 | `any` type                                 | Proper typed interface/class                      |
 | `string` for enum values                   | Typed enum                                        |
-| `@Interval(60000)`                         | `@DfxCron(CronExpression.EVERY_MINUTE)`           |
+| `@Interval(60000)`                         | `@DfxCron(..., { scope })` — see Cron Jobs        |
 | `eager: true` everywhere                   | Explicit relation loading                         |
 | Providing service in multiple modules      | Single module, import from there                  |
 | `JSON.stringify(JSON.parse(...))`          | Unnecessary — remove                              |
