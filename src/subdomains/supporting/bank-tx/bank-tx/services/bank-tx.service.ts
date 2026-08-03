@@ -65,6 +65,7 @@ import {
   BankTxIndicator,
   BankTxType,
   BankTxTypeCompleted,
+  BankTxTypeUnassigned,
   BankTxUnassignedTypes,
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
@@ -241,7 +242,7 @@ export class BankTxService implements OnModuleInit {
       try {
         const detectedType = await this.getType(tx);
         if (detectedType === BankTxType.INTERNAL) {
-          await this.assignInternalIfUnassigned(tx);
+          await this.assignInternalIfDetected(tx);
           continue;
         }
 
@@ -274,19 +275,20 @@ export class BankTxService implements OnModuleInit {
     }
   }
 
-  private async assignInternalIfUnassigned(bankTx: BankTx): Promise<void> {
-    await this.bankTxRepo.manager.transaction(async (manager) => {
+  async assignInternalIfDetected(bankTx: BankTx): Promise<boolean> {
+    return this.bankTxRepo.manager.transaction(async (manager) => {
       const currentBankTx = await manager.findOne(BankTx, {
         where: { id: bankTx.id },
         lock: { mode: 'pessimistic_write' },
       });
-      if (
-        !currentBankTx ||
-        (currentBankTx.type !== null && currentBankTx.type !== undefined) ||
-        !currentBankTx.transactionId
-      )
-        return;
-      if ((await this.getType(currentBankTx)) !== BankTxType.INTERNAL) return;
+      if (!currentBankTx || !currentBankTx.transactionId) return false;
+
+      const isAssignable =
+        currentBankTx.type === null ||
+        currentBankTx.type === undefined ||
+        currentBankTx.type === BankTxType.INTERNAL ||
+        BankTxTypeUnassigned(currentBankTx.type);
+      if (!isAssignable || (await this.getType(currentBankTx)) !== BankTxType.INTERNAL) return false;
 
       const currentTransaction = await manager.findOne(Transaction, {
         where: { id: currentBankTx.transactionId },
@@ -298,10 +300,14 @@ export class BankTxService implements OnModuleInit {
           currentTransaction.type !== undefined &&
           currentTransaction.type !== TransactionTypeInternal.INTERNAL)
       )
-        return;
+        return false;
 
-      await manager.update(Transaction, currentTransaction.id, { type: TransactionTypeInternal.INTERNAL });
-      await manager.update(BankTx, currentBankTx.id, { type: BankTxType.INTERNAL });
+      if (currentTransaction.type !== TransactionTypeInternal.INTERNAL)
+        await manager.update(Transaction, currentTransaction.id, { type: TransactionTypeInternal.INTERNAL });
+      if (currentBankTx.type !== BankTxType.INTERNAL)
+        await manager.update(BankTx, currentBankTx.id, { type: BankTxType.INTERNAL });
+
+      return true;
     });
   }
 

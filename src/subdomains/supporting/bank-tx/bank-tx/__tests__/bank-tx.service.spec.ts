@@ -276,7 +276,7 @@ describe('BankTxService', () => {
     });
   });
 
-  describe('#assignInternalIfUnassigned(...)', () => {
+  describe('#assignInternalIfDetected(...)', () => {
     it('does not overwrite a type assigned after the initial unassigned read', async () => {
       const staleBankTx = createCustomBankTx({ id: 208765, type: null, transaction: { id: 77 } as never });
       const currentBankTx = createCustomBankTx({
@@ -292,7 +292,7 @@ describe('BankTxService', () => {
         },
       });
 
-      await service['assignInternalIfUnassigned'](staleBankTx);
+      await expect(service.assignInternalIfDetected(staleBankTx)).resolves.toBe(false);
 
       expect(manager.findOne).toHaveBeenCalledWith(
         expect.anything(),
@@ -325,7 +325,7 @@ describe('BankTxService', () => {
       });
       jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
 
-      await service['assignInternalIfUnassigned'](staleBankTx);
+      await expect(service.assignInternalIfDetected(staleBankTx)).resolves.toBe(false);
 
       expect(bankService.areKnownBankIbans).toHaveBeenCalledWith('OLKY-IBAN', 'EXTERNAL-IBAN');
       expect(manager.findOne).toHaveBeenCalledTimes(1);
@@ -348,7 +348,7 @@ describe('BankTxService', () => {
       });
       jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
 
-      await service['assignInternalIfUnassigned'](staleBankTx);
+      await expect(service.assignInternalIfDetected(staleBankTx)).resolves.toBe(true);
 
       expect(manager.findOne).toHaveBeenCalledTimes(2);
       expect(manager.findOne).toHaveBeenNthCalledWith(
@@ -362,6 +362,29 @@ describe('BankTxService', () => {
         expect.objectContaining({ where: { id: 77 }, lock: { mode: 'pessimistic_write' } }),
       );
       expect(manager.update).toHaveBeenCalledTimes(2);
+    });
+
+    it('atomically replaces a retryable GSheet classification', async () => {
+      const bankTx = createCustomBankTx({ id: 208765, type: BankTxType.GSHEET, transaction: { id: 77 } as never });
+      const currentBankTx = createCustomBankTx({ id: 208765, type: BankTxType.GSHEET, transactionId: 77 });
+      const manager = {
+        findOne: jest.fn().mockResolvedValueOnce(currentBankTx).mockResolvedValueOnce({ id: 77, type: undefined }),
+        update: jest.fn(),
+      };
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<boolean>) =>
+            callback(manager),
+          ),
+        },
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
+
+      await expect(service.assignInternalIfDetected(bankTx)).resolves.toBe(true);
+
+      expect(manager.update).toHaveBeenNthCalledWith(1, expect.anything(), 77, { type: 'Internal' });
+      expect(manager.update).toHaveBeenNthCalledWith(2, expect.anything(), 208765, { type: BankTxType.INTERNAL });
     });
   });
 });

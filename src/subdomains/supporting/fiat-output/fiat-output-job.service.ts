@@ -567,6 +567,13 @@ export class FiatOutputJobService {
         const bankTx = await this.getMatchingBankTx(entity);
         if (!bankTx) continue;
 
+        if (
+          entity.type === FiatOutputType.LIQ_MANAGEMENT &&
+          (!bankTx.type || BankTxTypeUnassigned(bankTx.type)) &&
+          (await this.bankTxService.assignInternalIfDetected(bankTx))
+        )
+          bankTx.type = BankTxType.INTERNAL;
+
         const updateData: Partial<FiatOutput> = {
           bankTx,
           outputDate: bankTx.created,

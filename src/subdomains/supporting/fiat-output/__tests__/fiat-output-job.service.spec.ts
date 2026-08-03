@@ -985,11 +985,35 @@ describe('FiatOutputJobService', () => {
       });
       jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
       jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
-      jest.spyOn(bankTxService, 'getType').mockResolvedValue(BankTxType.INTERNAL);
+      jest.spyOn(bankTxService, 'assignInternalIfDetected').mockResolvedValue(true);
 
       await service['searchOutgoingBankTx']();
 
-      expect(bankTxService.updateInternal).toHaveBeenCalledWith(bankTx, { type: BankTxType.INTERNAL });
+      expect(bankTxService.assignInternalIfDetected).toHaveBeenCalledWith(bankTx);
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, expect.objectContaining({ isComplete: true, bankTx }));
+      expect((bankTxService.assignInternalIfDetected as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        (fiatOutputRepo.update as jest.Mock).mock.invocationCallOrder[0],
+      );
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
+    });
+
+    it('keeps liquidity-management reconciliation retryable when internal classification fails', async () => {
+      const bankTx = createCustomBankTx({ id: 401, created: new Date('2026-07-02'), type: BankTxType.GSHEET });
+      const fiatOutput = createCustomFiatOutput({
+        id: 5,
+        endToEndId: 'E2E-79059',
+        isComplete: false,
+        isReadyDate: new Date('2026-07-01'),
+        type: FiatOutputType.LIQ_MANAGEMENT,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
+      jest.spyOn(bankTxService, 'assignInternalIfDetected').mockRejectedValue(new Error('temporary bank lookup error'));
+
+      await service['searchOutgoingBankTx']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
     });
   });
 
