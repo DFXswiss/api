@@ -1,10 +1,8 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config, CronRole } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
 import { AssetLog, BalancesByFinancialType, FinanceLog } from '../log/dto/log.dto';
@@ -23,37 +21,13 @@ import {
 import { LatestBalanceStore } from './latest-balance.store';
 
 @Injectable()
-export class DashboardFinancialService implements OnModuleInit {
-  private readonly logger = new DfxLogger(DashboardFinancialService);
-
+export class DashboardFinancialService {
   constructor(
     private readonly logService: LogService,
     private readonly assetService: AssetService,
     private readonly refRewardService: RefRewardService,
     private readonly latestBalanceStore: LatestBalanceStore,
   ) {}
-
-  onModuleInit() {
-    // Fills the store once at start-up instead of leaving it empty until the first scheduled run:
-    // getLatestBalance answers from the store and nothing else, so until the first fill the
-    // endpoint has no value to return. The two conditions below are the ones the scheduler applies
-    // to the job itself, and this call bypasses the scheduler entirely.
-    //
-    // The role first: the job is scoped `api` because a request path is the only reader of the
-    // store. In the worker the aggregation would be spent on a value no request there can read.
-    if (Config.cronRole === CronRole.WORKER) return;
-
-    // Then the flag: a job switched off through DISABLED_PROCESSES has to stay off, including at
-    // start-up. Otherwise switching it off still leaves one run per deployment.
-    if (DisabledProcess(Process.LATEST_BALANCE_CACHE)) return;
-
-    void this.refreshLatestBalance().catch((e) =>
-      // Not rethrown: a failed first fill leaves the store empty, which the endpoint already
-      // handles, and the scheduled run retries a minute later. Swallowing it silently would hide
-      // why the endpoint is empty in the meantime.
-      this.logger.error('Failed to fill the latest balance store at start-up:', e),
-    );
-  }
 
   async getFinancialLog(from?: Date, dailySample?: boolean, includeByType?: boolean): Promise<FinancialLogResponseDto> {
     // BTC price is projected in SQL and needs btcAssetId as a parameter, so resolve getBtcCoin first.
@@ -150,22 +124,24 @@ export class DashboardFinancialService implements OnModuleInit {
     }
   }
 
+  /**
+   * Answers from LatestBalanceStore, which loads through `loadLatestBalance` when it has no entry
+   * or the one it holds has aged out. The load is what makes this correct in a process that never
+   * runs the refresh below - see the store for why there is such a process.
+   */
   async getLatestBalance(): Promise<LatestBalanceResponseDto | undefined> {
-    return this.latestBalanceStore.get();
+    return this.latestBalanceStore.get(() => this.loadLatestBalance());
   }
 
   /**
-   * Fills LatestBalanceStore from the most recent FinancialDataLog entry, so that
-   * GET /v1/dashboard/financial/latest keeps answering from process memory without touching the
-   * database - see getLatestBalance below, which reads the store and nothing else.
+   * Keeps the entry in LatestBalanceStore warm, so that GET /v1/dashboard/financial/latest finds a
+   * current value in this process instead of loading one itself.
    *
-   * Scope Api, because the store it fills is a field of this service and its reader is the
-   * endpoint above. It only reads: LogJobService writes the entry, this parses it and aggregates
-   * - once a minute, outside any request.
-   *
-   * Not a fallback for an empty store: it runs on every tick regardless of the store's contents,
-   * so the path is the normal one rather than one reached only after a failure. The cost is one
-   * read per tick, in every role that registers it.
+   * Scope Api, because the store it fills is a field of this service and its reader is the endpoint
+   * above. It only reads: LogJobService writes the entry, this parses it and aggregates - once a
+   * minute, outside any request. Refresh only, never the sole filler: the job is leased, so in a
+   * deployment with several API processes it runs in one of them per tick, and the request path is
+   * what fills the rest.
    *
    * Every minute rather than the 15 minutes CONTRIBUTING prefers, because that is the interval
    * LogJobService already writes the underlying entry at (TRADING_LOG, EVERY_MINUTE). A longer
@@ -173,29 +149,33 @@ export class DashboardFinancialService implements OnModuleInit {
    */
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.LATEST_BALANCE_CACHE })
   async refreshLatestBalance(): Promise<void> {
+    await this.latestBalanceStore.refresh(() => this.loadLatestBalance());
+  }
+
+  /**
+   * Builds the response from the most recent FinancialDataLog entry. `undefined` when there is no
+   * entry at all, which is the honest answer for a database that has never had one.
+   */
+  private async loadLatestBalance(): Promise<LatestBalanceResponseDto | undefined> {
     const latest = await this.logService.getLatestFinancialLog();
-    if (!latest) return;
+    if (!latest) return undefined;
 
     let financeLog: FinanceLog;
     try {
       financeLog = JSON.parse(latest.message);
     } catch (e) {
-      this.logger.error(`Failed to parse the latest financial log (id ${latest.id}):`, e);
-      return;
+      // Raised rather than returned as `undefined`: the store keeps the aggregate it has, so one
+      // malformed entry does not replace a good value with nothing. The refresh job reports it.
+      throw new Error(`Failed to parse the latest financial log (id ${latest.id})`, { cause: e });
     }
 
     const assets = financeLog.assets
       ? await this.assetService.getAssetsById(Object.keys(financeLog.assets).map(Number))
       : [];
 
-    this.latestBalanceStore.set(
-      this.buildLatestBalance(latest.created, financeLog.assets, financeLog.balancesByFinancialType, assets),
-    );
+    return this.buildLatestBalance(latest.created, financeLog.assets, financeLog.balancesByFinancialType, assets);
   }
 
-  // Unchanged aggregation that used to run inline in getLatestBalance against a freshly parsed
-  // FinancialDataLog message and a database asset lookup: identical logic, moved here verbatim: only
-  // its inputs changed (passed in directly instead of JSON.parse(latest.message) / assetService.getAssetsById).
   private buildLatestBalance(
     timestamp: Date,
     assetLog: AssetLog,
