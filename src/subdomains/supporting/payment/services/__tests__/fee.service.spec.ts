@@ -202,6 +202,17 @@ describe('FeeService', () => {
       expect(userDataService.addFee).not.toHaveBeenCalled();
     });
 
+    it('drops the fee cache even when it reuses an existing fee', async () => {
+      feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
+      feeRepo.findBy.mockResolvedValue([]);
+
+      await service.setOnboardingFee(accountWith([]), 800);
+
+      // Fee calculation reads a list that is up to five minutes old; a fee created moments ago
+      // through another path would be assigned here and still not apply.
+      expect(feeRepo.invalidateCache).toHaveBeenCalled();
+    });
+
     it('counts the assignment on the fee', async () => {
       feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
       feeRepo.findBy.mockResolvedValue([]);

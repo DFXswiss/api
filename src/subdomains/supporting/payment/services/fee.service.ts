@@ -364,6 +364,10 @@ export class FeeService {
       );
   }
 
+  // Both branches drop the fee cache. Fee calculation reads the cached list, which is up to five
+  // minutes old: a fee created here would be invisible to it, and so would one created moments ago
+  // through another path and merely reused here - the assignment would succeed while the surcharge
+  // does not apply yet. Other instances still refresh on their own schedule.
   private async getOrCreateOnboardingFee(amount: number): Promise<Fee> {
     const label = `${OnboardingFeeLabel} ${amount}`;
 
@@ -371,7 +375,10 @@ export class FeeService {
       where: { ...OnboardingFeeShape, fixed: amount, active: true },
       order: { id: 'ASC' },
     });
-    if (existingFee) return existingFee;
+    if (existingFee) {
+      this.feeRepo.invalidateCache();
+      return existingFee;
+    }
 
     // The label is derived from the amount and `createFee` rejects a duplicate one whatever state
     // it is in. Anything holding this label that the lookup above did not accept - deactivated, or
@@ -396,8 +403,6 @@ export class FeeService {
       }),
     );
 
-    // The fee list is cached for five minutes, so a fee created here stays invisible to `getFee`
-    // and to fee calculation until the cache expires - and could not be assigned in this call.
     this.feeRepo.invalidateCache();
 
     return fee;
