@@ -20,6 +20,10 @@
  * tables without a primary key from the MSSQL cutover — a FK into one of them would fail at boot.
  * `name` is the primary key, so the claim is a single atomic upsert with no index to keep in sync.
  *
+ * The primary key carries the name TypeORM derives for it, per the rule in CONTRIBUTING.md: `PK_`
+ * plus the first 27 characters of sha1('cron_lease_name'). A hand-picked name would not be
+ * recognised as its own by a schema comparison, which would offer to drop and recreate it.
+ *
  * @class @implements {MigrationInterface}
  */
 module.exports = class AddCronLease1785600000000 {
@@ -30,7 +34,7 @@ module.exports = class AddCronLease1785600000000 {
    */
   async up(queryRunner) {
     await queryRunner.query(
-      `CREATE TABLE "cron_lease" ("name" character varying(256) NOT NULL, "owner" character varying(256) NOT NULL, "acquired" TIMESTAMP NOT NULL DEFAULT now(), "expires" TIMESTAMP NOT NULL, CONSTRAINT "PK_cron_lease_name" PRIMARY KEY ("name"))`,
+      `CREATE TABLE "cron_lease" ("name" character varying(256) NOT NULL, "owner" character varying(256) NOT NULL, "acquired" TIMESTAMP NOT NULL DEFAULT now(), "expires" TIMESTAMP NOT NULL, CONSTRAINT "PK_a12c181c2b26f33be13d55a15af" PRIMARY KEY ("name"))`,
     );
   }
 
