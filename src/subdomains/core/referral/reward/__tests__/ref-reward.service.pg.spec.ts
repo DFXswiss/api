@@ -5,15 +5,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import {
-  Column,
-  DataSource,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  SelectQueryBuilder,
-} from 'typeorm';
+import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, SelectQueryBuilder } from 'typeorm';
 import { RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
 import { RefRewardService } from '../services/ref-reward.service';
@@ -187,12 +179,12 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     // off to the real implementation so the query still actually runs.
     const originalGetRawMany = SelectQueryBuilder.prototype.getRawMany;
     let capturedSql: string | undefined;
-    const getRawManySpy = jest
-      .spyOn(SelectQueryBuilder.prototype, 'getRawMany')
-      .mockImplementation(function (this: SelectQueryBuilder<any>) {
-        capturedSql = this.getSql();
-        return originalGetRawMany.call(this);
-      });
+    const getRawManySpy = jest.spyOn(SelectQueryBuilder.prototype, 'getRawMany').mockImplementation(function (
+      this: SelectQueryBuilder<any>,
+    ) {
+      capturedSql = this.getSql();
+      return originalGetRawMany.call(this);
+    });
 
     try {
       await service.getRewardRecipients();
