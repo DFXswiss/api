@@ -15,7 +15,7 @@ Every scheduled job this service runs: **136 `@DfxCron` declarations** across 95
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-116 are `worker`, 6 are `api`, 14 are `both`. `CRON_ROLE` decides what a process is
+116 are `worker`, 7 are `api`, 13 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -191,7 +191,7 @@ the interval while running as an independent timer with its own lock.
 | minute | `PAY_IN` | `worker` | `PayInService::returnPayInEntries` | `subdomains/supporting/payin/services/payin.service.ts` |
 | minute | `PAYMENT_CONFIRMATIONS` | `api` | `PaymentCronService::checkTxConfirmations` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `PAYMENT_EXPIRATION` | `api` | `PaymentCronService::processExpiredPayments` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
-| minute | `UPDATE_BLOCKCHAIN_FEE` | `both` | `PaymentLinkFeeService::updateFees` | `subdomains/core/payment-link/services/payment-link-fee.service.ts` |
+| minute | `UPDATE_BLOCKCHAIN_FEE` | `api` | `PaymentLinkFeeService::updateFees` | `subdomains/core/payment-link/services/payment-link-fee.service.ts` |
 | minute | `REALUNIT_QUOTE_COMPLETION` | `worker` | `RealUnitJobService::completeSettledQuotes` | `subdomains/supporting/realunit/realunit-job.service.ts` |
 | minute | — | `worker` | `StaffKycClearanceService::syncStaffKycClearance` | `subdomains/generic/user/models/user/staff-kyc-clearance.service.ts` |
 | minute | `SUPPORT_BOT` | `worker` | `SupportIssueJobService::sendAutoResponses` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts` |

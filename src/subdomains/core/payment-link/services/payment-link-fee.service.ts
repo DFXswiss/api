@@ -38,7 +38,20 @@ export class PaymentLinkFeeService implements OnModuleInit {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.BOTH, process: Process.UPDATE_BLOCKCHAIN_FEE })
+  /**
+   * Scope Api, not Both: the cache it fills is a field of this service, and the only reader is
+   * getMinFee below. Following that chain out — createTransferAmount -> createTransferAmounts ->
+   * createQuote / createPayRequest, plus the Binance webhook handler — every caller is a request
+   * path or one of the Api-scoped payment crons. The one Worker job in this domain,
+   * PaymentCronService::forwardDeposits, takes its fee rate from BitcoinFeeService and never
+   * reaches this cache.
+   *
+   * Both would also break the rule this scope mechanism introduced: a job that runs in every
+   * process must be harmless twice over, and this one queries gas prices for eight EVM chains
+   * plus Bitcoin and Firo fee estimates on every tick. In the worker those calls would spend
+   * quota to produce a value nothing there reads.
+   */
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.API, process: Process.UPDATE_BLOCKCHAIN_FEE })
   async updateFees(): Promise<void> {
     if (GetConfig().environment === Environment.LOC) return;
 

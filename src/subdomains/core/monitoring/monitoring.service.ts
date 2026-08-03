@@ -199,7 +199,13 @@ export class MonitoringService implements OnModuleInit {
         // the lock while another process wrote a later measurement of the same metric. Writing it
         // anyway would put the older value back, and it would stay there until the metric changes
         // again in this process.
-        if (this.updatedAt(candidate) < this.updatedAt(state[subsystem]?.[metric])) continue;
+        if (this.updatedAt(candidate) < this.updatedAt(state[subsystem]?.[metric])) {
+          // Logged rather than dropped silently: the comment above says this value does not come
+          // back on its own, so a run of these lines is the signal that two writers are competing
+          // for one metric — which today should not happen, every metric has exactly one writer.
+          this.logger.info(`Discarding older ${subsystem}/${metric} state while merging the snapshot`);
+          continue;
+        }
 
         state[subsystem] = { ...(state[subsystem] ?? {}), [metric]: candidate };
       }
@@ -224,7 +230,9 @@ export class MonitoringService implements OnModuleInit {
 
   /** Reads the persisted state without notifying: unlike loadState, this runs on every read. */
   private async readState(): Promise<SystemState | null> {
-    const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: {}, order: { id: 'DESC' } });
+    // Reads the row the write path targets. The previous `order: { id: 'DESC' }` took the highest
+    // id instead, so a second row would have made this read one that is never written.
+    const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: { id: 1 } });
 
     if (!latestPersistedState) {
       this.logger.warn('No monitoring state found in the database');
