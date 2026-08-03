@@ -242,7 +242,7 @@ export class BankTxService implements OnModuleInit {
       try {
         const detectedType = await this.getType(tx);
         if (detectedType === BankTxType.INTERNAL) {
-          await this.assignInternalIfDetected(tx);
+          await this.classifyKnownTypeIfAssignable(tx);
           continue;
         }
 
@@ -275,39 +275,39 @@ export class BankTxService implements OnModuleInit {
     }
   }
 
-  async assignInternalIfDetected(bankTx: BankTx): Promise<boolean> {
+  async classifyKnownTypeIfAssignable(bankTx: BankTx): Promise<BankTx | undefined> {
     return this.bankTxRepo.manager.transaction(async (manager) => {
       const currentBankTx = await manager.findOne(BankTx, {
         where: { id: bankTx.id },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!currentBankTx || !currentBankTx.transactionId) return false;
+      if (!currentBankTx || !currentBankTx.transactionId) return undefined;
+
+      const detectedType = await this.getType(currentBankTx);
 
       const isAssignable =
-        currentBankTx.type === null ||
-        currentBankTx.type === undefined ||
-        currentBankTx.type === BankTxType.INTERNAL ||
-        BankTxTypeUnassigned(currentBankTx.type);
-      if (!isAssignable || (await this.getType(currentBankTx)) !== BankTxType.INTERNAL) return false;
+        currentBankTx.type === null || currentBankTx.type === undefined || BankTxTypeUnassigned(currentBankTx.type);
+      if (!detectedType) return isAssignable ? currentBankTx : undefined;
+      if (!isAssignable && currentBankTx.type !== detectedType) return undefined;
 
       const currentTransaction = await manager.findOne(Transaction, {
         where: { id: currentBankTx.transactionId },
         lock: { mode: 'pessimistic_write' },
       });
+      const transactionType = TransactionBankTxTypeMapper[detectedType];
       if (
         !currentTransaction ||
         (currentTransaction.type !== null &&
           currentTransaction.type !== undefined &&
-          currentTransaction.type !== TransactionTypeInternal.INTERNAL)
+          currentTransaction.type !== transactionType)
       )
-        return false;
+        return undefined;
 
-      if (currentTransaction.type !== TransactionTypeInternal.INTERNAL)
-        await manager.update(Transaction, currentTransaction.id, { type: TransactionTypeInternal.INTERNAL });
-      if (currentBankTx.type !== BankTxType.INTERNAL)
-        await manager.update(BankTx, currentBankTx.id, { type: BankTxType.INTERNAL });
+      if (currentTransaction.type !== transactionType)
+        await manager.update(Transaction, currentTransaction.id, { type: transactionType });
+      if (currentBankTx.type !== detectedType) await manager.update(BankTx, currentBankTx.id, { type: detectedType });
 
-      return true;
+      return Object.assign(currentBankTx, { type: detectedType, transaction: currentTransaction });
     });
   }
 

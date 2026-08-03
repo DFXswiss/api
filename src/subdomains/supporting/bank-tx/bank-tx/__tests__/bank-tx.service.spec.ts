@@ -276,7 +276,7 @@ describe('BankTxService', () => {
     });
   });
 
-  describe('#assignInternalIfDetected(...)', () => {
+  describe('#classifyKnownTypeIfAssignable(...)', () => {
     it('does not overwrite a type assigned after the initial unassigned read', async () => {
       const staleBankTx = createCustomBankTx({ id: 208765, type: null, transaction: { id: 77 } as never });
       const currentBankTx = createCustomBankTx({
@@ -292,7 +292,7 @@ describe('BankTxService', () => {
         },
       });
 
-      await expect(service.assignInternalIfDetected(staleBankTx)).resolves.toBe(false);
+      await expect(service.classifyKnownTypeIfAssignable(staleBankTx)).resolves.toBeUndefined();
 
       expect(manager.findOne).toHaveBeenCalledWith(
         expect.anything(),
@@ -325,7 +325,7 @@ describe('BankTxService', () => {
       });
       jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
 
-      await expect(service.assignInternalIfDetected(staleBankTx)).resolves.toBe(false);
+      await expect(service.classifyKnownTypeIfAssignable(staleBankTx)).resolves.toBe(currentBankTx);
 
       expect(bankService.areKnownBankIbans).toHaveBeenCalledWith('OLKY-IBAN', 'EXTERNAL-IBAN');
       expect(manager.findOne).toHaveBeenCalledTimes(1);
@@ -348,7 +348,9 @@ describe('BankTxService', () => {
       });
       jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
 
-      await expect(service.assignInternalIfDetected(staleBankTx)).resolves.toBe(true);
+      await expect(service.classifyKnownTypeIfAssignable(staleBankTx)).resolves.toEqual(
+        expect.objectContaining({ id: 208765, type: BankTxType.INTERNAL }),
+      );
 
       expect(manager.findOne).toHaveBeenCalledTimes(2);
       expect(manager.findOne).toHaveBeenNthCalledWith(
@@ -381,7 +383,9 @@ describe('BankTxService', () => {
       });
       jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
 
-      await expect(service.assignInternalIfDetected(bankTx)).resolves.toBe(true);
+      await expect(service.classifyKnownTypeIfAssignable(bankTx)).resolves.toEqual(
+        expect.objectContaining({ id: 208765, type: BankTxType.INTERNAL }),
+      );
 
       expect(manager.update).toHaveBeenNthCalledWith(1, expect.anything(), 77, { type: 'Internal' });
       expect(manager.update).toHaveBeenNthCalledWith(2, expect.anything(), 208765, { type: BankTxType.INTERNAL });

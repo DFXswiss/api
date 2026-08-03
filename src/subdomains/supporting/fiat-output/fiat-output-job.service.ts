@@ -564,15 +564,14 @@ export class FiatOutputJobService {
     for (const entity of entities) {
       try {
         if (!entity.isReadyDate) continue;
-        const bankTx = await this.getMatchingBankTx(entity);
+        let bankTx = await this.getMatchingBankTx(entity);
         if (!bankTx) continue;
 
-        if (
-          entity.type === FiatOutputType.LIQ_MANAGEMENT &&
-          (!bankTx.type || BankTxTypeUnassigned(bankTx.type)) &&
-          (await this.bankTxService.assignInternalIfDetected(bankTx))
-        )
-          bankTx.type = BankTxType.INTERNAL;
+        if (entity.type === FiatOutputType.LIQ_MANAGEMENT && (!bankTx.type || BankTxTypeUnassigned(bankTx.type))) {
+          const classifiedBankTx = await this.bankTxService.classifyKnownTypeIfAssignable(bankTx);
+          if (!classifiedBankTx) continue;
+          bankTx = classifiedBankTx;
+        }
 
         const updateData: Partial<FiatOutput> = {
           bankTx,
@@ -598,7 +597,8 @@ export class FiatOutputJobService {
         if (entity.type === FiatOutputType.BANK_TX_REPEAT)
           await this.bankTxRepeatService.updateInternal(entity.bankTxRepeat, { chargebackBankTx: bankTx });
 
-        if (!bankTx.type || BankTxTypeUnassigned(bankTx.type)) await this.setBankTxType(entity.type, bankTx);
+        if (entity.type !== FiatOutputType.LIQ_MANAGEMENT && (!bankTx.type || BankTxTypeUnassigned(bankTx.type)))
+          await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
         this.logger.error(`Error in bankTx search fiatOutput ${entity.id}:`, e);
       }
