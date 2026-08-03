@@ -400,7 +400,7 @@ export class BankTx extends IEntity {
         if (!BankService.isInternalBankMatching(asset, this.accountIban)) return 0;
 
         const accountCurrency = this.currency ?? this.instructedCurrency;
-        const accountAmount = this.amount ?? this.instructedAmount;
+        const accountAmount = this.internalTransferAmount();
         if (accountCurrency !== asset.dexName || !Number.isFinite(accountAmount)) return 0;
 
         const isSource =
@@ -423,6 +423,21 @@ export class BankTx extends IEntity {
       default:
         return 0;
     }
+  }
+
+  internalTransferAmount(): number | undefined {
+    const hasBookedAmount = typeof this.amount === 'number' && Number.isFinite(this.amount);
+    const amount = hasBookedAmount ? this.amount : this.instructedAmount;
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) return undefined;
+
+    // Frick debit entries can include the outgoing bank charge in the booked amount.
+    // Only the principal reaches the other DFX account and therefore remains in transit.
+    const charge =
+      hasBookedAmount && this.creditDebitIndicator === BankTxIndicator.DEBIT ? (this.chargeAmount ?? 0) : 0;
+    if (!Number.isFinite(charge)) return undefined;
+
+    const principal = amount - charge;
+    return principal > 0 ? principal : undefined;
   }
 }
 

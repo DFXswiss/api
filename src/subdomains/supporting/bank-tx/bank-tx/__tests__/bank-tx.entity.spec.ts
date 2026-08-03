@@ -99,6 +99,19 @@ describe('BankTx', () => {
       expect(debit.pendingBankAmount(olkyAsset, BankTxType.INTERNAL)).toBe(280000);
       expect(debit.pendingBankAmount(frickChfAsset, BankTxType.INTERNAL)).toBe(0);
     });
+
+    it('keeps only the transferred principal when the booked debit includes a bank charge', () => {
+      const entity = createCustomBankTx({
+        accountIban: olkyIban,
+        iban: frickIban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 1005,
+        currency: 'EUR',
+        chargeAmount: 5,
+      });
+
+      expect(entity.pendingBankAmount(olkyAsset, BankTxType.INTERNAL)).toBe(1000);
+    });
   });
 
   describe('#senderAccount(...)', () => {

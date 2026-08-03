@@ -1833,8 +1833,9 @@ describe('LogJobService', () => {
         accountIban: olkyEUR.iban,
         iban: frickEUR.iban,
         creditDebitIndicator: BankTxIndicator.DEBIT,
-        amount: 280000,
+        amount: 280005,
         currency: 'EUR',
+        chargeAmount: 5,
         instructedAmount: undefined,
         instructedCurrency: undefined,
         valueDate: new Date('2026-08-03T08:00:00Z'),
@@ -1928,6 +1929,141 @@ describe('LogJobService', () => {
 
       expect(assetLog[asset.id].plusBalance.pending).toBeUndefined();
       expect(assetLog[asset.id].plusBalance.total).toBe(0);
+    });
+
+    it('uses a unique end-to-end ID before a duplicated remittance text', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const firstDebit = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 100000,
+        currency: 'EUR',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const secondDebit = createCustomBankTx({
+        id: 208766,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 100500,
+        currency: 'EUR',
+        endToEndId: 'E2E-SECOND',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-03T09:00:00Z'),
+        created: new Date('2026-08-03T09:00:00Z'),
+      });
+      const secondCredit = createCustomBankTx({
+        id: 208800,
+        type: BankTxType.INTERNAL,
+        accountIban: frickEUR.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 100500,
+        currency: 'EUR',
+        endToEndId: 'E2E-SECOND',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-04T08:00:00Z'),
+        created: new Date('2026-08-04T08:00:00Z'),
+      });
+      setupAssetLog([], [firstDebit, secondDebit, secondCredit]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending.internal).toBe(100000);
+      expect(assetLog[asset.id].plusBalance.total).toBe(100000);
+    });
+
+    it('pairs concurrent same-currency transfers by their cent-exact principal', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const transaction = (
+        id: number,
+        amount: number,
+        indicator: BankTxIndicator,
+        accountIban: string,
+        iban: string,
+        hour: number,
+      ): BankTx =>
+        createCustomBankTx({
+          id,
+          type: BankTxType.INTERNAL,
+          accountIban,
+          iban,
+          creditDebitIndicator: indicator,
+          amount,
+          currency: 'EUR',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      setupAssetLog(
+        [],
+        [
+          transaction(208765, 100000, BankTxIndicator.DEBIT, olkyEUR.iban, frickEUR.iban, 8),
+          transaction(208766, 100500, BankTxIndicator.DEBIT, olkyEUR.iban, frickEUR.iban, 9),
+          transaction(208800, 100500, BankTxIndicator.CREDIT, frickEUR.iban, olkyEUR.iban, 10),
+        ],
+      );
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending.internal).toBe(100000);
+      expect(assetLog[asset.id].plusBalance.total).toBe(100000);
+    });
+
+    it('keeps concurrent FX debits pending when one credit is not uniquely attributable', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const debit = (id: number, amount: number, hour: number): BankTx =>
+        createCustomBankTx({
+          id,
+          type: BankTxType.INTERNAL,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount,
+          currency: 'EUR',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      const credit = createCustomBankTx({
+        id: 208800,
+        type: BankTxType.INTERNAL,
+        accountIban: frickCHF.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 190000,
+        currency: 'CHF',
+        valueDate: new Date('2026-08-04T08:00:00Z'),
+        created: new Date('2026-08-04T08:00:00Z'),
+      });
+      setupAssetLog([], [debit(208765, 100000, 8), debit(208766, 200000, 9), credit]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending.internal).toBe(300000);
+      expect(assetLog[asset.id].plusBalance.total).toBe(300000);
     });
 
     it('does NOT alarm when a transmitted-unsettled liability is correctly counted (fresh, within SLA)', async () => {

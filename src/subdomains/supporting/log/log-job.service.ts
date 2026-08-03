@@ -1361,41 +1361,57 @@ export class LogJobService {
     const availableCredits = new Set(transactions.filter((tx) => tx.creditDebitIndicator === BankTxIndicator.CREDIT));
     const unsettled = new Set(debits);
 
-    const candidatesFor = (debit: BankTx): BankTx[] =>
-      [...availableCredits]
-        .filter((credit) => this.isInternalTransferCounterEntry(debit, credit))
-        .sort(
-          (a, b) =>
-            Math.abs(this.getInternalTransferTime(a) - this.getInternalTransferTime(debit)) -
-              Math.abs(this.getInternalTransferTime(b) - this.getInternalTransferTime(debit)) || a.id - b.id,
-        );
+    const settleUnique = (predicate: (debit: BankTx, credit: BankTx) => boolean): void => {
+      let settledInPass: boolean;
 
-    const settle = (predicate: (debit: BankTx, credit: BankTx) => boolean): void => {
-      for (const debit of [...unsettled]) {
-        const credit = candidatesFor(debit).find((candidate) => predicate(debit, candidate));
-        if (!credit) continue;
+      do {
+        settledInPass = false;
 
-        unsettled.delete(debit);
-        availableCredits.delete(credit);
-      }
+        for (const debit of [...unsettled]) {
+          const matchingCredits = [...availableCredits].filter(
+            (credit) => this.isInternalTransferCounterEntry(debit, credit) && predicate(debit, credit),
+          );
+          if (matchingCredits.length !== 1) continue;
+
+          const [credit] = matchingCredits;
+          const matchingDebits = [...unsettled].filter(
+            (candidate) => this.isInternalTransferCounterEntry(candidate, credit) && predicate(candidate, credit),
+          );
+          if (matchingDebits.length !== 1) continue;
+
+          unsettled.delete(debit);
+          availableCredits.delete(credit);
+          settledInPass = true;
+        }
+      } while (settledInPass);
     };
 
-    // Strong identifiers win before amount/date fallbacks so a concurrent transfer cannot
-    // consume the credit belonging to a referenced debit.
-    settle((debit, credit) => this.hasSharedInternalTransferReference(debit, credit));
-
-    // Same-currency transfers can then be paired by the booked account amount.
-    settle((debit, credit) => {
-      if (!debit.currency || debit.currency !== credit.currency) return false;
-      if (!Number.isFinite(debit.amount) || !Number.isFinite(credit.amount)) return false;
-
-      const tolerance = Math.max(1, 0.01 * Math.max(Math.abs(debit.amount), Math.abs(credit.amount)));
-      return Math.abs(debit.amount - credit.amount) <= tolerance;
+    // Stable end-to-end IDs are stronger than free-text remittance information and are
+    // consumed first. Every pass requires a unique match in both directions.
+    settleUnique((debit, credit) => {
+      const debitReference = this.getInternalEndToEndId(debit);
+      return Boolean(debitReference) && debitReference === this.getInternalEndToEndId(credit);
     });
 
-    // For FX transfers the two booked account amounts/currencies intentionally differ. Once
-    // references and same-currency amounts are exhausted, pair FIFO within the exact IBAN route.
-    settle(() => true);
+    settleUnique((debit, credit) => {
+      const debitReference = this.getInternalRemittanceInfo(debit);
+      return Boolean(debitReference) && debitReference === this.getInternalRemittanceInfo(credit);
+    });
+
+    // Same-currency entries must agree to half a cent after removing a debit-side bank charge.
+    settleUnique((debit, credit) => {
+      if (!debit.currency || debit.currency !== credit.currency) return false;
+      const debitAmount = debit.internalTransferAmount();
+      const creditAmount = credit.internalTransferAmount();
+      if (typeof debitAmount !== 'number' || typeof creditAmount !== 'number') return false;
+      return (
+        Number.isFinite(debitAmount) && Number.isFinite(creditAmount) && Math.abs(debitAmount - creditAmount) < 0.005
+      );
+    });
+
+    // FX amounts are intentionally incomparable. Without a stable reference, settle only
+    // when the route and time window leave exactly one debit and one credit candidate.
+    settleUnique((debit, credit) => Boolean(debit.currency && credit.currency && debit.currency !== credit.currency));
 
     return debits.filter((debit) => unsettled.has(debit));
   }
@@ -1411,16 +1427,19 @@ export class LogJobService {
     return timeDifference >= -24 * 60 * 60 * 1000 && timeDifference <= INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS;
   }
 
-  private hasSharedInternalTransferReference(left: BankTx, right: BankTx): boolean {
-    const leftReferences = this.getInternalTransferReferences(left);
-    return [...this.getInternalTransferReferences(right)].some((reference) => leftReferences.has(reference));
+  private getInternalEndToEndId(tx: BankTx): string | undefined {
+    return this.normalizeInternalTransferReference(tx.endToEndId);
   }
 
-  private getInternalTransferReferences(tx: BankTx): Set<string> {
-    const references = [tx.endToEndId, tx.remittanceInfo]
-      .map((reference) => reference?.trim().toLowerCase().replace(/\s+/g, ' '))
-      .filter((reference): reference is string => Boolean(reference) && reference !== 'notprovided');
-    return new Set(references);
+  private getInternalRemittanceInfo(tx: BankTx): string | undefined {
+    return this.normalizeInternalTransferReference(tx.remittanceInfo);
+  }
+
+  private normalizeInternalTransferReference(reference: string | null | undefined): string | undefined {
+    const normalized = reference?.trim().toLowerCase().replace(/\s+/g, ' ');
+    return normalized && !['notprovided', 'not provided', 'n/a', 'unknown'].includes(normalized)
+      ? normalized
+      : undefined;
   }
 
   private getInternalTransferTime(tx: BankTx): number {
