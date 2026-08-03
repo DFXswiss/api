@@ -86,7 +86,7 @@ describe('effects that run inside a caller transaction', () => {
     function service(): PaymentQuoteService {
       const u = undefined as never;
 
-      return new PaymentQuoteService(injectedRepo as unknown as never, u, u, u, u, u, u, u, u);
+      return new PaymentQuoteService(injectedRepo as unknown as never, u, u, u, u, u, u, u, u, u);
     }
 
     it('writes through the manager it was given, not through its own repository', async () => {
