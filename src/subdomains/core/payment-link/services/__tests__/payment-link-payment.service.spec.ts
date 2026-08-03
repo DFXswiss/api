@@ -2,7 +2,8 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { In } from 'typeorm';
 import { PaymentDevice, PaymentLinkPayment } from '../../entities/payment-link-payment.entity';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus } from '../../enums';
+import { PaymentQuote } from '../../entities/payment-quote.entity';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentQuoteStatus } from '../../enums';
 import { PaymentLinkPaymentRepository } from '../../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from '../payment-activation.service';
 import { PaymentLinkPaymentService } from '../payment-link-payment.service';
@@ -63,6 +64,8 @@ describe('PaymentLinkPaymentService', () => {
     paymentLinkPaymentRepo = {
       find: jest.fn().mockResolvedValue([]),
       save: jest.fn().mockImplementation((entity) => entity),
+      // The default is the caller that wins the transition; the tests below that care set it.
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     } as unknown as jest.Mocked<PaymentLinkPaymentRepository>;
 
     paymentWebhookService = { sendWebhook: jest.fn() } as unknown as jest.Mocked<PaymentWebhookService>;
@@ -295,6 +298,110 @@ describe('PaymentLinkPaymentService', () => {
       await service.deliverPaymentUpdates();
 
       expect(seen).toHaveLength(1);
+    });
+  });
+
+  // --- Leaving Pending --- //
+
+  /**
+   * Leaving `Pending` has to be decided by the database, not by a status read a moment earlier.
+   * The expiry job is a `Worker` job, the expiry timers stay in the process that served the
+   * request, and cancelling and completing arrive from request paths — so several processes can
+   * hold the same payment as `Pending` at the same time, and each of them would send the merchant
+   * its webhook and cancel the quotes again.
+   *
+   * `affected: 0` is what a caller that lost sees, and it is the whole assertion: nothing after
+   * the transition may happen for it.
+   */
+  describe('leaving Pending', () => {
+    function transitions(): { status: PaymentLinkPaymentStatus }[] {
+      return paymentLinkPaymentRepo.update.mock.calls.map(([, values]) => values as { status: PaymentLinkPaymentStatus });
+    }
+
+    it('should expire through a conditional update rather than a status read', async () => {
+      await service.expirePayment(payment({ id: 7 }));
+
+      expect(paymentLinkPaymentRepo.update).toHaveBeenCalledWith(
+        { id: 7, status: PaymentLinkPaymentStatus.PENDING },
+        { status: PaymentLinkPaymentStatus.EXPIRED },
+      );
+      expect(transitions()).toHaveLength(1);
+    });
+
+    it('should not expire a second time when another process took the transition', async () => {
+      paymentLinkPaymentRepo.update.mockResolvedValue({ affected: 0 } as never);
+
+      await service.expirePayment(payment({ id: 7, link: { webhookUrl: 'https://merchant.example/hook' } as never }));
+
+      expect(paymentWebhookService.sendWebhook).not.toHaveBeenCalled();
+      expect(paymentQuoteService.cancelAllForPayment).not.toHaveBeenCalled();
+      expect(paymentActivationService.closeAllForPayment).not.toHaveBeenCalled();
+      expect(paymentLinkPaymentRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should cancel through the same transition', async () => {
+      await service.cancelByPayment(payment({ id: 7 }));
+
+      expect(paymentLinkPaymentRepo.update).toHaveBeenCalledWith(
+        { id: 7, status: PaymentLinkPaymentStatus.PENDING },
+        { status: PaymentLinkPaymentStatus.CANCELLED },
+      );
+      expect(paymentQuoteService.cancelAllForPayment).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not cancel a payment the worker expired in between', async () => {
+      paymentLinkPaymentRepo.update.mockResolvedValue({ affected: 0 } as never);
+
+      await service.cancelByPayment(payment({ id: 7, link: { webhookUrl: 'https://merchant.example/hook' } as never }));
+
+      expect(paymentWebhookService.sendWebhook).not.toHaveBeenCalled();
+      expect(paymentQuoteService.cancelAllForPayment).not.toHaveBeenCalled();
+      expect(paymentLinkPaymentRepo.save).not.toHaveBeenCalled();
+    });
+
+    /** The third way out of `Pending`, reached from a request path and from checkTxConfirmations. */
+    describe('completing on a quote', () => {
+      function completing(values: Partial<PaymentLinkPayment> = {}): PaymentLinkPayment {
+        return payment({
+          id: 7,
+          link: { configObj: { minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL } } as never,
+          ...values,
+        });
+      }
+
+      const quote = { id: 3, status: PaymentQuoteStatus.TX_MEMPOOL } as PaymentQuote;
+
+      beforeEach(() => {
+        paymentQuoteService.getCompletedQuoteCount = jest.fn().mockResolvedValue(1);
+        paymentActivationService.closeAllForQuote = jest.fn();
+      });
+
+      it('should complete a SINGLE payment through the transition', async () => {
+        await service['handleQuoteChange'](completing(), quote);
+
+        expect(paymentLinkPaymentRepo.update).toHaveBeenCalledWith(
+          { id: 7, status: PaymentLinkPaymentStatus.PENDING },
+          { status: PaymentLinkPaymentStatus.COMPLETED },
+        );
+        expect(paymentLinkPaymentRepo.save).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not complete it again when another process got there first', async () => {
+        paymentLinkPaymentRepo.update.mockResolvedValue({ affected: 0 } as never);
+
+        await service['handleQuoteChange'](completing(), quote);
+
+        expect(paymentLinkPaymentRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('should count a MULTIPLE payment without taking a transition', async () => {
+        // It stays `Pending`, so there is nothing to claim — and claiming would keep every process
+        // but one from recording the quote it counted.
+        await service['handleQuoteChange'](completing({ mode: PaymentLinkPaymentMode.MULTIPLE }), quote);
+
+        expect(paymentLinkPaymentRepo.update).not.toHaveBeenCalled();
+        expect(paymentLinkPaymentRepo.save).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

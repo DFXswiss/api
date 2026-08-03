@@ -115,8 +115,39 @@ export class PaymentLinkPaymentService {
   }
 
   async expirePayment(payment: PaymentLinkPayment): Promise<void> {
+    if (!(await this.takePendingTransition(payment, PaymentLinkPaymentStatus.EXPIRED))) return;
+
     await this.doSave(payment.expire(), true);
     await this.cancelQuotesForPayment(payment);
+  }
+
+  /**
+   * Moves a payment out of `Pending` in one statement, and answers whether THIS caller is the one
+   * that moved it. Everything that follows a transition — the merchant webhook, the quote
+   * cancellations, the activation closes — belongs to the caller that gets `true`.
+   *
+   * The read-then-write this replaces was safe while everything ran in one process. It is not any
+   * more: `processExpiredPayments` is a `Worker` job, while the expiry timers `createPayment` arms
+   * stay in the process that served the request, so two processes can read the same row as
+   * `Pending` and both act on it. A lock would not help, because they are different processes, and
+   * a lease would not either, because the request paths below reach the same transition without
+   * going through a job at all.
+   *
+   * The `status` in the criteria is what decides it: the database lets exactly one statement past
+   * `Pending` and reports it as the affected row, and every other caller gets nothing. That holds
+   * for any number of processes and for every path into the transition, which is why it sits here
+   * rather than at the call sites.
+   */
+  private async takePendingTransition(
+    payment: PaymentLinkPayment,
+    status: PaymentLinkPaymentStatus,
+  ): Promise<boolean> {
+    const { affected } = await this.paymentLinkPaymentRepo.update(
+      { id: payment.id, status: PaymentLinkPaymentStatus.PENDING },
+      { status },
+    );
+
+    return affected > 0;
   }
 
   async checkTxConfirmations(): Promise<void> {
@@ -425,11 +456,10 @@ export class PaymentLinkPaymentService {
     // expiry timers
     //
     // These stay in the process that served the request, although processExpiredPayments is a
-    // worker job. Moving the job did not give a payment a second timer: a timer is armed once, by
-    // the process that created the payment, and expirePaymentIfPending re-reads the payment with
-    // `status: Pending`, so a payment the job has already expired is left alone here. What the
-    // timers buy is what they bought before — a caller waiting on this process is released at the
-    // timeout rather than at the next tick of a job elsewhere.
+    // worker job. Both therefore race for the same payment, and neither the lock nor the lease
+    // spans them; what settles it is that the transition itself is atomic, see
+    // takePendingTransition. What the timers buy is what they bought before — a caller waiting on
+    // this process is released at the timeout rather than at the next tick of a job elsewhere.
     const scanTimeout = paymentLink.configObj.scanTimeout;
     if (scanTimeout) {
       setTimeout(() => this.expirePaymentIfPending(payment.id, true), scanTimeout * 1000);
@@ -476,6 +506,10 @@ export class PaymentLinkPaymentService {
   }
 
   async cancelByPayment(payment: PaymentLinkPayment): Promise<void> {
+    // Both callers reach here from a payment they read as `Pending`, and the worker can expire
+    // that same payment in between. Whoever the transition lets through sends the webhook.
+    if (!(await this.takePendingTransition(payment, PaymentLinkPaymentStatus.CANCELLED))) return;
+
     await this.doSave(payment.cancel(), true);
     await this.cancelQuotesForPayment(payment);
   }
@@ -610,7 +644,14 @@ export class PaymentLinkPaymentService {
     if (isPaymentComplete) {
       payment.txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
 
-      if (payment.mode === PaymentLinkPaymentMode.SINGLE) payment.complete();
+      // The status read above is the same read-then-write as in expirePayment, and this one is
+      // reached from request paths as well as from checkTxConfirmations. A `MULTIPLE` payment
+      // stays `Pending` and has no transition to take: it only counts a quote.
+      if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
+        if (!(await this.takePendingTransition(payment, PaymentLinkPaymentStatus.COMPLETED))) return;
+
+        payment.complete();
+      }
 
       await this.doSave(payment, true);
     }
