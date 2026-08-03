@@ -47,8 +47,8 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the 1,105 load sites in this repository, **six** name the columns they need:
-one query builder and the five raw statements. The other 1,099 request whole rows — 971 through the
+**No read model.** Of the load sites in this repository — at most 1,105, see [load-sites.md](load-sites.md#measurements) — **six** name the columns they need:
+one query builder and the five raw statements. Practically all the rest request whole rows — 971 through the
 `find` family, and of the 129 query builders, 105 pass the root alias to `.select(...)`, which reads
 like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
 business logic and pure output paths such as invoices, receipts, history and exports — which need
@@ -66,7 +66,7 @@ fields, not objects.
 | **Read model** | A separate model optimised for reading. Introducing projections for read paths is a small step towards one. |
 
 Note that eager relations apply to the `find*` family, **not** to `createQueryBuilder` and not to
-raw SQL. [load-sites.md](load-sites.md) records that mechanism for each of the 1,105 load sites,
+raw SQL. [load-sites.md](load-sites.md) records that mechanism for each load site,
 together with the measured column count.
 
 [endpoints.md](endpoints.md) summarises this per endpoint, as the union over every load site the

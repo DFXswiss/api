@@ -1,6 +1,6 @@
 # Database load sites
 
-Every place in the code that reads from the database: **1105 load sites** across 241 files.
+Every place in the code that reads from the database: **at most 1105 load sites** across 241 files — an upper bound, for the reason given under *Measurements*.
 
 This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
@@ -31,6 +31,10 @@ Columns were measured against the real entity metadata by building the query and
 - **348 are exact**: the `relations` tree is written at the call site.
 - **434 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
 - 323 could not be measured: no resolvable target entity, or raw SQL.
+
+**That last group is also why the total is an upper bound.** The collection matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolved, the distinction is settled; where it did not, the group holds both. A sample of 30 of those rows, read in the source, came out at 21 array operations to 9 genuine repository reads — so on the order of 200 rows here are not database reads at all, and the true count is nearer 900.
+
+What that does and does not affect: the median and the counts above are computed only over the 782 rows that carry a measured width, and an array operation never has one, so those figures stand. Nor does it move the conclusion this table exists for — six load sites naming their columns is the same verdict against 900 as against 1105. It does reach the per-endpoint summary in [endpoints.md](endpoints.md): an endpoint could be listed as fetching whole rows on the strength of such a row alone. The three with no measured width at all are the exposed cases and are named there. For the rest a measured query stands behind the entry, which limits the effect without excluding it — establishing that would need the collection to separate the two kinds of `find`, which is the fix this note stands in for.
 
 Median across measured sites: **120.5 columns**. At least 14 sites exceed 1000, 77 exceed 500 and 409 exceed 100 — "at least", because 434 of these measurements are lower bounds, and a resolved relation tree can only widen a query, never narrow it.
 
