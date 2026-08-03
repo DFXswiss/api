@@ -1,4 +1,4 @@
-import { BeforeApplicationShutdown, Injectable } from '@nestjs/common';
+import { BeforeApplicationShutdown, Injectable, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Config } from 'src/config/config';
 import { DataSource } from 'typeorm';
@@ -59,7 +59,7 @@ const SHUTDOWN_GRACE_MS = 10 * 1000;
  * more.
  */
 @Injectable()
-export class CronLeaseService implements BeforeApplicationShutdown {
+export class CronLeaseService implements OnModuleInit, BeforeApplicationShutdown {
   private readonly logger = new DfxLogger(CronLeaseService);
 
   private ownerId?: string;
@@ -74,6 +74,16 @@ export class CronLeaseService implements BeforeApplicationShutdown {
   private readonly inFlight = new Map<string, Promise<void>>();
 
   /**
+   * Whether the last lease operation reached the table. Sticky until one succeeds, so a role whose
+   * jobs all sit out still reports the state rather than only the tick that first hit it.
+   */
+  private healthy = true;
+
+  /** Lease operations that failed since the role heartbeat last read them; see `takeFailures`. */
+  private failures = 0;
+  private lastFailure?: string;
+
+  /**
    * Identifies THIS process for the lifetime of the process. The role makes a stray row readable
    * for an operator; the random part is what actually distinguishes two processes of the same
    * role — a restarted container must not be able to renew a lease that its predecessor took.
@@ -86,6 +96,35 @@ export class CronLeaseService implements BeforeApplicationShutdown {
   }
 
   constructor(private readonly dataSource: DataSource) {}
+
+  /**
+   * Reads the lease table once, so a process that cannot use it says so at start-up.
+   *
+   * Without the table — a process started before the migration ran, a revoked grant, a database
+   * that is not there yet — every worker- and api-scoped job fails its claim and is skipped. That
+   * is the correct behaviour, and CONTRIBUTING asks for exactly it where the alternative is
+   * proceeding on an unverified assumption. The problem it left behind is a reporting one: the
+   * skip is indistinguishable from a job that had nothing to do, and the role heartbeat is scoped
+   * `both`, so it is exempt from the lease and keeps reporting a healthy process.
+   *
+   * This does not take the boot down. A crash loop here would be loud, but it would also be
+   * self-inflicted during the very rollout that introduces the table: the migration ships with the
+   * process that runs migrations, and the other one would restart against a database that is
+   * correct a minute later. Reporting is what was missing, so reporting is what this adds — here,
+   * and continuously through `takeFailures`, because a boot line scrolls out of an alert window
+   * and says nothing about a table that disappeared afterwards.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.dataSource.query(`SELECT 1 FROM "cron_lease" LIMIT 1`);
+    } catch (e) {
+      this.recordFailure(e);
+      this.logger.error(
+        'The cron lease table cannot be read: every worker- and api-scoped job will be skipped on every tick',
+        e,
+      );
+    }
+  }
 
   /**
    * Claims the lease for `job`, or reports that someone else holds it.
@@ -105,6 +144,8 @@ export class CronLeaseService implements BeforeApplicationShutdown {
        RETURNING "owner"`,
       [job, this.owner, `${LEASE_TTL_SECONDS}`],
     );
+
+    this.healthy = true;
 
     return claimed.length > 0;
   }
@@ -145,6 +186,7 @@ export class CronLeaseService implements BeforeApplicationShutdown {
     try {
       acquired = await this.acquire(job);
     } catch (e) {
+      this.recordFailure(e);
       this.logger.error(`Skipping ${job}: could not reach the lease table`, e);
       return;
     }
@@ -157,7 +199,10 @@ export class CronLeaseService implements BeforeApplicationShutdown {
         .then((stillOurs) => {
           if (!stillOurs) this.logger.error(`Lost the lease for ${job} while it was still running`);
         })
-        .catch((e) => this.logger.error(`Could not extend the lease for ${job}`, e));
+        .catch((e) => {
+          this.recordFailure(e);
+          this.logger.error(`Could not extend the lease for ${job}`, e);
+        });
     }, RENEWAL_INTERVAL_MS);
     renewal.unref();
 
@@ -166,7 +211,10 @@ export class CronLeaseService implements BeforeApplicationShutdown {
         await task();
       } finally {
         clearInterval(renewal);
-        await this.release(job).catch((e) => this.logger.error(`Could not release the lease for ${job}`, e));
+        await this.release(job).catch((e) => {
+          this.recordFailure(e);
+          this.logger.error(`Could not release the lease for ${job}`, e);
+        });
         this.inFlight.delete(job);
       }
     })();
@@ -210,6 +258,29 @@ export class CronLeaseService implements BeforeApplicationShutdown {
         `Shutting down with ${stranded.length} job(s) still running (${stranded.join(', ')}); ` +
           `their leases stay held and lapse within ${LEASE_TTL_SECONDS}s`,
       );
+  }
+
+  /**
+   * The state of the lease layer, for the role heartbeat to report.
+   *
+   * Read rather than pushed: a lease that cannot reach its table stops every worker- and
+   * api-scoped job, and no other line says so — the jobs simply do not run. `healthy` stays false
+   * until an operation succeeds, so a role whose jobs are all sitting out keeps reporting it
+   * instead of falling quiet after the first window. The counter is per window; the last message
+   * is not, so an unhealthy report always names something.
+   */
+  takeFailures(): { healthy: boolean; count: number; last?: string } {
+    const taken = { healthy: this.healthy, count: this.failures, last: this.lastFailure };
+
+    this.failures = 0;
+
+    return taken;
+  }
+
+  private recordFailure(e: unknown): void {
+    this.failures++;
+    this.lastFailure = e instanceof Error ? e.message : String(e);
+    this.healthy = false;
   }
 
   private shutdownGrace(): Promise<void> {

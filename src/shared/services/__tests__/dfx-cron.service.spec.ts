@@ -62,6 +62,7 @@ function buildService(providers: { instance: object }[]): {
   // about the lease. What the lease itself does has its own suite.
   const leases = createMock<CronLeaseService>({
     run: (_job: string, task: () => Promise<void>) => task(),
+    takeFailures: () => ({ healthy: true, count: 0 }),
   });
 
   return { service: new DfxCronService(discovery, metadataScanner, scheduler, leases), scheduler };
@@ -195,6 +196,7 @@ describe('DfxCronService', () => {
           seen.push(job);
           return task();
         },
+        takeFailures: () => ({ healthy: true, count: 0 }),
       });
       const registry = createMock<SchedulerRegistry>();
 
@@ -305,6 +307,39 @@ describe('DfxCronService', () => {
       // Three worker/both jobs plus reportRole itself. The role is what the alert matches on; the
       // count tells the reader on call whether the process registered a plausible number of jobs.
       expect(info).toHaveBeenCalledWith('CronRole worker: heartbeat, 4 jobs registered');
+    });
+
+    it('reports an unusable lease instead of the healthy line', () => {
+      // The state this exists for: without the table every worker- and api-scoped job is skipped
+      // on every tick, and nothing said so. This job is scope `both`, so the lease never touches
+      // it — it kept reporting a healthy process while everything it counts sat out. The count is
+      // of REGISTERED jobs and cannot see it either.
+      process.env.CRON_ROLE = 'worker';
+      new ConfigService(GetConfig());
+
+      const unhealthy = createMock<CronLeaseService>({
+        run: (_job: string, task: () => Promise<void>) => task(),
+        takeFailures: () => ({ healthy: false, count: 3, last: 'relation "cron_lease" does not exist' }),
+      });
+      const discovery = createMock<DiscoveryService>({ getProviders: () => [] });
+      const metadataScanner = createMock<MetadataScanner>({ getAllMethodNames: () => [] });
+      const service = new DfxCronService(discovery, metadataScanner, createMock<SchedulerRegistry>(), unhealthy);
+
+      const error = jest.spyOn(service['logger'], 'error');
+      const info = jest.spyOn(service['logger'], 'info');
+
+      service.reportRole();
+
+      expect(info).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledTimes(1);
+
+      const line = error.mock.calls[0][0] as string;
+
+      // Still the shape the role alert matches — a heartbeat that stops matching would read as a
+      // dead process and hide the reason rather than name it.
+      expect(line).toMatch(/CronRole (api|worker|all): heartbeat, [0-9]+ jobs registered/);
+      expect(line).toContain('lease unusable');
+      expect(line).toContain('relation "cron_lease" does not exist');
     });
 
     it('produces a line the alert query actually matches', () => {

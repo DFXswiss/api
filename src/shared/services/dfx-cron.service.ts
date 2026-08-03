@@ -98,7 +98,21 @@ export class DfxCronService implements OnModuleInit {
   // for spreading load.
   @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.BOTH, useDelay: false })
   reportRole(): void {
-    this.logger.info(`CronRole ${Config.cronRole}: heartbeat, ${this.registeredCount} jobs registered`);
+    const line = `CronRole ${Config.cronRole}: heartbeat, ${this.registeredCount} jobs registered`;
+    const lease = this.leases.takeFailures();
+
+    if (lease.healthy) return this.logger.info(line);
+
+    // A job that cannot take its lease does not run, and nothing else says so — the skip looks
+    // exactly like a job with nothing to do. This job is scope `both` and therefore exempt from
+    // the lease itself, so it keeps reporting while everything it counts is sitting out: a count
+    // of REGISTERED jobs cannot see that. Same line, because the role alert matches on its shape;
+    // the state is appended and the level raised.
+    this.logger.error(
+      `${line}, lease unusable: ${lease.count} failure(s) since the last heartbeat, last error: ${
+        lease.last ?? 'unknown'
+      }`,
+    );
   }
 
   /**

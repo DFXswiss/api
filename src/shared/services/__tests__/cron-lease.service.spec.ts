@@ -244,4 +244,56 @@ describe('CronLeaseService', () => {
       expect([...(service['inFlight'] as Map<string, unknown>).keys()]).toEqual([]);
     });
   });
+
+  describe('visibility of an unusable lease table', () => {
+    // Without the table every claim fails and every worker- and api-scoped job is skipped. Not
+    // running is the right answer; looking healthy while doing it is not, and the role heartbeat
+    // is exempt from the lease so it never noticed.
+
+    it('says so at start-up when the table cannot be read', async () => {
+      const onQuery = jest.fn().mockRejectedValue(new Error('relation "cron_lease" does not exist'));
+      const { service } = buildService({ onQuery });
+
+      await service.onModuleInit();
+
+      expect(service.takeFailures()).toEqual({
+        healthy: false,
+        count: 1,
+        last: 'relation "cron_lease" does not exist',
+      });
+    });
+
+    it('stays unusable across heartbeats until an operation succeeds', async () => {
+      // A role whose jobs are all sitting out produces no new failures either. Were the state
+      // per window, the second heartbeat would look healthy again while nothing had changed.
+      const onQuery = jest.fn().mockRejectedValue(new Error('connection refused'));
+      const { service } = buildService({ onQuery });
+
+      await service.run('SomeService::job', jest.fn());
+
+      expect(service.takeFailures()).toMatchObject({ healthy: false, count: 1 });
+      expect(service.takeFailures()).toMatchObject({ healthy: false, count: 0 });
+    });
+
+    it('reports healthy again once a claim gets through', async () => {
+      // The counterpart: a transient outage must not leave the process reporting an error for the
+      // rest of its life.
+      const onQuery = jest.fn().mockRejectedValueOnce(new Error('connection refused'));
+      const { service } = buildService({ onQuery });
+
+      await service.onModuleInit();
+      expect(service.takeFailures().healthy).toBe(false);
+
+      onQuery.mockResolvedValue([{ owner: 'worker:1' }]);
+      await service.acquire('SomeService::job');
+
+      expect(service.takeFailures().healthy).toBe(true);
+    });
+
+    it('starts out healthy, so the heartbeat does not cry wolf before anything ran', () => {
+      const { service } = buildService({});
+
+      expect(service.takeFailures()).toEqual({ healthy: true, count: 0, last: undefined });
+    });
+  });
 });
