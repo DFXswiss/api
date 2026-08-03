@@ -349,8 +349,12 @@ export class CronLeaseService implements OnModuleInit {
    * answers slowly is exactly the situation this has to survive: the attempts pile up, each one
    * occupying a pooled connection, and an older answer can land after a newer one. Re-arming only
    * once the previous attempt has settled bounds that to a single outstanding statement. The price
-   * is that the renewals drift apart by however long the database takes to answer, which the lease
-   * TTL — three times the interval — is sized to absorb.
+   * is that the renewals drift later by however long the database takes to answer, and the TTL —
+   * three times the interval — leaves room for one such answer to be slow or lost, not for a
+   * database that is slow to every one of them. See RENEWAL_INTERVAL_MS.
+   *
+   * Losing the claim does not stop the run. There is nothing here that could stop it, and the
+   * timer deliberately keeps going: this process holds the claim for as long as it can renew it.
    */
   private keepAlive(job: string): { stop: () => void } {
     let stopped = false;
