@@ -278,11 +278,15 @@ export class AmlService {
       return bankDatas?.find((b) => b.type === BankDataType.IDENT) ?? bankDatas?.[0];
     }
 
+    // strictly prefer the bankData carrying the actual account holder of the payment method,
+    // so that an approved bankData of another type cannot mask an unverified one
     return this.bankDataService.getVerifiedBankDataWithIban(
       entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint,
       undefined,
-      undefined,
+      entity.bankTx ? BankDataType.BANK_IN : BankDataType.CARD_IN,
       { userData: true },
+      false,
+      true,
     );
   }
 }
