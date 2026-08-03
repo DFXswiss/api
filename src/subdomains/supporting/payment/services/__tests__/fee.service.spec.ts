@@ -12,7 +12,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { PriceUnavailableException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-unavailable.exception';
-import { EntityManager, IsNull, Not } from 'typeorm';
+import { EntityManager, IsNull, MoreThan, Not } from 'typeorm';
 import { BankService } from '../../../bank/bank/bank.service';
 import { PayoutService } from '../../../payout/services/payout.service';
 import { PricingService } from '../../../pricing/services/pricing.service';
@@ -286,6 +286,30 @@ describe('FeeService', () => {
       expect(feeRepo.create).toHaveBeenCalledWith(expect.objectContaining({ label: 'Onboarding Fixed 6200' }));
     });
 
+    it('replaces a restricted flat fee too, even though it would never create one', async () => {
+      feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
+      feeRepo.findBy.mockResolvedValue([Object.assign(onboardingFee(92, 5000), { assets: '1;2' })]);
+
+      await service.setOnboardingFee(accountWith([92]), 800);
+
+      // Leaving it assigned would charge the customer the sum of both fixed amounts.
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [92], 70, manager);
+      const where = feeRepo.findBy.mock.calls[0][0] as Record<string, unknown>;
+      expect(where).not.toHaveProperty('assets');
+      expect(where).not.toHaveProperty('specialCode');
+    });
+
+    it('names the blocking fee when a deactivated one occupies the label', async () => {
+      feeRepo.findOne.mockResolvedValue(null);
+      feeRepo.findOneBy.mockResolvedValue(Object.assign(onboardingFee(88, 800), { active: false }));
+      feeRepo.findBy.mockResolvedValue([]);
+
+      // `createFee` would reject the duplicate label with a generic message and no way forward.
+      await expect(service.setOnboardingFee(accountWith([]), 800)).rejects.toThrow(/deactivated \(fee 88\)/);
+
+      expect(feeRepo.save).not.toHaveBeenCalled();
+    });
+
     it('only reuses a fee that carries no filter and no limit at all', async () => {
       feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
       feeRepo.findBy.mockResolvedValue([]);
@@ -333,7 +357,11 @@ describe('FeeService', () => {
 
       await service.setOnboardingFee(accountWith([60, 115]), 800);
 
-      expect(feeRepo.findBy).toHaveBeenCalledWith(expect.objectContaining({ type: FeeType.ADDITION, rate: 0 }));
+      // What is replaced: any additive fee with a fixed amount, since those are what get summed.
+      expect(feeRepo.findBy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: FeeType.ADDITION, fixed: MoreThan(0) }),
+      );
+      // What may be reused or created: only an unconditional one.
       expect(feeRepo.findOne).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ type: FeeType.ADDITION, rate: 0, fixed: 800, active: true }),

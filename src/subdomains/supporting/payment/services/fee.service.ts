@@ -318,23 +318,37 @@ export class FeeService {
     });
   }
 
+  // What has to be replaced is wider than what may be created: every additive fee with a fixed
+  // amount contributes to `combinedExtraFixedFee`, whatever else it is restricted to. Matching only
+  // the strict shape here would leave a restricted flat fee assigned next to the new one, and the
+  // customer would be charged the sum of both.
   async getOnboardingFees(userData: UserData): Promise<Fee[]> {
     const feeIds = userData.individualFeeList;
     if (!feeIds?.length) return [];
 
-    return this.feeRepo.findBy({ ...OnboardingFeeShape, id: In(feeIds) });
+    return this.feeRepo.findBy({ type: FeeType.ADDITION, fixed: MoreThan(0), id: In(feeIds) });
   }
 
   private async getOrCreateOnboardingFee(amount: number): Promise<Fee> {
+    const label = `${OnboardingFeeLabel} ${amount}`;
+
     const existingFee = await this.feeRepo.findOne({
       where: { ...OnboardingFeeShape, fixed: amount, active: true },
       order: { id: 'ASC' },
     });
     if (existingFee) return existingFee;
 
+    // `createFee` rejects a duplicate label regardless of its state, and the label is derived from
+    // the amount - so a deactivated fee would block this amount for good behind a generic error.
+    const deactivatedFee = await this.feeRepo.findOneBy({ label, active: false });
+    if (deactivatedFee)
+      throw new BadRequestException(
+        `Onboarding fee of ${amount} CHF exists but is deactivated (fee ${deactivatedFee.id})`,
+      );
+
     const fee = await this.createFee(
       Object.assign(new CreateFeeDto(), {
-        label: `${OnboardingFeeLabel} ${amount}`,
+        label,
         type: FeeType.ADDITION,
         rate: 0,
         fixed: amount,
