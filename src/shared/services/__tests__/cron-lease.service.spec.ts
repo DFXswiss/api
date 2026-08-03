@@ -248,8 +248,9 @@ describe('CronLeaseService', () => {
 
     it('does not take the lease away from a job that is still running', async () => {
       // The dangerous direction. Releasing on SIGTERM would let the successor claim the lease and
-      // start the same job while this process keeps working on it for the rest of its stop grace
-      // period — the double run the lease exists to keep short.
+      // start the same job while this process keeps working on it — a double run for as long as
+      // the container leaves this process alive, which is the stop grace period and nothing the
+      // lease has a say in. Holding the lease is what keeps the successor out of it.
       jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
 
       try {
