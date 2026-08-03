@@ -120,8 +120,8 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     // userDataId 20: COMPLETE 150 + PREPARED 50 -> totalChf 200, count 2. PREPARED is neither
     // COMPLETE nor USER_SWITCH, so it pins that the exclusion filter is "status != USER_SWITCH",
     // not "status == COMPLETE". Also one row with no status (NULL) and amountInChf 999: the filter
-    // `r.status != :excluded` does not keep it (NULL != 'user_switch' is NULL under three-valued
-    // logic), so count/totalChf for 20 stay 2/200.
+    // `r.status != :excluded` does not keep it (comparing NULL against the excluded value is NULL
+    // under three-valued logic), so count/totalChf for 20 stay 2/200.
     // userDataId 30: COMPLETE 50 (created = oldDate) + COMPLETE 25.6 (created = newDate)
     //   -> totalChf 75.6, rounds UP to 76, count 2 (two rows aggregate)
     // userDataId 40: only USER_SWITCH -> must not appear
