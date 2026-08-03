@@ -1823,7 +1823,7 @@ describe('LogJobService', () => {
       const asset = createCustomAsset({
         id: 5001,
         dexName: 'EUR',
-        bank: frickEUR,
+        bank: olkyEUR,
         approxPriceChf: 1,
         sellable: true,
       });

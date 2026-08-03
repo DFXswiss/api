@@ -24,6 +24,7 @@ export interface BankSelectorInput {
 export class BankService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankService);
   private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
+  private static knownIbanCache: Map<string, Set<string>> = new Map(); // key: normalized iban, value: bankName-currency
 
   // The VirtualIbanRepository is injected instead of the VirtualIbanService: that service depends on this
   // one, and both live in BankModule, so the service-level dependency would close a provider cycle.
@@ -79,7 +80,9 @@ export class BankService implements OnModuleInit {
   async areKnownBankIbans(...ibans: string[]): Promise<boolean> {
     if (!ibans.length || ibans.some((iban) => !iban)) return false;
 
-    const knownIbans = new Set((await this.getAllBanks()).map((bank) => BankService.normalizeIban(bank.iban)));
+    const banks = await this.getAllBanks();
+    BankService.setKnownIbanCache(banks);
+    const knownIbans = new Set(banks.map((bank) => BankService.normalizeIban(bank.iban)));
 
     return ibans.every((iban) => knownIbans.has(BankService.normalizeIban(iban)));
   }
@@ -162,6 +165,17 @@ export class BankService implements OnModuleInit {
     return BankService.normalizeIban(expectedIban) === BankService.normalizeIban(accountIban);
   }
 
+  static isInternalBankMatching(asset: Asset, accountIban: string): boolean {
+    const normalizedIban = BankService.normalizeIban(accountIban);
+    if (!normalizedIban) return false;
+    if (BankService.normalizeIban(asset.bank?.iban) === normalizedIban) return true;
+
+    const bankName = this.blockchainToBankName(asset.blockchain);
+    if (!bankName) return false;
+
+    return BankService.knownIbanCache.get(normalizedIban)?.has(`${bankName}-${asset.dexName}`) ?? false;
+  }
+
   // --- RECEIVE IBAN CHECK --- //
 
   // Tells the client whether an IBAN typed in by a customer is one that belongs to DFX - not whether it still
@@ -230,6 +244,7 @@ export class BankService implements OnModuleInit {
     // Newest-first so that within each (name, currency) group the order handed to
     // selectAttributionBank is deterministic; asset-linked rows still beat newer unbound ones.
     const banks = await this.bankRepo.find({ order: { id: 'DESC' }, relations: { asset: true } });
+    BankService.setKnownIbanCache(banks);
 
     const byKey = Util.groupByAccessor(banks, (b) => `${b.name}-${b.currency}`);
 
@@ -247,6 +262,19 @@ export class BankService implements OnModuleInit {
       }
 
       BankService.ibanCache.set(key, selected.iban);
+    }
+  }
+
+  private static setKnownIbanCache(banks: Bank[]): void {
+    BankService.knownIbanCache.clear();
+
+    for (const bank of banks) {
+      const normalizedIban = BankService.normalizeIban(bank.iban);
+      if (!normalizedIban) continue;
+
+      const keys = BankService.knownIbanCache.get(normalizedIban) ?? new Set<string>();
+      keys.add(`${bank.name}-${bank.currency}`);
+      BankService.knownIbanCache.set(normalizedIban, keys);
     }
   }
 

@@ -407,13 +407,11 @@ export class BankTx extends IEntity {
         }
 
         if (!sourceIban || !targetIban) return 0;
-        if (!BankService.isBankMatching(asset, targetIban)) return 0;
+        if (!BankService.isInternalBankMatching(asset, this.accountIban)) return 0;
 
-        return this.iban === targetIban && this.accountIban === sourceIban
-          ? this.instructedAmount
-          : this.iban === sourceIban && this.accountIban === targetIban
-            ? -this.instructedAmount
-            : 0;
+        if (this.iban === targetIban && this.accountIban === sourceIban) return this.instructedAmount;
+        if (this.iban === sourceIban && this.accountIban === targetIban) return -this.instructedAmount;
+        return 0;
 
       case BankTxType.KRAKEN:
       case BankTxType.SCRYPT:

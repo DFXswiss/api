@@ -386,6 +386,7 @@ describe('Bank Frick country routing', () => {
 describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
   beforeEach(() => {
     (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    (BankService as unknown as { knownIbanCache: Map<string, Set<string>> }).knownIbanCache.clear();
   });
 
   it('maps Blockchain.FRICK to IbanBankName.FRICK', () => {
@@ -408,6 +409,18 @@ describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
 
     expect(BankService.isBankMatching(asset, frickEUR.iban.toLowerCase())).toBe(true);
     expect(BankService.isBankMatching(asset, olkyEUR.iban)).toBe(false);
+  });
+
+  it('matches a configured unbound IBAN to the corresponding bank asset for internal transfers', () => {
+    const unboundIban = 'LI75088110105923UNBOUND';
+    (BankService as unknown as { knownIbanCache: Map<string, Set<string>> }).knownIbanCache.set(
+      unboundIban,
+      new Set([`${IbanBankName.FRICK}-EUR`]),
+    );
+    const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR', bank: frickEUR });
+
+    expect(BankService.isInternalBankMatching(asset, unboundIban)).toBe(true);
+    expect(BankService.isBankMatching(asset, unboundIban)).toBe(false);
   });
 });
 

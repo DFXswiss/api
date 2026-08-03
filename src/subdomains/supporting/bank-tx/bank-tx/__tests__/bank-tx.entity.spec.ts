@@ -46,17 +46,20 @@ describe('BankTx', () => {
   describe('#pendingBankAmount(...) for internal transfers', () => {
     const olkyIban = 'LU116060002000005040';
     const frickIban = 'LI75088110105923K000E';
+    const frickChfIban = 'LI75088110105923K000C';
+    const olkyAsset = createCustomAsset({ blockchain: Blockchain.OLKYPAY, dexName: 'EUR' });
     const frickAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+    const frickChfAsset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'CHF' });
 
     beforeEach(() => {
-      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
-      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
-        `${IbanBankName.FRICK}-EUR`,
-        frickIban,
-      );
+      const bankService = BankService as unknown as { knownIbanCache: Map<string, Set<string>> };
+      bankService.knownIbanCache.clear();
+      bankService.knownIbanCache.set(olkyIban, new Set([`${IbanBankName.OLKY}-EUR`]));
+      bankService.knownIbanCache.set(frickIban, new Set([`${IbanBankName.FRICK}-EUR`]));
+      bankService.knownIbanCache.set(frickChfIban, new Set([`${IbanBankName.FRICK}-CHF`]));
     });
 
-    it('keeps a debit in the destination plus balance while it is in transit', () => {
+    it('keeps a debit in the source plus balance while it is in transit', () => {
       const entity = createCustomBankTx({
         accountIban: olkyIban,
         iban: frickIban,
@@ -65,7 +68,8 @@ describe('BankTx', () => {
         instructedCurrency: 'EUR',
       });
 
-      expect(entity.pendingBankAmount(frickAsset, BankTxType.INTERNAL)).toBe(280000);
+      expect(entity.pendingBankAmount(olkyAsset, BankTxType.INTERNAL)).toBe(280000);
+      expect(entity.pendingBankAmount(frickAsset, BankTxType.INTERNAL)).toBe(0);
     });
 
     it('removes the pending amount once the destination bank reports the credit', () => {
@@ -78,6 +82,26 @@ describe('BankTx', () => {
       });
 
       expect(entity.pendingBankAmount(frickAsset, BankTxType.INTERNAL)).toBe(-280000);
+    });
+
+    it('attributes both legs of a cross-currency transfer to their account currencies', () => {
+      const debit = createCustomBankTx({
+        accountIban: olkyIban,
+        iban: frickChfIban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedAmount: 280000,
+        instructedCurrency: 'EUR',
+      });
+      const credit = createCustomBankTx({
+        accountIban: frickChfIban,
+        iban: olkyIban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        instructedAmount: 268000,
+        instructedCurrency: 'CHF',
+      });
+
+      expect(debit.pendingBankAmount(olkyAsset, BankTxType.INTERNAL)).toBe(280000);
+      expect(credit.pendingBankAmount(frickChfAsset, BankTxType.INTERNAL)).toBe(-268000);
     });
   });
 
