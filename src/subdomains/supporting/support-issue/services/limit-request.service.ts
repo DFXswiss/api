@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -24,6 +26,7 @@ export class LimitRequestService {
     private readonly notificationService: NotificationService,
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly supportLogService: SupportLogService,
+    @InjectRepository(UserData) private readonly userDataRepo: Repository<UserData>,
   ) {}
 
   async increaseLimitInternal(dto: LimitRequestDto, userData: UserData): Promise<LimitRequest> {
@@ -62,20 +65,31 @@ export class LimitRequestService {
     if (!entity) throw new NotFoundException('LimitRequest not found');
     if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request already final');
 
-    if (dto.decision !== entity.decision && LimitRequestFinal(dto.decision)) {
+    // grantedDepositLimit never reaches the limit_request row or the support log — it belongs to
+    // user_data.depositLimit only, and is written here (fail-closed, in the same call as the finality
+    // check above) so a granting decision can never race a separate, later depositLimit write.
+    const { grantedDepositLimit, ...update } = dto;
+
+    if (grantedDepositLimit != null && !LimitRequestAccepted(update.decision))
+      throw new BadRequestException('grantedDepositLimit is only allowed on a granting decision');
+
+    if (grantedDepositLimit != null && LimitRequestAccepted(update.decision))
+      await this.userDataRepo.update(entity.userData.id, { depositLimit: grantedDepositLimit });
+
+    if (update.decision !== entity.decision && LimitRequestFinal(update.decision)) {
       await this.supportIssueRepo.update(entity.supportIssue.id, {
         state: SupportIssueInternalState.COMPLETED,
       });
-      if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
+      if (LimitRequestAccepted(update.decision)) await this.webhookService.kycChanged(entity.userData);
     }
 
     await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
       type: SupportLogType.LIMIT_REQUEST,
       limitRequest: entity,
-      ...dto,
+      ...update,
     });
 
-    return this.limitRequestRepo.save({ ...entity, ...dto });
+    return this.limitRequestRepo.save({ ...entity, ...update });
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {

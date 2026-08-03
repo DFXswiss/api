@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationModule } from '../notification/notification.module';
@@ -37,6 +38,7 @@ import { SupportIssueController } from './support-issue.controller';
       SupportLog,
       SupportIssueLog,
       LimitRequestLog,
+      UserData,
     ]),
     forwardRef(() => TransactionModule),
     forwardRef(() => KycModule),

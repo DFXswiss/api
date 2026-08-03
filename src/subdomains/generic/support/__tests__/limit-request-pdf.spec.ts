@@ -1,7 +1,10 @@
 import { createMock } from '@golevelup/ts-jest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { LimitRequestDecision } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { FileSubType, FileType } from '../../kyc/dto/kyc-file.dto';
 import { ContentType } from '../../kyc/enums/content-type.enum';
 import { KycDocumentService } from '../../kyc/services/integration/kyc-document.service';
@@ -15,7 +18,7 @@ const USER_DATA_ID = 397328;
 
 function acceptedDto(): GenerateLimitRequestPdfDto {
   return {
-    decision: 'Accepted',
+    decision: LimitRequestDecision.ACCEPTED,
     clerk: 'JR',
     requestedLimit: 500000,
     grantedLimit: 500000,
@@ -25,6 +28,54 @@ function acceptedDto(): GenerateLimitRequestPdfDto {
     note: 'Kaufvertrag geprüft',
   };
 }
+
+describe('GenerateLimitRequestPdfDto validation', () => {
+  const validateDto = async (raw: Record<string, unknown>) =>
+    validate(plainToInstance(GenerateLimitRequestPdfDto, raw));
+
+  const validRaw = (): Record<string, unknown> => ({
+    decision: LimitRequestDecision.ACCEPTED,
+    clerk: 'JR',
+    requestedLimit: 500000,
+    grantedLimit: 500000,
+  });
+
+  it('accepts a fully valid payload', async () => {
+    expect(await validateDto(validRaw())).toEqual([]);
+  });
+
+  it('rejects an unknown decision string', async () => {
+    const errors = await validateDto({ ...validRaw(), decision: 'NotARealDecision' });
+    expect(errors.find((e) => e.property === 'decision')).toBeDefined();
+  });
+
+  it('rejects an empty clerk', async () => {
+    const errors = await validateDto({ ...validRaw(), clerk: '' });
+    expect(errors.find((e) => e.property === 'clerk')).toBeDefined();
+  });
+
+  it('rejects requestedLimit sent as a string', async () => {
+    const errors = await validateDto({ ...validRaw(), requestedLimit: '500000' });
+    expect(errors.find((e) => e.property === 'requestedLimit')).toBeDefined();
+  });
+
+  it('rejects a non-integer requestedLimit', async () => {
+    const errors = await validateDto({ ...validRaw(), requestedLimit: 1.5 });
+    expect(errors.find((e) => e.property === 'requestedLimit')).toBeDefined();
+  });
+
+  // `user_data.depositLimit` is a float column: an account carrying a non-integer limit must still be
+  // reportable, so previousLimit (unlike requestedLimit) stays @IsNumber.
+  it('accepts a non-integer previousLimit', async () => {
+    const errors = await validateDto({
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      previousLimit: 99999.5,
+    });
+    expect(errors).toEqual([]);
+  });
+});
 
 describe('SupportService.generateAndSaveLimitRequestPdf', () => {
   let service: SupportService;
@@ -47,6 +98,7 @@ describe('SupportService.generateAndSaveLimitRequestPdf', () => {
     jest.spyOn(userDataService, 'getUserData').mockResolvedValue(Object.assign(new UserData(), { id: USER_DATA_ID }));
     jest.spyOn(supportPdfService, 'createLimitRequestPdf').mockResolvedValue(Buffer.from('pdf').toString('base64'));
     jest.spyOn(kycDocumentService, 'uploadUserFile').mockResolvedValue({ url: 'https://files/report.pdf' } as never);
+    jest.spyOn(kycDocumentService, 'listFilesByPrefix').mockResolvedValue([]);
   });
 
   // The sheet filed every decision under UserNotes/LimitRequestReport; keeping both keeps old and new
@@ -83,6 +135,7 @@ describe('SupportService.generateAndSaveLimitRequestPdf', () => {
     expect(supportPdfService.createLimitRequestPdf).toHaveBeenCalledWith(
       expect.objectContaining({ id: USER_DATA_ID }),
       dto,
+      expect.any(Date),
     );
   });
 
@@ -91,6 +144,82 @@ describe('SupportService.generateAndSaveLimitRequestPdf', () => {
 
     await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, acceptedDto())).rejects.toThrow(
       NotFoundException,
+    );
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  // --- Fail-closed decision/limit consistency (before any PDF is rendered or uploaded) --- //
+
+  it('rejects a non-final decision', async () => {
+    const dto = { ...acceptedDto(), decision: LimitRequestDecision.APPROVED_1_OF_2 };
+
+    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, dto)).rejects.toThrow(BadRequestException);
+    expect(supportPdfService.createLimitRequestPdf).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects a granting decision without a grantedLimit', async () => {
+    const dto = { ...acceptedDto(), grantedLimit: undefined };
+
+    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, dto)).rejects.toThrow(BadRequestException);
+    expect(supportPdfService.createLimitRequestPdf).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects a rejection that carries a grantedLimit', async () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+      grantedLimit: 500000,
+      previousLimit: 100000,
+    };
+
+    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, dto)).rejects.toThrow(BadRequestException);
+    expect(supportPdfService.createLimitRequestPdf).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects a rejection without a previousLimit', async () => {
+    const dto: GenerateLimitRequestPdfDto = {
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+    };
+
+    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, dto)).rejects.toThrow(BadRequestException);
+    expect(supportPdfService.createLimitRequestPdf).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  // --- File name: UTC, so it stays consistent with the PDF footer regardless of the server's local TZ --- //
+
+  it("builds the file name from UTC date components, independent of the runner's local timezone", async () => {
+    const originalTz = process.env.TZ;
+    // UTC+14 — the widest positive offset that exists, so a UTC-evening instant falls on the NEXT
+    // calendar day locally; a regression to local Date getters would show up as a wrong file name.
+    process.env.TZ = 'Pacific/Kiritimati';
+    jest.useFakeTimers().setSystemTime(new Date('2026-01-15T23:05:09.000Z'));
+
+    try {
+      await service.generateAndSaveLimitRequestPdf(USER_DATA_ID, acceptedDto());
+      const [, , fileName] = jest.mocked(kycDocumentService.uploadUserFile).mock.calls[0];
+      expect(fileName).toBe(`20260115-LimitRequest-0-${USER_DATA_ID}-230509.pdf`);
+    } finally {
+      jest.useRealTimers();
+      process.env.TZ = originalTz;
+    }
+  });
+
+  // --- Collision guard: never silently overwrite an existing report --- //
+
+  it('refuses to upload when a report of the same name already exists', async () => {
+    jest
+      .spyOn(kycDocumentService, 'listFilesByPrefix')
+      .mockImplementation(async (prefix: string) => [{ path: prefix } as never]);
+
+    await expect(service.generateAndSaveLimitRequestPdf(USER_DATA_ID, acceptedDto())).rejects.toThrow(
+      ConflictException,
     );
     expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
   });
@@ -105,11 +234,12 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
     verifiedName: 'Birgit Muster',
     kycLevel: 50,
   });
+  const generatedAt = new Date('2026-02-01T12:00:00.000Z');
 
   async function renderText(dto: GenerateLimitRequestPdfDto): Promise<string> {
-    const base64 = await pdfService.createLimitRequestPdf(userData, dto);
-    // The PDF's text is stored deflated; asserting on the raw bytes would only prove it is a PDF. The
-    // renderer is exercised end to end here, and the field content is asserted through the DTO above.
+    const base64 = await pdfService.createLimitRequestPdf(userData, dto, generatedAt);
+    // compress: false in the renderer keeps the content stream literal, so field text survives a plain
+    // latin1 decode of the raw bytes and can be asserted on directly.
     return Buffer.from(base64, 'base64').toString('latin1');
   }
 
@@ -124,7 +254,7 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
   // than print an empty "new limit" that a later reader would have to interpret.
   it('renders a rejection without a granted limit', async () => {
     const content = await renderText({
-      decision: 'Rejected',
+      decision: LimitRequestDecision.REJECTED,
       clerk: 'JR',
       requestedLimit: 500000,
       previousLimit: 100000,
@@ -137,7 +267,7 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
   // its report, or the decision that produced it would fail on the report step.
   it('renders a non-integer previous limit', async () => {
     const content = await renderText({
-      decision: 'Rejected',
+      decision: LimitRequestDecision.REJECTED,
       clerk: 'JR',
       requestedLimit: 500000,
       previousLimit: 99999.5,
@@ -147,8 +277,38 @@ describe('SupportPdfService.createLimitRequestPdf', () => {
   });
 
   it('renders without optional context at all', async () => {
-    const content = await renderText({ decision: 'Rejected', clerk: 'JR', requestedLimit: 500000 });
+    const content = await renderText({
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500000,
+    });
 
     expect(content.startsWith('%PDF')).toBe(true);
+  });
+
+  // "Neues Jahreslimit" shows the previous limit on a rejection — the field a rejection leaves in force
+  // — and the granted limit on an acceptance. Small, distinct, sub-1000 values so the assertion does not
+  // depend on which thousands-separator character `toLocaleString('de-CH')` happens to use on the runner.
+  it('shows the previous limit as the new limit on a rejection', async () => {
+    const content = await renderText({
+      decision: LimitRequestDecision.REJECTED,
+      clerk: 'JR',
+      requestedLimit: 500,
+      previousLimit: 42,
+    });
+
+    expect(content).toContain('42 CHF');
+  });
+
+  it('shows the granted limit as the new limit on an acceptance', async () => {
+    const content = await renderText({
+      decision: LimitRequestDecision.ACCEPTED,
+      clerk: 'JR',
+      requestedLimit: 500,
+      grantedLimit: 77,
+      previousLimit: 42,
+    });
+
+    expect(content).toContain('77 CHF');
   });
 });
