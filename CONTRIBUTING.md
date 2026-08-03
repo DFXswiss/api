@@ -539,33 +539,58 @@ runs unconditionally and cannot be switched off without a deploy.
 
 Prefer longer intervals (15min) over aggressive polling (1min). Only use short intervals when truly needed.
 
-#### Global vs. per-instance
+#### Which process a job belongs to
 
-The API can run as more than one instance from the same image — one serving HTTP, one running
-the jobs (`CRON_JOBS_ENABLED=false` keeps an instance HTTP-only). **Every new cron job needs a
-decision which of the two it is**, and getting it wrong fails silently:
+The API can run as more than one process from the same image — one serving HTTP, one running the
+background work — and `CRON_ROLE` decides which of them a process is (`api`, `worker`, or `all`
+for a single-process setup). **Every cron job must declare which process it belongs to**, and the
+compiler enforces it: `scope` is a mandatory parameter of `@DfxCron`.
 
 ```typescript
-// GLOBAL (the default): writes to the database, moves money, calls an external system in a
-// way that changes state. Runs on the job instance only.
-@DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT })
+// Worker: writes to the database, moves money, or calls an external system in a way that
+// changes state. The normal case.
+@DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.PAYMENT })
 async processPayments(): Promise<void> {}
 
-// PER-INSTANCE: effect confined to this process — refreshing an in-memory copy of global
-// state, expiring a local cache, measuring this process. Runs everywhere, including the
-// HTTP-only instance, because requests on that instance read what it maintains.
-@DfxCron(CronExpression.EVERY_30_SECONDS, { perInstance: true })
+// Both: the effect is confined to the process it runs in — refreshing an in-memory copy of
+// global state, expiring a local cache, measuring this process. It runs everywhere, because
+// requests on the API process read what it maintains.
+@DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.Both })
 async resyncDeniedJwtAccounts(): Promise<void> {}
+
+// Api: maintains state read only from a request path, or drives work bound to the connections
+// this process holds open.
+@DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.Api, process: Process.UPDATE_STATISTIC })
+async doUpdate(): Promise<void> {}
 ```
 
-Ask: *does an HTTP handler on this instance read state that this job writes?* If yes, it is
-per-instance — otherwise that state freezes at boot wherever the job does not run. The JWT
-denylists are the cautionary example: frozen, they fail open and a blocked account keeps its
-live tokens.
+Ask: *does a request handler read state this job writes?* If both a request path and a job read
+it, the answer is `Both`; if only a request path does, `Api`; otherwise `Worker`. Getting it
+wrong fails silently — the state simply freezes at boot wherever the job does not run. The JWT
+denylists are the cautionary example: frozen, they fail open and a blocked account keeps its live
+tokens.
 
-Running a per-instance job twice must be harmless by construction. If it writes to the
-database, sends mail, or calls a paid external API, it is global — mark it as such and, if an
-HTTP path needs its result, route that result through the database rather than process memory.
+A job scoped `Both` runs in every process without a shared lock, so running it twice must be
+harmless by construction. If it writes to the database, sends mail, or calls a paid external API,
+it is `Worker` — and if a request path needs its result, that result belongs in the database, not
+in process memory.
+
+#### A cache read by a request path loads itself
+
+**A cache read in a request path must load on demand** — through `AsyncCache`, `CachedRepository`
+or a lazy load of its own. A cron job may refresh it, but must not be the only thing filling it.
+
+This is the rule that makes a wrong scope harmless: a cache that loads itself is correct in every
+process, whichever scope its refresh job carries. `AsyncCache` and `CachedRepository` already work
+this way; the jobs scoped `Both` are precisely those that do not.
+
+#### Register periodic work through @DfxCron
+
+`scope` only reaches jobs going through `@DfxCron`. A native `@Cron` or a bare `setInterval` is
+invisible to it and therefore runs in every process — for anything writing to the database, that
+means twice, without a shared lock. A test enforces this; its one exception is a timer tied to
+the lifetime of a client object rather than to a schedule, and it is bound to `Config.cronRole`
+directly.
 
 ### Await Discipline
 
