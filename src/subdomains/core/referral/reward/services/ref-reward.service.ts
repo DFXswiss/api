@@ -293,9 +293,10 @@ export class RefRewardService {
 
     // getRawMany() returns the pg driver's raw values verbatim. int8 (COUNT(*)) has a registered
     // node-postgres parser that yields a string (to avoid silent precision loss above 2^53), and
-    // numeric (the ::numeric cast above, OID 1700) has no registered parser at all, so it comes back
-    // as a string too. Typing the raw row as a string honestly reflects the driver output; the
-    // conversion to number happens below so the declared return type stays true.
+    // numeric (the ::numeric cast above, OID 1700) has no registered parser for the text protocol
+    // node-postgres uses here (pg-types only registers a numeric parser for the binary protocol),
+    // so it comes back as a string too. Typing the raw row as a string honestly reflects the
+    // driver output; the conversion to number happens below so the declared return type stays true.
     const rows = await query.getRawMany<{ userDataId: number; count: string; totalChf: string | null }>();
 
     return rows.map((row) => {

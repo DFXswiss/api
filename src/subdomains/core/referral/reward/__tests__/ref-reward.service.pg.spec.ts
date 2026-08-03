@@ -107,21 +107,28 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     const userRepo = dataSource.getRepository(UserTable);
     const rewardRepo = dataSource.getRepository(RefRewardTable);
 
-    // userDataId 10: COMPLETE 100 + COMPLETE 200.4 → totalChf 300.4, rounds DOWN to 300, count 2 (highest)
-    // userDataId 20: COMPLETE 150 → totalChf 150, count 1
+    // userDataId 10: two separate user accounts (user10, user10b) share this userDataId — mirrors
+    // production, where a single userDataId can have over a hundred user accounts. COMPLETE 100
+    // (user10) + COMPLETE 200.4 (user10b) -> totalChf 300.4, rounds DOWN to 300, count 2. A
+    // regression that additionally groups by u.id would split this into two separate rows instead
+    // of one merged row.
+    // userDataId 20: COMPLETE 150 + PREPARED 50 -> totalChf 200, count 2. PREPARED is neither
+    // COMPLETE nor USER_SWITCH, so it pins that the exclusion filter is "status != USER_SWITCH",
+    // not "status == COMPLETE".
     // userDataId 30: COMPLETE 50 (created = oldDate) + COMPLETE 25.6 (created = newDate)
-    //   → totalChf 75.6, rounds UP to 76, count 2 (two rows aggregate)
-    // userDataId 40: only USER_SWITCH → must not appear
-    // userDataId 50: COMPLETE 100 + USER_SWITCH 999 → totalChf 100, count 1 (USER_SWITCH excluded)
+    //   -> totalChf 75.6, rounds UP to 76, count 2 (two rows aggregate)
+    // userDataId 40: only USER_SWITCH -> must not appear
+    // userDataId 50: COMPLETE 100 + USER_SWITCH 999 -> totalChf 100, count 1 (USER_SWITCH excluded)
     //
-    // 10 and 30 straddle a rounding boundary (…300.4 down, …75.6 up) on purpose: every seeded amount
-    // used to be a whole number, so ROUND(…, 0) accidentally regressing to ROUND(…, 1) — or the sum
-    // being truncated instead of rounded — would have left every expected total unchanged and the
-    // test green.
+    // 10 and 30 straddle a rounding boundary (...300.4 down, ...75.6 up) on purpose: every seeded
+    // amount used to be a whole number, so ROUND(..., 0) accidentally regressing to ROUND(..., 1) —
+    // or the sum being truncated instead of rounded — would have left every expected total unchanged
+    // and the test green.
     //
     // Do not hard-code user ids: clear() does not reset the PrimaryGeneratedColumn sequence, so
     // rewards must link to the entities returned by save().
-    const [user10, user20, user30, user40, user50] = await userRepo.save([
+    const [user10, user10b, user20, user30, user40, user50] = await userRepo.save([
+      { userDataId: 10 },
       { userDataId: 10 },
       { userDataId: 20 },
       { userDataId: 30 },
@@ -131,8 +138,9 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
 
     await rewardRepo.save([
       { created: newDate, amountInChf: 100, status: RewardStatus.COMPLETE, user: user10 },
-      { created: newDate, amountInChf: 200.4, status: RewardStatus.COMPLETE, user: user10 },
+      { created: newDate, amountInChf: 200.4, status: RewardStatus.COMPLETE, user: user10b },
       { created: newDate, amountInChf: 150, status: RewardStatus.COMPLETE, user: user20 },
+      { created: newDate, amountInChf: 50, status: RewardStatus.PREPARED, user: user20 },
       { created: oldDate, amountInChf: 50, status: RewardStatus.COMPLETE, user: user30 },
       { created: newDate, amountInChf: 25.6, status: RewardStatus.COMPLETE, user: user30 },
       { created: newDate, amountInChf: 500, status: RewardStatus.USER_SWITCH, user: user40 },
@@ -141,7 +149,7 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     ]);
   }
 
-  it('returns recipients sorted by totalChf DESC, excluding USER_SWITCH from sum/count and pure USER_SWITCH recipients', async () => {
+  it('returns recipients sorted by totalChf DESC, excluding USER_SWITCH from sum/count, pure USER_SWITCH recipients, and merges multiple accounts under one userDataId', async () => {
     await seedFixture();
 
     // must not throw (the prod bug: QueryFailedError: column "totalchf" does not exist)
@@ -151,7 +159,7 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     // (see the driver-string conversion in the service), so this asserts the method's actual output.
     expect(result).toEqual([
       { userDataId: 10, count: 2, totalChf: 300 },
-      { userDataId: 20, count: 1, totalChf: 150 },
+      { userDataId: 20, count: 2, totalChf: 200 },
       { userDataId: 50, count: 1, totalChf: 100 },
       { userDataId: 30, count: 2, totalChf: 76 },
     ]);
@@ -256,8 +264,8 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     }
   });
 
-  // Stichtag liegt bewusst exakt auf newDate, um die inklusive >=-Grenze scharf zu prüfen —
-  // bei versehentlicher Verschärfung zu > fielen alle newDate-Zeilen heraus und der Test bräche.
+  // The cutoff sits exactly on newDate on purpose, to pin the inclusive >= boundary — a
+  // regression to > would drop every newDate row and this test would fail.
   it('filters rewards by from on newDate so group 30 drops the pre-from row (count 1, totalChf 26)', async () => {
     await seedFixture();
 
@@ -265,7 +273,24 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
 
     expect(result).toEqual([
       { userDataId: 10, count: 2, totalChf: 300 },
-      { userDataId: 20, count: 1, totalChf: 150 },
+      { userDataId: 20, count: 2, totalChf: 200 },
+      { userDataId: 50, count: 1, totalChf: 100 },
+      { userDataId: 30, count: 1, totalChf: 26 },
+    ]);
+    expect(result.map((r) => r.userDataId)).not.toContain(40);
+  });
+
+  it('includes rewards on a from date strictly between oldDate and newDate, proving >= is not narrowed to =', async () => {
+    await seedFixture();
+
+    const strictlyBetween = new Date('2026-01-01T00:00:00.000Z');
+    const result = await service.getRewardRecipients(strictlyBetween);
+
+    // no reward is created exactly on strictlyBetween, so a regression to `r.created = :from`
+    // would return an empty list here while `>=` still finds every row at or after it.
+    expect(result).toEqual([
+      { userDataId: 10, count: 2, totalChf: 300 },
+      { userDataId: 20, count: 2, totalChf: 200 },
       { userDataId: 50, count: 1, totalChf: 100 },
       { userDataId: 30, count: 1, totalChf: 26 },
     ]);
@@ -275,8 +300,9 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
   it('returns an empty list when from is after every reward', async () => {
     await seedFixture();
 
-    // Grundlinie: Fixtur liefert Daten, damit die anschliessende Leere vom from-Filter stammt
-    // und nicht von kaputter Fixtur (fest verdrahtete IDs / ins Leere zeigende Fremdschlüssel).
+    // Baseline: confirms the fixture yields data first, so the subsequent empty result comes
+    // from the from filter — not from a broken fixture (hard-coded ids / dangling foreign
+    // keys).
     const baseline = await service.getRewardRecipients();
     expect(baseline).toHaveLength(4);
     expect(baseline.map((r) => r.userDataId).sort((a, b) => a - b)).toEqual([10, 20, 30, 50]);
