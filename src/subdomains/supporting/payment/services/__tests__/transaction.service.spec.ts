@@ -139,9 +139,7 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
     await service.resume(99);
 
-    expect(repo.findOne).toHaveBeenCalledWith(
-      expect.objectContaining({ relations: { buyCrypto: { batch: true } } }),
-    );
+    expect(repo.findOne).toHaveBeenCalledWith(expect.objectContaining({ relations: { buyCrypto: { batch: true } } }));
     expect(buyCryptoRepo.update).toHaveBeenCalledWith(
       expect.objectContaining({ id: 7, status: BuyCryptoStatus.STOPPED, amlCheck: CheckStatus.PASS }),
       { status: BuyCryptoStatus.CREATED },
