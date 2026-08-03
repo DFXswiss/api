@@ -167,6 +167,20 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     return user.userDataId;
   }
 
+  // Isolated seed for rounded totalChf ties only — userDataIds 70/80 do not appear in seedFixture
+  // or seedMixedAmountGroup. Amounts 100.4 and 99.6 both ROUND(..., 0) to 100. Inserts the group
+  // that must sort later first (80 before 70) so insertion order disagrees with userDataId ASC.
+  async function seedRoundedTotalChfTie(): Promise<void> {
+    const userRepo = dataSource.getRepository(UserTable);
+    const rewardRepo = dataSource.getRepository(RefRewardTable);
+
+    const [user80, user70] = await userRepo.save([{ userDataId: 80 }, { userDataId: 70 }]);
+    await rewardRepo.save([
+      { created: newDate, amountInChf: 100.4, status: RewardStatus.COMPLETE, user: user80 },
+      { created: newDate, amountInChf: 99.6, status: RewardStatus.COMPLETE, user: user70 },
+    ]);
+  }
+
   it('returns recipients sorted by totalChf DESC, excluding USER_SWITCH from sum/count, pure USER_SWITCH recipients, and merges multiple accounts under one userDataId', async () => {
     await seedFixture();
 
@@ -222,7 +236,19 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
     }
 
     expect(capturedSql).toContain('SUM("r"."amountInChf")::numeric');
-    expect(capturedSql).toContain('ORDER BY "totalChf" DESC');
+    // Full ORDER BY: primary totalChf DESC, then stable u.userDataId ASC tie-breaker (TypeORM
+    // quotes the entity path via join metadata the same way it quotes "r"."amountInChf" above).
+    expect(capturedSql).toContain('ORDER BY "totalChf" DESC, "u"."userDataId" ASC');
+  });
+
+  it('orders equal rounded totalChf groups by userDataId ASC', async () => {
+    await seedRoundedTotalChfTie();
+
+    const result = await service.getRewardRecipients();
+
+    // Both sums round to the same whole CHF; order must still be deterministic via userDataId ASC.
+    expect(result.map((r) => r.totalChf)).toEqual([100, 100]);
+    expect(result.map((r) => r.userDataId)).toEqual([70, 80]);
   });
 
   // pg-mem returns COUNT/SUM as JS numbers already, so it never exercises the node-postgres string

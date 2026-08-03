@@ -287,7 +287,11 @@ export class RefRewardService {
       // TypeORM already emits the SELECT alias as AS "totalChf" (quoted). A plain string handed to
       // orderBy is appended verbatim; Postgres folds unquoted identifiers to lowercase, so
       // orderBy('totalChf') looks for totalchf and fails against the quoted "totalChf" column.
-      .orderBy('"totalChf"', 'DESC');
+      .orderBy('"totalChf"', 'DESC')
+      // Stable tie-breaker: same path as .select/.groupBy, so TypeORM resolves it via join
+      // metadata (unlike a raw SELECT alias string) and emits a deterministic second key when
+      // ROUND(SUM(...)) collides for different groups.
+      .addOrderBy('u.userDataId', 'ASC');
 
     if (from) {
       query.andWhere('r.created >= :from', { from });
