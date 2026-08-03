@@ -38,7 +38,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.UPDATE_BLOCKCHAIN_FEE })
+  @DfxCron(CronExpression.EVERY_MINUTE, { perInstance: true, process: Process.UPDATE_BLOCKCHAIN_FEE })
   async updateFees(): Promise<void> {
     if (GetConfig().environment === Environment.LOC) return;
 

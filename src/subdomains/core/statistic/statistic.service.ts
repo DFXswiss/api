@@ -25,7 +25,7 @@ export class StatisticService implements OnModuleInit {
     void this.doUpdate();
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.UPDATE_STATISTIC, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_HOUR, { perInstance: true, process: Process.UPDATE_STATISTIC, timeout: 7200 })
   async doUpdate(): Promise<void> {
     this.statistic = {
       totalVolume: {

@@ -225,7 +225,7 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     }
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BINANCE_PAY_CERTIFICATES_UPDATE })
+  @DfxCron(CronExpression.EVERY_HOUR, { perInstance: true, process: Process.BINANCE_PAY_CERTIFICATES_UPDATE })
   async updateCertificates(): Promise<void> {
     try {
       const headers = this.getHeaders({});
