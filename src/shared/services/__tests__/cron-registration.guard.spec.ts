@@ -16,6 +16,14 @@ const SRC = join(__dirname, '..', '..', '..');
  * aliased import or a scheduler reached through an object property passes unseen. Catching those
  * needs an AST-based rule rather than a text match. What this covers is the shape the four cases
  * in this repository actually had.
+ *
+ * The setTimeout gap is not hypothetical. ScryptService.scheduleCatchUpRetry and
+ * ScryptWebSocketConnection.scheduleReconnect both re-arm themselves and are invisible here. They
+ * are deliberately left alone: their state is the process-local cache and socket of the process
+ * they run in, and a request path reaches them (ExchangeController injects ExchangeRegistryService
+ * and ExchangeTxService), so both processes need their own. Binding them to a role would break the
+ * exchange endpoints on the API process. Anyone extending this check should read that case first —
+ * "the check does not see it" and "it must not be scoped" are two different statements.
  */
 const FORBIDDEN: { pattern: RegExp; what: string; instead: string }[] = [
   {

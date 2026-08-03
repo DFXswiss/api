@@ -36,7 +36,18 @@ function buildService(providers: { instance: object }[]): {
       >,
   });
   const metadataScanner = createMock<MetadataScanner>({
-    getAllMethodNames: (instance: object) => Object.keys(instance),
+    // Nest walks the prototype chain. The plain test doubles carry their job as an own key, a real
+    // service class carries it on its prototype — both have to be visible here, otherwise a job
+    // declared on an actual service would be invisible to this suite while every assertion passes.
+    getAllMethodNames: (instance: object) => {
+      const proto = Object.getPrototypeOf(instance);
+      const inherited =
+        proto && proto !== Object.prototype
+          ? Object.getOwnPropertyNames(proto).filter((name) => name !== 'constructor')
+          : [];
+
+      return [...Object.keys(instance), ...inherited];
+    },
   });
   const scheduler = createMock<SchedulerRegistry>();
 
@@ -150,8 +161,30 @@ describe('DfxCronService', () => {
       expect(params.process).toBeUndefined();
     });
 
-    it('names the role this process is actually running', () => {
+    it('names the role this process is actually running, and counts itself', () => {
       process.env.CRON_ROLE = 'worker';
+      new ConfigService(GetConfig());
+
+      // The service is handed its OWN instance among the providers, the way Nest does it: the job
+      // lives on DfxCronService itself, so a scan that skipped it would leave the heartbeat
+      // unregistered while every metadata assertion above still passed.
+      const { service } = buildService(configuredJobs);
+      const { service: scanned } = buildService([...configuredJobs, { instance: service }]);
+      scanned.onModuleInit();
+
+      const info = jest.spyOn(scanned['logger'], 'info');
+      scanned.reportRole();
+
+      // Three worker/both jobs plus reportRole itself. The role is what the alert matches on; the
+      // count tells the reader on call whether the process registered a plausible number of jobs.
+      expect(info).toHaveBeenCalledWith('CronRole worker: heartbeat, 4 jobs registered');
+    });
+
+    it('produces a line the alert query actually matches', () => {
+      // The alert reads this line with `CronRole (api|worker|all): heartbeat, [0-9]+ jobs
+      // registered`. Pinning the wording here is the only place that couples the two: nothing in
+      // this repository fails if the message drifts, the alert just goes quiet.
+      process.env.CRON_ROLE = 'api';
       new ConfigService(GetConfig());
 
       const { service } = buildService(configuredJobs);
@@ -160,9 +193,9 @@ describe('DfxCronService', () => {
       const info = jest.spyOn(service['logger'], 'info');
       service.reportRole();
 
-      // The role is what the alert matches on; the count tells the reader on call whether the
-      // process registered a plausible number of jobs or nearly none.
-      expect(info).toHaveBeenCalledWith('CronRole worker: heartbeat, 3 jobs registered');
+      const line = info.mock.calls[0][0] as string;
+
+      expect(line).toMatch(/CronRole (api|worker|all): heartbeat, [0-9]+ jobs registered/);
     });
   });
 });
