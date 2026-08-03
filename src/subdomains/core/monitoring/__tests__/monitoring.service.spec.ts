@@ -1,8 +1,9 @@
-import { createMock } from '@golevelup/ts-jest';
+import { DeepMocked, createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MonitoringService } from '../monitoring.service';
 import { Metric, SystemState } from '../system-state-snapshot.entity';
+import { SystemStateSnapshotRepository } from '../system-state-snapshot.repository';
 
 function snapshot(state: SystemState): { id: number; data: string } {
   return { id: 1, data: JSON.stringify(state) };
@@ -13,7 +14,7 @@ function metric(data: unknown, updated: string): Metric {
 }
 
 describe('MonitoringService', () => {
-  let repo: any;
+  let repo: DeepMocked<SystemStateSnapshotRepository>;
   let notificationService: NotificationService;
   let service: MonitoringService;
 
@@ -27,8 +28,32 @@ describe('MonitoringService', () => {
   // identically in the response.
   const asRead = (): SystemState => JSON.parse(JSON.stringify(persisted));
 
+  let lockedReads: unknown[];
+  let written: { id: number; data: string }[];
+
   beforeEach(() => {
-    repo = { findOne: jest.fn().mockResolvedValue(snapshot(persisted)), save: jest.fn().mockResolvedValue(undefined) };
+    lockedReads = [];
+    written = [];
+
+    repo = createMock<SystemStateSnapshotRepository>();
+    repo.findOne.mockResolvedValue(snapshot(persisted) as never);
+
+    // Stands in for the transaction: same row content, but through a manager whose lock option
+    // and writes the test can inspect.
+    const manager = {
+      findOne: jest.fn().mockImplementation((_entity: unknown, options: { lock?: unknown }) => {
+        lockedReads.push(options?.lock);
+        return Promise.resolve(written.length ? written[written.length - 1] : snapshot(persisted));
+      }),
+      save: jest.fn().mockImplementation((_entity: unknown, row: { id: number; data: string }) => {
+        written.push(row);
+        return Promise.resolve(row);
+      }),
+    };
+    Object.defineProperty(repo, 'manager', {
+      value: { transaction: (run: (m: unknown) => Promise<unknown>) => run(manager) },
+      configurable: true,
+    });
     notificationService = createMock<NotificationService>();
 
     service = new MonitoringService(repo, notificationService);
@@ -100,16 +125,30 @@ describe('MonitoringService', () => {
 
       await service['persist'](prev, next);
 
-      const written = JSON.parse(repo.save.mock.calls[0][0].data) as SystemState;
+      const result = JSON.parse(written[0].data) as SystemState;
 
-      expect(written.bank.balance.data).toEqual({ chf: 43 });
-      expect(written.node.health.data).toEqual({ up: true });
+      expect(result.bank.balance.data).toEqual({ chf: 43 });
+      expect(result.node.health.data).toEqual({ up: true });
     });
 
     it('writes nothing when no metric changed', async () => {
       await service['persist'](persisted, persisted);
 
-      expect(repo.save).not.toHaveBeenCalled();
+      expect(written).toEqual([]);
+    });
+
+    it('reads the row under a write lock, in the same transaction it writes in', async () => {
+      // Without the lock, merging only narrows the race instead of closing it: two writers that
+      // both read before either wrote still overwrite each other - and the lost value does not
+      // come back on its own, because the next run compares it against this process's own
+      // previous state and finds it unchanged.
+      const prev: SystemState = { bank: { balance: metric({ chf: 42 }, '2020-01-01T00:10:00Z') } };
+      const next: SystemState = { bank: { balance: metric({ chf: 43 }, '2020-01-01T00:20:00Z') } };
+
+      await service['persist'](prev, next);
+
+      expect(lockedReads).toEqual([{ mode: 'pessimistic_write' }]);
+      expect(written).toHaveLength(1);
     });
 
     it('writes a metric that did not exist before', async () => {
@@ -117,10 +156,10 @@ describe('MonitoringService', () => {
 
       await service['persist']({}, next);
 
-      const written = JSON.parse(repo.save.mock.calls[0][0].data) as SystemState;
+      const result = JSON.parse(written[0].data) as SystemState;
 
-      expect(written.ledger.open.data).toEqual({ count: 3 });
-      expect(written.bank.balance.data).toEqual({ chf: 42 });
+      expect(result.ledger.open.data).toEqual({ count: 3 });
+      expect(result.bank.balance.data).toEqual({ chf: 42 });
     });
   });
 });

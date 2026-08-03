@@ -5,7 +5,14 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MetricObserver } from './metric.observer';
-import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
+import {
+  Metric,
+  MetricName,
+  SubsystemName,
+  SubsystemState,
+  SystemState,
+  SystemStateSnapshot,
+} from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
 
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
@@ -131,20 +138,35 @@ export class MonitoringService implements OnModuleInit {
    * process wrote in the meantime - the API process would overwrite the observers' work with its
    * boot state, and the webhook path the other way round. Merging the changed metrics into the
    * stored row makes it irrelevant which process writes.
+   *
+   * Read, merge and write happen inside one transaction that locks the row. Without the lock the
+   * merge only narrows the race instead of closing it: two writers that read before either wrote
+   * still overwrite each other, and the lost value does not come back on its own - the next run
+   * compares against this process's own previous state, finds the metric unchanged, and writes
+   * nothing. A value that rarely changes would stay wrong in the row until it does.
    */
   private async persist(prevState: SystemState, newState: SystemState) {
     try {
       const changed = this.changedMetrics(prevState, newState);
       if (!changed.length) return;
 
-      const stored = (await this.readState()) ?? {};
-      const merged = cloneDeep(stored);
+      const merged = await this.systemStateSnapshotRepo.manager.transaction(async (manager) => {
+        const row = await manager.findOne(SystemStateSnapshot, {
+          where: { id: 1 },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-      for (const [subsystem, metric] of changed) {
-        merged[subsystem] = { ...(merged[subsystem] ?? {}), [metric]: newState[subsystem][metric] };
-      }
+        const stored: SystemState = row ? JSON.parse(row.data) : {};
+        const state = cloneDeep(stored);
 
-      await this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(merged) });
+        for (const [subsystem, metric] of changed) {
+          state[subsystem] = { ...(state[subsystem] ?? {}), [metric]: newState[subsystem][metric] };
+        }
+
+        await manager.save(SystemStateSnapshot, { id: 1, data: JSON.stringify(state) });
+
+        return state;
+      });
 
       this.#storedState = { state: merged, loaded: Date.now() };
     } catch (e) {
