@@ -135,10 +135,17 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
     await service.resume(99);
 
-    expect(buyCryptoRepo.update).toHaveBeenCalledWith(7, { status: BuyCryptoStatus.CREATED });
+    expect(repo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ relations: { buyCrypto: { batch: true } } }),
+    );
+    expect(buyCryptoRepo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 7, status: BuyCryptoStatus.STOPPED, amlCheck: CheckStatus.PASS }),
+      { status: BuyCryptoStatus.CREATED },
+    );
   });
 
   it('resume() rejects a transaction that is not stopped', async () => {
@@ -151,6 +158,7 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects a stopped transaction whose amlCheck is not Pass', async () => {
@@ -171,6 +179,7 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects an unknown transaction', async () => {
@@ -206,6 +215,33 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
     expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() rejects a stopped transaction with a chargeback in progress', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      chargebackAllowedDateUser: new Date(),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+
+    await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() rejects when a concurrent change invalidates the stopped state', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+
+    await expect(service.resume(99)).rejects.toThrow(ConflictException);
   });
 });
 

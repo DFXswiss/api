@@ -159,8 +159,37 @@ export class TransactionService {
       throw new BadRequestException('Only transactions with passed AML check can be resumed');
     if (entity.buyCrypto.batch || entity.buyCrypto.txId)
       throw new BadRequestException('Only transactions without batch and payout can be resumed');
+    if (
+      entity.buyCrypto.chargebackAllowedDate ||
+      entity.buyCrypto.chargebackAllowedDateUser ||
+      entity.buyCrypto.chargebackDate ||
+      entity.buyCrypto.chargebackCryptoTxId
+    )
+      throw new BadRequestException('Transactions with a chargeback cannot be resumed');
 
-    await this.buyCryptoRepo.update(...entity.buyCrypto.resume());
+    // Conditional update: every precondition is re-checked atomically in the WHERE clause,
+    // so a concurrent state change between the read above and this write cannot slip through
+    // (same pattern as stop() and BuyCryptoService.refundClaimWhere).
+    const [buyCryptoId, update] = entity.buyCrypto.resume();
+    const result = await this.buyCryptoRepo.update(
+      {
+        id: buyCryptoId,
+        status: BuyCryptoStatus.STOPPED,
+        amlCheck: CheckStatus.PASS,
+        isComplete: false,
+        batch: IsNull(),
+        txId: IsNull(),
+        outputAmount: IsNull(),
+        chargebackOutput: IsNull(),
+        chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: IsNull(),
+        chargebackDate: IsNull(),
+        chargebackCryptoTxId: IsNull(),
+        chargebackBankTx: IsNull(),
+      },
+      update,
+    );
+    if (result.affected !== 1) throw new ConflictException('BuyCrypto status changed concurrently');
   }
 
   async getTransactionById(
