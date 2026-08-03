@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
-import { AssetLog, BalancesByFinancialType } from '../log/dto/log.dto';
+import { AssetLog, BalancesByFinancialType, FinanceLog } from '../log/dto/log.dto';
 import { Log } from '../log/log.entity';
 import { FinancialLogSummary } from '../log/log.repository';
 import { LogService } from '../log/log.service';
@@ -19,6 +23,8 @@ import { LatestBalanceStore } from './latest-balance.store';
 
 @Injectable()
 export class DashboardFinancialService {
+  private readonly logger = new DfxLogger(DashboardFinancialService);
+
   constructor(
     private readonly logService: LogService,
     private readonly assetService: AssetService,
@@ -126,22 +132,40 @@ export class DashboardFinancialService {
   }
 
   /**
-   * Called once a minute by LogJobService, immediately after it writes the FinancialDataLog entry
-   * these values are derived from. Builds the same response GET /v1/dashboard/financial/latest used
-   * to compute per-request (see buildLatestBalance below) and puts it in LatestBalanceStore, so the
-   * endpoint never touches the database again. Synchronous and DB-free by construction: assetLog,
-   * balancesByFinancialType and assets are exactly what the caller already holds in memory from the
-   * same run. A failure in here must never propagate into the caller's equity/safety-mode path —
-   * that isolation is the caller's responsibility (its own try/catch around this call), not this
-   * method's.
+   * Fills LatestBalanceStore from the most recent FinancialDataLog entry, so that
+   * GET /v1/dashboard/financial/latest keeps answering from process memory without touching the
+   * database - the property that turned a 23 ms median with a 1'989 ms p95 into a field read.
+   *
+   * Scope Api, because the store it fills is process-local and its only reader is that endpoint.
+   * The expensive part stays where it was: the financial aggregation writing the log entry runs in
+   * the worker, and this job only reads what that one produced. Parse and aggregation happen once
+   * a minute outside any request instead of on every call, which is the same work the endpoint did
+   * before the store existed.
+   *
+   * This is not a fallback taken only when the store is empty: such a path would run once per
+   * deployment and would never be exercised. It runs every minute, in normal operation as much as
+   * after a failure.
    */
-  setLatestBalance(
-    timestamp: Date,
-    assetLog: AssetLog,
-    balancesByFinancialType: BalancesByFinancialType,
-    assets: Asset[],
-  ): void {
-    this.latestBalanceStore.set(this.buildLatestBalance(timestamp, assetLog, balancesByFinancialType, assets));
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Api, process: Process.LATEST_BALANCE_CACHE })
+  async refreshLatestBalance(): Promise<void> {
+    const latest = await this.logService.getLatestFinancialLog();
+    if (!latest) return;
+
+    let financeLog: FinanceLog;
+    try {
+      financeLog = JSON.parse(latest.message);
+    } catch (e) {
+      this.logger.error(`Failed to parse the latest financial log (id ${latest.id}):`, e);
+      return;
+    }
+
+    const assets = financeLog.assets
+      ? await this.assetService.getAssetsById(Object.keys(financeLog.assets).map(Number))
+      : [];
+
+    this.latestBalanceStore.set(
+      this.buildLatestBalance(latest.created, financeLog.assets, financeLog.balancesByFinancialType, assets),
+    );
   }
 
   // Unchanged aggregation that used to run inline in getLatestBalance against a freshly parsed

@@ -36,6 +36,26 @@ describe('DashboardFinancialService', () => {
     service = module.get<DashboardFinancialService>(DashboardFinancialService);
   });
 
+  /**
+   * Drives the job the way it runs in production: it reads the most recent FinancialDataLog and
+   * resolves the assets itself, where the removed write-through was handed both in memory.
+   */
+  async function refreshFrom(
+    timestamp: Date,
+    assetLog: AssetLog,
+    balancesByFinancialType: BalancesByFinancialType,
+    assets: Asset[],
+  ): Promise<void> {
+    jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue({
+      id: 1,
+      created: timestamp,
+      message: JSON.stringify({ assets: assetLog, balancesByFinancialType }),
+    } as Log);
+    jest.spyOn(assetService, 'getAssetsById').mockResolvedValue(assets);
+
+    await service.refreshLatestBalance();
+  }
+
   function mapEntry(changes: unknown) {
     const log = { created: new Date(), message: JSON.stringify({ changes }) } as Log;
     return (service as any).mapChangesLogToEntry(log);
@@ -332,8 +352,8 @@ describe('DashboardFinancialService', () => {
     });
   });
 
-  describe('setLatestBalance (aggregation write-through)', () => {
-    it('aggregates byType / byBlockchain (Scrypt split, 5000 CHF Other thresholds) and writes the result into the store', () => {
+  describe('refreshLatestBalance (aggregation into the store)', () => {
+    it('aggregates byType / byBlockchain (Scrypt split, 5000 CHF Other thresholds) and writes the result into the store', async () => {
       // Fixture designed so every aggregation branch is exercised once:
       //
       // byType:
@@ -418,12 +438,12 @@ describe('DashboardFinancialService', () => {
         ],
       };
 
-      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+      await refreshFrom(timestamp, assetLog, balancesByFinancialType, assets);
 
       expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
     });
 
-    it('treats a priceless asset (priceChf: null) neutrally: neither its own blockchain group nor a shared one is skewed', () => {
+    it('treats a priceless asset (priceChf: null) neutrally: neither its own blockchain group nor a shared one is skewed', async () => {
       // asset.approxPriceChf is a nullable `double precision` column in production (144 of 430 rows
       // are NULL there; 136 of those have no financialType at all) -- the AssetLog[id].priceChf: number
       // type does not reflect that. This is a regression guard for the round-trip removed in this PR:
@@ -478,9 +498,41 @@ describe('DashboardFinancialService', () => {
         ],
       };
 
-      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+      await refreshFrom(timestamp, assetLog, balancesByFinancialType, assets);
 
       expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
+    });
+
+    it('leaves the store untouched when there is no log entry yet', async () => {
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(undefined);
+
+      await service.refreshLatestBalance();
+
+      expect(latestBalanceStore.set).not.toHaveBeenCalled();
+    });
+
+    it('leaves the store untouched on an unparsable log entry instead of throwing', async () => {
+      // The job runs every minute. A single malformed entry must not take the endpoint down with
+      // it, nor replace a good value with a broken one.
+      jest
+        .spyOn(logService, 'getLatestFinancialLog')
+        .mockResolvedValue({ id: 1, created: new Date(), message: 'not json' } as Log);
+
+      await expect(service.refreshLatestBalance()).resolves.toBeUndefined();
+
+      expect(latestBalanceStore.set).not.toHaveBeenCalled();
+    });
+
+    it('does not query assets when the log entry holds none', async () => {
+      jest
+        .spyOn(logService, 'getLatestFinancialLog')
+        .mockResolvedValue({ id: 1, created: new Date(), message: JSON.stringify({}) } as Log);
+      const getAssetsByIdSpy = jest.spyOn(assetService, 'getAssetsById');
+
+      await service.refreshLatestBalance();
+
+      expect(getAssetsByIdSpy).not.toHaveBeenCalled();
+      expect(latestBalanceStore.set).toHaveBeenCalled();
     });
   });
 });

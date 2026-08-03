@@ -121,6 +121,7 @@ export enum Process {
   DEX_PURCHASE_ORDER = 'DexPurchaseOrder',
   REF_CLEANUP = 'RefCleanup',
   JWT_REVOCATION_SYNC = 'JwtRevocationSync',
+  LATEST_BALANCE_CACHE = 'LatestBalanceCache',
 }
 
 const safetyProcesses: Process[] = [

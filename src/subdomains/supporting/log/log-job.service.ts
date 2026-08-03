@@ -40,7 +40,6 @@ import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
-import { DashboardFinancialService } from '../dashboard/dashboard-financial.service';
 import { CryptoInput } from '../payin/entities/crypto-input.entity';
 import { PayInService } from '../payin/services/payin.service';
 import { PayoutOrder, PayoutOrderContext } from '../payout/entities/payout-order.entity';
@@ -112,7 +111,6 @@ export class LogJobService {
     private readonly payoutService: PayoutService,
     private readonly processService: ProcessService,
     private readonly paymentBalanceService: PaymentBalanceService,
-    private readonly dashboardFinancialService: DashboardFinancialService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.Worker, process: Process.TRADING_LOG, timeout: 1800 })
@@ -225,21 +223,6 @@ export class LogJobService {
             Util.minutesDiff(lastLog.created) > 15),
         category: null,
       });
-
-      // Write-through for GET /v1/dashboard/financial/latest: precompute here so that endpoint never
-      // touches the database or re-parses this message. Independent of the equity path above (which
-      // has already run and already armed/disarmed the safety mode correctly), so a failure here must
-      // never escalate to that switch: own try/catch, log loudly, never rethrow.
-      try {
-        this.dashboardFinancialService.setLatestBalance(
-          financialDataLog.created,
-          assetLog,
-          balancesByFinancialType,
-          assets,
-        );
-      } catch (e) {
-        this.logger.error('Failed to update the latest-balance cache for the dashboard', e);
-      }
 
       // The changeLog feeds only the informative FinancialChangesLog and is independent of the equity
       // path above, so it runs in its own try/catch: a reporting-price failure must not arm the equity
