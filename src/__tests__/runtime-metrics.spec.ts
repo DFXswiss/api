@@ -3,7 +3,9 @@ import { toEventLoopSample } from '../runtime-metrics';
 
 const NS_PER_S = 1e9;
 
-function fakeHistogram(values: Partial<Record<keyof IntervalHistogram, number>> & { count: number }): IntervalHistogram {
+function fakeHistogram(
+  values: Partial<Record<keyof IntervalHistogram, number>> & { count: number },
+): IntervalHistogram {
   return {
     ...values,
     percentile: (p: number) => {
