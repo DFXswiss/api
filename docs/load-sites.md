@@ -32,9 +32,9 @@ Columns were measured against the real entity metadata by building the query and
 - **434 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
 - 323 could not be measured: no resolvable target entity, or raw SQL.
 
-Median across measured sites: **123 columns**. 14 sites exceed 1000, 77 exceed 500, 409 exceed 100.
+Median across measured sites: **120.5 columns**. At least 14 sites exceed 1000, 77 exceed 500 and 409 exceed 100 — "at least", because 434 of these measurements are lower bounds, and a resolved relation tree can only widen a query, never narrow it.
 
-Postgres refuses a statement with more than 1664 columns. That limit is what broke every invoice and receipt in production once a single new column was added elsewhere.
+Postgres refuses a statement with more than 1664 columns, which is why the widest sites in this table have no headroom left for a column added elsewhere.
 
 ## Load sites
 
@@ -451,12 +451,12 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 101 | 6 | find | `VirtualIban` | `subdomains/supporting/bank/bank/bank.service.ts:181` | `BankService.getReceiveIbanStatus` |
 | 101 | 6 | find | `VirtualIban` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:130` | `VirtualIbanService.getActiveReceivingForUserAndCurrency` |
 | 101 | 6 | find | `VirtualIban` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:155` | `VirtualIbanService.getActiveSendingCandidatesForUserAndCurrency` |
-| 99 | 0 | query-builder (nur-alias) | `UserData` | `subdomains/generic/user/models/user-data/user-data-notification.service.ts:173` | `UserDataNotificationService.blackSquadInvitation` |
-| 99 | 0 | query-builder (ohne-select) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:141` | `UserDataService.getUserDataByUser` |
-| 99 | 0 | query-builder (nur-alias) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:179` | `UserDataService.getUserDataIdsByServiceProvider` |
-| 99 | 0 | query-builder (nur-alias) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:313` | `UserDataService.getUserDataByKey` |
-| 99 | 0 | query-builder (ohne-select) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1766` | `UserDataService.countByDateRange` |
-| 99 | 0 | query-builder (nur-alias) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1774` | `UserDataService.getMaxKycFileIdByDateRange` |
+| 99 | 0 | query-builder (alias only) | `UserData` | `subdomains/generic/user/models/user-data/user-data-notification.service.ts:173` | `UserDataNotificationService.blackSquadInvitation` |
+| 99 | 0 | query-builder (no select) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:141` | `UserDataService.getUserDataByUser` |
+| 99 | 0 | query-builder (alias only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:179` | `UserDataService.getUserDataIdsByServiceProvider` |
+| 99 | 0 | query-builder (alias only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:313` | `UserDataService.getUserDataByKey` |
+| 99 | 0 | query-builder (no select) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1766` | `UserDataService.countByDateRange` |
+| 99 | 0 | query-builder (alias only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1774` | `UserDataService.getMaxKycFileIdByDateRange` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user-data/user-data.service.ts:1033` | `UserDataService.customIdentMethod` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:277` | `UserService.getRefDtoV2` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:285` | `UserService.updateRef` |
@@ -489,21 +489,21 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 83 | 4 | find | `LiquidityManagementRule` | `subdomains/core/liquidity-management/services/liquidity-management.service.ts:109` | `LiquidityManagementService.findRuleByAssetOrThrow` |
 | 78 | 1 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:97` | `UserService.getUserByAddress` |
 | 78 | 3 | find | `Mros` | `subdomains/supporting/mros/mros.service.ts:32` | `MrosService.update` |
-| 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:712` | `BuyCryptoService.getBuyCryptoByKeys` |
-| 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:767` | `BuyCryptoService.updateRefVolumes` |
-| 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:883` | `BuyCryptoService.getUserVolumeForType` |
-| 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:963` | `BuyCryptoService.getPendingLiquidityDemandChf` |
-| 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1077` | `BuyCryptoService.updateBuyVolume` |
-| 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1105` | `BuyCryptoService.updateCryptoRouteVolume` |
-| 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1148` | `BuyCryptoService.getRefVolume` |
-| 77 | 0 | query-builder (nur-alias) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1160` | `BuyCryptoService.getPartnerFeeRefVolume` |
+| 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:712` | `BuyCryptoService.getBuyCryptoByKeys` |
+| 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:767` | `BuyCryptoService.updateRefVolumes` |
+| 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:883` | `BuyCryptoService.getUserVolumeForType` |
+| 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:963` | `BuyCryptoService.getPendingLiquidityDemandChf` |
+| 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1077` | `BuyCryptoService.updateBuyVolume` |
+| 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1105` | `BuyCryptoService.updateCryptoRouteVolume` |
+| 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1148` | `BuyCryptoService.getRefVolume` |
+| 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1160` | `BuyCryptoService.getPartnerFeeRefVolume` |
 | 75 | 2 | find | `BuyCryptoBatch` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:238` | `BuyCryptoBatchService.filterOutExistingBatches` |
-| 71 | 0 | query-builder (nur-alias) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:341` | `BuyFiatService.getBuyFiatByKey` |
-| 71 | 0 | query-builder (nur-alias) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:587` | `BuyFiatService.updateRefVolumes` |
-| 71 | 0 | query-builder (nur-alias) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:604` | `BuyFiatService.getUserVolume` |
-| 71 | 0 | query-builder (nur-alias) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:699` | `BuyFiatService.updateSellVolume` |
-| 71 | 0 | query-builder (nur-alias) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:742` | `BuyFiatService.getRefVolume` |
-| 71 | 0 | query-builder (nur-alias) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:754` | `BuyFiatService.getPartnerFeeRefVolume` |
+| 71 | 0 | query-builder (alias only) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:341` | `BuyFiatService.getBuyFiatByKey` |
+| 71 | 0 | query-builder (alias only) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:587` | `BuyFiatService.updateRefVolumes` |
+| 71 | 0 | query-builder (alias only) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:604` | `BuyFiatService.getUserVolume` |
+| 71 | 0 | query-builder (alias only) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:699` | `BuyFiatService.updateSellVolume` |
+| 71 | 0 | query-builder (alias only) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:742` | `BuyFiatService.getRefVolume` |
+| 71 | 0 | query-builder (alias only) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:754` | `BuyFiatService.getPartnerFeeRefVolume` |
 | 71 | 1 | find | `Recall` | `subdomains/supporting/recall/recall.service.ts:68` | `RecallService.getByBankTxIds` |
 | 68 | 4 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:204` | `SwapService.getById` |
 | 65 | 2 | find | `Fee` | `subdomains/supporting/payment/services/fee.service.ts:115` | `FeeService.createFee` |
@@ -511,14 +511,14 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 61 | 0 | find | `BankTx` | `subdomains/core/accounting/services/ledger-cutover.service.ts:710` | `LedgerCutoverService.openUnattributed` |
 | 61 | 0 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service.ts:46` | `BankTxRepeatService.update` |
 | 61 | 0 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service.ts:59` | `BankTxRepeatService.update` |
-| 61 | 0 | query-builder (nur-alias) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service.ts:36` | `BankTxOutgoingMatchService.getUniqueOutgoingBankTx` |
+| 61 | 0 | query-builder (alias only) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service.ts:36` | `BankTxOutgoingMatchService.getUniqueOutgoingBankTx` |
 | 61 | 0 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:153` | `BankTxService.enrichYapealTransactions` |
-| 61 | 0 | query-builder (nur-alias) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:395` | `BankTxService.getBankTxByKey` |
+| 61 | 0 | query-builder (alias only) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:395` | `BankTxService.getBankTxByKey` |
 | 61 | 0 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:429` | `BankTxService.getBankTxById` |
 | 61 | 0 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:433` | `BankTxService.getPendingTx` |
-| 61 | 0 | query-builder (nur-alias) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:449` | `BankTxService.getBankTxFee` |
-| 61 | 0 | query-builder (nur-alias) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:461` | `BankTxService.getBankTxFee` |
-| 61 | 0 | query-builder (nur-alias) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:505` | `BankTxService.getBankTxFee` |
+| 61 | 0 | query-builder (alias only) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:449` | `BankTxService.getBankTxFee` |
+| 61 | 0 | query-builder (alias only) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:461` | `BankTxService.getBankTxFee` |
+| 61 | 0 | query-builder (alias only) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:505` | `BankTxService.getBankTxFee` |
 | 61 | 0 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:525` | `BankTxService.getRecentBankToBankTx` |
 | 61 | 0 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:532` | `BankTxService.getRecentExchangeTx` |
 | 61 | 0 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:552` | `BankTxService.storeSepaFile` |
@@ -556,20 +556,20 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 46 | 1 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:74` | `DashboardReconciliationService.getReconciliation` |
 | 46 | 1 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:146` | `DashboardReconciliationService.getOverview` |
 | 46 | 3 | find | `Sell` | `subdomains/supporting/fiat-output/fiat-output.service.ts:149` | `FiatOutputService.createInternal` |
-| 46 | 0 | query-builder (nur-alias) | `FiatOutput` | `subdomains/supporting/fiat-output/fiat-output.service.ts:231` | `FiatOutputService.getFiatOutputByKey` |
+| 46 | 0 | query-builder (alias only) | `FiatOutput` | `subdomains/supporting/fiat-output/fiat-output.service.ts:231` | `FiatOutputService.getFiatOutputByKey` |
 | 45 | 2 | find | `PaymentQuote` | `subdomains/core/payment-link/services/payment-quote.service.ts:124` | `PaymentQuoteService.getQuoteByAsset` |
 | 45 | 2 | find | `PaymentQuote` | `subdomains/core/payment-link/services/payment-quote.service.ts:143` | `PaymentQuoteService.getQuoteByTxId` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:102` | `UserService.getUserByKey` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:140` | `UserService.getAllLinkedUsers` |
-| 45 | 0 | query-builder (ohne-select) | `User` | `subdomains/generic/user/models/user/user.service.ts:177` | `UserService.getOpenRefCreditUser` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:195` | `UserService.getOpenRefCreditEur` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:226` | `UserService.countRefChildrenByUserDataIds` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:248` | `UserService.countRefReferrersByUserDataIds` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:582` | `UserService.getUserVolumes` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:592` | `UserService.getUserVolumes` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:654` | `UserService.getRefInfo` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:667` | `UserService.getRefInfo` |
-| 45 | 0 | query-builder (nur-alias) | `User` | `subdomains/generic/user/models/user/user.service.ts:726` | `UserService.getTotalRefRewards` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:102` | `UserService.getUserByKey` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:140` | `UserService.getAllLinkedUsers` |
+| 45 | 0 | query-builder (no select) | `User` | `subdomains/generic/user/models/user/user.service.ts:177` | `UserService.getOpenRefCreditUser` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:195` | `UserService.getOpenRefCreditEur` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:226` | `UserService.countRefChildrenByUserDataIds` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:248` | `UserService.countRefReferrersByUserDataIds` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:582` | `UserService.getUserVolumes` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:592` | `UserService.getUserVolumes` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:654` | `UserService.getRefInfo` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:667` | `UserService.getRefInfo` |
+| 45 | 0 | query-builder (alias only) | `User` | `subdomains/generic/user/models/user/user.service.ts:726` | `UserService.getTotalRefRewards` |
 | 42 | 1 | find | `FaucetRequest` | `subdomains/core/faucet-request/services/faucet-request.service.ts:41` | `FaucetRequestService.checkFaucetRequests` |
 | 42 | 1 | find | `FaucetRequest` | `subdomains/core/faucet-request/services/faucet-request.service.ts:93` | `FaucetRequestService.resetFaucet` |
 | 40 | 1 | find | `LiquidityBalance` | `subdomains/core/liquidity-management/services/liquidity-management-balance.service.ts:38` | `LiquidityManagementBalanceService.getAllLiqBalancesForAssets` |
@@ -586,8 +586,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 34 | 0 | find | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:233` | `TransactionRequestService.getTransactionRequest` |
 | 34 | 0 | find | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:244` | `TransactionRequestService.getWaitingTransactionRequest` |
 | 34 | 0 | find | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:341` | `TransactionRequestService.getConsumedSettlementEventIds` |
-| 34 | 0 | query-builder (nur-alias) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:352` | `TransactionRequestService.getLegacySettlementTxIds` |
-| 34 | 0 | query-builder (nur-alias) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:406` | `TransactionRequestService.getActiveDepositAddresses` |
+| 34 | 0 | query-builder (alias only) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:352` | `TransactionRequestService.getLegacySettlementTxIds` |
+| 34 | 0 | query-builder (alias only) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:406` | `TransactionRequestService.getActiveDepositAddresses` |
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:21` | `AssetService.updateAsset` |
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:30` | `AssetService.getAssetsWith` |
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:42` | `AssetService.getAllBlockchainAssets` |
@@ -603,7 +603,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:107` | `AssetService.getNativeAsset` |
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:121` | `AssetService.getTokens` |
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:126` | `AssetService.getSellableBlockchains` |
-| 33 | 0 | query-builder (nur-alias) | `Asset` | `shared/models/asset/asset.service.ts:140` | `AssetService.getAssetsUsedOn` |
+| 33 | 0 | query-builder (alias only) | `Asset` | `shared/models/asset/asset.service.ts:140` | `AssetService.getAssetsUsedOn` |
 | 33 | 0 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:106` | `DashboardReconciliationService.getReconciliation` |
 | 33 | 0 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:377` | `DashboardReconciliationService.getExchangeFlows` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:125` | `PaymentLinkPaymentService.getPaymentByExternalId` |
@@ -633,15 +633,15 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 30 | 0 | find | `ExchangeTx` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:387` | `DashboardReconciliationService.getExchangeFlows` |
 | 30 | 0 | find | `ExchangeTx` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:544` | `DashboardReconciliationService.getExchangeWithdrawalsForBlockchain` |
 | 27 | 2 | find | `LiquidityManagementAction` | `subdomains/core/liquidity-management/services/liquidity-management-rule.service.ts:257` | `LiquidityManagementRuleService.findExistingAction` |
-| 26 | 0 | query-builder (nur-alias) | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:22` | `BankAccountService.getBankAccountByKey` |
+| 26 | 0 | query-builder (alias only) | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:22` | `BankAccountService.getBankAccountByKey` |
 | 26 | 0 | find | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:40` | `BankAccountService.checkFailedBankAccounts` |
 | 26 | 0 | find | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:48` | `BankAccountService.reloadErrorBankAccounts` |
 | 26 | 0 | find | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:56` | `BankAccountService.reloadUncheckedBankAccounts` |
 | 26 | 0 | find | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:66` | `BankAccountService.getOrCreateIbanBankAccountInternal` |
 | 26 | 0 | find | `BankAccount` | `subdomains/supporting/bank/bank-account/bank-account.service.ts:73` | `BankAccountService.getOrCreateBicBankAccountInternal` |
-| 25 | 0 | query-builder (nur-alias) | `RefReward` | `subdomains/core/referral/reward/services/ref-reward.service.ts:216` | `RefRewardService.getRefRewardVolume` |
-| 25 | 0 | query-builder (nur-alias) | `RefReward` | `subdomains/core/referral/reward/services/ref-reward.service.ts:249` | `RefRewardService.updatePaidRefCredit` |
-| 25 | 0 | query-builder (nur-alias) | `RefReward` | `subdomains/core/referral/reward/services/ref-reward.service.ts:278` | `RefRewardService.getRewardRecipients` |
+| 25 | 0 | query-builder (alias only) | `RefReward` | `subdomains/core/referral/reward/services/ref-reward.service.ts:216` | `RefRewardService.getRefRewardVolume` |
+| 25 | 0 | query-builder (alias only) | `RefReward` | `subdomains/core/referral/reward/services/ref-reward.service.ts:249` | `RefRewardService.updatePaidRefCredit` |
+| 25 | 0 | query-builder (alias only) | `RefReward` | `subdomains/core/referral/reward/services/ref-reward.service.ts:278` | `RefRewardService.getRewardRecipients` |
 | 25 | 0 | find | `CheckoutTx` | `subdomains/supporting/fiat-payin/services/checkout-tx.service.ts:53` | `CheckoutTxService.getCheckoutTx` |
 | 25 | 0 | find | `CheckoutTx` | `subdomains/supporting/fiat-payin/services/checkout-tx.service.ts:60` | `CheckoutTxService.getPendingRefundedList` |
 | 25 | 0 | find | `CheckoutTx` | `subdomains/supporting/fiat-payin/services/checkout-tx.service.ts:71` | `CheckoutTxService.getSyncDate` |
@@ -651,34 +651,34 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 23 | 0 | find | `Country` | `shared/models/country/country.service.ts:22` | `CountryService.getCountryWithSymbol` |
 | 23 | 0 | find | `Country` | `shared/models/country/country.service.ts:28` | `CountryService.getCountriesByKycType` |
 | 23 | 0 | find | `Country` | `shared/models/country/country.service.ts:31` | `CountryService.getCountriesByKycType` |
-| 23 | 0 | query-builder (nur-alias) | `TradingOrder` | `subdomains/core/trading/services/trading-order.service.ts:53` | `TradingOrderService.getTradingOrderYield` |
-| 23 | 0 | query-builder (nur-alias) | `TradingOrder` | `subdomains/core/trading/services/trading-rule.service.ts:35` | `TradingRuleService.getCurrentTradingOrders` |
+| 23 | 0 | query-builder (alias only) | `TradingOrder` | `subdomains/core/trading/services/trading-order.service.ts:53` | `TradingOrderService.getTradingOrderYield` |
+| 23 | 0 | query-builder (alias only) | `TradingOrder` | `subdomains/core/trading/services/trading-rule.service.ts:35` | `TradingRuleService.getCurrentTradingOrders` |
 | 23 | 0 | find | `BankTxBatch` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx-batch.service.ts:10` | `BankTxBatchService.getBankTxBatchByIban` |
-| 21 | 0 | query-builder (ohne-select) | `DepositRoute` | `subdomains/supporting/address-pool/route/deposit-route.service.ts:87` | `DepositRouteService.getPaymentRouteForKey` |
-| 20 | 0 | query-builder (nur-alias) | `Sell` | `subdomains/core/sell-crypto/process/services/buy-fiat-registration.service.ts:97` | `BuyFiatRegistrationService.filterSellPayIns` |
-| 20 | 0 | query-builder (nur-alias) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:95` | `SellService.getSellByKey` |
-| 20 | 0 | query-builder (nur-alias) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:261` | `SellService.getUserVolume` |
-| 20 | 0 | query-builder (nur-alias) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:271` | `SellService.getTotalVolume` |
+| 21 | 0 | query-builder (no select) | `DepositRoute` | `subdomains/supporting/address-pool/route/deposit-route.service.ts:87` | `DepositRouteService.getPaymentRouteForKey` |
+| 20 | 0 | query-builder (alias only) | `Sell` | `subdomains/core/sell-crypto/process/services/buy-fiat-registration.service.ts:97` | `BuyFiatRegistrationService.filterSellPayIns` |
+| 20 | 0 | query-builder (alias only) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:95` | `SellService.getSellByKey` |
+| 20 | 0 | query-builder (alias only) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:261` | `SellService.getUserVolume` |
+| 20 | 0 | query-builder (alias only) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:271` | `SellService.getTotalVolume` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.repository.ts:13` | `WalletRepository.getByAddress` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.service.ts:19` | `WalletService.updateWallet` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.service.ts:28` | `WalletService.getByAddress` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.service.ts:36` | `WalletService.getByIdOrName` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.service.ts:40` | `WalletService.getKycClients` |
 | 20 | 0 | find | `Wallet` | `subdomains/generic/user/models/wallet/wallet.service.ts:44` | `WalletService.getDefault` |
-| 20 | 0 | query-builder (nur-alias) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:221` | `TransactionService.getTransactionList` |
-| 20 | 0 | query-builder (nur-alias) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:324` | `TransactionService.getManualRefVolume` |
-| 20 | 0 | query-builder (nur-alias) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:353` | `TransactionService.getAuditPeriodVolumes` |
-| 20 | 0 | query-builder (nur-alias) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:389` | `TransactionService.getTransactionByKey` |
-| 20 | 0 | query-builder (ohne-select) | `PriceRule` | `subdomains/supporting/pricing/services/pricing.service.ts:272` | `PricingService.getRuleFor` |
-| 19 | 0 | query-builder (ohne-select) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:79` | `SwapService.getSwapByAddress` |
-| 19 | 0 | query-builder (nur-alias) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:123` | `SwapService.getUserVolume` |
-| 19 | 0 | query-builder (nur-alias) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:133` | `SwapService.getTotalVolume` |
-| 19 | 0 | query-builder (nur-alias) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:152` | `SwapService.getSwapByKey` |
-| 19 | 0 | query-builder (ohne-select) | `CustodyOrder` | `subdomains/core/custody/services/custody-order.service.ts:231` | `CustodyOrderService.getOrdersByUserData` |
-| 19 | 0 | query-builder (nur-alias) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:221` | `CustodyService.updateCustodyBalance` |
-| 19 | 0 | query-builder (nur-alias) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:229` | `CustodyService.updateCustodyBalance` |
-| 19 | 0 | query-builder (nur-alias) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:677` | `CustodyService.getHistoricalBalances` |
-| 19 | 0 | query-builder (nur-alias) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:689` | `CustodyService.getHistoricalBalances` |
+| 20 | 0 | query-builder (alias only) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:221` | `TransactionService.getTransactionList` |
+| 20 | 0 | query-builder (alias only) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:324` | `TransactionService.getManualRefVolume` |
+| 20 | 0 | query-builder (alias only) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:353` | `TransactionService.getAuditPeriodVolumes` |
+| 20 | 0 | query-builder (alias only) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:389` | `TransactionService.getTransactionByKey` |
+| 20 | 0 | query-builder (no select) | `PriceRule` | `subdomains/supporting/pricing/services/pricing.service.ts:272` | `PricingService.getRuleFor` |
+| 19 | 0 | query-builder (no select) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:79` | `SwapService.getSwapByAddress` |
+| 19 | 0 | query-builder (alias only) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:123` | `SwapService.getUserVolume` |
+| 19 | 0 | query-builder (alias only) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:133` | `SwapService.getTotalVolume` |
+| 19 | 0 | query-builder (alias only) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:152` | `SwapService.getSwapByKey` |
+| 19 | 0 | query-builder (no select) | `CustodyOrder` | `subdomains/core/custody/services/custody-order.service.ts:231` | `CustodyOrderService.getOrdersByUserData` |
+| 19 | 0 | query-builder (alias only) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:221` | `CustodyService.updateCustodyBalance` |
+| 19 | 0 | query-builder (alias only) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:229` | `CustodyService.updateCustodyBalance` |
+| 19 | 0 | query-builder (alias only) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:677` | `CustodyService.getHistoricalBalances` |
+| 19 | 0 | query-builder (alias only) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:689` | `CustodyService.getHistoricalBalances` |
 | 17 | 0 | find | `KycLog` | `subdomains/generic/kyc/services/kyc-log.service.ts:83` | `KycLogService.updateLog` |
 | 17 | 0 | find | `KycLog` | `subdomains/generic/kyc/services/kyc-log.service.ts:90` | `KycLogService.updateLogPdfUrl` |
 | 17 | 0 | find | `KycLog` | `subdomains/generic/kyc/services/kyc-log.service.ts:109` | `KycLogService.getLogsByUserDataId` |
@@ -687,26 +687,26 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 16 | 0 | find | `Fiat` | `shared/models/fiat/fiat.service.ts:27` | `FiatService.getFiat` |
 | 16 | 0 | find | `Fiat` | `shared/models/fiat/fiat.service.ts:33` | `FiatService.getFiatByName` |
 | 16 | 0 | find | `Fiat` | `shared/models/fiat/fiat.service.ts:43` | `FiatService.getFiatByCountry` |
-| 16 | 0 | query-builder (nur-alias) | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:148` | `PaymentLinkPaymentService.getMostRecentPayments` |
-| 16 | 0 | query-builder (nur-alias) | `VirtualIban` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:1294` | `VirtualIbanService.getVirtualIbanByKey` |
-| 16 | 0 | query-builder (nur-alias) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:109` | `SupportIssueService.getSupportIssueCounts` |
-| 16 | 0 | query-builder (nur-alias) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:177` | `SupportIssueService.getSupportIssueStatistics` |
-| 16 | 0 | query-builder (nur-alias) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:198` | `SupportIssueService.getSupportIssueStatistics` |
-| 16 | 0 | query-builder (nur-alias) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:245` | `SupportIssueService.getSupportIssueStatistics` |
-| 16 | 0 | query-builder (ohne-select) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:549` | `SupportIssueService.getSupportIssueList` |
+| 16 | 0 | query-builder (alias only) | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:148` | `PaymentLinkPaymentService.getMostRecentPayments` |
+| 16 | 0 | query-builder (alias only) | `VirtualIban` | `subdomains/supporting/bank/virtual-iban/virtual-iban.service.ts:1294` | `VirtualIbanService.getVirtualIbanByKey` |
+| 16 | 0 | query-builder (alias only) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:109` | `SupportIssueService.getSupportIssueCounts` |
+| 16 | 0 | query-builder (alias only) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:177` | `SupportIssueService.getSupportIssueStatistics` |
+| 16 | 0 | query-builder (alias only) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:198` | `SupportIssueService.getSupportIssueStatistics` |
+| 16 | 0 | query-builder (alias only) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:245` | `SupportIssueService.getSupportIssueStatistics` |
+| 16 | 0 | query-builder (no select) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:549` | `SupportIssueService.getSupportIssueList` |
 | 15 | 0 | find | `WalletApp` | `subdomains/core/payment-link/services/wallet-app.service.ts:20` | `WalletAppService.getAllBlockchainWalletApps` |
 | 15 | 0 | find | `WalletApp` | `subdomains/core/payment-link/services/wallet-app.service.ts:24` | `WalletAppService.getRecommendedWalletApps` |
 | 15 | 0 | find | `WalletApp` | `subdomains/core/payment-link/services/wallet-app.service.ts:28` | `WalletAppService.getWalletAppById` |
-| 15 | 0 | query-builder (nur-alias) | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:284` | `BankDataService.getBankDataByKey` |
-| 15 | 0 | query-builder (nur-alias) | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:493` | `BankDataService.getPendingReviewSummary` |
+| 15 | 0 | query-builder (alias only) | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:284` | `BankDataService.getBankDataByKey` |
+| 15 | 0 | query-builder (alias only) | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:493` | `BankDataService.getPendingReviewSummary` |
 | 15 | 0 | find | `AktionariatRegistration` | `subdomains/supporting/realunit/realunit.service.ts:2830` | `RealUnitService.getRegisteredWalletAddresses` |
 | 14 | 0 | find | `ScorechainScreening` | `integration/scorechain/repositories/scorechain-screening.repository.ts:18` | `ScorechainScreeningRepository.getByObjectIds` |
 | 14 | 0 | find | `ScorechainScreening` | `integration/scorechain/services/scorechain-screening.service.ts:233` | `ScorechainScreeningService.getCached` |
-| 14 | 0 | query-builder (nur-alias) | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:354` | `RecommendationService.countByRecommenderIds` |
-| 14 | 0 | query-builder (nur-alias) | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:369` | `RecommendationService.countByRecommendedIds` |
-| 13 | 0 | query-builder (nur-alias) | `Buy` | `subdomains/core/buy-crypto/routes/buy/buy.service.ts:101` | `BuyService.getUserVolume` |
-| 13 | 0 | query-builder (nur-alias) | `Buy` | `subdomains/core/buy-crypto/routes/buy/buy.service.ts:111` | `BuyService.getTotalVolume` |
-| 13 | 0 | query-builder (nur-alias) | `Buy` | `subdomains/core/buy-crypto/routes/buy/buy.service.ts:228` | `BuyService.getBuyByKey` |
+| 14 | 0 | query-builder (alias only) | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:354` | `RecommendationService.countByRecommenderIds` |
+| 14 | 0 | query-builder (alias only) | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:369` | `RecommendationService.countByRecommendedIds` |
+| 13 | 0 | query-builder (alias only) | `Buy` | `subdomains/core/buy-crypto/routes/buy/buy.service.ts:101` | `BuyService.getUserVolume` |
+| 13 | 0 | query-builder (alias only) | `Buy` | `subdomains/core/buy-crypto/routes/buy/buy.service.ts:111` | `BuyService.getTotalVolume` |
+| 13 | 0 | query-builder (alias only) | `Buy` | `subdomains/core/buy-crypto/routes/buy/buy.service.ts:228` | `BuyService.getBuyByKey` |
 | 13 | 0 | find | `PaymentQuote` | `subdomains/core/payment-link/services/payment-quote.service.ts:76` | `PaymentQuoteService.processExpiredQuotes` |
 | 13 | 0 | find | `PaymentQuote` | `subdomains/core/payment-link/services/payment-quote.service.ts:109` | `PaymentQuoteService.getActualQuoteByPaymentId` |
 | 13 | 0 | find | `PaymentQuote` | `subdomains/core/payment-link/services/payment-quote.service.ts:157` | `PaymentQuoteService.cancelAllForPayment` |
@@ -717,7 +717,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 13 | 0 | find | `KycStep` | `subdomains/generic/kyc/services/kyc.service.ts:371` | `KycService.reviewRecommendationStep` |
 | 13 | 0 | find | `KycStep` | `subdomains/generic/kyc/services/kyc.service.ts:441` | `KycService.checkDfxApproval` |
 | 13 | 0 | find | `KycStep` | `subdomains/generic/kyc/services/kyc.service.ts:1497` | `KycService.getStepsByUserData` |
-| 13 | 0 | query-builder (nur-alias) | `KycStep` | `subdomains/generic/kyc/services/kyc.service.ts:1981` | `KycService.getPendingReviewSummary` |
+| 13 | 0 | query-builder (alias only) | `KycStep` | `subdomains/generic/kyc/services/kyc.service.ts:1981` | `KycService.getPendingReviewSummary` |
 | 13 | 0 | find | `TfaLog` | `subdomains/generic/kyc/services/tfa.service.ts:195` | `TfaService.checkVerification` |
 | 13 | 0 | find | `Bank` | `subdomains/supporting/bank/bank/bank.service.ts:63` | `BankService.getBankInternal` |
 | 13 | 0 | find | `Bank` | `subdomains/supporting/bank/bank/bank.service.ts:68` | `BankService.getBankById` |
@@ -731,50 +731,50 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 13 | 0 | find | `TransactionRiskAssessment` | `subdomains/supporting/payment/services/transaction-risk-assessment.service.ts:20` | `TransactionRiskAssessmentService.update` |
 | 12 | 0 | find | `IpLog` | `shared/models/ip-log/ip-log.service.ts:66` | `IpLogService.getByUserDataId` |
 | 12 | 0 | find | `IpLog` | `shared/models/ip-log/ip-log.service.ts:75` | `IpLogService.getLoginCountries` |
-| 12 | 0 | query-builder (nur-alias) | `IpLog` | `shared/models/ip-log/ip-log.service.ts:79` | `IpLogService.getLoginCountries` |
-| 12 | 0 | query-builder (nur-alias) | `IpLog` | `shared/models/ip-log/ip-log.service.ts:92` | `IpLogService.getUserDataIdsWith` |
-| 12 | 0 | query-builder (nur-alias) | `IpLog` | `shared/models/ip-log/ip-log.service.ts:103` | `IpLogService.getUserDataIdsWith` |
+| 12 | 0 | query-builder (alias only) | `IpLog` | `shared/models/ip-log/ip-log.service.ts:79` | `IpLogService.getLoginCountries` |
+| 12 | 0 | query-builder (alias only) | `IpLog` | `shared/models/ip-log/ip-log.service.ts:92` | `IpLogService.getUserDataIdsWith` |
+| 12 | 0 | query-builder (alias only) | `IpLog` | `shared/models/ip-log/ip-log.service.ts:103` | `IpLogService.getUserDataIdsWith` |
 | 12 | 0 | find | `IpLog` | `shared/models/ip-log/ip-log.service.ts:119` | `IpLogService.updateUserIpLogs` |
 | 11 | 0 | find | `OlkyRecipient` | `integration/bank/services/olkypay.service.ts:104` | `OlkypayService.getOrCreateRecipient` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:106` | `LedgerMarkToMarketService.selectCandidates` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:173` | `LedgerMarkToMarketService.accountBalance` |
-| 11 | 0 | query-builder (ohne-select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:212` | `LedgerMarkToMarketService.alreadyBooked` |
-| 11 | 0 | query-builder (ohne-select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:125` | `LedgerQueryService.getAccountDetail` |
-| 11 | 0 | query-builder (ohne-select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:184` | `LedgerQueryService.getSuspense` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:284` | `LedgerQueryService.balancesByAccount` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:298` | `LedgerQueryService.nativeBalanceBefore` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:310` | `LedgerQueryService.nativeBalanceInPeriod` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:326` | `LedgerQueryService.nativeBalanceByAccount` |
-| 11 | 0 | query-builder (ohne-select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:466` | `LedgerQueryService.marginBuckets` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:540` | `LedgerQueryService.cumulativeEquityByDay` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:271` | `LedgerReconciliationService.checkTransitAge` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:347` | `LedgerReconciliationService.openResidualSince` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:400` | `LedgerReconciliationService.checkSuspense` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:487` | `LedgerReconciliationService.journalEquity` |
-| 11 | 0 | query-builder (nur-alias) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:517` | `LedgerReconciliationService.nativeBalanceByAccount` |
-| 11 | 0 | query-builder (nur-alias) | `Log` | `subdomains/supporting/log/log.repository.ts:97` | `LogRepository.cleanup` |
-| 11 | 0 | query-builder (nur-alias) | `Log` | `subdomains/supporting/log/log.repository.ts:104` | `LogRepository.cleanup` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:106` | `LedgerMarkToMarketService.selectCandidates` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:173` | `LedgerMarkToMarketService.accountBalance` |
+| 11 | 0 | query-builder (no select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:212` | `LedgerMarkToMarketService.alreadyBooked` |
+| 11 | 0 | query-builder (no select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:125` | `LedgerQueryService.getAccountDetail` |
+| 11 | 0 | query-builder (no select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:184` | `LedgerQueryService.getSuspense` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:284` | `LedgerQueryService.balancesByAccount` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:298` | `LedgerQueryService.nativeBalanceBefore` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:310` | `LedgerQueryService.nativeBalanceInPeriod` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:326` | `LedgerQueryService.nativeBalanceByAccount` |
+| 11 | 0 | query-builder (no select) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:466` | `LedgerQueryService.marginBuckets` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-query.service.ts:540` | `LedgerQueryService.cumulativeEquityByDay` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:271` | `LedgerReconciliationService.checkTransitAge` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:347` | `LedgerReconciliationService.openResidualSince` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:400` | `LedgerReconciliationService.checkSuspense` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:487` | `LedgerReconciliationService.journalEquity` |
+| 11 | 0 | query-builder (alias only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-reconciliation.service.ts:517` | `LedgerReconciliationService.nativeBalanceByAccount` |
+| 11 | 0 | query-builder (alias only) | `Log` | `subdomains/supporting/log/log.repository.ts:97` | `LogRepository.cleanup` |
+| 11 | 0 | query-builder (alias only) | `Log` | `subdomains/supporting/log/log.repository.ts:104` | `LogRepository.cleanup` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:119` | `LogRepository.getFinancialLogAt` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:132` | `LogRepository.getLatestFinancialLog` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:142` | `LogRepository.getLatestValidFinancialLogs` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:150` | `LogRepository.getLatestFinancialChangesLog` |
-| 11 | 0 | query-builder (nur-alias) | `Log` | `subdomains/supporting/log/log.repository.ts:158` | `LogRepository.getFinancialChangesLogs` |
-| 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.repository.ts:165` | `LogRepository.getFinancialChangesLogs` |
+| 11 | 0 | query-builder (alias only) | `Log` | `subdomains/supporting/log/log.repository.ts:158` | `LogRepository.getFinancialChangesLogs` |
+| 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:165` | `LogRepository.getFinancialChangesLogs` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.repository.ts:187` | `LogRepository.getFinancialChangesLogs` |
-| 11 | 0 | query-builder (nur-alias) | `Log` | `subdomains/supporting/log/log.repository.ts:206` | `LogRepository.getFinancialLogs` |
-| 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.repository.ts:214` | `LogRepository.getFinancialLogs` |
-| 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.repository.ts:244` | `LogRepository.getFinancialLogs` |
-| 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
-| 11 | 0 | query-builder (feldliste) | `Log` | `subdomains/supporting/log/log.repository.ts:699` | `LogRepository.getFinancialLogValidityChangeSet` |
+| 11 | 0 | query-builder (alias only) | `Log` | `subdomains/supporting/log/log.repository.ts:206` | `LogRepository.getFinancialLogs` |
+| 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:214` | `LogRepository.getFinancialLogs` |
+| 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:244` | `LogRepository.getFinancialLogs` |
+| 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
+| 11 | 0 | query-builder (field list) | `Log` | `subdomains/supporting/log/log.repository.ts:699` | `LogRepository.getFinancialLogValidityChangeSet` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:51` | `LogService.update` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:131` | `LogService.getLog` |
 | 11 | 0 | find | `Log` | `subdomains/supporting/log/log.service.ts:135` | `LogService.maxEntity` |
-| 11 | 0 | query-builder (ohne-select) | `Log` | `subdomains/supporting/log/log.service.ts:191` | `LogService.getBankLog` |
+| 11 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.service.ts:191` | `LogService.getBankLog` |
 | 10 | 0 | find | `AccountMerge` | `subdomains/generic/user/models/account-merge/account-merge.service.ts:61` | `AccountMergeService.sendMergeRequest` |
 | 10 | 0 | find | `AccountMerge` | `subdomains/generic/user/models/account-merge/account-merge.service.ts:162` | `AccountMergeService.pendingMergeRequest` |
 | 9 | 0 | find | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:57` | `SupportNoteService.search` |
 | 9 | 0 | find | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:76` | `SupportNoteService.search` |
-| 9 | 0 | query-builder (nur-alias) | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:84` | `SupportNoteService.listUsers` |
+| 9 | 0 | query-builder (alias only) | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:84` | `SupportNoteService.listUsers` |
 | 9 | 0 | find | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:152` | `SupportNoteService.delete` |
 | 9 | 0 | find | `TransactionSpecification` | `subdomains/supporting/payment/services/transaction-helper.ts:92` | `TransactionHelper.updateCache` |
 | 8 | 0 | find | `LedgerAccount` | `subdomains/core/accounting/services/ledger-account.service.ts:12` | `LedgerAccountService.findByName` |
@@ -798,10 +798,10 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 7 | 0 | find | `SpecialExternalAccount` | `subdomains/supporting/payment/services/special-external-account.service.ts:58` | `SpecialExternalAccountService.getBlacklist` |
 | 7 | 0 | find | `AssetPrice` | `subdomains/supporting/pricing/services/asset-prices-job.service.ts:81` | `AssetPricesJobService.saveAssetPrices` |
 | 7 | 0 | find | `RealUnitLegalAcceptance` | `subdomains/supporting/realunit/realunit-legal.service.ts:57` | `RealUnitLegalService.getLatestAcceptance` |
-| 7 | 0 | query-builder (nur-alias) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-escalation.service.ts:310` | `SupportEscalationService.getLastMessages` |
-| 7 | 0 | query-builder (nur-alias) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:133` | `SupportIssueService.getSupportIssueActivity` |
-| 7 | 0 | query-builder (nur-alias) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:186` | `SupportIssueService.getSupportIssueStatistics` |
-| 7 | 0 | query-builder (nur-alias) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:614` | `SupportIssueService.getMessageStats` |
+| 7 | 0 | query-builder (alias only) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-escalation.service.ts:310` | `SupportEscalationService.getLastMessages` |
+| 7 | 0 | query-builder (alias only) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:133` | `SupportIssueService.getSupportIssueActivity` |
+| 7 | 0 | query-builder (alias only) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:186` | `SupportIssueService.getSupportIssueStatistics` |
+| 7 | 0 | query-builder (alias only) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:614` | `SupportIssueService.getMessageStats` |
 | 6 | 0 | find | `Ref` | `subdomains/core/referral/process/ref.repository.ts:13` | `RefRepository.getAndRemove` |
 | 6 | 0 | find | `Ref` | `subdomains/core/referral/process/ref.service.ts:22` | `RefService.checkRefs` |
 | 6 | 0 | find | `Ref` | `subdomains/core/referral/process/ref.service.ts:28` | `RefService.addOrUpdate` |
@@ -813,8 +813,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 6 | 0 | find | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:75` | `DepositService.getDepositsByBlockchain` |
 | 6 | 0 | find | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:79` | `DepositService.getDepositByBlockchainAndIndex` |
 | 6 | 0 | find | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:83` | `DepositService.getUsedDepositsByBlockchain` |
-| 6 | 0 | query-builder (ohne-select) | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:89` | `DepositService.getNextDeposit` |
-| 6 | 0 | query-builder (nur-alias) | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:189` | `DepositService.getNextDepositIndex` |
+| 6 | 0 | query-builder (no select) | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:89` | `DepositService.getNextDeposit` |
+| 6 | 0 | query-builder (alias only) | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:189` | `DepositService.getNextDepositIndex` |
 | 5 | 0 | find | `Setting` | `shared/models/setting/setting.repository.ts:36` | `SettingRepository.getStatusSettings` |
 | 5 | 0 | find | `Setting` | `shared/models/setting/setting.service.ts:16` | `SettingService.getAll` |
 | 5 | 0 | find | `Setting` | `shared/models/setting/setting.service.ts:26` | `SettingService.get` |
@@ -891,9 +891,9 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:264` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:268` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:274` | `LedgerBookingService.activeTx` |
-| — | — | query-builder (nur-alias) | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:335` | `LedgerBookingService.nextSeqFrom` |
-| — | — | query-builder (nur-alias) | `—` | `subdomains/core/accounting/services/ledger-cutover.service.ts:958` | `LedgerCutoverService.maxSettledId` |
-| — | — | query-builder (nur-alias) | `—` | `subdomains/core/accounting/services/ledger-cutover.service.ts:1002` | `LedgerCutoverService.idsUpToBoundary` |
+| — | — | query-builder (alias only) | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:335` | `LedgerBookingService.nextSeqFrom` |
+| — | — | query-builder (alias only) | `—` | `subdomains/core/accounting/services/ledger-cutover.service.ts:958` | `LedgerCutoverService.maxSettledId` |
+| — | — | query-builder (alias only) | `—` | `subdomains/core/accounting/services/ledger-cutover.service.ts:1002` | `LedgerCutoverService.idsUpToBoundary` |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:375` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:684` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:685` | — |
@@ -910,7 +910,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1063` | `BuyCryptoService.getCryptoRoute` |
 | — | — | find | `—` | `subdomains/core/custody/controllers/custody-account.controller.ts:66` | `CustodyAccountController.getCustodyAccount` |
 | — | — | find | `—` | `subdomains/core/custody/controllers/custody-account.controller.ts:67` | `CustodyAccountController.getCustodyAccount` |
-| — | — | query-builder (ohne-select) | `—` | `subdomains/core/custody/services/custody-account.service.ts:482` | `CustodyAccountService.lockActiveAccessGrant` |
+| — | — | query-builder (no select) | `—` | `subdomains/core/custody/services/custody-account.service.ts:482` | `CustodyAccountService.lockActiveAccessGrant` |
 | — | — | find | `—` | `subdomains/core/custody/services/custody-account.service.ts:504` | `CustodyAccountService.createGrant` |
 | — | — | find | `—` | `subdomains/core/custody/services/custody-account.service.ts:598` | `CustodyAccountService.grantAccessForLegacy` |
 | — | — | find | `CustodyOrder` | `subdomains/core/custody/services/custody-job.service.ts:65` | `CustodyJobService.executeOrder` |
@@ -934,10 +934,10 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `LiquidityManagementRule` | `subdomains/core/liquidity-management/services/liquidity-management.service.ts:42` | `LiquidityManagementService.checkLiquidityBalances` |
 | — | — | find | `—` | `subdomains/core/liquidity-management/validators/liquidity-actions-all-steps-match.validator.ts:11` | `LiquidityActionsAllStepsMatchValidator.validate` |
 | — | — | find | `—` | `subdomains/core/liquidity-management/validators/liquidity-actions-all-steps-match.validator.ts:12` | `LiquidityActionsAllStepsMatchValidator.validate` |
-| — | — | query-builder (nur-alias) | `—` | `subdomains/core/monitoring/observers/bank.observer.ts:117` | `BankObserver.getDbBalance` |
+| — | — | query-builder (alias only) | `—` | `subdomains/core/monitoring/observers/bank.observer.ts:117` | `BankObserver.getDbBalance` |
 | — | — | find | `—` | `subdomains/core/monitoring/observers/node-health.observer.ts:131` | `NodeHealthObserver.getPoolState` |
 | — | — | find | `—` | `subdomains/core/monitoring/observers/node-health.observer.ts:139` | `NodeHealthObserver.getNodeStateInPool` |
-| — | — | query-builder (nur-alias) | `—` | `subdomains/core/monitoring/observers/payment.observer.ts:72` | `PaymentObserver.getPayment` |
+| — | — | query-builder (alias only) | `—` | `subdomains/core/monitoring/observers/payment.observer.ts:72` | `PaymentObserver.getPayment` |
 | — | — | find | `—` | `subdomains/core/monitoring/observers/payment.observer.ts:157` | `PaymentObserver.getLastOutputDates` |
 | — | — | find | `—` | `subdomains/core/monitoring/observers/payment.observer.ts:160` | `PaymentObserver.getLastOutputDates` |
 | — | — | find | `—` | `subdomains/core/payment-link/entities/payment-quote.entity.ts:116` | `PaymentQuote.getTransferAmount` |
@@ -967,10 +967,10 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | raw-sql | `—` | `subdomains/generic/gs/gs.service.ts:337` | `GsService.executeDebugQuery` |
 | — | — | find | `—` | `subdomains/generic/gs/gs.service.ts:739` | `GsService.getParsedJsonData` |
 | — | — | find | `—` | `subdomains/generic/gs/gs.service.ts:742` | `GsService.getParsedJsonData` |
-| — | — | query-builder (ohne-select) | `—` | `subdomains/generic/gs/gs.service.ts:805` | `GsService.getRawDbData` |
-| — | — | query-builder (ohne-select) | `—` | `subdomains/generic/gs/gs.service.ts:868` | `GsService.getExtendedBankTxData` |
-| — | — | query-builder (ohne-select) | `—` | `subdomains/generic/gs/gs.service.ts:887` | `GsService.getExtendedBankTxData` |
-| — | — | query-builder (ohne-select) | `—` | `subdomains/generic/gs/gs.service.ts:906` | `GsService.getExtendedBankTxData` |
+| — | — | query-builder (no select) | `—` | `subdomains/generic/gs/gs.service.ts:805` | `GsService.getRawDbData` |
+| — | — | query-builder (no select) | `—` | `subdomains/generic/gs/gs.service.ts:868` | `GsService.getExtendedBankTxData` |
+| — | — | query-builder (no select) | `—` | `subdomains/generic/gs/gs.service.ts:887` | `GsService.getExtendedBankTxData` |
+| — | — | query-builder (no select) | `—` | `subdomains/generic/gs/gs.service.ts:906` | `GsService.getExtendedBankTxData` |
 | — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:35` | — |
 | — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:36` | — |
 | — | — | find | `—` | `subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts:125` | — |
@@ -1025,7 +1025,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.entity.ts:789` | `UserData.getNonFailedStepWith` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.enum.ts:75` | — |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:867` | `UserDataService.checkMail` |
-| — | — | query-builder (nur-alias) | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1214` | `UserDataService.updateVolumes` |
+| — | — | query-builder (alias only) | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1214` | `UserDataService.updateVolumes` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1312` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1324` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1332` | `UserDataService.mergeUserData` |
@@ -1095,11 +1095,11 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/notification/services/notification.service.ts:128` | `NotificationService.resolveMailWallet` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin-notification.service.ts:32` | `PayInNotificationService.returnedCryptoInput` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:148` | `PayInService.getCryptoInputsByTransactionIds` |
-| — | — | query-builder (nur-alias) | `—` | `subdomains/supporting/payin/services/payin.service.ts:156` | `PayInService.getCryptoInputByKeys` |
+| — | — | query-builder (alias only) | `—` | `subdomains/supporting/payin/services/payin.service.ts:156` | `PayInService.getCryptoInputByKeys` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:179` | `PayInService.getNewPayIns` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:192` | `PayInService.getAllUserTransactions` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:201` | `PayInService.getPendingPayIns` |
-| — | — | query-builder (nur-alias) | `—` | `subdomains/supporting/payin/services/payin.service.ts:217` | `PayInService.getPayInFee` |
+| — | — | query-builder (alias only) | `—` | `subdomains/supporting/payin/services/payin.service.ts:217` | `PayInService.getPayInFee` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:226` | `PayInService.acknowledgePayIn` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:261` | `PayInService.ignorePayIn` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:269` | `PayInService.retryUncertainSend` |

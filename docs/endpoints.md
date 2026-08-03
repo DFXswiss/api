@@ -10,7 +10,7 @@ Every HTTP endpoint this service exposes: **534 handlers** across 94 controller 
 | **Dep** | `yes` when the handler carries `@ApiOperation({ deprecated: true })` |
 | **Swagger** | `public` — in the Swagger schema; `hidden` — carries `@ApiExcludeEndpoint` |
 | **Data access** | What the endpoint reads, taken over **all** load sites it can reach — a permission check, a lookup and the actual query all count. `whole rows` — at least one of them fetches every column of an entity; `projected` — every read names the fields it needs; `caller-defined` — the field list comes from the request, and without one every column is loaded; `none` — no read at all (external services, in-memory caches, files, pure write paths). |
-| **Max cols** | Widest single query the endpoint can trigger, measured against the real entity metadata. `—` means no measurable site, not zero. |
+| **Max cols** | Widest single query the endpoint can trigger, measured against the real entity metadata; a lower bound where the call graph did not fully resolve. `—` means no measurable site, not zero. |
 | **Tests** | State against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). `n/a` — the definition does not apply (the endpoint reads nothing, or its field list comes from the caller); `not yet` — the endpoint has not been converted, so nothing can be missing from it yet; `0/4` to `4/4` — levels satisfied. **A converted endpoint counts as done only at `4/4`.** |
 | **Spec** | `yes` when some spec file names this controller and calls this handler. A weak signal and a lower bound — it says a test touches the endpoint, not that it covers it, and it misses specs that drive a route over HTTP without naming the handler. |
 
@@ -23,7 +23,7 @@ Two rules follow from that, and both are binding:
 1. **An endpoint counts as converted only when its tests reach `4/4`** against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). A projection without them is worse than no projection: a forgotten field does not crash, it returns a wrong value with a 200, and in a service moving money that can run for weeks unnoticed. Anything short of `4/4` is unfinished work, not a partial success.
 2. **The state of every endpoint is recorded here**, in the `Tests` column, and kept in sync with the code in the same pull request that changes it. An undocumented conversion is indistinguishable from one that was never tested.
 
-Today 4 endpoints read only what they return and 432 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
+Today 2 endpoints read only what they return and 432 do not, so the column reads `not yet` almost everywhere. Two further endpoints project only when the caller supplies a field list and load the whole table otherwise, which is why they are counted separately rather than as converted. That is the point of recording it: the number is the distance to the target.
 
 ## What the numbers say
 
@@ -36,7 +36,7 @@ Today 4 endpoints read only what they return and 432 do not, so the column reads
 
 Two endpoints read only what they return: `PUT /log/financial/validity`, whose query names `log.id` and `log.valid`, and `POST /gs/debug`, which assembles its select list from the request. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise. How far the test suite actually covers those reads is recorded per site in [read-path-projections.md](read-path-projections.md#which-endpoints-these-apply-to); the short answer is that the projection behind `PUT /log/financial/validity` is never executed in a test.
 
-Among the 432 that fetch whole rows, the widest query they can trigger is **308 columns** at the median; 320 exceed 100, 90 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns, which is what broke every invoice and receipt in production once a single column was added elsewhere.
+Among the 432 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 320 exceed 100, 90 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns, so the widest of these leave no headroom for a column added elsewhere.
 
 ### How to read this column, and how not to
 
@@ -99,8 +99,8 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 
 - **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Decorators between the route and the method are skipped by counting parentheses, so a multi-line `@UseGuards(` cannot be mistaken for the handler. Cross-checked in both directions against the routes the framework registers at startup: all 526 distinct method/path pairs match, with no entry left over on either side.
 - **Ver** — from `@Version` on the handler, otherwise from the `@Controller` scope, otherwise the configured default. Note that the version follows the class, not the folder: the controllers under `generic/kyc/` are not uniformly v2 — `KycAdminController` carries no version decorator and is therefore served under the default.
-- **Data access** — the union over the call graph, following injected fields, locally constructed repositories and multi-line call chains. `find*` pulls in eager relations, `createQueryBuilder` does not, `.select([...])` is the only form that narrows the column list, and `.update()/.delete()/.insert()` are writes that load nothing.
-- **Max cols** — the query is built from the real entity metadata and its SELECT list counted. Not an estimate.
+- **Data access** — the union over the call graph, following injected fields, locally constructed repositories and multi-line call chains. `find*` pulls in eager relations, `createQueryBuilder` does not, a bare identifier passed to `.select(...)` is the root alias and loads every column, while anything else — an array, a qualified column such as `.select('userData.id', 'id')`, or an expression such as `COUNT(*)` — narrows it, and `.update()/.delete()/.insert()` are writes that load nothing.
+- **Max cols** — the query is built from the real entity metadata and its SELECT list counted, so the number is measured rather than estimated. It is still a lower bound wherever the load site takes its `relations` tree as a parameter, or the call graph did not resolve: both can only add sites and widen queries, never the reverse.
 
 ## Known discrepancy
 

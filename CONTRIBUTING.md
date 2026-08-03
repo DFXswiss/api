@@ -530,7 +530,7 @@ To verify a change, compare against the routes the framework logs at startup: ev
 [docs/load-sites.md](docs/load-sites.md) is the companion inventory: every place in the code that reads from the database, with the mechanism and the measured column count. It is generated, not hand-maintained, but the rule it documents is worth knowing before writing a query:
 
 - the `find` family applies eager relations and expands them recursively — a plain `findOne()` on `UserData` already selects 253 columns across 8 joins
-- `createQueryBuilder` does not, but still loads every column of the root entity unless `.select([...])` narrows it
+- `createQueryBuilder` does not, but still loads every column of the root entity unless the select list narrows it — a bare identifier is the entity alias and narrows nothing, a qualified column or an expression does
 - `.select('alias')` is **not** a projection — the argument is the entity alias, not a field list
 - a query builder carrying `.update()`, `.delete()` or `.insert()` is a write statement and loads nothing — the same goes for a raw `SELECT pg_advisory_xact_lock(...)`, which returns no rows; neither is part of that inventory
 

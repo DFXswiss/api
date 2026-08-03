@@ -28,8 +28,8 @@ This service loads far more data than it returns. Measured against the real enti
 - The whole database schema has **1,736 columns across 99 tables**.
 - `PUT /v1/transaction/:id/invoice` selected **1,664 of them** — 96% of the entire schema — to
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
-  columns per statement, which is why a single new column added elsewhere (`settlementEventId` on
-  `transaction_request`) broke every invoice and receipt in production until it was fixed.
+  columns per statement, so a single column added elsewhere (`settlementEventId` on
+  `transaction_request`) was enough to push it over.
 - Of the 534 endpoints, **432 reach at least one load site that fetches whole rows**; 98 read
   nothing at all, and **2 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
@@ -93,6 +93,10 @@ All of the following must hold:
 1. **No write to the entity in question** anywhere in the call chain — no `save`, `update`,
    `delete` or `remove` on its repository or on the entity manager. The endpoint may write *other*
    entities; the criterion applies per load site.
+   The hazard is saving a partially loaded row back, where the unselected columns are undefined and
+   would be written as null. A column-scoped `update(id, …)` cannot do that — it sends only the
+   columns named in the call — so it does not disqualify a read path, **unless a value it writes is
+   derived from what was read**. That case is real and stays excluded.
 2. **The entity is not handed to code whose use of it is unknown** — an event handler, a generic
    service, a queue.
 3. **All result-relevant fields are statically determinable.** Ruled out by dynamic field access
