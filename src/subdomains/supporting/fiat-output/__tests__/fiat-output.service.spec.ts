@@ -185,9 +185,7 @@ describe('FiatOutputService', () => {
 
       await service.create(dto);
 
-      expect(fiatOutputRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ isInstant: true, bank: frickEUR }),
-      );
+      expect(fiatOutputRepo.save).toHaveBeenCalledWith(expect.objectContaining({ isInstant: true, bank: frickEUR }));
     });
 
     it('rejects isInstant true for frickCHF', async () => {

@@ -54,9 +54,7 @@ describe('CreateFiatOutputDto', () => {
   });
 
   it('rejects a string value for isInstant', async () => {
-    await expect(pipe.transform({ ...baseDto, isInstant: 'true' }, metadata)).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(pipe.transform({ ...baseDto, isInstant: 'true' }, metadata)).rejects.toThrow(BadRequestException);
   });
 });
 
