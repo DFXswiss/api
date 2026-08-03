@@ -234,6 +234,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'instructedAmount',
       'instructedCurrency',
       'instructionId',
+      'isInternalTransfer',
       'subFamilyCode',
       'txAmount',
       'txCount',

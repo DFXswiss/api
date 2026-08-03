@@ -36,7 +36,12 @@ import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
-import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import {
+  BankTx,
+  BankTxIndicator,
+  BankTxType,
+  INTERNAL_TRANSFER_SETTLEMENT_DAYS,
+} from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
@@ -63,7 +68,7 @@ import { LogService } from './log.service';
 // equity stays correct meanwhile because the liability is still counted.
 const SETTLEMENT_SLA_HOURS = 144;
 const SETTLEMENT_SLA_MS = SETTLEMENT_SLA_HOURS * 60 * 60 * 1000;
-const INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS = 21 * 24 * 60 * 60 * 1000;
+const INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS = INTERNAL_TRANSFER_SETTLEMENT_DAYS * 24 * 60 * 60 * 1000;
 
 // tolerance for comparing summed float balances (avoids false alarms on rounding)
 const BALANCE_TOLERANCE = 0.01;
@@ -484,7 +489,9 @@ export class LogJobService {
 
     // pending internal balances
     // db requests
-    const recentInternalBankTx = this.getUnsettledInternalBankTx(await this.bankTxService.getRecentInternalTx());
+    const recentInternalBankTx = this.getUnsettledInternalBankTx(
+      await this.bankTxService.getTrackedInternalTransfers(),
+    );
     const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
     const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
       minExchangeTxId,

@@ -21,6 +21,8 @@ import { BankTxRepeat } from '../../bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../../bank-tx-return/bank-tx-return.entity';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
+export const INTERNAL_TRANSFER_SETTLEMENT_DAYS = 21;
+
 export enum BankTxType {
   INTERNAL = 'Internal',
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
@@ -51,6 +53,7 @@ export enum BankTxIndicator {
 @Entity()
 // Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
 @Index((b: BankTx) => [b.updated, b.id])
+@Index((b: BankTx) => [b.type, b.isInternalTransfer])
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
   accountServiceRef: string;
@@ -215,6 +218,12 @@ export class BankTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   type?: BankTxType;
+
+  // Immutable ownership fact captured when both transfer IBANs belong to DFX. Null is
+  // reserved for legacy/rolling-deployment writes that have not made this decision yet.
+  // Do not recompute true/false from current bank configuration: accounts can be retired later.
+  @Column({ nullable: true })
+  isInternalTransfer: boolean | null;
 
   // ISO 20022 bank transaction codes
   @Column({ length: 256, nullable: true })
