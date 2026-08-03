@@ -4,6 +4,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -25,6 +26,7 @@ import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.servi
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
+import { SetOnboardingFeeDto } from 'src/subdomains/supporting/payment/dto/input/set-onboarding-fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -143,6 +145,26 @@ export class UserDataController {
     return this.userDataService.removeFee(userData, +feeId);
   }
 
+  // --- ONBOARDING FEE --- //
+
+  // Sets the one-off fixed onboarding amount of an account: the fee is created on first use of an
+  // amount and reused afterwards, and it replaces an onboarding fee the account already carries.
+  @Put(':id/onboardingFee')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async setOnboardingFee(@Param('id') id: string, @Body() dto: SetOnboardingFeeDto): Promise<void> {
+    return this.feeService.setOnboardingFee(await this.getUserDataOrThrow(+id), dto.amount);
+  }
+
+  @Delete(':id/onboardingFee')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async removeOnboardingFee(@Param('id') id: string): Promise<void> {
+    return this.feeService.removeOnboardingFee(await this.getUserDataOrThrow(+id));
+  }
+
   // --- IDENT --- //
 
   @Post(':id/kycFile')
@@ -188,5 +210,16 @@ export class UserDataController {
     });
 
     return new StreamableFile(zipContent);
+  }
+
+  // --- HELPER METHODS --- //
+
+  // `getUserData` resolves to undefined for an unknown id; without this the caller would fail with
+  // a 500 on the first property access instead of a 404.
+  private async getUserDataOrThrow(id: number): Promise<UserData> {
+    const userData = await this.userDataService.getUserData(id);
+    if (!userData) throw new NotFoundException('User data not found');
+
+    return userData;
   }
 }

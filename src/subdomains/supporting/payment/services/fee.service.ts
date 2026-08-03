@@ -24,7 +24,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { MoreThan } from 'typeorm';
+import { In, MoreThan } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
@@ -68,6 +68,11 @@ export interface FeeRequestBase {
 }
 
 const FeeValidityMinutes = 30;
+
+// Plausibility guard against a typo in a manually entered amount - a mistyped fee is charged in
+// full on the customer's next transaction. Overridable through the `onboardingFeeMaxAmount` setting.
+const DefaultMaxOnboardingFee = 100000; // CHF
+const OnboardingFeeLabel = 'Onboarding Fixed';
 
 @Injectable()
 export class FeeService {
@@ -211,6 +216,73 @@ export class FeeService {
     await this.feeRepo.update(...cachedFee.increaseUsage(userData.accountType));
 
     await this.userDataService.addFee(userData, cachedFee.id);
+  }
+
+  // --- ONBOARDING FEE --- //
+
+  // An onboarding fee is an individually agreed amount a customer pays on top of the regular
+  // percentage fee: an `Addition` fee with `rate = 0` and `fixed = <amount in CHF>`. That shape,
+  // not the label, defines the group - labels are free text and carry no guarantee.
+  async setOnboardingFee(userData: UserData, amount: number): Promise<void> {
+    const maxAmount = await this.settingService
+      .get('onboardingFeeMaxAmount', `${DefaultMaxOnboardingFee}`)
+      .then(Number);
+    if (amount > maxAmount)
+      throw new BadRequestException(`Onboarding fee of ${amount} CHF exceeds the limit of ${maxAmount} CHF`);
+
+    const fee = await this.getOrCreateOnboardingFee(amount);
+    const assignedFees = await this.getOnboardingFees(userData);
+    if (assignedFees.length === 1 && assignedFees[0].id === fee.id) return;
+
+    // Audit before the mutation: `individualFees` keeps no history of what it replaced.
+    await this.userDataService.createOnboardingFeeLog(userData, assignedFees, fee);
+
+    // Remove before assigning. An interrupted run then leaves the account without an onboarding
+    // fee - visible and harmless - while the opposite order would leave two fees whose fixed
+    // amounts are summed into one absolute charge (`combinedExtraFixedFee`).
+    for (const assignedFee of assignedFees) await this.userDataService.removeFee(userData, assignedFee.id);
+
+    await this.addFeeInternal(userData, fee.id);
+  }
+
+  async removeOnboardingFee(userData: UserData): Promise<void> {
+    const assignedFees = await this.getOnboardingFees(userData);
+    if (!assignedFees.length) throw new BadRequestException('Account has no onboarding fee');
+
+    await this.userDataService.createOnboardingFeeLog(userData, assignedFees, undefined);
+
+    for (const assignedFee of assignedFees) await this.userDataService.removeFee(userData, assignedFee.id);
+  }
+
+  async getOnboardingFees(userData: UserData): Promise<Fee[]> {
+    const feeIds = userData.individualFeeList;
+    if (!feeIds?.length) return [];
+
+    return this.feeRepo.findBy({ id: In(feeIds), type: FeeType.ADDITION, rate: 0, fixed: MoreThan(0) });
+  }
+
+  private async getOrCreateOnboardingFee(amount: number): Promise<Fee> {
+    const existingFee = await this.feeRepo.findOne({
+      where: { type: FeeType.ADDITION, rate: 0, fixed: amount, active: true },
+      order: { id: 'ASC' },
+    });
+    if (existingFee) return existingFee;
+
+    const fee = await this.createFee(
+      Object.assign(new CreateFeeDto(), {
+        label: `${OnboardingFeeLabel} ${amount} Once`,
+        type: FeeType.ADDITION,
+        rate: 0,
+        fixed: amount,
+        createSpecialCode: true,
+      }),
+    );
+
+    // The fee list is cached for five minutes, so a fee created here stays invisible to `getFee`
+    // and to fee calculation until the cache expires - and could not be assigned in this call.
+    this.feeRepo.invalidateCache();
+
+    return fee;
   }
 
   async increaseTxUsages(txVolume: number, feeId: number, userData: UserData): Promise<void> {
