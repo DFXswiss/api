@@ -175,6 +175,8 @@ The following steps must be carried out at the POS if a customer wants to pay wi
 
 1. [Wait for payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_waitForPayment): This API endpoint can be used to wait for a change on a pending payment. It blocks until the payment either is completed, cancelled or expired. The response will contain the result in the `payment.status` field. Please use the `externalPaymentId` query parameter to select the payment to be waited on.
 
+   A single call blocks for at most 110 seconds. If the payment is still pending when that window ends, the endpoint answers with HTTP 408 and no result — send the request again to keep waiting. A 408 means "nothing has happened yet", not "the customer did not pay"; only a terminal `payment.status` in a successful response is a result.
+
 1. [Confirm a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_confirmPayment) (optional): A payment can be confirmed for documentation purposes. This can only be done after it is completed (paid by the customer). Please use the `externalPaymentId` query parameter to select the payment to be confirmed.
 
 1. [Cancel a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_cancelPayment) (optional): A payment can be cancelled as long at it is still pending. Please use the `externalPaymentId` query parameter to select the payment to be cancelled.
