@@ -318,14 +318,15 @@ Yapeal still has the pre-existing weakness that an external create cannot be und
 reference-based reconciliation protocol. This change intentionally does not introduce a second
 recovery design for that provider; restoring pre-feature customer behavior takes precedence.
 
-### Request path is fail-closed (no self-heal)
+### Request path is fail-closed
 
 On the customer request path, an empty Frick recovery listing is **not** treated as proof of
 non-existence (a concurrent create may still be mid-flight at Bank Frick). `VirtualIbanService`
 therefore **never** resets the intent, rotates `requestReference`, or re-enters issuance after an
 empty listing: it fails the call (`ServiceUnavailableException`) and leaves the intent row
 exactly as the create attempt left it (`InFlight` / `Failed`). The hourly reconciliation job also
-leaves it non-retryable; a human must reconcile ambiguous outcomes.
+never repeats the create. The customer-facing buy flow immediately falls back to the referenced
+collection account while the hourly job resolves the intent automatically.
 
 Automatic retry still exists where the evidence is conclusive. A failed preflight occurs before
 the create call and may reset the intent to `Pending`; a classified `VibanNotCreatedError` means the
@@ -334,35 +335,35 @@ pre-connect transport failures, or a non-408 HTTP 4xx) and may also reset the sa
 `Pending`. Timeouts, connection resets, activation failures, recovery-listing failures, and every
 listing miss are ambiguous and never arm an automatic retry.
 
-### Two-phase hourly job
+### Hourly reconciliation job (Phase 1 → completed-intent cleanup → Phase 2)
 
 `VirtualIbanFrickIssuanceReconciliationService.reconcileRetiredIssuanceReferences`
-(`@DfxCron` process `VirtualIbanFrickIssuanceReconciliation`) is an alert-only check for stuck
-intents and retired references. A complete, fully validated, reference-account-scoped listing
-across **all lifecycle states** is useful positive evidence when it contains the exact
-`description`, but absence is **not authoritative proof of non-creation** and causes no mutation:
+(`@DfxCron` process `VirtualIbanFrickIssuanceReconciliation`) automatically recovers stuck intents,
+cleans up duplicates under completed Frick intents, and cleans up retired references. A listing
+match is positive evidence; listing absence remains non-authoritative and therefore never enables a
+second create:
 
 - **Schedule:** every hour (`CronExpression.EVERY_HOUR`)
 - **Rail guard:** silent no-op when `FrickVibanProvider.isAvailable()` is false (vIBAN rail not
   configured)
 - **`timeout: 1800` (resumption, not abort):** LockClass (`src/shared/utils/lock.ts`) treats 1800s
   as a _resumption threshold_, not a hard abort of a still-running previous tick. A run older than
-  1800s no longer blocks a new hour-tick, so two overlapping invocations are possible. Both phases
-  are read-only with respect to issuance intents; overlap can duplicate an alert but cannot arm a
-  retry.
-- **Shared listing cache:** both phases list Frick vIBANs for each immutable reference-account
-  snapshot (not a single hardcoded EUR account). Successful results share a per-run
-  `referenceAccountIban → listing` cache across both phases, so different bank IDs with the same
-  snapshotted IBAN reuse that result. Failed listing calls are not cached and can be attempted again.
-- **On unhandled phase failure:** the job attempts a fail-closed `ERROR_MONITORING` alert that the
-  check itself could not run; alert-delivery failure is logged. Absence of a match alert is **not**
-  evidence of a clean state. Phases are independent try/catch blocks so a Phase-1 failure still
-  allows Phase 2 to run (and vice versa).
+  1800s no longer blocks a new hour-tick, so two overlapping invocations are possible. Intent
+  transitions are locked and idempotent, external cleanup always targets an exact vIBAN, and no
+  path arms another create.
+- **Shared listing cache:** Phase 1, completed-intent cleanup, and Phase 2 list Frick vIBANs for each
+  immutable reference-account snapshot (not a single hardcoded EUR account). Successful results share
+  a per-run `referenceAccountIban → listing` cache across all three stages, so different bank IDs with
+  the same snapshotted IBAN reuse that result. Failed listing calls are not cached and can be
+  attempted again.
+- **Monitoring:** ambiguous Bank Frick outcomes and every failed automatic action are written at
+  `ERROR`. The job sends no additional monitoring mail. Stages are independent try/catch blocks so
+  a Phase-1 failure still allows completed-intent cleanup and Phase 2 to run (and vice versa).
 
 Kill-switch: disable process `VirtualIbanFrickIssuanceReconciliation` via the standard disabled-
 processes setting.
 
-#### Phase 1 — inspect stuck InFlight/Failed intents (alert-only)
+#### Phase 1 — automatically recover stuck InFlight/Failed intents
 
 1. Load Bank Frick issuance intents (`provider = 'Bank Frick'`) with status `InFlight` or `Failed`,
    then **exclude** permanently merge-superseded intents (`error` contains
@@ -370,54 +371,83 @@ processes setting.
 2. Group remaining intents by the immutable
    `[provider, referenceAccountIban, referenceAccountReceive]` snapshot and list Frick vIBANs for
    that snapshotted reference-account IBAN (`FrickVibanProvider.listByReferenceAccount`).
-3. For each eligible intent, compare the listing's `description` set to the intent's current
+3. For each eligible intent, compare the listing's `description` to the intent's current
    `requestReference`:
-   - **Listing match** (object already exists under the current reference) → collect for an
-     `ERROR_MONITORING` alert; **change nothing** on the intent. Manual operator follow-through
-     required (no auto-cleanup at Bank Frick).
-   - **Not found, fully validated, and older than the safety threshold** → keep the intent
-     `InFlight`/`Failed`, keep the same reference, and send
-     `Frick vIBAN reconciliation Phase 1: listing does not prove create absence`. Manual
-     reconciliation is required; no automatic retry is enabled, even when the listing started
-     after the locally bounded HTTP window.
+   - **One PREPARED/ACTIVE match** → approve activation if required and finalize the existing vIBAN
+     locally under the issuance lock.
+   - **Several PREPARED/ACTIVE matches** → finalize (or confirm) exclusively the deterministic
+     canonical winner (earliest `createdAt`, then `vban`). Phase 1 **never** deactivates duplicates.
+     Duplicates are handled only by the subsequent completed-intent cleanup once the intent is
+     `COMPLETED` with persisted `externalIban` as canonical.
+   - **Not found and older than 30 minutes** → keep the intent non-retryable and emit `ERROR` because
+     Bank Frick's result remains inconclusive.
+   - **Not found and older than 24 hours** → only when this run's listing for the intent's snapshot
+     group was successful, time-valid, and `fullyValidated`: transition the intent to terminal
+     `Fallback`, retire its request reference for Phase 2, and continue serving the collection
+     account. This is a business cutoff, not proof that Bank Frick created nothing; it never enables
+     another create. Incomplete, failed, or time-invalid listings **exclude** the 24-hour fallback
+     for every intent in that group for this run.
    - **Not found but still fresh** (`intent.updated` younger than the threshold) → skip until a
      later run.
    - **Listing not fully validated** (per-entry validation drops) → treat as **inconclusive** for
      that snapshot group: still surface any positive matches (they are evidence), leave every
-     unmatched intent non-retryable, and send a separate incomplete-listing alert. Once an
-     unmatched intent in such a group passes the 30-minute safety threshold, also send the chronic
-     incomplete-listing alert on each run where the intent is still eligible and that snapshot
-     group's listing is again incomplete. Absence of a match alert is not a clean state.
+     unmatched intent non-retryable, emit `ERROR`, and **do not arm** the 24-hour fallback for this
+     run. Phase 2 continues scanning any previously retired references indefinitely.
 
 The listing result carries `listingStartedAt` (captured immediately before page 0 is dispatched)
 and `listingCompletedAt` (captured after the final page validates). In Phase 1, invalid/reversed
-timestamps fail that snapshot group for the run. For each intent, the code computes
-`latestPossibleCreateProcessedAt = intent.updated + FRICK_CREATE_MAX_PROCESSING_MS`. The absence
-alert includes `listingStartedAt` and `latestPossibleCreateProcessedAt`. `listingCompletedAt` is
-checked only for a valid `Date` and for not preceding `listingStartedAt`; it is not compared with
-`latestPossibleCreateProcessedAt` and establishes no temporal coverage of the create window. These
-times are not an automatic-retry precondition: even a correctly ordered listing miss remains
-non-authoritative because Bank Frick provides no authoritative “this create did not happen”
-operation.
+timestamps fail that snapshot group for the run and likewise exclude fallback for that group.
+The absence log context includes the count of inconclusive intents. `listingCompletedAt` is
+checked for a valid `Date` and for not preceding `listingStartedAt`; it establishes no temporal
+coverage of the create window. These times are not an automatic-retry precondition: even a
+correctly ordered listing miss remains non-authoritative because Bank Frick provides no
+authoritative “this create did not happen” operation.
 
-`FRICK_CREATE_MAX_PROCESSING_MS = 120_000` is derived from
-`BankFrickService.HTTP_TIMEOUT_MS = 30_000`:
+A conservative **local** upper-bound estimate for the create attempt is **120 seconds**, derived
+from `BankFrickService.HTTP_TIMEOUT_MS = 30_000`:
 
 - authorization preflight before the create call can consume 30s;
 - the locally bounded create HTTP attempt then lasts at most 90s: original request (30s) +
   `/authorize` re-auth after 401 (30s) + one-shot retried request (30s). `requestSigned` has no
   further internal retry beyond that.
-- **120s is not an upper bound on Bank Frick processing or on when its create side effect can
-  occur.** Bank Frick may queue or finish work after the local HTTP attempt has ended.
+- **120s is not a Bank Frick SLA or processing deadline**, not an upper bound on when Bank Frick’s
+  create side effect can occur, and not a retry or automatic-fallback precondition. Bank Frick may
+  queue or finish work after the local HTTP attempt has ended. The estimate is for operator
+  planning only (e.g. draining the local create window before changing a reference account).
 
-The separate 30-minute `FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS` remains as a conservative delay
-before escalating a listing miss to Operations. It does not change the intent.
+The 30-minute `FRICK_STUCK_INTENT_SAFETY_THRESHOLD_MS` controls when an inconclusive miss becomes
+an `ERROR`; the 24-hour `FRICK_AUTOMATIC_FALLBACK_THRESHOLD_MS` bounds recovery before terminal
+fallback (only after a successful, time-valid, fully validated listing in that run).
 
-#### Phase 2 — retired-reference orphan scan (alert-only)
+#### Completed-intent duplicate cleanup
+
+Runs immediately after Phase 1 in the same hourly tick. Sole permanently retryable path that
+deactivates non-canonical Frick vIBANs under a completed issuance:
+
+1. Load Bank Frick intents with status `Completed`.
+2. Group by the same immutable reference-account snapshot and reuse the shared listing cache.
+3. Require a successful, time-valid, fully validated listing; otherwise emit `ERROR` and skip
+   deactivation for that bank snapshot this run.
+4. For each intent, treat persisted `externalIban` as the sole canonical. Fail closed (no
+   deactivation) when `externalIban` is missing, the listing has a cross-account mismatch, or the
+   canonical IBAN is absent from a fully validated list.
+5. Deactivate only other PREPARED / ACTIVE / DEACTIVATION_REQUESTED entries under the same technical
+   description. Before every external deactivation, call
+   `isIbanProtectedFromReconciliationDeactivation`; protected IBANs are refused with a PII-safe
+   `ERROR` and left untouched.
+6. Each distinct duplicate IBAN is acted on at most once per run. Failures leave the `Completed`
+   intent untouched so the next hourly run retries — no free-text log is used as durable state.
+
+This stage is the only duplicate cleanup after multi-match Phase-1 recovery: Phase 1 finalizes the
+winner; completed-intent cleanup then deactivates unprotected non-canonicals against the persisted
+canonical.
+
+#### Phase 2 — automatic retired-reference cleanup
 
 Phase 2 scans only event rows whose durable provider snapshot is `Bank Frick`, then checks their
-previously **retired** references and alerts when Bank Frick still shows an object under one. It is
-**alert-only**: it never mutates intents or Bank Frick state.
+previously **retired** references. A PREPARED, ACTIVE or DEACTIVATION_REQUESTED vIBAN found under a
+retired reference is automatically deactivated and the deactivation is approved. An already
+DEACTIVATED object is a completed cleanup and causes no further mutation.
 
 **Where retired references come from** (writers of the durable markers in `nextError`):
 
@@ -435,31 +465,31 @@ previously **retired** references and alerts when Bank Frick still shows an obje
    the (currency, bank) pair. Embeds both `MERGE_SUPERSEDED_MARKER` (so finalize and Phase 1 refuse
    revival) and `CREATE_PATH_REFERENCE_MARKER` (so Phase 2 still scans the retired reference):
    `Superseded by account merge of userData <slaveId> into <masterId>; merge-superseded; previousRequestReference=<old>`
+5. **Automatic collection-account fallback** — after 24 hours without a recoverable match, Phase 1
+   transitions the intent to `Fallback` and writes
+   `automatic-collection-account-fallback; previousRequestReference=<old>`.
 
 Markers (shared constants on `VirtualIbanService`):
 
 - `CREATE_PATH_REFERENCE_MARKER` = `previousRequestReference=` — current writer format
-  (deactivation-reopen + merge supersede) and historical Phase-1 reset format
+  (deactivation-reopen + merge supersede + automatic collection-account fallback) and historical
+  Phase-1 reset format
 - `RECOVERY_PATH_REFERENCE_MARKER` = `recovery listing found no match under requestReference=` —
   retained so Phase 2 still parses any historical events from older builds
 - `MERGE_SUPERSEDED_MARKER` = `merge-superseded` — permanent retirement marker written only by the
   merge-fail path; `finalizeFrickIssuance` and Phase 1 refuse to complete/reopen over it
 
-The **request path never retires references** and never writes these markers.
+The request path never retires references; only locked state transitions do.
 
 **No rolling lookback window:** every matching issuance-event transition is loaded and kept under
-scan indefinitely. A still-unresolved abandoned reference must keep being checked and (on match)
-alerted; silent-forgetting after a day count is intentionally not used. These events are expected
+scan indefinitely. A still-unresolved abandoned reference must keep being checked and cleaned up;
+silent-forgetting after a day count is intentionally not used. These events are expected
 to be rare recovery / deactivation / merge artifacts.
 
 Per immutable snapshot group (using Phase 1's reference-account-IBAN cache): if the listing is fully
 validated, any abandoned reference whose `description` appears is a match; if the listing is not
-fully validated, positive matches are still alerted but unmatched abandoned references are **not**
-treated as clean (incomplete-listing alert).
-
-On a match: one `ERROR_MONITORING` alert listing each hit with `abandonedReference` / `eventId` /
-`intentId` / `userDataId` / `currencyId` / `bankId` / event `created`. **No auto-cleanup** of Bank
-Frick or local state — **manual operator follow-through is required**.
+fully validated, positive matches are still cleaned up but unmatched abandoned references are not
+treated as clean. Failed cleanup is logged at `ERROR` and retried by the next hourly run.
 
 ### What the job looks for (Phase 2 SQL)
 
@@ -485,29 +515,21 @@ ORDER BY created DESC;
 Extract each abandoned reference from the `nextError` text (`previousRequestReference=…` or
 `under requestReference=…`, value ends at the next `;` or end of string). A row that matches the
 LIKE clause but has an empty value after the marker (e.g. `previousRequestReference=;…`) cannot be
-parsed — that candidate is alerted via `sendUnresolvedAbandonedReferenceAlert` (see below), not
-treated as a Frick listing match. When Phase 2 finds a listing match, `sendMatchAlert` already puts
-the exact extracted `abandonedReference` into the alert email body
-(`abandonedReference=…; eventId=…`) — operators do **not** need DB access for the normal orphan
-alert path. Direct DB access to `nextError` / `previousError` (or an equivalent privileged tool) is
-the fallback for **ad-hoc** investigation and for unextractable-marker rows (where the free-form
-`nextError` text itself must be inspected). `/gs/debug` deliberately does **not** allowlist those
-free-form columns, so the debug endpoint is not that fallback.
+parsed and is logged at `ERROR`; it is not treated as a Frick listing match.
 
 ### What it reconciles against
 
-Both phases list Bank Frick virtual IBANs **per immutable reference-account snapshot and across
-every lifecycle state**, not against one hardcoded EUR reference account. Every intent captures
-`referenceAccountIban` and `referenceAccountReceive` when it is created; every issuance event copies
-the same values. Preflight, create, request recovery, finalization checks, Phase 1, and Phase 2 all
-use that snapshot. Reconciliation never switches an in-flight or historical issuance to a newly
-edited `Bank.iban`.
+Phase 1, completed-intent cleanup, and Phase 2 list Bank Frick virtual IBANs **per immutable
+reference-account snapshot and across every lifecycle state**, not against one hardcoded EUR
+reference account. Every intent captures `referenceAccountIban` and `referenceAccountReceive` when
+it is created; every issuance event copies the same values. Preflight, create, request recovery,
+finalization checks, Phase 1, completed-intent cleanup, and Phase 2 all use that snapshot.
+Reconciliation never switches an in-flight or historical issuance to a newly edited `Bank.iban`.
 Comparison is exact equality of listed `description` to the intent's current `requestReference`
-(Phase 1) or the extracted abandoned reference (Phase 2). A missing IBAN, a receive-disabled
-snapshot or a non-Frick provider snapshot throws inside that snapshot group's processing and is
-caught by the group-level `try/catch` in both phases. That group is skipped and contributes to the
-aggregate `sendPerBankFailureAlert`; every other snapshot group in the same run continues normally.
-Absence of a match alert for a skipped group is **not** evidence of a clean state.
+(Phase 1 / completed-intent cleanup) or the extracted abandoned reference (Phase 2). A missing IBAN,
+a receive-disabled snapshot or a non-Frick provider snapshot throws inside that snapshot group's
+processing and is caught by the group-level `try/catch`. That group is logged at `ERROR` and skipped;
+every other snapshot group in the same run continues normally.
 
 Before changing a Frick reference-account IBAN or disabling its receive state, Operations must:
 
@@ -522,27 +544,13 @@ Finalization reloads the Bank row and refuses to expose a newly finalized vIBAN 
 or receive-enabled state differs from the intent snapshot. The old snapshot remains the
 reconciliation authority even after such a refusal.
 
-### What to do on a match (operator follow-up)
+### Match handling
 
-Applies to **Phase 1 listing matches** (stuck intent already present at Frick under the current
-reference) and **Phase 2 orphan matches** (Frick still holds a vIBAN under a retired reference).
-In both cases the job does **not** deactivate, delete, or auto-bind anything at Bank Frick —
-and Phase 1 never reopens the local intent.
-
-1. From the alert (or the same event/intent row), note `userDataId`, `currencyId`, `bankId` (and
-   `intentId`) to identify which customer / currency / bank the reference belongs to.
-2. Decide the manual reconciliation path (same fail-closed, hands-on style as section 1
-   watermark rewinds and section 5 multi-match payouts):
-   - If the customer already has a correct local `virtual_iban` for that currency/bank,
-     ask Bank Frick to deactivate the stray object through an approved portal/API procedure and
-     verify its resulting lifecycle state. If deactivation is unavailable or does not prevent
-     receipt, keep the snapshotted reference account monitored and escalate; the application has no
-     automatic revocation path.
-   - If local state is incomplete and the Frick-side vIBAN is the only live receiving
-     account, use an approved, audited repair to bind it to the correct local record (or complete
-     issuance under support supervision) rather than leaving an unmonitored IBAN live.
-3. Do not invent a second automated recovery path here; treat every match as an ops incident
-   until local and Frick state agree, then record what was done for audit.
+Phase 1 automatically binds the selected live match (deterministic canonical winner only; never
+deactivates duplicates). Completed-intent cleanup deactivates unprotected non-canonical duplicates
+under `Completed` intents (canonical = persisted `externalIban`). Phase 2 automatically deactivates
+retired-reference matches. Operations only investigates when one of these automatic actions itself
+logs an `ERROR`.
 
 ### Residual risk: committed account merge can lose a post-commit effect
 
@@ -586,7 +594,10 @@ returns success because replaying the merge itself is impossible once the slave 
 The product-approved automatic retry remains, but only for conclusive evidence: preflight failure
 before any create call, or a classified definite create rejection or definitely non-dispatched
 create outcome. An ambiguous create or activation outcome stays non-retryable. Phase 1 listing
-matches are alert-only.
-Phase 1 listing misses are alert-only; keep the existing `requestReference`. Require the manual
-reconciliation procedure above. This prevents a non-authoritative listing miss from causing a second
-irreversible Bank Frick account.
+matches recover the existing external object (canonical winner only); they never issue a second
+create and never deactivate duplicates. Duplicate cleanup runs only via completed-intent cleanup
+against persisted `externalIban`. Phase 1 listing misses keep the existing `requestReference` during
+recovery and transition to terminal `Fallback` after 24 hours only after a successful, time-valid,
+fully validated listing in that run. Phase 2 then scans that retired reference indefinitely and
+automatically deactivates any delayed object. This prevents a non-authoritative listing miss from
+causing a second irreversible Bank Frick account without requiring routine manual reconciliation.
