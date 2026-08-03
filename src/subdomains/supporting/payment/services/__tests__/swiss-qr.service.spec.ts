@@ -43,9 +43,7 @@ describe('SwissQRService', () => {
     it('fails closed when countryCode is missing', () => {
       const withoutCountryCode = { ...frickBankInfo, countryCode: undefined } as BankInfoDto;
 
-      expect(() => service['getCreditor'](withoutCountryCode)).toThrow(
-        'Missing creditor address country code',
-      );
+      expect(() => service['getCreditor'](withoutCountryCode)).toThrow('Missing creditor address country code');
     });
 
     it('omits buildingNumber when number is undefined and sets it when present', () => {
