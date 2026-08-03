@@ -305,17 +305,15 @@ describe('MonitoringService', () => {
       };
 
       let idOneExists = false;
-      const managerFindOne = jest
-        .fn()
-        .mockImplementation((_entity: unknown, options: { where?: { id?: number } }) => {
-          if (options?.where?.id === 1) {
-            // Missing on the first ask; present once the wait on the old row is over.
-            return Promise.resolve(idOneExists ? { id: 1, data: JSON.stringify(seededById1) } : null);
-          }
-          // The lock on the old row is granted only after the other writer committed.
-          idOneExists = true;
-          return Promise.resolve({ id: 7, data: JSON.stringify(persisted) });
-        });
+      const managerFindOne = jest.fn().mockImplementation((_entity: unknown, options: { where?: { id?: number } }) => {
+        if (options?.where?.id === 1) {
+          // Missing on the first ask; present once the wait on the old row is over.
+          return Promise.resolve(idOneExists ? { id: 1, data: JSON.stringify(seededById1) } : null);
+        }
+        // The lock on the old row is granted only after the other writer committed.
+        idOneExists = true;
+        return Promise.resolve({ id: 7, data: JSON.stringify(persisted) });
+      });
 
       Object.defineProperty(repo, 'manager', {
         value: {
