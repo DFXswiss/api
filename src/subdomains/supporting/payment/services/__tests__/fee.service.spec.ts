@@ -167,7 +167,13 @@ describe('FeeService', () => {
       // Audit, usage counter and assignment share one transaction; run the callback with a manager
       // the assertions can inspect.
       manager = mock<EntityManager>();
-      (feeRepo.manager as any) = { transaction: jest.fn((cb: any) => cb(manager)) };
+      // `manager` is read-only on the repository, so it has to be defined rather than assigned.
+      Object.defineProperty(feeRepo, 'manager', {
+        value: {
+          transaction: jest.fn(async (run: (transactionManager: EntityManager) => Promise<void>) => run(manager)),
+        },
+        configurable: true,
+      });
     });
 
     it('swaps the fee the account already carries in a single write', async () => {
@@ -273,6 +279,9 @@ describe('FeeService', () => {
         expect.objectContaining({ where: expect.objectContaining({ specialCode: Not(IsNull()) }) }),
       );
       expect(feeRepo.create).toHaveBeenCalledWith(expect.objectContaining({ createSpecialCode: true }));
+      // The column defaults to 1, and the blockchain factors of all additive fees are summed into
+      // the network fee - a flat CHF surcharge must leave it alone.
+      expect(feeRepo.create).toHaveBeenCalledWith(expect.objectContaining({ blockchainFactor: 0 }));
       // Nothing enforces a single use, so the label must not claim one.
       expect(feeRepo.create).toHaveBeenCalledWith(expect.objectContaining({ label: 'Onboarding Fixed 6200' }));
     });

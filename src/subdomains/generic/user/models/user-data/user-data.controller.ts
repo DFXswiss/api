@@ -147,8 +147,9 @@ export class UserDataController {
 
   // --- ONBOARDING FEE --- //
 
-  // Sets the one-off fixed onboarding amount of an account: the fee is created on first use of an
-  // amount and reused afterwards, and it replaces an onboarding fee the account already carries.
+  // Sets the flat onboarding surcharge of an account: the fee is created on first use of an amount
+  // and reused afterwards, and it replaces the surcharge the account already carries. It stays in
+  // effect until it is removed.
   @Put(':id/onboardingFee')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

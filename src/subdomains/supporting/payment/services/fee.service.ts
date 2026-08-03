@@ -88,6 +88,9 @@ const OnboardingFeeShape = {
   type: FeeType.ADDITION,
   rate: 0,
   fixed: MoreThan(0),
+  // The blockchain factors of all additive fees are summed into the network fee. A surcharge that
+  // is meant to be a flat CHF amount must not move it, and the column defaults to 1.
+  blockchainFactor: 0,
   specialCode: Not(IsNull()),
   accountType: IsNull(),
   wallet: IsNull(),
@@ -335,6 +338,7 @@ export class FeeService {
         type: FeeType.ADDITION,
         rate: 0,
         fixed: amount,
+        blockchainFactor: 0,
         createSpecialCode: true,
       }),
     );
