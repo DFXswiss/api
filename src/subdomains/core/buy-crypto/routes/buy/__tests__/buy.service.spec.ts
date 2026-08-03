@@ -1154,11 +1154,9 @@ describe('BuyService', () => {
       jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
 
       await expect(
-        service.getBankInfo(
-          { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData },
-          buy,
-          { name: 'BTC' } as Asset,
-        ),
+        service.getBankInfo({ currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData }, buy, {
+          name: 'BTC',
+        } as Asset),
       ).rejects.toThrow(QuoteError.KYC_REQUIRED);
     });
 
