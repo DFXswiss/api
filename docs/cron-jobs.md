@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **132 `@DfxCron` declarations** across 92 files and 33 areas.
+Every scheduled job this service runs: **134 `@DfxCron` declarations** across 94 files and 34 areas.
 
 ## Columns
 
@@ -13,7 +13,7 @@ Every scheduled job this service runs: **132 `@DfxCron` declarations** across 92
 
 ## Flags
 
-111 of the 132 jobs carry a `process` flag, 21 do not. A job with a flag can be switched off
+116 of the 134 jobs carry a `process` flag, 18 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -21,18 +21,15 @@ environment variable every 30 seconds.
 A job **without** a flag runs unconditionally. That is deliberate for three of them — the
 `ProcessService::resync*` jobs maintain the disabled set and the JWT denylists themselves, so
 making them switchable would let a configuration change disable the mechanism that reads
-configuration changes. For the remaining 18 it is simply an omission:
+configuration changes. For the remaining 15 it is simply an omission:
 
 | Job | Interval |
 | --- | --- |
-| `DexService::finalizePurchaseOrders` | 30 seconds |
 | `ExchangeController::checkTrades` | 30 seconds |
 | `AuthService::checkLists` | minute |
-| `JwtRevocationSyncService::syncDeniedJwtAccounts` | minute |
 | `TransactionController::checkLists` | minute |
 | `UserDataService::processCleanupMailSecretCache` | minute |
 | `TransactionHelper::updateCache` | 5 minutes |
-| `RefService::checkRefs` | hour |
 | `BuyService` / `SellService` / `SwapService` / `UserService` / `UserDataService` `::resetMonthlyVolumes` | 1st of month |
 | `BuyService` / `SellService` / `SwapService` / `UserService` / `UserDataService` `::resetAnnualVolumes` | year |
 
@@ -45,10 +42,11 @@ New jobs should declare a flag unless there is a reason like the one above.
 | second | 5 |
 | 10 seconds | 3 |
 | 30 seconds | 8 |
-| minute | 50 |
+| minute | 51 |
 | 5 minutes | 17 |
 | 10 minutes | 15 |
 | hour | 16 |
+| day at 3am | 1 |
 | day at 4am | 3 |
 | day at 5am | 1 |
 | day at 6am | 1 |
@@ -62,13 +60,14 @@ Jobs by area:
 
 | Area | Jobs | Without flag |
 | ---- | ---: | -----------: |
-| `subdomains/generic/user` | 15 | 7 |
+| `subdomains/generic/user` | 15 | 6 |
 | `subdomains/core/monitoring` | 14 | — |
 | `subdomains/core/accounting` | 13 | — |
 | `subdomains/supporting/payin` | 12 | — |
 | `integration/blockchain` | 6 | — |
 | `subdomains/core/buy-crypto` | 6 | 4 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
+| `subdomains/supporting/payment` | 5 | 1 |
 | `subdomains/core/payment-link` | 4 | — |
 | `subdomains/generic/kyc` | 4 | — |
 | `subdomains/supporting/bank-tx` | 4 | — |
@@ -77,9 +76,8 @@ Jobs by area:
 | `subdomains/supporting/support-issue` | 4 | — |
 | `shared` | 3 | 3 |
 | `subdomains/core/liquidity-management` | 3 | — |
-| `subdomains/core/referral` | 3 | 1 |
+| `subdomains/core/referral` | 3 | — |
 | `subdomains/core/trading` | 3 | — |
-| `subdomains/supporting/payment` | 3 | 1 |
 | `subdomains/supporting/pricing` | 3 | — |
 | `integration/exchange` | 2 | 1 |
 | `subdomains/core/custody` | 2 | — |
@@ -91,16 +89,17 @@ Jobs by area:
 | `subdomains/core/history` | 1 | 1 |
 | `subdomains/core/statistic` | 1 | — |
 | `subdomains/generic/admin` | 1 | — |
-| `subdomains/supporting/dex` | 1 | 1 |
+| `subdomains/supporting/dashboard` | 1 | — |
+| `subdomains/supporting/dex` | 1 | — |
 | `subdomains/supporting/fiat-payin` | 1 | — |
 | `subdomains/supporting/notification` | 1 | — |
-| `subdomains/supporting/payout` | 2 | — |
+| `subdomains/supporting/payout` | 1 | — |
 
 ## How this list is produced
 
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
-scan, so multi-line declarations are included — a line-based match misses four of them. The parsed
-count is asserted against a raw text count of the decorator: **132 = 132**, no gap. Class and
+scan, so multi-line declarations are included — a line-based match misses 26 of them. The parsed
+count is asserted against a raw text count of the decorator: **134 = 134**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -126,7 +125,7 @@ the interval while running as an independent timer with its own lock.
 | 10 seconds | `MONITOR_EVENT_LOOP` | `MonitorEventLoopService::monitorEventLoop` | `subdomains/core/monitoring/monitor-event-loop.service.ts` |
 | 30 seconds | `LNURL_AUTH_CACHE` | `AuthLnUrlService::processCleanupAccessToken` | `subdomains/generic/user/models/auth/auth-lnurl.service.ts` |
 | 30 seconds | `BANK_TX` | `BankTxService::checkBankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts` |
-| 30 seconds | — | `DexService::finalizePurchaseOrders` | `subdomains/supporting/dex/services/dex.service.ts` |
+| 30 seconds | `DEX_PURCHASE_ORDER` | `DexService::finalizePurchaseOrders` | `subdomains/supporting/dex/services/dex.service.ts` |
 | 30 seconds | — | `ExchangeController::checkTrades` | `integration/exchange/controllers/exchange.controller.ts` |
 | 30 seconds | `PAY_OUT` | `PayoutService::processOrders` | `subdomains/supporting/payout/services/payout.service.ts` |
 | 30 seconds | — | `ProcessService::resyncDeniedJwtAccounts` | `shared/services/process.service.ts` |
@@ -146,10 +145,11 @@ the interval while running as an independent timer with its own lock.
 | minute | `MONITORING` | `CheckoutObserver::fetch` | `subdomains/core/monitoring/observers/checkout.observer.ts` |
 | minute | `PAY_IN` | `CitreaBaseStrategy::checkPayInEntries` | `subdomains/supporting/payin/strategies/register/impl/base/citrea.strategy.ts` |
 | minute | `CUSTODY` | `CustodyJobService::handleOrders` | `subdomains/core/custody/services/custody-job.service.ts` |
+| minute | `LATEST_BALANCE_CACHE` | `DashboardFinancialService::refreshLatestBalance` | `subdomains/supporting/dashboard/dashboard-financial.service.ts` |
 | minute | `FIAT_OUTPUT` | `FiatOutputJobService::fillFiatOutput` | `subdomains/supporting/fiat-output/fiat-output-job.service.ts` |
 | minute | `FIAT_PAY_IN` | `FiatPayInSyncService::syncCheckout` | `subdomains/supporting/fiat-payin/services/fiat-payin-sync.service.ts` |
 | minute | `PAY_IN` | `InternetComputerStrategy::checkPayInEntries` | `subdomains/supporting/payin/strategies/register/impl/icp.strategy.ts` |
-| minute | — | `JwtRevocationSyncService::syncDeniedJwtAccounts` | `subdomains/generic/user/models/user-data/jwt-revocation-sync.service.ts` |
+| minute | `JWT_REVOCATION_SYNC` | `JwtRevocationSyncService::syncDeniedJwtAccounts` | `subdomains/generic/user/models/user-data/jwt-revocation-sync.service.ts` |
 | minute | `KYC` | `KycService::reviewKycSteps` | `subdomains/generic/kyc/services/kyc.service.ts` |
 | minute | `LEDGER_BOOKING_BANK_TX` | `LedgerBookingJobService::runBankTx` | `subdomains/core/accounting/services/ledger-booking-job.service.ts` |
 | minute | `LEDGER_BOOKING_BUY_CRYPTO` | `LedgerBookingJobService::runBuyCrypto` | `subdomains/core/accounting/services/ledger-booking-job.service.ts` |
@@ -171,7 +171,6 @@ the interval while running as an independent timer with its own lock.
 | minute | `PAYMENT_CONFIRMATIONS` | `PaymentCronService::checkTxConfirmations` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `PAYMENT_EXPIRATION` | `PaymentCronService::processExpiredPayments` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `UPDATE_BLOCKCHAIN_FEE` | `PaymentLinkFeeService::updateFees` | `subdomains/core/payment-link/services/payment-link-fee.service.ts` |
-| minute | `MONITORING` | `PayoutService::logUncertainOrdersSnapshot` | `subdomains/supporting/payout/services/payout.service.ts` |
 | minute | `REALUNIT_QUOTE_COMPLETION` | `RealUnitJobService::completeSettledQuotes` | `subdomains/supporting/realunit/realunit-job.service.ts` |
 | minute | `SUPPORT_BOT` | `SupportIssueJobService::sendAutoResponses` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts` |
 | minute | `TFA_CACHE` | `TfaService::processCleanupSecretCache` | `subdomains/generic/kyc/services/tfa.service.ts` |
@@ -179,6 +178,7 @@ the interval while running as an independent timer with its own lock.
 | minute | `TRADING` | `TradingJobService::processRules` | `subdomains/core/trading/services/trading-job.service.ts` |
 | minute | — | `TransactionController::checkLists` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | minute | `TX_MAIL` | `TransactionNotificationService::sendNotificationMails` | `subdomains/supporting/payment/services/transaction-notification.service.ts` |
+| minute | `TX_REQUEST` | `TransactionRequestService::txRequestStatusSync` | `subdomains/supporting/payment/services/transaction-request.service.ts` |
 | minute | `USER_DATA` | `UserDataJobService::fillUserData` | `subdomains/generic/user/models/user-data/user-data-job.service.ts` |
 | minute | — | `UserDataService::processCleanupMailSecretCache` | `subdomains/generic/user/models/user-data/user-data.service.ts` |
 | minute | `USER` | `UserJobService::fillUser` | `subdomains/generic/user/models/user/user-job.service.ts` |
@@ -225,11 +225,12 @@ the interval while running as an independent timer with its own lock.
 | hour | `PRICING` | `FiatPricesService::updatePrices` | `subdomains/supporting/pricing/services/fiat-prices.service.ts` |
 | hour | `KYC_MAIL` | `KycNotificationService::sendNotificationMails` | `subdomains/generic/kyc/services/kyc-notification.service.ts` |
 | hour | `PAYMENT_FORWARDING` | `PaymentCronService::forwardDeposits` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
-| hour | — | `RefService::checkRefs` | `subdomains/core/referral/process/ref.service.ts` |
+| hour | `REF_CLEANUP` | `RefService::checkRefs` | `subdomains/core/referral/process/ref.service.ts` |
 | hour | `UPDATE_STATISTIC` | `StatisticService::doUpdate` | `subdomains/core/statistic/statistic.service.ts` |
 | hour | `SUPPORT_BOT` | `SupportIssueJobService::autoOnHold` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts` |
 | hour | `BLACK_SQUAD_MAIL` | `UserDataNotificationService::sendNotificationMails` | `subdomains/generic/user/models/user-data/user-data-notification.service.ts` |
 | hour | `VIRTUAL_IBAN_FRICK_ISSUANCE_RECONCILIATION` | `VirtualIbanFrickIssuanceReconciliationService::reconcileRetiredIssuanceReferences` | `subdomains/supporting/bank/virtual-iban/virtual-iban-frick-issuance-reconciliation.service.ts` |
+| day at 3am | `TX_REQUEST_WAITING_EXPIRY` | `TransactionRequestService::txRequestWaitingExpiryCheck` | `subdomains/supporting/payment/services/transaction-request.service.ts` |
 | day at 4am | `CUSTODY` | `CustodyJobService::resetExpiredConfirmedOrders` | `subdomains/core/custody/services/custody-job.service.ts` |
 | day at 4am | `KYC` | `KycService::checkIdentSteps` | `subdomains/generic/kyc/services/kyc.service.ts` |
 | day at 4am | `LEDGER_MARK_TO_MARKET` | `LedgerMarkToMarketService::run` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts` |
