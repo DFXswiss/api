@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **140 `@DfxCron` declarations** across 98 files and 34 areas.
+Every scheduled job this service runs: **141 `@DfxCron` declarations** across 98 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **140 `@DfxCron` declarations** across 98
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-119 are `worker`, 5 are `api`, 16 are `both`. `CRON_ROLE` decides what a process is
+119 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -31,7 +31,7 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-116 of the 140 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
+117 of the 141 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -73,7 +73,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | 10 seconds | 3 |
 | 15 seconds | 1 |
 | 30 seconds | 10 |
-| minute | 52 |
+| minute | 53 |
 | 5 minutes | 18 |
 | 10 minutes | 16 |
 | hour | 16 |
@@ -124,14 +124,14 @@ Jobs by area:
 | `subdomains/supporting/dex` | 1 | — |
 | `subdomains/supporting/fiat-payin` | 1 | — |
 | `subdomains/supporting/notification` | 1 | — |
-| `subdomains/supporting/payout` | 1 | — |
+| `subdomains/supporting/payout` | 2 | — |
 
 ## How this list is produced
 
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses 27 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **140 = 140**, no gap. Class and
+count is asserted against a raw text count of the decorator: **141 = 141**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -155,7 +155,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 140 declarations, 139 have a registration path.
+here rather than fixed in passing. Of the 141 declarations, 140 have a registration path.
 
 ## Jobs
 
@@ -220,6 +220,7 @@ here rather than fixed in passing. Of the 140 declarations, 139 have a registrat
 | minute | `PAYMENT_CONFIRMATIONS` | `worker` | `PaymentCronService::checkTxConfirmations` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `PAYMENT_EXPIRATION` | `worker` | `PaymentCronService::processExpiredPayments` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | minute | `UPDATE_BLOCKCHAIN_FEE` | `api` | `PaymentLinkFeeService::updateFees` | `subdomains/core/payment-link/services/payment-link-fee.service.ts` |
+| minute | `MONITORING` | `both` | `PayoutService::logUncertainOrdersSnapshot` | `subdomains/supporting/payout/services/payout.service.ts` |
 | minute | `REALUNIT_QUOTE_COMPLETION` | `worker` | `RealUnitJobService::completeSettledQuotes` | `subdomains/supporting/realunit/realunit-job.service.ts` |
 | minute | — | `worker` | `StaffKycClearanceService::syncStaffKycClearance` | `subdomains/generic/user/models/user/staff-kyc-clearance.service.ts` |
 | minute | `SUPPORT_BOT` | `worker` | `SupportIssueJobService::sendAutoResponses` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts` |
