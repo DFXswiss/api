@@ -507,6 +507,23 @@ export class BuyService {
       return this.collectionAccountOrThrow(selector, buy);
     }
 
+    // RealUnit buys settle on RealUnit's own bank account: the RealUnit quote path replaces the
+    // recipient and IBAN with the RealUnit company account and DFX never receives the transfer, so
+    // no DFX deposit IBAN is involved. The personal-IBAN policy (bank transfer => personal IBAN =>
+    // KYC 50) must not apply here - RealUnit's own gate is KYC level 30 (realunit.service.ts).
+    // On this implicit resolution path, resolve the plain attribution bank without issuing a vIBAN
+    // as a side effect of a REALU quote.
+    if (asset?.name === 'REALU') {
+      const bank = await this.bankService.getBank(selector);
+      if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
+
+      return {
+        bankInfo: this.buildBankResponse(bank, buy?.bankUsage),
+        bankId: bank.id,
+        bankName: bank.name,
+      };
+    }
+
     // CARD keeps the same active-vIBAN lookups as BANK so an existing personal IBAN remains visible,
     // but it must never issue a new one because card payments use a payment link instead of a deposit IBAN.
     // asset-specific personal IBAN. Deliberately not for EUR: buy-specific issuance runs through the
