@@ -125,7 +125,10 @@ export class FiatOutputService {
       entity.bank = bank;
     }
 
-    if (entity.isInstant && (entity.currency !== 'EUR' || entity.bank?.name !== IbanBankName.FRICK)) {
+    if (
+      entity.isInstant &&
+      (entity.currency !== 'EUR' || entity.bank?.name !== IbanBankName.FRICK || entity.bank?.currency !== 'EUR')
+    ) {
       throw new BadRequestException('Instant requires an explicitly assigned Bank Frick EUR output');
     }
 

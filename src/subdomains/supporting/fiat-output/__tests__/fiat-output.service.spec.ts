@@ -202,6 +202,20 @@ describe('FiatOutputService', () => {
       expect(fiatOutputRepo.save).not.toHaveBeenCalled();
     });
 
+    it('rejects isInstant true for EUR currency with frickCHF bank', async () => {
+      const dto: CreateFiatOutputDto = {
+        ...baseDto,
+        isInstant: true,
+        currency: 'EUR',
+        accountIban: frickCHF.iban,
+      };
+      mockCreateFromObject();
+      bankService.getBankByIban.mockResolvedValue(frickCHF);
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      expect(fiatOutputRepo.save).not.toHaveBeenCalled();
+    });
+
     it('rejects isInstant true for olkyEUR', async () => {
       const dto: CreateFiatOutputDto = { ...baseDto, isInstant: true, accountIban: olkyEUR.iban };
       mockCreateFromObject();
