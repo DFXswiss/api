@@ -60,6 +60,8 @@ export enum PayInType {
 
 @Entity()
 @Index((i: CryptoInput) => [i.inTxId, i.asset, i.address.address, i.address.blockchain], { unique: true })
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((i: CryptoInput) => [i.updated, i.id])
 export class CryptoInput extends IEntity {
   @Column({ nullable: true })
   status?: PayInStatus;

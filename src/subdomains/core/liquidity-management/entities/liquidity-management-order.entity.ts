@@ -145,6 +145,8 @@ const VENUE_INTERNAL_ACTIONS = [
 const VENUE_SELF_RESOLVING_TRANSFERS = [`${LiquidityManagementSystem.SCRYPT}/withdraw`.toLowerCase()];
 
 @Entity()
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((o: LiquidityManagementOrder) => [o.updated, o.id])
 export class LiquidityManagementOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   status: LiquidityManagementOrderStatus;

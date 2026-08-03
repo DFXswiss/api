@@ -35,6 +35,8 @@ import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-pay
 import { Sell } from '../route/sell.entity';
 
 @Entity()
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((b: BuyFiat) => [b.updated, b.id])
 export class BuyFiat extends IEntity {
   // References
   @OneToOne(() => CryptoInput, { nullable: false })
