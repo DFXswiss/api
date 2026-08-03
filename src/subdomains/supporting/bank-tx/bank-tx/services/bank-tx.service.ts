@@ -67,6 +67,7 @@ import {
   BankTxTypeCompleted,
   BankTxTypeUnassigned,
   BankTxUnassignedTypes,
+  INTERNAL_TRANSFER_SETTLEMENT_DAYS,
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
@@ -572,7 +573,23 @@ export class BankTxService implements OnModuleInit {
   }
 
   async getRecentInternalTx(): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy({ type: BankTxType.INTERNAL, id: MoreThan(130100) });
+    const bankIbans = new Set(
+      (await this.bankService.getAllBanks())
+        .map((bank) => BankService.normalizeIban(bank.iban))
+        .filter((iban): iban is string => iban != null),
+    );
+    if (!bankIbans.size) throw new Error('No configured bank IBANs available for internal transfer tracking');
+
+    const transactions = await this.bankTxRepo.findBy({
+      type: BankTxType.INTERNAL,
+      created: MoreThan(Util.daysBefore(INTERNAL_TRANSFER_SETTLEMENT_DAYS)),
+    });
+
+    return transactions.filter((tx) => {
+      const sourceIban = BankService.normalizeIban(tx.accountIban);
+      const targetIban = BankService.normalizeIban(tx.iban);
+      return Boolean(sourceIban && targetIban && bankIbans.has(sourceIban) && bankIbans.has(targetIban));
+    });
   }
 
   async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {

@@ -21,6 +21,8 @@ import { BankTxRepeat } from '../../bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../../bank-tx-return/bank-tx-return.entity';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
+export const INTERNAL_TRANSFER_SETTLEMENT_DAYS = 21;
+
 export enum BankTxType {
   INTERNAL = 'Internal',
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',

@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { MoreThan } from 'typeorm';
 import { ConfigService } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
@@ -112,6 +113,8 @@ describe('BankTxService', () => {
       fiatService,
     );
   });
+
+  afterEach(() => jest.useRealTimers());
 
   function chainableQb(): any {
     const qb: any = {
@@ -257,6 +260,33 @@ describe('BankTxService', () => {
     (pricingService.getPrice as jest.Mock).mockRejectedValue(new Error('No valid price'));
 
     await expect(service.getBankTxFee(from)).rejects.toThrow();
+  });
+
+  describe('#getRecentInternalTx(...)', () => {
+    it('loads only the settlement window and keeps transfers between configured bank IBANs', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-08-03T12:00:00.000Z'));
+      (bankService.getAllBanks as jest.Mock).mockResolvedValue([{ iban: 'OLKY IBAN' }, { iban: 'FRICK-IBAN' }]);
+      const internal = createCustomBankTx({ accountIban: 'olkyiban', iban: 'frick iban' });
+      const external = createCustomBankTx({ accountIban: 'OLKY IBAN', iban: 'EXTERNAL-IBAN' });
+      (bankTxRepo.findBy as jest.Mock).mockResolvedValue([internal, external]);
+
+      await expect(service.getRecentInternalTx()).resolves.toEqual([internal]);
+
+      expect(bankTxRepo.findBy).toHaveBeenCalledWith({
+        type: BankTxType.INTERNAL,
+        created: MoreThan(new Date('2026-07-13T12:00:00.000Z')),
+      });
+    });
+
+    it('fails loud instead of dropping pending transfers when no bank IBAN is configured', async () => {
+      (bankService.getAllBanks as jest.Mock).mockResolvedValue([]);
+
+      await expect(service.getRecentInternalTx()).rejects.toThrow(
+        'No configured bank IBANs available for internal transfer tracking',
+      );
+
+      expect(bankTxRepo.findBy).not.toHaveBeenCalled();
+    });
   });
 
   describe('#getType(...)', () => {
