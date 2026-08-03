@@ -370,6 +370,26 @@ describe('DashboardFinancialService', () => {
       expect(getLatestFinancialLogSpy).toHaveBeenCalledTimes(1);
     });
 
+    it('runs one load for the requests that arrive together on an empty store', async () => {
+      // The state a deploy leaves behind: every process starts with an empty store, so the requests
+      // that arrive first all miss it at once. They join the load already running instead of each
+      // starting an aggregation of their own — the property this read depends on and does not
+      // implement itself, so it is asserted here rather than assumed.
+      let load: (log: Log) => void;
+      const getLatestFinancialLogSpy = jest
+        .spyOn(logService, 'getLatestFinancialLog')
+        .mockReturnValue(new Promise<Log>((resolve) => (load = resolve)));
+
+      const first = service.getLatestBalance();
+      const second = service.getLatestBalance();
+
+      load(logEntry());
+
+      await expect(first).resolves.toMatchObject({ timestamp: new Date('2026-07-14T12:00:00Z') });
+      await expect(second).resolves.toMatchObject({ timestamp: new Date('2026-07-14T12:00:00Z') });
+      expect(getLatestFinancialLogSpy).toHaveBeenCalledTimes(1);
+    });
+
     it('serves the aggregate it holds when a later load fails', async () => {
       jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(logEntry());
       const loaded = await service.getLatestBalance();

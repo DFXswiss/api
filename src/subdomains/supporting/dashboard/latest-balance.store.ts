@@ -27,6 +27,10 @@ export class LatestBalanceStore {
    * Serves the entry, loading it through `load` when there is none or it has aged out. A failing
    * load leaves whatever is there in place and is not raised at the request: an aggregate a minute
    * older answers better than an error, and the refresh below is what reports the failure.
+   *
+   * Requests that miss together share the one load: `AsyncCache` keeps the running update on the
+   * entry and hands it to everyone who asks while it is in flight. That is what a restart depends
+   * on — the store starts empty in every process, so the requests arriving first all miss at once.
    */
   async get(load: () => Promise<LatestBalanceResponseDto | undefined>): Promise<LatestBalanceResponseDto | undefined> {
     return this.cache.get(LATEST_BALANCE_KEY, load, undefined, true);
