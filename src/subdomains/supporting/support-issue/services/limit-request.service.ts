@@ -81,8 +81,12 @@ export class LimitRequestService {
       if (grantedDepositLimit != null && !LimitRequestAccepted(update.decision))
         throw new BadRequestException('grantedDepositLimit is only allowed on a granting decision');
 
-      if (grantedDepositLimit != null && LimitRequestAccepted(update.decision))
+      if (grantedDepositLimit != null && LimitRequestAccepted(update.decision)) {
         await manager.update(UserData, entity.userData.id, { depositLimit: grantedDepositLimit });
+        // The webhook after the commit serializes the trading limit from this very object — keep it in
+        // sync with the value just written, or the webhook would carry the pre-decision limit.
+        entity.userData.depositLimit = grantedDepositLimit;
+      }
 
       if (update.decision !== entity.decision && LimitRequestFinal(update.decision)) {
         await manager.update(SupportIssue, entity.supportIssue.id, { state: SupportIssueInternalState.COMPLETED });

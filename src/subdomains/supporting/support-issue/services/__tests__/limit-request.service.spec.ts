@@ -97,6 +97,8 @@ describe('LimitRequestService.updateLimitRequest', () => {
     await service.updateLimitRequest(1, dto);
 
     expect(mockManager.update).toHaveBeenCalledWith(UserData, USER_DATA_ID, { depositLimit: 5000 });
+    // The webhook must carry the limit that was just written, not the pre-decision in-memory state.
+    expect(webhookService.kycChanged).toHaveBeenCalledWith(expect.objectContaining({ depositLimit: 5000 }));
 
     const savedArg = mockManager.save.mock.calls[0][1] as Record<string, unknown>;
     expect(savedArg).not.toHaveProperty('grantedDepositLimit');
