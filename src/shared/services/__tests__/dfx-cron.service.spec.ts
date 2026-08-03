@@ -46,7 +46,12 @@ function buildService(providers: { instance: object }[]): {
           ? Object.getOwnPropertyNames(proto).filter((name) => name !== 'constructor')
           : [];
 
-      return [...Object.keys(instance), ...inherited];
+      // Methods only, like the real scanner. Own keys of a service instance are its injected
+      // dependencies and fields — handing those to the caller makes it read metadata off a number,
+      // which throws rather than returning undefined.
+      return [...Object.keys(instance), ...inherited].filter(
+        (name) => typeof (instance as Record<string, unknown>)[name] === 'function',
+      );
     },
   });
   const scheduler = createMock<SchedulerRegistry>();
