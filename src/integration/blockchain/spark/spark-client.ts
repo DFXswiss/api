@@ -226,6 +226,11 @@ export class SparkClient extends BlockchainClient {
   }
 
   private startTokenOptimization(): void {
+    // On-chain wallet maintenance is global work: it must run on exactly one instance.
+    // This timer predates the scheduler and bypasses it, so an HTTP-only instance would
+    // otherwise drive optimizeTokenOutputs against the same seed as the job instance.
+    if (!GetConfig().cronJobsEnabled) return;
+
     if (this.tokenOptimizationInterval) clearInterval(this.tokenOptimizationInterval);
 
     const intervalMs = 5 * 60 * 1000; // 5 minutes
