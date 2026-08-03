@@ -282,7 +282,8 @@ export class FeeService {
 
     const fee = await this.getOrCreateOnboardingFee(amount);
     const assignedFees = await this.getOnboardingFees(userData);
-    if (assignedFees.length === 1 && assignedFees[0].id === fee.id) return;
+    const isAlreadyAssigned = assignedFees.some((f) => f.id === fee.id);
+    if (assignedFees.length === 1 && isAlreadyAssigned) return;
 
     fee.verifyForUser(userData.accountType, userData.wallet, userData.id);
 
@@ -291,7 +292,8 @@ export class FeeService {
     await this.feeRepo.manager.transaction(async (manager) => {
       await this.userDataService.createOnboardingFeeLog(userData, assignedFees, fee, manager);
 
-      await manager.update(Fee, ...fee.increaseUsage(userData.accountType));
+      // Only a fee that was not on the account before is a new usage.
+      if (!isAlreadyAssigned) await manager.update(Fee, ...fee.increaseUsage(userData.accountType));
 
       // One write, not remove-then-add: a partial run would either leave the account without a fee
       // or with two, and two additive fixed fees are charged as their sum
@@ -321,15 +323,30 @@ export class FeeService {
     });
   }
 
-  // What has to be replaced is wider than what may be created: every additive fee with a fixed
-  // amount contributes to `combinedExtraFixedFee`, whatever else it is restricted to. Matching only
-  // the strict shape here would leave a restricted flat fee assigned next to the new one, and the
-  // customer would be charged the sum of both.
+  // Every additive fee with a fixed amount contributes to `combinedExtraFixedFee`, so leaving one
+  // in place next to a new one charges the customer the sum of both. Replacing it blindly is just
+  // as wrong: a fee that also carries a rate or a blockchain factor does more than the flat
+  // surcharge this operation owns, and a fee without a special code applies to every user anyway,
+  // so dropping it from this account changes nothing while reporting success.
+  //
+  // Hence: what is purely flat and account-bound gets replaced, and anything else that contributes
+  // a fixed amount is reported instead of being touched. Restrictions (asset, bank, volume, …) do
+  // not matter here - a restricted flat fee is still a flat fee on this account.
   private async getOnboardingFees(userData: UserData): Promise<Fee[]> {
     const feeIds = userData.individualFeeList;
     if (!feeIds?.length) return [];
 
-    return this.feeRepo.findBy({ type: FeeType.ADDITION, fixed: MoreThan(0), id: In(feeIds) });
+    const fixedFees = await this.feeRepo.findBy({ type: FeeType.ADDITION, fixed: MoreThan(0), id: In(feeIds) });
+
+    const foreignFees = fixedFees.filter((f) => f.rate !== 0 || f.blockchainFactor !== 0 || !f.specialCode);
+    if (foreignFees.length)
+      throw new ConflictException(
+        `Account carries a fixed fee that is not a plain flat surcharge (fee ${foreignFees
+          .map((f) => f.id)
+          .join(', ')}) - resolve it before setting an onboarding fee`,
+      );
+
+    return fixedFees;
   }
 
   private async getOrCreateOnboardingFee(amount: number): Promise<Fee> {

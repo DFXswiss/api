@@ -150,7 +150,16 @@ describe('FeeService', () => {
 
   describe('onboarding fee', () => {
     const onboardingFee = (id: number | undefined, fixed: number): Fee =>
-      Object.assign(new Fee(), { id, fixed, rate: 0, type: FeeType.ADDITION, active: true, usages: 0 });
+      Object.assign(new Fee(), {
+        id,
+        fixed,
+        rate: 0,
+        blockchainFactor: 0,
+        specialCode: 'ABCD-1234-EF56',
+        type: FeeType.ADDITION,
+        active: true,
+        usages: 0,
+      });
 
     const accountWith = (feeIds: number[]): UserData =>
       Object.assign(new UserData(), {
@@ -297,7 +306,31 @@ describe('FeeService', () => {
       expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [92], 70, manager);
       const where = feeRepo.findBy.mock.calls[0][0] as Record<string, unknown>;
       expect(where).not.toHaveProperty('assets');
-      expect(where).not.toHaveProperty('specialCode');
+    });
+
+    it.each([
+      ['a rate on top of the fixed amount', { rate: 0.5 }],
+      ['a blockchain factor', { blockchainFactor: 1 }],
+      ['no special code, so it applies to everyone anyway', { specialCode: undefined }],
+    ])('refuses to touch a fixed fee that is not a plain flat surcharge (%s)', async (_name, overrides) => {
+      feeRepo.findOne.mockResolvedValue(onboardingFee(70, 800));
+      feeRepo.findBy.mockResolvedValue([Object.assign(onboardingFee(92, 5000), overrides)]);
+
+      await expect(service.setOnboardingFee(accountWith([92]), 800)).rejects.toThrow(ConflictException);
+
+      expect(userDataService.replaceFee).not.toHaveBeenCalled();
+    });
+
+    it('does not count a usage when the account already carries the target fee', async () => {
+      const target = onboardingFee(70, 800);
+      feeRepo.findOne.mockResolvedValue(target);
+      feeRepo.findBy.mockResolvedValue([target, onboardingFee(92, 5000)]);
+
+      await service.setOnboardingFee(accountWith([70, 92]), 800);
+
+      // The fee stays assigned, so nothing was newly taken up - but the extra flat fee goes.
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(userDataService.replaceFee).toHaveBeenCalledWith(expect.anything(), [70, 92], 70, manager);
     });
 
     it('names the blocking fee when a deactivated one occupies the label', async () => {
